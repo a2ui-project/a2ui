@@ -176,7 +176,10 @@ def test_converter_class_convert_text_with_a2ui_v0_9_1():
     valid_a2ui = [
         {
             "version": "v0.9.1",
-            "createSurface": {"surfaceId": "main", "catalogId": catalog.catalog_id},
+            "createSurface": {
+                "surfaceId": "main",
+                "catalogId": catalog.catalog_id,
+            },
         },
         {
             "version": "v0.9.1",
@@ -387,7 +390,10 @@ def test_converter_reads_text_in_the_processors_format():
         create_a2ui_part(
             {
                 "version": "v0.9",
-                "createSurface": {"surfaceId": "main", "catalogId": catalog.catalog_id},
+                "createSurface": {
+                    "surfaceId": "main",
+                    "catalogId": catalog.catalog_id,
+                },
             },
             version=ProtocolVersion.V0_9,
         ),
@@ -411,7 +417,7 @@ def test_converter_labels_each_part_with_its_messages_version():
     converter = _converter(catalog)
 
     valid_a2ui = {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {"surfaceId": "main", "catalogId": catalog.catalog_id},
     }
     function_response = genai_types.FunctionResponse(

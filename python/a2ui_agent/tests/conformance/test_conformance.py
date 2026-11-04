@@ -30,6 +30,7 @@ from a2ui.core import A2uiIntegrityError
 from a2ui.core import A2uiParseError
 from a2ui.core import A2uiRecursionError
 from a2ui.core import A2uiValidationError
+from a2ui.core.common import to_protocol_version
 from a2ui.inference_formats import DirectJsonFormat
 from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats import to_message_models
@@ -38,6 +39,7 @@ from a2ui.inference_formats.experimental.elemental import ElementalFormat
 from a2ui.inference_formats.express import ExpressFormat
 from a2ui.parser import A2uiCompilationError
 from a2ui.parser import A2uiPart
+from a2ui.parser import ErrorPart
 from a2ui.parser import RawA2uiPart
 from a2ui.parser import RawResponsePart
 from a2ui.parser import TextPart
@@ -59,23 +61,10 @@ CATEGORY_TO_EXCEPTION = {
 }
 
 # Set of A2UI specification versions supported by this Python Agent SDK conformance harness.
-SUPPORTED_PROTOCOL_VERSIONS = {"v0.8", "v0.9", "v1.0"}
+SUPPORTED_PROTOCOL_VERSIONS = {"v0.8", "v0.9", "1.0"}
 
 # Transition skip list containing specific test case names to skip during active feature transitions.
-SKIP_TEST_NAMES: set[str] = {
-    # partial_results, after_rejected_block and is_in_block on a response
-    # stream, which this SDK does not implement yet:
-    # https://github.com/a2ui-project/a2ui/issues/3699
-    "test_chunk_error_carries_the_text_before_the_failing_block",
-    "test_chunk_error_carries_a_block_finished_in_the_same_chunk",
-    "test_chunk_continue_returns_an_error_part_for_an_unreadable_block",
-    "test_chunk_continue_takes_back_a_block_rejected_whole",
-    "test_chunk_continue_keeps_the_messages_emitted_before_the_rejection",
-    "test_chunk_continue_skips_the_rest_of_a_rejected_block",
-    "test_chunk_continue_returns_an_error_part_for_a_block_still_open_at_the_end",
-    "test_chunk_in_block_from_the_open_tag_to_the_close_tag",
-    "test_chunk_in_block_for_an_unwrapped_response",
-}
+SKIP_TEST_NAMES: set[str] = set()
 
 # Transition skip list containing specific test suite files to skip during active feature transitions.
 SKIP_TEST_SUITES = {
@@ -96,7 +85,7 @@ def assert_raises(expect_error):
         expected_details = None
 
     with pytest.raises(expected_class) as excinfo:
-        yield
+        yield excinfo
 
     if message:
         assert re.search(_align_error_match(message), str(excinfo.value))
@@ -134,11 +123,21 @@ def _align_error_match(expect_error: str) -> str:
     return expect_error
 
 
+def category_of(error: BaseException) -> str:
+    """The suite's category for an error, or its class name if it has none."""
+    for category, cls in CATEGORY_TO_EXCEPTION.items():
+        if isinstance(error, cls):
+            return category
+    return type(error).__name__
+
+
 def part_to_dict(part) -> dict:
     if isinstance(part, TextPart):
         return {"text": part.text}
     if isinstance(part, A2uiPart):
         return {"a2ui": to_message_dicts(part.a2ui)}
+    if isinstance(part, ErrorPart):
+        return {"error": {"category": category_of(part.error)}}
     raise TypeError(f"Unexpected part type: {type(part)}")
 
 
@@ -170,8 +169,10 @@ def get_conformance_cases(filename):
             or first_catalog.get("protocolVersion")
             or "v0.9"
         )
-        if not version.startswith("v"):
+        if version.startswith("0."):
             version = f"v{version}"
+        elif version == "v1.0":
+            version = "1.0"
 
         if version not in SUPPORTED_PROTOCOL_VERSIONS or name in SKIP_TEST_NAMES:
             continue
@@ -220,7 +221,7 @@ def catalog_config_from_document(ref) -> CatalogConfig:
     if isinstance(ref, dict):
         catalog = InMemoryCatalogProvider(
             ref,
-            protocol_version=None if "protocolVersion" in ref else "v1.0",
+            protocol_version=None if "protocolVersion" in ref else "1.0",
             catalog_id=None if "catalogId" in ref else "inline",
         ).load()
         return CatalogConfig(
@@ -233,7 +234,7 @@ def catalog_config_from_document(ref) -> CatalogConfig:
     return CatalogConfig.from_path(
         catalog_path=get_conformance_path(relative_path),
         transformers=transformers,
-        protocol_version=None if "protocolVersion" in doc else "v1.0",
+        protocol_version=None if "protocolVersion" in doc else "1.0",
         catalog_id=(
             None
             if "catalogId" in doc
@@ -254,11 +255,8 @@ def _catalogs_for(args):
 
 
 def _protocol_version(catalogs) -> str:
-    """The `vX.Y` protocol version of the first catalog, which Express targets."""
-    version = str(getattr(catalogs[0].protocol_version, "value", None) or "")
-    if not version:
-        version = str(catalogs[0].protocol_version)
-    return version if version.startswith("v") else f"v{version}"
+    """The canonical wire protocol version of the first catalog, which Express targets."""
+    return to_protocol_version(catalogs[0].protocol_version).value
 
 
 def compile_checked(parser, content):
@@ -298,12 +296,16 @@ def _format_for(
     progressive_keys=None,
 ):
     if format_name == "express":
+        express_kwargs = {}
+        if progressive_keys is not None:
+            express_kwargs["progressive_keys"] = frozenset(progressive_keys)
         return ExpressFormat(
             catalogs=catalogs,
             examples=examples,
             allowed_messages=allowed_messages,
             surface_id=CONFORMANCE_SURFACE_ID,
             version=_protocol_version(catalogs),
+            **express_kwargs,
         )
     if format_name == "elemental":
         return ElementalFormat(
@@ -589,6 +591,8 @@ def test_response_parser_conformance(name, test_case):
 
 cases_response_streaming = get_marked_conformance_cases(
     "agent/direct_json/response_streaming.yaml",
+) + get_marked_conformance_cases(
+    "agent/express/response_streaming.yaml",
 )
 
 
@@ -606,7 +610,10 @@ def _merge_text_parts(parts: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def test_response_streaming_conformance(name, test_case):
     args = test_case["args"]
     wrapped = args.get("wrapped", True)
-    stream = make_parser(args).open_stream(wrapped=wrapped)
+    stream = make_parser(args).open_stream(
+        wrapped=wrapped,
+        after_rejected_block=args.get("after_rejected_block", "end"),
+    )
     chunks: list[str] = []
     yielded: list[dict] = []
 
@@ -614,14 +621,29 @@ def test_response_streaming_conformance(name, test_case):
         chunk = step["input"]
         chunks.append(chunk)
         if "expect_error" in step:
-            with assert_raises(step["expect_error"]):
+            with assert_raises(step["expect_error"]) as excinfo:
                 stream.feed(chunk)
+            if "expect_partial_results" in step:
+                partial = getattr(excinfo.value, "partial_results", [])
+                assert_parts_match(partial, step["expect_partial_results"])
+            if "expect_in_block" in step:
+                assert stream.is_in_block == step["expect_in_block"]
             return
         parts = stream.feed(chunk)
         assert_parts_match(parts, step["expect"])
+        if "expect_in_block" in step:
+            assert stream.is_in_block == step["expect_in_block"]
         yielded.extend(part_to_dict(p) for p in parts)
 
-    yielded.extend(part_to_dict(p) for p in stream.close())
+    if "expect_error" in test_case:
+        with assert_raises(test_case["expect_error"]):
+            stream.close()
+        return
+
+    closed = stream.close()
+    if "expect_close" in test_case:
+        assert_parts_match(closed, test_case["expect_close"])
+    yielded.extend(part_to_dict(p) for p in closed)
 
     if test_case.get("expect_matches_single_shot"):
         fresh_parser = make_parser(args)
@@ -631,6 +653,14 @@ def test_response_streaming_conformance(name, test_case):
         assert _merge_text_parts(yielded) == _merge_text_parts(
             [part_to_dict(p) for p in single_shot_parts]
         )
+
+
+# --- Streamed Answer Conformance ---
+
+# agent/streamed_answer.yaml covers the optional agent_renderer_app feature
+# (blueprints/features/agent_renderer_app.blueprint.md), for an app that is
+# both the agent and the renderer. This SDK has no renderer, so it does not
+# implement the feature and has no runner for the suite.
 
 
 # --- Multi-Catalog Formats Conformance (Express, Elemental, Atom, Direct JSON) ---
@@ -804,9 +834,11 @@ def _describe_configs(configs):
     described = []
     for config in configs:
         catalog = config.transformed_catalog
-        described.append(
-            (catalog.catalog_id, sorted(catalog.components), sorted(catalog.functions))
-        )
+        described.append((
+            catalog.catalog_id,
+            sorted(catalog.components),
+            sorted(catalog.functions),
+        ))
     return described
 
 
@@ -827,9 +859,13 @@ def _factory_for(format_name, allowed_messages=None, progressive_keys=None):
     from a2ui.inference_formats.express import ExpressFormatFactory
 
     if format_name == "express":
+        express_kwargs = {}
+        if progressive_keys is not None:
+            express_kwargs["progressive_keys"] = frozenset(progressive_keys)
         return ExpressFormatFactory(
             allowed_messages=allowed_messages,
             surface_id=CONFORMANCE_SURFACE_ID,
+            **express_kwargs,
         )
     if format_name == "elemental":
         return ElementalFormatFactory(

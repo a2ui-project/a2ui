@@ -22,20 +22,20 @@ import {CatalogConfig} from '../../../src/processor/catalog-config.js';
 import {conformancePath} from '../../conformance/suite-helpers.js';
 
 describe('CatalogConfig', () => {
-  const baseCatalog = new Catalog('base', 'v1.0', [], []);
+  const baseCatalog = new Catalog('base', '1.0', [], []);
 
   it('transformedCatalog applies transformers in order', () => {
     const log: string[] = [];
     const t1: CatalogTransformer = {
       transform: () => {
         log.push('t1');
-        return new Catalog('t1_applied', 'v1.0', [], []);
+        return new Catalog('t1_applied', '1.0', [], []);
       },
     };
     const t2: CatalogTransformer = {
       transform: () => {
         log.push('t2');
-        return new Catalog('t2_applied', 'v1.0', [], []);
+        return new Catalog('t2_applied', '1.0', [], []);
       },
     };
 
@@ -51,7 +51,7 @@ describe('CatalogConfig', () => {
     const t1: CatalogTransformer = {
       transform: () => {
         callCount++;
-        return new Catalog('t1_applied', 'v1.0', [], []);
+        return new Catalog('t1_applied', '1.0', [], []);
       },
     };
 
@@ -68,7 +68,7 @@ describe('CatalogConfig', () => {
       conformancePath('test_data/catalogs/simplified_catalog_v1_0.json'),
     );
     expect(config.catalog.id).toBe('conformance/simplified');
-    expect(config.catalog.protocolVersion).toBe('v1.0');
+    expect(config.catalog.protocolVersion).toBe('1.0');
     expect(config.transformedCatalog).toBe(config.catalog);
   });
 });

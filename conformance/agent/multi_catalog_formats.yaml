@@ -36,7 +36,7 @@
     surface("s1")
     root = Text("Quarterly Revenue")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -59,7 +59,7 @@
     title = Text("Quarterly Revenue")
     chart = Chart([10, 20, 30], "Q1-Q3", catalogId="conformance/custom")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         components:
@@ -84,7 +84,7 @@
     format: express
     catalogs:
       - catalogId: "conformance/cat_a"
-        protocolVersion: "v1.0"
+        protocolVersion: "1.0"
         components:
           Column:
             type: object
@@ -99,7 +99,7 @@
               label: {$ref: "common_types.json#/$defs/DynamicString"}
             required: ["component", "label"]
       - catalogId: "conformance/cat_b"
-        protocolVersion: "v1.0"
+        protocolVersion: "1.0"
         components:
           Badge:
             type: object
@@ -114,7 +114,7 @@
     b1 = Badge("Active", catalogId="conformance/cat_a")
     b2 = Badge(42, "items", catalogId="conformance/cat_b")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         components:
@@ -144,7 +144,7 @@
     surface("s1")
     root = Text(percent(75, catalogId="conformance/custom"))
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         components:
@@ -170,7 +170,7 @@
     root = Text(share)
     share = percent(75, catalogId="conformance/custom")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         components:
@@ -242,7 +242,7 @@
   input: |
     notify("Saved", catalogId="conformance/agent_functions")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       callRendererFunction:
         functionCallId: "call_1"
         callFunction:
@@ -302,7 +302,7 @@
       - "test_data/catalogs/simplified_catalog_v1_0.json"
       - "test_data/catalogs/custom_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         components:
@@ -341,7 +341,7 @@
       - "test_data/catalogs/simplified_catalog_v1_0.json"
       - "test_data/catalogs/custom_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         components:
@@ -366,7 +366,7 @@
     surface("s1")
     root = Text(percent(75), catalogId="conformance/simplified")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         components:
@@ -400,7 +400,7 @@
     format: express
     catalogs:
       - catalogId: "conformance/cat_a"
-        protocolVersion: "v1.0"
+        protocolVersion: "1.0"
         components:
           Badge:
             type: object
@@ -409,7 +409,7 @@
               label: {$ref: "common_types.json#/$defs/DynamicString"}
             required: ["component", "label"]
       - catalogId: "conformance/cat_b"
-        protocolVersion: "v1.0"
+        protocolVersion: "1.0"
         components:
           Badge:
             type: object
@@ -418,7 +418,7 @@
               count: {$ref: "common_types.json#/$defs/DynamicNumber"}
             required: ["component", "count"]
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         components:
@@ -482,7 +482,7 @@
   expect:
     - text: "Here is your report."
     - a2ui:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             components:
@@ -514,7 +514,7 @@
   input: |
     [
       {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "s1",
           "catalogId": "conformance/simplified",
@@ -534,7 +534,7 @@
       }
     ]
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -557,7 +557,7 @@
   input: |
     [
       {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "s1",
           "components": [
@@ -597,7 +597,7 @@
       }
     ]
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         components:
@@ -634,7 +634,7 @@
   input: |
     [
       {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "s1",
           "catalogId": "conformance/simplified",

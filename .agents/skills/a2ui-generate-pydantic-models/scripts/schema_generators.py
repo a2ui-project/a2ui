@@ -1600,18 +1600,35 @@ def generate_renderer_to_agent(
     ]
     r2a_names: list[str] = []
     msg_union_members: list[str] = []
+    emitted_inline: set[str] = set()
+
+    def _flush_inline_objects() -> None:
+        while len(emitted_inline) < len(codegen.inline_objects):
+            pending = [
+                (iname, ispec)
+                for iname, ispec in list(codegen.inline_objects.items())
+                if iname not in emitted_inline
+            ]
+            for iname, ispec in pending:
+                emitted_inline.add(iname)
+                codegen.name_context = iname
+                r2a_blocks.append(codegen.compile_object_def(iname, ispec))
+                r2a_names.append(iname)
 
     # Process all event properties dynamically from the schema
     for prop_name, prop_spec in props.items():
         if prop_name == "version":
             continue
+        codegen.name_context = prop_name
 
         # 1. Action payloads
         if "action" in prop_name.lower():
             if is_modern:
-                r2a_blocks.append(
-                    codegen.compile_object_def("A2uiRendererAction", prop_spec)
+                action_block = codegen.compile_object_def(
+                    "A2uiRendererAction", prop_spec
                 )
+                _flush_inline_objects()
+                r2a_blocks.append(action_block)
                 r2a_blocks.append("ActionPayload = A2uiRendererAction")
                 r2a_names.extend(["A2uiRendererAction", "ActionPayload"])
                 msg_cls = "A2uiRendererActionMessage"
@@ -1858,6 +1875,7 @@ def generate_renderer_capabilities(
             k
             for k in root_props
             if k == spec_dot
+            or k == version.lstrip("v")
             or k == f"v{version.lstrip('v')}"
             or (k.startswith("v") and isinstance(root_props[k], dict))
         ),
@@ -1978,6 +1996,7 @@ def generate_agent_capabilities(
             k
             for k in root_props
             if k == spec_dot
+            or k == version.lstrip("v")
             or k == f"v{version.lstrip('v')}"
             or (k.startswith("v") and isinstance(root_props[k], dict))
         ),
@@ -2056,6 +2075,20 @@ def generate_catalog_definition(
     blocks = [import_header]
 
     # 1. Compile all $defs dynamically in topological order
+    emitted_inline: set[str] = set()
+
+    def _flush_inline_objects() -> None:
+        while len(emitted_inline) < len(codegen.inline_objects):
+            pending = [
+                (iname, ispec)
+                for iname, ispec in list(codegen.inline_objects.items())
+                if iname not in emitted_inline
+            ]
+            for iname, ispec in pending:
+                emitted_inline.add(iname)
+                codegen.name_context = iname
+                blocks.append(codegen.compile_object_def(iname, ispec))
+
     sorted_def_names = topological_sort_defs(defs)
     for def_name in sorted_def_names:
         def_spec = dict(defs[def_name])
@@ -2072,6 +2105,8 @@ def generate_catalog_definition(
             req = def_spec.get("required", [])
 
         if props:
+            if "metadata" in props and isinstance(props["metadata"], dict):
+                props["metadata"] = {"$ref": "#/$defs/CatalogMetadata"}
             is_extensible = def_spec.get(
                 "additionalProperties"
             ) is True or def_name in (
@@ -2085,9 +2120,11 @@ def generate_catalog_definition(
                 "additionalProperties": is_extensible,
             }
             base_class = "BaseModel" if is_extensible else "StrictBaseModel"
+            codegen.name_context = def_name
             comp_block = codegen.compile_object_def(
                 def_name, model_spec, base_class=base_class
             )
+            _flush_inline_objects()
             if def_name == "FunctionDefinition":
                 validator_code = (
                     '    @model_validator(mode="after")\n    def'
@@ -2098,23 +2135,66 @@ def generate_catalog_definition(
                     " 'rendererOnly'.\")\n        return self\n"
                 )
                 comp_block = comp_block.rstrip() + "\n" + validator_code
+            elif def_name == "ComponentDefinition":
+                validator_code = (
+                    '    @model_validator(mode="after")\n    def'
+                    " _validate_no_root_combinator(self) -> ComponentDefinition:\n     "
+                    '   extra = self.model_extra or {}\n        if "oneOf" in extra'
+                    ' or "anyOf" in extra:\n            raise ValueError('
+                    '"ComponentDefinition must not have root-level oneOf or'
+                    ' anyOf.")\n        return self\n'
+                )
+                comp_block = comp_block.rstrip() + "\n" + validator_code
             blocks.append(comp_block)
 
-    # 2. Compile property-level $defs (e.g. CatalogDefs) dynamically
+    # 1b. Emit CatalogMetadata wrapper when metadata is present on ComponentDefinition or CatalogDefinition
     root_props = dict(cat_def_data.get("properties", {}))
+    if "metadata" in root_props and isinstance(root_props["metadata"], dict):
+        metadata_spec = {
+            "description": root_props["metadata"].get("description", ""),
+            "properties": root_props["metadata"].get("properties", {}),
+            "required": root_props["metadata"].get("required", []),
+            "additionalProperties": False,
+        }
+        blocks.insert(
+            1,
+            codegen.compile_object_def(
+                "CatalogMetadata", metadata_spec, base_class="StrictBaseModel"
+            ),
+        )
+        root_props["metadata"] = {"$ref": "#/$defs/CatalogMetadata"}
+
+    # 2. Compile property-level $defs (e.g. CatalogDefs) dynamically
     defs_prop = root_props.get("$defs", {})
     if isinstance(defs_prop, dict) and defs_prop.get("properties"):
         catalog_defs_spec = {
             "description": defs_prop.get("description", ""),
             "properties": defs_prop.get("properties", {}),
             "required": defs_prop.get("required", []),
-            "additionalProperties": defs_prop.get("additionalProperties", True),
+            "additionalProperties": bool(defs_prop.get("additionalProperties", True)),
         }
-        blocks.append(
-            codegen.compile_object_def(
-                "CatalogDefs", catalog_defs_spec, base_class="BaseModel"
-            )
+        catalog_defs_block = codegen.compile_object_def(
+            "CatalogDefs", catalog_defs_spec, base_class="BaseModel"
         )
+        if isinstance(defs_prop.get("additionalProperties"), dict):
+            leaf_validator = (
+                '    @model_validator(mode="after")\n    def'
+                " _validate_leaf_defs(self) -> CatalogDefs:\n        def"
+                " _has_component_const(obj: Any) -> bool:\n            if not"
+                " isinstance(obj, dict):\n                return False\n           "
+                ' props = obj.get("properties")\n            if isinstance(props,'
+                ' dict):\n                comp = props.get("component")\n             '
+                '   if isinstance(comp, dict) and "const" in comp:\n                   '
+                ' return True\n            all_of = obj.get("allOf")\n            if'
+                " isinstance(all_of, list):\n                return any("
+                "_has_component_const(item) for item in all_of)\n            return"
+                " False\n\n        for k, v in (self.model_extra or {}).items():\n     "
+                "       if _has_component_const(v):\n                raise ValueError("
+                "f\"Leaf definition '{k}' must not define a component"
+                ' schema.")\n        return self\n'
+            )
+            catalog_defs_block = catalog_defs_block.rstrip() + "\n" + leaf_validator
+        blocks.append(catalog_defs_block)
         root_props["$defs"] = {"$ref": "#/$defs/CatalogDefs"}
 
     # 3. Compile root CatalogDefinition dynamically
@@ -2124,7 +2204,18 @@ def generate_catalog_definition(
         "properties": root_props,
         "required": root_req,
     }
-    blocks.append(codegen.compile_object_def("CatalogDefinition", root_spec))
+    root_block = codegen.compile_object_def("CatalogDefinition", root_spec)
+    comp_prop = cat_def_data.get("properties", {}).get("components", {})
+    if isinstance(comp_prop, dict) and "propertyNames" in comp_prop:
+        surface_validator = (
+            '    @model_validator(mode="after")\n    def'
+            " _validate_component_names(self) -> CatalogDefinition:\n        if"
+            ' self.components and "Surface" in self.components:\n            raise'
+            " ValueError(\"Component name 'Surface' is reserved.\")\n        return"
+            " self\n"
+        )
+        root_block = root_block.rstrip() + "\n" + surface_validator
+    blocks.append(root_block)
 
     return "\n\n\n".join(b.strip() for b in blocks if b.strip()) + "\n"
 

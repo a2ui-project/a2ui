@@ -427,6 +427,111 @@ surface("s1")
         {'id': 'root', 'component': 'Gauge', 'value': 0.5},
       ]);
     });
+
+    test('v1.0 surface and component extensions kwargs', () {
+      final CatalogApi v1Basic = Catalog.fromJson(
+        jsonDecode(
+              File('../../catalogs/basic/v1/catalog.json').readAsStringSync(),
+            )
+            as Map<String, Object?>,
+        protocolVersion: A2uiProtocolVersion.v1_0,
+      );
+      final List<AgentToRendererMessage> compiled = ExpressCompiler([v1Basic])
+          .compile(
+            'surface("s", extensions={surf_ext: {version: 1}})\n'
+            'root = Text("Hello", extensions={comp_ext: true})',
+          );
+      expect(compiled.single.toJson(), {
+        'version': '1.0',
+        'createSurface': {
+          'surfaceId': 's',
+          'catalogId': v1Basic.id,
+          'sendDataModel': false,
+          'metadata': {
+            'extensions': {
+              'surf_ext': {'version': 1},
+            },
+          },
+          'components': [
+            {
+              'id': 'root',
+              'component': 'Text',
+              'text': 'Hello',
+              'metadata': {
+                'extensions': {'comp_ext': true},
+              },
+            },
+          ],
+        },
+      });
+      expect(
+        () => ExpressCompiler([
+          v1Basic,
+        ]).compile('root = Text("Hello", extensions={"bad-key": true})'),
+        throwsError<A2uiValidationError>(),
+      );
+      expect(
+        () => ExpressCompiler([
+          basic,
+        ]).compile('root = Text("Hello", extensions={comp_ext: true})'),
+        throwsError<A2uiValidationError>(),
+      );
+      expect(
+        () => ExpressCompiler([
+          v1Basic,
+        ]).compile('root = Text("Hello", extensions=[1, 2])'),
+        throwsError<A2uiValidationError>(),
+      );
+      final List<AgentToRendererMessage> viaVar = ExpressCompiler([v1Basic])
+          .compile(
+            'ext = {comp_ext: 42}\n'
+            'root = Text("Hello", extensions=ext)',
+          );
+      expect(
+        viaVar.single.toJson()['createSurface'],
+        containsPair('components', [
+          {
+            'id': 'root',
+            'component': 'Text',
+            'text': 'Hello',
+            'metadata': {
+              'extensions': {'comp_ext': 42},
+            },
+          },
+        ]),
+      );
+
+      final CatalogApi extPropCatalog = Catalog.fromJson({
+        'catalogId': 'https://example.com/ext_prop.json',
+        'protocolVersion': '1.0',
+        'components': {
+          'FilePicker': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'FilePicker'},
+              'extensions': {
+                'type': 'array',
+                'items': {'type': 'string'},
+              },
+            },
+            'required': ['component', 'extensions'],
+          },
+        },
+      });
+      final List<AgentToRendererMessage> extPropCompiled = ExpressCompiler([
+        extPropCatalog,
+      ]).compile('root = FilePicker(extensions=[".png", ".jpg"])');
+      expect(
+        extPropCompiled.single.toJson()['createSurface'],
+        containsPair('components', [
+          {
+            'id': 'root',
+            'component': 'FilePicker',
+            'extensions': ['.png', '.jpg'],
+          },
+        ]),
+      );
+    });
   });
 
   group('rejects', () {
@@ -583,6 +688,19 @@ surface("s1")
       expect(snippet, contains('## Catalog `${custom.id}`'));
       expect(snippet, contains('• Gauge(value (static))'));
     });
+
+    test('omits Event userMessage= before v1.0', () {
+      final String snippet = processor().promptSnippet;
+      expect(
+        snippet,
+        contains(
+          '8. Action events: represent server-side actions using the Event '
+          'helper:\n'
+          r'   Event("save_deal", {rep: $/form/rep})',
+        ),
+      );
+      expect(snippet, isNot(contains('userMessage=')));
+    });
   });
 
   group('parser', () {
@@ -664,9 +782,207 @@ surface("s1")
       ]);
     });
 
-    test('does not stream', () {
-      expect(parser.supportsStreaming, isFalse);
-      expect(parser.openStream, throwsUnsupportedError);
+    test('streams incrementally', () {
+      expect(parser.supportsStreaming, isTrue);
+      final ResponseStream stream = parser.openStream();
+      expect(stream, isA<ExpressResponseStream>());
+      final List<ResponsePart> first = stream.feed(
+        'Intro <a2ui>\nroot = Text("Hel',
+      );
+      expect(first, hasLength(2));
+      expect((first[0] as TextPart).text, 'Intro');
+      final List<AgentToRendererMessage> firstMsgs =
+          (first[1] as A2uiPart).a2ui;
+      expect(firstMsgs, hasLength(2));
+      expect(firstMsgs[0], isA<CreateSurfaceMessage>());
+      expect((firstMsgs[1] as UpdateComponentsMessage).components, [
+        {'id': 'root', 'component': 'Text', 'text': 'Hel'},
+      ]);
+
+      final List<ResponsePart> second = stream.feed('lo")\n</a2ui> Outro');
+      expect(second, hasLength(2));
+      expect(
+        ((second[0] as A2uiPart).a2ui.single as UpdateComponentsMessage)
+            .components,
+        [
+          {'id': 'root', 'component': 'Text', 'text': 'Hello'},
+        ],
+      );
+      expect((second[1] as TextPart).text, 'Outro');
+
+      final List<ResponsePart> tail = stream.close();
+      expect(tail, isEmpty);
+    });
+
+    test('streams unwrapped blocks and rolls back failed chunks', () {
+      final ResponseStream unwrapped = parser.openStream(wrapped: false);
+      expect(unwrapped.feed('root = Text("Hi")\n'), hasLength(1));
+      expect(unwrapped.close(), isEmpty);
+
+      final state = RendererState([basic]);
+      final ResponseStream failing = parser.openStream(state: state);
+      expect(
+        () => failing.feed('<a2ui>\nroot = UnknownComp("x")\n</a2ui>'),
+        throwsError<A2uiValidationError>(),
+      );
+      expect(state.surfaceIds, isEmpty);
+      expect(() => failing.feed('more'), throwsStateError);
+    });
+
+    test(
+      'heals progressive strings and skips URLs and non-component calls',
+      () {
+        final ResponseStream stream = parser.openStream();
+        final List<ResponsePart> first = stream.feed(
+          '<a2ui>\nsurface("s1")\nroot = Text("""Hello "',
+        );
+        expect(first, hasLength(1));
+        expect(
+          ((first.single as A2uiPart).a2ui[1] as UpdateComponentsMessage)
+              .components,
+          [
+            {'id': 'root', 'component': 'Text', 'text': 'Hello "'},
+          ],
+        );
+        final List<ResponsePart> second = stream.feed('world""")\n</a2ui>');
+        expect(second, hasLength(1));
+        expect(stream.close(), isEmpty);
+
+        final urlParser = ExpressParser([basic], progressiveKeys: {'url'});
+        final ResponseStream urlStream = urlParser.openStream();
+        expect(
+          urlStream.feed(
+            '<a2ui>\nsurface("s1")\nroot = Image("https://example.com/a',
+          ),
+          isEmpty,
+        );
+      },
+    );
+
+    test('throws A2uiParseError on close when a wrapped block is open', () {
+      final ResponseStream stream = parser.openStream();
+      expect(
+        stream.feed('<a2ui>\nsurface("s1")\nroot = Text("Ready")\n'),
+        hasLength(1),
+      );
+      expect(stream.close, throwsError<A2uiParseError>());
+    });
+
+    test('discards speculative healed update rejected by RendererState', () {
+      final variantParser = ExpressParser(
+        [basic],
+        progressiveKeys: {'variant'},
+      );
+      final ResponseStream stream = variantParser.openStream();
+      final List<ResponsePart> first = stream.feed(
+        '<a2ui>\nsurface("s1")\nroot = Column([t1, t2])\n'
+        't1 = Text("First")\nt2 = Text("Second", variant="h',
+      );
+      expect(first, hasLength(1));
+      final List<ResponsePart> second = stream.feed('1")\n</a2ui>');
+      expect(second, hasLength(1));
+      expect(
+        ((second.single as A2uiPart).a2ui.single as UpdateComponentsMessage)
+            .components,
+        [
+          {'id': 't2', 'component': 'Text', 'text': 'Second', 'variant': 'h1'},
+        ],
+      );
+      expect(stream.close(), isEmpty);
+    });
+
+    test('strips outer fences and inline backticks across chunk sizes '
+        'and holds attribute <', () {
+      final noProgParser = ExpressParser([basic], progressiveKeys: const {});
+      const response =
+          'Intro with `inline` code:\n'
+          '```a2ui\n<a2ui>\nsurface("s1")\nroot = Text("One")\n</a2ui>\n```\n'
+          '`<a2ui>`\nsurface("s1", update=true)\n\$/title = "Two"\n`</a2ui>`\n'
+          '```a2ui\n<a2ui>\nsurface("s1", update=true)\n\$/title = "Three"\n</a2ui>\n```\n'
+          'Done.';
+      final List<ResponsePart> expected = noProgParser.parseResponse(response);
+      for (final int size in [1, 2, 3, 5, 11, response.length]) {
+        final ResponseStream s = noProgParser.openStream();
+        final raw = <ResponsePart>[];
+        for (var i = 0; i < response.length; i += size) {
+          final int end = (i + size).clamp(0, response.length);
+          raw.addAll(s.feed(response.substring(i, end)));
+        }
+        raw.addAll(s.close());
+        final coalesced = <ResponsePart>[];
+        for (final part in raw) {
+          if (part is TextPart &&
+              coalesced.isNotEmpty &&
+              coalesced.last is TextPart) {
+            final prev = coalesced.removeLast() as TextPart;
+            coalesced.add(TextPart('${prev.text}${part.text}'));
+          } else {
+            coalesced.add(part);
+          }
+        }
+        expect(coalesced, hasLength(expected.length));
+        expect(
+          (coalesced.first as TextPart).text,
+          (expected.first as TextPart).text,
+        );
+        expect(
+          (coalesced.last as TextPart).text,
+          (expected.last as TextPart).text,
+        );
+      }
+
+      final ResponseStream attrStream = noProgParser.openStream();
+      expect(attrStream.feed('Before <a2ui x="1 < 2"'), [
+        isA<TextPart>().having((p) => p.text, 'text', 'Before'),
+      ]);
+      expect(
+        attrStream.feed('>\nsurface("s1")\nroot = Text("Hi")\n</a2ui>'),
+        hasLength(1),
+      );
+      expect(attrStream.close(), isEmpty);
+    });
+
+    test('re-emits earlier scope component when superseded and handles '
+        'triple-quote and scanner boundaries', () {
+      final state = RendererState([basic]);
+      final ResponseStream stream = parser.openStream(state: state);
+      expect(
+        stream.feed(
+          '<a2ui>\nsurface("s1")\nroot = Column([hdr, body])\n'
+          'hdr = Text("V1")\nbody = Text("Initial")\n'
+          'surface("s1", update=true)\nhdr = Text("Hel',
+        ),
+        hasLength(1),
+      );
+      final List<ResponsePart> second = stream.feed('lo", id="body")\n</a2ui>');
+      expect(second, hasLength(1));
+      expect(
+        ((second.single as A2uiPart).a2ui.single as UpdateComponentsMessage)
+            .components,
+        [
+          {'id': 'body', 'component': 'Text', 'text': 'Hello'},
+          {'id': 'hdr', 'component': 'Text', 'text': 'V1'},
+        ],
+      );
+      expect(
+        state.getSurface('s1')!.componentsModel.get('hdr')!.properties['text'],
+        'V1',
+      );
+      expect(
+        state.getSurface('s1')!.componentsModel.get('body')!.properties['text'],
+        'Hello',
+      );
+
+      final ResponseStream emptyTriple = parser.openStream();
+      final List<ResponsePart> healedEmpty = emptyTriple.feed(
+        '<a2ui>\nsurface("s1")\nroot = Text("""',
+      );
+      expect(healedEmpty, hasLength(1));
+      final ResponseStream rawTripleQuote = parser.openStream();
+      expect(
+        rawTripleQuote.feed('<a2ui>\nsurface("s1")\nroot = Text(r"""Hello "'),
+        isEmpty,
+      );
     });
   });
 
@@ -828,6 +1144,482 @@ surface("s1")
           'body = MaterialText(text="Hi")',
         ),
         throwsError<A2uiValidationError>(),
+      );
+    });
+  });
+
+  group('Event arguments', () {
+    final CatalogApi v1 = Catalog.fromJson({
+      'catalogId': 'https://example.com/events.json',
+      'protocolVersion': '1.0',
+      'components': {
+        'Text': {
+          'type': 'object',
+          'properties': {
+            'component': {'const': 'Text'},
+            'text': {r'$ref': r'common_types.json#/$defs/DynamicString'},
+          },
+          'required': ['component', 'text'],
+        },
+        'Button': {
+          'type': 'object',
+          'properties': {
+            'component': {'const': 'Button'},
+            'child': {r'$ref': r'common_types.json#/$defs/Child'},
+            'action': {r'$ref': r'common_types.json#/$defs/Action'},
+          },
+          'required': ['component', 'child', 'action'],
+        },
+      },
+      'functions': {
+        'openUrl': {
+          'type': 'object',
+          'returnType': 'void',
+          'properties': {
+            '@call': {'const': 'openUrl'},
+            'args': {
+              'type': 'object',
+              'properties': {
+                'url': {'type': 'string'},
+              },
+              'required': ['url'],
+            },
+          },
+          'required': ['@call', 'args'],
+        },
+      },
+    });
+
+    /// The action of the `root` Button [block] compiles to.
+    Object? action(String block) {
+      final List<AgentToRendererMessage> messages = ExpressCompiler([
+        v1,
+      ]).compile('$block\nlabel = Text("Go")');
+      final components =
+          (messages.single.toJson()['createSurface']! as Map)['components']!
+              as List;
+      return (components.first as Map)['action'];
+    }
+
+    test('compiles userMessage to the v1.0 event field', () {
+      expect(
+        action('root = Button(label, Event("reply", userMessage="Replying"))'),
+        {
+          'event': {'name': 'reply', 'userMessage': 'Replying'},
+        },
+      );
+    });
+
+    test('compiles a \$path userMessage beside a positional context', () {
+      expect(
+        action(
+          r'root = Button(label, Event("go", {id: 1}, userMessage=$/draft))',
+        ),
+        {
+          'event': {
+            'name': 'go',
+            'userMessage': {'@path': '/draft'},
+            'context': {'id': 1},
+          },
+        },
+      );
+    });
+
+    test('accepts context= as a keyword argument', () {
+      expect(action('root = Button(label, Event("go", context={id: 1}))'), {
+        'event': {
+          'name': 'go',
+          'context': {'id': 1},
+        },
+      });
+    });
+
+    test('rejects a context given both positionally and by keyword', () {
+      expect(
+        () =>
+            action('root = Button(label, Event("go", {a: 1}, context={b: 2}))'),
+        throwsError<A2uiValidationError>(),
+      );
+    });
+
+    test('rejects an unknown keyword instead of dropping it', () {
+      expect(
+        () => action('root = Button(label, Event("go", message="hi"))'),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains("Event has no keyword parameter 'message'"),
+          ),
+        ),
+      );
+    });
+
+    test('compiles a function call userMessage, as DynamicString allows', () {
+      expect(
+        action(
+          'root = Button(label, Event("go", '
+          'userMessage=openUrl("https://a2ui.org")))',
+        ),
+        {
+          'event': {
+            'name': 'go',
+            'userMessage': {
+              '@call': 'openUrl',
+              'args': {'url': 'https://a2ui.org'},
+            },
+          },
+        },
+      );
+    });
+
+    test('rejects a userMessage that is not a DynamicString, naming it', () {
+      expect(
+        () => action('root = Button(label, Event("go", userMessage=42))'),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            'Event userMessage must be a string, a \$path data binding or a '
+                'function call, got the number 42.',
+          ),
+        ),
+      );
+      expect(
+        () => action('root = Button(label, Event("go", userMessage={a: 1}))'),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains('got a map literal.'),
+          ),
+        ),
+      );
+    });
+
+    test('rejects userMessage before v1.0, whose Action has no such field', () {
+      expect(
+        () => compile(
+          'root = Button(label, Event("go", userMessage="hi"))\n'
+          'label = Text("Go")',
+        ),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains('userMessage requires protocol v1.0'),
+          ),
+        ),
+      );
+    });
+  });
+
+  group('action slots nested in list items', () {
+    final CatalogApi links = Catalog.fromJson({
+      'catalogId': 'https://example.com/links.json',
+      'protocolVersion': '1.0',
+      'components': {
+        'Links': {
+          'type': 'object',
+          'properties': {
+            'component': {'const': 'Links'},
+            'items': {
+              'type': 'array',
+              'items': {
+                'type': 'object',
+                'properties': {
+                  'label': {r'$ref': r'common_types.json#/$defs/DynamicString'},
+                  'action': {r'$ref': r'common_types.json#/$defs/Action'},
+                },
+                'required': ['label', 'action'],
+              },
+            },
+          },
+          'required': ['component', 'items'],
+        },
+      },
+      'functions': {
+        'openUrl': {
+          'type': 'object',
+          'returnType': 'void',
+          'properties': {
+            '@call': {'const': 'openUrl'},
+            'args': {
+              'type': 'object',
+              'properties': {
+                'url': {'type': 'string'},
+              },
+              'required': ['url'],
+            },
+          },
+          'required': ['@call', 'args'],
+        },
+      },
+    });
+
+    /// The items of the `root` Links [block] compiles to.
+    Object? items(String block) {
+      final List<AgentToRendererMessage> messages = ExpressCompiler([
+        links,
+      ]).compile(block);
+      final components =
+          (messages.single.toJson()['createSurface']! as Map)['components']!
+              as List;
+      return (components.single as Map)['items'];
+    }
+
+    const Map<String, Object?> docs = {
+      'label': 'Docs',
+      'action': {
+        'functionCall': {
+          '@call': 'openUrl',
+          'args': {'url': 'https://a2ui.org'},
+        },
+      },
+    };
+
+    test('wraps a function call in functionCall inside a list item', () {
+      expect(
+        items(
+          'root = Links([{label: "Docs", action: openUrl("https://a2ui.org")}, '
+          '{label: "Go", action: Event("go")}])',
+        ),
+        [
+          docs,
+          {
+            'label': 'Go',
+            'action': {
+              'event': {'name': 'go'},
+            },
+          },
+        ],
+      );
+    });
+
+    test('wraps a function call reached through a variable', () {
+      expect(
+        items(
+          'docs = {label: "Docs", action: openUrl("https://a2ui.org")}\n'
+          'root = Links([docs])',
+        ),
+        [docs],
+      );
+    });
+
+    /// The `root` component [block] compiles to, against [catalog].
+    Map<String, Object?> rootOf(CatalogApi catalog, String block) {
+      final List<AgentToRendererMessage> messages = ExpressCompiler([
+        catalog,
+      ]).compile(block);
+      final components =
+          (messages.single.toJson()['createSurface']! as Map)['components']!
+              as List;
+      return (components.single as Map).cast<String, Object?>();
+    }
+
+    const Map<String, Object?> openUrlFunction = {
+      'type': 'object',
+      'returnType': 'void',
+      'properties': {
+        '@call': {'const': 'openUrl'},
+        'args': {
+          'type': 'object',
+          'properties': {
+            'url': {'type': 'string'},
+          },
+          'required': ['url'],
+        },
+      },
+      'required': ['@call', 'args'],
+    };
+    const Map<String, Object?> wrappedOpenUrl = {
+      'functionCall': {
+        '@call': 'openUrl',
+        'args': {'url': 'https://a2ui.org'},
+      },
+    };
+
+    test(
+      'resolves a property named items as a property, not the array items',
+      () {
+        // The item schema is reached through a local $ref too.
+        final CatalogApi menu = Catalog.fromJson({
+          'catalogId': 'https://example.com/menu.json',
+          'protocolVersion': '1.0',
+          'components': {
+            'Menu': {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'Menu'},
+                'menu': {
+                  'type': 'object',
+                  'properties': {
+                    'items': {
+                      'type': 'array',
+                      'items': {r'$ref': r'#/$defs/MenuItem'},
+                    },
+                  },
+                },
+              },
+              'required': ['component', 'menu'],
+            },
+          },
+          'functions': {'openUrl': openUrlFunction},
+          r'$defs': {
+            'MenuItem': {
+              'type': 'object',
+              'properties': {
+                'label': {'type': 'string'},
+                'action': {r'$ref': r'common_types.json#/$defs/Action'},
+              },
+              'required': ['label', 'action'],
+            },
+          },
+        });
+        expect(
+          rootOf(
+            menu,
+            'root = Menu({items: [{label: "Docs", '
+            'action: openUrl("https://a2ui.org")}]})',
+          )['menu'],
+          {
+            'items': [
+              {'label': 'Docs', 'action': wrappedOpenUrl},
+            ],
+          },
+        );
+      },
+    );
+
+    test('finds action slots through allOf, anyOf, additionalProperties', () {
+      final CatalogApi mixins = Catalog.fromJson({
+        'catalogId': 'https://example.com/mixins.json',
+        'protocolVersion': '1.0',
+        'components': {
+          'Board': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'Board'},
+              // The item schema is an allOf of two mixins, one of which holds
+              // the action under anyOf.
+              'cards': {
+                'type': 'array',
+                'items': {
+                  'allOf': [
+                    {r'$ref': r'#/$defs/Labelled'},
+                    {
+                      'anyOf': [
+                        {
+                          'type': 'object',
+                          'properties': {
+                            'action': {
+                              r'$ref': r'common_types.json#/$defs/Action',
+                            },
+                          },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+              // Every entry of the map is an action.
+              'shortcuts': {
+                'type': 'object',
+                'additionalProperties': {
+                  r'$ref': r'common_types.json#/$defs/Action',
+                },
+              },
+            },
+            'required': ['component', 'cards'],
+          },
+        },
+        'functions': {'openUrl': openUrlFunction},
+        r'$defs': {
+          'Labelled': {
+            'type': 'object',
+            'properties': {
+              'label': {'type': 'string'},
+            },
+          },
+        },
+      });
+      final Map<String, Object?> root = rootOf(
+        mixins,
+        'root = Board([{label: "Docs", action: openUrl("https://a2ui.org")}], '
+        'shortcuts={help: openUrl("https://a2ui.org")})',
+      );
+      expect(root['cards'], [
+        {'label': 'Docs', 'action': wrappedOpenUrl},
+      ]);
+      expect(root['shortcuts'], {'help': wrappedOpenUrl});
+    });
+
+    test('follows a definition that refers to itself without looping', () {
+      final CatalogApi tree = Catalog.fromJson({
+        'catalogId': 'https://example.com/tree.json',
+        'protocolVersion': '1.0',
+        'components': {
+          'Tree': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'Tree'},
+              'nodes': {
+                'type': 'array',
+                'items': {r'$ref': r'#/$defs/Node'},
+              },
+            },
+            'required': ['component', 'nodes'],
+          },
+        },
+        'functions': {'openUrl': openUrlFunction},
+        r'$defs': {
+          'Node': {
+            'type': 'object',
+            'properties': {
+              'label': {'type': 'string'},
+              'action': {r'$ref': r'common_types.json#/$defs/Action'},
+              'children': {
+                'type': 'array',
+                'items': {r'$ref': r'#/$defs/Node'},
+              },
+            },
+          },
+        },
+      });
+      expect(
+        rootOf(
+          tree,
+          'root = Tree([{label: "a", children: [{label: "b", '
+          'action: openUrl("https://a2ui.org")}]}])',
+        )['nodes'],
+        [
+          {
+            'label': 'a',
+            'children': [
+              {'label': 'b', 'action': wrappedOpenUrl},
+            ],
+          },
+        ],
+      );
+    });
+
+    test('keeps a function call outside an action slot as a plain call', () {
+      expect(
+        items(
+          'root = Links([{label: openUrl("https://a2ui.org"), '
+          'action: Event("go")}])',
+        ),
+        [
+          {
+            'label': {
+              '@call': 'openUrl',
+              'args': {'url': 'https://a2ui.org'},
+            },
+            'action': {
+              'event': {'name': 'go'},
+            },
+          },
+        ],
       );
     });
   });

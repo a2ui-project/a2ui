@@ -192,7 +192,9 @@ def test_macro_naming_conventions():
     assert meta2.name == "CustomAlert"
 
 
-def make_test_catalog(components: Optional[dict[str, Any]] = None) -> CatalogApi:
+def make_test_catalog(
+    components: Optional[dict[str, Any]] = None,
+) -> CatalogApi:
     from a2ui.core.basic_catalog import BasicCatalog
 
     if components is None:
@@ -417,7 +419,10 @@ def test_macro_catalog_pruning():
         return Card(child=Text(text=label))
 
     base_cat = make_test_catalog({
-        "Button": {"type": "object", "properties": {"variant": {"type": "string"}}},
+        "Button": {
+            "type": "object",
+            "properties": {"variant": {"type": "string"}},
+        },
         "Card": {"type": "object", "properties": {"child": {"type": "string"}}},
         "Text": {"type": "object", "properties": {"text": {"type": "string"}}},
     })
@@ -586,7 +591,10 @@ def test_macro_action_and_accessibility_coercion():
         "InteractiveBanner",
         {
             "on_click": "banner_clicked",
-            "a11y": {"label": "Clickable banner", "description": "Banner description"},
+            "a11y": {
+                "label": "Clickable banner",
+                "description": "Banner description",
+            },
         },
         instance_id="banner_1",
     )

@@ -4,7 +4,7 @@
   "title": "Derive source",
   "description": "The catalog the derive cases start from.",
   "catalogId": "https://a2ui.org/catalogs/v10/derive_source",
-  "protocolVersion": "v1.0",
+  "protocolVersion": "1.0",
   "instructions": "Write components of https://a2ui.org/catalogs/v10/derive_source.",
   "components": {
     "Text": {

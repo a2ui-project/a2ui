@@ -28,7 +28,7 @@ import {loadBasicCatalog} from '../../helpers/basic-catalogs.js';
 
 const OPEN = '<a2ui-json>';
 const CLOSE = '</a2ui-json>';
-const BASIC = loadBasicCatalog('v1.0');
+const BASIC = loadBasicCatalog('1.0');
 
 function newAnswer(): StreamedAnswer {
   const processor = new A2uiRequestProcessor([BASIC], undefined, new DirectJsonFormatFactory());
@@ -36,12 +36,12 @@ function newAnswer(): StreamedAnswer {
 }
 
 function create(surfaceId: string): string {
-  return JSON.stringify({version: 'v1.0', createSurface: {surfaceId, catalogId: BASIC.id}});
+  return JSON.stringify({version: '1.0', createSurface: {surfaceId, catalogId: BASIC.id}});
 }
 
 function root(surfaceId: string, component: Record<string, unknown>): string {
   return JSON.stringify({
-    version: 'v1.0',
+    version: '1.0',
     updateComponents: {surfaceId, components: [{id: 'root', ...component}]},
   });
 }
@@ -131,7 +131,7 @@ describe('StreamedAnswer', () => {
 
   it('drops a surface the answer deletes', () => {
     const answer = newAnswer();
-    const remove = JSON.stringify({version: 'v1.0', deleteSurface: {surfaceId: 'a'}});
+    const remove = JSON.stringify({version: '1.0', deleteSurface: {surfaceId: 'a'}});
 
     answer.feed(`${surfaceBlock('a')} ${surfaceBlock('b')} ${OPEN}${remove}${CLOSE}`);
 

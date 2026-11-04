@@ -255,8 +255,8 @@ def generate_markdown_summary(
     if any(k != "default" for k in datasets.keys()):
         lines.append("#### Dataset Performance Summary")
         lines.append(
-            "| Dataset Name | Total Samples | Algorithmic Pass Rate | Judging Pass Rate"
-            " | Dataset Pass Rate |"
+            "| Dataset Name | Total Samples | Algorithmic Pass Rate | Judging Pass"
+            " Rate | Dataset Pass Rate |"
         )
         lines.append("| :--- | :---: | :---: | :---: | :---: |")
 

@@ -31,7 +31,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 function capabilitiesKeyFor(catalog: CatalogApi): string {
-  const wireVersion = toWireProtocolVersion(catalog.protocolVersion || 'v1.0');
+  const wireVersion = toWireProtocolVersion(catalog.protocolVersion || '1.0');
   return wireVersion === 'v0.9.1' ? 'v0.9' : wireVersion;
 }
 

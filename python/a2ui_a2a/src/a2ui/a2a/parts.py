@@ -102,7 +102,8 @@ def get_a2ui_datapart(part: Part) -> DataPart | None:
 
 
 def to_a2a_parts(
-    response_parts: Sequence[ResponsePart], version: ProtocolVersion | str | None = None
+    response_parts: Sequence[ResponsePart],
+    version: ProtocolVersion | str | None = None,
 ) -> list[Part]:
     """Converts parsed response parts into A2A Parts.
 
@@ -171,7 +172,7 @@ def parse_content_to_parts(
 
 
 async def stream_response_to_parts(
-    stream: ResponseStream,
+    stream: ResponseStream[ResponsePart],
     token_stream: AsyncIterable[str],
     version: ProtocolVersion | str | None = None,
 ) -> AsyncIterable[Part]:

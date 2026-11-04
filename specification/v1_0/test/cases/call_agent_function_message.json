@@ -6,7 +6,7 @@
       "description": "CallAgentFunctionMessage: Valid message",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "callAgentFunction": {
           "surfaceId": "surface_123",
           "functionCallId": "unique-call-id-agent-1",
@@ -23,7 +23,7 @@
       "description": "CallAgentFunctionMessage: Valid with catalogId in callFunction",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "callAgentFunction": {
           "surfaceId": "surface_123",
           "functionCallId": "unique-call-id-agent-2",
@@ -38,7 +38,7 @@
       "description": "CallAgentFunctionMessage: Invalid (missing surfaceId)",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "callAgentFunction": {
           "functionCallId": "unique-call-id-agent-3",
           "callFunction": {
@@ -51,7 +51,7 @@
       "description": "CallAgentFunctionMessage: Invalid (missing functionCallId)",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "callAgentFunction": {
           "surfaceId": "surface_123",
           "callFunction": {
@@ -64,7 +64,7 @@
       "description": "CallAgentFunctionMessage: Invalid (missing callFunction)",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "callAgentFunction": {
           "surfaceId": "surface_123",
           "functionCallId": "unique-call-id-agent-4"

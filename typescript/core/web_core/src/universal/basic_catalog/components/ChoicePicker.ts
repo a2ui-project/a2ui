@@ -17,6 +17,13 @@
 import {html, nothing, css} from 'lit';
 import {state} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
+import {
+  getAccessibilityDescription,
+  getAccessibilityLabel,
+  getValidationErrorId,
+  hasAttributeValue,
+  renderValidationErrors,
+} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {ChoicePickerSupportedApis} from './supported_apis.js';
 
@@ -173,10 +180,18 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePi
     const componentId = this.context?.componentModel?.id || 'choice-picker';
     const dataPath = this.context?.dataContext?.path || '/';
     const sanitizedPath = dataPath.replace(/[^a-zA-Z0-9-]/g, '_');
-    const groupName = `a2ui-choice-${surfaceId}-${componentId}-${sanitizedPath}`;
+    const groupName = this.context
+      ? `a2ui-choice-${surfaceId}-${componentId}-${sanitizedPath}`
+      : `${this.domId}-choices`;
+    const labelId = `${this.domId}-label`;
+    const hasVisibleLabel = hasAttributeValue(props.label);
+    const a11yLabel = getAccessibilityLabel(props.accessibility);
+    const a11yDescription = getAccessibilityDescription(props.accessibility);
+    const isInvalid = props.isValid === false;
+    const errorId = getValidationErrorId(this.domId, props);
 
     return html`
-      ${props.label ? html`<label>${props.label}</label>` : nothing}
+      ${hasVisibleLabel ? html`<label id=${labelId}>${props.label}</label>` : nothing}
       ${props.filterable
         ? html`
             <input
@@ -190,6 +205,12 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePi
           `
         : nothing}
       <div
+        role=${!isChips && !isMulti ? 'radiogroup' : 'group'}
+        aria-label=${a11yLabel}
+        aria-labelledby=${a11yLabel === nothing && hasVisibleLabel ? labelId : nothing}
+        aria-description=${a11yDescription}
+        aria-invalid=${isInvalid ? 'true' : nothing}
+        aria-describedby=${errorId}
         class=${classMap({
           'a2ui-choice-picker': true,
           'a2ui-options-group': !isChips,
@@ -226,7 +247,7 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePi
               `,
         )}
       </div>
-      ${this.renderValidationErrors(props)}
+      ${renderValidationErrors(this.domId, props)}
     `;
   }
 }

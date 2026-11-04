@@ -28,7 +28,13 @@ import pytest
 
 SRC_ROOT = Path(__file__).resolve().parents[1] / "src" / "a2ui"
 
-FORBIDDEN_PREFIXES = ("a2a", "google.adk", "google.genai", "a2ui.a2a", "a2ui.adk")
+FORBIDDEN_PREFIXES = (
+    "a2a",
+    "google.adk",
+    "google.genai",
+    "a2ui.a2a",
+    "a2ui.adk",
+)
 
 
 def _imported_modules(tree: ast.AST) -> list[tuple[int, str]]:
@@ -58,7 +64,9 @@ def test_framework_packages_are_not_in_the_agent_sdk_tree() -> None:
 
 
 @pytest.mark.parametrize(
-    "path", SOURCE_FILES, ids=[str(p.relative_to(SRC_ROOT)) for p in SOURCE_FILES]
+    "path",
+    SOURCE_FILES,
+    ids=[str(p.relative_to(SRC_ROOT)) for p in SOURCE_FILES],
 )
 def test_no_framework_imports(path: Path) -> None:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))

@@ -38,8 +38,8 @@ const MCP_PROXY_URL = process.env['A2UI_MCP_URL'] ?? 'http://127.0.0.1:8787';
  */
 const monorepoAliases = Object.entries({
   '@a2ui/catalog-mcp': 'typescript/catalogs/mcp/dist/index.js',
-  '@a2ui/lit/v0_9': 'typescript/renderers/lit/dist/src/v0_9/index.js',
-  '@a2ui/web_core/v0_9': 'typescript/core/web_core/dist/src/v0_9/index.js',
+  '@a2ui/lit': 'typescript/renderers/lit/dist/src/index.js',
+  '@a2ui/web_core/v1_0': 'typescript/core/web_core/dist/src/v1_0/index.js',
 }).map(([specifier, path]) => ({
   find: exactly(specifier),
   replacement: fileURLToPath(new URL(`../../../../../${path}`, import.meta.url)),

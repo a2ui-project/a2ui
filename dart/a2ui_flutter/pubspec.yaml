@@ -35,3 +35,4 @@ dev_dependencies:
     sdk: flutter
   json_schema_builder: ^0.1.7
   video_player_platform_interface: ^6.9.0
+  yaml: ^3.1.2

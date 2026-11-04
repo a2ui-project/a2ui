@@ -27,7 +27,9 @@ from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import ProtocolVersion
 
 
-def load_agent_to_renderer_schema(version: ProtocolVersion | str) -> dict[str, Any]:
+def load_agent_to_renderer_schema(
+    version: ProtocolVersion | str,
+) -> dict[str, Any]:
     """Returns the agent-to-renderer (server-to-client) schema for a protocol version.
 
     Args:

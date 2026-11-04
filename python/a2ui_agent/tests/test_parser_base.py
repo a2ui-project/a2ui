@@ -38,7 +38,7 @@ from a2ui.prompt import PromptGenerator
 
 def _make_delete_message(surface_id: str = "main") -> DeleteSurfaceMessage:
     return DeleteSurfaceMessage(
-        version="v1.0",
+        version="1.0",
         deleteSurface=DeleteSurface(surfaceId=surface_id),
     )
 

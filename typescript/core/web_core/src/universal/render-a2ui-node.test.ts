@@ -155,7 +155,7 @@ describe('renderA2uiNode', () => {
     assert.strictEqual(second.context, context);
   });
 
-  it('keeps a resolved node element across re-renders, setting its node and context', () => {
+  it('keeps a resolved node element across re-renders, setting its node without assigning context', () => {
     const resolver = new NodeResolver(surface, testCatalog);
     const root = getValue(resolver.rootNode)!;
     const container = document.createElement('div');
@@ -166,7 +166,7 @@ describe('renderA2uiNode', () => {
     assert.strictEqual(customElements.get('a2ui-mock-button'), MockButtonElement);
     assert.strictEqual(second, first);
     assert.strictEqual(second.node, root);
-    assert.strictEqual(second.context, root.context);
+    assert.strictEqual(second.context, undefined);
 
     const contextOnly = new ComponentContext(surface, 'root');
     const third = renderInParent(container, renderA2uiNode(contextOnly, testCatalog));

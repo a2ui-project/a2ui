@@ -61,6 +61,6 @@ object A2uiConstants {
     1.  The response can contain one or more A2UI JSON blocks.
     2.  Each A2UI JSON block MUST be wrapped in $A2UI_OPEN_TAG and $A2UI_CLOSE_TAG tags.
     3.  Between or around these blocks, you can provide conversational text.
-    4.  The JSON part MUST be a single, raw JSON object (usually a list of A2UI messages) and MUST validate against the provided A2UI JSON SCHEMA.
+    4.  The JSON part MUST be a JSON array of A2UI messages, each following the provided A2UI JSON SCHEMA.
     """
 }

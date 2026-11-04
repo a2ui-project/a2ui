@@ -9,7 +9,7 @@ dist
 .angular/
 
 # MkDocs build output
-site/
+/site/
 
 # Python virtual environment
 .venv/

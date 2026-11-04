@@ -91,7 +91,7 @@ def test_unsupported_catalog_type_raises():
 def inheriting_helper() -> CatalogSchemaHelper:
     catalog = Catalog.from_json({
         "catalogId": "inheriting",
-        "protocolVersion": "v1.0",
+        "protocolVersion": "1.0",
         "components": {
             "Base": {
                 "type": "object",
@@ -158,7 +158,10 @@ def nested_mixin_helper() -> CatalogSchemaHelper:
                         "type": "object",
                         "properties": {
                             "weight": {"type": "number"},
-                            "style": {"type": "string", "enum": ["flat", "raised"]},
+                            "style": {
+                                "type": "string",
+                                "enum": ["flat", "raised"],
+                            },
                         },
                     },
                 ]
@@ -174,7 +177,10 @@ def nested_mixin_helper() -> CatalogSchemaHelper:
                         "properties": {
                             "component": {"const": "MaterialText"},
                             "text": {"type": "string"},
-                            "usageHint": {"type": "string", "enum": ["h1", "body"]},
+                            "usageHint": {
+                                "type": "string",
+                                "enum": ["h1", "body"],
+                            },
                         },
                         "required": ["component", "text"],
                     },

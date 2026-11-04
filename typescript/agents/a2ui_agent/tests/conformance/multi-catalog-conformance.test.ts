@@ -116,7 +116,7 @@ function loadCatalogConfig(entry: unknown): CatalogConfig {
   if (ref && typeof ref === 'object') {
     const rawDoc = ref as Record<string, unknown>;
     const doc = {
-      protocolVersion: 'v1.0',
+      protocolVersion: '1.0',
       catalogId: 'inline',
       ...rawDoc,
     };
@@ -396,7 +396,7 @@ function runFormatCase(testCase: LoadedCase): void {
     }
 
     const {processor, snippet} = create();
-    const active = processor.activeCatalogs;
+    const active = processor.catalogs;
     const expected = (testCase.expect as Record<string, unknown>) || {};
 
     if (expected.active_catalog_ids) {

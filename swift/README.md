@@ -1,7 +1,7 @@
 # A2UI Swift implementation
 
 This directory contains the official native Apple client implementation for A2UI
-(Agent-to-User Interface), supporting iOS, macOS, iPadOS, tvOS, visionOS, and watchOS.
+(Agent-to-User Interface), supporting iOS and iPadOS 17+ and macOS 14+.
 
 For the platform-agnostic protocol specifications and guidelines, see
 [specification/v0_9_1/docs/a2ui_protocol.md](../specification/v0_9_1/docs/a2ui_protocol.md) and

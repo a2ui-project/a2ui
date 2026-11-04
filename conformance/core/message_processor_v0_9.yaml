@@ -71,7 +71,14 @@
         catalogId: "test-catalog"
   expectError:
     category: "IntegrityError"
+    surfaceId: "s1"
     message: "Surface s1 already exists"
+    rendererError:
+      version: "v0.9"
+      error:
+        code: "INTEGRITY_ERROR"
+        surfaceId: "s1"
+        message: "Surface s1 already exists"
 
 - name: test_create_surface_unknown_catalog_error
   description: Tests that creating a surface referencing an unregistered catalogId raises a CatalogError.
@@ -246,7 +253,14 @@
             component: "Text"
   expectError:
     category: "IntegrityError"
+    surfaceId: "unknown-s"
     message: "Surface not found for message: unknown-s"
+    rendererError:
+      version: "v0.9"
+      error:
+        code: "INTEGRITY_ERROR"
+        surfaceId: "unknown-s"
+        message: "Surface not found for message: unknown-s"
 
 - name: test_update_components_missing_id_error
   description: Tests that component entries missing an 'id' property raise a validation error.
@@ -350,7 +364,14 @@
             child: "root"
   expectError:
     category: "ValidationError"
+    surfaceId: "s1"
     message: "Circular reference detected"
+    rendererError:
+      version: "v0.9"
+      error:
+        code: "RECURSION_LIMIT_EXCEEDED"
+        surfaceId: "s1"
+        message: "Circular reference detected"
 
 - name: test_topology_indirect_circular_reference_error
   description: Tests that indirect circular references (root -> c1 -> c2 -> root) are detected and rejected.
@@ -449,7 +470,14 @@
             child: "missing_child_id"
   expectError:
     category: "ValidationError"
+    surfaceId: "s1"
     message: "Dangling reference"
+    rendererError:
+      version: "v0.9"
+      error:
+        code: "INTEGRITY_ERROR"
+        surfaceId: "s1"
+        message: "Dangling reference"
 
 - name: test_topology_orphaned_component_error
   description: Tests that orphaned components unreachable from the root component fail validation in strict mode.
@@ -491,7 +519,14 @@
             text: "Unreachable"
   expectError:
     category: "ValidationError"
+    surfaceId: "s1"
     message: "Orphaned component"
+    rendererError:
+      version: "v0.9"
+      error:
+        code: "INTEGRITY_ERROR"
+        surfaceId: "s1"
+        message: "Orphaned component"
 
 - name: test_topology_structured_array_child_ref_ignores_sibling_strings
   description: >-
@@ -693,7 +728,14 @@
         value: "bar"
   expectError:
     category: "IntegrityError"
+    surfaceId: "unknown-s"
     message: "Surface not found for message: unknown-s"
+    rendererError:
+      version: "v0.9"
+      error:
+        code: "INTEGRITY_ERROR"
+        surfaceId: "unknown-s"
+        message: "Surface not found for message: unknown-s"
 
 - name: test_get_renderer_data_model_filtering
   description: Tests that getRendererDataModel filters out surfaces where sendDataModel is false.

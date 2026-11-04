@@ -210,8 +210,8 @@ export interface GenerateValidationSchemaOptions {
   componentEnvelopeRef?: string;
   /** Explicit standard $defs dictionary to use when serializing catalog components and functions. */
   standardDefs?: Record<string, unknown>;
-  /** Explicit protocol version for standard $defs resolution ('v0.8' | 'v0.9' | 'v0.9.1' | 'v1.0'). */
-  protocolVersion?: 'v0.8' | 'v0.9' | 'v0.9.1' | 'v1.0' | string;
+  /** Explicit protocol version for standard $defs resolution ('v0.8' | 'v0.9' | 'v0.9.1' | '1.0'). */
+  protocolVersion?: 'v0.8' | 'v0.9' | 'v0.9.1' | '1.0' | string;
 }
 
 type JsonObject = Record<string, unknown>;
@@ -655,7 +655,11 @@ function processSingleComponent(
     props = sanitized;
     reqList = extracted.reqList;
     description = zodComponentDescription(comp);
-    closure = context.isV10 ? undefined : (extracted.additionalProps ?? false);
+    closure = context.isV10
+      ? extracted.additionalProps === true
+        ? true
+        : undefined
+      : (extracted.additionalProps ?? false);
   }
 
   const id: JsonObject = {};

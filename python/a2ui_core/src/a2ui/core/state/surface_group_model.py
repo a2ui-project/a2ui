@@ -26,6 +26,11 @@ class SurfaceGroupModel:
         self.on_surface_created = EventSource()
         self.on_surface_deleted = EventSource()
         self.on_action = EventSource()
+        self.on_error = EventSource()
+
+    def emit_error(self, error: dict[str, object]) -> None:
+        """Emits a mapped renderer error message to global group listeners."""
+        self.on_error.emit(error)
 
     def get_surface(self, surface_id: str) -> SurfaceModel | None:
         return self.surfaces.get(surface_id)
@@ -67,3 +72,5 @@ class SurfaceGroupModel:
             self.on_surface_deleted.dispose()
         if hasattr(self.on_action, "dispose"):
             self.on_action.dispose()
+        if hasattr(self.on_error, "dispose"):
+            self.on_error.dispose()

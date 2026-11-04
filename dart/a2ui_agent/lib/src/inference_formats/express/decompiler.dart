@@ -190,8 +190,15 @@ class ExpressDecompiler {
     if (message.sendDataModel) {
       throw _noNotation("'sendDataModel' of surface '$surfaceId'");
     }
+    Map<Object?, Object?>? extensions;
     if (message.metadata != null) {
-      throw _noNotation("The metadata of surface '$surfaceId'");
+      if (_v1 &&
+          message.metadata!.length == 1 &&
+          message.metadata!['extensions'] is Map) {
+        extensions = message.metadata!['extensions']! as Map<Object?, Object?>;
+      } else {
+        throw _noNotation("The metadata of surface '$surfaceId'");
+      }
     }
     if (components == null || !components.any((c) => c['id'] == 'root')) {
       throw A2uiValidationError(
@@ -201,7 +208,7 @@ class ExpressDecompiler {
       );
     }
     return [
-      _surfaceLine(surfaceId, surface.catalogId),
+      _surfaceLine(surfaceId, surface.catalogId, extensions: extensions),
       if (data != null) ..._dataLines(data),
       ..._componentLines(components, surface),
     ].join('\n');
@@ -365,10 +372,20 @@ class ExpressDecompiler {
   /// The `surface(...)` line, which names the surface's catalog before v1.0
   /// when it is not the default. From v1.0 a surface of a single catalog has
   /// that catalog, and one of several names none.
-  String _surfaceLine(String surfaceId, String? catalogId) =>
-      _v1 || catalogId == catalogs.first.id
-      ? 'surface(${_string(surfaceId)})'
-      : 'surface(${_string(surfaceId)}, ${_string(catalogId!)})';
+  String _surfaceLine(
+    String surfaceId,
+    String? catalogId, {
+    Map<Object?, Object?>? extensions,
+  }) {
+    final args = <String>[_string(surfaceId)];
+    if (!_v1 && catalogId != catalogs.first.id) {
+      args.add(_string(catalogId!));
+    }
+    if (extensions != null) {
+      args.add('extensions=${_literal(extensions)}');
+    }
+    return 'surface(${args.join(', ')})';
+  }
 
   /// One assignment per leaf of [model], since the compiler builds nested
   /// maps back up from the paths on surface creation.
@@ -472,6 +489,10 @@ class _Component {
 
   String get _id => '${json['id']}';
 
+  /// The helper of the component's catalog, set once [write] resolves it,
+  /// through which nested schemas are reached.
+  CatalogSchemaHelper? _helper;
+
   String write() {
     final id = json['id']! as String;
     final String varName = variables[id]!;
@@ -486,10 +507,22 @@ class _Component {
       component: true,
       subject: "Component '$id'",
     );
+    _helper = helper;
     final List<String> properties = helper.properties(type);
+    Map<Object?, Object?>? compExtensions;
+    if (_v1 && json.containsKey('metadata')) {
+      final Object? rawMeta = json['metadata'];
+      if (rawMeta is Map &&
+          rawMeta.length == 1 &&
+          rawMeta['extensions'] is Map) {
+        compExtensions = rawMeta['extensions']! as Map<Object?, Object?>;
+      } else {
+        throw _noNotation("The metadata of component '$id'");
+      }
+    }
     for (final String key in json.keys) {
       if (key == 'id' || key == 'component' || key == 'checks') continue;
-      if (_v1 && key == 'catalogId') continue;
+      if (_v1 && (key == 'catalogId' || key == 'metadata')) continue;
       if (!properties.contains(key)) {
         throw A2uiValidationError(
           "Property '$key' of component '$id' has no Express notation: an "
@@ -515,21 +548,20 @@ class _Component {
       }
       arguments
         ..addAll(List.filled(skipped, '_'))
-        ..add(_property(value, helper.propertySchema(type, property)));
+        ..add(_value(value, helper.propertySchema(type, property)));
       skipped = 0;
     }
     if (json['checks'] case final Object checks) arguments.add(_checks(checks));
     if (catalogId != null) arguments.add('catalogId=${_string(catalogId)}');
     if (varName != id) arguments.add('id=${_string(id)}');
+    if (compExtensions != null) {
+      arguments.add('extensions=${_value(compExtensions, null)}');
+    }
     return '$varName = $type(${arguments.join(', ')})';
   }
 
-  String _property(Object value, Map<String, Object?>? schema) {
-    if (isAction(schema)) return _action(value);
-    return _value(value, schema);
-  }
-
   String _value(Object? value, Map<String, Object?>? schema) {
+    if (isAction(schema) && value != null) return _action(value);
     if (isComponentId(schema) && value is String) return _reference(value);
     if (isChildList(schema)) {
       if (value is List && value.every((Object? v) => v is String)) {
@@ -549,8 +581,11 @@ class _Component {
       Map() =>
         _binding(value) ??
             _call(value) ??
-            _mapLiteral(value, (key) => _propertySchema(schema, key)),
-      List() => _list(value, _itemSchema(schema)),
+            _mapLiteral(
+              value,
+              (key) => _helper?.resolvePropertySchema(schema, key),
+            ),
+      List() => _list(value, _helper?.resolveItemSchema(schema)),
       _ => _literal(value),
     };
   }
@@ -560,21 +595,33 @@ class _Component {
   /// as written.
   String _reference(String id) => variables[id] ?? _string(id);
 
-  /// `Event(name, context)` for an event, the call itself for a local
-  /// function, and the map literal otherwise.
+  /// `Event(name, context?, userMessage=?)` for an event, the call itself
+  /// for a local function, and the map literal otherwise.
   String _action(Object value) {
     switch (value) {
       case {'event': final Map<Object?, Object?> event} when value.length == 1:
         final Object? name = event['name'];
         final Object? context = event['context'];
+        final Object? userMessage = event['userMessage'];
+        const keys = {'name', 'context', 'userMessage'};
         final bool isEvent =
             name is String &&
-            event.keys.every((k) => k == 'name' || k == 'context') &&
-            (context == null || (context is Map && context.isNotEmpty));
+            event.keys.every(keys.contains) &&
+            (context == null || (context is Map && context.isNotEmpty)) &&
+            // Before v1.0 an event has no userMessage, and the compiler
+            // rejects `userMessage=`, so the object stays a map literal.
+            (userMessage == null ||
+                (_v1 &&
+                    (userMessage is String ||
+                        _binding(_asMap(userMessage)) != null ||
+                        _call(_asMap(userMessage)) != null)));
         if (isEvent) {
-          return context == null
-              ? 'Event(${_string(name)})'
-              : 'Event(${_string(name)}, ${_value(context, null)})';
+          final arguments = <String>[
+            _string(name),
+            if (context != null) _value(context, null),
+            if (userMessage != null) 'userMessage=${_value(userMessage, null)}',
+          ];
+          return 'Event(${arguments.join(', ')})';
         }
       case {'functionCall': final Map<Object?, Object?> call}
           when value.length == 1:
@@ -855,25 +902,6 @@ bool _equal(Object? a, Object? b) => switch ((a, b)) {
         [for (var i = 0; i < x.length; i++) i].every((i) => _equal(x[i], y[i])),
   _ => a == b,
 };
-
-Map<String, Object?>? _propertySchema(
-  Map<String, Object?>? schema,
-  String key,
-) {
-  if (schema == null) return null;
-  if (schema['properties'] case final Map<Object?, Object?> properties) {
-    if (properties[key] case final Map<Object?, Object?> property) {
-      return property.cast<String, Object?>();
-    }
-  }
-  return null;
-}
-
-Map<String, Object?>? _itemSchema(Map<String, Object?>? schema) =>
-    switch (schema?['items']) {
-      final Map<Object?, Object?> items => items.cast<String, Object?>(),
-      _ => null,
-    };
 
 A2uiValidationError _noNotation(String what) =>
     A2uiValidationError('$what has no Express notation.');

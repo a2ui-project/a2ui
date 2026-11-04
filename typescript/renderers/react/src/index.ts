@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-export {A2uiSurface} from './A2uiSurface';
+export {A2uiSurface, useA2uiSurface} from './A2uiSurface';
 export {createBinderlessComponentImplementation, createComponentImplementation} from './adapter';
-export {useSignalValue} from './node-view';
+export {useNodeView, useSignalValue} from './node-view';
 export type {
   NodeBuildChild,
   NodeViewProps,

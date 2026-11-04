@@ -22,28 +22,34 @@ import {
   ElementRef,
   Injector,
   Type,
+  computed,
   inject,
   input,
   effect,
+  reflectComponentType,
   signal,
   untracked,
   NgZone,
 } from '@angular/core';
 import {NgComponentOutlet} from '@angular/common';
 import {
+  type A2uiMetadata,
   ComponentContext,
   type ComponentNode,
   ResolvedBinding,
   SurfaceModel,
   Subscription,
+  effect as webCoreEffect,
   getValue,
   isComponentNode,
 } from '@a2ui/web_core/v0_9';
 import {
+  bindHostAccessibility,
   isWebComponentImplementation,
   registerUniversalElement,
   type WebComponentImplementation,
 } from '@a2ui/web_core/v0_9/universal';
+import {A2UI_ACCESSIBILITY_TARGETS, provideAccessibilityTargets} from './accessibility';
 import {A2uiRendererService} from './a2ui-renderer.service';
 import {Child, ComponentBinder} from './component-binder.service';
 import {SurfaceNodeResolver} from './surface-node-resolver.service';
@@ -54,7 +60,8 @@ import {CatalogComponentInstance} from './catalog_component_instance';
 
 interface UniversalComponentHostElement extends HTMLElement {
   node?: ComponentNode;
-  context: ComponentContext;
+  /** @deprecated Assign `node` instead. */
+  context?: ComponentContext;
   injector?: Injector;
 }
 
@@ -122,6 +129,8 @@ function findNodeInList(
 @Component({
   selector: 'a2ui-v09-component-host',
   imports: [NgComponentOutlet],
+  // The Angular component this host mounts marks its elements in these.
+  providers: [provideAccessibilityTargets()],
   host: {
     style: 'display: contents;',
   },
@@ -129,17 +138,7 @@ function findNodeInList(
   // minification. Prettier keeps them (`quoteProps: "preserve"` in the root `.prettierrc`).
   template: `
     @if (componentType()) {
-      <ng-container
-        *ngComponentOutlet="
-          componentType()!;
-          inputs: {
-            props: props(),
-            surfaceId: surfaceId(),
-            componentId: resolvedComponentId,
-            dataContextPath: resolvedDataContextPath,
-          }
-        "
-      ></ng-container>
+      <ng-container *ngComponentOutlet="componentType()!; inputs: componentInputs()"></ng-container>
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -159,10 +158,31 @@ export class ComponentHostComponent {
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly injector = inject(Injector);
   private readonly sharedResolver = inject(SurfaceNodeResolver, {optional: true});
+  private readonly accessibilityTargets = inject(A2UI_ACCESSIBILITY_TARGETS, {self: true});
   private ownResolver?: SurfaceNodeResolver;
 
   protected readonly componentType = signal<Type<CatalogComponentInstance> | null>(null);
   protected readonly props = signal<Record<string, BoundProperty>>({});
+  protected readonly metadata = signal<A2uiMetadata | undefined>(undefined);
+  protected readonly acceptsMetadata = computed(() => {
+    const type = this.componentType();
+    if (!type) return false;
+    const mirror = reflectComponentType(type);
+    return mirror?.inputs.some(i => i.templateName === 'metadata') ?? false;
+  });
+  protected readonly componentInputs = computed<Record<string, unknown>>(() => {
+    const inputs: Record<string, unknown> = {
+      // Quoted to prevent property renaming under Closure Compiler.
+      'props': this.props(),
+      'surfaceId': this.surfaceId(),
+      'componentId': this.resolvedComponentId,
+      'dataContextPath': this.resolvedDataContextPath,
+    };
+    if (this.acceptsMetadata()) {
+      inputs['metadata'] = this.metadata();
+    }
+    return inputs;
+  });
   /** Bumped when a surface that was missing is created, so the setup effect re-runs. */
   private readonly surfaceRetry = signal(0);
   private currentBoundProps?: Record<string, BoundProperty>;
@@ -173,8 +193,10 @@ export class ComponentHostComponent {
   protected resolvedComponentId: string = '';
   protected resolvedDataContextPath: string = '/';
 
-  private propsSub?: Subscription;
+  private stopProps?: () => void;
+  private stopMetadata?: () => void;
   private surfaceSub?: Subscription;
+  private stopAccessibility?: () => void;
 
   constructor() {
     effect(() => {
@@ -308,9 +330,37 @@ export class ComponentHostComponent {
   ): void {
     this.componentType.set(componentClass);
     this.updateProps();
+    this.metadata.set(getValue(node.metadata));
+    // A Web Component applies its own accessibility attributes; an Angular
+    // component gets them on this host.
+    this.stopAccessibility = bindHostAccessibility(
+      this.elementRef.nativeElement,
+      node,
+      this.accessibilityTargets,
+    );
 
-    this.propsSub = node.context!.componentModel.onUpdated.subscribe(() => {
-      this.ngZone.run(() => this.updateProps());
+    let lastProps = getValue(node.props);
+    this.stopProps = webCoreEffect(() => {
+      const nextProps = getValue(node.props);
+      if (nextProps === lastProps) return;
+      lastProps = nextProps;
+      this.ngZone.run(() => {
+        if (this.hasSameBoundKeys(nextProps, node.context?.componentModel.properties)) {
+          this.cdr.markForCheck();
+        } else {
+          this.updateProps();
+        }
+      });
+    });
+    let lastMeta = getValue(node.metadata);
+    this.stopMetadata = webCoreEffect(() => {
+      const nextMeta = getValue(node.metadata);
+      if (nextMeta === lastMeta) return;
+      lastMeta = nextMeta;
+      this.ngZone.run(() => {
+        this.metadata.set(nextMeta);
+        this.cdr.markForCheck();
+      });
     });
   }
 
@@ -326,6 +376,21 @@ export class ComponentHostComponent {
     this.cdr.markForCheck();
   }
 
+  private hasSameBoundKeys(
+    nextProps: Record<string, unknown>,
+    rawProps?: Record<string, unknown>,
+  ): boolean {
+    if (!this.currentBoundProps) return false;
+    const boundKeys = Object.keys(this.currentBoundProps);
+    const nextKeys = Object.keys(nextProps);
+    if (boundKeys.length !== nextKeys.length) return false;
+    return nextKeys.every(
+      key =>
+        Object.prototype.hasOwnProperty.call(this.currentBoundProps, key) &&
+        (!rawProps || this.currentBoundProps![key].raw === rawProps[key]),
+    );
+  }
+
   private setupWebComponent(implementation: WebComponentImplementation, node: AngularNode): void {
     this.componentType.set(null);
     this.props.set({});
@@ -336,17 +401,8 @@ export class ComponentHostComponent {
     const el = document.createElement(tagName) as UniversalComponentHostElement;
     el.injector = this.injector;
     el.node = node;
-    el.context = node.context!;
     this.mountedWcEl = el;
     this.elementRef.nativeElement.appendChild(el);
-
-    this.propsSub = node.context!.componentModel.onUpdated.subscribe(() => {
-      this.ngZone.run(() => {
-        if (this.mountedWcEl) {
-          this.mountedWcEl.node = node;
-        }
-      });
-    });
   }
 
   /**
@@ -355,10 +411,14 @@ export class ComponentHostComponent {
    * a new component is being loaded.
    */
   private resetState(): void {
-    this.propsSub?.unsubscribe();
-    this.propsSub = undefined;
+    this.stopProps?.();
+    this.stopProps = undefined;
+    this.stopMetadata?.();
+    this.stopMetadata = undefined;
     this.surfaceSub?.unsubscribe();
     this.surfaceSub = undefined;
+    this.stopAccessibility?.();
+    this.stopAccessibility = undefined;
 
     this.resolvedNode = undefined;
     this.activeSurface = undefined;
@@ -369,6 +429,7 @@ export class ComponentHostComponent {
       this.currentBoundProps = undefined;
     }
     this.props.set({});
+    this.metadata.set(undefined);
     this.resolvedDataContextPath = '/';
 
     if (this.mountedWcEl) {

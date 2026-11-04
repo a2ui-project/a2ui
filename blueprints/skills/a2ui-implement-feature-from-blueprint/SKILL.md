@@ -32,9 +32,12 @@ This skill provides step-by-step instructions on implementing feature specificat
 - Open `blueprints/codebases/<relative_path>/codebase.blueprint.md`.
 - If you brought the codebase up to date with the latest Module Blueprint commit, update `module_blueprint_commit` to the current commit hash:
   ```bash
-  git log -n 1 --pretty=format:%H blueprints/modules/<associated_module>.blueprint.md
+  git log -n 1 --pretty=format:%H -- blueprints/modules/<associated_module>.blueprint.md
   ```
-- If you implemented an optional feature from `blueprints/features/`, add its name to `implemented_features`.
+- If you implemented or updated an optional feature from `blueprints/features/`, record its latest 40-character commit hash under `implemented_features`:
+  ```bash
+  git log -n 1 --pretty=format:%H -- blueprints/features/<feature_name>.blueprint.md
+  ```
 
 ### **Step 4: Validate Blueprints**
 

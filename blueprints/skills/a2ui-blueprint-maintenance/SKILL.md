@@ -31,7 +31,21 @@ When a feature specification in `blueprints/features/<feature_name>.blueprint.md
      python3 blueprints/validate_blueprints.py
      ```
 
-### **Recipe B: Archiving Deprecated Optional Features**
+### **Recipe B: Updating a Feature Blueprint**
+
+When updating an active feature blueprint in `blueprints/features/<feature_name>.blueprint.md`:
+
+1. Update the feature blueprint specification.
+2. When updating a codebase to conform to the revised feature blueprint, update that feature's pinned commit hash under `implemented_features` in `blueprints/codebases/<relative_path>/codebase.blueprint.md`:
+   ```bash
+   git log -n 1 --pretty=format:%H -- blueprints/features/<feature_name>.blueprint.md
+   ```
+3. Run the blueprint validator:
+   ```bash
+   python3 blueprints/validate_blueprints.py
+   ```
+
+### **Recipe C: Archiving Deprecated Optional Features**
 
 If an optional feature in `blueprints/features/<feature_name>.blueprint.md` is deprecated or abandoned without being merged:
 

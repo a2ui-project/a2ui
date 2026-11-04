@@ -1,8 +1,8 @@
-# A2UI (Agent-to-Agent UI) Extension spec
+# A2UI Extension spec
 
 ## Overview
 
-This extension implements the A2UI (Agent-to-Agent UI) spec, a format for agents to send streaming, interactive user interfaces to clients.
+This extension implements the A2UI spec, a format for agents to send streaming, interactive user interfaces to clients.
 
 ## Extension URI
 

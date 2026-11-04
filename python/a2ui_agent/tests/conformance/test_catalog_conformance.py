@@ -67,7 +67,7 @@ def _catalog_config(entry: str | Mapping[str, Any]) -> CatalogConfig:
     document = load_conformance_json(path)
     catalog = InMemoryCatalogProvider(
         document,
-        protocol_version=None if "protocolVersion" in document else "v1.0",
+        protocol_version=None if "protocolVersion" in document else "1.0",
         catalog_id=None if "catalogId" in document else path,
     ).load()
     return CatalogConfig(

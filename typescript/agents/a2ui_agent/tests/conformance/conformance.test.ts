@@ -36,7 +36,7 @@ import {classify, KNOWN_FAILURES, loadCases, LoadedCase} from './loader.js';
 import {conformancePath} from './suite-helpers.js';
 
 // Cases that name no catalog run against the v1.0 basic catalog.
-const basicCatalogV10 = loadBasicCatalog('v1.0');
+const basicCatalogV10 = loadBasicCatalog('1.0');
 const basicCatalogV09 = loadBasicCatalog('v0.9');
 
 // We map category strings to actual error classes for assertions
@@ -123,7 +123,7 @@ function runParseFullCase(testCase: LoadedCase): void {
     const declared = (testCase.catalog as Record<string, unknown> | undefined)?.protocolVersion as
       | string
       | undefined;
-    const version = declared ? toWireProtocolVersion(declared) : 'v1.0';
+    const version = declared ? toWireProtocolVersion(declared) : '1.0';
     const parser = new ExpressParser(version === 'v0.9' ? basicCatalogV09 : basicCatalogV10);
 
     if (expectError) {
@@ -212,7 +212,7 @@ function runSelectCatalogCase(testCase: LoadedCase): void {
   const configs = supportedCatalogs.map(c =>
     createCatalogConfig({
       name: c.catalogId,
-      protocolVersion: 'v1.0',
+      protocolVersion: '1.0',
       catalogSchema: {components: c.components || {}},
     }),
   );

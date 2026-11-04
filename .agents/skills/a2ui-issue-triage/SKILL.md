@@ -55,10 +55,12 @@ Launch the interactive web dashboard to allow the oncall engineer to review and 
 1. Start the local server as a background task, pointing it to your scratch directory:
    `python3 .agents/skills/a2ui-issue-triage/scripts/launch_dashboard.py --data-file "<appDataDir>/brain/<conversation-id>/scratch/issues_to_triage.json" --output-file "<appDataDir>/brain/<conversation-id>/scratch/triage_decisions.json"`
    Set `WaitMsBeforeAsync` to `1000` so the server runs in the background.
-2. **Wait for Completion**: Stop calling tools and go idle. The launcher will automatically open the browser for the user and block until they click "Apply Triages" or "Abort". Once the user acts, the background task will complete, and you will receive a notification with the exit status.
-3. **Verify Exit Status**:
-   - If the task exited with status `0` (approved), proceed to apply the decisions.
-   - If the task exited with a non-zero status (abort), don't modify any issues. You MUST STOP and ask the user for further instructions.
+2. **Iterative Batch Triage**: The dashboard supports reviewing and applying issues in batches directly from the UI (`Apply Batch`). As decisions are synced to GitHub in real time, the UI displays progress (`X / Y updates made`) and checkmarks next to items. The user can continue triaging remaining issues without closing the session.
+3. **Milestone Management**: The dashboard displays milestone dropdowns and badges, enabling adding, changing, or removing issues from milestones.
+4. **Wait for Completion**: When finished, the user clicks "Finish & Exit" or "Abort". Once the user acts, the background task will complete, and you will receive a notification with the exit status.
+5. **Verify Exit Status**:
+   - If the task exited with status `0` (approved), any remaining approved decisions are saved to the decisions file.
+   - If the task exited with a non-zero status (abort), you MUST STOP and ask the user for further instructions.
 
 ---
 

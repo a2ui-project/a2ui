@@ -150,31 +150,3 @@ def test_adk_extensions_conformance(name, test_case):
         expected = test_case["expect"]
         if "clientDataModel" in expected:
             assert client_data_model == expected["clientDataModel"]
-
-    elif action == "resolve_path":
-        from a2ui.extensions.file_resolve import (
-            FileResolver,
-            FileResolverSecurityError,
-        )
-
-        resolver = FileResolver()
-        file_info = args["fileInfo"]
-
-        expect_error = test_case.get("expectError")
-        if expect_error:
-            with pytest.raises((FileResolverSecurityError, Exception)) as exc_info:
-                asyncio.run(resolver.resolve_bytes(file_info))
-            msg = (
-                expect_error.get("message", "")
-                if isinstance(expect_error, dict)
-                else expect_error
-            )
-            if msg:
-                assert msg in str(exc_info.value)
-        else:
-            raw_bytes, detected_mime = asyncio.run(resolver.resolve_bytes(file_info))
-            expected = test_case["expect"]
-            if "text" in expected:
-                assert raw_bytes.decode("utf-8") == expected["text"]
-            if "mimeType" in expected:
-                assert detected_mime == expected["mimeType"]

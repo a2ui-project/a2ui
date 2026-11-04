@@ -16,6 +16,7 @@
 
 import {z} from 'zod';
 
+import {validateMetadata} from '../common/metadata.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {assertUax31Identifier} from '../common/uax31.js';
 import {A2uiCatalogError} from '../errors.js';
@@ -300,6 +301,87 @@ function convertUnionToZod(
 }
 
 /**
+ * Converts an `allOf`-composed JSON Schema property or leaf `$defs` entry into a Zod schema.
+ *
+ * When all branches contribute object property definitions (inline or via `#/$defs/...`),
+ * merges their properties and required sets into a single `z.object(...)` respecting
+ * `additionalProperties` / `unevaluatedProperties`. Otherwise, intersects the converted
+ * branch schemas with `.and(...)`.
+ */
+function convertAllOfPropertyToZod(
+  propSchema: Record<string, unknown>,
+  rootDoc: Record<string, unknown> | undefined,
+  visitedPointers: Set<string>,
+  defCache: Map<string, z.ZodTypeAny>,
+): z.ZodTypeAny | undefined {
+  const rawBranches = propSchema.allOf as unknown[];
+  const branches = rawBranches.filter(
+    (b): b is Record<string, unknown> => typeof b === 'object' && b !== null,
+  );
+  if (branches.length === 0) return undefined;
+
+  if (rootDoc) {
+    const subSchemas = collectComponentSubSchemas(
+      propSchema,
+      rootDoc,
+      new Set(visitedPointers),
+      false,
+    );
+    if (subSchemas.length > 0) {
+      const requiredSet = new Set<string>();
+      for (const s of subSchemas) {
+        if (s.kind === 'json' && Array.isArray(s.schema.required)) {
+          for (const r of s.schema.required) {
+            if (typeof r === 'string') requiredSet.add(r);
+          }
+        }
+      }
+      if (Array.isArray(propSchema.required)) {
+        for (const r of propSchema.required) {
+          if (typeof r === 'string') requiredSet.add(r);
+        }
+      }
+      const shape: Record<string, z.ZodTypeAny> = {};
+      for (const s of subSchemas) {
+        if (s.kind === 'zod') {
+          Object.assign(shape, s.properties);
+          continue;
+        }
+        const propShape = convertPropertiesToShape(
+          (s.schema.properties as Record<string, unknown>) || {},
+          requiredSet,
+          false,
+          rootDoc,
+          new Set(visitedPointers),
+          defCache,
+        );
+        Object.assign(shape, propShape);
+      }
+      const baseObj = z.object(shape);
+      const forbidExtra =
+        propSchema.additionalProperties === false ||
+        propSchema.unevaluatedProperties === false ||
+        subSchemas.some(
+          s =>
+            s.kind === 'json' &&
+            (s.schema.additionalProperties === false || s.schema.unevaluatedProperties === false),
+        );
+      const obj = forbidExtra ? baseObj.strict() : baseObj.passthrough();
+      return finalizePropertyZod(obj, propSchema, rootDoc, visitedPointers, defCache);
+    }
+  }
+
+  const zodBranches = branches.map(b =>
+    convertPropertyToZod(b, rootDoc, new Set(visitedPointers), defCache),
+  );
+  let intersected = zodBranches[0];
+  for (let i = 1; i < zodBranches.length; i++) {
+    intersected = intersected.and(zodBranches[i]);
+  }
+  return finalizePropertyZod(intersected, propSchema, rootDoc, visitedPointers, defCache);
+}
+
+/**
  * Converts a JSON Schema property definition into a runtime Zod schema.
  *
  * Handles `$ref` pointers, unions (`oneOf`, `anyOf`), enums, const values,
@@ -341,6 +423,12 @@ function convertPropertyToZod(
   if (Array.isArray(propSchema.oneOf) || Array.isArray(propSchema.anyOf)) {
     const resolvedUnion = convertUnionToZod(propSchema, rootDoc, visitedPointers, defCache);
     if (resolvedUnion) return resolvedUnion;
+  }
+
+  // allOf inspection
+  if (Array.isArray(propSchema.allOf) && propSchema.allOf.length > 0) {
+    const resolvedAllOf = convertAllOfPropertyToZod(propSchema, rootDoc, visitedPointers, defCache);
+    if (resolvedAllOf) return resolvedAllOf;
   }
 
   // Const literal
@@ -507,7 +595,10 @@ function convertPropertiesToShape(
       defCache,
     );
     if (!requiredSet.has(propName)) {
-      shape[propName] = zodField.optional();
+      // A property with a `default` already accepts a missing value, and
+      // `optional()` would skip the default. Leaving it unwrapped applies the
+      // default on parse, as a `.default()` in a catalog defined in code does.
+      shape[propName] = zodField instanceof z.ZodDefault ? zodField : zodField.optional();
     } else if (zodField.safeParse(undefined).success) {
       // A schema that accepts any value, such as `{}`, also accepts a missing
       // key, which `required` rules out.
@@ -928,25 +1019,42 @@ function parseFunctionDefinitions(
     }
   };
 
+  /**
+   * Rejects requiresUserActivation=true with callers other than rendererOnly.
+   * The rule exists only in the v1.0 catalog_definition.json.
+   */
+  const assertUserActivationCallers = (entry: FunctionApi): void => {
+    if (!atLeastV10) return;
+    if (
+      entry.requiresUserActivation === true &&
+      entry.allowedCallers !== undefined &&
+      entry.allowedCallers !== 'rendererOnly'
+    ) {
+      throw new A2uiCatalogError(
+        `Function '${entry.name}' declares requiresUserActivation=true with allowedCallers='${entry.allowedCallers}'; requiresUserActivation=true requires allowedCallers='rendererOnly'.`,
+      );
+    }
+  };
+
   if (Array.isArray(rawFunctions)) {
     for (const fn of rawFunctions) {
       if (fn && typeof fn === 'object' && typeof fn.name === 'string') {
         const paramNames = functionParameterNames(fn.parameters, rootDoc);
         assertFunctionIdentifiers(fn.name, paramNames);
+        const entry = new JsonFunctionApi(fn.name, fn as Record<string, unknown>, definition =>
+          definition['parameters'] && typeof definition['parameters'] === 'object'
+            ? convertFunctionArgsJsonSchemaToZod(
+                definition['parameters'] as Record<string, unknown>,
+                rootDoc,
+                defCache,
+              )
+            : z.record(z.unknown()),
+        );
+        assertUserActivationCallers(entry);
         if (permittedNames && !permittedNames.has(fn.name)) {
           continue;
         }
-        result.push(
-          new JsonFunctionApi(fn.name, fn as Record<string, unknown>, definition =>
-            definition['parameters'] && typeof definition['parameters'] === 'object'
-              ? convertFunctionArgsJsonSchemaToZod(
-                  definition['parameters'] as Record<string, unknown>,
-                  rootDoc,
-                  defCache,
-                )
-              : z.record(z.unknown()),
-          ),
-        );
+        result.push(entry);
       }
     }
     return result;
@@ -958,18 +1066,18 @@ function parseFunctionDefinitions(
       const argsSchema = functionArgsSchema(rawDefn);
       const paramNames = functionParameterNames(argsSchema, rootDoc);
       assertFunctionIdentifiers(name, paramNames);
+      if (!defn || typeof defn !== 'object') continue;
+      const entry = new JsonFunctionApi(name, defn as Record<string, unknown>, definition => {
+        const argsSchema = functionArgsSchema(definition);
+        return argsSchema
+          ? convertFunctionArgsJsonSchemaToZod(argsSchema, rootDoc, defCache)
+          : z.record(z.unknown());
+      });
+      assertUserActivationCallers(entry);
       if (permittedNames && !permittedNames.has(name)) {
         continue;
       }
-      if (!defn || typeof defn !== 'object') continue;
-      result.push(
-        new JsonFunctionApi(name, defn as Record<string, unknown>, definition => {
-          const argsSchema = functionArgsSchema(definition);
-          return argsSchema
-            ? convertFunctionArgsJsonSchemaToZod(argsSchema, rootDoc, defCache)
-            : z.record(z.unknown());
-        }),
-      );
+      result.push(entry);
     }
   }
 
@@ -1066,6 +1174,14 @@ function parseCatalogComponents(
             propName,
             `property identifier: '${propName}' in component '${name}'`,
           );
+        }
+      }
+      const rawMeta = rawComp.metadata;
+      if (rawMeta !== undefined) {
+        try {
+          validateMetadata(rawMeta);
+        } catch (err) {
+          throw new A2uiCatalogError(err instanceof Error ? err.message : String(err));
         }
       }
     }

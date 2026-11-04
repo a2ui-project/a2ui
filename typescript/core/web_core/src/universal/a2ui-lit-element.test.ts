@@ -15,18 +15,22 @@
  */
 
 import * as assert from 'node:assert';
-import {describe, it, before, beforeEach, after} from 'node:test';
-import {setupTestDom, teardownTestDom, asyncUpdate} from '../test/dom-setup.js';
-import {nothing, render} from 'lit';
+import {after, afterEach, before, beforeEach, describe, it} from 'node:test';
 
-import {ComponentContext} from '../resolution/component-context.js';
-import {NodeResolver} from '../resolution/node-resolver.js';
-import {getValue, peekValue} from '../reactivity/signals.js';
-import {MessageProcessor} from '../processing/message-processor.js';
-import {A2uiLitElement} from './a2ui-lit-element.js';
+// Must be imported before `lit` and `./a2ui-lit-element.js` so JSDOM globals
+// (`window`, `document`, `HTMLElement`, `customElements`) exist at module evaluation time.
+import {asyncUpdate, setupTestDom, teardownTestDom} from '../test/dom-setup.js';
+import {css, html, nothing, render} from 'lit';
 import {z} from 'zod';
+
 import {Catalog, ComponentApi} from '../catalog/index.js';
 import {basicCatalog} from '../catalogs/basic/v1/catalog.js';
+import {MessageProcessor} from '../processing/message-processor.js';
+import {getValue, peekValue} from '../reactivity/signals.js';
+import {ComponentContext} from '../resolution/component-context.js';
+import {NodeResolver} from '../resolution/node-resolver.js';
+import {CheckableSchema} from '../v0_9/schema/common-types.js';
+import {A2uiLitElement} from './a2ui-lit-element.js';
 
 const MockTextApi = {
   name: 'Text',
@@ -82,14 +86,14 @@ describe('A2uiLitElement', () => {
     processor = new MessageProcessor([testCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'test-surface',
           catalogId: testCatalog.id,
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'test-surface',
           components: [
@@ -107,7 +111,7 @@ describe('A2uiLitElement', () => {
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 'test-surface',
           value: {
@@ -121,13 +125,66 @@ describe('A2uiLitElement', () => {
     surface = processor.model.getSurface('test-surface')!;
   });
 
-  it('should default to Shadow DOM rendering (creates a ShadowRoot)', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+    document.adoptedStyleSheets = [];
+  });
+
+  it('defaults to light DOM (createRenderRoot returns this)', () => {
     const el = document.createElement('test-a2ui-element') as any;
-    assert.notStrictEqual(el.createRenderRoot(), el);
-    assert.ok(
-      el.createRenderRoot() instanceof (globalThis as any).ShadowRoot ||
-        el.createRenderRoot() !== el,
-    );
+    assert.strictEqual(el.createRenderRoot(), el);
+    assert.strictEqual(el.shadowRoot, null);
+  });
+
+  it('adopts scoped styles into the document by default', () => {
+    class TestLightStyledElement extends A2uiLitElement<any> {
+      static override styles = css`
+        :host {
+          display: block;
+        }
+        .title {
+          color: blue;
+        }
+      `;
+      override createController() {
+        return {dispose: () => {}} as any;
+      }
+    }
+    customElements.define('test-light-styled-element', TestLightStyledElement);
+
+    const el = document.createElement('test-light-styled-element') as TestLightStyledElement;
+    document.body.appendChild(el);
+
+    assert.strictEqual(el.renderRoot, el);
+    assert.strictEqual(el.shadowRoot, null);
+    assert.ok((TestLightStyledElement as any)._processedCss?.includes('test-light-styled-element'));
+    assert.ok((TestLightStyledElement as any)._adoptedRoots?.has(document));
+    assert.strictEqual(document.adoptedStyleSheets.length, 1);
+  });
+
+  it('does not adopt its styles into the document when it renders into a ShadowRoot', () => {
+    class TestShadowStyledElement extends A2uiLitElement<any> {
+      static override styles = css`
+        .title {
+          color: red;
+        }
+      `;
+      protected override createRenderRoot() {
+        return this.attachShadow({mode: 'open'});
+      }
+      override createController() {
+        return {dispose: () => {}} as any;
+      }
+    }
+    customElements.define('test-shadow-styled-element', TestShadowStyledElement);
+
+    const sheetsBefore = [...document.adoptedStyleSheets];
+    const el = document.createElement('test-shadow-styled-element') as TestShadowStyledElement;
+    document.body.appendChild(el);
+
+    assert.ok(el.renderRoot instanceof (globalThis as any).ShadowRoot);
+    assert.deepStrictEqual(document.adoptedStyleSheets, sheetsBefore);
+    assert.strictEqual((TestShadowStyledElement as any)._processedCss, undefined);
   });
 
   it('should create controller when context is set', async () => {
@@ -245,7 +302,7 @@ describe('A2uiLitElement', () => {
     surface.componentsModel.removeComponent('root');
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'test-surface',
           components: [{id: 'root', component: 'Text', text: 'Recreated'}],
@@ -266,14 +323,14 @@ describe('A2uiLitElement', () => {
     const nodeProcessor = new MessageProcessor([basicCatalog]);
     nodeProcessor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'node-surface',
           catalogId: basicCatalog.id,
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'node-surface',
           components: [
@@ -299,8 +356,9 @@ describe('A2uiLitElement', () => {
     assert.strictEqual(el.context, root.context);
     assert.strictEqual(controllerCreatedCount, 1);
     // renderNode('child_id') hands the child element the child's own node.
-    const childEl = el.shadowRoot.querySelector('a2ui-basic-text');
+    const childEl = el.querySelector('a2ui-basic-text');
     assert.strictEqual(childEl.node, childNode);
+    await childEl.updateComplete;
     assert.strictEqual(childEl.context, childNode.context);
 
     // Reassigning the same node changes nothing.
@@ -401,9 +459,9 @@ describe('A2uiLitElement', () => {
       const catalog = new Catalog<ComponentApi>(catalogId, '1.0', [api]);
       const catalogProcessor = new MessageProcessor([catalog]);
       catalogProcessor.processMessages([
-        {version: 'v1.0', createSurface: {surfaceId: 's', catalogId}},
+        {version: '1.0', createSurface: {surfaceId: 's', catalogId}},
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's',
             components: [{id: 'root', component: 'Label', text: 'Hi'}],
@@ -458,14 +516,14 @@ describe('A2uiLitElement', () => {
     const columnProcessor = new MessageProcessor([basicCatalog]);
     columnProcessor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'leak-surface',
           catalogId: basicCatalog.id,
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'leak-surface',
           components: [
@@ -476,7 +534,7 @@ describe('A2uiLitElement', () => {
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 'leak-surface',
           value: {label: 'Initial'},
@@ -508,7 +566,7 @@ describe('A2uiLitElement', () => {
       await asyncUpdate(rootEl, (e: any) => {
         columnProcessor.processMessages([
           {
-            version: 'v1.0',
+            version: '1.0',
             updateDataModel: {
               surfaceId: 'leak-surface',
               value: {label: `Tick ${i}`},
@@ -523,5 +581,389 @@ describe('A2uiLitElement', () => {
 
     document.body.removeChild(rootEl);
     assert.strictEqual(onCreatedListeners.size, 0);
+  });
+
+  it('forwards accessibility and validation attributes to accessibilityTarget() and renders validation errors', async () => {
+    const TargetInputApi = {
+      name: 'TargetInput',
+      schema: z.object({
+        value: z.string().default(''),
+        checks: CheckableSchema.shape.checks,
+        accessibility: z
+          .object({
+            label: z.string().optional(),
+            description: z.string().optional(),
+            live: z.enum(['off', 'polite', 'assertive']).optional(),
+            hidden: z.boolean().optional(),
+          })
+          .optional(),
+      }),
+    };
+
+    class TestTargetInputElement extends A2uiLitElement<typeof TargetInputApi> {
+      protected override readonly api = TargetInputApi;
+      public targetSelector: string | null = 'input';
+
+      protected override accessibilityTarget(): Element | null {
+        return this.targetSelector ? this.querySelector(this.targetSelector) : null;
+      }
+
+      override render() {
+        return html`
+          <input .value=${this.controller.props.value ?? ''} />
+          <textarea .value=${this.controller.props.value ?? ''}></textarea>
+          ${this.renderValidationErrors()}
+        `;
+      }
+    }
+
+    if (!customElements.get('test-target-input-element')) {
+      customElements.define('test-target-input-element', TestTargetInputElement);
+    }
+
+    const catalog = new Catalog<ComponentApi>('target-input-catalog', '1.0', [TargetInputApi]);
+    const targetProcessor = new MessageProcessor([catalog]);
+    targetProcessor.processMessages([
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 'target-surface',
+          catalogId: catalog.id,
+        },
+      },
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'target-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'TargetInput',
+              value: 'bad',
+              checks: [{condition: false, message: 'Must be valid'}],
+              accessibility: {
+                label: 'Email address',
+                description: 'Enter your work email',
+                live: 'polite',
+                hidden: false,
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const targetSurface = targetProcessor.model.getSurface('target-surface')!;
+    const resolver = new NodeResolver(targetSurface, catalog);
+    const rootNode = getValue(resolver.rootNode)!;
+
+    const el = document.createElement('test-target-input-element') as TestTargetInputElement;
+    document.body.appendChild(el);
+    await asyncUpdate(el, (e: any) => {
+      e.node = rootNode;
+    });
+
+    assert.strictEqual(el.getAttribute('aria-live'), 'polite');
+    assert.strictEqual(el.getAttribute('aria-hidden'), 'false');
+    assert.strictEqual(el.hasAttribute('role'), false);
+    assert.strictEqual(el.hasAttribute('aria-label'), false);
+    assert.strictEqual(el.hasAttribute('aria-description'), false);
+
+    const input = el.querySelector('input')!;
+    const textarea = el.querySelector('textarea')!;
+    assert.ok(input);
+    assert.ok(textarea);
+    assert.strictEqual(input.getAttribute('aria-label'), 'Email address');
+    assert.strictEqual(input.getAttribute('aria-description'), 'Enter your work email');
+    assert.strictEqual(input.getAttribute('aria-invalid'), 'true');
+    assert.strictEqual(input.getAttribute('aria-describedby'), `${rootNode.id}-error`);
+
+    const errorEl = el.querySelector('.a2ui-validation-errors');
+    assert.ok(errorEl);
+    assert.strictEqual(errorEl.id, `${rootNode.id}-error`);
+    assert.strictEqual(errorEl.querySelector('.a2ui-error-message')?.textContent, 'Must be valid');
+
+    // Switching accessibilityTarget() to another inner element clears ARIA attributes from the prior target.
+    await asyncUpdate(el, (e: TestTargetInputElement) => {
+      e.targetSelector = 'textarea';
+      e.requestUpdate();
+    });
+    assert.strictEqual(input.hasAttribute('aria-label'), false);
+    assert.strictEqual(input.hasAttribute('aria-description'), false);
+    assert.strictEqual(input.hasAttribute('aria-invalid'), false);
+    assert.strictEqual(input.hasAttribute('aria-describedby'), false);
+    assert.strictEqual(textarea.getAttribute('aria-label'), 'Email address');
+    assert.strictEqual(textarea.getAttribute('aria-description'), 'Enter your work email');
+    assert.strictEqual(textarea.getAttribute('aria-invalid'), 'true');
+    assert.strictEqual(textarea.getAttribute('aria-describedby'), `${rootNode.id}-error`);
+
+    targetProcessor.processMessages([
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'target-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'TargetInput',
+              value: 'ok',
+              checks: [{condition: true, message: 'Must be valid'}],
+              accessibility: undefined,
+            },
+          ],
+        },
+      },
+    ]);
+    await asyncUpdate(el, () => {});
+
+    assert.strictEqual(el.hasAttribute('aria-live'), false);
+    assert.strictEqual(el.hasAttribute('aria-hidden'), false);
+    assert.strictEqual(textarea.hasAttribute('aria-label'), false);
+    assert.strictEqual(textarea.hasAttribute('aria-description'), false);
+    assert.strictEqual(textarea.hasAttribute('aria-invalid'), false);
+    assert.strictEqual(textarea.hasAttribute('aria-describedby'), false);
+    assert.strictEqual(el.querySelector('.a2ui-validation-errors'), null);
+
+    el.remove();
+    resolver.dispose();
+  });
+
+  it('falls back to role="group" and aria-label on the host when accessibilityTarget() is null, preserving any explicit host role', async () => {
+    const GroupBoxApi = {
+      name: 'GroupBox',
+      schema: z.object({
+        title: z.string().default(''),
+        accessibility: z
+          .object({
+            label: z.string().optional(),
+            description: z.string().optional(),
+            live: z.enum(['off', 'polite', 'assertive']).optional(),
+            hidden: z.boolean().optional(),
+          })
+          .optional(),
+      }),
+    };
+
+    class TestGroupBoxElement extends A2uiLitElement<typeof GroupBoxApi> {
+      protected override readonly api = GroupBoxApi;
+
+      override render() {
+        return html`<span>${this.controller.props.title}</span>`;
+      }
+    }
+
+    if (!customElements.get('test-group-box-element')) {
+      customElements.define('test-group-box-element', TestGroupBoxElement);
+    }
+
+    const catalog = new Catalog<ComponentApi>('group-box-catalog', '1.0', [GroupBoxApi]);
+    const groupProcessor = new MessageProcessor([catalog]);
+    groupProcessor.processMessages([
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 'group-surface',
+          catalogId: catalog.id,
+        },
+      },
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'group-surface',
+          components: [
+            {
+              id: 'box1',
+              component: 'GroupBox',
+              title: 'Summary',
+              accessibility: {
+                label: 'Order summary',
+                description: 'Items and totals',
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const groupSurface = groupProcessor.model.getSurface('group-surface')!;
+
+    // 1. Default host without an explicit role gets role="group" and clears it when unset.
+    const defaultHost = document.createElement('test-group-box-element') as TestGroupBoxElement;
+    document.body.appendChild(defaultHost);
+    await asyncUpdate(defaultHost, (e: any) => {
+      e.context = new ComponentContext(groupSurface, 'box1');
+    });
+
+    assert.strictEqual(defaultHost.getAttribute('role'), 'group');
+    assert.strictEqual(defaultHost.getAttribute('aria-label'), 'Order summary');
+    assert.strictEqual(defaultHost.getAttribute('aria-description'), 'Items and totals');
+
+    // 2. Host with an explicit role preserves that role when setting and clearing accessibility.
+    const regionHost = document.createElement('test-group-box-element') as TestGroupBoxElement;
+    regionHost.setAttribute('role', 'region');
+    document.body.appendChild(regionHost);
+    await asyncUpdate(regionHost, (e: any) => {
+      e.context = new ComponentContext(groupSurface, 'box1');
+    });
+
+    assert.strictEqual(regionHost.getAttribute('role'), 'region');
+    assert.strictEqual(regionHost.getAttribute('aria-label'), 'Order summary');
+    assert.strictEqual(regionHost.getAttribute('aria-description'), 'Items and totals');
+
+    groupProcessor.processMessages([
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'group-surface',
+          components: [
+            {
+              id: 'box1',
+              component: 'GroupBox',
+              title: 'Summary',
+              accessibility: undefined,
+            },
+          ],
+        },
+      },
+    ]);
+    await asyncUpdate(defaultHost, () => {});
+    await asyncUpdate(regionHost, () => {});
+
+    assert.strictEqual(defaultHost.hasAttribute('role'), false);
+    assert.strictEqual(defaultHost.hasAttribute('aria-label'), false);
+    assert.strictEqual(defaultHost.hasAttribute('aria-description'), false);
+
+    assert.strictEqual(regionHost.getAttribute('role'), 'region');
+    assert.strictEqual(regionHost.hasAttribute('aria-label'), false);
+    assert.strictEqual(regionHost.hasAttribute('aria-description'), false);
+
+    defaultHost.remove();
+    regionHost.remove();
+  });
+
+  it('preserves component-authored ARIA attributes on accessibilityTarget() and omits aria-describedby when renderValidationErrors() is not rendered', async () => {
+    const NoErrorBlockApi = {
+      name: 'NoErrorBlock',
+      schema: z.object({
+        value: z.string().default(''),
+        checks: CheckableSchema.shape.checks,
+        accessibility: z
+          .object({
+            label: z.string().optional(),
+            description: z.string().optional(),
+          })
+          .optional(),
+      }),
+    };
+
+    class TestNoErrorBlockElement extends A2uiLitElement<typeof NoErrorBlockApi> {
+      protected override readonly api = NoErrorBlockApi;
+
+      protected override accessibilityTarget(): Element | null {
+        return this.querySelector('input');
+      }
+
+      override render() {
+        return html`
+          <input
+            aria-label="Fallback label"
+            aria-describedby="hint-id"
+            .value=${this.controller.props.value ?? ''}
+          />
+        `;
+      }
+    }
+
+    if (!customElements.get('test-no-error-block-element')) {
+      customElements.define('test-no-error-block-element', TestNoErrorBlockElement);
+    }
+
+    const catalog = new Catalog<ComponentApi>('no-error-block-catalog', '1.0', [NoErrorBlockApi]);
+    const proc = new MessageProcessor([catalog]);
+    proc.processMessages([
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 'no-error-surface',
+          catalogId: catalog.id,
+        },
+      },
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'no-error-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'NoErrorBlock',
+              value: 'bad',
+              checks: [{condition: false, message: 'Invalid'}],
+            },
+          ],
+        },
+      },
+    ]);
+
+    const surf = proc.model.getSurface('no-error-surface')!;
+    const resolver = new NodeResolver(surf, catalog);
+    const rootNode = getValue(resolver.rootNode)!;
+
+    const el = document.createElement('test-no-error-block-element') as TestNoErrorBlockElement;
+    document.body.appendChild(el);
+    await asyncUpdate(el, (e: any) => {
+      e.node = rootNode;
+    });
+
+    const input = el.querySelector('input')!;
+    // Component-authored aria-label and aria-describedby are preserved when
+    // accessibility.label is absent and renderValidationErrors() is not rendered.
+    assert.strictEqual(input.getAttribute('aria-label'), 'Fallback label');
+    assert.strictEqual(input.getAttribute('aria-invalid'), 'true');
+    assert.strictEqual(input.getAttribute('aria-describedby'), 'hint-id');
+
+    // Setting accessibility.label overrides aria-label; clearing it restores the original.
+    proc.processMessages([
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'no-error-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'NoErrorBlock',
+              value: 'bad',
+              checks: [{condition: false, message: 'Invalid'}],
+              accessibility: {label: 'Explicit label'},
+            },
+          ],
+        },
+      },
+    ]);
+    await asyncUpdate(el, () => {});
+    assert.strictEqual(input.getAttribute('aria-label'), 'Explicit label');
+
+    proc.processMessages([
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'no-error-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'NoErrorBlock',
+              value: 'ok',
+              checks: [{condition: true, message: 'Invalid'}],
+            },
+          ],
+        },
+      },
+    ]);
+    await asyncUpdate(el, () => {});
+    assert.strictEqual(input.getAttribute('aria-label'), 'Fallback label');
+    assert.strictEqual(input.hasAttribute('aria-invalid'), false);
+    assert.strictEqual(input.getAttribute('aria-describedby'), 'hint-id');
+
+    el.remove();
+    resolver.dispose();
   });
 });

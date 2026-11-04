@@ -125,7 +125,7 @@ struct VersionAdapterTests {
     let v10WithThemePayload: JSONValue = try .parse(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "s2",
           "catalogId": "basic",
@@ -143,7 +143,7 @@ struct VersionAdapterTests {
     let v10Payload: JSONValue = try .parse(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "s2",
           "catalogId": "basic",
@@ -202,7 +202,7 @@ struct VersionAdapterTests {
     let conflictingPayload: JSONValue = try .parse(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": { "surfaceId": "s1" },
         "deleteSurface": { "surfaceId": "s1" }
       }
@@ -221,7 +221,7 @@ struct VersionAdapterTests {
       """
       [
         {
-          "version": "v1.0",
+          "version": "1.0",
           "callRendererFunction": {
             "functionCallId": "call-1",
             "callFunction": {
@@ -232,7 +232,7 @@ struct VersionAdapterTests {
           }
         },
         {
-          "version": "v1.0",
+          "version": "1.0",
           "agentFunctionResponse": {
             "functionCallId": "call-2",
             "value": { "ok": true }
@@ -283,7 +283,7 @@ struct VersionAdapterTests {
     let payload: JSONValue = try .parse(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "deleteSurface": { "surfaceId": "s1" }
       }
       """
@@ -330,7 +330,7 @@ struct VersionAdapterTests {
     let textSchema = try Schema(instance: "{\"type\": \"object\"}")
     let catalog = Catalog(
       id: "basic",
-      protocolVersion: "v1.0",
+      protocolVersion: "1.0",
       components: [AnyComponentAPI(name: "Text", schema: textSchema)]
     )
     let processor = MessageProcessor(catalogs: [catalog])
@@ -339,7 +339,7 @@ struct VersionAdapterTests {
       """
       [
         {
-          "version": "v1.0",
+          "version": "1.0",
           "createSurface": {
             "surfaceId": "s1",
             "catalogId": "basic",
@@ -364,7 +364,7 @@ struct VersionAdapterTests {
     let emptyCreateComponents: JSONValue = try .parse(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "s1",
           "catalogId": "basic",
@@ -380,7 +380,7 @@ struct VersionAdapterTests {
     let emptyUpdateComponents: JSONValue = try .parse(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "s1",
           "components": []
