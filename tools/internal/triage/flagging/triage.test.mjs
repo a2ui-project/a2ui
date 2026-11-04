@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-// Tests for triage.mjs. Run with `node --test tools/internal/triage/flagging/`.
+// Tests for triage.mjs. Run from the repository root with:
+// node --test tools/internal/triage/flagging/triage.test.mjs
 
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';

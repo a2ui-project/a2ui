@@ -4,6 +4,6 @@ The bot adds `status: needs-triage` to open issues and PRs that need attention f
 
 - [blueprint.md](blueprint.md): the rules the bot follows.
 - [triage.mjs](triage.mjs): the script that applies the rules.
-- [triage.test.mjs](triage.test.mjs): tests. Run them from the repository root with `node --test tools/internal/triage/flagging/`.
+- [triage.test.mjs](triage.test.mjs): tests. Run them from the repository root with `node --test tools/internal/triage/flagging/triage.test.mjs`.
 
 The triage process the bot supports is described in [docs/contributing/triage/triage.md](../../../../docs/contributing/triage/triage.md).

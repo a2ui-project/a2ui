@@ -195,8 +195,8 @@ jobs:
       - name: Test Samples
         run: eval "yarn workspaces foreach -A $SAMPLES_INC -p run test"
 
-  # Repo automation under scripts/ and tools/internal/triage/ runs on plain Node with
-  # no workspace deps, so it only needs the built-in test runner.
+  # Repo automation under scripts/ and tools/internal/triage/ runs on plain
+  # Node with no workspace deps, so it only needs the built-in test runner.
   ci-scripts:
     needs: changes
     if: ${{ needs.changes.outputs.scripts == 'true' }}
