@@ -14,6 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import StarlightHeader from '../components/StarlightHeader.astro';
+
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
 <!doctype html>
@@ -144,84 +146,6 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         box-sizing: border-box;
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-      }
-
-      .a2-brand {
-        display: inline-flex;
-        align-items: center;
-        gap: 10px;
-        text-decoration: none;
-        font-weight: 800;
-        font-size: 18px;
-        line-height: 1;
-        letter-spacing: -0.02em;
-        color: var(--text);
-        white-space: nowrap;
-        flex-shrink: 0;
-      }
-
-      .a2-brand__badge {
-        font-family: var(--font-mono);
-        font-size: 11px;
-        font-weight: 600;
-        padding: 2px 7px;
-        border-radius: 4px;
-        background: var(--accent-soft);
-        color: var(--accent-strong);
-        border: 1px solid var(--accent-border);
-        white-space: nowrap;
-      }
-
-      .a2-nav__links {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        overflow-x: auto;
-      }
-
-      .a2-nav__link {
-        font-size: 14px;
-        font-weight: 600;
-        line-height: 20px;
-        color: var(--text-secondary);
-        text-decoration: none;
-        padding: 6px 12px;
-        border-radius: 6px;
-        white-space: nowrap;
-        transition: color 0.15s ease, background-color 0.15s ease;
-      }
-
-      .a2-nav__link:hover {
-        background: var(--surface);
-        color: var(--text);
-      }
-
-      .a2-nav__actions {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex-shrink: 0;
-      }
-
-      .a2-theme-btn {
-        background: var(--surface);
-        border: 1px solid var(--border-strong);
-        color: var(--text);
-        padding: 6px 11px;
-        border-radius: 6px;
-        font-size: 12.5px;
-        font-weight: 600;
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        white-space: nowrap;
-      }
-
-      .a2-theme-btn:hover {
-        border-color: var(--accent);
       }
 
       /* --- Layout & Typography --- */
@@ -1017,76 +941,6 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         }
       }
 
-      /* --- Unified Top Navigation (Vercel json-render style) --- */
-      .a2-nav__left {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        min-width: 0;
-      }
-
-      .a2-nav__slash {
-        color: var(--border-strong);
-        font-size: 18px;
-        font-weight: 300;
-        line-height: 1;
-        margin: 0 4px;
-        user-select: none;
-      }
-
-      .a2-nav__link.is-active {
-        color: var(--accent-strong);
-        background: var(--accent-soft);
-        font-weight: 600;
-      }
-
-      .a2-search-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 10px;
-        padding: 6px 12px;
-        border-radius: 6px;
-        background: var(--surface);
-        border: 1px solid var(--border-strong);
-        color: var(--text-muted);
-        font-size: 12.5px;
-        text-decoration: none;
-        transition: border-color 0.15s ease, color 0.15s ease;
-        white-space: nowrap;
-      }
-
-      .a2-search-pill:hover {
-        border-color: var(--accent);
-        color: var(--text);
-      }
-
-      .a2-search-pill kbd {
-        font-family: var(--font-mono);
-        font-size: 11px;
-        padding: 1px 5px;
-        border-radius: 4px;
-        background: var(--bg-alt);
-        border: 1px solid var(--border);
-        color: var(--text-secondary);
-      }
-
-      .a2-icon-link {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 32px;
-        height: 32px;
-        border-radius: 6px;
-        color: var(--text-secondary);
-        text-decoration: none;
-        transition: color 0.15s ease, background 0.15s ease;
-      }
-
-      .a2-icon-link:hover {
-        color: var(--text);
-        background: var(--surface);
-      }
-
       /* --- Placeholder Logo & UI Screenshot Wireframes --- */
       .a2-logo-placeholder-box {
         width: 88px;
@@ -1261,42 +1115,10 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     </style>
   </head>
   <body>
-    <!-- Unified Header Navigation (Matches StarlightHeader.astro) -->
+    <!-- Unified Header Navigation (StarlightHeader.astro) -->
     <header class="a2-nav">
       <div class="a2-nav__inner">
-        <div class="a2-nav__left">
-          <a href={`${base}/`} class="a2-brand">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <rect x="2.5" y="3.5" width="19" height="17" rx="4" stroke="currentColor" stroke-width="2" />
-              <circle cx="8.5" cy="11" r="1.6" fill="#14b8a6" />
-              <circle cx="15.5" cy="11" r="1.6" fill="#14b8a6" />
-              <path d="M8.5 15.5h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-            </svg>
-            <span>A2UI</span>
-          </a>
-          <span class="a2-nav__slash" aria-hidden="true">/</span>
-          <nav class="a2-nav__links" aria-label="Primary section navigation">
-            <a class="a2-nav__link is-active" href={`${base}/`} aria-current="page">Overview</a>
-            <a class="a2-nav__link" href={`${base}/quickstart/`}>Docs</a>
-            <a class="a2-nav__link" href={`${base}/specification/v1.0-a2ui/`}>Specification</a>
-          </nav>
-        </div>
-
-        <div class="a2-nav__actions">
-          <a class="a2-search-pill" id="a2-search-shortcut" href={`${base}/quickstart/`} title="Jump to Documentation & Search (⌘K / Ctrl+K)">
-            <span>🔍 Search docs...</span>
-            <kbd>⌘K</kbd>
-          </a>
-          <a class="a2-icon-link" href="https://github.com/a2ui-project/a2ui" target="_blank" rel="noopener" aria-label="GitHub Repository" title="GitHub">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.08-.73.08-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg>
-          </a>
-          <a class="a2-icon-link" href="https://discord.gg/6fS2326966" target="_blank" rel="noopener" aria-label="Discord Community" title="Discord">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.32 4.37a19.8 19.8 0 0 0-4.89-1.52.07.07 0 0 0-.08.04c-.2.38-.44.87-.61 1.25a18.27 18.27 0 0 0-5.48 0 12.64 12.64 0 0 0-.62-1.25.08.08 0 0 0-.08-.04 19.74 19.74 0 0 0-4.89 1.52.07.07 0 0 0-.03.03C.53 9.05-.32 13.58.09 18.06a.08.08 0 0 0 .03.05 19.9 19.9 0 0 0 5.99 3.03.08.08 0 0 0 .08-.03c.46-.63.87-1.3 1.22-2a.08.08 0 0 0-.04-.11 13.1 13.1 0 0 1-1.87-.9.08.08 0 0 1-.01-.12c.13-.09.25-.19.37-.29a.08.08 0 0 1 .08-.01c3.93 1.8 8.18 1.8 12.07 0a.08.08 0 0 1 .08.01c.12.1.24.2.37.29a.08.08 0 0 1 0 .12c-.6.35-1.22.65-1.87.9a.08.08 0 0 0-.04.11c.36.7.77 1.37 1.22 2a.08.08 0 0 0 .08.03 19.83 19.83 0 0 0 6-3.03.08.08 0 0 0 .03-.05c.5-5.18-.84-9.68-3.55-13.66a.06.06 0 0 0-.03-.03ZM8.02 15.33c-1.18 0-2.16-1.08-2.16-2.42 0-1.33.96-2.42 2.16-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.34-.96 2.42-2.16 2.42Zm7.97 0c-1.18 0-2.16-1.08-2.16-2.42 0-1.33.96-2.42 2.16-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.34-.95 2.42-2.16 2.42Z"/></svg>
-          </a>
-          <button type="button" class="a2-theme-btn" id="a2-theme-toggle" aria-label="Toggle color theme">
-            <span id="a2-theme-label">☀️ / 🌙</span>
-          </button>
-        </div>
+        <StarlightHeader />
       </div>
     </header>
 
@@ -1307,7 +1129,6 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       <section class="a2-hero" id="hero">
         <div class="a2-container">
           <div class="a2-hero__header">
-            <span class="a2-eyebrow">OPEN AGENT-TO-USER INTERFACE PROTOCOL · APACHE 2.0 · CREATED BY GOOGLE</span>
             <h1 class="a2-h1">Give your agents UI on every surface.</h1>
             <p class="a2-lead">
               Chat is a great input, but walls of prose are a terrible output. <strong>A2UI</strong> is the open protocol and SDK suite that lets AI agents respond with stateful, interactive user interfaces—spanning the entire Generative UI Spectrum and rendering natively on Web, Flutter, SwiftUI, and Jetpack Compose.
@@ -1957,19 +1778,7 @@ struct AgentSurfaceScreen: View &#123;
 
     <script is:inline>
       (function () {
-        // 1. Theme Toggle, Copy Prompt & Cmd+K Shortcut
-        const themeBtn = document.getElementById('a2-theme-toggle');
-        if (themeBtn) {
-          themeBtn.addEventListener('click', () => {
-            const current = document.documentElement.getAttribute('data-theme') || 'dark';
-            const next = current === 'dark' ? 'light' : 'dark';
-            document.documentElement.setAttribute('data-theme', next);
-            try {
-              localStorage.setItem('starlight-theme', next);
-            } catch (_) {}
-          });
-        }
-
+        // 1. Copy Prompt & Tablist Keyboard Navigation
         const copyBtn = document.getElementById('a2-copy-prompt');
         if (copyBtn) {
           const placeholderPrompt = [
@@ -1995,16 +1804,6 @@ struct AgentSurfaceScreen: View &#123;
             } catch (_) {}
           });
         }
-
-        document.addEventListener('keydown', (e) => {
-          if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-            const searchLink = document.getElementById('a2-search-shortcut') || document.querySelector('.a2-search-pill');
-            if (searchLink && searchLink.getAttribute('href')) {
-              e.preventDefault();
-              window.location.href = searchLink.getAttribute('href');
-            }
-          }
-        });
 
         document.querySelectorAll('[role="tablist"]').forEach((tablist) => {
           tablist.addEventListener('keydown', (e) => {
