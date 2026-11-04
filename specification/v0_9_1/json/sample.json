@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://a2ui.org/specification/v0_9/sample.json",
+  "$id": "https://a2ui.org/specification/v0_9_1/sample.json",
   "title": "A2UI Catalog Sample",
   "description": "A sample demonstrating A2UI components and messages.",
   "type": "object",

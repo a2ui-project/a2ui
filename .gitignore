@@ -156,3 +156,4 @@ express_live_demo_output.txt
 # Specification test temporary files
 specification/*/test/temp_data.json
 specification/*/test/catalog.json
+specification/*/test/common_types_catalog.json

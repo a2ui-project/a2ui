@@ -1,5 +1,12 @@
 ## Unreleased
 
+- (v0_9_1) `get_agent_to_renderer_schema_map` and
+  `get_agent_to_renderer_schema_json` give the v0.9.1 schema the `$id`
+  `https://a2ui.org/specification/v0_9_1/server_to_client.json`, which
+  `specification/v0_9_1/json/server_to_client.json` now declares. They gave it
+  v0.9's `$id`, which names v0.9's schema, a different document that accepts
+  only `"v0.9"` messages
+  ([#3974](https://github.com/a2ui-project/a2ui/issues/3974)).
 - **BREAKING CHANGE**: (v1_0) The basic catalog `TextField` requires `value`,
   as the other input components do, so a `TextField` without one fails
   validation instead of accepting input that never reaches the data model.
