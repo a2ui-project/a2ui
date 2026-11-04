@@ -5,13 +5,7 @@ In A2UI, an AI agent describes a user interface as JSON messages, and the app
 renders it with its own components. This package supports protocol v1.0 and
 v0.9 and includes the basic catalog of components.
 
-To learn about A2UI, see [a2ui.org](https://a2ui.org/):
-
-- [Core concepts](https://a2ui.org/concepts/overview/), such as surfaces,
-  components, data binding and actions
-- [Catalogs](https://a2ui.org/concepts/catalogs/), and how to register
-  one in an agent and a renderer
-- [The v1.0 specification](https://a2ui.org/specification/v1.0-a2ui/)
+To learn about A2UI, see [a2ui.org](https://a2ui.org/).
 
 ## Packages
 
@@ -207,8 +201,8 @@ processor.dispose();
 
 ### Prompt a model from the app
 
-An app that calls a model itself, with no agent in between, prompts it with
-`a2ui_agent`:
+An app that calls a model itself, with no agent server in between, prompts it
+with [`a2ui_agent`](https://pub.dev/packages/a2ui_agent):
 
 ```bash
 flutter pub add a2ui_agent
