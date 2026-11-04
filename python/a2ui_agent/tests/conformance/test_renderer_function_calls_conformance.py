@@ -30,7 +30,9 @@ from typing import Any
 
 import pytest
 
-from a2ui.core import A2uiRpcError
+from a2ui.core import A2uiCatalogError, A2uiRpcError, Catalog, CatalogApi
+from a2ui.core.catalog import FunctionApi
+from a2ui.core.schema import ProtocolVersion
 from a2ui.rpc import RendererFunctionCalls, RendererToAgentMessageProcessor
 
 from .conformance_helpers import load_conformance_yaml
@@ -44,7 +46,12 @@ def test_suite_is_not_empty() -> None:
     assert CASES
 
 
+CATEGORY_TO_EXCEPTION: dict[str, type[Exception]] = {"CatalogError": A2uiCatalogError}
+
+
 def _assert_error_matches(error: BaseException, expected: Mapping[str, Any]) -> None:
+    if "category" in expected:
+        assert isinstance(error, CATEGORY_TO_EXCEPTION[expected["category"]]), error
     if "code" in expected:
         assert getattr(error, "code", None) == expected["code"], error
     if "message" in expected:
@@ -95,9 +102,29 @@ def _assert_call_state(label: str, actual: Any, expected: Any) -> None:
         assert expected["error"]["message"] in actual["error"]["message"]
 
 
+def _catalog(entry: Mapping[str, Any]) -> CatalogApi:
+    """Builds a `RendererCallCatalog` entry in code, as the suite requires."""
+    functions = []
+    for name, spec in entry["functions"].items():
+        kwargs: dict[str, Any] = {"allowed_callers": spec.get("allowedCallers")}
+        if "requiresUserActivation" in spec:
+            kwargs["requires_user_activation"] = spec["requiresUserActivation"]
+        functions.append(
+            FunctionApi(name, return_type="any", schema={"type": "object"}, **kwargs)
+        )
+    return Catalog(entry["catalogId"], ProtocolVersion.V1_0, functions=functions)
+
+
 async def _run_calls_on_loop(case: Mapping[str, Any], loop: _FakeClockLoop) -> None:
     args = case.get("args", {})
     options: dict[str, Any] = {}
+    if "catalogs" in args:
+        options["catalogs"] = [_catalog(entry) for entry in args["catalogs"]]
+    if "expect_error" in case:
+        with pytest.raises(Exception) as excinfo:
+            RendererFunctionCalls(**options)
+        _assert_error_matches(excinfo.value, case["expect_error"])
+        return
     if "default_timeout_ms" in args:
         timeout_ms = args["default_timeout_ms"]
         options["default_timeout"] = None if timeout_ms is None else timeout_ms / 1000

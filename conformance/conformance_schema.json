@@ -2616,6 +2616,11 @@
               "type": "integer",
               "minimum": 1,
               "description": "The most calls that may wait for a response at once."
+            },
+            "catalogs": {
+              "type": "array",
+              "description": "The agent's catalogs, which `call` checks each target against. Without them, calls aren't checked.",
+              "items": {"$ref": "#/$defs/RendererCallCatalog"}
             }
           },
           "additionalProperties": false
@@ -2624,9 +2629,37 @@
           "type": "array",
           "items": {"$ref": "#/$defs/RendererCallStep"},
           "minItems": 1
+        },
+        "expect_error": {
+          "$ref": "#/$defs/ExpectError",
+          "description": "Building the calls helper fails with this error, such as a CatalogError for two catalogs with one id. The case then has no `steps`."
         }
       },
-      "required": ["name", "action", "steps"],
+      "required": ["name", "action"],
+      "oneOf": [{"required": ["steps"]}, {"required": ["expect_error"]}],
+      "additionalProperties": false
+    },
+    "RendererCallCatalog": {
+      "type": "object",
+      "description": "A v1.0 catalog the harness builds in code (not from a catalog document, so it isn't checked against the catalog schema): its id and its functions, by name. Each function takes any object as `args` and returns `any`.",
+      "properties": {
+        "catalogId": {"type": "string"},
+        "functions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "allowedCallers": {
+                "enum": ["rendererOnly", "agentOnly", "rendererOrAgent"],
+                "description": "Omitted means rendererOnly."
+              },
+              "requiresUserActivation": {"type": "boolean"}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["catalogId", "functions"],
       "additionalProperties": false
     },
     "RendererCallState": {

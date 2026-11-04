@@ -253,3 +253,120 @@
         b: pending
         d: pending
       expect_pending_count: 2
+
+# --- Checking calls against the agent's catalogs ---
+# With `catalogs`, `call` checks the target before anything is registered or
+# sent. Each catalog is built in code from its id and its functions.
+
+- name: test_call_renderer_function_checked_rejects_a_renderer_only_function
+  description: >-
+    A function whose allowedCallers is rendererOnly can't be called by the agent: the call fails with INVALID_FUNCTION_CALL, and nothing is sent or pending.
+  action: call_renderer_function
+  args:
+    catalogs:
+      - catalogId: conformance/device
+        functions:
+          formatLocal: {allowedCallers: rendererOnly}
+  steps:
+    - call: {label: a, catalogId: conformance/device, name: formatLocal}
+      expect_error: {code: INVALID_FUNCTION_CALL, message: formatLocal}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_checked_rejects_a_function_without_allowed_callers
+  description: >-
+    A function that leaves allowedCallers out is rendererOnly, so the agent's call fails with INVALID_FUNCTION_CALL, and nothing is sent or pending.
+  action: call_renderer_function
+  args:
+    catalogs:
+      - catalogId: conformance/device
+        functions:
+          formatLocal: {}
+  steps:
+    - call: {label: a, catalogId: conformance/device, name: formatLocal}
+      expect_error: {code: INVALID_FUNCTION_CALL, message: formatLocal}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_checked_rejects_a_function_that_needs_user_activation
+  description: >-
+    An agent call has no user gesture, so a function with requiresUserActivation fails with INVALID_FUNCTION_CALL even when its allowedCallers lets the agent call it. The catalog is built in code, so the schema rule that pairs activation with rendererOnly doesn't apply.
+  action: call_renderer_function
+  args:
+    catalogs:
+      - catalogId: conformance/device
+        functions:
+          vibrate: {allowedCallers: rendererOrAgent, requiresUserActivation: true}
+  steps:
+    - call: {label: a, catalogId: conformance/device, name: vibrate}
+      expect_error: {code: INVALID_FUNCTION_CALL, message: vibrate}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_checked_rejects_a_function_the_catalog_lacks
+  description: >-
+    A function the named catalog doesn't have fails with UNKNOWN_FUNCTION, and nothing is sent or pending.
+  action: call_renderer_function
+  args:
+    catalogs:
+      - catalogId: conformance/device
+        functions:
+          getLocation: {allowedCallers: rendererOrAgent}
+  steps:
+    - call: {label: a, catalogId: conformance/device, name: getAltitude}
+      expect_error: {code: UNKNOWN_FUNCTION}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_checked_rejects_an_unknown_catalog
+  description: >-
+    A catalogId that names none of the agent's catalogs fails with UNKNOWN_FUNCTION, and nothing is sent or pending.
+  action: call_renderer_function
+  args:
+    catalogs:
+      - catalogId: conformance/device
+        functions:
+          getLocation: {allowedCallers: rendererOrAgent}
+  steps:
+    - call: {label: a, catalogId: conformance/other, name: getLocation}
+      expect_error: {code: UNKNOWN_FUNCTION}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_checked_allows_a_renderer_or_agent_function
+  description: >-
+    A rendererOrAgent function without user activation passes the check: the message is built, and the call settles from its response.
+  action: call_renderer_function
+  args:
+    catalogs:
+      - catalogId: conformance/device
+        functions:
+          getLocation: {allowedCallers: rendererOrAgent}
+  steps:
+    - call:
+        label: a
+        catalogId: conformance/device
+        name: getLocation
+        surfaceId: s1
+      expect_message:
+        version: "1.0"
+        callRendererFunction:
+          surfaceId: s1
+          callFunction:
+            "@call": getLocation
+            catalogId: conformance/device
+            args: {}
+      expect_pending_count: 1
+    - respond: {call: a, value: Paris}
+      expect_calls:
+        a: {value: Paris}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_checked_rejects_two_catalogs_with_one_id
+  description: >-
+    Two catalogs with the same id are a catalog error when the calls helper is built.
+  action: call_renderer_function
+  args:
+    catalogs:
+      - catalogId: conformance/device
+        functions:
+          getLocation: {allowedCallers: rendererOrAgent}
+      - catalogId: conformance/device
+        functions:
+          vibrate: {allowedCallers: agentOnly}
+  expect_error: {category: CatalogError}

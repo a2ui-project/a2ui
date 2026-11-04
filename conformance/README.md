@@ -180,7 +180,7 @@ In all four actions, `expect_error` is an `AgentFunctionExpectError`: a required
 
 `agent/renderer_function_calls.yaml` has one action:
 
-- `call_renderer_function` makes calls to renderer functions and settles them, in `steps`. Each step does one thing: `call` makes a call named by its `label` (with `catalogId`, `name`, and optionally `args`, `surfaceId` and `timeout_ms`), `respond` hands over a `rendererFunctionResponse` for a labelled `call` or a literal `functionCallId`, `advance_ms` moves the clock, and `dispose` disposes the calls with an optional `reason`. `args` may set `default_timeout_ms` (otherwise the SDK's default of 30 seconds applies) and `max_pending`. A harness that hands responses over through a `RendererToAgentMessageProcessor`, with `resolve` as `on_renderer_function_response`, also checks that a response is handled exactly when its call is pending: `resolve` declines unknown, late and duplicate responses.
+- `call_renderer_function` makes calls to renderer functions and settles them, in `steps`. Each step does one thing: `call` makes a call named by its `label` (with `catalogId`, `name`, and optionally `args`, `surfaceId` and `timeout_ms`), `respond` hands over a `rendererFunctionResponse` for a labelled `call` or a literal `functionCallId`, `advance_ms` moves the clock, and `dispose` disposes the calls with an optional `reason`. `args` may set `default_timeout_ms` (otherwise the SDK's default of 30 seconds applies), `max_pending`, and `catalogs`, the agent's catalogs that each `call` is checked against. A case may have `expect_error` (such as `{category: CatalogError}`) instead of `steps`, when building the calls helper must fail. A harness that hands responses over through a `RendererToAgentMessageProcessor`, with `resolve` as `on_renderer_function_response`, also checks that a response is handled exactly when its call is pending: `resolve` declines unknown, late and duplicate responses.
 
 A `call_renderer_function` harness runs the calls on a fake clock that only `advance_ms` moves, so the cases never wait on real time and a timer fires exactly when the clock reaches it. After each step it lets pending asynchronous work run, then checks:
 
@@ -188,6 +188,19 @@ A `call_renderer_function` harness runs the calls on a fake clock that only `adv
 - `expect_error`, on a `call` step: the call is refused with that RPC error `code`.
 - `expect_calls`: the state of each labelled call, which is `pending`, `{value}`, or `{error: {code, message?}}` with `message` a substring.
 - `expect_pending_count`: how many calls are waiting for a response.
+
+Each entry of `catalogs` (`RendererCallCatalog` in `conformance_schema.json`) is a v1.0 catalog that the harness builds in code, not from a catalog document, so the catalog schema's rules don't apply to it:
+
+```yaml
+catalogs:
+  - catalogId: conformance/device
+    functions:
+      getLocation: {allowedCallers: rendererOrAgent}
+      vibrate: {allowedCallers: rendererOrAgent, requiresUserActivation: true}
+      formatLocal: {} # allowedCallers omitted, so rendererOnly
+```
+
+Each function takes any object as its arguments (schema `{type: object}`) and returns `any`; `allowedCallers` and `requiresUserActivation` are left unset when the case leaves them out. With `catalogs`, `call` fails with `UNKNOWN_FUNCTION` when `catalogId` names no catalog or the catalog lacks the function, and with `INVALID_FUNCTION_CALL` when the function is `rendererOnly` (or leaves `allowedCallers` out) or requires user activation. Two catalogs with one id make building the helper fail with a `CatalogError`.
 
 The TypeScript and Dart agent SDKs do not implement agent functions yet, so their harnesses skip every case of this suite with that reason.
 
