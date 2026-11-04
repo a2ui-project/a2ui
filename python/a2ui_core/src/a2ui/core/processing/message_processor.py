@@ -35,6 +35,7 @@ from ..state import (
     SurfaceGroupModel,
     SurfaceModel,
 )
+from ..state.surface_model import _check_max_agent_call_cache_entries
 from ..state.validation_helpers import RELAXED_PATH_PATTERN
 from ..validation import (
     PayloadValidator,
@@ -109,6 +110,8 @@ class MessageProcessorOptions:
         default_timeout_ms: Default timeout in milliseconds for async RPC calls.
         error_handler: Optional callback invoked when a processing error is mapped.
         report_errors_only: When True, process_messages suppresses raising A2uiError after reporting.
+        max_agent_call_cache_entries: The most settled agent function call
+            answers each surface keeps (evicting the oldest first).
     """
 
     validation_config: ValidationConfig | None = None
@@ -116,6 +119,7 @@ class MessageProcessorOptions:
     default_timeout_ms: float = 30000.0
     error_handler: Callable[[dict[str, Any]], None] | None = None
     report_errors_only: bool = False
+    max_agent_call_cache_entries: int = 256
 
 
 @dataclass
@@ -197,7 +201,9 @@ class MessageProcessor:
             options: Optional configuration options including validation rules.
 
         Raises:
-            ValueError: If catalogs is empty or None.
+            ValueError: If catalogs is empty or None, or
+                `options.max_agent_call_cache_entries` isn't a positive
+                integer.
         """
         if not catalogs:
             raise ValueError("At least one catalog must be provided.")
@@ -208,6 +214,9 @@ class MessageProcessor:
         self.outbound_listener = opts.outbound_listener
         self.error_handler = opts.error_handler
         self.report_errors_only = opts.report_errors_only
+        self.max_agent_call_cache_entries = _check_max_agent_call_cache_entries(
+            opts.max_agent_call_cache_entries
+        )
         self.rpc = RpcHandler(
             catalogs=catalogs,
             outbound_listener=opts.outbound_listener,
@@ -671,6 +680,7 @@ class MessageProcessor:
             surface_id=f"_rpc_fallback_{op.function_call_id or 'default'}",
             default_catalog=target_catalog,
             available_catalogs=available_catalogs,
+            max_agent_call_cache_entries=self.max_agent_call_cache_entries,
         )
         return DataContext(surface=fallback_surface, path="/")
 
@@ -799,6 +809,7 @@ class MessageProcessor:
             send_data_model=send_data_model,
             protocol_version=surface_proto_ver,
             metadata=op.metadata,
+            max_agent_call_cache_entries=self.max_agent_call_cache_entries,
         )
         if op.root:
             new_surface.root_id = op.root

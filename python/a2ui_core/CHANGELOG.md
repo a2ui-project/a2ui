@@ -171,6 +171,12 @@
   `Catalog.agent_functions` and `Catalog.renderer_functions` list them
   ([#3536](https://github.com/a2ui-project/a2ui/issues/3536),
   [#3792](https://github.com/a2ui-project/a2ui/pull/3792)).
+- (v1_0) The settled agent function call cache evicts the oldest answer first
+  (reading an answer no longer keeps it), and its bound (256 by default) is
+  configurable with `MessageProcessorOptions.max_agent_call_cache_entries` or
+  `SurfaceModel(max_agent_call_cache_entries=...)`. `RpcHandler.dispose()`
+  also removes the outbound listener
+  ([#3792](https://github.com/a2ui-project/a2ui/pull/3792)).
 - Add `Catalog.derive`, which builds a catalog with a new `catalog_id` from
   the named `components` and `functions` of an existing one and new entries,
   with the `instructions` it is given, and does not keep the source's `$id`,
