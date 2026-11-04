@@ -133,6 +133,9 @@ function findNodeInList(
   providers: [provideAccessibilityTargets()],
   host: {
     style: 'display: contents;',
+    // Marks a host that renders nothing (its component has not resolved), so a container that
+    // wraps each child in an item element can drop that item too (see ListComponent).
+    '[attr.data-a2ui-empty]': 'componentType() ? null : ""',
   },
   // The quotes around the input keys passed to *ngComponentOutlet are critical to survive Closure
   // minification. Prettier keeps them (`quoteProps: "preserve"` in the root `.prettierrc`).
