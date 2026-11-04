@@ -124,12 +124,8 @@ export default defineConfig({
               badge: {text: 'P0', variant: 'danger'},
             },
             {
-              label: 'Agent SDKs',
-              slug: 'concepts/agent-sdks',
-            },
-            {
-              label: 'Renderer SDKs',
-              slug: 'concepts/renderer-sdks',
+              label: 'SDKs',
+              slug: 'concepts/sdks',
             },
             {
               label: 'Swappable Inference Formats',
