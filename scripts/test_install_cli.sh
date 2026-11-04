@@ -83,8 +83,31 @@ case "$url" in
     fi
     ;;
   *api.github.com/repos/*/releases*)
-    if [ -n "${MOCK_RELEASES_API_FILE:-}" ] && [ -f "$MOCK_RELEASES_API_FILE" ]; then
-      cat "$MOCK_RELEASES_API_FILE"
+    page="1"
+    case "$url" in
+      *[?\&]page=*)
+        page="${url#*[?&]page=}"
+        page="${page%%&*}"
+        ;;
+    esac
+    if [ -n "${MOCK_CURL_FAIL_PAGE:-}" ] && [ "$page" = "$MOCK_CURL_FAIL_PAGE" ]; then
+      exit 22
+    fi
+    if [ -n "${MOCK_RELEASES_API_DIR:-}" ]; then
+      if [ -n "${MOCK_RELEASES_LOG:-}" ]; then
+        echo "$page" >> "$MOCK_RELEASES_LOG"
+      fi
+      if [ -f "$MOCK_RELEASES_API_DIR/page_${page}.json" ]; then
+        cat "$MOCK_RELEASES_API_DIR/page_${page}.json"
+      else
+        printf '[\n]\n'
+      fi
+    elif [ -n "${MOCK_RELEASES_API_FILE:-}" ] && [ -f "$MOCK_RELEASES_API_FILE" ]; then
+      if [ "$page" = "1" ]; then
+        cat "$MOCK_RELEASES_API_FILE"
+      else
+        printf '[\n]\n'
+      fi
     else
       exit 22
     fi
@@ -400,5 +423,145 @@ for V_INPUT in "$VERSION" "v$VERSION" "cli-v$VERSION"; do
   fi
 done
 echo "✓ Test 9 passed"
+
+# Test 10: Multi-page release discovery and early stop on empty page
+echo "Test 10: Multi-page release discovery and early stop on empty page"
+MOCK_PAGES_DIR="$TEST_TMP/pages"
+mkdir -p "$MOCK_PAGES_DIR"
+cat <<'EOF' > "$MOCK_PAGES_DIR/page_1.json"
+[
+  { "tag_name": "python/a2ui-core/v0.5.0", "prerelease": false, "draft": false },
+  { "tag_name": "cli-v9.9.9-rc.1", "prerelease": true, "draft": false },
+  { "tag_name": "cli-v9.9.9-draft", "prerelease": false, "draft": true }
+]
+EOF
+cat <<EOF > "$MOCK_PAGES_DIR/page_2.json"
+[
+  { "tag_name": "cli-v${VERSION}", "prerelease": false, "draft": false }
+]
+EOF
+
+MOCK_INSTALL_DIR_10="$TEST_TMP/bin10"
+mkdir -p "$MOCK_INSTALL_DIR_10"
+PAGE_LOG_10A="$TEST_TMP/pages_10a.log"
+
+MULTIPAGE_OUTPUT=$(
+  PATH="$STUB_BIN:$PATH" \
+  MOCK_RELEASES_API_DIR="$MOCK_PAGES_DIR" \
+  MOCK_RELEASES_LOG="$PAGE_LOG_10A" \
+  MOCK_ARCHIVE_FILE="$MOCK_ASSETS_DIR/$ARCHIVE_NAME" \
+  MOCK_CHECKSUMS_FILE="$MOCK_ASSETS_DIR/checksums.txt" \
+  A2UI_INSTALL_DIR="$MOCK_INSTALL_DIR_10" \
+  /bin/sh "$INSTALLER" 2>&1
+)
+
+if [ ! -x "$MOCK_INSTALL_DIR_10/a2ui" ]; then
+  echo "FAIL: a2ui was not installed when resolved from page 2"
+  echo "$MULTIPAGE_OUTPUT"
+  exit 1
+fi
+if [ "$(tr '\n' ',' < "$PAGE_LOG_10A")" != "1,2," ]; then
+  echo "FAIL: Expected pages 1 and 2 to be queried, got: $(tr '\n' ',' < "$PAGE_LOG_10A")"
+  exit 1
+fi
+
+# Subcase 10b: Multi-line empty page stops pagination early without reporting API query failure
+MOCK_EMPTY_PAGES_DIR="$TEST_TMP/empty_pages"
+mkdir -p "$MOCK_EMPTY_PAGES_DIR"
+cp "$MOCK_PAGES_DIR/page_1.json" "$MOCK_EMPTY_PAGES_DIR/page_1.json"
+printf '[\n]\n' > "$MOCK_EMPTY_PAGES_DIR/page_2.json"
+PAGE_LOG_10B="$TEST_TMP/pages_10b.log"
+
+set +e
+EMPTY_PAGE_OUTPUT=$(
+  PATH="$STUB_BIN:$PATH" \
+  MOCK_RELEASES_API_DIR="$MOCK_EMPTY_PAGES_DIR" \
+  MOCK_RELEASES_LOG="$PAGE_LOG_10B" \
+  A2UI_INSTALL_DIR="$TEST_TMP/bin10b" \
+  /bin/sh "$INSTALLER" 2>&1
+)
+RC_10B=$?
+set -e
+
+if [ "$RC_10B" -eq 0 ]; then
+  echo "FAIL: Expected non-zero exit code when no eligible CLI release exists across pages"
+  exit 1
+fi
+if [[ "$EMPTY_PAGE_OUTPUT" != *"No eligible stable 'cli-v*' release found"* ]]; then
+  echo "FAIL: Expected 'No eligible stable' error on empty pages, got:"
+  echo "$EMPTY_PAGE_OUTPUT"
+  exit 1
+fi
+if [ "$(tr '\n' ',' < "$PAGE_LOG_10B")" != "1,2," ]; then
+  echo "FAIL: Expected pagination to stop at empty page 2, got: $(tr '\n' ',' < "$PAGE_LOG_10B")"
+  exit 1
+fi
+echo "✓ Test 10 passed"
+
+# Test 11: API failure diagnostics (page 1 failure and mid-pagination failure)
+echo "Test 11: API failure diagnostics"
+set +e
+CURL_FAIL_OUTPUT=$(
+  PATH="$STUB_BIN:$PATH" \
+  MOCK_CURL_FAIL=1 \
+  A2UI_INSTALL_DIR="$TEST_TMP/bin11a" \
+  /bin/sh "$INSTALLER" 2>&1
+)
+RC_11A=$?
+
+CURL_FAIL_PAGE2_OUTPUT=$(
+  PATH="$STUB_BIN:$PATH" \
+  MOCK_RELEASES_API_DIR="$MOCK_PAGES_DIR" \
+  MOCK_CURL_FAIL_PAGE=2 \
+  A2UI_INSTALL_DIR="$TEST_TMP/bin11b" \
+  /bin/sh "$INSTALLER" 2>&1
+)
+RC_11B=$?
+set -e
+
+if [ "$RC_11A" -eq 0 ] || [[ "$CURL_FAIL_OUTPUT" != *"Could not query the GitHub releases API"* ]]; then
+  echo "FAIL: Expected API failure diagnostic on page 1 curl failure, got (rc=$RC_11A):"
+  echo "$CURL_FAIL_OUTPUT"
+  exit 1
+fi
+if [ "$RC_11B" -eq 0 ] || [[ "$CURL_FAIL_PAGE2_OUTPUT" != *"Could not query the GitHub releases API"* ]]; then
+  echo "FAIL: Expected API failure diagnostic on page 2 curl failure, got (rc=$RC_11B):"
+  echo "$CURL_FAIL_PAGE2_OUTPUT"
+  exit 1
+fi
+echo "✓ Test 11 passed"
+
+# Test 12: Invalid A2UI_VERSION rejection
+echo "Test 12: Invalid A2UI_VERSION rejection"
+for BAD_VER in "../0.9.9" "0.9.9/../../evil" "0.9..9" "not-a-version" "1.2" "0.9.9;rm"; do
+  MOCK_INSTALL_DIR_12="$TEST_TMP/bin12"
+  mkdir -p "$MOCK_INSTALL_DIR_12"
+  set +e
+  BAD_VER_OUTPUT=$(
+    PATH="$STUB_BIN:$PATH" \
+    MOCK_ARCHIVE_FILE="$MOCK_ASSETS_DIR/$ARCHIVE_NAME" \
+    MOCK_CHECKSUMS_FILE="$MOCK_ASSETS_DIR/checksums.txt" \
+    A2UI_VERSION="$BAD_VER" \
+    A2UI_INSTALL_DIR="$MOCK_INSTALL_DIR_12" \
+    /bin/sh "$INSTALLER" 2>&1
+  )
+  RC_12=$?
+  set -e
+
+  if [ "$RC_12" -eq 0 ]; then
+    echo "FAIL: Expected non-zero exit code for invalid version '$BAD_VER'"
+    exit 1
+  fi
+  if [ -f "$MOCK_INSTALL_DIR_12/a2ui" ]; then
+    echo "FAIL: Binary should not be installed for invalid version '$BAD_VER'"
+    exit 1
+  fi
+  if [[ "$BAD_VER_OUTPUT" != *"Invalid"* ]]; then
+    echo "FAIL: Expected invalid version message for '$BAD_VER', got:"
+    echo "$BAD_VER_OUTPUT"
+    exit 1
+  fi
+done
+echo "✓ Test 12 passed"
 
 echo "=== All A2UI CLI Installer tests passed successfully! ==="

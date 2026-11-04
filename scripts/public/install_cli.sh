@@ -71,11 +71,11 @@ if [ -z "$VERSION" ] || [ "$VERSION" = "latest" ]; then
   TAG=""
   QUERY_FAILED=0
   while [ "$PAGE" -le 5 ] && [ -z "$TAG" ]; do
-    RELEASE_DATA="$(curl -sSfL -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/releases?per_page=100&page=$PAGE" 2>/dev/null || true)"
-    if [ -z "$RELEASE_DATA" ] || [ "$RELEASE_DATA" = "[]" ]; then
-      if [ "$PAGE" -eq 1 ]; then
-        QUERY_FAILED=1
-      fi
+    if ! RELEASE_DATA="$(curl -sSfL -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/releases?per_page=100&page=$PAGE" 2>/dev/null)"; then
+      QUERY_FAILED=1
+      break
+    fi
+    if ! printf '%s\n' "$RELEASE_DATA" | grep -q '"tag_name"'; then
       break
     fi
     TAG="$(printf '%s\n' "$RELEASE_DATA" \

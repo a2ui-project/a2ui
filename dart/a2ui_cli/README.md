@@ -22,7 +22,7 @@ The script automatically detects your platform (macOS Apple Silicon/Intel, Linux
 irm https://raw.githubusercontent.com/a2ui-project/a2ui/main/scripts/public/install_cli.ps1 | iex
 ```
 
-Installs `a2ui.exe` into `%LOCALAPPDATA%\Programs\a2ui\bin` and ensures it is added to the user's `PATH`.
+Verifies the cryptographic SHA-256 checksum against official release assets, installs `a2ui.exe` into `%LOCALAPPDATA%\Programs\a2ui\bin` (or `$env:A2UI_INSTALL_DIR`, with optional version pinning via `$env:A2UI_VERSION`), and ensures it is added to the user's `PATH`.
 
 ### Running from Source (Dart SDK)
 

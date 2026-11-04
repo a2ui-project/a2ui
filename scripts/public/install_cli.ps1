@@ -16,6 +16,12 @@
 #
 # Usage:
 #   irm https://raw.githubusercontent.com/a2ui-project/a2ui/main/scripts/public/install_cli.ps1 | iex
+#
+# Options (via environment variables):
+#   A2UI_VERSION        Version to install (e.g., "0.1.0" or "cli-v0.1.0"). Defaults to latest release.
+#   A2UI_INSTALL_DIR    Target install directory. Defaults to %LOCALAPPDATA%\Programs\a2ui\bin.
+#   A2UI_REPO           GitHub repository (owner/repo). Defaults to "a2ui-project/a2ui".
+#   A2UI_SKIP_CHECKSUM  Set to "1" to bypass SHA-256 cryptographic verification.
 
 & {
     $ErrorActionPreference = "Stop"
@@ -75,6 +81,10 @@
     }
 
     $RawVersion = $Tag -replace "^cli-v", ""
+    if ($RawVersion -notmatch '\A[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?\z' -or $RawVersion -match '\.\.') {
+        throw "Invalid CLI version '$RawVersion'."
+    }
+    $Tag = "cli-v$RawVersion"
     $ArchiveName = "a2ui-v$RawVersion-$Target.zip"
     $DownloadUrl = "https://github.com/$Repo/releases/download/$Tag/$ArchiveName"
     $ChecksumsUrl = "https://github.com/$Repo/releases/download/$Tag/checksums.txt"
@@ -136,12 +146,15 @@
         Write-Host "[OK] Successfully installed A2UI CLI ($Tag) to $InstallDir\a2ui.exe"
 
         # Verify and update User PATH without expanding REG_EXPAND_SZ entries
-        $EnvKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey("Environment", $true)
+        $EnvKey = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey("Environment")
+        if (-not $EnvKey) {
+            throw "Failed to open or create HKCU\Environment registry key."
+        }
         try {
             $UserPath = [string]$EnvKey.GetValue("Path", "", [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
-            $Normalized = $InstallDir.TrimEnd("\/")
+            $Normalized = $InstallDir -replace '[\\/]+$', ''
             $AlreadyPresent = $UserPath -split ";" | Where-Object { $_ } |
-                Where-Object { [Environment]::ExpandEnvironmentVariables($_).TrimEnd("\/") -eq $Normalized }
+                Where-Object { ([Environment]::ExpandEnvironmentVariables($_) -replace '[\\/]+$', '') -eq $Normalized }
             if (-not $AlreadyPresent) {
                 Write-Host "Adding $InstallDir to user PATH environment variable..."
                 $NewUserPath = (@($UserPath.TrimEnd(";"), $InstallDir) | Where-Object { $_ }) -join ";"
