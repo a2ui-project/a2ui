@@ -45,8 +45,8 @@ request.
 
 **3. Publish the packages**
 
-Publish each package whose `version:` the release pull request set, starting
-with `a2ui_core` if it is one of them. For each package:
+Publish each package that the release pull request released, starting with
+`a2ui_core` if it is one of them. For each package:
 
 - Check out the commit that merged the release pull request, not the latest
   `main`, which may already have unreleased changes.
