@@ -36,6 +36,10 @@ function getChildKey(child: any): string {
     : String(child);
 }
 
+function itemKey(item: {child: unknown}): string {
+  return getChildKey(item.child);
+}
+
 export class A2uiListElement extends BasicCatalogA2uiLitElement<ListSupportedApis> {
   /** @nocollapse */
   static readonly tagName = 'a2ui-list';
@@ -61,16 +65,23 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<ListSupportedApi
     .a2ui-list-horizontal .a2ui-list-item-none {
       display: inline-block;
     }
+    /* A fallback host its adapter left empty renders nothing, so its item goes too. */
+    li:has(> [data-a2ui-fallback-host]:empty),
+    .a2ui-list-item-none:has(> [data-a2ui-fallback-host]:empty) {
+      display: none;
+    }
   `;
 
   override render() {
     const props = this.controller.props;
     if (!props) return nothing;
 
-    const children: ResolvedChildList = (Array.isArray(props.children) ? props.children : [])
-      // An unresolved child renders nothing and gets no item: an empty <li> would still show a
-      // marker and take a gap.
-      .filter(child => this.isChildResolved(child));
+    const children: ResolvedChildList = Array.isArray(props.children) ? props.children : [];
+    // A child that renders nothing gets no item: an empty <li> would still show a marker and
+    // take a gap. A child's fallback is content like any other and gets one.
+    const items = children
+      .map(child => ({child, content: this.renderNodeOrNull(child)}))
+      .filter(item => item.content !== null);
     const listStyle = (props as any).listStyle;
     const direction = props.direction || 'vertical';
     const alignItems = props.align ? (ALIGN_MAP[props.align] ?? 'stretch') : undefined;
@@ -87,7 +98,7 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<ListSupportedApi
           aria-label=${a11yLabel}
           aria-description=${a11yDescription}
         >
-          ${repeat(children, getChildKey, child => html`<li>${this.renderNode(child)}</li>`)}
+          ${repeat(items, itemKey, item => html`<li>${item.content}</li>`)}
         </ol>
       `;
     }
@@ -100,7 +111,7 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<ListSupportedApi
           aria-label=${a11yLabel}
           aria-description=${a11yDescription}
         >
-          ${repeat(children, getChildKey, child => html`<li>${this.renderNode(child)}</li>`)}
+          ${repeat(items, itemKey, item => html`<li>${item.content}</li>`)}
         </ul>
       `;
     }
@@ -114,10 +125,9 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<ListSupportedApi
         aria-description=${a11yDescription}
       >
         ${repeat(
-          children,
-          getChildKey,
-          child =>
-            html`<div class="a2ui-list-item-none" role="listitem">${this.renderNode(child)}</div>`,
+          items,
+          itemKey,
+          item => html`<div class="a2ui-list-item-none" role="listitem">${item.content}</div>`,
         )}
       </div>
     `;

@@ -23,6 +23,18 @@ import {isWebComponentImplementation} from './is_web_component_implementation.js
 import {registerUniversalElement} from './register_universal_element.js';
 import type {WebComponentImplementation} from './web_component_implementation.js';
 import type {A2uiWebComponentElement} from './a2ui_web_component_element.js';
+import {fallbackRequestFor} from '../resolution/fallbacks.js';
+import {renderFallback} from './fallback_renderer.js';
+
+/**
+ * What `renderA2uiNode` needs to render a placeholder's fallback, which the node can't supply
+ * itself (it has no `context`): the surface it renders on and the type of the component
+ * rendering it (absent for the root).
+ */
+export interface A2uiFallbackContext {
+  surface: object;
+  parentComponentType?: string;
+}
 
 /**
  * Keeps one custom element per child position, so a parent re-render
@@ -67,19 +79,32 @@ export function renderA2uiNode(
  * Renders a resolved node as its implementation's custom element, handing
  * the element the resolved `ComponentNode`.
  *
- * @param node The resolved node to render.
+ * @param node The node to render.
  * @returns A Lit directive result rendering the component's custom element,
  * or `nothing` for a placeholder, a disposed node, or an implementation that
  * is not a Web Component.
  */
 export function renderA2uiNode(node: ComponentNode): DirectiveResult | typeof nothing;
+/**
+ * Renders a node as its implementation's custom element, or a placeholder
+ * (pending, unknown type, cyclic) as what the surface's fallback renderer
+ * returns for it (see `registerFallbackRenderer`).
+ *
+ * @param node The node to render.
+ * @param fallbackContext The surface and the type of the component rendering `node`.
+ * @returns Something Lit renders, or `nothing` when the node renders nothing.
+ */
+export function renderA2uiNode(node: ComponentNode, fallbackContext: A2uiFallbackContext): unknown;
 export function renderA2uiNode(
   source: ComponentContext | ComponentNode,
-  catalog?: Catalog<WebComponentImplementation>,
+  catalogOrContext?: Catalog<WebComponentImplementation> | A2uiFallbackContext,
 ) {
   if (isComponentNode(source)) {
-    return renderNode(source);
+    return (
+      renderA2uiNodeOrNull(source, catalogOrContext as A2uiFallbackContext | undefined) ?? nothing
+    );
   }
+  const catalog = catalogOrContext as Catalog<WebComponentImplementation> | undefined;
   const type = source.componentModel.type;
   const implementation = catalog?.components.get(type);
 
@@ -110,7 +135,6 @@ type RenderableNode = ComponentNode & {
 /**
  * Whether `renderA2uiNode(node)` renders an element for `node`: it has resolved, is not
  * disposed, has a context, and its implementation is a custom element with a tag name.
- * Containers use this (through `A2uiLitElement.isChildResolved`) to agree with it exactly.
  */
 export function canRenderA2uiNode(node: ComponentNode): node is RenderableNode {
   return (
@@ -121,16 +145,28 @@ export function canRenderA2uiNode(node: ComponentNode): node is RenderableNode {
   );
 }
 
-function renderNode(node: ComponentNode) {
-  if (!canRenderA2uiNode(node)) {
-    if (!node.isPlaceholder && !node.disposed && node.context) {
-      console.warn(`Component implementation not found or missing tagName for type: ${node.type}`);
+/**
+ * What `renderA2uiNode(node, fallbackContext)` renders, or `null` when that is nothing. A
+ * container that gives each child a slot of its own lays out exactly the children for which
+ * this is not `null`, so a fallback gets a slot and a child that renders nothing gets none.
+ */
+export function renderA2uiNodeOrNull(
+  node: ComponentNode,
+  fallbackContext?: A2uiFallbackContext,
+): unknown {
+  if (canRenderA2uiNode(node)) {
+    const implementation = node.impl;
+    if (isWebComponentImplementation(implementation)) {
+      registerUniversalElement(implementation);
     }
-    return nothing;
+    return a2uiElement(implementation.tagName, undefined, node);
   }
-  const implementation = node.impl;
-  if (isWebComponentImplementation(implementation)) {
-    registerUniversalElement(implementation);
+  const request = fallbackRequestFor(node, fallbackContext?.parentComponentType);
+  if (request) {
+    return fallbackContext ? renderFallback(fallbackContext.surface, request) : null;
   }
-  return a2uiElement(implementation.tagName, undefined, node);
+  if (!node.disposed && node.context) {
+    console.warn(`Component implementation not found or missing tagName for type: ${node.type}`);
+  }
+  return null;
 }

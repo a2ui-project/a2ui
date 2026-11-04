@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Add `fallbacks` to `<a2ui-surface>`: ``.fallbacks=${{pending: info => html`...`, error: info => html`...`}}`` renders your template for the root before it arrives, for an unresolved root (unknown type, cycle), and for every unresolved child in the surface's elements. A missing builder, or one that returns `null`, renders nothing as before. Exports the `A2uiFallbacks`, `A2uiPendingInfo`, `A2uiErrorInfo` and `A2uiFallbackError` types. [#2013](https://github.com/a2ui-project/a2ui/issues/2013)
+
 ## 0.15.0
 
 - **BREAKING CHANGE**: `<a2ui-surface>` renders nothing until its root component arrives, instead of `Loading surface...`. Apps that relied on the built-in text should render their own loading state until the fallback API from [#2013](https://github.com/a2ui-project/a2ui/issues/2013) lands. [#3723](https://github.com/a2ui-project/a2ui/pull/3723)
