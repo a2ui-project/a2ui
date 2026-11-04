@@ -31,7 +31,84 @@ import 'suites.dart';
 /// catalog declares v0.8 is skipped, since this SDK does not implement it.
 ///
 /// As written in v1.0, only the cases whose catalogs target v1.0 run.
+const Map<String, Set<String>> _knownKeys = {
+  'case:compile': {
+    ...caseMetadataKeys,
+    'args',
+    'expect',
+    'expect_error',
+    'input',
+  },
+  'case:decompile': {
+    ...caseMetadataKeys,
+    'args',
+    'expect_contains',
+    'expect_round_trip',
+    'messages',
+  },
+  'case:generate_prompt_snippet': {
+    ...caseMetadataKeys,
+    'args',
+    'expect_contains',
+    'expect_deterministic',
+    'expect_error',
+    'expect_file',
+  },
+  'case:has_format_content': {...caseMetadataKeys, 'args', 'expect', 'input'},
+  'case:parse_chunk': {
+    ...caseMetadataKeys,
+    'args',
+    'expect_close',
+    'expect_matches_single_shot',
+    'steps',
+  },
+  'case:parse_response': {
+    ...caseMetadataKeys,
+    'args',
+    'expect',
+    'expect_error',
+    'input',
+  },
+  'case:unwrap': {...caseMetadataKeys, 'args', 'expect', 'input'},
+  'case:wrap': {
+    ...caseMetadataKeys,
+    'args',
+    'expect_contains',
+    'expect_output',
+    'expect_round_trip',
+    'parts',
+  },
+  'args:compile': {'catalog', 'format'},
+  'args:decompile': {'catalog', 'catalogs', 'format'},
+  'args:generate_prompt_snippet': {
+    'allowed_messages',
+    'catalogs',
+    'examples',
+    'format',
+  },
+  'args:has_format_content': {'complete', 'format'},
+  'args:parse_chunk': {
+    'after_rejected_block',
+    'catalog',
+    'catalogs',
+    'format',
+    'progressive_keys',
+    'wrapped',
+  },
+  'args:parse_response': {'catalog', 'format', 'wrapped'},
+  'args:unwrap': {'format'},
+  'args:wrap': {'format'},
+  'step:parse_chunk': {
+    'expect',
+    'expect_error',
+    'expect_in_block',
+    'expect_partial_results',
+    'input',
+  },
+};
+
 void main() {
+  final allCaseNames = <String>{};
   for (final suite in [
     'compiler',
     'decompiler',
@@ -45,16 +122,15 @@ void main() {
         final List<Map<String, Object?>> cases = loadSuite(path);
         test('suite is not empty', () => expect(cases, isNotEmpty));
         for (final testCase in cases) {
+          final name = testCase['name']! as String;
+          allCaseNames.add(name);
           if (version == SuiteVersion.v1_0 && !_targetsV1(testCase)) continue;
-          test(
-            testCase['name']! as String,
-            () => _runCase(testCase, version),
-            skip: _skipReason(testCase, version),
-          );
+          test(name, () => _runCase(testCase, version));
         }
       });
     }
   }
+  verifyNoUnusedEntries('direct_json', allCaseNames, _v1OnlyCases);
 }
 
 /// v1.0 streaming cases that rely on what v0.9 cannot state: a component
@@ -62,11 +138,20 @@ void main() {
 /// data model, which only lowering a whole payload can split.
 const Set<String> _v1OnlyCases = {
   'test_compile_json_newline_in_create_surface_data_model_preserved',
+  'test_decompile_json_call_renderer_function',
+  'test_decompile_json_catalog_qualified_components',
+  'test_parse_response_call_renderer_function_renderer_or_agent_succeeds',
+  'test_parse_response_call_renderer_function_agent_only_succeeds',
+  'test_parse_response_call_renderer_function_renderer_only'
+      '_is_validation_error',
+  'test_parse_response_call_renderer_function_user_activation'
+      '_is_validation_error',
   'test_stream_create_surface_inline_components_v10',
   'test_stream_create_surface_inline_components_in_small_chunks_v10',
   'test_stream_multi_catalog_resolution_v10',
   'test_stream_component_catalog_id_arrives_late_v10',
   'test_stream_catalog_id_split_across_chunks_v10',
+  'test_stream_second_block_calling_renderer_only_function_fails_v10',
 };
 
 /// Whether the catalogs of [testCase] target v1.0, as most cases' do.
@@ -95,7 +180,20 @@ String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
 }
 
 void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
-  switch (testCase['action']) {
+  if (_skipReason(testCase, version) case final String reason) {
+    markTestSkipped(reason);
+    return;
+  }
+  final action = testCase['action'] as String?;
+  final Set<String>? allowedCaseKeys = _knownKeys['case:$action'];
+  if (allowedCaseKeys == null) {
+    throw UnsupportedError('Unknown action $action');
+  }
+  assertKnownKeys(testCase, allowedCaseKeys, 'case:$action');
+  final args = testCase['args']! as Map<String, Object?>;
+  assertKnownKeys(args, _knownKeys['args:$action']!, 'args:$action');
+  expect(args['format'], 'direct_json');
+  switch (action) {
     case 'parse_chunk':
       _runChunks(testCase, version);
       return;
@@ -228,6 +326,11 @@ void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
   for (final (int i, Object? step)
       in (testCase['steps']! as List<Object?>).indexed) {
     final stepCase = step! as Map<String, Object?>;
+    assertKnownKeys(
+      stepCase,
+      _knownKeys['step:parse_chunk']!,
+      'step:parse_chunk',
+    );
     final String chunk = written.text(
       stepCase['input']! as String,
       catalogId: catalogId,

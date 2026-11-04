@@ -1,6 +1,8 @@
 ## Unreleased
 
 - `ExpressPromptGenerator` teaches `Event(name, context?, userMessage=...)` in rule 8 for v1.0+ catalogs, while keeping the two-argument `Event(name, context)` rule for pre-v1.0 catalogs ([#3690](https://github.com/a2ui-project/a2ui/issues/3690), [#3867](https://github.com/a2ui-project/a2ui/pull/3867)).
+- **BREAKING CHANGE**: `RendererState`, `validatePayload`, and response parsers (`DirectJsonParser`, `ExpressParser`, and their streaming counterparts) now reject `callRendererFunction` messages that target a `rendererOnly` function or a function with `requiresUserActivation: true` with `A2uiValidationError`. Exported `agentCallableFunctions` and `checkAgentCallable` ([#3864](https://github.com/a2ui-project/a2ui/pull/3864)).
+- `ExpressPromptGenerator.generateBaseRules()` now includes the standalone renderer function call rule in v1.0 when `callRendererFunction` is allowed and the active catalogs define at least one agent-callable function, listing only `agentCallableFunctions(catalogs)` ([#3864](https://github.com/a2ui-project/a2ui/pull/3864)).
 
 ## 0.1.0
 

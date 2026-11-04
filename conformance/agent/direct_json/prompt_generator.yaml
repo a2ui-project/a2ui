@@ -123,6 +123,40 @@
       - "test_data/examples/chart_series.json"
   expect_file: "test_data/prompts/direct_json/multi_catalog_examples.txt"
 
+- name: test_snippet_preserves_supplied_example_order
+  description: Supplied examples appear in the prompt snippet in the exact order given in the examples list, even when an example from the second catalog precedes an example from the first catalog.
+  action: generate_prompt_snippet
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+    examples:
+      - "test_data/examples/chart_series.json"
+      - "test_data/examples/greeting_surface.json"
+  expect_contains:
+    - |-
+      "component": "Chart",
+                "values": [
+                  1,
+                  2,
+                  3
+                ]
+              }
+            ]
+          }
+        }
+      ]
+      </a2ui-json>
+
+      <a2ui-json>
+      [
+        {
+          "version": "1.0",
+          "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": "conformance/simplified"
+
 - name: test_snippet_without_examples_carries_no_example
   description: The same catalog without examples omits the Examples section altogether.
   action: generate_prompt_snippet

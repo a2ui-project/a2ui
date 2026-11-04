@@ -31,6 +31,7 @@ import {
   SurfaceModel,
   ValidationConfig,
 } from '../internal/web-core.js';
+import {checkAgentCallable} from './agent-callable.js';
 import {checkParserCatalogs} from './catalog-checks.js';
 import {validateEnvelope} from './envelope-validation.js';
 import {toReleaseLine} from './protocol-version.js';
@@ -874,6 +875,7 @@ export class RendererState {
     const [surfaceId, creates] = target(message);
     if (surfaceId === undefined) {
       if ('callRendererFunction' in message) {
+        checkAgentCallable(message, this._catalogs);
         this.holdCall(message);
       } else {
         this.process(message);

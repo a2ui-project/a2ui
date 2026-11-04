@@ -55,6 +55,8 @@ from a2ui.core.schema import (
 )
 from a2ui.core.validation import analyze_topology, validate_component_integrity
 
+from .agent_callable import check_agent_callable
+
 __all__ = [
     "RendererState",
     "validate_payload",
@@ -743,6 +745,7 @@ class RendererState:
         message = payload[index]
         surface_id, creates = _target(message)
         if surface_id is None:
+            check_agent_callable(message, self._catalogs)
             self._process([message])
             return None
 

@@ -241,6 +241,71 @@ class TestExpressPromptGenerator(unittest.TestCase):
             {"type": "string"},
         )
 
+    def test_express_standalone_call_rule_lists_only_agent_callable_functions(self):
+        cat = Catalog.from_json(
+            protocol_version=ProtocolVersion.V1_0,
+            catalog_id="conformance/allowed_callers",
+            catalog_schema={
+                "catalogId": "conformance/allowed_callers",
+                "protocolVersion": "1.0",
+                "components": {
+                    "Text": {
+                        "properties": {
+                            "component": {"const": "Text"},
+                            "text": {"type": "string"},
+                        },
+                        "required": ["component", "text"],
+                    }
+                },
+                "functions": {
+                    "notifyAgent": {
+                        "returnType": "void",
+                        "allowedCallers": "agentOnly",
+                        "properties": {
+                            "@call": {"const": "notifyAgent"},
+                            "args": {"type": "object", "properties": {}},
+                        },
+                    },
+                    "showToast": {
+                        "returnType": "void",
+                        "allowedCallers": "rendererOrAgent",
+                        "properties": {
+                            "@call": {"const": "showToast"},
+                            "args": {"type": "object", "properties": {}},
+                        },
+                    },
+                    "formatValue": {
+                        "returnType": "string",
+                        "properties": {
+                            "@call": {"const": "formatValue"},
+                            "args": {"type": "object", "properties": {}},
+                        },
+                    },
+                    "launch": {
+                        "returnType": "void",
+                        "allowedCallers": "rendererOnly",
+                        "requiresUserActivation": True,
+                        "properties": {
+                            "@call": {"const": "launch"},
+                            "args": {"type": "object", "properties": {}},
+                        },
+                    },
+                },
+            },
+        )
+        generator = ExpressFormat([cat]).prompt_generator
+        rules = generator.generate_base_rules()
+        self.assertIn(
+            "Only these functions can be called this way: `notifyAgent`, `showToast`.",
+            rules,
+        )
+        self.assertNotIn("`formatValue`", rules)
+        self.assertNotIn("`launch`", rules)
+        filtered = generator.generate_base_rules(
+            allowed_messages=["createSurface", "updateComponents"]
+        )
+        self.assertNotIn("Only these functions can be called this way", filtered)
+
 
 if __name__ == "__main__":
     unittest.main()

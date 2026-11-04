@@ -463,3 +463,193 @@ tests:
         - "Card"
         - "Button"
         - "Text"
+
+  # --- Protocol v1.0 Twin Cases ---
+
+  - id: "01_status_badge_expansion_v1_0"
+    version: "v1.0"
+    description: "Macro expanding to Card, Row, and Text components with root stitching and namespacing (v1.0)"
+    golden: "v1_0/01_status_badge_expansion.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "StatusBadge"
+      id: "badge_1"
+      status: "active"
+      title: "Server 1"
+
+  - id: "02_slot_boundary_preservation_v1_0"
+    version: "v1.0"
+    description: "Single child slot referencing an external component ID without namespacing or re-emission (v1.0)"
+    golden: "v1_0/02_slot_boundary_preservation.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+      allow_dangling_references: true
+    input:
+      component: "SlotContainer"
+      id: "container_1"
+      title: "Settings"
+      content: "external_child_42"
+
+  - id: "03_multi_slot_list_coercion_v1_0"
+    version: "v1.0"
+    description: "Multi-child slot list referencing external component IDs without namespacing or re-emission (v1.0)"
+    golden: "v1_0/03_multi_slot_list_coercion.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+      allow_dangling_references: true
+    input:
+      component: "MultiSlotContainer"
+      id: "multi_1"
+      header: "Action Group"
+      items:
+        - "action_btn_1"
+        - "action_btn_2"
+
+  - id: "04_action_string_coercion_v1_0"
+    version: "v1.0"
+    description: "Action parameter coerced from string event name to Action wire object (v1.0)"
+    golden: "v1_0/04_action_string_coercion.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "ActionButton"
+      id: "btn_1"
+      label: "Save Changes"
+      action: "submit_form"
+
+  - id: "05_data_binding_coercion_v1_0"
+    version: "v1.0"
+    description: "Dynamic string parameter coerced from data binding dictionary into @path wire form (v1.0)"
+    golden: "v1_0/05_data_binding_coercion.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "BoundMetric"
+      id: "metric_1"
+      label: "CPU Usage"
+      value:
+        "@path": "/system/cpu"
+
+  - id: "06_primitive_and_dict_arguments_v1_0"
+    version: "v1.0"
+    description: "Macro arguments with integer, boolean, and string primitives (v1.0)"
+    golden: "v1_0/06_primitive_and_dict_arguments.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "ConfigCard"
+      id: "cfg_1"
+      name: "Worker 1"
+      port: 8080
+      active: true
+
+  - id: "07_nested_macro_composition_v1_0"
+    version: "v1.0"
+    description: "Composition of a macro inside another macro expanding recursively (v1.0)"
+    golden: "v1_0/07_nested_macro_composition.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "NestedMacroCard"
+      id: "nested_1"
+      title: "Service Cluster"
+      status: "online"
+
+  - id: "08_surface_lifecycle_envelopes_v1_0"
+    version: "v1.0"
+    description: "Full surface lifecycle message containing macro components (v1.0)"
+    golden: "v1_0/08_surface_lifecycle_envelopes.json"
+    surface_id: "conformance"
+    catalog_id: "org.a2ui.basic"
+    input:
+      component: "StatusBadge"
+      id: "root"
+      status: "ready"
+      title: "System"
+
+  - id: "11_synthetic_catalog_generation_v1_0"
+    version: "v1.0"
+    description: "Deriving a v1.0 inference catalog synthesizes valid schemas for all parameter types and augments anyComponent"
+    action: "transform_to_inference_catalog"
+    expect:
+      augmented_components:
+        - "StatusBadge"
+        - "SlotContainer"
+        - "MultiSlotContainer"
+        - "ActionButton"
+        - "BoundMetric"
+        - "ConfigCard"
+        - "NestedMacroCard"
+        - "ComplexCard"
+      any_component_references:
+        - "#/components/StatusBadge"
+        - "#/components/SlotContainer"
+        - "#/components/MultiSlotContainer"
+        - "#/components/ActionButton"
+        - "#/components/BoundMetric"
+        - "#/components/ConfigCard"
+        - "#/components/NestedMacroCard"
+        - "#/components/ComplexCard"
+      component_properties:
+        ComplexCard:
+          title: {type: "string"}
+          dynamic_title: {$ref: "common_types.json#/$defs/DynamicString"}
+          metric: {$ref: "common_types.json#/$defs/DynamicNumber"}
+          is_active: {$ref: "common_types.json#/$defs/DynamicBoolean"}
+          tags: {$ref: "common_types.json#/$defs/DynamicStringList"}
+          anything: {$ref: "common_types.json#/$defs/DynamicValue"}
+          on_click: {$ref: "common_types.json#/$defs/Action"}
+          checks: {type: "array", items: {$ref: "common_types.json#/$defs/CheckRule"}}
+          accessibility: {$ref: "common_types.json#/$defs/AccessibilityAttributes"}
+          footer: {$ref: "common_types.json#/$defs/ComponentId"}
+          items: {$ref: "common_types.json#/$defs/ChildList"}
+          theme: {type: "string", enum: ["primary", "secondary"]}
+
+  - id: "12_catalog_version_preservation_v1_0"
+    version: "v1.0"
+    description: "Inference catalog preserves exact protocol version (1.0) of the v1.0 base catalog"
+    action: "transform_to_inference_catalog"
+    expect:
+      protocol_version: "1.0"
+
+  - id: "14_multiple_macro_instances_namespacing_v1_0"
+    version: "v1.0"
+    description: "Multiple instances of the same macro in one envelope generate collision-free namespaced IDs (v1.0)"
+    golden: "v1_0/14_multiple_macro_instances_namespacing.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      - component: "StatusBadge"
+        id: "badge_1"
+        status: "active"
+        title: "DB"
+      - component: "StatusBadge"
+        id: "badge_2"
+        status: "idle"
+        title: "Cache"
+
+  - id: "15_mixed_primitive_and_macro_envelope_v1_0"
+    version: "v1.0"
+    description: "Envelope containing both primitives and macros preserves primitives and expands macros in-place (v1.0)"
+    golden: "v1_0/15_mixed_primitive_and_macro_envelope.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      - component: "Text"
+        id: "title_1"
+        text: "System Dashboard"
+        variant: "body"
+      - component: "StatusBadge"
+        id: "badge_1"
+        status: "ready"
+        title: "API Gateway"

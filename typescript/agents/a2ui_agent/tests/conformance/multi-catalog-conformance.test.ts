@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import * as fs from 'fs';
-import {describe, expect, test} from 'vitest';
+import {readFileSync} from 'fs';
+
+import {expect} from 'vitest';
 
 import {
   A2uiCatalogError,
@@ -23,6 +24,7 @@ import {
   A2uiCompilationParseError,
   A2uiCompilationValidationError,
   A2uiGenerator,
+  A2uiRequestProcessor,
   A2uiValidationError,
   AgentToRendererMessage,
   CatalogConfig,
@@ -47,6 +49,7 @@ import {
   CatalogRegistration,
   compileChecked,
   conformancePath,
+  describeSuite,
   expectCatalogContents,
 } from './suite-helpers.js';
 
@@ -151,7 +154,7 @@ function loadExamples(
   const examples: Record<string, AgentToRendererMessage[]> = {};
   for (let i = 0; i < examplePaths.length; i++) {
     const fullPath = conformancePath(examplePaths[i]);
-    const content = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
+    const content = JSON.parse(readFileSync(fullPath, 'utf8'));
     const messages: AgentToRendererMessage[] = Array.isArray(content) ? content : [content];
     const firstSurfaceCatId = (messages[0] as {createSurface?: {catalogId?: string}} | undefined)
       ?.createSurface?.catalogId;
@@ -438,34 +441,76 @@ function runFormatCase(testCase: LoadedCase): void {
         assertPartsMatch(parts, thenParse.expect as Array<Record<string, unknown>>);
       }
     }
+
+    const thenStream = testCase.then_stream as ThenStream | undefined;
+    if (thenStream) {
+      runThenStream(processor, thenStream);
+    }
   } else {
     throw new Error(`Unsupported action: ${action}`);
   }
 }
 
-describe('Conformance: multi_catalog_formats.yaml & request_processor.yaml', () => {
-  const files = [
+interface ThenStreamStep {
+  input: string;
+  expect?: Array<Record<string, unknown>>;
+  expect_error?: Record<string, unknown> | string;
+}
+
+interface ThenStream {
+  steps: ThenStreamStep[];
+  expect_close?: Array<Record<string, unknown>>;
+  expect_error?: Record<string, unknown> | string;
+}
+
+/**
+ * Feeds `then_stream` steps through a stream the processor opened. Each step
+ * states the parts its chunk yields, or the error feeding it throws, which ends
+ * the case. After the last step the stream is closed: `expect_close` states the
+ * parts that yields, `expect_error` the error it throws.
+ */
+function runThenStream(processor: A2uiRequestProcessor, thenStream: ThenStream): void {
+  const stream = processor.openStream();
+  for (const step of thenStream.steps) {
+    if (step.expect_error !== undefined) {
+      assertThrows(() => {
+        stream.feed(step.input);
+      }, step.expect_error);
+      return;
+    }
+    assertPartsMatch(stream.feed(step.input), step.expect ?? []);
+  }
+  if (thenStream.expect_error !== undefined) {
+    assertThrows(() => {
+      stream.close();
+    }, thenStream.expect_error);
+    return;
+  }
+  const closed = stream.close();
+  if (thenStream.expect_close !== undefined) {
+    assertPartsMatch(closed, thenStream.expect_close);
+  }
+}
+
+describeSuite(
+  'Conformance: multi_catalog_formats.yaml & request_processor.yaml',
+  loadCases([
     conformancePath('agent/multi_catalog_formats.yaml'),
     conformancePath('agent/request_processor.yaml'),
-  ];
-
-  for (const testCase of loadCases(files)) {
-    const args = (testCase.args as Record<string, unknown>) || {};
-    const fmt = (args.format as string) ?? 'express';
-    const fmtOverride = args.format_override as string | undefined;
-    const isUnsupportedFormat =
-      (fmt !== 'express' && fmt !== 'direct_json') ||
-      (fmtOverride !== undefined && fmtOverride !== 'express' && fmtOverride !== 'direct_json');
-
-    const title = `${testCase.action} · ${testCase.name}`;
-    if (isUnsupportedFormat) {
-      test.skip(title, () => {
-        runFormatCase(testCase);
-      });
-    } else {
-      test(title, () => {
-        runFormatCase(testCase);
-      });
-    }
-  }
-});
+  ]),
+  testCase => runFormatCase(testCase),
+  {
+    skipReason: testCase => {
+      const args = (testCase.args as Record<string, unknown>) || {};
+      const fmt = (args.format as string) ?? 'express';
+      const fmtOverride = args.format_override as string | undefined;
+      if (fmt !== 'express' && fmt !== 'direct_json') {
+        return `Unsupported format: ${fmt}`;
+      }
+      if (fmtOverride !== undefined && fmtOverride !== 'express' && fmtOverride !== 'direct_json') {
+        return `Unsupported format override: ${fmtOverride}`;
+      }
+      return undefined;
+    },
+  },
+);

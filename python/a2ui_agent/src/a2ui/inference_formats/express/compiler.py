@@ -1694,8 +1694,8 @@ class ExpressCompiler:
                 if data_updates:
                     return data_updates
                 raise ExpressUndefinedRootError("root")
-            if not scope.has_surface_directive:
-                raise ExpressUndefinedRootError("root")
+            # Components without a root update a surface the renderer already
+            # shows, whether or not a `surface(...)` line named it.
             return [
                 {
                     "version": ctx.version,
@@ -2099,6 +2099,12 @@ class ExpressCompiler:
             # a binding is data.
             if prop_name == "value" and _resolves_to_path(arg, raw_symbols):
                 sibling_value_path = mapped_val
+
+        if raw_checks and "checks" not in properties:
+            raise ExpressValidationError(
+                f"Component '{comp_name}' does not declare a 'checks' property,"
+                " so it cannot take checks."
+            )
 
         # Checks bind the component's own value implicitly.
         ctx.active_value_path = sibling_value_path
