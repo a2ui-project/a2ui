@@ -75,7 +75,7 @@ See [Agent SDKs](../agent-sdks/) for official package names and capabilities.
 
 ### agent_to_renderer
 
-The v1.0 protocol envelope schema ([`agent_to_renderer.json`](../../specification/v1.0/schemas/#agent_to_renderer.json)) for messages streamed or returned from an [agent](#agent) to a [renderer](#renderer). In v0.9.1, this envelope schema is named [`server_to_client.json`](../../specification/v0.9.1/schemas/#server_to_client.json).
+The v1.0 protocol [envelope schema](#envelope-schema) ([`agent_to_renderer.json`](../../specification/v1.0/schemas/#agent_to_renderer.json)) for messages streamed or returned from an [agent](#agent) to a [renderer](#renderer). In v0.9.1, this envelope schema is named [`server_to_client.json`](../../specification/v0.9.1/schemas/#server_to_client.json).
 
 Every v1.0 `agent_to_renderer` message sets `"version": "1.0"` (v0.9.1 uses `"version": "v0.9"` or `"v0.9.1"`) alongside one of six message keys:
 
@@ -228,6 +228,21 @@ See [Data Model and Data Binding](../data-binding/) and [Data model updates: syn
 
 ## E
 
+### Envelope schema
+
+<span id="message-schema"></span>
+
+A top-level JSON Schema that defines the outer wire structure (`"version"` plus a single message type key) for an [A2UI message](#a2ui-message) exchanged between an [agent](#agent) and a [renderer](#renderer), independent of which [catalog](#catalog) defines the UI [components](#component) and [functions](#function):
+
+1. [`agent_to_renderer.json`](../../specification/v1.0/schemas/#agent_to_renderer.json) ([`agent_to_renderer`](#agent_to_renderer)) validates v1.0 messages from agent to renderer (`"version": "1.0"`).
+2. [`renderer_to_agent.json`](../../specification/v1.0/schemas/#renderer_to_agent.json) ([`renderer_to_agent`](#renderer_to_agent)) validates v1.0 messages from renderer to agent (`"version": "1.0"`).
+3. [`server_to_client.json`](../../specification/v0.9.1/schemas/#server_to_client.json) validates v0.9.1 (and v0.8) messages from server (agent) to client (renderer), renamed to `agent_to_renderer.json` in v1.0.
+4. [`client_to_server.json`](../../specification/v0.9.1/schemas/#client_to_server.json) validates v0.9.1 (and v0.8) messages from client (renderer) to server (agent), renamed to `renderer_to_agent.json` in v1.0.
+
+Each envelope schema also has companion JSON array (`*_list.json`) and object-wrapped array (`*_list_wrapper.json`) schemas for batched message delivery.
+
+See [Messages](../messages/) and [Envelope message structure](../../specification/v1.0-a2ui/#envelope-message-structure) in the protocol specification.
+
 ### Event
 
 The agent-bound variant of a component [`Action`](#action) (`action.event` in [`common_types.json#/$defs/Action`](../../specification/v1.0/schemas/#common_types.json/$defs/Action)) that notifies the [agent](#agent) of user intent, such as clicking a submit button or choosing an item.
@@ -374,7 +389,7 @@ See [Renderer SDKs](../renderer-sdks/) and [How to Integrate with My Client](../
 
 ### renderer_to_agent
 
-The v1.0 protocol envelope schema ([`renderer_to_agent.json`](../../specification/v1.0/schemas/#renderer_to_agent.json)) for messages sent from a [renderer](#renderer) to an [agent](#agent). In v0.9.1, this envelope schema is named [`client_to_server.json`](../../specification/v0.9.1/schemas/#client_to_server.json).
+The v1.0 protocol [envelope schema](#envelope-schema) ([`renderer_to_agent.json`](../../specification/v1.0/schemas/#renderer_to_agent.json)) for messages sent from a [renderer](#renderer) to an [agent](#agent). In v0.9.1, this envelope schema is named [`client_to_server.json`](../../specification/v0.9.1/schemas/#client_to_server.json).
 
 Every v1.0 `renderer_to_agent` message sets `"version": "1.0"` (v0.9.1 uses `"version": "v0.9"` or `"v0.9.1"`) alongside one of four message keys:
 
