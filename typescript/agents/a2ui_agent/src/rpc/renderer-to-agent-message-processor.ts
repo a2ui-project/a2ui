@@ -63,18 +63,31 @@ export interface RendererToAgentMessageProcessorOptions {
    * answered with an `EXECUTION_ERROR`. No timeout when omitted.
    */
   readonly agentFunctionTimeoutMs?: number;
-  /** Receives each `action` message, validated against the v1.0 schema. */
-  readonly onAction?: (message: ActionMessage) => void | Promise<void>;
-  /** Receives each `error` message, validated against the v1.0 schema. */
-  readonly onError?: (message: ErrorMessage) => void | Promise<void>;
+  /**
+   * Receives each `action` message, validated against the v1.0 schema.
+   * See {@link RendererMessageCallback} for declining one.
+   */
+  readonly onAction?: RendererMessageCallback<ActionMessage>;
+  /**
+   * Receives each `error` message, validated against the v1.0 schema.
+   * See {@link RendererMessageCallback} for declining one.
+   */
+  readonly onError?: RendererMessageCallback<ErrorMessage>;
   /**
    * Receives each `rendererFunctionResponse` message, validated against the
-   * v1.0 schema.
+   * v1.0 schema. See {@link RendererMessageCallback} for declining one.
    */
-  readonly onRendererFunctionResponse?: (
-    message: RendererFunctionResponseMessage,
-  ) => void | Promise<void>;
+  readonly onRendererFunctionResponse?: RendererMessageCallback<RendererFunctionResponseMessage>;
 }
+
+/**
+ * A callback for one kind of renderer message. It handles the message by
+ * returning nothing or `true`, or declines it by returning `false` (directly
+ * or through a `Promise`), so the message comes back with `handled: false`,
+ * as if the callback weren't set: for example, to let a conversational action
+ * reach the model while handling the others locally.
+ */
+export type RendererMessageCallback<T> = (message: T) => boolean | void | Promise<boolean | void>;
 
 /**
  * Processes the messages a renderer sends an agent (`RendererToAgentMessage`),
@@ -86,25 +99,27 @@ export interface RendererToAgentMessageProcessorOptions {
  *   arguments, a handler error, the timeout) is answered with an `error`
  *   rather than thrown, so the renderer's pending call settles.
  * - `action`, `error` and `rendererFunctionResponse` go to their callback,
- *   when it is set. Without one the message is not handled, and nothing is
- *   validated.
+ *   when it is set, which may decline the message. Without one the message is
+ *   not handled, and nothing is validated beyond its `version`.
  *
  * The processor keeps no state across messages, so build one per agent, or
- * per request from the active catalogs.
+ * per request from the active catalogs. It processes one message at a time:
+ * the caller decides whether to process several concurrently, and how to
+ * handle one that fails.
  */
 export class RendererToAgentMessageProcessor {
   private readonly _registry: AgentFunctionRegistry;
-  private readonly _onAction?: (message: ActionMessage) => void | Promise<void>;
-  private readonly _onError?: (message: ErrorMessage) => void | Promise<void>;
-  private readonly _onRendererFunctionResponse?: (
-    message: RendererFunctionResponseMessage,
-  ) => void | Promise<void>;
+  private readonly _onAction?: RendererMessageCallback<ActionMessage>;
+  private readonly _onError?: RendererMessageCallback<ErrorMessage>;
+  private readonly _onRendererFunctionResponse?: RendererMessageCallback<RendererFunctionResponseMessage>;
 
   /**
    * Initializes a new `RendererToAgentMessageProcessor`.
    *
    * @param options The catalogs, the agent function timeout and the callbacks.
-   * @throws {RangeError} If `agentFunctionTimeoutMs` is not greater than 0.
+   * @throws {RangeError} If `agentFunctionTimeoutMs` is not a finite number
+   *   greater than 0.
+   * @throws {A2uiCatalogError} If two catalogs have the same id.
    */
   constructor(options: RendererToAgentMessageProcessorOptions) {
     this._registry = new AgentFunctionRegistry(options.catalogs, {
@@ -120,15 +135,24 @@ export class RendererToAgentMessageProcessor {
    *
    * @param message The parsed JSON message.
    * @returns Whether the message was handled, and the replies to send.
-   * @throws {A2uiValidationError} If `message` is not an object, has no known
-   *   message key or more than one, is a `callAgentFunction` without a
-   *   `functionCallId`, or is a malformed message whose callback is set.
-   *   An error a callback throws propagates.
+   * @throws {A2uiValidationError} If `message` is not an object, its
+   *   `version` isn't `'1.0'`, it has no known message key or more than one,
+   *   it is a `callAgentFunction` without a `functionCallId`, or it is a
+   *   malformed message whose callback is set. An error a callback throws
+   *   propagates.
    */
   async processMessage(message: unknown): Promise<ProcessResult> {
     if (typeof message !== 'object' || message === null || Array.isArray(message)) {
       throw new A2uiValidationError(
         `A renderer message must be a JSON object, got ${message === null ? 'null' : Array.isArray(message) ? 'an array' : typeof message}.`,
+      );
+    }
+    const version = (message as {version?: unknown}).version;
+    if (version !== '1.0') {
+      throw new A2uiValidationError(
+        version === undefined
+          ? "A renderer message needs version '1.0'."
+          : `A renderer message needs version '1.0', not ${JSON.stringify(version)}.`,
       );
     }
     const keys = MESSAGE_KEYS.filter(key => Object.hasOwn(message, key));
@@ -159,24 +183,12 @@ export class RendererToAgentMessageProcessor {
         );
     }
   }
-
-  /**
-   * Processes several messages from the renderer concurrently.
-   *
-   * @param messages The parsed JSON messages.
-   * @returns The result of each message, in the order of `messages`.
-   * @throws {A2uiValidationError} As {@link processMessage} does, for the
-   *   first message that fails.
-   */
-  async processMessages(messages: Iterable<unknown>): Promise<ProcessResult[]> {
-    return await Promise.all([...messages].map(message => this.processMessage(message)));
-  }
 }
 
 async function dispatch<T>(
   message: object,
   schema: z.ZodType<T>,
-  callback: ((message: T) => void | Promise<void>) | undefined,
+  callback: RendererMessageCallback<T> | undefined,
 ): Promise<ProcessResult> {
   if (callback === undefined) {
     return {handled: false, replies: []};
@@ -189,6 +201,6 @@ async function dispatch<T>(
         .join(', ')} message: ${parsed.error.message}`,
     );
   }
-  await callback(parsed.data);
-  return {handled: true, replies: []};
+  const handled = (await callback(parsed.data)) !== false;
+  return {handled, replies: []};
 }

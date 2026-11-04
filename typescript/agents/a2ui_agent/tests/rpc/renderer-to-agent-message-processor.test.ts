@@ -18,6 +18,7 @@ import {afterEach, describe, expect, test, vi} from 'vitest';
 
 import * as agentSdk from '../../src/index.js';
 import {
+  A2uiCatalogError,
   A2uiRpcError,
   A2uiValidationError,
   type ActionMessage,
@@ -320,6 +321,41 @@ describe('RendererToAgentMessageProcessor', () => {
       expect(onlyResponse(await pending).value).toBe('done');
     });
 
+    test("treats a handler's own timeout error as a handler error", async () => {
+      vi.useFakeTimers();
+      const upstream = new AgentFunction({
+        name: 'upstream',
+        handler: async () => {
+          throw new DOMException('upstream request timed out', 'TimeoutError');
+        },
+      });
+      for (const agentFunctionTimeoutMs of [undefined, 30_000]) {
+        const processor = new RendererToAgentMessageProcessor({
+          catalogs: [catalogWith('cat', upstream)],
+          agentFunctionTimeoutMs,
+        });
+
+        const body = onlyResponse(await processor.processMessage(call('upstream')));
+
+        expect(body.error).toEqual({
+          code: RpcErrorCode.EXECUTION_ERROR,
+          message: 'upstream request timed out',
+        });
+      }
+    });
+
+    test('rejects two catalogs with the same id', () => {
+      expect(
+        () =>
+          new RendererToAgentMessageProcessor({
+            catalogs: [catalogWith('cat', echo), new Catalog('cat', '1.0', [], [])],
+          }),
+      ).toThrow(A2uiCatalogError);
+      expect(
+        () => new RendererToAgentMessageProcessor({catalogs: [catalogWith('a'), catalogWith('b')]}),
+      ).not.toThrow();
+    });
+
     test('rejects a timeout that is not greater than 0', () => {
       for (const agentFunctionTimeoutMs of [0, -50, Number.NaN, Number.POSITIVE_INFINITY]) {
         expect(
@@ -375,7 +411,6 @@ describe('RendererToAgentMessageProcessor', () => {
       });
 
       for (const message of [
-        {version: '0.9', callAgentFunction: body({})},
         {version: '1.0', callAgentFunction: body({}), extra: 1},
         {version: '1.0', callAgentFunction: body({extra: 1})},
         {version: '1.0', callAgentFunction: body({surfaceId: undefined})},
@@ -448,6 +483,35 @@ describe('RendererToAgentMessageProcessor', () => {
         expect(callback).not.toHaveBeenCalled();
       });
 
+      for (const [label, returned] of [
+        ['false', false],
+        ['a Promise of false', Promise.resolve(false)],
+      ] as const) {
+        test(`leaves a ${kind} unhandled when ${option} returns ${label}`, async () => {
+          const received: unknown[] = [];
+          const processor = new RendererToAgentMessageProcessor({
+            catalogs: [],
+            [option]: (m: unknown) => {
+              received.push(m);
+              return returned;
+            },
+          });
+
+          expect(await processor.processMessage(message)).toEqual({handled: false, replies: []});
+          expect(received).toEqual([message]);
+        });
+      }
+
+      test(`handles a ${kind} when ${option} returns true or nothing`, async () => {
+        for (const returned of [true, undefined, Promise.resolve(true), Promise.resolve()]) {
+          const processor = new RendererToAgentMessageProcessor({
+            catalogs: [],
+            [option]: () => returned,
+          });
+          expect(await processor.processMessage(message)).toEqual({handled: true, replies: []});
+        }
+      });
+
       test(`propagates an error thrown by ${option}`, async () => {
         const processor = new RendererToAgentMessageProcessor({
           catalogs: [],
@@ -468,6 +532,43 @@ describe('RendererToAgentMessageProcessor', () => {
       for (const message of ['text', 42, null, undefined, [ACTION]]) {
         await expect(processor.processMessage(message)).rejects.toBeInstanceOf(A2uiValidationError);
       }
+    });
+
+    test("raises a validation error for a message whose version isn't '1.0'", async () => {
+      const onAction = vi.fn();
+      const processor = new RendererToAgentMessageProcessor({
+        catalogs: [catalogWith('cat', echo)],
+        onAction,
+      });
+      const withoutVersion = (message: Record<string, unknown>) => {
+        const copy = {...message};
+        delete copy['version'];
+        return copy;
+      };
+
+      for (const message of [
+        ACTION,
+        ERROR,
+        RENDERER_FUNCTION_RESPONSE,
+        call('echo', {args: {text: 'hi'}}),
+      ]) {
+        await expect(processor.processMessage(withoutVersion(message))).rejects.toThrow(
+          /version '1.0'/,
+        );
+        for (const version of ['v1.0', '0.9', 1, null]) {
+          await expect(processor.processMessage({...message, version})).rejects.toBeInstanceOf(
+            A2uiValidationError,
+          );
+        }
+      }
+      // Checked even when the kind's callback isn't set.
+      await expect(
+        new RendererToAgentMessageProcessor({catalogs: []}).processMessage({
+          ...ERROR,
+          version: 'v1.0',
+        }),
+      ).rejects.toBeInstanceOf(A2uiValidationError);
+      expect(onAction).not.toHaveBeenCalled();
     });
 
     test('raises a validation error for an unknown message key or none', async () => {
@@ -492,62 +593,6 @@ describe('RendererToAgentMessageProcessor', () => {
         processor.processMessage({...call('echo'), action: ACTION.action}),
       ).rejects.toBeInstanceOf(A2uiValidationError);
       expect(onAction).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('processMessages', () => {
-    test('processes messages concurrently and returns results in input order', async () => {
-      const started: string[] = [];
-      const release = new Map<string, () => void>();
-      const gated = new AgentFunction({
-        name: 'gated',
-        handler: (_args, ctx) =>
-          new Promise<string>(resolve => {
-            started.push(ctx.functionCallId);
-            release.set(ctx.functionCallId, () => resolve(ctx.functionCallId));
-          }),
-      });
-      const actions: unknown[] = [];
-      const processor = new RendererToAgentMessageProcessor({
-        catalogs: [catalogWith('cat', gated)],
-        onAction: m => {
-          actions.push(m);
-        },
-      });
-
-      const pending = processor.processMessages([
-        call('gated', {functionCallId: 'first'}),
-        ACTION,
-        call('gated', {functionCallId: 'second'}),
-        ERROR,
-      ]);
-      await vi.waitFor(() => expect(started).toEqual(['first', 'second']));
-      release.get('second')!();
-      release.get('first')!();
-      const results = await pending;
-
-      expect(results.map(r => r.handled)).toEqual([true, true, true, false]);
-      expect(onlyResponse(results[0]).value).toBe('first');
-      expect(results[1].replies).toEqual([]);
-      expect(onlyResponse(results[2]).value).toBe('second');
-      expect(actions).toEqual([ACTION]);
-    });
-
-    test('rejects when a message fails', async () => {
-      const processor = new RendererToAgentMessageProcessor({catalogs: []});
-
-      await expect(processor.processMessages([ACTION, 'bad'])).rejects.toBeInstanceOf(
-        A2uiValidationError,
-      );
-    });
-
-    test('accepts any iterable and returns an empty list for no messages', async () => {
-      const processor = new RendererToAgentMessageProcessor({catalogs: []});
-
-      expect(await processor.processMessages([])).toEqual([]);
-      expect(await processor.processMessages(new Set([ACTION]))).toEqual([
-        {handled: false, replies: []},
-      ]);
     });
   });
 });

@@ -189,6 +189,7 @@ export {
 // Renderer-to-agent messages
 export {
   type ProcessResult,
+  type RendererMessageCallback,
   RendererToAgentMessageProcessor,
   type RendererToAgentMessageProcessorOptions,
 } from './rpc/renderer-to-agent-message-processor.js';

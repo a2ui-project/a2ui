@@ -15,6 +15,7 @@
  */
 
 import {
+  A2uiCatalogError,
   A2uiRpcError,
   A2uiValidationError,
   AgentFunction,
@@ -82,6 +83,7 @@ export class AgentFunctionRegistry {
    * @param catalogs Catalogs whose `agentFunctions` should be registered.
    * @param options Optional handler timeout.
    * @throws {RangeError} If `timeoutMs <= 0`.
+   * @throws {A2uiCatalogError} If two catalogs have the same id.
    */
   constructor(
     catalogs: Iterable<CatalogInterface<ComponentApi, FunctionApi>>,
@@ -99,9 +101,12 @@ export class AgentFunctionRegistry {
     }
 
     for (const catalog of catalogs) {
+      if (this._catalogs.has(catalog.id)) {
+        throw new A2uiCatalogError(`Two catalogs have the id '${catalog.id}'.`);
+      }
       this._catalogs.set(catalog.id, catalog);
       if (catalog.agentFunctions.size > 0) {
-        const byName = new Map(this._functions.get(catalog.id) ?? []);
+        const byName = new Map<string, AgentFunction>();
         for (const [name, fn] of catalog.agentFunctions.entries()) {
           byName.set(name, fn);
         }
