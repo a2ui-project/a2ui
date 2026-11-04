@@ -35,7 +35,7 @@ In Express, the model calls component constructors with positional arguments and
 
 The example below uses `Card`, `Column`, `Text`, and `Button` from the Basic Catalog, and the Express format derives signatures for any custom `catalog.json` you register. The block is shown indented for clarity; indentation and spaces around `=` and after commas are not required:
 
-```python title="Express block (shown indented for clarity)"
+```text title="Express block (shown indented for clarity)"
 <a2ui>
 $/flight/number = "NH 105"
 $/flight/gate = "B12"
@@ -219,11 +219,11 @@ The two formats differ in how they emit surface creation and component updates w
 
 When you pass structured few-shot `examples` (lists of `AgentToRendererMessage` objects) to `A2uiGenerator` or `A2uiRequestProcessor`, you write them once as wire messages. `DirectJsonPromptGenerator` renders them as `<a2ui-json>` blocks, while `ExpressPromptGenerator` automatically decompiles them into `<a2ui>` Express blocks.
 
-Catalogs in v1.0 can also include a Markdown `instructions` string with design rules and usage examples. When `ExpressPromptGenerator` builds the prompt, it scans `instructions` for fenced ` ```json ` code blocks and translates valid A2UI messages into Express syntax.
+Catalogs in v1.0 can also include a Markdown `instructions` string with design rules and usage examples. When `ExpressPromptGenerator` builds the prompt, it scans `instructions` for fenced `json` code blocks and translates valid A2UI messages into Express syntax.
 
 Inline backticked JSON fragments inside `instructions`, such as ``Use `{"event": {"name": "reply"}}` for quick replies``, are not parsed or rewritten. Leaving raw JSON inline inside `instructions` mixes JSON syntax into an Express prompt and can confuse the model. Follow two rules when authoring catalog `instructions` that work across every inference format:
 
-1. Put message examples inside fenced ` ```json ` code blocks as complete A2UI messages (`createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface`, or `callRendererFunction`) so `ExpressPromptGenerator` can decompile them into `<a2ui>` blocks.
+1. Put message examples inside fenced `json` code blocks as complete A2UI messages (`createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface`, or `callRendererFunction`) so `ExpressPromptGenerator` can decompile them into `<a2ui>` blocks.
 2. Describe component and function behavior in prose by component name, property name, and function name rather than inlining raw JSON syntax in single backticks.
 
 ## Configuring inference formats across SDKs
