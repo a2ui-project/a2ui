@@ -18,6 +18,8 @@
 
 ## Unreleased
 
+## 0.1.0
+
 - Requires `a2ui_core` `^0.5.0`.
 
 - **Breaking:** a component that has not arrived, has an unknown type, or

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.0
+
 - Remove `(Agent to UI)` from the embedded v0.9 `server_to_client.json` and v1.0
   `agent_to_renderer.json` schema descriptions in `DirectJsonPromptGenerator`
   ([#1605](https://github.com/a2ui-project/a2ui/pull/1605)).
@@ -360,13 +362,9 @@
   messages, each following the schema, instead of "a single, raw JSON object
   (usually a list of A2UI messages)" that "MUST validate" against it
   ([#3721](https://github.com/a2ui-project/a2ui/pull/3721)).
-
-## 0.0.1-wip005
-
 - Catalogs are typed `CatalogApi`, the new name of `a2ui_core`'s
   `SchemaCatalog`.
 - `ComponentPruningTransformer` and `FunctionPruningTransformer` now accept an optional or null allowlist, treating it as empty.
-
 - Implemented the rest of the agent SDK blueprint API for protocol v0.9:
   - `CatalogProvider`, `FileSystemCatalogProvider`, `InMemoryCatalogProvider`
     and `CatalogConfig.fromPath`. A document's id and version are settled with

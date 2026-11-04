@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.0
+
 - **Breaking:** Bump `a2ui_core` dependency to `^0.5.0` (`a2ui_cli` exposes
   `CatalogApi`, `ComponentApi`, `FunctionApi`, and `A2uiReturnType` in its
   public API, and `CodegenCatalog.fromJson` inherits `a2ui_core` `0.5.0` catalog
