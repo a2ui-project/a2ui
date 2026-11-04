@@ -263,7 +263,9 @@ message that isn't a v1.0 renderer-to-agent message (its `version` must be
 An agent that keeps a connection to the renderer open, such as a WebSocket,
 can call a renderer function and wait for its result with
 `RendererFunctionCalls`. Its `resolve` settles each call from the renderer's
-`rendererFunctionResponse`:
+`rendererFunctionResponse`, and returns `false` for a response to a call it
+doesn't track, such as one the model wrote, so the processor declines that
+response and it reaches the model:
 
 ```dart
 final calls = RendererFunctionCalls();

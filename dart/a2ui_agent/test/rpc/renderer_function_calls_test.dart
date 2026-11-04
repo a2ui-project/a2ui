@@ -385,6 +385,67 @@ void main() {
       calls.dispose();
     });
 
+    test('resolve tells whether it settled a pending call', () {
+      fakeAsync((FakeAsync async) {
+        final calls = RendererFunctionCalls(
+          defaultTimeout: const Duration(milliseconds: 50),
+        );
+        for (final id in ['ok', 'err', 'bad', 'late']) {
+          final (_, Future<Object?> future) = calls.call(
+            catalogId: _catId,
+            name: 'scrollIntoView',
+            functionCallId: id,
+          );
+          future.ignore();
+        }
+        // Settled with a value, failed with an error, failed as malformed.
+        expect(calls.resolve(_response('ok', {'value': 1})), isTrue);
+        expect(
+          calls.resolve(
+            _response('err', {
+              'error': {'code': 'X', 'message': 'no'},
+            }),
+          ),
+          isTrue,
+        );
+        expect(
+          calls.resolve(
+            _response('bad', {
+              'value': 1,
+              'error': {'code': 'X', 'message': 'both'},
+            }),
+          ),
+          isTrue,
+        );
+        // Duplicate, unknown, malformed and unknown, not a message.
+        expect(calls.resolve(_response('ok', {'value': 2})), isFalse);
+        expect(calls.resolve(_response('unknown', {'value': 1})), isFalse);
+        expect(
+          calls.resolve(_response('unknown', {'value': 1, 'error': 'x'})),
+          isFalse,
+        );
+        expect(calls.resolve('not a message'), isFalse);
+        // Late: after the timeout.
+        async.elapse(const Duration(milliseconds: 60));
+        expect(calls.resolve(_response('late', {'value': 1})), isFalse);
+        calls.dispose();
+      });
+    });
+
+    test('used as onRendererFunctionResponse, resolve declines responses it '
+        'does not own', () async {
+      final calls = RendererFunctionCalls();
+      final processor = RendererToAgentMessageProcessor(
+        catalogs: const [],
+        onRendererFunctionResponse: calls.resolve,
+      );
+      final ProcessResult result = await processor.processMessage(
+        _response('model-call-1', {'value': 'Paris'}),
+      );
+      expect(result.handled, isFalse);
+      expect(result.replies, isEmpty);
+    });
+
     test('resolve plugs into RendererToAgentMessageProcessor', () async {
       final calls = RendererFunctionCalls();
       final processor = RendererToAgentMessageProcessor(

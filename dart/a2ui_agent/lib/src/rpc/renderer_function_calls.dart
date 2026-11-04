@@ -197,25 +197,27 @@ class RendererFunctionCalls {
     return (message, pending.completer.future);
   }
 
-  /// Settles the pending call matching [message]'s `functionCallId`.
+  /// Settles the pending call matching [message]'s `functionCallId`, and
+  /// tells whether there was one.
   ///
   /// [message] may be a [RendererFunctionResponseMessage] or a raw JSON `Map`
-  /// envelope. Unknown, duplicate and late (post-timeout or post-dispose)
-  /// responses are ignored without throwing. A malformed response is ignored
-  /// too, unless it carries the `functionCallId` of a pending call: that call
-  /// then fails right away with [RpcErrorCode.unknownError] rather than
-  /// waiting for its timeout.
-  void resolve(Object message) {
+  /// envelope. Returns true when it settled or failed a pending call, and
+  /// false when the response names no pending call: an unknown, duplicate or
+  /// late (post-timeout or post-dispose) response, which is otherwise
+  /// ignored. As the `onRendererFunctionResponse` callback of a
+  /// `RendererToAgentMessageProcessor`, it so declines the responses it
+  /// doesn't own, such as answers to calls the model wrote, and they reach
+  /// the model. A malformed response is ignored too, unless it carries the
+  /// `functionCallId` of a pending call: that call then fails right away with
+  /// [RpcErrorCode.unknownError] rather than waiting for its timeout.
+  bool resolve(Object message) {
     final _ParsedRendererResponse? parsed = _parseResponse(message);
-    if (parsed == null) {
-      _failMalformed(message);
-      return;
-    }
+    if (parsed == null) return _failMalformed(message);
 
     final _PendingRendererCall? pending = _pending.remove(
       parsed.functionCallId,
     );
-    if (pending == null) return;
+    if (pending == null) return false;
     pending.timer?.cancel();
 
     final A2uiFunctionResponseError? error = parsed.error;
@@ -229,23 +231,24 @@ class RendererFunctionCalls {
           details: error.toJson(),
         ),
       );
-      return;
+      return true;
     }
     pending.completeValue(parsed.value);
+    return true;
   }
 
-  /// Fails the pending call that a malformed response [message] names, if
-  /// any.
-  void _failMalformed(Object message) {
+  /// Fails the pending call that a malformed response [message] names, and
+  /// tells whether there was one.
+  bool _failMalformed(Object message) {
     final Object? callId = switch (message) {
       RendererFunctionResponseMessage(:final A2uiFunctionResponse response) =>
         response.functionCallId,
       {'rendererFunctionResponse': {'functionCallId': final Object? id}} => id,
       _ => null,
     };
-    if (callId is! String || callId.isEmpty) return;
+    if (callId is! String || callId.isEmpty) return false;
     final _PendingRendererCall? pending = _pending.remove(callId);
-    if (pending == null) return;
+    if (pending == null) return false;
     pending.timer?.cancel();
     pending.completeError(
       A2uiRpcError(
@@ -258,6 +261,7 @@ class RendererFunctionCalls {
             : message,
       ),
     );
+    return true;
   }
 
   /// Cancels all pending calls with [RpcErrorCode.cancelled] and marks this
