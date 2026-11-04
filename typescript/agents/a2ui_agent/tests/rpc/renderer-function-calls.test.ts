@@ -151,10 +151,12 @@ describe('RendererFunctionCalls', () => {
     });
 
     // Late response is ignored
-    calls.resolve({
-      version: '1.0',
-      rendererFunctionResponse: {functionCallId: 'c1', value: 'en'},
-    });
+    expect(
+      calls.resolve({
+        version: '1.0',
+        rendererFunctionResponse: {functionCallId: 'c1', value: 'en'},
+      }),
+    ).toBe(false);
 
     // ID and slot can now be reused
     const [, result2] = calls.call({
@@ -162,10 +164,12 @@ describe('RendererFunctionCalls', () => {
       name: 'getLocale',
       functionCallId: 'c1',
     });
-    calls.resolve({
-      version: '1.0',
-      rendererFunctionResponse: {functionCallId: 'c1', value: 'fr'},
-    });
+    expect(
+      calls.resolve({
+        version: '1.0',
+        rendererFunctionResponse: {functionCallId: 'c1', value: 'fr'},
+      }),
+    ).toBe(true);
     await expect(result2).resolves.toBe('fr');
   });
 
@@ -205,7 +209,7 @@ describe('RendererFunctionCalls', () => {
     ];
 
     for (const message of ignored) {
-      calls.resolve(message as never);
+      expect(calls.resolve(message as never)).toBe(false);
     }
 
     expect(calls.pendingCount).toBe(1);
@@ -248,7 +252,7 @@ describe('RendererFunctionCalls', () => {
       const calls = new RendererFunctionCalls();
       const [, result] = calls.call({catalogId: 'cat', name: 'getLocale', functionCallId: 'c1'});
 
-      calls.resolve(bad as never);
+      expect(calls.resolve(bad as never)).toBe(true);
 
       expect(calls.pendingCount).toBe(0);
       expect(vi.getTimerCount()).toBe(0);
@@ -335,6 +339,38 @@ describe('RendererFunctionCalls', () => {
 
     expect(processed).toEqual({handled: true, replies: []});
     await expect(result).resolves.toBe('en-GB');
+
+    // A response to a call it didn't make, such as one the model wrote, or a
+    // duplicate, is declined, so it reaches the model.
+    for (const functionCallId of ['call_1', 'r1']) {
+      expect(
+        await processor.processMessage({
+          version: '1.0',
+          rendererFunctionResponse: {functionCallId, value: 'x'},
+        }),
+      ).toEqual({handled: false, replies: []});
+    }
+  });
+
+  test('resolve returns true when it settles or fails a pending call', async () => {
+    const calls = new RendererFunctionCalls();
+    const [, ok] = calls.call({catalogId: 'cat', name: 'getLocale', functionCallId: 'ok'});
+    const [, failed] = calls.call({catalogId: 'cat', name: 'getLocale', functionCallId: 'bad'});
+
+    expect(
+      calls.resolve({version: '1.0', rendererFunctionResponse: {functionCallId: 'ok', value: 1}}),
+    ).toBe(true);
+    expect(
+      calls.resolve({
+        version: '1.0',
+        rendererFunctionResponse: {functionCallId: 'bad', error: {code: 'E', message: 'm'}},
+      }),
+    ).toBe(true);
+    expect(
+      calls.resolve({version: '1.0', rendererFunctionResponse: {functionCallId: 'ok', value: 2}}),
+    ).toBe(false);
+    await expect(ok).resolves.toBe(1);
+    await expect(failed).rejects.toMatchObject({code: 'E'});
   });
 
   test('supports disabling defaultTimeoutMs with null', async () => {

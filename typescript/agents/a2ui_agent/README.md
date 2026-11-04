@@ -167,7 +167,7 @@ The processor handles one message per call, so the app decides whether to proces
 
 ### Calling renderer functions
 
-An agent calls a function the renderer implements with `callRendererFunction`. `RendererFunctionCalls` builds the message and gives a promise of the result, which `resolve` settles when the `rendererFunctionResponse` arrives. Pass `resolve` to the processor as `onRendererFunctionResponse`:
+An agent calls a function the renderer implements with `callRendererFunction`. `RendererFunctionCalls` builds the message and gives a promise of the result, which `resolve` settles when the `rendererFunctionResponse` arrives. Pass `resolve` to the processor as `onRendererFunctionResponse`. It returns `false` for a response to a call it isn't waiting for, such as one the model wrote, so the processor leaves that response unhandled for the model:
 
 ```ts
 const calls = new RendererFunctionCalls({defaultTimeoutMs: 10_000});

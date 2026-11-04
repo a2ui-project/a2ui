@@ -379,14 +379,20 @@ export class RendererFunctionCalls {
    * pending call fails that call right away with `UNKNOWN_ERROR`, rather than
    * leaving it to time out; any other malformed response is ignored.
    *
+   * Used as `onRendererFunctionResponse`, it therefore declines the responses
+   * it doesn't own, such as those to calls the model wrote, so they reach the
+   * model.
+   *
    * @param message Inbound `rendererFunctionResponse` message.
+   * @returns `true` if the response settled or failed a pending call, `false`
+   *   if its `functionCallId` isn't pending (unknown, late or a duplicate).
    */
-  resolve(message: RendererFunctionResponseMessage | Record<string, unknown>): void {
+  resolve(message: RendererFunctionResponseMessage | Record<string, unknown>): boolean {
     const parsed = parseRendererFunctionResponse(message);
     if (!parsed) {
       const callId = rawFunctionCallId(message);
       const pending = callId === undefined ? undefined : this._pending.get(callId);
-      if (pending === undefined) return;
+      if (pending === undefined) return false;
       this._settle(pending);
       pending.reject(
         new A2uiRpcError(
@@ -395,11 +401,11 @@ export class RendererFunctionCalls {
           pending.functionCallId,
         ),
       );
-      return;
+      return true;
     }
 
     const pending = this._pending.get(parsed.functionCallId);
-    if (!pending) return;
+    if (!pending) return false;
 
     this._settle(pending);
 
@@ -415,6 +421,7 @@ export class RendererFunctionCalls {
     } else {
       pending.resolve(parsed.value);
     }
+    return true;
   }
 
   /** Removes a pending call and clears its timer. */
