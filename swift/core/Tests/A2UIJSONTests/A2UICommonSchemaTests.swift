@@ -85,11 +85,15 @@ struct A2UICommonSchemaTests {
     )
   }
 
-  @Test func testAllSchemasIdentifiesEachAliasByItsURL() throws {
+  @Test func testAllSchemasIdentifiesEachAliasByItsURL() {
     // swift-json-schema caches a document under its `$id` and looks it up by the `$ref` URL,
     // so an alias whose document keeps another `$id` is built again on every `$ref`.
-    for (key, document) in A2UICommonSchema.allSchemas where key.hasPrefix("https://") {
-      #expect(document.object?["$id"]?.string == key, "\(key)")
+    for (key, document) in A2UICommonSchema.allSchemas {
+      if key.contains("://") {
+        #expect(document.object?["$id"]?.string == key, "\(key)")
+      } else {
+        #expect(document.object?["$id"]?.string?.hasPrefix("https://") == true, "\(key)")
+      }
     }
   }
 
@@ -107,11 +111,18 @@ struct A2UICommonSchemaTests {
     )
     #expect(functionRefs.last?.object?["$ref"]?.string == "#/$defs/IndexSystemFunction")
 
-    var withCanonicalID = try #require(alias.object)
-    withCanonicalID["$id"] = .string(A2UICommonSchema.v10BaseURI)
-    let canonicalDefs = try #require(A2UICommonSchema.v10Document.object?["$defs"]?.object)
-    for (name, definition) in withCanonicalID["$defs"]?.object ?? [:] where name != "FunctionCall" {
-      #expect(definition == canonicalDefs[name], "\(name)")
+    let aliasObject = try #require(alias.object)
+    let canonicalObject = try #require(A2UICommonSchema.v10Document.object)
+    #expect(Set(aliasObject.keys) == Set(canonicalObject.keys))
+    for (key, value) in canonicalObject where key != "$id" && key != "$defs" {
+      #expect(aliasObject[key] == value, "\(key)")
+    }
+
+    let aliasDefs = try #require(aliasObject["$defs"]?.object)
+    let canonicalDefs = try #require(canonicalObject["$defs"]?.object)
+    #expect(Set(aliasDefs.keys) == Set(canonicalDefs.keys))
+    for (name, definition) in canonicalDefs where name != "FunctionCall" {
+      #expect(aliasDefs[name] == definition, "\(name)")
     }
   }
 
@@ -135,9 +146,13 @@ struct A2UICommonSchemaTests {
       ["@path": "/name", "extra": true],
       ["@call": "@index"],
       ["@call": "@index", "args": ["offset": "one"]],
+      ["@call": "formatString", "args": ["value": "hi"]],
+      ["@call": "formatString", "extra": true],
     ]
     #expect(canonical.validate("text").isValid)
     #expect(!canonical.validate(42).isValid)
+    #expect(canonical.validate(["@call": "formatString", "args": ["value": "hi"]]).isValid)
+    #expect(!canonical.validate(["@call": "formatString", "extra": true]).isValid)
     for instance in instances {
       #expect(viaAlias.validate(instance).isValid == canonical.validate(instance).isValid)
     }
