@@ -17,6 +17,55 @@ import 'package:test/test.dart';
 
 import 'conformance_harness.dart';
 
+const Map<String, Set<String>> _knownKeys = {
+  'case:data_model': {
+    ...caseMetadataKeys,
+    'catalog',
+    'initial',
+    'steps',
+    'watch',
+  },
+  'case:validate': {
+    ...caseMetadataKeys,
+    'catalog',
+    'expect',
+    'steps',
+  },
+  'case:resolve_path': {
+    ...caseMetadataKeys,
+    'args',
+    'catalog',
+    'expect',
+  },
+  'args:resolve_path': {
+    'contextPath',
+    'context_path',
+    'path',
+  },
+  'step:data_model': {
+    'expect',
+    'expect_absent',
+    'expect_error',
+    'expect_notified',
+    'expect_type',
+    'expect_values',
+    'op',
+    'path',
+    'value',
+  },
+  'step:validate': {
+    'description',
+    'expectError',
+    'payload',
+  },
+  'expect:validate': {
+    'surfaces',
+  },
+  'surface:validate': {
+    'dataModel',
+  },
+};
+
 /// Runs the shared `conformance/core/data_model.yaml` suite against
 /// [DataModel].
 ///
@@ -40,47 +89,48 @@ void main() {
   group('conformance core/data_model.yaml', () {
     test('suite is not empty', () => expect(cases, isNotEmpty));
 
-    for (final testCase in cases) {
-      test(testCase['name']! as String, () {
-        _runCase(testCase);
-      });
-    }
+    runConformanceSuite(
+      cases,
+      _runCase,
+      suite: 'core/data_model.yaml',
+    );
   });
 
   group('conformance core/data_model_pointers.yaml', () {
     test('suite is not empty', () => expect(pointerCases, isNotEmpty));
 
-    for (final testCase in pointerCases) {
-      test(testCase['name']! as String, () {
-        _runPayloadDataModelCase(testCase);
-      });
-    }
+    runConformanceSuite(
+      pointerCases,
+      _runPayloadDataModelCase,
+      suite: 'core/data_model_pointers.yaml',
+    );
   });
 
   group('conformance core/data_deletion.yaml', () {
     test('suite is not empty', () => expect(deletionCases, isNotEmpty));
 
-    for (final testCase in deletionCases) {
-      test(testCase['name']! as String, () {
-        _runPayloadDataModelCase(testCase);
-      });
-    }
+    runConformanceSuite(
+      deletionCases,
+      _runPayloadDataModelCase,
+      suite: 'core/data_deletion.yaml',
+    );
   });
 
   group('conformance core/data_context.yaml', () {
     test('suite is not empty', () => expect(contextCases, isNotEmpty));
 
-    for (final testCase in contextCases) {
-      test(testCase['name']! as String, () {
-        _runResolvePathCase(testCase);
-      });
-    }
+    runConformanceSuite(
+      contextCases,
+      _runResolvePathCase,
+      suite: 'core/data_context.yaml',
+    );
   });
 }
 
 /// Runs a payload case through [MessageProcessor], over catalogs that accept
 /// any component, so the data model is built the way a renderer builds it.
 void _runPayloadDataModelCase(Map<String, Object?> testCase) {
+  assertKnownKeys(testCase, _knownKeys['case:validate']!, 'case:validate');
   final steps = testCase['steps']! as List<Object?>;
   final List<Map<String, Object?>> envelopes = [
     for (final Object? step in steps)
@@ -112,6 +162,7 @@ void _runPayloadDataModelCase(Map<String, Object?> testCase) {
 
   for (var i = 0; i < steps.length; i++) {
     final step = steps[i]! as Map<String, Object?>;
+    assertKnownKeys(step, _knownKeys['step:validate']!, 'step:validate');
     final Object? payload = _deepCopy(step['payload']);
     final expectError = step['expectError'] as Map<String, Object?>?;
     if (expectError != null) {
@@ -125,24 +176,47 @@ void _runPayloadDataModelCase(Map<String, Object?> testCase) {
     processor.processMessages(payload);
   }
 
+  _assertPayloadDataModelSurfaces(processor, testCase);
+}
+
+void _assertPayloadDataModelSurfaces(
+  MessageProcessor<ComponentApi> processor,
+  Map<String, Object?> testCase,
+) {
   final expected = testCase['expect'] as Map<String, Object?>?;
-  if (expected != null && expected.containsKey('surfaces')) {
-    final surfaces = expected['surfaces']! as Map<String, Object?>;
-    surfaces.forEach((surfaceId, surfaceExp) {
-      final expMap = surfaceExp! as Map<String, Object?>;
-      if (expMap.containsKey('dataModel')) {
-        expect(
-          processor.model.getSurface(surfaceId)!.dataModel.get('/'),
-          equals(expMap['dataModel']),
-          reason: '${testCase['name']} surface $surfaceId dataModel',
-        );
-      }
-    });
-  }
+  if (expected == null) return;
+  assertKnownKeys(
+    expected,
+    _knownKeys['expect:validate']!,
+    'expect:validate',
+  );
+  final surfaces = expected['surfaces'] as Map<String, Object?>?;
+  if (surfaces == null) return;
+  surfaces.forEach((surfaceId, surfaceExp) {
+    final expMap = surfaceExp! as Map<String, Object?>;
+    assertKnownKeys(
+      expMap,
+      _knownKeys['surface:validate']!,
+      'surface:validate',
+    );
+    if (expMap.containsKey('dataModel')) {
+      expect(
+        processor.model.getSurface(surfaceId)!.dataModel.get('/'),
+        equals(expMap['dataModel']),
+        reason: '${testCase['name']} surface $surfaceId dataModel',
+      );
+    }
+  });
 }
 
 void _runResolvePathCase(Map<String, Object?> testCase) {
+  assertKnownKeys(
+    testCase,
+    _knownKeys['case:resolve_path']!,
+    'case:resolve_path',
+  );
   final args = testCase['args']! as Map<String, Object?>;
+  assertKnownKeys(args, _knownKeys['args:resolve_path']!, 'args:resolve_path');
   final String path = (args['path'] as String?) ?? '';
   final String contextPath = (args['contextPath'] as String?) ??
       (args['context_path'] as String?) ??
@@ -153,6 +227,7 @@ void _runResolvePathCase(Map<String, Object?> testCase) {
 }
 
 void _runCase(Map<String, Object?> testCase) {
+  assertKnownKeys(testCase, _knownKeys['case:data_model']!, 'case:data_model');
   // The suite is shared across cases, so deep copy before mutating.
   final model = DataModel(
     _deepCopy(testCase['initial']) ?? <String, Object?>{},
@@ -169,6 +244,7 @@ void _runCase(Map<String, Object?> testCase) {
   final steps = testCase['steps']! as List<Object?>;
   for (var i = 0; i < steps.length; i++) {
     final step = steps[i]! as Map<String, Object?>;
+    assertKnownKeys(step, _knownKeys['step:data_model']!, 'step:data_model');
     final reason = '${testCase['name']} step $i (${step['op']})';
     for (final observer in watched) {
       observer.resetCount();
@@ -263,17 +339,13 @@ void _checkWatchedValues(
 }
 
 Matcher _matchesError(Map<String, Object?> expectError) {
+  assertKnownKeys(expectError, knownExpectErrorKeys, 'expectError');
   final category = expectError['category'] as String?;
   final message = expectError['message'] as String?;
-  Matcher matcher = switch (category) {
-    'DataError' => isA<A2uiDataError>(),
-    'ValidationError' => isA<A2uiValidationError>(),
-    'CatalogError' => isA<A2uiCatalogError>(),
-    'IntegrityError' => isA<A2uiIntegrityError>(),
-    'RecursionError' => isA<A2uiRecursionError>(),
-    'ParseError' => isA<A2uiParseError>(),
-    _ => isA<A2uiError>(),
-  };
+  Matcher matcher = allOf(
+    categoryMatches(category),
+    matchesErrorFields(expectError),
+  );
   if (message != null) {
     matcher = allOf(
       matcher,

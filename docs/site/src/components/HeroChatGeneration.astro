@@ -1,0 +1,1652 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+const mermaidSpec = `
+sequenceDiagram
+  actor User as Mobile Chat User
+  participant App as Mobile Renderer SDK
+  participant Agent as Agent + A2UI Agent SDK
+  User->>Agent: "Plan a weekend in Kyoto for 2 with bullet train and a ryokan stay."
+  Agent-->>App: Stream <a2ui> Express (surface "kyoto_trip": hero, options, summary)
+  App-->>User: Progressively mounts native UI cards bound to local dataModel
+  User->>App: Adjusts cabin chips, Guests slider, Private Onsen checkbox (0ms local dataModel sync)
+  User->>App: Taps Hold Itinerary
+  App->>Agent: Event("confirm_trip", {guests, cabin, onsen})
+`;
+---
+
+<div
+  class="hc-shell"
+  id="hero-chat-visual"
+  role="region"
+  aria-label="How A2UI streams interactive mobile chat interfaces"
+>
+  <div class="hc-stage">
+    <!-- LEFT: Quiet, Soft-Toned A2UI Express Stream + Single-Line Local dataModel Strip -->
+    <div class="hc-left-col">
+      <div class="hc-agent">
+        <div class="hc-agent__head">
+          <div class="hc-agent__title-group">
+            <span class="hc-live-dot" data-hc-el="agent-dot" aria-hidden="true"></span>
+            <span class="hc-agent__title">A2UI Express stream</span>
+            <code class="hc-surface-id">kyoto_trip</code>
+          </div>
+
+          <button
+            type="button"
+            class="hc-restart-btn"
+            id="hc-restart-btn"
+            title="Restart stream"
+            aria-label="Restart UI generation stream"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+              <path d="M3 3v5h5" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Streaming Express Viewport -->
+        <div class="hc-stream-viewport" data-hc-el="stream-viewport">
+          <pre
+            class="hc-code"
+            id="hc-code-express"
+            tabindex="0"
+            aria-label="A2UI Express stream"
+          ><span class="hc-chunk" data-chunk="0"><span class="hc-kw">&lt;a2ui&gt;</span>
+<span class="hc-fn">surface</span>(<span class="hc-str">"kyoto_trip"</span>)
+<span class="hc-comp">root</span> = <span class="hc-fn">Column</span>([<span class="hc-comp">hero</span>, <span class="hc-comp">options</span>, <span class="hc-comp">summary</span>])
+
+<span class="hc-comp">hero</span> = <span class="hc-fn">Card</span>(<span class="hc-fn">Column</span>([
+  <span class="hc-fn">Image</span>(<span class="hc-str">"https://example.com/kyoto.jpg"</span>, variant=<span class="hc-str">"header"</span>),
+  <span class="hc-fn">Text</span>(<span class="hc-str">"Kyoto Weekend Escape · Oct 16–18"</span>)
+]))
+</span><span class="hc-chunk" data-chunk="1"><span class="hc-path">$/cabin</span> = [<span class="hc-str">"reserved"</span>]
+<span class="hc-path">$/guests</span> = <span class="hc-num">2</span>
+<span class="hc-path">$/onsen</span> = <span class="hc-num">true</span>
+<span class="hc-comp">options</span> = <span class="hc-fn">Card</span>(<span class="hc-fn">Column</span>([
+  <span class="hc-fn">Row</span>([<span class="hc-fn">Icon</span>(<span class="hc-str">"arrowForward"</span>), <span class="hc-fn">Text</span>(<span class="hc-str">"Shinkansen · Tokyo → Kyoto"</span>)]),
+  <span class="hc-fn">ChoicePicker</span>(
+    options=[
+      &#123;label: <span class="hc-str">"Reserved"</span>, value: <span class="hc-str">"reserved"</span>&#125;,
+      &#123;label: <span class="hc-str">"Green Car"</span>, value: <span class="hc-str">"green"</span>&#125;
+    ],
+    value=<span class="hc-path">$/cabin</span>, displayStyle=<span class="hc-str">"chips"</span>
+  ),
+  <span class="hc-fn">Slider</span>(<span class="hc-str">"Guests"</span>, <span class="hc-num">1</span>, <span class="hc-num">4</span>, <span class="hc-path">$/guests</span>, <span class="hc-num">3</span>),
+  <span class="hc-fn">CheckBox</span>(<span class="hc-str">"Private Onsen (+$95)"</span>, <span class="hc-path">$/onsen</span>)
+]))
+</span><span class="hc-chunk" data-chunk="2"><span class="hc-path">$/total</span> = <span class="hc-num">1090</span>
+<span class="hc-comp">summary</span> = <span class="hc-fn">Card</span>(<span class="hc-fn">Column</span>([
+  <span class="hc-fn">Row</span>(
+    [<span class="hc-fn">Text</span>(<span class="hc-str">"Estimated Total"</span>), <span class="hc-fn">Text</span>(<span class="hc-fn">formatCurrency</span>(<span class="hc-path">$/total</span>, <span class="hc-str">"USD"</span>, <span class="hc-num">0</span>))],
+    <span class="hc-str">"spaceBetween"</span>
+  ),
+  <span class="hc-fn">Button</span>(
+    <span class="hc-fn">Text</span>(<span class="hc-str">"Hold Itinerary"</span>), <span class="hc-str">"primary"</span>,
+    <span class="hc-kw">Event</span>(<span class="hc-str">"confirm_trip"</span>, &#123;guests: <span class="hc-path">$/guests</span>, cabin: <span class="hc-path">$/cabin</span>, onsen: <span class="hc-path">$/onsen</span>&#125;)
+  )
+]))
+<span class="hc-kw">&lt;/a2ui&gt;</span></span><span class="hc-caret" data-hc-el="caret-express" aria-hidden="true"></span></pre>
+        </div>
+
+        <!-- Subtle Single-Line Local dataModel Footer -->
+        <div class="hc-datamodel" id="hc-datamodel-box" aria-label="Local client dataModel">
+          <span class="hc-datamodel__label">dataModel</span>
+          <div class="hc-datamodel__pills">
+            <span class="hc-dm-kv" data-dm-stage="1" id="hc-dm-cabin">
+              <code>/cabin</code>: <strong id="hc-dm-cabin-val">["reserved"]</strong>
+            </span>
+            <span class="hc-dm-kv" data-dm-stage="1" id="hc-dm-guests">
+              <code>/guests</code>: <strong id="hc-dm-guests-val">2</strong>
+            </span>
+            <span class="hc-dm-kv" data-dm-stage="1" id="hc-dm-onsen">
+              <code>/onsen</code>: <strong id="hc-dm-onsen-val">true</strong>
+            </span>
+            <span class="hc-dm-kv hc-dm-kv--accent" data-dm-stage="2" id="hc-dm-total">
+              <code>/total</code>: <strong id="hc-dm-total-val">1090</strong>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER: Slim, Minimal Stream Connector -->
+    <div class="hc-bridge" aria-hidden="true">
+      <div class="hc-bridge__pills">
+        <div class="hc-wire-pill" data-hc-el="wire-stream">
+          <span class="hc-wire-pill__name">stream</span>
+          <span class="hc-wire-pill__dir hc-dir-desk">→</span>
+          <span class="hc-wire-pill__dir hc-dir-stack">↑</span>
+        </div>
+        <div class="hc-wire-pill hc-wire-pill--return" data-hc-el="wire-action">
+          <span class="hc-wire-pill__dir hc-dir-desk">←</span>
+          <span class="hc-wire-pill__dir hc-dir-stack">↓</span>
+          <span class="hc-wire-pill__name">action</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Spacious, Prominent Mobile Chat UI (100% 1-to-1 with Express) -->
+    <div class="hc-device-col">
+      <div class="hc-phone">
+        <div class="hc-phone__screen">
+          <!-- Minimal Chat Header -->
+          <div class="hc-appbar">
+            <div class="hc-appbar__avatar" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M12 3l2.2 5.8L20 11l-5.8 2.2L12 19l-2.2-5.8L4 11l5.8-2.2L12 3z" />
+              </svg>
+            </div>
+            <div class="hc-appbar__name">Travel Concierge</div>
+          </div>
+
+          <!-- Chat Conversation (Fixed-Height Container: No Expansion Jumps) -->
+          <div class="hc-chat">
+            <!-- User Prompt Bubble -->
+            <div class="hc-msg-user">
+              <div class="hc-msg-user__bubble">
+                Plan a weekend in Kyoto for 2 with bullet train and a ryokan stay.
+              </div>
+            </div>
+
+            <!-- Agent Response + 1-to-1 Streamed A2UI Surface -->
+            <div class="hc-msg-agent" id="hc-agent-reply">
+              <div class="hc-msg-agent__lead" data-hc-el="agent-lead">
+                Here's a customizable weekend itinerary:
+              </div>
+
+              <!-- Root Column([hero, options, summary]) with Fixed Height -->
+              <div class="hc-surface" data-hc-el="surface-card">
+                <!-- CARD 1: hero = Card(Column([Image(..., variant="header"), Text("Kyoto Weekend Escape · Oct 16–18")])) -->
+                <div class="hc-ui-stage hc-card hc-card--hero" data-ui-stage="0">
+                  <div class="hc-hero-img" aria-hidden="true">
+                    <svg
+                      class="hc-hero-art"
+                      viewBox="0 0 400 94"
+                      preserveAspectRatio="xMaxYMid slice"
+                    >
+                      <defs>
+                        <linearGradient id="hc-kyoto-sky" x1="0" y1="0" x2="1" y2="1">
+                          <stop offset="0%" stop-color="#1e1714" />
+                          <stop offset="52%" stop-color="#4e2d23" />
+                          <stop offset="100%" stop-color="#c86d51" />
+                        </linearGradient>
+                        <linearGradient id="hc-sun-glow" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stop-color="#fed7aa" stop-opacity="0.78" />
+                          <stop offset="100%" stop-color="#ea580c" stop-opacity="0" />
+                        </linearGradient>
+                      </defs>
+                      <rect width="400" height="94" fill="url(#hc-kyoto-sky)" />
+                      <circle cx="318" cy="36" r="24" fill="url(#hc-sun-glow)" />
+                      <circle cx="318" cy="32" r="10" fill="#fef3c7" opacity="0.92" />
+                      <path
+                        d="M0 70 Q65 42 135 58 T275 52 T400 60 L400 94 L0 94 Z"
+                        fill="#2d1f1a"
+                        opacity="0.88"
+                      />
+                      <path
+                        d="M0 78 Q100 58 195 72 T400 66 L400 94 L0 94 Z"
+                        fill="#1b1310"
+                      />
+                      <!-- Pagoda silhouette -->
+                      <g fill="#120c0a" transform="translate(268, 22)">
+                        <rect x="11" y="0" width="2" height="9" />
+                        <path d="M3 12 L12 7 L21 12 Z" />
+                        <path d="M1 20 L12 14 L23 20 Z" />
+                        <path d="M-1 29 L12 22 L25 29 Z" />
+                        <rect x="7" y="29" width="10" height="24" />
+                      </g>
+                      <!-- Torii gate -->
+                      <g transform="translate(326, 38)">
+                        <path d="M2 8 Q18 4 34 8 L33 12 Q18 9 3 12 Z" fill="#d45b3e" />
+                        <rect x="6" y="15" width="24" height="3" rx="1" fill="#e06d4f" />
+                        <rect x="9" y="11" width="3.2" height="34" fill="#d45b3e" />
+                        <rect x="23.8" y="11" width="3.2" height="34" fill="#d45b3e" />
+                      </g>
+                    </svg>
+                  </div>
+                  <div class="hc-hero-title">Kyoto Weekend Escape · Oct 16–18</div>
+                </div>
+
+                <!-- CARD 2: options = Card(Column([Row([Icon("arrowForward"), Text(...)]), ChoicePicker(...), Slider(...), CheckBox(...)])) -->
+                <div class="hc-ui-stage hc-card" data-ui-stage="1">
+                  <!-- Row([Icon("arrowForward"), Text("Shinkansen · Tokyo → Kyoto")]) -->
+                  <div class="hc-row-inline">
+                    <span class="hc-icon-arrow" aria-hidden="true">→</span>
+                    <span class="hc-card__title">Shinkansen · Tokyo → Kyoto</span>
+                  </div>
+
+                  <!-- ChoicePicker(options=[...], value=$/cabin, displayStyle="chips") -->
+                  <div class="hc-chips" role="radiogroup" aria-label="Shinkansen cabin class">
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked="true"
+                      tabindex="0"
+                      class="hc-chip is-selected"
+                      data-cabin="reserved"
+                    >
+                      Reserved
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked="false"
+                      tabindex="-1"
+                      class="hc-chip"
+                      data-cabin="green"
+                      id="hc-green-chip"
+                    >
+                      Green Car
+                    </button>
+                  </div>
+
+                  <!-- Slider("Guests", 1, 4, $/guests, 3) -->
+                  <div class="hc-slider-row">
+                    <label class="hc-slider-row__lbl" for="hc-guest-slider">
+                      <span>Guests</span>
+                      <strong id="hc-guests-label">2</strong>
+                    </label>
+                    <input
+                      type="range"
+                      id="hc-guest-slider"
+                      class="hc-guest-slider"
+                      min="1"
+                      max="4"
+                      step="1"
+                      value="2"
+                      aria-valuetext="2"
+                    />
+                  </div>
+
+                  <!-- CheckBox("Private Onsen (+$95)", $/onsen) -->
+                  <button
+                    type="button"
+                    role="checkbox"
+                    aria-checked="true"
+                    class="hc-checkbox is-checked"
+                    id="hc-onsen-btn"
+                  >
+                    <span class="hc-checkbox__box" aria-hidden="true">✓</span>
+                    <span class="hc-checkbox__label">Private Onsen (+$95)</span>
+                  </button>
+                </div>
+
+                <!-- CARD 3: summary = Card(Column([Row([Text("Estimated Total"), Text(formatCurrency(...))], "spaceBetween"), Button(...)])) -->
+                <div class="hc-ui-stage hc-card hc-card--summary" data-ui-stage="2">
+                  <div class="hc-total-row">
+                    <span class="hc-total-row__label">Estimated Total</span>
+                    <strong class="hc-total-row__val" id="hc-total-price">$1,090</strong>
+                  </div>
+
+                  <button type="button" class="hc-cta-btn" id="hc-hold-btn">
+                    <span id="hc-hold-btn-label">Hold Itinerary</span>
+                  </button>
+                </div>
+
+                <!-- Streaming Skeleton Placeholder (Fills remaining height while surface is building) -->
+                <div class="hc-skeleton" data-hc-el="skeleton" hidden aria-hidden="true">
+                  <div class="hc-skeleton__bar hc-skeleton__bar--w60"></div>
+                  <div class="hc-skeleton__bar hc-skeleton__bar--w90"></div>
+                </div>
+              </div>
+
+              <!-- Subtle Action Sent Pill (Appears below surface when Hold Itinerary is clicked) -->
+              <div class="hc-chat-confirm" id="hc-chat-confirm" hidden>
+                ✓ Sent <code>confirm_trip</code> (<span data-hc-el="confirm-total">$1,090</span>)
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden Machine-Readable Diagram Spec -->
+  <script
+    type="text/vnd.mermaid"
+    data-agent-diagram="spec"
+    style="display: none;"
+    set:html={mermaidSpec.trim().replace(/<\//g, '<\\/')}
+  />
+</div>
+
+<style>
+  .hc-shell {
+    /* Mobile App Fonts: Editorial Serif Headline + Clean Consumer Sans (Zero Monospace) */
+    --hc-app-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --hc-app-serif: 'Newsreader', Georgia, 'Times New Roman', serif;
+
+    /* Mobile App Palette: Warm Boutique Travel (Stone, Espresso, Alabaster & Kyoto Clay) */
+    --hc-app-bg: #181614;
+    --hc-app-bar: #1e1b18;
+    --hc-app-card: #24211e;
+    --hc-app-border: rgba(245, 240, 232, 0.08);
+    --hc-app-divider: rgba(245, 240, 232, 0.07);
+    --hc-app-shadow: 0 3px 12px rgba(0, 0, 0, 0.26);
+    --hc-app-text: #f5f2ed;
+    --hc-app-muted: #a69e94;
+    --hc-app-bubble: #2b2723;
+    --hc-app-bubble-text: #ede8e0;
+    --hc-app-chip-bg: #2f2b26;
+    --hc-app-chip-active-bg: #f5f2ed;
+    --hc-app-chip-active-text: #1c1917;
+    --hc-app-clay: #c86d51;
+    --hc-app-clay-hover: #b65d41;
+    --hc-app-clay-soft: rgba(200, 109, 81, 0.16);
+    --hc-app-clay-text: #fffaf5;
+    --hc-app-held: #4d7c5b;
+
+    /* Left Panel: Calm, Muted Protocol Code Tokens (Aligned with Site Theme) */
+    --hc-code-bg: #080d19;
+    --hc-code-head: #0d1526;
+    --hc-syn-base: #94a3b8;
+    --hc-syn-comp: #cbd5e1;
+    --hc-syn-fn: #7dd3fc;
+    --hc-syn-kw: #5eead4;
+    --hc-syn-path: #94a3b8;
+    --hc-syn-str: #cbd5e1;
+    --hc-syn-num: #7dd3fc;
+
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    text-align: left;
+  }
+
+  :global(:root[data-theme='light']) .hc-shell {
+    --hc-app-bg: #f6f3ee;
+    --hc-app-bar: #fbf9f5;
+    --hc-app-card: #ffffff;
+    --hc-app-border: rgba(28, 25, 23, 0.08);
+    --hc-app-divider: rgba(28, 25, 23, 0.07);
+    --hc-app-shadow: 0 2px 10px rgba(28, 25, 23, 0.05);
+    --hc-app-text: #1c1917;
+    --hc-app-muted: #78716c;
+    --hc-app-bubble: #ebe5dc;
+    --hc-app-bubble-text: #292524;
+    --hc-app-chip-bg: #f2ede6;
+    --hc-app-chip-active-bg: #292524;
+    --hc-app-chip-active-text: #faf8f5;
+    --hc-app-clay: #bf6145;
+    --hc-app-clay-hover: #a85036;
+    --hc-app-clay-soft: rgba(191, 97, 69, 0.12);
+    --hc-app-clay-text: #fffaf5;
+    --hc-app-held: #3f6a4c;
+
+    --hc-code-bg: #f8fafc;
+    --hc-code-head: #f1f5f9;
+    --hc-syn-base: #64748b;
+    --hc-syn-comp: #334155;
+    --hc-syn-fn: #0284c7;
+    --hc-syn-kw: #0d9488;
+    --hc-syn-path: #64748b;
+    --hc-syn-str: #475569;
+    --hc-syn-num: #0284c7;
+  }
+
+  .hc-shell [hidden] {
+    display: none !important;
+  }
+
+  .hc-left-col :is(button, [tabindex='0']):focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .hc-phone :is(button, input, [tabindex='0']):focus-visible {
+    outline: 2px solid var(--hc-app-clay);
+    outline-offset: 2px;
+  }
+
+  /* --- Main Stage: Compact Code Left · Slim Bridge · Prominent Mobile UI Right --- */
+  .hc-stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 86px 444px;
+    gap: 16px;
+    padding: 22px 24px;
+    align-items: center;
+  }
+
+  /* --- Left Column: Quiet Express Stream + Single-Line dataModel Footer --- */
+  .hc-left-col {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .hc-agent {
+    background: var(--hc-code-bg);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .hc-agent__head {
+    padding: 9px 14px;
+    background: var(--hc-code-head);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .hc-agent__title-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .hc-live-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0.85;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .hc-live-dot.is-streaming {
+    background: #f59e0b;
+    opacity: 1;
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25);
+  }
+
+  .hc-agent__title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .hc-surface-id {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+
+  .hc-restart-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease, transform 0.2s ease;
+  }
+
+  .hc-restart-btn:hover {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+
+  .hc-restart-btn:active {
+    transform: rotate(-45deg);
+  }
+
+  .hc-stream-viewport {
+    position: relative;
+    padding: 12px 14px;
+    min-height: 480px;
+    display: flex;
+    align-items: flex-start;
+  }
+
+  .hc-code {
+    margin: 0;
+    width: 100%;
+    font-family: var(--font-mono);
+    font-size: 10.4px;
+    line-height: 1.44;
+    color: var(--hc-syn-base);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .hc-chunk {
+    display: block;
+    padding: 3px 8px;
+    margin-bottom: 4px;
+    border-left: 2px solid transparent;
+    border-radius: 0 5px 5px 0;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+  }
+
+  .hc-chunk.is-streaming {
+    border-left-color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .hc-chunk.is-done {
+    border-left-color: var(--border-strong);
+  }
+
+  .hc-kw {
+    color: var(--hc-syn-kw);
+    font-weight: 600;
+  }
+  .hc-fn {
+    color: var(--hc-syn-fn);
+    font-weight: 500;
+  }
+  .hc-comp {
+    color: var(--hc-syn-comp);
+    font-weight: 500;
+  }
+  .hc-path {
+    color: var(--hc-syn-path);
+  }
+  .hc-str {
+    color: var(--hc-syn-str);
+  }
+  .hc-num {
+    color: var(--hc-syn-num);
+  }
+
+  .hc-caret {
+    display: none;
+    width: 6px;
+    height: 13px;
+    background: var(--accent);
+    vertical-align: text-bottom;
+    margin-left: 2px;
+    animation: hc-blink 0.8s steps(2, start) infinite;
+  }
+
+  .hc-caret.is-visible {
+    display: inline-block;
+  }
+
+  @keyframes hc-blink {
+    to {
+      visibility: hidden;
+    }
+  }
+
+  /* Quiet Single-Line Local dataModel Strip */
+  .hc-datamodel {
+    padding: 9px 14px;
+    background: var(--hc-code-head);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .hc-datamodel__label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+  }
+
+  .hc-datamodel__pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .hc-dm-kv {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 2.5px 7px;
+    border-radius: 5px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    white-space: nowrap;
+    transition: opacity 0.25s ease, border-color 0.2s ease, background-color 0.2s ease;
+  }
+
+  .hc-dm-kv.is-pending {
+    opacity: 0.35;
+  }
+
+  .hc-dm-kv code {
+    color: var(--hc-syn-path);
+  }
+
+  .hc-dm-kv strong {
+    color: var(--text-secondary);
+    font-weight: 600;
+  }
+
+  .hc-dm-kv--accent {
+    border-color: var(--accent-border);
+    background: var(--accent-soft);
+  }
+
+  .hc-dm-kv--accent strong {
+    color: var(--accent-strong);
+  }
+
+  .hc-dm-kv.is-flash {
+    border-color: #f59e0b;
+    background: rgba(245, 158, 11, 0.18);
+  }
+
+  /* --- Center Column: Slim Wire Connector --- */
+  .hc-bridge {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .hc-bridge::before {
+    content: '';
+    position: absolute;
+    left: -14px;
+    right: -14px;
+    top: 50%;
+    height: 1px;
+    border-top: 1.5px dashed var(--border-strong);
+    z-index: 0;
+  }
+
+  .hc-bridge__pills {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+  }
+
+  .hc-wire-pill {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 5px 8px;
+    border-radius: 999px;
+    background: var(--surface-subtle);
+    border: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    transition: all 0.2s ease;
+  }
+
+  .hc-dir-stack {
+    display: none;
+  }
+
+  .hc-wire-pill.is-sent {
+    color: var(--text-secondary);
+    border-color: var(--border-strong);
+  }
+
+  .hc-wire-pill.is-pulsing {
+    background: var(--accent-soft);
+    border-color: var(--accent-border);
+    color: var(--accent-strong);
+    transform: translateX(2px);
+  }
+
+  .hc-wire-pill--return.is-pulsing {
+    background: rgba(245, 158, 11, 0.18);
+    border-color: #f59e0b;
+    color: #f59e0b;
+    transform: translateX(-2px);
+  }
+
+  :global(:root[data-theme='light']) .hc-wire-pill--return.is-pulsing {
+    color: #b45309;
+  }
+
+  /* --- Right Column: Neutral Brushed Titanium Frame + Warm Boutique Travel App --- */
+  .hc-device-col {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .hc-phone {
+    position: relative;
+    width: 100%;
+    max-width: 444px;
+    border-radius: 38px;
+    padding: 9px;
+    background: linear-gradient(155deg, #2d2b29 0%, #1c1b19 55%, #141312 100%);
+    border: 1.5px solid #3c3936;
+    box-shadow:
+      0 26px 52px -12px rgba(0, 0, 0, 0.6),
+      inset 0 1px 1px rgba(255, 255, 255, 0.14);
+    display: flex;
+    flex-direction: column;
+  }
+
+  :global(:root[data-theme='light']) .hc-phone {
+    background: linear-gradient(155deg, #e7e5e4 0%, #d6d3d1 55%, #c7c2bd 100%);
+    border-color: #bfb9b2;
+    box-shadow:
+      0 24px 48px -12px rgba(28, 25, 23, 0.18),
+      inset 0 1px 1.5px rgba(255, 255, 255, 0.9);
+  }
+
+  .hc-phone__screen {
+    background: var(--hc-app-bg);
+    color: var(--hc-app-text);
+    font-family: var(--hc-app-sans);
+    font-variant-numeric: tabular-nums;
+    border-radius: 30px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 618px;
+    border: 1px solid rgba(0, 0, 0, 0.25);
+  }
+
+  :global(:root[data-theme='light']) .hc-phone__screen {
+    border-color: rgba(28, 25, 23, 0.08);
+  }
+
+  /* Boutique Hospitality App Bar */
+  .hc-appbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 13px 18px;
+    border-bottom: 1px solid var(--hc-app-border);
+    background: var(--hc-app-bar);
+    flex-shrink: 0;
+  }
+
+  .hc-appbar__avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--hc-app-clay-soft);
+    color: var(--hc-app-clay);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .hc-appbar__name {
+    font-family: var(--hc-app-serif);
+    font-size: 15.5px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--hc-app-text);
+  }
+
+  /* Chat Area Inside Phone (Fixed Height, Zero Expansion Jumps) */
+  .hc-chat {
+    flex: 1 1 0;
+    padding: 14px 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow: hidden;
+  }
+
+  .hc-msg-user {
+    display: flex;
+    justify-content: flex-end;
+    flex-shrink: 0;
+  }
+
+  .hc-msg-user__bubble {
+    max-width: 85%;
+    background: var(--hc-app-bubble);
+    color: var(--hc-app-bubble-text);
+    font-size: 12.8px;
+    font-weight: 450;
+    line-height: 1.42;
+    padding: 9px 14px;
+    border-radius: 18px 18px 4px 18px;
+  }
+
+  .hc-msg-agent {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1 1 0;
+    min-height: 0;
+  }
+
+  .hc-msg-agent__lead {
+    font-size: 12.5px;
+    color: var(--hc-app-muted);
+    padding: 0 2px;
+    flex-shrink: 0;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+
+  .hc-msg-agent__lead.is-hidden-stage {
+    opacity: 0;
+    transform: translateY(4px);
+    pointer-events: none;
+  }
+
+  /* Bare Root Column([hero, options, summary]): Floating Cards, Fixed 406px Height */
+  .hc-surface {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    height: 406px;
+    box-sizing: border-box;
+    flex-shrink: 0;
+    transition: opacity 0.25s ease;
+  }
+
+  .hc-surface.is-hidden-stage {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .hc-ui-stage {
+    transition: opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1), transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .hc-ui-stage.is-hidden-stage {
+    display: none;
+  }
+
+  .hc-ui-stage.is-entering {
+    animation: hc-card-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes hc-card-in {
+    from {
+      opacity: 0;
+      transform: translateY(7px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  /* Floating Boutique Cards (Soft Warm Elevation, Subtle Hairline) */
+  .hc-card {
+    background: var(--hc-app-card);
+    border: 1px solid var(--hc-app-border);
+    box-shadow: var(--hc-app-shadow);
+    border-radius: 16px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  /* Stage 0: Hero Card (Header Image stacked above Editorial Serif Title) */
+  .hc-card--hero {
+    padding: 0;
+    overflow: hidden;
+    gap: 0;
+    flex-shrink: 0;
+  }
+
+  .hc-hero-img {
+    height: 78px;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .hc-hero-art {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .hc-hero-title {
+    font-family: var(--hc-app-serif);
+    padding: 10px 14px;
+    font-size: 16.5px;
+    font-weight: 500;
+    line-height: 1.25;
+    color: var(--hc-app-text);
+    letter-spacing: -0.012em;
+  }
+
+  /* Stage 1: Options Card (Clean Borderless Rows + Full-Pill Chips) */
+  .hc-row-inline {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .hc-icon-arrow {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--hc-app-clay);
+    line-height: 1;
+  }
+
+  .hc-card__title {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--hc-app-text);
+  }
+
+  .hc-chips {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+  }
+
+  .hc-chip {
+    border: 1px solid transparent;
+    background: var(--hc-app-chip-bg);
+    color: var(--hc-app-muted);
+    font-family: var(--hc-app-sans);
+    font-size: 12px;
+    font-weight: 500;
+    min-height: 32px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .hc-chip:hover {
+    color: var(--hc-app-text);
+  }
+
+  .hc-chip.is-selected {
+    background: var(--hc-app-chip-active-bg);
+    color: var(--hc-app-chip-active-text);
+    font-weight: 600;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14);
+  }
+
+  /* Clean Borderless Rows Separated by Hairlines (No Inner Boxes) */
+  .hc-slider-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-top: 8px;
+    border-top: 1px solid var(--hc-app-divider);
+    min-height: 28px;
+  }
+
+  .hc-slider-row__lbl {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--hc-app-muted);
+    white-space: nowrap;
+  }
+
+  .hc-slider-row__lbl strong {
+    font-family: var(--hc-app-sans);
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--hc-app-text);
+    min-width: 12px;
+    text-align: center;
+  }
+
+  .hc-guest-slider {
+    width: 156px;
+    min-height: 20px;
+    margin: 0;
+    accent-color: var(--hc-app-clay);
+    cursor: pointer;
+  }
+
+  .hc-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    padding: 8px 0 1px;
+    border: 0;
+    border-top: 1px solid var(--hc-app-divider);
+    border-radius: 0;
+    background: transparent;
+    color: var(--hc-app-text);
+    font-family: var(--hc-app-sans);
+    font-size: 12.5px;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .hc-checkbox__box {
+    width: 16px;
+    height: 16px;
+    border-radius: 5px;
+    border: 1.5px solid var(--hc-app-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: transparent;
+    flex-shrink: 0;
+    transition: background-color 0.14s ease, border-color 0.14s ease;
+  }
+
+  .hc-checkbox.is-checked .hc-checkbox__box {
+    background: var(--hc-app-clay);
+    border-color: var(--hc-app-clay);
+    color: var(--hc-app-clay-text);
+  }
+
+  .hc-checkbox__label {
+    flex: 1;
+    font-weight: 500;
+  }
+
+  /* Stage 2: Summary Card (Proportional Tabular Price + Full-Pill Terracotta CTA) */
+  .hc-card--summary {
+    gap: 10px;
+    margin-top: auto;
+  }
+
+  .hc-total-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .hc-total-row__label {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--hc-app-muted);
+  }
+
+  .hc-total-row__val {
+    font-family: var(--hc-app-sans);
+    font-variant-numeric: tabular-nums;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--hc-app-text);
+  }
+
+  .hc-cta-btn {
+    width: 100%;
+    border: 0;
+    border-radius: 999px;
+    min-height: 38px;
+    padding: 8px 16px;
+    background: var(--hc-app-clay);
+    color: var(--hc-app-clay-text);
+    font-family: var(--hc-app-sans);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+    transition: background-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+  }
+
+  .hc-cta-btn:hover {
+    background: var(--hc-app-clay-hover);
+  }
+
+  .hc-cta-btn:active {
+    transform: scale(0.99);
+  }
+
+  .hc-cta-btn.is-confirmed {
+    background: var(--hc-app-held);
+  }
+
+  /* Streaming Skeleton: Soft Warm Shimmer Card Filling Remaining Surface Height */
+  .hc-skeleton {
+    flex: 1 1 0;
+    background: var(--hc-app-card);
+    border: 1px solid var(--hc-app-border);
+    border-radius: 16px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 9px;
+    min-height: 76px;
+  }
+
+  .hc-skeleton__bar {
+    height: 8px;
+    border-radius: 999px;
+    background: linear-gradient(
+      90deg,
+      var(--hc-app-chip-bg) 20%,
+      var(--hc-app-divider) 50%,
+      var(--hc-app-chip-bg) 80%
+    );
+    background-size: 200% 100%;
+    animation: hc-shimmer 1.2s linear infinite;
+  }
+
+  .hc-skeleton__bar--w60 {
+    width: 56%;
+  }
+  .hc-skeleton__bar--w90 {
+    width: 84%;
+  }
+
+  @keyframes hc-shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+
+  .hc-chat-confirm {
+    font-size: 11.2px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: rgba(77, 124, 91, 0.16);
+    border: 1px solid rgba(77, 124, 91, 0.34);
+    color: #9dc5a8;
+    font-weight: 500;
+    align-self: flex-start;
+    flex-shrink: 0;
+  }
+
+  :global(:root[data-theme='light']) .hc-chat-confirm {
+    background: rgba(63, 106, 76, 0.1);
+    color: #2f543a;
+    border-color: rgba(63, 106, 76, 0.28);
+  }
+
+  .hc-chat-confirm code {
+    font-family: var(--hc-app-sans);
+    font-weight: 600;
+    font-size: 11px;
+    margin: 0 1px;
+  }
+
+  /* --- Responsive Breakpoints --- */
+  @media (max-width: 1060px) {
+    .hc-stage {
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+
+    .hc-device-col {
+      order: 1;
+    }
+
+    .hc-bridge {
+      order: 2;
+      width: 100%;
+    }
+
+    .hc-bridge::before {
+      display: none;
+    }
+
+    .hc-bridge__pills {
+      flex-direction: row;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .hc-dir-desk {
+      display: none;
+    }
+
+    .hc-dir-stack {
+      display: inline;
+    }
+
+    .hc-left-col {
+      order: 3;
+    }
+
+    .hc-stream-viewport {
+      min-height: 0;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .hc-stage {
+      padding: 14px;
+    }
+
+    .hc-phone {
+      border-radius: 30px;
+      padding: 7px;
+    }
+
+    .hc-phone__screen {
+      border-radius: 23px;
+      height: 626px;
+    }
+
+    .hc-hero-title {
+      font-size: 15px;
+    }
+
+    .hc-surface {
+      height: 404px;
+    }
+
+    .hc-guest-slider {
+      width: 130px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hc-caret,
+    .hc-skeleton__bar,
+    .hc-ui-stage.is-entering {
+      animation: none !important;
+    }
+  }
+</style>
+
+<script is:inline>
+  (function () {
+    const root = document.getElementById('hero-chat-visual');
+    if (!root) return;
+
+    const DURATION_MS = 4200;
+
+    // 3 synchronized stages matching the 3 Express cards (hero, options, summary)
+    const STAGES = [
+      { idx: 0, codeStart: 80, codeEnd: 1250, uiAppear: 1250 },
+      { idx: 1, codeStart: 1350, codeEnd: 2850, uiAppear: 2850 },
+      { idx: 2, codeStart: 2950, codeEnd: 4120, uiAppear: 4120 },
+    ];
+
+    function q(sel) {
+      return root.querySelector(sel);
+    }
+
+    function qa(sel) {
+      return Array.from(root.querySelectorAll(sel));
+    }
+
+    function indexCodeContainer(preEl) {
+      return Array.from(preEl.querySelectorAll('.hc-chunk')).map((chunkEl) => {
+        const nodes = [];
+        let total = 0;
+        const walker = document.createTreeWalker(chunkEl, NodeFilter.SHOW_TEXT);
+        let current = walker.nextNode();
+        while (current) {
+          const full = current.nodeValue || '';
+          nodes.push({ node: current, full, start: total, end: total + full.length });
+          total += full.length;
+          current = walker.nextNode();
+        }
+        return { el: chunkEl, nodes, total };
+      });
+    }
+
+    const expressPre = q('#hc-code-express');
+    const expressChunks = indexCodeContainer(expressPre);
+
+    const caretExpress = q('[data-hc-el="caret-express"]');
+    const agentDot = q('[data-hc-el="agent-dot"]');
+    const agentLead = q('[data-hc-el="agent-lead"]');
+    const surfaceCard = q('[data-hc-el="surface-card"]');
+    const skeleton = q('[data-hc-el="skeleton"]');
+    const restartBtn = q('#hc-restart-btn');
+    const chatConfirm = q('#hc-chat-confirm');
+
+    const wireStream = q('[data-hc-el="wire-stream"]');
+    const wireAction = q('[data-hc-el="wire-action"]');
+
+    const uiStageEls = qa('[data-ui-stage]');
+    const dmEls = qa('[data-dm-stage]');
+
+    const INITIAL_EST_USD = 1090;
+    const model = {
+      guests: 2,
+      cabin: 'reserved',
+      onsen: true,
+      estUsd: INITIAL_EST_USD,
+      held: false,
+    };
+
+    const flashTimers = new Map();
+    let actionPulseTimer = 0;
+
+    const visibleUiSet = new Set([0, 1, 2]);
+
+    let elapsedMs = DURATION_MS;
+    let isPlaying = false;
+    let hasUserOrAutoStarted = false;
+    let rafId = 0;
+    let lastTs = 0;
+
+    function computeTotalUsd() {
+      const railPerGuest = model.cabin === 'green' ? 167 : 135;
+      const railCost = railPerGuest * model.guests;
+      const extraGuestStay = Math.max(0, model.guests - 2) * 140;
+      const stayCost = 725 + extraGuestStay + (model.onsen ? 95 : 0);
+      return railCost + stayCost;
+    }
+
+    function applyCodeProgress(chunks, caretEl, ms) {
+      let activeChunkEl = null;
+      chunks.forEach((chunk, i) => {
+        const cfg = STAGES[i];
+        if (ms < cfg.codeStart) {
+          chunk.el.hidden = true;
+          chunk.el.classList.remove('is-streaming', 'is-done');
+          return;
+        }
+        chunk.el.hidden = false;
+        const ratio = Math.min(1, (ms - cfg.codeStart) / (cfg.codeEnd - cfg.codeStart));
+        const charBudget = ratio >= 1 ? chunk.total : Math.floor(ratio * chunk.total);
+
+        for (let k = 0; k < chunk.nodes.length; k++) {
+          const item = chunk.nodes[k];
+          if (charBudget >= item.end) {
+            if (item.node.nodeValue !== item.full) item.node.nodeValue = item.full;
+          } else if (charBudget <= item.start) {
+            if (item.node.nodeValue !== '') item.node.nodeValue = '';
+          } else {
+            item.node.nodeValue = item.full.slice(0, charBudget - item.start);
+          }
+        }
+
+        const streamingThis = ratio < 1 && ms < DURATION_MS;
+        chunk.el.classList.toggle('is-streaming', streamingThis);
+        chunk.el.classList.toggle('is-done', ratio >= 1);
+        if (streamingThis) activeChunkEl = chunk.el;
+      });
+
+      if (activeChunkEl && isPlaying) {
+        activeChunkEl.appendChild(caretEl);
+        caretEl.classList.add('is-visible');
+      } else {
+        caretEl.classList.remove('is-visible');
+      }
+    }
+
+    function syncActionFeedback(clamped) {
+      const showHeld = model.held && clamped >= STAGES[2].uiAppear;
+      chatConfirm.hidden = !showHeld;
+      wireAction.classList.toggle('is-sent', showHeld);
+      if (!showHeld) {
+        wireAction.classList.remove('is-pulsing');
+      }
+    }
+
+    function renderTimeline(ms) {
+      const clamped = Math.max(0, Math.min(DURATION_MS, ms));
+      const streaming = clamped < DURATION_MS;
+
+      agentDot.classList.toggle('is-streaming', streaming && isPlaying);
+
+      applyCodeProgress(expressChunks, caretExpress, clamped);
+
+      agentLead.classList.toggle('is-hidden-stage', clamped < 120);
+      surfaceCard.classList.toggle('is-hidden-stage', clamped < 240);
+      surfaceCard.classList.toggle('is-streaming', streaming && clamped >= 240);
+
+      uiStageEls.forEach((el) => {
+        const idx = Number(el.getAttribute('data-ui-stage'));
+        const cfg = STAGES[idx];
+        const show = clamped >= cfg.uiAppear;
+        if (show) {
+          el.classList.remove('is-hidden-stage');
+          if (!visibleUiSet.has(idx)) {
+            visibleUiSet.add(idx);
+            el.classList.remove('is-entering');
+            void el.offsetWidth;
+            el.classList.add('is-entering');
+          }
+        } else {
+          visibleUiSet.delete(idx);
+          el.classList.remove('is-entering');
+          el.classList.add('is-hidden-stage');
+        }
+      });
+
+      skeleton.hidden = !(clamped >= 240 && clamped < STAGES[2].uiAppear);
+
+      dmEls.forEach((el) => {
+        const reqStage = Number(el.getAttribute('data-dm-stage'));
+        const ready = clamped >= STAGES[reqStage].codeEnd;
+        el.classList.toggle('is-pending', !ready);
+      });
+
+      wireStream.classList.toggle('is-pulsing', streaming && clamped >= 80);
+      wireStream.classList.toggle('is-sent', clamped >= 80);
+
+      syncActionFeedback(clamped);
+    }
+
+    function tick(now) {
+      if (!isPlaying) return;
+      if (!lastTs) lastTs = now;
+      const dt = Math.min(now - lastTs, 100);
+      lastTs = now;
+      elapsedMs = Math.min(DURATION_MS, elapsedMs + dt);
+      renderTimeline(elapsedMs);
+      if (elapsedMs >= DURATION_MS) {
+        isPlaying = false;
+        renderTimeline(DURATION_MS);
+        return;
+      }
+      rafId = requestAnimationFrame(tick);
+    }
+
+    function resetModelState() {
+      model.guests = 2;
+      model.cabin = 'reserved';
+      model.onsen = true;
+      model.estUsd = INITIAL_EST_USD;
+      model.held = false;
+      if (actionPulseTimer) {
+        clearTimeout(actionPulseTimer);
+        actionPulseTimer = 0;
+      }
+      flashTimers.forEach((tid) => clearTimeout(tid));
+      flashTimers.clear();
+      dmEls.forEach((el) => el.classList.remove('is-flash'));
+      wireAction.classList.remove('is-pulsing', 'is-sent');
+      renderMobileDataModel();
+    }
+
+    function startPlayback() {
+      hasUserOrAutoStarted = true;
+      cancelAnimationFrame(rafId);
+      resetModelState();
+      elapsedMs = 0;
+      visibleUiSet.clear();
+      isPlaying = true;
+      lastTs = 0;
+      renderTimeline(elapsedMs);
+      rafId = requestAnimationFrame(tick);
+    }
+
+    restartBtn.addEventListener('click', () => {
+      startPlayback();
+    });
+
+    function flashDataModelPill(id) {
+      const el = q(`#${id}`);
+      if (!el) return;
+      if (flashTimers.has(id)) {
+        clearTimeout(flashTimers.get(id));
+      }
+      el.classList.remove('is-flash');
+      void el.offsetWidth;
+      el.classList.add('is-flash');
+      const tid = setTimeout(() => {
+        el.classList.remove('is-flash');
+        flashTimers.delete(id);
+      }, 450);
+      flashTimers.set(id, tid);
+    }
+
+    function renderMobileDataModel() {
+      const guestSlider = q('#hc-guest-slider');
+      guestSlider.value = String(model.guests);
+      guestSlider.setAttribute('aria-valuetext', String(model.guests));
+      q('#hc-guests-label').textContent = String(model.guests);
+
+      const onsenBtn = q('#hc-onsen-btn');
+      onsenBtn.classList.toggle('is-checked', model.onsen);
+      onsenBtn.setAttribute('aria-checked', String(model.onsen));
+
+      qa('[data-cabin]').forEach((btn) => {
+        const sel = btn.getAttribute('data-cabin') === model.cabin;
+        btn.classList.toggle('is-selected', sel);
+        btn.setAttribute('aria-checked', String(sel));
+        btn.tabIndex = sel ? 0 : -1;
+      });
+
+      model.estUsd = computeTotalUsd();
+      q('#hc-total-price').textContent = `$${model.estUsd.toLocaleString('en-US')}`;
+
+      const holdBtn = q('#hc-hold-btn');
+      const holdLbl = q('#hc-hold-btn-label');
+      holdBtn.classList.toggle('is-confirmed', model.held);
+      holdLbl.textContent = model.held ? '✓ Itinerary Held' : 'Hold Itinerary';
+
+      syncActionFeedback(elapsedMs);
+
+      q('#hc-dm-guests-val').textContent = String(model.guests);
+      q('#hc-dm-cabin-val').textContent = `["${model.cabin}"]`;
+      q('#hc-dm-onsen-val').textContent = String(model.onsen);
+      q('#hc-dm-total-val').textContent = String(model.estUsd);
+    }
+
+    function markLocalEdit(pillId) {
+      model.held = false;
+      if (actionPulseTimer) {
+        clearTimeout(actionPulseTimer);
+        actionPulseTimer = 0;
+      }
+      wireAction.classList.remove('is-pulsing', 'is-sent');
+      renderMobileDataModel();
+      flashDataModelPill(pillId);
+      flashDataModelPill('hc-dm-total');
+    }
+
+    qa('[role="radiogroup"]').forEach((group) => {
+      group.addEventListener('keydown', (e) => {
+        if (
+          e.key !== 'ArrowRight' &&
+          e.key !== 'ArrowDown' &&
+          e.key !== 'ArrowLeft' &&
+          e.key !== 'ArrowUp'
+        ) {
+          return;
+        }
+        const radios = Array.from(group.querySelectorAll('[role="radio"]'));
+        const idx = radios.indexOf(document.activeElement);
+        if (idx === -1) return;
+        e.preventDefault();
+        const dir = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : -1;
+        const next = radios[(idx + dir + radios.length) % radios.length];
+        next.focus();
+        next.click();
+      });
+    });
+
+    qa('[data-cabin]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        model.cabin = btn.getAttribute('data-cabin');
+        markLocalEdit('hc-dm-cabin');
+      });
+    });
+
+    q('#hc-guest-slider').addEventListener('input', (e) => {
+      model.guests = Math.max(1, Math.min(4, Number(e.target.value)));
+      markLocalEdit('hc-dm-guests');
+    });
+
+    q('#hc-onsen-btn').addEventListener('click', () => {
+      model.onsen = !model.onsen;
+      markLocalEdit('hc-dm-onsen');
+    });
+
+    q('#hc-hold-btn').addEventListener('click', () => {
+      model.held = true;
+      renderMobileDataModel();
+      flashDataModelPill('hc-dm-total');
+      q('[data-hc-el="confirm-total"]').textContent = `$${model.estUsd.toLocaleString('en-US')}`;
+      if (actionPulseTimer) clearTimeout(actionPulseTimer);
+      wireAction.classList.add('is-pulsing', 'is-sent');
+      actionPulseTimer = setTimeout(() => {
+        wireAction.classList.remove('is-pulsing');
+        actionPulseTimer = 0;
+      }, 900);
+    });
+
+    renderMobileDataModel();
+
+    const prefersReducedMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (prefersReducedMotion) {
+      renderTimeline(DURATION_MS);
+    } else if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              observer.disconnect();
+              if (!hasUserOrAutoStarted) {
+                startPlayback();
+              }
+            }
+          });
+        },
+        { threshold: 0.25 },
+      );
+      observer.observe(root);
+    } else {
+      startPlayback();
+    }
+  })();
+</script>
