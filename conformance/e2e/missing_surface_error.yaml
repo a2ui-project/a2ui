@@ -14,7 +14,8 @@
 
 - name: missing_surface_error
   action: e2e_scenario
-  description: Update for an uncreated surface triggers an INTEGRITY_ERROR outbound envelope, followed by a text-only apology.
+  description: Update for an uncreated surface triggers an INTEGRITY_ERROR outbound
+    envelope, followed by a text-only apology.
   protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
@@ -25,33 +26,27 @@
     kind: hand_authored
     from: dart/a2ui_flutter/example/test/chat_session_test.dart
   turns:
-    - userText: "Show a card"
+    - userText: Show a card
       modelChunks:
         direct_json:
-          - "<a2ui-json>\n"
-          - |
-            [
-              {
-                "version": "1.0",
-                "updateComponents": {
-                  "surfaceId": "missing",
-                  "components": [
-                    {
-                      "id": "root",
-                      "component": "Text",
-                      "text": "Hi"
-                    }
-                  ]
-                }
-              }
-            ]
-            </a2ui-json>
+          - "<a2ui-json>
+
+            "
+          - "[\n  {\n    \"version\": \"1.0\",\n    \"updateComponents\": {\n      \"\
+            surfaceId\": \"missing\",\n      \"components\": [\n        {\n          \"\
+            id\": \"root\",\n          \"component\": \"Text\",\n          \"text\": \"\
+            Hi\"\n        }\n      ]\n    }\n  }\n]\n</a2ui-json>\n"
         express:
-          - "<a2ui>\n"
-          - |
-            surface("missing", update=true)
+          - "<a2ui>
+
+            "
+          - 'surface("missing", update=true)
+
             root = Text("Hi")
+
             </a2ui>
+
+            '
       expectWire:
         - a2ui:
             - version: "1.0"
@@ -74,11 +69,17 @@
     - userText: null
       modelChunks:
         direct_json:
-          - "Sorry about that."
+          - Sorry about that.
         express:
-          - "Sorry about that."
+          - Sorry about that.
       expectWire:
-        - text: "Sorry about that."
+        - text: Sorry about that.
       expectViewTree:
         missing: null
       expectOutbound: []
+  features:
+    - F-CORE-26
+    - F-AGT-04
+    - F-AGT-07
+    - F-AGT-58
+    - F-RND-01

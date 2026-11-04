@@ -19,8 +19,16 @@ import {conformancePath, describeSuite} from './suite-helpers.js';
 
 const UNSUPPORTED_SUITES: ReadonlyArray<{suite: string; reason: string}> = [
   {
+    suite: 'agent/atom/compiler.yaml',
+    reason: '@a2ui/agent does not implement the experimental Atom inference format',
+  },
+  {
     suite: 'agent/builder/builder.yaml',
     reason: 'the fluent builder API is a Python-only helper not implemented in TypeScript',
+  },
+  {
+    suite: 'agent/elemental/compiler.yaml',
+    reason: '@a2ui/agent does not implement the experimental Elemental inference format',
   },
   {
     suite: 'agent/macros/macros.yaml',
@@ -37,6 +45,10 @@ const UNSUPPORTED_SUITES: ReadonlyArray<{suite: string; reason: string}> = [
   {
     suite: 'agent/express/scaling.yaml',
     reason: 'timing suite runs separately under yarn test:timing',
+  },
+  {
+    suite: 'agent/renderer_state.yaml',
+    reason: 'multi-turn renderer_state_turns runner is not yet wired in TypeScript',
   },
 ];
 

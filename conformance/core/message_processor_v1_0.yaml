@@ -186,6 +186,7 @@
 
 - name: test_v10_get_renderer_capabilities
   description: Tests generating v1.0 renderer capabilities structure.
+  features: [F-CORE-31]
   action: get_renderer_capabilities
   catalogs:
     - catalogId: cat-v10
@@ -202,6 +203,7 @@
   description: >-
     Tests that v1.0 inline catalogs list each component as a plain schema, without the v0.9
     ComponentCommon allOf envelope, because v1.0 applies ComponentCommon at the message envelope.
+  features: [F-CORE-31]
   action: get_renderer_capabilities
   catalogs:
     - catalogId: cat-v10

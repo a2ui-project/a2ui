@@ -45,12 +45,16 @@ const Set<String> activeAgentSuites = {
 /// `agent/**/*.yaml` suites not executed in the default `dart-agent` test run,
 /// paired with the reason recorded in the executed-case manifest.
 const Map<String, String> unsupportedAgentSuites = {
+  'agent/atom/compiler.yaml':
+      'a2ui_agent for Dart does not implement the Atom inference format.',
   'agent/builder/builder.yaml':
       'The fluent builder AST suite targets the Python builder API, which '
       'a2ui_agent for Dart does not implement.',
   'agent/direct_json/scaling.yaml':
       'Timing suite tagged performance; runs in the performance job with '
       'dart test -P performance.',
+  'agent/elemental/compiler.yaml':
+      'a2ui_agent for Dart does not implement the Elemental inference format.',
   'agent/express/scaling.yaml':
       'Timing suite tagged performance; runs in the performance job with '
       'dart test -P performance.',
@@ -66,6 +70,9 @@ const Map<String, String> unsupportedAgentSuites = {
   'agent/macros/macros.yaml':
       'The composite macro suite targets the Python macro API, which '
       'a2ui_agent for Dart does not implement.',
+  'agent/renderer_state.yaml':
+      'The Dart harness has no runner for the multi-turn renderer_state_turns '
+      'action yet.',
   'agent/skill.yaml':
       'a2ui_agent for Dart does not implement the skill generation API.',
 };

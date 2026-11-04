@@ -16,6 +16,7 @@
 # `format_inbound_for_model(message)`.
 
 - name: v1.0 action message with context formats for model
+  features: [F-AGT-57]
   description: v1.0 action message validates and formats action name, surfaceId, sourceComponentId, and context for the model.
   action: parse_inbound_message
   args:
@@ -42,6 +43,7 @@
       - '"espresso"'
 
 - name: v1.0 validation error message formats path and message for model
+  features: [F-AGT-58]
   description: v1.0 VALIDATION_FAILED error message validates and formats code, surfaceId, path, and message for the model.
   action: parse_inbound_message
   args:
@@ -62,6 +64,7 @@
       - Text value cannot be empty
 
 - name: v1.0 generic error message with surfaceId formats for model
+  features: [F-AGT-58]
   description: v1.0 generic error message validates and formats code, surfaceId, and message for the model.
   action: parse_inbound_message
   args:
@@ -80,6 +83,7 @@
       - Failed to render chart widget
 
 - name: v1.0 callAgentFunction message returns null model input
+  features: [F-AGT-42, F-AGT-60]
   description: v1.0 callAgentFunction message validates as an RPC request and returns null for model input.
   action: parse_inbound_message
   args:
@@ -98,6 +102,7 @@
     model_input: null
 
 - name: v1.0 rendererFunctionResponse message returns null model input
+  features: [F-AGT-42, F-AGT-61]
   description: v1.0 rendererFunctionResponse message validates as an RPC response and returns null for model input.
   action: parse_inbound_message
   args:
@@ -113,6 +118,7 @@
     model_input: null
 
 - name: v0.9 action message with context formats for model
+  features: [F-AGT-57]
   description: v0.9 action message validates and formats action details for the model.
   action: parse_inbound_message
   args:
@@ -136,6 +142,7 @@
       - "4"
 
 - name: v0.9 validation error message formats path and message for model
+  features: [F-AGT-58]
   description: v0.9 validation error message validates and formats error details for the model.
   action: parse_inbound_message
   args:
@@ -156,6 +163,7 @@
       - Party size must be at least 1
 
 - name: v0.8 userAction message normalizes kind to action and formats for model
+  features: [F-AGT-57]
   description: v0.8 userAction message validates, reports kind as action, and formats action details for the model.
   action: parse_inbound_message
   args:

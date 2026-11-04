@@ -12,987 +12,1333 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Behaviour of the reactive data model: JSON Pointer resolution, structural
-# auto-vivification, and observer notification routing.
-#
-# Migrated from `typescript/core/web_core/src/v0_9/state/data-model.test.ts` so that
-# every implementation of the data model is measured against one dataset.
-#
-# Each case builds a model from `initial`, attaches an observer to every path in
-# `watch`, then runs `steps` in order. A step is one of:
-#
-#   op: get      read `path`; assert `expect`, `expect_absent` or `expect_type`
-#                (`list` or `object`)
-#   op: set      write `value` at `path`
-#   op: delete   remove the value at `path` from its parent container
-#   op: dispose  detach every observer
-#
-# A `set`, `delete` or `dispose` step may assert `expect_notified` (the watched
-# paths whose observers fired for that step, with one entry per observer) and
-# `expect_values` (the value each watched path holds afterwards).
-#
-# Deliberately left out of this suite, because the behaviour cannot be
-# expressed uniformly in YAML across languages with non-nullable string types
-# or without a distinct `undefined` value:
-#
-#   * `null` and `undefined` path arguments, which languages with non-nullable
-#     string types cannot express.
-#   * The distinction between storing `undefined` and removing a key, which
-#     languages without `undefined` cannot express. Removal is expressed here as
-#     an explicit `delete` step.
-
 - name: test_data_model_initializes_empty
-  description: >-
-    A model created without data starts as an empty object.
+  description: A model created without data starts as an empty object.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
   steps:
-    - op: "get"
-      path: "/"
+    - op: get
+      path: /
       expect: {}
-
+  features:
+    - F-CORE-14
 - name: test_data_model_retrieves_root
-  description: >-
-    The root path returns the whole data model.
+  description: The root path returns the whole data model.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "get"
-      path: "/"
-      expect: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
-
+    - op: get
+      path: /
+      expect:
+        user:
+          name: Alice
+          settings:
+            theme: dark
+        items:
+          - a
+          - b
+          - c
+  features:
+    - F-CORE-14
 - name: test_data_model_retrieves_nested_path
-  description: >-
-    Nested object paths resolve segment by segment.
+  description: Nested object paths resolve segment by segment.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "get"
-      path: "/user/name"
-      expect: "Alice"
-    - op: "get"
-      path: "/user/settings/theme"
-      expect: "dark"
-
+    - op: get
+      path: /user/name
+      expect: Alice
+    - op: get
+      path: /user/settings/theme
+      expect: dark
+  features:
+    - F-CORE-14
 - name: test_data_model_retrieves_list_items
-  description: >-
-    List elements resolve by numeric segment.
+  description: List elements resolve by numeric segment.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "get"
-      path: "/items/0"
-      expect: "a"
-    - op: "get"
-      path: "/items/1"
-      expect: "b"
-
+    - op: get
+      path: /items/0
+      expect: a
+    - op: get
+      path: /items/1
+      expect: b
+  features:
+    - F-CORE-14
 - name: test_data_model_absent_for_missing_paths
-  description: >-
-    Paths that do not exist resolve to no value.
+  description: Paths that do not exist resolve to no value.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "get"
-      path: "/user/age"
+    - op: get
+      path: /user/age
       expect_absent: true
-    - op: "get"
-      path: "/unknown/path"
+    - op: get
+      path: /unknown/path
       expect_absent: true
-
+  features:
+    - F-CORE-18
 - name: test_data_model_absent_through_empty_segment
-  description: >-
-    Traversing through a segment that holds no value yields no value.
+  description: Traversing through a segment that holds no value yields no value.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "set"
-      path: "/nullable/inner"
+    - op: set
+      path: /nullable/inner
       value: 1
-    - op: "delete"
-      path: "/nullable/inner"
-    - op: "get"
-      path: "/nullable/deep/path"
+    - op: delete
+      path: /nullable/inner
+    - op: get
+      path: /nullable/deep/path
       expect_absent: true
-
 - name: test_data_model_sets_existing_path
-  description: >-
-    Setting an existing path replaces its value.
+  description: Setting an existing path replaces its value.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "set"
-      path: "/user/name"
-      value: "Bob"
-    - op: "get"
-      path: "/user/name"
-      expect: "Bob"
-
+    - op: set
+      path: /user/name
+      value: Bob
+    - op: get
+      path: /user/name
+      expect: Bob
+  features:
+    - F-CORE-17
 - name: test_data_model_sets_new_path
-  description: >-
-    Setting a new key on an existing object adds it.
+  description: Setting a new key on an existing object adds it.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "set"
-      path: "/user/age"
+    - op: set
+      path: /user/age
       value: 30
-    - op: "get"
-      path: "/user/age"
+    - op: get
+      path: /user/age
       expect: 30
-
+  features:
+    - F-CORE-17
 - name: test_data_model_creates_intermediate_objects
-  description: >-
-    Missing intermediate objects are created on write.
+  description: Missing intermediate objects are created on write.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "set"
-      path: "/a/b/c"
-      value: "foo"
-    - op: "get"
-      path: "/a/b/c"
-      expect: "foo"
-    - op: "get"
-      path: "/a/b"
-      expect_type: "object"
-
+    - op: set
+      path: /a/b/c
+      value: foo
+    - op: get
+      path: /a/b/c
+      expect: foo
+    - op: get
+      path: /a/b
+      expect_type: object
+  features:
+    - F-CORE-18
 - name: test_data_model_delete_removes_key
-  description: >-
-    Deleting a path removes the key from its parent object.
+  description: Deleting a path removes the key from its parent object.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "delete"
-      path: "/user/name"
-    - op: "get"
-      path: "/user/name"
+    - op: delete
+      path: /user/name
+    - op: get
+      path: /user/name
       expect_absent: true
-    - op: "get"
-      path: "/user"
-      expect: {"settings": {"theme": "dark"}}
-
+    - op: get
+      path: /user
+      expect:
+        settings:
+          theme: dark
+  features:
+    - F-CORE-03
 - name: test_data_model_list_set_and_get
-  description: >-
-    Writing a numeric segment into a missing path creates a list.
+  description: Writing a numeric segment into a missing path creates a list.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "set"
-      path: "/list/0"
-      value: "hello"
-    - op: "get"
-      path: "/list/0"
-      expect: "hello"
-    - op: "get"
-      path: "/list"
-      expect_type: "list"
-
+    - op: set
+      path: /list/0
+      value: hello
+    - op: get
+      path: /list/0
+      expect: hello
+    - op: get
+      path: /list
+      expect_type: list
 - name: test_data_model_list_append
-  description: >-
-    Writing successive indices appends to a list.
+  description: Writing successive indices appends to a list.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "set"
-      path: "/list/0"
-      value: "hello"
-    - op: "set"
-      path: "/list/1"
-      value: "world"
-    - op: "get"
-      path: "/list"
-      expect: ["hello", "world"]
-
+    - op: set
+      path: /list/0
+      value: hello
+    - op: set
+      path: /list/1
+      value: world
+    - op: get
+      path: /list
+      expect:
+        - hello
+        - world
 - name: test_data_model_list_update_index
-  description: >-
-    Writing an existing index replaces that element.
+  description: Writing an existing index replaces that element.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "set"
-      path: "/items/1"
-      value: "updated"
-    - op: "get"
-      path: "/items"
-      expect: ["a", "updated", "c"]
-
+    - op: set
+      path: /items/1
+      value: updated
+    - op: get
+      path: /items
+      expect:
+        - a
+        - updated
+        - c
 - name: test_data_model_creates_nested_structures
-  description: >-
-    Auto-vivification picks a list or an object based on the next segment.
+  description: Auto-vivification picks a list or an object based on the next segment.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "set"
-      path: "/a/b/0/c"
+    - op: set
+      path: /a/b/0/c
       value: 123
-    - op: "get"
-      path: "/a/b/0/c"
+    - op: get
+      path: /a/b/0/c
       expect: 123
-    - op: "get"
-      path: "/a/b"
-      expect_type: "list"
-    - op: "get"
-      path: "/a/b/0"
-      expect_type: "object"
-    - op: "set"
-      path: "/x/y/z"
-      value: "hello"
-    - op: "get"
-      path: "/x/y/z"
-      expect: "hello"
-    - op: "set"
-      path: "/nestedList/0/0"
-      value: "inner"
-    - op: "get"
-      path: "/nestedList/0/0"
-      expect: "inner"
-    - op: "get"
-      path: "/nestedList"
-      expect_type: "list"
-    - op: "get"
-      path: "/nestedList/0"
-      expect_type: "list"
-
+    - op: get
+      path: /a/b
+      expect_type: list
+    - op: get
+      path: /a/b/0
+      expect_type: object
+    - op: set
+      path: /x/y/z
+      value: hello
+    - op: get
+      path: /x/y/z
+      expect: hello
+    - op: set
+      path: /nestedList/0/0
+      value: inner
+    - op: get
+      path: /nestedList/0/0
+      expect: inner
+    - op: get
+      path: /nestedList
+      expect_type: list
+    - op: get
+      path: /nestedList/0
+      expect_type: list
 - name: test_data_model_get_out_of_range_index
-  description: >-
-    Out of range and non numeric list indices resolve to no value on read.
+  description: Out of range and non numeric list indices resolve to no value on read.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "get"
-      path: "/items/99"
+    - op: get
+      path: /items/99
       expect_absent: true
-    - op: "get"
-      path: "/items/-1"
+    - op: get
+      path: /items/-1
       expect_absent: true
-    - op: "get"
-      path: "/items/invalid"
+    - op: get
+      path: /items/invalid
       expect_absent: true
-
 - name: test_data_model_normalizes_trailing_slash
-  description: >-
-    A trailing slash is not a distinct path.
+  description: A trailing slash is not a distinct path.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
-  watch: ["/foo"]
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
+  watch:
+    - /foo
   steps:
-    - op: "set"
-      path: "/foo/"
-      value: "bar"
-      expect_notified: ["/foo"]
-    - op: "get"
-      path: "/foo/"
-      expect: "bar"
-    - op: "get"
-      path: "/foo"
-      expect: "bar"
-
+    - op: set
+      path: /foo/
+      value: bar
+      expect_notified:
+        - /foo
+    - op: get
+      path: /foo/
+      expect: bar
+    - op: get
+      path: /foo
+      expect: bar
 - name: test_data_model_replaces_root
-  description: >-
-    Setting the root path replaces the whole model.
+  description: Setting the root path replaces the whole model.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
-  watch: ["/", "/unrelated"]
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
+  watch:
+    - /
+    - /unrelated
   steps:
-    - op: "set"
-      path: "/"
-      value: {"newRoot": "foo"}
-      expect_notified: ["/"]
-      expect_values: {"/": {"newRoot": "foo"}}
-    - op: "get"
+    - op: set
+      path: /
+      value:
+        newRoot: foo
+      expect_notified:
+        - /
+      expect_values:
+        /:
+          newRoot: foo
+    - op: get
       path: ""
-      expect: {"newRoot": "foo"}
-
+      expect:
+        newRoot: foo
+  features:
+    - F-CORE-03
 - name: test_data_model_escaped_slash
-  description: >-
-    A ~1 escape addresses a key containing a slash (RFC 6901).
+  description: A ~1 escape addresses a key containing a slash (RFC 6901).
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "set"
-      path: "/user/detailed~1info"
-      value: "some info"
-    - op: "get"
-      path: "/user/detailed~1info"
-      expect: "some info"
-    - op: "get"
-      path: "/user"
-      expect: {"name": "Alice", "settings": {"theme": "dark"}, "detailed/info": "some info"}
-
+    - op: set
+      path: /user/detailed~1info
+      value: some info
+    - op: get
+      path: /user/detailed~1info
+      expect: some info
+    - op: get
+      path: /user
+      expect:
+        name: Alice
+        settings:
+          theme: dark
+        detailed/info: some info
 - name: test_data_model_escaped_tilde
-  description: >-
-    A ~0 escape addresses a key containing a tilde (RFC 6901).
+  description: A ~0 escape addresses a key containing a tilde (RFC 6901).
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "set"
-      path: "/user/profile~0name"
-      value: "profile~name"
-    - op: "get"
-      path: "/user/profile~0name"
-      expect: "profile~name"
-    - op: "get"
-      path: "/user"
-      expect: {"name": "Alice", "settings": {"theme": "dark"}, "profile~name": "profile~name"}
-
+    - op: set
+      path: /user/profile~0name
+      value: profile~name
+    - op: get
+      path: /user/profile~0name
+      expect: profile~name
+    - op: get
+      path: /user
+      expect:
+        name: Alice
+        settings:
+          theme: dark
+        profile~name: profile~name
 - name: test_data_model_escaped_mixed
-  description: >-
-    Both escapes may appear in one segment.
+  description: Both escapes may appear in one segment.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "set"
-      path: "/user/a~0b~1c"
-      value: "value"
-    - op: "get"
-      path: "/user/a~0b~1c"
-      expect: "value"
-    - op: "get"
-      path: "/user"
-      expect: {"name": "Alice", "settings": {"theme": "dark"}, "a~b/c": "value"}
-
+    - op: set
+      path: /user/a~0b~1c
+      value: value
+    - op: get
+      path: /user/a~0b~1c
+      expect: value
+    - op: get
+      path: /user
+      expect:
+        name: Alice
+        settings:
+          theme: dark
+        a~b/c: value
 - name: test_data_model_escape_order
-  description: >-
-    A ~01 sequence decodes to ~1, not to a slash.
+  description: A ~01 sequence decodes to ~1, not to a slash.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "set"
-      path: "/user/a~01b"
-      value: "value"
-    - op: "get"
-      path: "/user/a~01b"
-      expect: "value"
-    - op: "get"
-      path: "/user"
-      expect: {"name": "Alice", "settings": {"theme": "dark"}, "a~1b": "value"}
-
+    - op: set
+      path: /user/a~01b
+      value: value
+    - op: get
+      path: /user/a~01b
+      expect: value
+    - op: get
+      path: /user
+      expect:
+        name: Alice
+        settings:
+          theme: dark
+        a~1b: value
 - name: test_data_model_rejects_write_through_primitive
-  description: >-
-    Writing through a primitive intermediate segment is an error.
+  description: Writing through a primitive intermediate segment is an error.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "set"
-      path: "/user/name"
-      value: "not an object"
-    - op: "set"
-      path: "/user/name/first"
-      value: "Alice"
-      expect_error: {"category": "DataError", "message": "Cannot set path"}
-
+    - op: set
+      path: /user/name
+      value: not an object
+    - op: set
+      path: /user/name/first
+      value: Alice
+      expect_error:
+        category: DataError
+        message: Cannot set path
 - name: test_data_model_rejects_write_through_list_primitive
-  description: >-
-    Writing through a primitive list element is an error.
+  description: Writing through a primitive list element is an error.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "set"
-      path: "/items/0/foo"
-      value: "bar"
-      expect_error: {"category": "DataError", "message": "Cannot set path"}
-
+    - op: set
+      path: /items/0/foo
+      value: bar
+      expect_error:
+        category: DataError
+        message: Cannot set path
 - name: test_data_model_rejects_non_numeric_list_segment
-  description: >-
-    A non numeric segment cannot address a list element on write.
+  description: A non numeric segment cannot address a list element on write.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "set"
-      path: "/items/foo"
-      value: "bar"
-      expect_error: {"category": "DataError", "message": "non-numeric segment"}
-
+    - op: set
+      path: /items/foo
+      value: bar
+      expect_error:
+        category: DataError
+        message: non-numeric segment
 - name: test_data_model_rejects_non_numeric_list_segment_intermediate
-  description: >-
-    A non numeric intermediate segment cannot address a list element.
+  description: A non numeric intermediate segment cannot address a list element.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "set"
-      path: "/items/foo/bar"
-      value: "value"
-      expect_error: {"category": "DataError", "message": "non-numeric segment"}
-
+    - op: set
+      path: /items/foo/bar
+      value: value
+      expect_error:
+        category: DataError
+        message: non-numeric segment
 - name: test_data_model_notifies_exact_path
-  description: >-
-    An observer fires when its own path is written.
+  description: An observer fires when its own path is written.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
-  watch: ["/user/name"]
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
+  watch:
+    - /user/name
   steps:
-    - op: "set"
-      path: "/user/name"
-      value: "Charlie"
-      expect_values: {"/user/name": "Charlie"}
-      expect_notified: ["/user/name"]
-
+    - op: set
+      path: /user/name
+      value: Charlie
+      expect_values:
+        /user/name: Charlie
+      expect_notified:
+        - /user/name
+  features:
+    - F-CORE-40
 - name: test_data_model_notifies_ancestor
-  description: >-
-    An observer on a container fires when a descendant is written.
+  description: An observer on a container fires when a descendant is written.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
-  watch: ["/user"]
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
+  watch:
+    - /user
   steps:
-    - op: "set"
-      path: "/user/name"
-      value: "Dave"
-      expect_values: {"/user": {"name": "Dave", "settings": {"theme": "dark"}}}
-      expect_notified: ["/user"]
-
+    - op: set
+      path: /user/name
+      value: Dave
+      expect_values:
+        /user:
+          name: Dave
+          settings:
+            theme: dark
+      expect_notified:
+        - /user
+  features:
+    - F-CORE-40
 - name: test_data_model_notifies_descendant
-  description: >-
-    An observer on a leaf fires when an ancestor is replaced.
+  description: An observer on a leaf fires when an ancestor is replaced.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
-  watch: ["/user/settings/theme"]
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
+  watch:
+    - /user/settings/theme
   steps:
-    - op: "set"
-      path: "/user/settings"
-      value: {"theme": "light"}
-      expect_values: {"/user/settings/theme": "light"}
-      expect_notified: ["/user/settings/theme"]
-
+    - op: set
+      path: /user/settings
+      value:
+        theme: light
+      expect_values:
+        /user/settings/theme: light
+      expect_notified:
+        - /user/settings/theme
+  features:
+    - F-CORE-40
 - name: test_data_model_notifies_root_observer
-  description: >-
-    A root observer fires on any write.
+  description: A root observer fires on any write.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
-  watch: ["/"]
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
+  watch:
+    - /
   steps:
-    - op: "set"
-      path: "/newProp"
-      value: "test"
-      expect_notified: ["/"]
-
+    - op: set
+      path: /newProp
+      value: test
+      expect_notified:
+        - /
 - name: test_data_model_notifies_parent_on_child_write
-  description: >-
-    A container observer sees the updated container value.
+  description: A container observer sees the updated container value.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
-  watch: ["/parent"]
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
+  watch:
+    - /parent
   steps:
-    - op: "set"
-      path: "/parent"
-      value: {"child": "initial"}
-    - op: "set"
-      path: "/parent/child"
-      value: "updated"
-      expect_values: {"/parent": {"child": "updated"}}
-
+    - op: set
+      path: /parent
+      value:
+        child: initial
+    - op: set
+      path: /parent/child
+      value: updated
+      expect_values:
+        /parent:
+          child: updated
 - name: test_data_model_does_not_notify_unrelated
-  description: >-
-    An observer does not fire for an unrelated path.
+  description: An observer does not fire for an unrelated path.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"a": 1, "b": 2}
-  watch: ["/b"]
+  initial:
+    a: 1
+    b: 2
+  watch:
+    - /b
   steps:
-    - op: "set"
-      path: "/a"
+    - op: set
+      path: /a
       value: 99
       expect_notified: []
-
+  features:
+    - F-CORE-40
 - name: test_data_model_does_not_notify_prefix_sibling
-  description: >-
-    A sibling whose name merely shares a prefix is not a descendant.
+  description: A sibling whose name merely shares a prefix is not a descendant.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"foo": 1, "foobar": 2}
-  watch: ["/foo", "/foobar"]
+  initial:
+    foo: 1
+    foobar: 2
+  watch:
+    - /foo
+    - /foobar
   steps:
-    - op: "set"
-      path: "/foo"
+    - op: set
+      path: /foo
       value: 99
-      expect_notified: ["/foo"]
-
+      expect_notified:
+        - /foo
+  features:
+    - F-CORE-40
 - name: test_data_model_multiple_observers_same_path
-  description: >-
-    Every observer on a path is notified.
+  description: Every observer on a path is notified.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
-  watch: ["/user/name", "/user/name"]
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
+  watch:
+    - /user/name
+    - /user/name
   steps:
-    - op: "set"
-      path: "/user/name"
-      value: "Eve"
-      expect_values: {"/user/name": "Eve"}
-      expect_notified: ["/user/name", "/user/name"]
-
+    - op: set
+      path: /user/name
+      value: Eve
+      expect_values:
+        /user/name: Eve
+      expect_notified:
+        - /user/name
+        - /user/name
 - name: test_data_model_observe_absent_path
-  description: >-
-    Observing a path that does not exist yet starts empty and fires on
+  description: Observing a path that does not exist yet starts empty and fires on
     creation.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
-  watch: ["/non/existent"]
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
+  watch:
+    - /non/existent
   steps:
-    - op: "get"
-      path: "/non/existent"
+    - op: get
+      path: /non/existent
       expect_absent: true
-    - op: "set"
-      path: "/non/existent"
-      value: "exists now"
-      expect_values: {"/non/existent": "exists now"}
-      expect_notified: ["/non/existent"]
-
+    - op: set
+      path: /non/existent
+      value: exists now
+      expect_values:
+        /non/existent: exists now
+      expect_notified:
+        - /non/existent
 - name: test_data_model_stops_notifying_after_dispose
-  description: >-
-    Disposing the model detaches every observer.
+  description: Disposing the model detaches every observer.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
-  watch: ["/"]
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+    items:
+      - a
+      - b
+      - c
+  watch:
+    - /
   steps:
-    - op: "dispose"
-    - op: "set"
-      path: "/foo"
-      value: "bar"
+    - op: dispose
+    - op: set
+      path: /foo
+      value: bar
       expect_notified: []
-
+  features:
+    - F-CORE-40
 - name: test_data_model_does_not_notify_unchanged_descendant
-  description: >-
-    An observer on a descendant path does not fire when an ancestor is
+  description: An observer on a descendant path does not fire when an ancestor is
     rewritten but the observer's own value is still absent.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  watch: ["/a/b"]
+  watch:
+    - /a/b
   steps:
-    - op: "set"
-      path: "/a"
-      value: {"c": 1}
+    - op: set
+      path: /a
+      value:
+        c: 1
       expect_notified: []
-
 - name: test_data_model_does_not_notify_same_value_rewrite
-  description: >-
-    Writing a path the value it already holds does not fire its observers.
+  description: Writing a path the value it already holds does not fire its observers.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"k": "v"}
-  watch: ["/k"]
+  initial:
+    k: v
+  watch:
+    - /k
   steps:
-    - op: "set"
-      path: "/k"
-      value: "v"
+    - op: set
+      path: /k
+      value: v
       expect_notified: []
-    - op: "set"
-      path: "/k"
-      value: "w"
-      expect_notified: ["/k"]
-
+    - op: set
+      path: /k
+      value: w
+      expect_notified:
+        - /k
 - name: test_data_model_reactivity_child_deletion_notifies_parent_and_child
-  description: >-
-    Deleting a child property notifies both the child path and ancestor containers.
+  description: Deleting a child property notifies both the child path and ancestor
+    containers.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}}
-  watch: ["/user", "/user/name"]
+  initial:
+    user:
+      name: Alice
+      settings:
+        theme: dark
+  watch:
+    - /user
+    - /user/name
   steps:
-    - op: "delete"
-      path: "/user/name"
-      expect_notified: ["/user", "/user/name"]
+    - op: delete
+      path: /user/name
+      expect_notified:
+        - /user
+        - /user/name
       expect_values:
-        "/user": {"settings": {"theme": "dark"}}
-    - op: "get"
-      path: "/user/name"
+        /user:
+          settings:
+            theme: dark
+    - op: get
+      path: /user/name
       expect_absent: true
-
 - name: test_data_model_reactivity_array_element_update_notifies_array
-  description: >-
-    Updating an array element notifies both the element observer and the array observer.
+  description: Updating an array element notifies both the element observer and the
+    array observer.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"items": ["a", "b", "c"]}
-  watch: ["/items", "/items/1"]
+  initial:
+    items:
+      - a
+      - b
+      - c
+  watch:
+    - /items
+    - /items/1
   steps:
-    - op: "set"
-      path: "/items/1"
-      value: "updated"
-      expect_notified: ["/items", "/items/1"]
+    - op: set
+      path: /items/1
+      value: updated
+      expect_notified:
+        - /items
+        - /items/1
       expect_values:
-        "/items": ["a", "updated", "c"]
-        "/items/1": "updated"
-
+        /items:
+          - a
+          - updated
+          - c
+        /items/1: updated
 - name: test_data_model_reactivity_ancestor_deletion_notifies_descendants
-  description: >-
-    Deleting a parent container notifies observers on nested descendant paths whose values become absent.
+  description: Deleting a parent container notifies observers on nested descendant
+    paths whose values become absent.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"settings": {"theme": "dark"}}}
-  watch: ["/user", "/user/settings", "/user/settings/theme"]
+  initial:
+    user:
+      settings:
+        theme: dark
+  watch:
+    - /user
+    - /user/settings
+    - /user/settings/theme
   steps:
-    - op: "delete"
-      path: "/user"
-      expect_notified: ["/user", "/user/settings", "/user/settings/theme"]
-    - op: "get"
-      path: "/user/settings/theme"
+    - op: delete
+      path: /user
+      expect_notified:
+        - /user
+        - /user/settings
+        - /user/settings/theme
+    - op: get
+      path: /user/settings/theme
       expect_absent: true
-
 - name: test_data_model_delete_out_of_range_list_index_is_noop
-  description: >-
-    Deleting a list index past the end of the list leaves the list unchanged
+  description: Deleting a list index past the end of the list leaves the list unchanged
     rather than padding it out to that index.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"items": ["a", "b", "c"]}
+  initial:
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "delete"
-      path: "/items/10"
-    - op: "get"
-      path: "/items"
-      expect: ["a", "b", "c"]
-
+    - op: delete
+      path: /items/10
+    - op: get
+      path: /items
+      expect:
+        - a
+        - b
+        - c
 - name: test_data_model_notifies_descendant_on_root_replacement
-  description: >-
-    Replacing the root notifies observers on descendant paths whose values
+  description: Replacing the root notifies observers on descendant paths whose values
     change or become absent.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice"}, "stale": "present"}
-  watch: ["/user/name", "/stale"]
+  initial:
+    user:
+      name: Alice
+    stale: present
+  watch:
+    - /user/name
+    - /stale
   steps:
-    - op: "set"
-      path: "/"
-      value: {"user": {"name": "Bob"}}
-      expect_notified: ["/user/name", "/stale"]
+    - op: set
+      path: /
+      value:
+        user:
+          name: Bob
+      expect_notified:
+        - /user/name
+        - /stale
       expect_values:
-        "/user/name": "Bob"
-    - op: "get"
-      path: "/stale"
+        /user/name: Bob
+    - op: get
+      path: /stale
       expect_absent: true
-
 - name: test_data_model_rejects_forbidden_path_segments
-  description: >-
-    Paths containing __proto__, constructor, or prototype are rejected on both
-    read and write with DataError.
+  description: Paths containing __proto__, constructor, or prototype are rejected
+    on both read and write with DataError.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": {"name": "Alice"}}
+  initial:
+    user:
+      name: Alice
   steps:
-    - op: "set"
-      path: "/__proto__/polluted"
-      value: "hacked"
-      expect_error: {"category": "DataError", "message": "Forbidden path segment"}
-    - op: "get"
-      path: "/__proto__/polluted"
-      expect_error: {"category": "DataError", "message": "Forbidden path segment"}
-    - op: "set"
-      path: "/constructor/prototype/polluted"
-      value: "hacked"
-      expect_error: {"category": "DataError", "message": "Forbidden path segment"}
-    - op: "get"
-      path: "/constructor/prototype/polluted"
-      expect_error: {"category": "DataError", "message": "Forbidden path segment"}
-    - op: "set"
-      path: "/user/prototype/polluted"
-      value: "hacked"
-      expect_error: {"category": "DataError", "message": "Forbidden path segment"}
-    - op: "get"
-      path: "/user/prototype/polluted"
-      expect_error: {"category": "DataError", "message": "Forbidden path segment"}
-
+    - op: set
+      path: /__proto__/polluted
+      value: hacked
+      expect_error:
+        category: DataError
+        message: Forbidden path segment
+    - op: get
+      path: /__proto__/polluted
+      expect_error:
+        category: DataError
+        message: Forbidden path segment
+    - op: set
+      path: /constructor/prototype/polluted
+      value: hacked
+      expect_error:
+        category: DataError
+        message: Forbidden path segment
+    - op: get
+      path: /constructor/prototype/polluted
+      expect_error:
+        category: DataError
+        message: Forbidden path segment
+    - op: set
+      path: /user/prototype/polluted
+      value: hacked
+      expect_error:
+        category: DataError
+        message: Forbidden path segment
+    - op: get
+      path: /user/prototype/polluted
+      expect_error:
+        category: DataError
+        message: Forbidden path segment
 - name: test_data_model_allows_own_properties_named_after_object_methods
-  description: >-
-    Unset keys like toString, valueOf, and hasOwnProperty are absent on read,
-    and can be written and read back as ordinary keys.
+  description: Unset keys like toString, valueOf, and hasOwnProperty are absent on
+    read, and can be written and read back as ordinary keys.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
   initial: {}
   steps:
-    - op: "get"
-      path: "/toString"
+    - op: get
+      path: /toString
       expect_absent: true
-    - op: "get"
-      path: "/valueOf"
+    - op: get
+      path: /valueOf
       expect_absent: true
-    - op: "get"
-      path: "/hasOwnProperty"
+    - op: get
+      path: /hasOwnProperty
       expect_absent: true
-    - op: "set"
-      path: "/toString"
-      value: "custom toString"
-    - op: "get"
-      path: "/toString"
-      expect: "custom toString"
-    - op: "set"
-      path: "/valueOf/nested"
-      value: "custom valueOf"
-    - op: "get"
-      path: "/valueOf/nested"
-      expect: "custom valueOf"
-
+    - op: set
+      path: /toString
+      value: custom toString
+    - op: get
+      path: /toString
+      expect: custom toString
+    - op: set
+      path: /valueOf/nested
+      value: custom valueOf
+    - op: get
+      path: /valueOf/nested
+      expect: custom valueOf
 - name: test_data_model_delete_absent_deep_path_is_noop
-  description: >-
-    Deleting a deep path that does not exist is a no-op that neither vivifies
+  description: Deleting a deep path that does not exist is a no-op that neither vivifies
     intermediate containers nor notifies observers.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
   initial: {}
-  watch: ["/", "/nonexistent"]
+  watch:
+    - /
+    - /nonexistent
   steps:
-    - op: "delete"
-      path: "/nonexistent/child/path"
+    - op: delete
+      path: /nonexistent/child/path
       expect_notified: []
-    - op: "get"
-      path: "/"
+    - op: get
+      path: /
       expect: {}
-    - op: "get"
-      path: "/nonexistent"
+    - op: get
+      path: /nonexistent
       expect_absent: true
-
 - name: test_data_model_sparse_list_write_pads_with_null
-  description: >-
-    Writing an index past the current end of a list pads intermediate positions
+  description: Writing an index past the current end of a list pads intermediate positions
     with null/absent values.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
   initial: {}
   steps:
-    - op: "set"
-      path: "/data/lists/1/value"
+    - op: set
+      path: /data/lists/1/value
       value: 42
-    - op: "get"
-      path: "/data/lists/1/value"
+    - op: get
+      path: /data/lists/1/value
       expect: 42
-    - op: "get"
-      path: "/data/lists/0"
+    - op: get
+      path: /data/lists/0
       expect_absent: true
-    - op: "get"
-      path: "/data/lists"
-      expect_type: "list"
-
+    - op: get
+      path: /data/lists
+      expect_type: list
 - name: test_data_model_rejects_excessive_list_index
-  description: >-
-    List indices exceeding the maximum supported bound (10000) are rejected with
-    DataError.
+  description: List indices exceeding the maximum supported bound (10000) are rejected
+    with DataError.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"items": ["a", "b", "c"]}
+  initial:
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "set"
-      path: "/items/10000"
-      value: "max_element"
-    - op: "get"
-      path: "/items/10000"
-      expect: "max_element"
-    - op: "set"
-      path: "/items/10001"
-      value: "x"
-      expect_error: {"category": "DataError"}
-    - op: "set"
-      path: "/items/999999999"
-      value: "x"
-      expect_error: {"category": "DataError"}
-    - op: "set"
-      path: "/items/10001/name"
-      value: "x"
-      expect_error: {"category": "DataError"}
-    - op: "set"
-      path: "/newArray/10000000"
-      value: "x"
-      expect_error: {"category": "DataError"}
-    - op: "set"
-      path: "/newArray/10000000/field"
-      value: "x"
-      expect_error: {"category": "DataError"}
-
+    - op: set
+      path: /items/10000
+      value: max_element
+    - op: get
+      path: /items/10000
+      expect: max_element
+    - op: set
+      path: /items/10001
+      value: x
+      expect_error:
+        category: DataError
+    - op: set
+      path: /items/999999999
+      value: x
+      expect_error:
+        category: DataError
+    - op: set
+      path: /items/10001/name
+      value: x
+      expect_error:
+        category: DataError
+    - op: set
+      path: /newArray/10000000
+      value: x
+      expect_error:
+        category: DataError
+    - op: set
+      path: /newArray/10000000/field
+      value: x
+      expect_error:
+        category: DataError
 - name: test_data_model_rejects_leading_zero_list_index
-  description: >-
-    Leading-zero list indices (RFC 6901 §4) resolve to absent on read and raise
-    DataError on write.
+  description: Leading-zero list indices (RFC 6901 §4) resolve to absent on read and
+    raise DataError on write.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"items": ["a", "b", "c"]}
+  initial:
+    items:
+      - a
+      - b
+      - c
   steps:
-    - op: "get"
-      path: "/items/01"
+    - op: get
+      path: /items/01
       expect_absent: true
-    - op: "set"
-      path: "/items/01"
-      value: "value"
-      expect_error: {"category": "DataError", "message": "non-numeric segment"}
-    - op: "set"
-      path: "/items/01/nested"
-      value: "value"
-      expect_error: {"category": "DataError", "message": "non-numeric segment"}
-
+    - op: set
+      path: /items/01
+      value: value
+      expect_error:
+        category: DataError
+        message: non-numeric segment
+    - op: set
+      path: /items/01/nested
+      value: value
+      expect_error:
+        category: DataError
+        message: non-numeric segment
 - name: test_data_model_rejects_write_through_primitive_root
-  description: >-
-    Writing a child path when the root itself holds a primitive (including
+  description: Writing a child path when the root itself holds a primitive (including
     falsy primitives) raises DataError and leaves the root intact.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
   initial: {}
   steps:
-    - op: "set"
-      path: "/"
+    - op: set
+      path: /
       value: 1
-    - op: "set"
-      path: "/a"
+    - op: set
+      path: /a
       value: 2
-      expect_error: {"category": "DataError", "message": "Cannot set path"}
-    - op: "get"
-      path: "/"
+      expect_error:
+        category: DataError
+        message: Cannot set path
+    - op: get
+      path: /
       expect: 1
-    - op: "set"
-      path: "/"
+    - op: set
+      path: /
       value: false
-    - op: "set"
-      path: "/a"
+    - op: set
+      path: /a
       value: 2
-      expect_error: {"category": "DataError", "message": "Cannot set path"}
-    - op: "get"
-      path: "/"
+      expect_error:
+        category: DataError
+        message: Cannot set path
+    - op: get
+      path: /
       expect: false
-    - op: "set"
-      path: "/"
+    - op: set
+      path: /
       value: 0
-    - op: "set"
-      path: "/a"
+    - op: set
+      path: /a
       value: 2
-      expect_error: {"category": "DataError", "message": "Cannot set path"}
-    - op: "get"
-      path: "/"
+      expect_error:
+        category: DataError
+        message: Cannot set path
+    - op: get
+      path: /
       expect: 0
-    - op: "set"
-      path: "/"
+    - op: set
+      path: /
       value: ""
-    - op: "set"
-      path: "/a"
+    - op: set
+      path: /a
       value: 2
-      expect_error: {"category": "DataError", "message": "Cannot set path"}
-    - op: "get"
-      path: "/"
+      expect_error:
+        category: DataError
+        message: Cannot set path
+    - op: get
+      path: /
       expect: ""
-
 - name: test_data_model_set_through_null_placeholder_vivifies
-  description: >-
-    Writing through an explicit null value in an object or list replaces the
-    null slot with a container.
+  description: Writing through an explicit null value in an object or list replaces
+    the null slot with a container.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
-  initial: {"user": null, "counts": [null]}
+  initial:
+    user: null
+    counts:
+      - null
   steps:
-    - op: "set"
-      path: "/user/name"
-      value: "Bob"
-    - op: "set"
-      path: "/counts/0/total"
+    - op: set
+      path: /user/name
+      value: Bob
+    - op: set
+      path: /counts/0/total
       value: 1
-    - op: "get"
-      path: "/user/name"
-      expect: "Bob"
-    - op: "get"
-      path: "/counts/0/total"
+    - op: get
+      path: /user/name
+      expect: Bob
+    - op: get
+      path: /counts/0/total
       expect: 1
-
+  features:
+    - F-CORE-18
 - name: test_data_model_normalizes_empty_path_segments
-  description: >-
-    Multiple or trailing slashes in a path are collapsed into canonical
+  description: Multiple or trailing slashes in a path are collapsed into canonical
     segments on read, write, and watch.
   catalog:
-    protocolVersion: "v0.9"
+    protocolVersion: v0.9
   action: data_model
   initial: {}
-  watch: ["/a/b"]
+  watch:
+    - /a/b
   steps:
-    - op: "set"
-      path: "//a///b//"
-      value: "val"
-      expect_notified: ["/a/b"]
+    - op: set
+      path: //a///b//
+      value: val
+      expect_notified:
+        - /a/b
       expect_values:
-        "/a/b": "val"
-    - op: "get"
-      path: "/a/b"
-      expect: "val"
-    - op: "get"
-      path: "//a///b//"
-      expect: "val"
-    - op: "get"
-      path: "///"
-      expect: {"a": {"b": "val"}}
+        /a/b: val
+    - op: get
+      path: /a/b
+      expect: val
+    - op: get
+      path: //a///b//
+      expect: val
+    - op: get
+      path: ///
+      expect:
+        a:
+          b: val
 
 - name: test_data_model_set_defensive_copy_isolates_caller_mutation
   description: >-

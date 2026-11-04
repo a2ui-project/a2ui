@@ -286,6 +286,7 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['parse_response', 'web_core has no inference-format parser'],
   ['parse_chunk', 'web_core has no streaming inference parser'],
   ['stream_answer', 'streamed answers are agent-side only'],
+  ['renderer_state_turns', 'renderer state is agent-side only'],
   ['create_format', 'inference format factories are agent-side only'],
   ['create_processor', 'request processors are agent-side only'],
   ['transform_catalog', 'catalog transformers are agent-side only'],

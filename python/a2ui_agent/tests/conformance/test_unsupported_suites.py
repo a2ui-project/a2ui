@@ -53,6 +53,17 @@ ACTIVE_SUITES: frozenset[str] = frozenset({
 })
 
 UNSUPPORTED_SUITES: dict[str, str] = {
+    "agent/atom/compiler.yaml": (
+        "Atom experimental inference format compiler conformance is run on the"
+        " agent formats branch."
+    ),
+    "agent/elemental/compiler.yaml": (
+        "Elemental experimental inference format compiler conformance is run on"
+        " the agent formats branch."
+    ),
+    "agent/renderer_state.yaml": (
+        "Renderer state conformance is run on the agent RPC branch."
+    ),
     "agent/streamed_answer.yaml": (
         "streamed_answer covers the optional agent_renderer_app feature; the"
         " Python Agent SDK has no renderer and does not implement"

@@ -155,6 +155,14 @@ jobs:
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --corpus e2e \
             --harness ts-agent
+      - name: Check conformance feature coverage
+        run: |
+          uv run --project conformance python conformance/scripts/check_feature_coverage.py --static
+          for h in web_core ts-agent lit react angular web_core_universal; do
+            uv run --project conformance python conformance/scripts/check_feature_coverage.py \
+              --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+              --harness "$h"
+          done
       - name: Test React 18 Compatibility
         run: yarn workspace @a2ui/react run test:react18
       - name: Verify NPM Publish Script

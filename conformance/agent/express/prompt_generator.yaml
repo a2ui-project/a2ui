@@ -71,148 +71,185 @@
 # `args` hands the implementation.
 
 # --- What the catalog contributes ---
-
 - name: test_express_snippet_names_every_function_of_the_catalog
-  description: The snippet names each function of the active catalog alongside its components, since a function the model is not given is a function it cannot call. `required` is left out of the assertion because it is also a JSON Schema keyword, so asserting it would pass for any snippet that embeds the catalog document.
+  description: The snippet names each function of the active catalog alongside its
+    components, since a function the model is not given is a function it cannot call.
+    `required` is left out of the assertion because it is also a JSON Schema keyword,
+    so asserting it would pass for any snippet that embeds the catalog document.
   action: generate_prompt_snippet
   args:
     format: express
     catalogs:
-      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  expect_contains: ["formatString", "openUrl"]
-
+      - catalog: test_data/catalogs/simplified_catalog_v1_0.json
+  expect_contains:
+    - formatString
+    - openUrl
+  features:
+    - F-AGT-04
+    - F-AGT-21
 - name: test_express_snippet_omits_a_pruned_component
-  description: Pruning reads the same in Express as in direct JSON, since both snippets are written from the transformed catalog.
+  description: Pruning reads the same in Express as in direct JSON, since both snippets
+    are written from the transformed catalog.
   action: generate_prompt_snippet
   args:
     format: express
     catalogs:
-      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: test_data/catalogs/simplified_catalog_v1_0.json
         transformers:
-          - component_pruning: ["Text"]
-  expect_contains: ["Text("]
-  expect_absent: ["Button(", "Card(", "Column("]
-
+          - component_pruning:
+              - Text
+  expect_contains:
+    - Text(
+  expect_absent:
+    - Button(
+    - Card(
+    - Column(
 - name: test_express_snippet_omits_a_pruned_function
   description: A function a transformer removed never reaches the model either.
   action: generate_prompt_snippet
   args:
     format: express
     catalogs:
-      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: test_data/catalogs/simplified_catalog_v1_0.json
         transformers:
-          - function_pruning: ["formatString"]
-  expect_contains: ["formatString"]
-  expect_absent: ["openUrl"]
-
+          - function_pruning:
+              - formatString
+  expect_contains:
+    - formatString
+  expect_absent:
+    - openUrl
 - name: test_express_snippet_names_both_catalogs_and_their_ids
-  description: With two catalogs active the snippet names both sets of members and both catalog ids, so the model can say which catalog a component came from.
+  description: With two catalogs active the snippet names both sets of members and
+    both catalog ids, so the model can say which catalog a component came from.
   action: generate_prompt_snippet
   args:
     format: express
     catalogs:
-      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+      - catalog: test_data/catalogs/simplified_catalog_v1_0.json
+      - catalog: test_data/catalogs/custom_catalog_v1_0.json
   expect_contains:
-    - "conformance/simplified"
-    - "conformance/custom"
-    - "Text("
-    - "Column("
-    - "Chart("
-    - "Gauge("
-    - "openUrl"
-    - "percent"
-
+    - conformance/simplified
+    - conformance/custom
+    - Text(
+    - Column(
+    - Chart(
+    - Gauge(
+    - openUrl
+    - percent
+  features:
+    - F-AGT-05
 - name: test_express_snippet_with_two_catalogs_and_pruning
-  description: When multiple catalogs are active and transformed, each catalog section reflects its own component and function pruning rules.
+  description: When multiple catalogs are active and transformed, each catalog section
+    reflects its own component and function pruning rules.
   action: generate_prompt_snippet
   args:
     format: express
     catalogs:
-      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: test_data/catalogs/simplified_catalog_v1_0.json
         transformers:
-          - component_pruning: ["Text"]
-          - function_pruning: ["formatString"]
-      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+          - component_pruning:
+              - Text
+          - function_pruning:
+              - formatString
+      - catalog: test_data/catalogs/custom_catalog_v1_0.json
         transformers:
-          - component_pruning: ["Chart"]
+          - component_pruning:
+              - Chart
   expect_contains:
-    - "conformance/simplified"
-    - "conformance/custom"
-    - "Text("
-    - "formatString"
-    - "Chart("
-    - "percent"
+    - conformance/simplified
+    - conformance/custom
+    - Text(
+    - formatString
+    - Chart(
+    - percent
   expect_absent:
-    - "Button("
-    - "Card("
-    - "openUrl"
-    - "Gauge("
-
-# --- Examples ---
-
+    - Button(
+    - Card(
+    - openUrl
+    - Gauge(
+  features:
+    - F-AGT-05
 - name: test_express_snippet_renders_supplied_examples
-  description: An example is supplied as messages but has to reach the model in the notation it is being asked to write, so the Express snippet carries the decompiled Express of its payload rather than the messages themselves.
+  description: An example is supplied as messages but has to reach the model in the
+    notation it is being asked to write, so the Express snippet carries the decompiled
+    Express of its payload rather than the messages themselves.
   action: generate_prompt_snippet
   args:
     format: express
     catalogs:
-      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: test_data/catalogs/simplified_catalog_v1_0.json
     examples:
-      - "test_data/examples/greeting_surface.json"
+      - test_data/examples/greeting_surface.json
   expect_contains:
-    - 'surface("s1")'
-    - 'root = Text("Hello")'
-
+    - surface("s1")
+    - root = Text("Hello")
+  features:
+    - F-AGT-04
+    - F-AGT-50
 - name: test_express_snippet_renders_multi_catalog_examples
-  description: Examples spanning multiple active catalogs decompile using each example surface's respective catalog schema.
+  description: Examples spanning multiple active catalogs decompile using each example
+    surface's respective catalog schema.
   action: generate_prompt_snippet
   args:
     format: express
     catalogs:
-      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+      - catalog: test_data/catalogs/simplified_catalog_v1_0.json
+      - catalog: test_data/catalogs/custom_catalog_v1_0.json
     examples:
-      - "test_data/examples/greeting_surface.json"
-      - "test_data/examples/chart_series.json"
+      - test_data/examples/greeting_surface.json
+      - test_data/examples/chart_series.json
   expect_contains:
-    - 'surface("s1")'
-    - 'root = Text("Hello")'
-    - "root = Chart([1, 2, 3])"
-
+    - surface("s1")
+    - root = Text("Hello")
+    - root = Chart([1, 2, 3])
+  features:
+    - F-AGT-05
+    - F-AGT-50
 - name: test_express_snippet_without_examples_carries_no_example
-  description: The same catalog without examples carries none of the example payload. The whole statement is asserted absent rather than the bare name, since the signature block legitimately carries `Text(`.
+  description: The same catalog without examples carries none of the example payload.
+    The whole statement is asserted absent rather than the bare name, since the signature
+    block legitimately carries `Text(`.
   action: generate_prompt_snippet
   args:
     format: express
     catalogs:
-      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  expect_contains: ["Text("]
+      - catalog: test_data/catalogs/simplified_catalog_v1_0.json
+  expect_contains:
+    - Text(
   expect_absent:
-    - 'surface("s1")'
-    - 'root = Text("Hello")'
-
-# --- Format specifics ---
-
+    - surface("s1")
+    - root = Text("Hello")
+  features:
+    - F-AGT-50
 - name: test_express_snippet_names_its_sentinel_tag
-  description: An Express snippet uses the a2ui tags of the Express specification rather than the direct JSON ones.
+  description: An Express snippet uses the a2ui tags of the Express specification
+    rather than the direct JSON ones.
   action: generate_prompt_snippet
   args:
     format: express
     catalogs:
-      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  expect_contains: ["<a2ui>", "</a2ui>"]
-  expect_absent: ["<a2ui-json>"]
-
+      - catalog: test_data/catalogs/simplified_catalog_v1_0.json
+  expect_contains:
+    - <a2ui>
+    - </a2ui>
+  expect_absent:
+    - <a2ui-json>
 - name: test_express_snippet_describes_positional_signatures
-  description: An Express snippet gives each component as a call signature, because Express omits property keys and the model has to know the argument order.
+  description: An Express snippet gives each component as a call signature, because
+    Express omits property keys and the model has to know the argument order.
   action: generate_prompt_snippet
   args:
     format: express
     catalogs:
-      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  expect_contains: ["Text(", "Button(", "Card(", "Column("]
-
+      - catalog: test_data/catalogs/simplified_catalog_v1_0.json
+  expect_contains:
+    - Text(
+    - Button(
+    - Card(
+    - Column(
+  features:
+    - F-AGT-04
+    - F-AGT-21
 - name: test_express_snippet_teaches_event_user_message_from_v1_0
   description: From v1.0, Action.event carries an optional userMessage field, and the Express snippet teaches the userMessage= keyword argument on Event(...).
   action: generate_prompt_snippet
@@ -221,7 +258,9 @@
     catalogs:
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   expect_contains: ["Event(", "userMessage="]
-
+  features:
+    - F-AGT-04
+    - F-AGT-21
 - name: test_express_snippet_omits_event_user_message_before_v1_0
   description: Before v1.0, Action.event has only name and context and the Express compiler rejects userMessage=, so a v0.9 snippet does not tell the model to emit userMessage=.
   action: generate_prompt_snippet
@@ -231,71 +270,96 @@
       - catalog: "test_data/catalogs/list_item_action_catalog_v09.json"
   expect_contains: ["Event("]
   expect_absent: ["userMessage="]
-
+  features:
+    - F-AGT-04
+    - F-AGT-21
 - name: test_express_snippet_describes_only_the_allowed_envelopes
-  description: An allowlist of payload envelopes decides which of them the snippet describes, and Express describes an envelope by the statement that compiles to it.
+  description: An allowlist of payload envelopes decides which of them the snippet
+    describes, and Express describes an envelope by the statement that compiles to
+    it.
   action: generate_prompt_snippet
   args:
     format: express
     catalogs:
-      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-    allowed_messages: ["createSurface", "updateComponents"]
-  expect_contains: ["surface("]
-  expect_absent: ["deleteSurface("]
-
+      - catalog: test_data/catalogs/simplified_catalog_v1_0.json
+    allowed_messages:
+      - createSurface
+      - updateComponents
+  expect_contains:
+    - surface(
+  expect_absent:
+    - deleteSurface(
 - name: test_express_snippet_describes_only_deletion_when_only_deletion_is_allowed
-  description: With only `deleteSurface` allowed, the snippet teaches `deleteSurface(...)` and not `surface(...)`, which targets the surface that the other statements write to. The check is case sensitive, so `deleteSurface(` does not contain `surface(`.
+  description: With only `deleteSurface` allowed, the snippet teaches `deleteSurface(...)`
+    and not `surface(...)`, which targets the surface that the other statements write
+    to. The check is case sensitive, so `deleteSurface(` does not contain `surface(`.
   action: generate_prompt_snippet
   args:
     format: express
     catalogs:
-      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-    allowed_messages: ["deleteSurface"]
-  expect_contains: ["deleteSurface("]
-  expect_absent: ["surface("]
-
+      - catalog: test_data/catalogs/simplified_catalog_v1_0.json
+    allowed_messages:
+      - deleteSurface
+  expect_contains:
+    - deleteSurface(
+  expect_absent:
+    - surface(
 - name: test_express_snippet_describes_data_statements_when_only_data_is_allowed
-  description: With only `updateDataModel` allowed, the snippet still teaches `surface(...)` and data paths, since a data statement writes to a data path of the surface it targets, and it does not teach deletion.
+  description: With only `updateDataModel` allowed, the snippet still teaches `surface(...)`
+    and data paths, since a data statement writes to a data path of the surface it
+    targets, and it does not teach deletion.
   action: generate_prompt_snippet
   args:
     format: express
     catalogs:
-      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-    allowed_messages: ["updateDataModel"]
-  expect_contains: ["surface(", "$/"]
-  expect_absent: ["deleteSurface("]
-
+      - catalog: test_data/catalogs/simplified_catalog_v1_0.json
+    allowed_messages:
+      - updateDataModel
+  expect_contains:
+    - surface(
+    - $/
+  expect_absent:
+    - deleteSurface(
 - name: test_express_snippet_describes_every_envelope_without_an_allowlist
-  description: Without an allowlist the snippet describes the envelopes of its protocol version, so leaving the allowlist out is how an agent asks for all of them.
+  description: Without an allowlist the snippet describes the envelopes of its protocol
+    version, so leaving the allowlist out is how an agent asks for all of them.
   action: generate_prompt_snippet
   args:
     format: express
     catalogs:
-      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  expect_contains: ["surface(", "deleteSurface(", "$/"]
-
-# --- Determinism ---
-
+      - catalog: test_data/catalogs/simplified_catalog_v1_0.json
+  expect_contains:
+    - surface(
+    - deleteSurface(
+    - $/
 - name: test_express_snippet_is_deterministic
-  description: The Express snippet is stable across calls, including the order it lists two catalogs in and the rendering of an example, which is the part most likely to vary if a decompiler walks an unordered map.
+  description: The Express snippet is stable across calls, including the order it
+    lists two catalogs in and the rendering of an example, which is the part most
+    likely to vary if a decompiler walks an unordered map.
   action: generate_prompt_snippet
   args:
     format: express
     catalogs:
-      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+      - catalog: test_data/catalogs/simplified_catalog_v1_0.json
+      - catalog: test_data/catalogs/custom_catalog_v1_0.json
     examples:
-      - "test_data/examples/greeting_surface.json"
-  expect_contains: ["Text(", "Chart("]
+      - test_data/examples/greeting_surface.json
+  expect_contains:
+    - Text(
+    - Chart(
   expect_deterministic: true
-
-# --- Errors ---
-
+  features:
+    - F-AGT-04
+    - F-AGT-21
 - name: test_express_no_active_catalogs_is_an_error
-  description: Generating a snippet with no active catalogs fails, because there is no component the model could be told to write.
+  description: Generating a snippet with no active catalogs fails, because there is
+    no component the model could be told to write.
   action: generate_prompt_snippet
   args:
     format: express
     catalogs: []
   expect_error:
     category: CatalogError
+  features:
+    - F-AGT-11
+    - F-AGT-41

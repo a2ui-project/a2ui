@@ -371,3 +371,19 @@
                 - id: description
                   type: Text
                   text: We sent a confirmation email to ada@example.com. Check your inbox to confirm your subscription.
+  features:
+    - F-CORE-01
+    - F-CORE-17
+    - F-CORE-23
+    - F-CORE-32
+    - F-AGT-04
+    - F-AGT-07
+    - F-AGT-37
+    - F-AGT-39
+    - F-AGT-57
+    - F-AGT-59
+    - F-RND-01
+    - F-RND-05
+    - F-RND-06
+    - F-RND-09
+    - F-RND-16

@@ -346,3 +346,14 @@
                 - id: signedInDetail
                   type: Text
                   text: Signed in as ada@example.com.
+  features:
+    - F-CORE-01
+    - F-CORE-17
+    - F-CORE-23
+    - F-AGT-04
+    - F-AGT-07
+    - F-AGT-37
+    - F-AGT-57
+    - F-RND-01
+    - F-RND-05
+    - F-RND-06

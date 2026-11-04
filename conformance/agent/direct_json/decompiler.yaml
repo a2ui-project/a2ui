@@ -12,120 +12,102 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Direct JSON decompilation: writing A2UI messages back out as JSON.
-#
-# `decompile` is the inverse of `compile`. It exists so a prompt example can be
-# authored as messages and shown to a model in the notation the model is being
-# asked to produce. Every case below recompiles its own output and expects the
-# messages it started from, so a format that cannot round-trip an envelope fails
-# here rather than quietly teaching a model a spelling its own compiler rejects.
-#
-# This is the shortest suite in the tree for a reason: decompiling direct JSON
-# is serialization, and the round trip carries nearly all of the assertion. What
-# the payload means is fixed by `agent/direct_json/compiler.yaml`.
-#
-# A case asserts fragments through `expect_contains` rather than the whole
-# output, since indentation and key order are the implementation's as long as it
-# recompiles.
-#
-# The Express counterpart of this suite is `agent/express/decompiler.yaml`,
-# which is much longer: Express has a notation to get right, and direct JSON
-# does not.
-#
-# The catalogs under test live in `args`, and every case here is written against
-# v1.0. A case states no version of its own: the version it runs under is the
-# one its catalog document declares.
-
-# A round trip checks the recompiled block on its own, as `validate_payload`
-# does: a surface that the block updates without creating is assumed to exist.
-
 - name: test_decompile_json_messages
-  description: Messages are written back out as the JSON a model would have emitted, and compiling that returns them.
+  description: Messages are written back out as the JSON a model would have emitted,
+    and compiling that returns them.
   action: decompile
   args:
     format: direct_json
-    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    catalog: test_data/catalogs/simplified_catalog_v1_0.json
   messages:
     - version: "1.0"
       createSurface:
-        surfaceId: "s1"
-        catalogId: "conformance/simplified"
+        surfaceId: s1
+        catalogId: conformance/simplified
     - version: "1.0"
       updateComponents:
-        surfaceId: "s1"
+        surfaceId: s1
         components:
-          - id: "root"
-            component: "Text"
-            text: "Hello"
+          - id: root
+            component: Text
+            text: Hello
   expect_contains:
     - '"updateComponents"'
     - '"Hello"'
   expect_round_trip: true
-
+  features:
+    - F-AGT-19
 - name: test_decompile_json_update_data_model
-  description: A data model update writes back out with its path and value, so an example that changes state can be authored from messages.
+  description: A data model update writes back out with its path and value, so an
+    example that changes state can be authored from messages.
   action: decompile
   args:
     format: direct_json
-    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    catalog: test_data/catalogs/simplified_catalog_v1_0.json
   messages:
     - version: "1.0"
       updateDataModel:
-        surfaceId: "s1"
-        path: "/title"
-        value: "Hello"
+        surfaceId: s1
+        path: /title
+        value: Hello
   expect_contains:
     - '"updateDataModel"'
     - '"/title"'
   expect_round_trip: true
-
+  features:
+    - F-AGT-19
 - name: test_decompile_json_delete_surface
-  description: A surface deletion writes back out as its own message, which is the envelope most likely to be dropped by a decompiler that only walks components.
+  description: A surface deletion writes back out as its own message, which is the
+    envelope most likely to be dropped by a decompiler that only walks components.
   action: decompile
   args:
     format: direct_json
-    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    catalog: test_data/catalogs/simplified_catalog_v1_0.json
   messages:
     - version: "1.0"
       deleteSurface:
-        surfaceId: "s1"
+        surfaceId: s1
   expect_contains:
     - '"deleteSurface"'
     - '"s1"'
   expect_round_trip: true
-
+  features:
+    - F-AGT-19
 - name: test_decompile_json_two_surfaces_in_two_catalogs
-  description: Messages targeting two surfaces across two active catalogs round-trip cleanly when both catalogs are registered on the decompiler.
+  description: Messages targeting two surfaces across two active catalogs round-trip
+    cleanly when both catalogs are registered on the decompiler.
   action: decompile
   args:
     format: direct_json
     catalogs:
-      - "test_data/catalogs/simplified_catalog_v1_0.json"
-      - "test_data/catalogs/custom_catalog_v1_0.json"
+      - test_data/catalogs/simplified_catalog_v1_0.json
+      - test_data/catalogs/custom_catalog_v1_0.json
   messages:
     - version: "1.0"
       createSurface:
-        surfaceId: "s1"
-        catalogId: "conformance/simplified"
+        surfaceId: s1
+        catalogId: conformance/simplified
     - version: "1.0"
       updateComponents:
-        surfaceId: "s1"
+        surfaceId: s1
         components:
-          - id: "root"
-            component: "Text"
-            text: "Summary"
+          - id: root
+            component: Text
+            text: Summary
     - version: "1.0"
       createSurface:
-        surfaceId: "s2"
-        catalogId: "conformance/custom"
+        surfaceId: s2
+        catalogId: conformance/custom
     - version: "1.0"
       updateComponents:
-        surfaceId: "s2"
+        surfaceId: s2
         components:
-          - id: "root"
-            component: "Chart"
-            values: [1, 2]
-            caption: "Q1"
+          - id: root
+            component: Chart
+            values:
+              - 1
+              - 2
+            caption: Q1
   expect_contains:
     - '"conformance/simplified"'
     - '"conformance/custom"'

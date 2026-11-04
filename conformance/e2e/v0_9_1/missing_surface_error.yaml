@@ -87,3 +87,9 @@
       expectViewTree:
         missing: null
       expectOutbound: []
+  features:
+    - F-CORE-26
+    - F-AGT-04
+    - F-AGT-07
+    - F-AGT-58
+    - F-RND-01

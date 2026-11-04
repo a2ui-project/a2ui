@@ -141,6 +141,10 @@ def lower_case(case: dict[str, Any]) -> dict[str, Any] | None:
     lowered["protocolVersion"] = "v0.9"
     if "catalogPaths" in lowered:
         lowered["catalogPaths"] = ["specification/v0_9/catalogs/basic/catalog.json"]
+    if "features" in lowered and isinstance(lowered["features"], list):
+        for fid in ("F-RND-18", "F-BP-09"):
+            if fid not in lowered["features"]:
+                lowered["features"].append(fid)
 
     if "steps" in lowered:
         for step in lowered["steps"]:

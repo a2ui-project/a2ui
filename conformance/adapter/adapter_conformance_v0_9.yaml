@@ -83,6 +83,20 @@
                 type: Text
                 text: Learn More
       expectOutbound: []
+  features:
+    - F-RND-02
+    - F-RND-12
+    - F-RND-13
+    - F-RND-14
+    - F-BP-01
+    - F-BP-02
+    - F-BP-03
+    - F-BP-04
+    - F-BP-05
+    - F-BP-13
+    - F-BP-16
+    - F-RND-18
+    - F-BP-09
 - name: single_message_v10_surface_render
   description: Verifies that a single v1.0 createSurface message with inline components and dataModel renders immediately without follow-up messages.
   protocolVersion: v0.9
@@ -122,6 +136,14 @@
             text: Hello Inline v1.0
       expectDataModel:
         greeting: Hello Inline v1.0
+  features:
+    - F-RND-01
+    - F-RND-04
+    - F-BP-02
+    - F-BP-14
+    - F-BP-16
+    - F-RND-18
+    - F-BP-09
 - name: progressive_arrival_placeholder_upgrade_in_place
   description: Verifies that a pending child renders a non-crashing placeholder and upgrades in place when its definition arrives without remounting the parent container.
   protocolVersion: v0.9
@@ -167,6 +189,13 @@
             text: Arrived Safely
       expectSameViewIdentity:
         - root
+  features:
+    - F-RND-01
+    - F-RND-17
+    - F-BP-03
+    - F-BP-16
+    - F-RND-18
+    - F-BP-09
 - name: two_way_binding_control_write_updates_dependents
   description: Verifies that user input on a TextField with a writable @path binding mutates the DataModel and reactively updates dependent Text components.
   protocolVersion: v0.9
@@ -229,6 +258,14 @@
           - id: preview_text
             type: Text
             text: Grace
+  features:
+    - F-RND-04
+    - F-RND-05
+    - F-RND-14
+    - F-BP-05
+    - F-BP-16
+    - F-RND-18
+    - F-BP-09
 - name: action_execution_event_vs_local_function_call
   description: Verifies that an event action dispatches an outbound action event with resolved context, whereas a local functionCall action executes locally without emitting an outbound action event.
   protocolVersion: v0.9
@@ -309,6 +346,13 @@
       expectDataModel:
         itemId: sku-42
         counter: 15
+  features:
+    - F-RND-06
+    - F-RND-07
+    - F-BP-06
+    - F-BP-16
+    - F-RND-18
+    - F-BP-09
 - name: accessibility_attributes_and_implicit_label_override
   description: Verifies that explicit AccessibilityAttributes (label, description, live, hidden) and implicit child text label inference are applied and override correctly.
   protocolVersion: v0.9
@@ -376,6 +420,12 @@
           live: polite
         hidden_note:
           hidden: true
+  features:
+    - F-RND-15
+    - F-BP-07
+    - F-BP-16
+    - F-RND-18
+    - F-BP-09
 - name: fallback_states_unknown_type_and_cyclic_diagnostics
   description: Verifies that unknown component types and same-scope cyclic references render safe fallback placeholders and emit UNKNOWN_COMPONENT_TYPE and CYCLIC_REFERENCE diagnostics on surface.onError.
   protocolVersion: v0.9
@@ -434,6 +484,12 @@
             surfaceId: adapter_surface
             message:
               $match: any
+  features:
+    - F-RND-17
+    - F-BP-03
+    - F-BP-16
+    - F-RND-18
+    - F-BP-09
 - name: teardown_unmount_releases_subscriptions
   description: Verifies that unmounting the surface view disposes its NodeResolver and releases all active reactive subscriptions on the SurfaceModel and DataModel.
   protocolVersion: v0.9
@@ -473,6 +529,12 @@
             text: Mounted
     - op: unmount_surface
       expectActiveSubscriptions: 0
+  features:
+    - F-RND-21
+    - F-BP-08
+    - F-BP-16
+    - F-RND-18
+    - F-BP-09
 - name: delete_surface_unmounts_view
   description: Verifies that processing a deleteSurface message removes the surface from the group, unmounts the rendered view, and releases all active reactive subscriptions.
   protocolVersion: v0.9
@@ -517,6 +579,12 @@
             surfaceId: adapter_surface
       expectSurfaceRemoved: true
       expectActiveSubscriptions: 0
+  features:
+    - F-RND-01
+    - F-RND-21
+    - F-BP-08
+    - F-RND-18
+    - F-BP-09
 - name: type_change_under_same_id_resets_view_state
   description: Verifies that replacing a component with a different type under the same id creates a new view identity rather than reusing the prior component's stateful view.
   protocolVersion: v0.9
@@ -578,6 +646,12 @@
           - id: field
             type: Text
             text: Now a static label
+  features:
+    - F-RND-01
+    - F-RND-21
+    - F-BP-08
+    - F-RND-18
+    - F-BP-09
 - name: removed_components_release_subscriptions
   description: Verifies that when a parent component removes a child from its children list, the unreferenced child node is disposed and releases its data model subscriptions.
   protocolVersion: v0.9
@@ -644,6 +718,12 @@
           - id: kept_child
             type: Text
             text: Kept
+  features:
+    - F-RND-01
+    - F-RND-21
+    - F-BP-08
+    - F-RND-18
+    - F-BP-09
 - name: two_way_binding_inputs_checkbox_choice_slider_datetime
   description: Verifies that user_input on CheckBox, ChoicePicker, Slider, and DateTimeInput writes back to bound @path entries in DataModel and updates dependent views.
   protocolVersion: v0.9
@@ -857,6 +937,12 @@
           - id: summary_text
             type: Text
             text: agreed=true choice=["opt_b"] level=42 when=2025-01-31T09:30:00
+  features:
+    - F-RND-05
+    - F-RND-14
+    - F-BP-05
+    - F-RND-18
+    - F-BP-09
 - name: media_components_bind_url_and_name
   description:
     "Verifies that Image, Video, AudioPlayer, and Icon resolve bound and literal url and name properties and update when the data model changes.
@@ -949,6 +1035,12 @@
           - id: status_icon
             type: Icon
             name: check
+  features:
+    - F-RND-04
+    - F-RND-13
+    - F-BP-05
+    - F-RND-18
+    - F-BP-09
 - name: tabs_switch_content
   description:
     "Verifies that Tabs initially renders the first tab's child component and switches to the selected tab's child component on user_input.
@@ -999,6 +1091,11 @@
           - id: tab_two_text
             type: Text
             text: Second tab content
+  features:
+    - F-RND-12
+    - F-BP-04
+    - F-RND-18
+    - F-BP-09
 - name: modal_open_shows_content
   description:
     "Verifies that Modal initially mounts its trigger child and mounts its content child once the trigger is activated via user_gesture.
@@ -1065,6 +1162,11 @@
           - id: modal_body
             type: Text
             text: Modal dialog content
+  features:
+    - F-RND-12
+    - F-BP-04
+    - F-RND-18
+    - F-BP-09
 - name: divider_and_slider_datetime_render
   description:
     "Verifies that Divider renders its axis property alongside bound Slider and DateTimeInput components.
@@ -1128,3 +1230,8 @@
           - id: dt_input
             type: DateTimeInput
             value: "2025-06-15"
+  features:
+    - F-RND-12
+    - F-RND-14
+    - F-RND-18
+    - F-BP-09

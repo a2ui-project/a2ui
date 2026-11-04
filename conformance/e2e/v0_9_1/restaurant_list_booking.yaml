@@ -610,3 +610,15 @@
                 - id: confirmedDetails
                   type: Text
                   text: Your table for 4 at Osteria Bella on 2026-05-15T19:30:00Z is booked.
+  features:
+    - F-CORE-01
+    - F-CORE-13
+    - F-CORE-15
+    - F-CORE-23
+    - F-AGT-04
+    - F-AGT-07
+    - F-AGT-37
+    - F-AGT-57
+    - F-RND-01
+    - F-RND-03
+    - F-RND-06

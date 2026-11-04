@@ -37,6 +37,7 @@ _SUITE = "agent/inbound_messages.yaml"
 _CASE_KEYS = frozenset({
     "name",
     "description",
+    "features",
     "action",
     "args",
     "expect",
