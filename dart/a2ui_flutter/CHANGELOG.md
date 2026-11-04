@@ -16,6 +16,8 @@
 
 # [a2ui_flutter](https://pub.dev/packages/a2ui_flutter) Changelog
 
+## Unreleased
+
 ## 0.1.0
 
 - Requires `a2ui_core` `^0.5.0`.

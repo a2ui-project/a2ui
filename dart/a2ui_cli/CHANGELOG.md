@@ -1,5 +1,7 @@
 # [a2ui_cli](https://pub.dev/packages/a2ui_cli) Changelog
 
+## Unreleased
+
 ## 0.2.0
 
 - **Breaking:** Bump `a2ui_core` dependency to `^0.5.0` (`a2ui_cli` exposes

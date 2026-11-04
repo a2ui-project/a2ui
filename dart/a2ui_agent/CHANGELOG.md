@@ -1,5 +1,7 @@
 # [a2ui_agent](https://pub.dev/packages/a2ui_agent) Changelog
 
+## Unreleased
+
 ## 0.1.0
 
 - Remove `(Agent to UI)` from the embedded v0.9 `server_to_client.json` and v1.0
