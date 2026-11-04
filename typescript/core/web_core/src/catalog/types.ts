@@ -27,7 +27,7 @@ import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.
 import {assertUax31Identifier} from '../common/uax31.js';
 import {SpecVersion} from '../spec_versions.js';
 import {AgentFunction, isAgentFunction} from './agent_function.js';
-import {isZodSchema, parseCatalogSchema} from './schema_loader.js';
+import {functionParameterNames, isZodSchema, parseCatalogSchema} from './schema_loader.js';
 import type {JsonSchemaObject} from './spec_annotations.js';
 import {generateValidationSchema} from './schema_generator.js';
 import {
@@ -939,6 +939,13 @@ export class Catalog<
         const argNames = new Set([
           ...getDeclaredSchemaKeys(agentFn.schema),
           ...(agentFn.declaredParameterNames ?? []),
+          // A JSON Schema `schema` may refer to the catalog's own `$defs`.
+          ...(agentFn.jsonSchema !== undefined && options.defs !== undefined
+            ? functionParameterNames(agentFn.jsonSchema, {
+                $defs: options.defs,
+                ...agentFn.jsonSchema,
+              })
+            : []),
         ]);
         for (const argName of argNames) {
           assertUax31Identifier(argName, `argument identifier: '${argName}' in function '${name}'`);

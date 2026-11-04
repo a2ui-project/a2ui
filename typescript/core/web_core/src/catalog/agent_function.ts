@@ -159,6 +159,11 @@ export class AgentFunction<
    * which a v1.0 catalog checks against UAX #31 with those of the Zod schema.
    */
   readonly declaredParameterNames?: ReadonlyArray<string>;
+  /**
+   * @internal The JSON Schema `schema` the function was built with, if any,
+   * so `withHandler` and a catalog's `$defs` can read it as written.
+   */
+  readonly jsonSchema?: Readonly<Record<string, unknown>>;
 
   /**
    * Initializes a new `rendererOnly` agent function.
@@ -175,7 +180,9 @@ export class AgentFunction<
     this.returnType = init.returnType ?? 'any';
     this.schema = resolveAgentFunctionSchema(init.schema);
     if (init.schema !== undefined && !isZodSchema(init.schema)) {
-      this.declaredParameterNames = functionParameterNames(init.schema);
+      this.jsonSchema = init.schema;
+      // `init.schema` is also the document its local `#/$defs/...` resolve in.
+      this.declaredParameterNames = functionParameterNames(init.schema, init.schema);
     }
     this.handler = init.handler;
     this.explicitAllowedCallers = fromApi?.allowedCallers;
@@ -258,7 +265,7 @@ export class AgentFunction<
     return new AgentFunction<any, any>({
       name: this.name,
       returnType: this.returnType,
-      schema: this.schema,
+      schema: this.jsonSchema ?? this.schema,
       handler: handler as AgentFunctionHandler<any, any>,
       requiresUserActivation: this.explicitRequiresUserActivation,
       description: this.description,
@@ -280,7 +287,7 @@ function resolveAgentFunctionSchema(
       return z.record(z.unknown());
     }
     // A v1.0 catalog checks the parameter names when the function is added.
-    return convertFunctionArgsJsonSchemaToZod(schema);
+    return convertFunctionArgsJsonSchemaToZod(schema, schema);
   }
   return z.record(z.unknown());
 }

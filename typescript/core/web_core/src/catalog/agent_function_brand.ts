@@ -34,6 +34,6 @@ export function isAgentFunction(value: unknown): value is AgentFunction {
     typeof value === 'object' &&
     value !== null &&
     (value as Record<symbol, unknown>)[AGENT_FUNCTION_BRAND] === true &&
-    typeof (value as {handler?: unknown}).handler === 'function'
+    typeof (value as Partial<AgentFunction>).handler === 'function'
   );
 }

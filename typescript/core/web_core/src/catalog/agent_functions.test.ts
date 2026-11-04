@@ -564,6 +564,35 @@ describe('Catalog.agentFunctions', () => {
     );
   });
 
+  it("follows a JSON Schema's own $defs, also after withHandler", () => {
+    const empty = new Catalog('c', '1.0', [], []);
+    const fn = new AgentFunction({
+      name: 'f',
+      schema: {$defs: {Bad: {properties: {'a-b': {type: 'string'}}}}, $ref: '#/$defs/Bad'},
+      handler: () => 1,
+    });
+    const isUaxError = (err: unknown) =>
+      err instanceof A2uiCatalogError && err.message.includes("'a-b'");
+
+    for (const candidate of [fn, fn.withHandler(() => 2)]) {
+      assert.throws(() => empty.copyWith({agentFunctions: [candidate]}), isUaxError);
+      assert.throws(() => new Catalog('c', '1.0', [], [candidate]), isUaxError);
+    }
+  });
+
+  it("follows a JSON Schema's reference to the catalog's $defs", () => {
+    const withDefs = new Catalog('c', '1.0', [], [], {
+      defs: {Bad: {properties: {'a-b': {type: 'string'}}}},
+    });
+    const fn = new AgentFunction({name: 'f', schema: {$ref: '#/$defs/Bad'}, handler: () => 1});
+
+    assert.throws(
+      () => withDefs.copyWith({agentFunctions: [fn]}),
+      (err: unknown) => err instanceof A2uiCatalogError && err.message.includes("'a-b'"),
+    );
+    assert.doesNotThrow(() => new Catalog('c', '1.0', [], []).copyWith({agentFunctions: [fn]}));
+  });
+
   it('keeps the agent functions in functions when copyWith also gets agentFunctions', () => {
     const local: FunctionApi = {name: 'formatRate', returnType: 'string', schema: FX_RATE_SCHEMA};
     const kept = fetchFxRate();
