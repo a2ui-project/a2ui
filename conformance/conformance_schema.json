@@ -2497,9 +2497,13 @@
       "oneOf": [{"required": ["expect_valid"]}, {"required": ["expect_error"]}],
       "additionalProperties": false
     },
+    "RendererMessageKind": {
+      "description": "A renderer-to-agent message that goes to a callback.",
+      "enum": ["action", "error", "rendererFunctionResponse"]
+    },
     "ProcessRendererMessageTest": {
       "type": "object",
-      "description": "Processing one renderer-to-agent message with RendererToAgentMessageProcessor, built from the agent functions of `catalog` (or no catalog) and the callbacks named in `callbacks`.",
+      "description": "Processing one renderer-to-agent message with RendererToAgentMessageProcessor, built from the agent functions of `catalog` or `catalogs` (or no catalog) and the callbacks named in `callbacks`.",
       "properties": {
         "name": {"type": "string"},
         "description": {"type": "string"},
@@ -2508,17 +2512,36 @@
           "type": "object",
           "properties": {
             "catalog": {"$ref": "#/$defs/AgentFunctionCatalog"},
+            "catalogs": {
+              "type": "array",
+              "description": "The catalogs, in place of `catalog`, for a case that needs more than one.",
+              "items": {"$ref": "#/$defs/AgentFunctionCatalog"},
+              "minItems": 1
+            },
             "callbacks": {
               "type": "array",
-              "description": "The callbacks the processor has: on_action, on_error and on_renderer_function_response. Each records the message it receives.",
-              "items": {"enum": ["action", "error", "rendererFunctionResponse"]},
-              "uniqueItems": true
+              "description": "The callbacks the processor has: on_action, on_error and on_renderer_function_response. Each records the message it receives. A kind on its own handles the message; `{kind, declines: true}` declines it (returns false).",
+              "items": {
+                "oneOf": [
+                  {"$ref": "#/$defs/RendererMessageKind"},
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {"$ref": "#/$defs/RendererMessageKind"},
+                      "declines": {"const": true}
+                    },
+                    "required": ["kind", "declines"],
+                    "additionalProperties": false
+                  }
+                ]
+              }
             },
             "message": {
               "description": "The message, as received. It may be malformed or not an object."
             }
           },
           "required": ["message"],
+          "not": {"required": ["catalog", "catalogs"]},
           "additionalProperties": false
         },
         "expect": {
@@ -2532,9 +2555,9 @@
             },
             "callback": {
               "type": "object",
-              "description": "The one callback that ran, and the message it received, serialized. Absent means no callback ran.",
+              "description": "The one callback that ran (whether it handled or declined the message), and the message it received, serialized. Absent means no callback ran.",
               "properties": {
-                "kind": {"enum": ["action", "error", "rendererFunctionResponse"]},
+                "kind": {"$ref": "#/$defs/RendererMessageKind"},
                 "message": {"type": "object"}
               },
               "required": ["kind", "message"],
@@ -2546,7 +2569,7 @@
         },
         "expect_error": {
           "$ref": "#/$defs/ExpectError",
-          "description": "Processing the message fails, and no callback runs."
+          "description": "Building the processor or processing the message fails, and no callback runs."
         }
       },
       "required": ["name", "action", "args"],
