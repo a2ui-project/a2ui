@@ -7,9 +7,9 @@ For PRs, see [Triage a PR](triage.md#triage-a-pr).
 **Case**: AI-generated compliance report issues, such as
 [Weekly A2UI Compliance Report](https://github.com/a2ui-project/a2ui/issues/2025).
 
-**Triage**: close.
+**Triage**: close as not planned.
 
-As agreed, this has been assigned a P3 priority: we need better workflow to make it easier to follow up on the findings.
+As agreed, we are closing this report: we need a better workflow to make it easier to follow up on the findings.
 
 ## Assigned issue without a priority
 

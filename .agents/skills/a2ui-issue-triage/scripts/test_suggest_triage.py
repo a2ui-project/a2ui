@@ -327,11 +327,11 @@ class TestSuggestTriage(unittest.TestCase):
         written_data = "".join([call[0][0] for call in handle.write.call_args_list])
         parsed_output = json.loads(written_data)
 
-        # Assigned compliance report should keep P3 and backlog
+        # An assigned compliance report is still closed, not given P2
         suggestions = parsed_output["issues"][0]["suggestions"]
         self.assertEqual(suggestions["assignee"], "Varun-S10")
-        self.assertEqual(suggestions["priority"], "P3")
-        self.assertEqual(suggestions["action"], "backlog")
+        self.assertEqual(suggestions["priority"], "None")
+        self.assertEqual(suggestions["action"], "close_invalid")
 
 
 if __name__ == "__main__":

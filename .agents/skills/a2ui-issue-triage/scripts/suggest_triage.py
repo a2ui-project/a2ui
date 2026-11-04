@@ -149,12 +149,11 @@ def guess_triage_heuristics(title, body):
     # Special Case: Weekly A2UI Compliance Report
     if "weekly a2ui compliance report" in text:
         labels.append("type: documentation")
-        priority = "P3"
-        action = "backlog"
+        priority = "None"
+        action = "close_invalid"
         reply = (
-            "As agreed, this has been assigned a P3 priority. Once the current"
-            " triage queue is cleared, we will begin reviewing AI-generated"
-            " issues."
+            "As agreed, we are closing this report: we need a better workflow to"
+            " make it easier to follow up on the findings."
         )
         return {
             "priority": priority,

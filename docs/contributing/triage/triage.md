@@ -18,7 +18,7 @@ See [list of labels used in triage](labels.md).
 
 For each issue that is [not first-line-handled][not-first-line-handled]:
 
-- If it is P0, add the label `P0` and notify [the team chat][team-chat].
+- If it is P0, add the label `P0`.
 - Add the label `status: first-line-handled`.
 
 ## Second line triage (weekly, by triager)
@@ -99,4 +99,3 @@ What may help:
 [assigned-for-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20assigned-for-triage%22
 [waiting-for-author-response]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20waiting-for-author-response%22
 [size-small]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22size%3A%20small%22
-[team-chat]: https://chat.google.com/room/AAQAvhq57Zo
