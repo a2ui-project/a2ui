@@ -15,6 +15,7 @@
 import asyncio
 from collections.abc import Callable, Mapping
 import contextlib
+import copy
 import glob
 import json
 import os
@@ -136,15 +137,6 @@ EXPECTED_FAILURES: dict[str, str] = {
     "core/validator_v0_8.yaml#test_v08_topology_plain_string_property_does_not_close_cycle": (
         "Python core v0.8 topology checks read a string property as a child"
         " reference when it names a component on the surface."
-    ),
-    "core/rpc_functions.yaml#test_rpc_ui_binding_triggers_call_agent_function_async_resolution": (
-        "Python DataContext does not route undeclared component binding"
-        " function calls through MessageProcessor.call_agent_function."
-    ),
-    "core/rpc_functions.yaml#test_rpc_ui_action_missing_local_function_fallback_to_agent": (
-        "Python DataContext.resolve_action does not fall back to"
-        " MessageProcessor.call_agent_function when a function is not"
-        " registered locally."
     ),
 }
 
@@ -316,8 +308,13 @@ def _build_inline_catalog(
     c_theme = spec.get("theme")
     c_funcs = spec.get("functions")
     if c_comps or c_theme or c_funcs:
-        c_schema: dict[str, Any] = {"catalogId": c_id}
-        if forbid_unlisted_functions and not c_funcs:
+        c_schema: dict[str, Any] = {}
+        if "$schema" in spec:
+            c_schema["$schema"] = spec["$schema"]
+        if "protocolVersion" in spec:
+            c_schema["protocolVersion"] = spec["protocolVersion"]
+        c_schema["catalogId"] = c_id
+        if forbid_unlisted_functions and not c_funcs and "$defs" not in spec:
             c_schema["$defs"] = {"anyFunction": {"not": {}}}
         if c_comps:
             c_schema["components"] = c_comps
@@ -325,6 +322,8 @@ def _build_inline_catalog(
             c_schema["theme"] = c_theme
         if c_funcs:
             c_schema["functions"] = c_funcs
+        if "$defs" in spec:
+            c_schema["$defs"] = spec["$defs"]
         return Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
     is_cap = action in ("get_client_capabilities", "get_renderer_capabilities")
     default_comps = [] if is_cap else list(basic_catalog.components.values())
@@ -2254,6 +2253,15 @@ _DATA_MODEL_STEP_KEYS_BY_OP: dict[str, frozenset[str]] = {
         "expect_notified",
         "expect_values",
     }),
+    "mutate_input": frozenset({
+        "op",
+        "path",
+        "value",
+        "expect_error",
+        "expectError",
+        "expect_notified",
+        "expect_values",
+    }),
 }
 
 
@@ -2305,6 +2313,7 @@ def validate_data_model_case(case: dict[str, Any]) -> None:
 
     steps = case.get("steps") or []
     assert steps or "expect" in case, "data_model case requires 'steps' or 'expect'"
+    input_state: dict[str, Any] = {"last_set_value": None}
     for idx, step in enumerate(steps):
         op = step.get("op")
         allowed_step_keys = _DATA_MODEL_STEP_KEYS_BY_OP.get(str(op))
@@ -2317,10 +2326,10 @@ def validate_data_model_case(case: dict[str, Any]) -> None:
         expect_err = step.get("expect_error") or step.get("expectError")
         if expect_err:
             with assert_raises(expect_err):
-                _apply_data_model_op(model, step)
+                _apply_data_model_op(model, step, input_state)
             continue
 
-        _apply_data_model_op(model, step)
+        _apply_data_model_op(model, step, input_state)
         _assert_data_model_observer_expectations(idx, step, observers)
 
     if "expect" in case:
@@ -2363,13 +2372,39 @@ def _apply_data_model_get(model: Any, step: dict[str, Any]) -> None:
         )
 
 
-def _apply_data_model_op(model: Any, step: dict[str, Any]) -> None:
+def _mutate_in_place(target: Any, path: str, value: Any) -> None:
+    tokens = [t.replace("~1", "/").replace("~0", "~") for t in path.split("/") if t]
+    if not tokens or target is None:
+        return
+    curr = target
+    for token in tokens[:-1]:
+        curr = curr[int(token)] if isinstance(curr, list) else curr[token]
+    last = tokens[-1]
+    if isinstance(curr, list):
+        curr[int(last)] = value
+    elif isinstance(curr, dict):
+        curr[last] = value
+
+
+def _apply_data_model_op(
+    model: Any,
+    step: dict[str, Any],
+    input_state: dict[str, Any] | None = None,
+) -> None:
     op = step.get("op")
     step_path = step.get("path", "")
     if op == "get":
         _apply_data_model_get(model, step)
     elif op == "set":
-        model.set(step_path, step.get("value"))
+        caller_value = copy.deepcopy(step.get("value"))
+        if input_state is not None:
+            input_state["last_set_value"] = caller_value
+        model.set(step_path, caller_value)
+    elif op == "mutate_input":
+        if input_state is not None:
+            _mutate_in_place(
+                input_state.get("last_set_value"), step_path, step.get("value")
+            )
     elif op == "delete":
         model.set(step_path, None)
     elif op == "dispose":
@@ -2440,14 +2475,16 @@ _HANDLE_RPC_CASE_KEYS: frozenset[str] = _CASE_METADATA_KEYS | frozenset({
     "protocolVersion",
 })
 _HANDLE_RPC_ARGS_KEYS: frozenset[str] = frozenset({
+    "afterCall",
     "catalogId",
     "catalogVersion",
     "dataModel",
-    "disposeBeforeResponse",
     "functionMetadata",
     "inboundResponse",
+    "lateInboundResponse",
     "message",
     "outboundCall",
+    "outboundListener",
     "secondOutboundCall",
     "surfaceId",
     "uiActionFallbackScenario",
@@ -2456,23 +2493,35 @@ _HANDLE_RPC_ARGS_KEYS: frozenset[str] = frozenset({
 })
 _HANDLE_RPC_EXPECT_KEYS: frozenset[str] = frozenset({
     "correlatedCallId",
+    "dataModel",
     "error",
+    "inFlightError",
     "initialValue",
+    "lateResponseIgnored",
     "outboundCall",
     "resolvedValue",
     "response",
     "result",
+    "siblings",
+    "surfaceError",
+    "validationResult",
 })
 _UI_BINDING_SCENARIO_KEYS: frozenset[str] = frozenset({
     "catalogId",
     "component",
+    "components",
+    "inboundResponseError",
     "inboundResponseValue",
+    "localFunctions",
+    "observe",
     "surfaceId",
 })
 _UI_ACTION_FALLBACK_SCENARIO_KEYS: frozenset[str] = frozenset({
     "actionPayload",
     "catalogId",
+    "inboundResponseError",
     "inboundResponseValue",
+    "localFunctions",
     "surfaceId",
 })
 
@@ -2557,18 +2606,44 @@ def _run_rpc_outbound_success(
     assert fut.result() == expect_dict.get("result")
 
 
+def _assert_late_response_ignored(
+    args: dict[str, Any],
+    expect_dict: dict[str, Any],
+    processor: MessageProcessor,
+    outbound_messages: list[dict[str, Any]],
+    captured_renderer_errors: list[dict[str, Any]],
+) -> None:
+    late_resp = args.get("lateInboundResponse")
+    if not late_resp:
+        return
+    before_outbound = len(outbound_messages)
+    before_errors = len(captured_renderer_errors)
+    processor.process_messages(late_resp)
+    if expect_dict.get("lateResponseIgnored"):
+        assert len(outbound_messages) == before_outbound
+        assert len(captured_renderer_errors) == before_errors
+        assert not processor.rpc._pending_agent_calls
+
+
 def _run_rpc_outbound_error(
     args: dict[str, Any],
     outbound_call: dict[str, Any],
     inbound_response: Any,
     expected_err: dict[str, Any],
+    expect_dict: dict[str, Any],
     processor: MessageProcessor,
+    outbound_messages: list[dict[str, Any]],
+    captured_renderer_errors: list[dict[str, Any]],
 ) -> None:
     import asyncio
 
     from a2ui.core.exceptions import A2uiRpcError
 
-    if "secondOutboundCall" in args:
+    if args.get("outboundListener") is False:
+        with pytest.raises(A2uiRpcError) as exc_info:
+            _start_rpc_outbound_call(processor, outbound_call)
+        assert exc_info.value.code == expected_err.get("code", "NO_LISTENER")
+    elif "secondOutboundCall" in args:
 
         async def _expect_duplicate() -> None:
             pending = _start_rpc_outbound_call(processor, outbound_call)
@@ -2591,23 +2666,52 @@ def _run_rpc_outbound_error(
                 assert expected_err["message"] in str(exc_info.value)
 
         asyncio.run(_expect_inbound_error())
-    elif args.get("disposeBeforeResponse"):
+    elif args.get("afterCall") == "cancel":
 
         async def _expect_cancelled() -> None:
             pending = _start_rpc_outbound_call(processor, outbound_call)
-            processor.rpc.dispose()
-            with pytest.raises((A2uiRpcError, asyncio.CancelledError)) as exc_info:
+            processor.rpc.cancel_surface_calls(outbound_call.get("surfaceId"))
+            with pytest.raises(A2uiRpcError) as exc_info:
                 await pending
-            if isinstance(exc_info.value, A2uiRpcError) and "code" in expected_err:
-                assert exc_info.value.code == expected_err["code"]
+            assert exc_info.value.code == expected_err.get("code", "CANCELLED")
 
         asyncio.run(_expect_cancelled())
+    elif args.get("afterCall") == "dispose":
+
+        async def _expect_disposed() -> None:
+            pending = _start_rpc_outbound_call(processor, outbound_call)
+            processor.rpc.dispose()
+            with pytest.raises(A2uiRpcError) as in_flight_exc:
+                await pending
+            expected_in_flight = (expect_dict.get("inFlightError") or {}).get(
+                "code", "CANCELLED"
+            )
+            assert in_flight_exc.value.code == expected_in_flight
+            with pytest.raises(A2uiRpcError) as exc_info:
+                _start_rpc_outbound_call(processor, outbound_call)
+            assert exc_info.value.code == expected_err.get("code", "DISPOSED")
+            _assert_late_response_ignored(
+                args,
+                expect_dict,
+                processor,
+                outbound_messages,
+                captured_renderer_errors,
+            )
+
+        asyncio.run(_expect_disposed())
     elif "timeoutMs" in outbound_call:
 
         async def _expect_timeout() -> None:
             with pytest.raises(A2uiRpcError) as exc_info:
                 await _start_rpc_outbound_call(processor, outbound_call)
             assert exc_info.value.code == expected_err.get("code", "TIMEOUT")
+            _assert_late_response_ignored(
+                args,
+                expect_dict,
+                processor,
+                outbound_messages,
+                captured_renderer_errors,
+            )
 
         asyncio.run(_expect_timeout())
     else:
@@ -2632,12 +2736,91 @@ def _assert_outbound_call_agent_message(
     return call_id
 
 
+def _build_scenario_local_functions(
+    local_funcs_spec: dict[str, Any] | None,
+) -> list[Any]:
+    from a2ui.core.catalog import FunctionImplementation
+
+    if not isinstance(local_funcs_spec, dict):
+        return []
+    funcs: list[FunctionImplementation[Any]] = []
+    for fn_name, spec in local_funcs_spec.items():
+        ret_type = spec.get("returnType", "any")
+        set_data = (spec.get("effect") or {}).get("setData")
+
+        def _make_exec(sd: dict[str, Any] | None) -> Callable[..., Any]:
+            def _exec(
+                _args: dict[str, Any], ctx: DataContext, _abort: Any = None
+            ) -> Any:
+                if isinstance(sd, dict) and isinstance(sd.get("path"), str):
+                    ctx.set(sd["path"], sd.get("value"))
+                return None
+
+            return _exec
+
+        funcs.append(
+            FunctionImplementation(
+                name=fn_name,
+                return_type=ret_type,
+                schema={"type": "object"},
+                execute=_make_exec(set_data),
+            )
+        )
+    return funcs
+
+
+def _find_node_by_id(node: Any, component_id: str) -> Any:
+    from a2ui.core.resolution import is_component_node
+
+    if node is None:
+        return None
+    if is_component_node(node) and node.component_id == component_id:
+        return node
+    if is_component_node(node):
+        for val in node.props.values():
+            found = _find_node_by_id(val, component_id)
+            if found is not None:
+                return found
+    elif isinstance(node, list):
+        for item in node:
+            found = _find_node_by_id(item, component_id)
+            if found is not None:
+                return found
+    elif isinstance(node, dict):
+        for val in node.values():
+            found = _find_node_by_id(val, component_id)
+            if found is not None:
+                return found
+    return None
+
+
+def _assert_surface_error(
+    surface_errors: list[dict[str, Any]],
+    expected_err: dict[str, Any] | None,
+    outbound_call_id: str,
+) -> None:
+    if expected_err is None:
+        return
+    assert surface_errors, "Expected a surfaceError to be emitted, got none"
+    actual = surface_errors[0]
+    if "code" in expected_err:
+        assert actual.get("code") == expected_err["code"]
+    if "functionCallId" in expected_err:
+        exp_id = (
+            outbound_call_id
+            if expected_err["functionCallId"] == "$outboundCallId"
+            else expected_err["functionCallId"]
+        )
+        assert actual.get("functionCallId") == exp_id
+
+
 def _run_ui_binding_scenario(
     scenario: dict[str, Any],
     expected: dict[str, Any],
     processor: MessageProcessor,
     outbound_messages: list[dict[str, Any]],
 ) -> None:
+    import asyncio
     from a2ui.core.resolution import NodeResolver, ResolvedBinding
     from a2ui.core.state import ComponentModel
 
@@ -2646,57 +2829,132 @@ def _run_ui_binding_scenario(
     )
     surface_id = scenario["surfaceId"]
     scenario_cat_id = scenario["catalogId"]
+    local_funcs = _build_scenario_local_functions(scenario.get("localFunctions"))
     scenario_cat = Catalog(
         catalog_id=scenario_cat_id,
         protocol_version="1.0",
         components=list(v10_catalog.components.values()),
-        functions=[],
+        functions=local_funcs,
     )
-    surface = SurfaceModel(
-        surface_id=surface_id,
-        default_catalog=scenario_cat,
-        available_catalogs={scenario_cat_id: scenario_cat},
-        protocol_version="1.0",
-    )
-    processor.model.add_surface(surface)
-    comp = dict(scenario["component"])
-    comp_id = comp.pop("id")
-    comp_type = comp.pop("component")
-    surface.components_model.add_component(
-        ComponentModel(comp_id, comp_type, scenario_cat, comp)
-    )
-    resolver = NodeResolver(surface, scenario_cat)
-    try:
-        root = resolver.root
-        assert root is not None, "Expected root ComponentNode to be mounted"
-        initial_binding = root.props.get("text")
-        initial_val = (
-            initial_binding.value
-            if isinstance(initial_binding, ResolvedBinding)
-            else initial_binding
-        )
-        assert initial_val == expected.get("initialValue")
+    processor.catalogs = [*processor.catalogs, scenario_cat]
+    processor.rpc.catalogs = [*processor.rpc.catalogs, scenario_cat]
 
-        call_id = _assert_outbound_call_agent_message(
-            outbound_messages, expected["outboundCall"]
-        )
+    async def _run() -> None:
         processor.process_messages({
             "version": "1.0",
-            "agentFunctionResponse": {
-                "functionCallId": call_id,
-                "value": scenario["inboundResponseValue"],
+            "createSurface": {
+                "surfaceId": surface_id,
+                "catalogId": scenario_cat_id,
             },
         })
-        resolved_binding = root.props.get("text")
-        resolved_val = (
-            resolved_binding.value
-            if isinstance(resolved_binding, ResolvedBinding)
-            else resolved_binding
+        surface = processor.model.get_surface(surface_id)
+        assert surface is not None
+        surface_errors: list[dict[str, Any]] = []
+        surface.on_error.subscribe(surface_errors.append)
+
+        raw_comps = (
+            scenario["components"]
+            if isinstance(scenario.get("components"), list)
+            else ([scenario["component"]] if "component" in scenario else [])
         )
-        assert resolved_val == expected.get("resolvedValue")
-    finally:
-        resolver.dispose()
-        surface.dispose()
+        for raw_comp in raw_comps:
+            comp = dict(raw_comp)
+            comp_id = comp.pop("id")
+            comp_type = comp.pop("component")
+            surface.components_model.add_component(
+                ComponentModel(comp_id, comp_type, scenario_cat, comp)
+            )
+
+        resolver = NodeResolver(surface, scenario_cat)
+        try:
+            for _ in range(5):
+                await asyncio.sleep(0)
+            root = resolver.root
+            assert root is not None, "Expected root ComponentNode to be mounted"
+            obs_spec = scenario.get("observe") or {}
+            obs_id = obs_spec.get("componentId", "root")
+            obs_prop = obs_spec.get("property", "text")
+            obs_node = _find_node_by_id(root, obs_id)
+            assert obs_node is not None, f"Observed component '{obs_id}' not found"
+
+            if "initialValue" in expected:
+                initial_binding = obs_node.props.get(obs_prop)
+                initial_val = (
+                    initial_binding.value
+                    if isinstance(initial_binding, ResolvedBinding)
+                    else initial_binding
+                )
+                assert initial_val == expected.get("initialValue")
+
+            call_id = _assert_outbound_call_agent_message(
+                outbound_messages, expected["outboundCall"]
+            )
+            resp_payload: dict[str, Any] = {"functionCallId": call_id}
+            if "inboundResponseError" in scenario:
+                resp_payload["error"] = scenario["inboundResponseError"]
+            else:
+                resp_payload["value"] = scenario.get("inboundResponseValue")
+
+            processor.process_messages({
+                "version": "1.0",
+                "agentFunctionResponse": resp_payload,
+            })
+            for _ in range(5):
+                await asyncio.sleep(0)
+
+            obs_node = _find_node_by_id(resolver.root, obs_id)
+            assert obs_node is not None
+
+            if "resolvedValue" in expected:
+                resolved_binding = obs_node.props.get(obs_prop)
+                resolved_val = (
+                    resolved_binding.value
+                    if isinstance(resolved_binding, ResolvedBinding)
+                    else resolved_binding
+                )
+                assert resolved_val == expected.get("resolvedValue")
+
+            if isinstance(expected.get("siblings"), dict):
+                for sib_id, sib_props in expected["siblings"].items():
+                    sib_node = _find_node_by_id(resolver.root, sib_id)
+                    assert sib_node is not None, f"Sibling '{sib_id}' not found"
+                    for prop_k, prop_v in sib_props.items():
+                        raw_p = sib_node.props.get(prop_k)
+                        actual_p = (
+                            raw_p.value if isinstance(raw_p, ResolvedBinding) else raw_p
+                        )
+                        assert actual_p == prop_v
+
+            if isinstance(expected.get("validationResult"), dict):
+                exp_vr = expected["validationResult"]
+                if "valid" in exp_vr:
+                    assert obs_node.is_valid == exp_vr["valid"]
+                if "message" in exp_vr:
+                    first_msg = (
+                        obs_node.validation_results[0].get("message")
+                        if obs_node.validation_results
+                        else (
+                            obs_node.validation_errors[0]
+                            if obs_node.validation_errors
+                            else None
+                        )
+                    )
+                    assert first_msg == exp_vr["message"]
+                if "severity" in exp_vr:
+                    assert obs_node.validation_results, "expected a validation result"
+                    assert (
+                        obs_node.validation_results[0].get("severity")
+                        == exp_vr["severity"]
+                    )
+                if "errors" in exp_vr:
+                    assert obs_node.validation_errors == exp_vr["errors"]
+
+            _assert_surface_error(surface_errors, expected.get("surfaceError"), call_id)
+        finally:
+            resolver.dispose()
+            surface.dispose()
+
+    asyncio.run(_run())
 
 
 def _run_ui_action_fallback_scenario(
@@ -2715,40 +2973,66 @@ def _run_ui_action_fallback_scenario(
     )
     surface_id = scenario["surfaceId"]
     scenario_cat_id = scenario["catalogId"]
+    local_funcs = _build_scenario_local_functions(scenario.get("localFunctions"))
     scenario_cat = Catalog(
         catalog_id=scenario_cat_id,
         protocol_version="1.0",
         components=[],
-        functions=[],
+        functions=local_funcs,
     )
-    surface = SurfaceModel(
-        surface_id=surface_id,
-        default_catalog=scenario_cat,
-        available_catalogs={scenario_cat_id: scenario_cat},
-        protocol_version="1.0",
-    )
-    processor.model.add_surface(surface)
-    context = DataContext(surface=surface, path="/")
+    processor.catalogs = [*processor.catalogs, scenario_cat]
+    processor.rpc.catalogs = [*processor.rpc.catalogs, scenario_cat]
 
     async def _run() -> None:
-        action_res = context.resolve_action(scenario["actionPayload"])
-        call_id = _assert_outbound_call_agent_message(
-            outbound_messages, expected["outboundCall"]
-        )
         processor.process_messages({
             "version": "1.0",
-            "agentFunctionResponse": {
-                "functionCallId": call_id,
-                "value": scenario["inboundResponseValue"],
+            "createSurface": {
+                "surfaceId": surface_id,
+                "catalogId": scenario_cat_id,
             },
         })
-        result = await action_res if inspect.isawaitable(action_res) else action_res
-        assert result == expected.get("result")
+        surface = processor.model.get_surface(surface_id)
+        assert surface is not None
+        surface_errors: list[dict[str, Any]] = []
+        surface.on_error.subscribe(surface_errors.append)
+        context = DataContext(surface=surface, path="/")
+        try:
+            action_res = context.resolve_action(scenario["actionPayload"])
+            for _ in range(5):
+                await asyncio.sleep(0)
+            call_id = _assert_outbound_call_agent_message(
+                outbound_messages, expected["outboundCall"]
+            )
+            resp_payload: dict[str, Any] = {"functionCallId": call_id}
+            if "inboundResponseError" in scenario:
+                resp_payload["error"] = scenario["inboundResponseError"]
+            else:
+                resp_payload["value"] = scenario.get("inboundResponseValue")
 
-    try:
-        asyncio.run(_run())
-    finally:
-        surface.dispose()
+            processor.process_messages({
+                "version": "1.0",
+                "agentFunctionResponse": resp_payload,
+            })
+            for _ in range(5):
+                await asyncio.sleep(0)
+
+            if "result" in expected:
+                if hasattr(action_res, "peek") and callable(action_res.peek):
+                    result = action_res.peek()
+                elif inspect.isawaitable(action_res):
+                    result = await action_res
+                else:
+                    result = action_res
+                assert result == expected.get("result")
+
+            if "dataModel" in expected:
+                assert surface.data_model.get("/") == expected["dataModel"]
+
+            _assert_surface_error(surface_errors, expected.get("surfaceError"), call_id)
+        finally:
+            surface.dispose()
+
+    asyncio.run(_run())
 
 
 def validate_handle_rpc_case(case: dict[str, Any]) -> None:
@@ -2769,10 +3053,13 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
     catalogs = _build_rpc_catalogs(cat_id, cat_version, funcs)
     outbound_messages: list[dict[str, Any]] = []
     captured_renderer_errors: list[dict[str, Any]] = []
+    has_listener = args.get("outboundListener", True) is not False
     processor = MessageProcessor(
         catalogs=catalogs,
         options=MessageProcessorOptions(
-            outbound_listener=lambda msg: outbound_messages.append(msg),
+            outbound_listener=(
+                (lambda msg: outbound_messages.append(msg)) if has_listener else None
+            ),
             error_handler=lambda msg: captured_renderer_errors.append(msg),
         ),
     )
@@ -2794,7 +3081,14 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
     elif outbound_call and has_err:
         expected_err = case.get("expectError") or expect_dict.get("error") or {}
         _run_rpc_outbound_error(
-            args, outbound_call, inbound_response, expected_err, processor
+            args,
+            outbound_call,
+            inbound_response,
+            expected_err,
+            expect_dict,
+            processor,
+            outbound_messages,
+            captured_renderer_errors,
         )
         handled = True
 
@@ -3180,6 +3474,10 @@ def _verify_rpc_inbound_message(
             )
         )
         _assert_rpc_response_payload(responses, expect_dict["response"])
+        if expect_dict["response"] is None:
+            # An ignored message: no surface error and no pending calls.
+            assert not captured_renderer_errors
+            assert not processor.rpc._pending_agent_calls
     else:
         pytest.fail(
             "Inbound handle_rpc case requires expectError, expect.error, or"
