@@ -1,16 +1,18 @@
 ---
-title: 'MCP Catalog'
-description: 'Connect A2UI v1.0 web surfaces to Model Context Protocol (MCP) tools and sandboxed MCP App widgets with @a2ui/catalog-mcp.'
+title: 'Call MCP Tools from A2UI'
+description: 'Connect A2UI v1.0 web surfaces to Model Context Protocol (MCP) tools and shape tool responses with @a2ui/catalog-mcp.'
 ---
 
-import {Tabs, TabItem} from '@astrojs/starlight/components';
+import {Aside, Tabs, TabItem} from '@astrojs/starlight/components';
 
-The `@a2ui/catalog-mcp` package connects A2UI v1.0 or later web surfaces directly to **[Model Context Protocol (MCP)](https://modelcontextprotocol.io/)** servers, letting UI components call MCP tools and embed sandboxed [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) without waiting for another round-trip to the agent.
+The `@a2ui/catalog-mcp` package connects A2UI v1.0 or later web surfaces directly to **[Model Context Protocol (MCP)](https://modelcontextprotocol.io/)** servers so buttons, inputs, and surface actions can call MCP tools and write their JSON or text results straight into the surface [Data Model](../../concepts/data-binding/) without waiting for another round-trip to the agent.
 
-An MCP server exposes tools (functions like `list_issues` or `get_weather` that return data) and optional interactive HTML widgets. Once you register `mcpCatalog` in your Lit, React, or Angular app, your surfaces can:
-
-1. Call MCP tools straight from buttons and inputs, then display the returned JSON or text right away.
-2. Render interactive MCP Apps (such as a 3D canvas or a Kanban board) inside an isolated sandbox alongside native A2UI components.
+<Aside type="tip" title="Looking for another MCP pattern?">
+  See the [MCP Integration Overview](../mcp-overview/) to compare calling headless MCP tools with
+  serving reusable `a2ui://` layouts ([Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/)),
+  embedding sandboxed `ui://` HTML apps ([Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/)),
+  or bundling A2UI inside an MCP App ([Render A2UI Inside an MCP App](../a2ui-in-mcp-apps/)).
+</Aside>
 
 ---
 
@@ -133,7 +135,7 @@ Include the [MCP catalog schema](../../specification/v1.0/schemas/#mcp_catalog.j
 1. Load `@a2ui/catalog-mcp/catalog.json` (or [`catalogs/mcp/v1/catalog.json`](https://github.com/a2ui-project/a2ui/blob/main/catalogs/mcp/v1/catalog.json) on non-Node backends) alongside your component catalog when building your agent's prompt and schema validator.
 2. Advertise the MCP catalog ID (`https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json`, exported as `mcpCatalog.id` and `MCP_CATALOG_ID`) in `supportedCatalogIds`. Calling `processor.getRendererCapabilities({versions: ['1.0']})` includes every registered catalog automatically.
 
-You are ready to call MCP tools from your UI. If you also embed `McpApp` HTML widgets, complete the extra sandbox file step in [Embedding interactive MCP Apps](#embedding-interactive-mcp-apps).
+You are ready to call MCP tools from your UI. If you also embed `McpApp` HTML widgets, complete the extra sandbox file step in [Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/#serve-the-sandbox-files).
 
 ---
 
@@ -284,123 +286,7 @@ In [`mcp-text-tool-result.json`](https://github.com/a2ui-project/a2ui/blob/main/
 
 ### Tools that return A2UI surfaces
 
-MCP servers built specifically for A2UI can attach `application/a2ui+json` UI resources to their tools or tool responses. When `callMcpTool` runs one of those tools, it fetches the UI resource and forwards the A2UI messages to the `processor` you passed to `configureMcpCatalog`. To build an MCP server that serves A2UI layouts, see [A2UI over MCP](../a2ui-over-mcp/).
-
----
-
-## Embedding interactive MCP Apps
-
-Some MCP servers provide interactive HTML widgets called [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) for interfaces that go beyond standard form controls, such as a 3D canvas or a drag-and-drop Kanban board. The [`McpApp`](../../specification/v1.0/schemas/#mcp_catalog.json/components/McpApp) component runs those widgets inside a double-iframe sandbox and keeps their state in sync with your A2UI surface.
-
-### Serve the sandbox files
-
-`McpApp` loads its outer sandbox relay from `/a2ui-sandbox/` on your app's origin. Configure your bundler or web server to serve `node_modules/@a2ui/catalog-mcp/sandbox` at `/a2ui-sandbox/`:
-
-<Tabs syncKey="bundler">
-  <TabItem label="Vite">
-
-Copy the folder into `public/a2ui-sandbox/`, or copy it at build time with [`vite-plugin-static-copy`](https://github.com/sapphi-red/vite-plugin-static-copy):
-
-```ts
-import {defineConfig} from 'vite';
-import {viteStaticCopy} from 'vite-plugin-static-copy';
-
-export default defineConfig({
-  plugins: [
-    viteStaticCopy({
-      targets: [{src: 'node_modules/@a2ui/catalog-mcp/sandbox/*', dest: 'a2ui-sandbox'}],
-    }),
-  ],
-});
-```
-
-  </TabItem>
-  <TabItem label="Angular CLI">
-
-Add the sandbox directory to the `assets` array in `angular.json`:
-
-```json
-{
-  "glob": "**/*",
-  "input": "node_modules/@a2ui/catalog-mcp/sandbox",
-  "output": "a2ui-sandbox"
-}
-```
-
-  </TabItem>
-  <TabItem label="Static server">
-
-Copy `node_modules/@a2ui/catalog-mcp/sandbox` to `<web root>/a2ui-sandbox` on the same origin as your app.
-
-  </TabItem>
-</Tabs>
-
-### Add McpApp to a surface
-
-Place `McpApp` on an A2UI v1.0 surface with its HTML document (`htmlContent`), any surface data paths it shares (`data.paths`), and any MCP tools it is allowed to call (`allowedTools`):
-
-```json
-{
-  "id": "scene3d_app",
-  "component": "McpApp",
-  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
-  "title": "3D Holographic Geometry Studio",
-  "allowedTools": ["capture_3d_snapshot"],
-  "data": {
-    "paths": {
-      "scene3d": "/scene3d",
-      "modelContext": "/scene3d/modelContext"
-    }
-  },
-  "htmlContent": "<!doctype html><html><body>...<script>...</script></body></html>"
-}
-```
-
-In this component, updates to `/scene3d` on the surface push into the widget, edits to `scene3d` inside the widget update sibling A2UI components, and tool calls outside `["capture_3d_snapshot"]` are blocked.
-
-<details>
-<summary>All <code>McpApp</code> component properties</summary>
-
-An embedded `McpApp` is isolated from your page DOM, cookies, and browser storage, and interacts with your surface only through explicit properties:
-
-| Property           | Required | Purpose                                                                                                                                             |
-| :----------------- | :------- | :-------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `htmlContent`      | Yes      | HTML document of the app (values starting with `url_encoded:` are URL-decoded first).                                                               |
-| `title`            | No       | Accessible title for the iframe (defaults to `"MCP App"`).                                                                                          |
-| `data.paths`       | No       | Maps state keys inside the app (plus reserved `toolInput`, `toolResult`, and `modelContext` keys) to data model paths for two-way reactive sync.    |
-| `allowedTools`     | No       | List of MCP tool names the app is allowed to call. Unlisted tool calls are rejected.                                                                |
-| `allowedFunctions` | No       | Map of A2UI catalog function names to argument JSON Schemas that the app is allowed to invoke.                                                      |
-| `csp`              | No       | Content Security Policy domain allowlists (`connectDomains`, `resourceDomains`, `frameDomains`, `baseUriDomains`) from the resource `_meta.ui.csp`. |
-| `permissions`      | No       | Browser permissions (`camera`, `microphone`, `geolocation`, `clipboardWrite`) delegated from the resource `_meta.ui.permissions`.                   |
-
-When a tool result returned by `callMcpTool` contains an MCP App `ui://` resource, its `resourceUri`, `html`, `csp`, and `permissions` fields are also included in the `callMcpTool` payload so you can bind `McpApp` properties to them.
-
-</details>
-
-### Style the frame
-
-`McpApp` starts at `500px` tall and resizes automatically when the embedded widget reports its content size. Customize the container with CSS custom properties on `a2ui-mcp-app` or any parent element:
-
-```css
-a2ui-mcp-app {
-  --a2ui-sandboxed-frame-height: 400px;
-  --a2ui-sandboxed-frame-border: 1px solid #e2e8f0;
-  --a2ui-sandboxed-frame-border-radius: 12px;
-  --a2ui-sandboxed-frame-background: #ffffff;
-}
-```
-
-<details>
-<summary>Default values for CSS custom properties</summary>
-
-| CSS custom property                    | Default                                                              | Purpose                                |
-| :------------------------------------- | :------------------------------------------------------------------- | :------------------------------------- |
-| `--a2ui-sandboxed-frame-height`        | `500px`                                                              | Initial height before auto-resize.     |
-| `--a2ui-sandboxed-frame-border`        | `var(--a2ui-border-width, 1px) solid var(--a2ui-color-border, #ccc)` | Border around the frame.               |
-| `--a2ui-sandboxed-frame-border-radius` | `var(--a2ui-border-radius, 8px)`                                     | Corner radius of the frame.            |
-| `--a2ui-sandboxed-frame-background`    | `#fff`                                                               | Background behind transparent content. |
-
-</details>
+MCP servers built specifically for A2UI can attach `application/a2ui+json` UI resources to their tools or tool responses. When `callMcpTool` runs one of those tools, it fetches the UI resource and forwards the A2UI messages to the `processor` you passed to `configureMcpCatalog`. To build an MCP server that serves A2UI layouts, see [Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/).
 
 ---
 
@@ -508,17 +394,7 @@ To keep payloads portable across web and native renderers, `regexCapture` accept
 </details>
 
 <details>
-<summary>Troubleshooting blank frames, rejected calls, and duplicate Lit packages</summary>
-
-#### The McpApp frame stays blank (404 under /a2ui-sandbox/)
-
-Check that `node_modules/@a2ui/catalog-mcp/sandbox` is served at `/a2ui-sandbox/` on your app's origin (see [Serve the sandbox files](#serve-the-sandbox-files)), or pass `configureMcpCatalog({sandbox: {baseUrl}})` with the path where you host those files.
-
-#### Tool or function calls from an embedded McpApp are rejected
-
-Check the browser console for warnings. Every MCP tool the widget calls must be listed in `allowedTools`, and every A2UI function must be listed in `allowedFunctions` and registered in `mcpCatalog` or the surface's catalog.
-
-#### Custom element registration collisions or empty components
+<summary>Troubleshooting duplicate Lit or <code>@a2ui/web_core</code> packages</summary>
 
 Loading two copies of `lit` or `@a2ui/web_core` breaks custom element registration and `Catalog` instance checks. Run `npm dedupe` (and check `npm ls lit @a2ui/web_core`), and in Vite add `resolve: {dedupe: ['lit', '@a2ui/web_core']}` to `vite.config.ts`.
 
@@ -528,7 +404,7 @@ Loading two copies of `lit` or `@a2ui/web_core` breaks custom element registrati
 
 ## Next steps
 
-1. Run the Kanban board showcase and see how double-iframe isolation and JSON-RPC channels work in [MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/).
-2. Build an MCP server that returns reusable A2UI layout templates in [A2UI over MCP](../a2ui-over-mcp/).
-3. Browse the TypeScript API reference in the [`@a2ui/catalog-mcp` README](https://github.com/a2ui-project/a2ui/blob/main/typescript/catalogs/mcp/README.md) and the [MCP catalog JSON Schema](../../specification/v1.0/schemas/#mcp_catalog.json).
-4. Read the startup handshake and JSON-RPC protocol details in the [MCP App component specification](https://github.com/a2ui-project/a2ui/blob/main/catalogs/mcp/v1/mcp_app_specification.md).
+1. Configure `/a2ui-sandbox/`, run the Kanban board showcase, and explore double-iframe isolation in [Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/).
+2. Build an MCP server that returns reusable A2UI layout templates in [Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/).
+3. Bundle an A2UI renderer inside a standalone `ui://` widget for external MCP hosts in [Render A2UI Inside an MCP App](../a2ui-in-mcp-apps/).
+4. Browse the TypeScript API reference in the [`@a2ui/catalog-mcp` README](https://github.com/a2ui-project/a2ui/blob/main/typescript/catalogs/mcp/README.md) and the [MCP catalog JSON Schema](../../specification/v1.0/schemas/#mcp_catalog.json).

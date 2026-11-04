@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Breaking:** The basic catalog `regex` function now validates patterns
+  against the portable A2UI regex subset and static safety rules, compiles them
+  in Unicode mode, and rejects input values longer than 4,096 code points as
+  non-matching (`parseRegexSubset`, `checkRegexSafety`, `analyzeRegex`,
+  `compileGuarded`, `maxRegexPatternCodePoints`, `maxRegexValueCodePoints`). To
+  migrate, rewrite patterns that use lookbehind, backreferences, named groups,
+  `\p{...}`, inline flags, or nested/overlapping unbounded quantifiers to the
+  portable subset ([#3854](https://github.com/a2ui-project/a2ui/pull/3854)).
 - **Breaking:** (v1_0) The basic catalog `TextField` requires `value`, as
   the other input components do, so a `TextField` without one fails
   validation instead of accepting input that never reaches the data model.
@@ -19,6 +27,11 @@
   strings, or `ValidationResult` maps rather than relying on truthiness or
   `null` pass-through ([#3850](https://github.com/a2ui-project/a2ui/pull/3850)).
 - (v1_0) The basic catalog `regex` function's `pattern` description now names the A2UI regex dialect and its safety limits ([#3820](https://github.com/a2ui-project/a2ui/pull/3820)).
+- (v1_0) `Catalog.fromJson` now rejects function definitions that set
+  `requiresUserActivation: true` when `allowedCallers` is not `'rendererOnly'`
+  (such as `'agentOnly'` or `'rendererOrAgent'`) by throwing `A2uiCatalogError`,
+  matching the v1.0 catalog definition schema
+  ([#3840](https://github.com/a2ui-project/a2ui/pull/3840)).
 - `MessageProcessor` writes an inline `createSurface.dataModel` as one
   `DataModel.set` per top-level key (`/<escaped_key>`, escaping `~` as `~0` and
   `/` as `~1` per RFC 6901) instead of a single root `/` write
@@ -94,6 +107,9 @@
 - **Breaking:** A function call naming a `catalogId` on a `DataContext`
   created without `invokerForCatalog` is now reported as a `CATALOG_ERROR`
   rather than an `EXPRESSION_ERROR`.
+  <<<<<<< HEAD
+- # (v1_0) `PayloadValidator` now validates component type names against UAX #31 identifier syntax on v1.0+ surfaces.
+  > > > > > > > 1ccf163b0e8d9a3a981889f1ec45c462591096cc
 - **Breaking:** Unify the v1.0 protocol version wire value on `'1.0'` (without
   a `'v'` prefix) across message envelopes, `MessageProcessor.getRendererCapabilities`,
   `RpcHandler`, and catalog documents (`A2uiProtocolVersion.v1_0.jsonValue` is
