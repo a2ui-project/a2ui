@@ -4,13 +4,13 @@ Integrate A2UI into your application using the renderer for your platform.
 
 ## Renderers
 
-| Renderer                                                      | Platform           | v0.8 | v0.9 | Status             |
-| ------------------------------------------------------------- | ------------------ | ---- | ---- | ------------------ |
-| **[React](../../../typescript/renderers/react)**              | Web                | ✅   | ✅   | ✅ Stable          |
-| **[Lit (Web Components)](../../../typescript/renderers/lit)** | Web                | ✅   | ✅   | ✅ Stable          |
-| **[Angular](../../../typescript/renderers/angular)**          | Web                | ✅   | ✅   | ✅ Stable          |
-| **[Flutter (GenUI SDK)](https://docs.flutter.dev/ai/genui)**  | Mobile/Desktop/Web | ✅   | ✅   | ✅ Stable          |
-| **Jetpack Compose**                                           | Android            | —    | —    | 🚧 Planned Q2 2026 |
+| Renderer                                                                        | Platform           | v0.8 | v0.9 | Status    |
+| ------------------------------------------------------------------------------- | ------------------ | ---- | ---- | --------- |
+| **[React](../../../typescript/renderers/react)**                                | Web                | ✅   | ✅   | ✅ Stable |
+| **[Lit (Web Components)](../../../typescript/renderers/lit)**                   | Web                | ✅   | ✅   | ✅ Stable |
+| **[Angular](../../../typescript/renderers/angular)**                            | Web                | ✅   | ✅   | ✅ Stable |
+| **[Flutter (`a2ui_flutter`)](../../../dart/a2ui_flutter)**                      | Mobile/Desktop/Web | —    | ✅   | 🧪 Alpha  |
+| **[Jetpack Compose](https://developer.android.com/develop/ui/compose/agentic)** | Android            | —    | ✅   | 🧪 Alpha  |
 
 For more see all [A2UI Renderers](../reference/renderers.md) and [Community A2UI Renderers](../ecosystem/renderers.md).
 
@@ -128,15 +128,19 @@ The React renderer provides:
 
 **See working example:** [React shell](../../../samples/client/react/shell)
 
-## Flutter (GenUI SDK)
+## Flutter
 
 ```bash
-flutter pub add flutter_genui
+flutter pub add a2ui_flutter a2ui_core
 ```
 
-Flutter uses the GenUI SDK which provides native A2UI rendering.
+[`a2ui_flutter`](../../../dart/a2ui_flutter) renders A2UI surfaces as Flutter
+widgets, and `a2ui_core` processes the messages and holds surface state. If the
+app calls the model itself, add `a2ui_agent`. These packages replace the
+`genui` package; the older `flutter_genui` and `genui_a2ui` packages are
+discontinued.
 
-**Docs:** [GenUI SDK](https://docs.flutter.dev/ai/genui) | [GitHub](https://github.com/flutter/genui) | [README in GenUI Flutter Package](https://github.com/flutter/genui/blob/main/packages/genui/README.md#getting-started-with-genui)
+**See:** [`a2ui_flutter` README](https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_flutter)
 
 ## Connecting to Agents
 

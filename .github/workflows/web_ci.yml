@@ -116,7 +116,12 @@ jobs:
       - name: Build Renderers
         run: eval "yarn workspaces foreach -A $RENDERERS_INC -p --topological-dev run build"
       - name: Test Renderers
+        env:
+          A2UI_CONFORMANCE_MANIFEST_DIR: ${{ runner.temp }}/a2ui-manifest
         run: eval "yarn workspaces foreach -A $RENDERERS_INC -p run test"
+      - uses: ./.github/actions/setup-python
+      - name: Check web_core executed cases
+        run: uv run --project conformance python conformance/scripts/check_executed_cases.py --manifest-dir "${{ runner.temp }}/a2ui-manifest" --harness web_core --corpus core
       - name: Test React 18 Compatibility
         run: yarn workspace @a2ui/react run test:react18
       - name: Verify NPM Publish Script
