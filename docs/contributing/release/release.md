@@ -1,7 +1,7 @@
 # Release process
 
 > **Protocol version status** (current / release candidate / legacy) lives in
-> [`docs/versions.json`](../../versions.json). Update it when a spec version changes status;
+> [`specification/versions.json`](../../../specification/versions.json). Update it when a spec version changes status;
 > the docs build renders it into `llms.txt`.
 
 ## How to publish packages
