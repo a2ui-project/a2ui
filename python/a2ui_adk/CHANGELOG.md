@@ -6,7 +6,8 @@
   answers a pending call settles it through the processor's
   `on_renderer_function_response` without running the agent; a malformed one
   fails the call it names. A response that answers no pending call, such as
-  one to a call the model wrote, still goes to the agent. It needs the `a2a`
+  one to a call the model wrote, still goes to the agent; responses in that
+  request that answer pending calls settle them first. It needs the `a2a`
   extra. [#3535](https://github.com/a2ui-project/a2ui/issues/3535)
 - Add `a2ui_rpc_interceptor`, an `A2aAgentExecutor` interceptor that ends a
   task `completed` when its request held only `callAgentFunction` and

@@ -742,6 +742,84 @@ async def test_response_to_an_unknown_call_goes_to_the_agent() -> None:
 
 
 @pytest.mark.asyncio
+async def test_mixed_responses_settle_the_pending_call_and_go_to_the_agent() -> None:
+    store = A2uiRendererCallsStore()
+    message, result = store.get_for_session("session-1").call(
+        catalog_id=CATALOG_ID, name="getLocation"
+    )
+    pending = _renderer_response(message.call_renderer_function.function_call_id)
+    callback = a2ui_rpc_callback(renderer_calls=store.get)
+
+    content = await callback(
+        _callback_context(
+            _content(_genai_part(pending), _genai_part(_renderer_response("call_1")))
+        )
+    )
+
+    assert content is None
+    assert await result == "Paris"
+
+
+@pytest.mark.asyncio
+async def test_pending_response_next_to_text_settles_the_call() -> None:
+    store = A2uiRendererCallsStore()
+    message, result = store.get_for_session("session-1").call(
+        catalog_id=CATALOG_ID, name="getLocation"
+    )
+    pending = _renderer_response(message.call_renderer_function.function_call_id)
+    callback = a2ui_rpc_callback(renderer_calls=store.get)
+
+    content = await callback(
+        _callback_context(
+            _content(genai_types.Part.from_text(text="hi"), _genai_part(pending))
+        )
+    )
+
+    assert content is None
+    assert await result == "Paris"
+
+
+@pytest.mark.asyncio
+async def test_pending_response_with_a_call_and_no_catalogs_settles_the_call() -> None:
+    store = A2uiRendererCallsStore()
+    message, result = store.get_for_session("session-1").call(
+        catalog_id=CATALOG_ID, name="getLocation"
+    )
+    pending = _renderer_response(message.call_renderer_function.function_call_id)
+    callback = a2ui_rpc_callback(catalogs=lambda _ctx: None, renderer_calls=store.get)
+
+    content = await callback(
+        _callback_context(_content(_genai_part(_call()), _genai_part(pending)))
+    )
+
+    assert content is None
+    assert await result == "Paris"
+
+
+@pytest.mark.asyncio
+async def test_a_settled_call_ignores_its_response_when_it_comes_again() -> None:
+    store = A2uiRendererCallsStore()
+    message, result = store.get_for_session("session-1").call(
+        catalog_id=CATALOG_ID, name="getLocation"
+    )
+    call_id = message.call_renderer_function.function_call_id
+    callback = a2ui_rpc_callback(renderer_calls=store.get)
+    unknown = _genai_part(_renderer_response("call_1"))
+
+    await callback(
+        _callback_context(_content(_genai_part(_renderer_response(call_id)), unknown))
+    )
+    again = await callback(
+        _callback_context(
+            _content(_genai_part(_renderer_response(call_id, "Rome")), unknown)
+        )
+    )
+
+    assert again is None
+    assert await result == "Paris"
+
+
+@pytest.mark.asyncio
 async def test_malformed_response_fails_the_pending_call() -> None:
     store = A2uiRendererCallsStore()
     message, result = store.get_for_session("session-1").call(

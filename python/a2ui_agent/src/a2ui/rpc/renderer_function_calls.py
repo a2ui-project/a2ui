@@ -169,7 +169,7 @@ class RendererFunctionCalls:
             raise A2uiRpcError(
                 f"{len(self._pending)} renderer function calls are already"
                 " pending, the most allowed.",
-                code="TOO_MANY_PENDING",
+                code=RpcErrorCode.TOO_MANY_PENDING,
                 function_call_id=call_id,
             )
         if not name:
