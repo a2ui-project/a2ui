@@ -1032,6 +1032,19 @@
   expect_error:
     category: ValidationError
 
+- name: test_process_malformed_action_without_its_callback
+  description: >-
+    Without on_action, an action body is not schema-validated, so one missing required fields is left unhandled rather than rejected.
+  action: process_renderer_message
+  args:
+    callbacks: [error, rendererFunctionResponse]
+    message:
+      version: "1.0"
+      action:
+        name: submit
+  expect:
+    handled: false
+
 - name: test_process_message_with_an_unknown_key
   description: A message that is none of the renderer-to-agent messages is a validation error.
   action: process_renderer_message
@@ -1042,6 +1055,23 @@
       updateComponents:
         surfaceId: s1
         components: []
+  expect_error:
+    category: ValidationError
+
+- name: test_process_message_with_extra_key_without_callback
+  description: >-
+    Every parsed JSON message must have version "1.0" and one message-kind key, so an extra top-level key is a validation error even when no callback is set.
+  action: process_renderer_message
+  args:
+    message:
+      version: "1.0"
+      action:
+        name: submit
+        surfaceId: s1
+        sourceComponentId: b1
+        timestamp: "2026-01-01T00:00:00Z"
+        context: {}
+      extra: true
   expect_error:
     category: ValidationError
 
