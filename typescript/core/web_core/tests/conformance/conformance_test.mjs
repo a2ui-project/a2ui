@@ -66,9 +66,6 @@ import {CommonSchemas as V0_9_COMMON_SCHEMAS} from '../../dist/src/v0_9/schema/c
 import {CommonSchemas as V1_0_COMMON_SCHEMAS} from '../../dist/src/v1_0/schema/common-types.js';
 import {PayloadValidator} from '../../dist/src/validation/index.js';
 import {runNodeResolutionCase} from '../../dist/tests/conformance/node-resolution.js';
-import {ComponentModel} from '../../dist/src/state/component-model.js';
-import {ComponentContext} from '../../dist/src/resolution/component-context.js';
-import {CommonSchemas} from '../../dist/src/types/common-types.js';
 
 // Dedicated basic catalog component definitions per specification version
 const v0_8Components = V0_8_BASIC_COMPONENTS;
