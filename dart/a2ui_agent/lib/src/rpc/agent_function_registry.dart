@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:a2ui_core/a2ui_core.dart';
 
@@ -249,17 +250,19 @@ final class AgentFunctionRegistry {
         rpcErr.code,
         rpcErr.message,
       );
-    } on A2uiValidationError catch (valErr) {
-      return _errorResponse(
-        context.functionCallId,
-        RpcErrorCode.invalidFunctionCall.wireValue,
-        valErr.message,
+    } catch (error, stackTrace) {
+      // Any other failure, an A2uiValidationError included, is the handler's
+      // own error: the arguments were valid, so it isn't the call's fault.
+      developer.log(
+        "Agent function '${fn.name}' (call ${context.functionCallId}) failed.",
+        name: 'a2ui_agent',
+        error: error,
+        stackTrace: stackTrace,
       );
-    } catch (error) {
       return _errorResponse(
         context.functionCallId,
         RpcErrorCode.executionError.wireValue,
-        '$error',
+        error is A2uiError ? error.message : '$error',
       );
     }
   }

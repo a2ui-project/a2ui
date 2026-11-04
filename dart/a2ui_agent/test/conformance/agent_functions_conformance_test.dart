@@ -73,6 +73,9 @@ AgentFunctionHandler _handler(Map<String, Object?> behavior) {
       if (failure['code'] case final String code) {
         throw A2uiRpcError.custom(message, code);
       }
+      if (failure['validation'] == true) {
+        throw A2uiValidationError(message);
+      }
       throw StateError(message);
     };
   }

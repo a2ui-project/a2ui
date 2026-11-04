@@ -574,9 +574,10 @@ void main() {
       expect(custom.error?.code, 'MARKET_CLOSED');
       expect(custom.error?.message, 'Market closed');
 
+      // A validation error from the handler is still the handler's error.
       final A2uiFunctionResponse invalid = await call('invalid');
-      expect(invalid, _errorCode(RpcErrorCode.invalidFunctionCall));
-      expect(invalid.error?.message, contains('bad symbol'));
+      expect(invalid, _errorCode(RpcErrorCode.executionError));
+      expect(invalid.error?.message, 'bad symbol');
 
       for (final name in ['nonJson', 'nonFinite', 'nonStringKey', 'nested']) {
         expect(

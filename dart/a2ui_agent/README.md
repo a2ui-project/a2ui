@@ -220,10 +220,14 @@ final CatalogApi withHandlers = catalog.copyWith(
 ```
 
 `RendererToAgentMessageProcessor` answers each `callAgentFunction` with
-exactly one reply, and passes the other messages a renderer sends, `action`,
-`error` and `rendererFunctionResponse`, to the callbacks you give it. A
-message without a callback, or whose callback returns `false`, is left
-unhandled, so the agent can pass it on, for example to the model's next turn:
+exactly one reply: the handler's value, `INVALID_FUNCTION_CALL` for arguments
+that break the function's schema, the code of an `A2uiRpcError` the handler
+throws, or `EXECUTION_ERROR` for anything else it throws, an
+`A2uiValidationError` included. It passes the other messages a renderer
+sends, `action`, `error` and `rendererFunctionResponse`, to the callbacks you
+give it. A message without a callback, or whose callback returns `false`, is
+left unhandled, so the agent can pass it on, for example to the model's next
+turn:
 
 ```dart
 bool onAction(ActionMessage message) {
