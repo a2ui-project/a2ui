@@ -291,46 +291,58 @@ void _runValidate(Map<String, Object?> testCase) {
 Future<void> _runProcess(Map<String, Object?> testCase) async {
   final args = testCase['args']! as Map<String, Object?>;
   final recorded = <(String, RendererToAgentMessage)>[];
-  final Set<String> callbacks = {
-    for (final Object? kind
+  // Each callback kind the case names, mapped to whether it declines.
+  final Map<String, bool> callbacks = {
+    for (final Object? entry
         in (args['callbacks'] as List<Object?>?) ?? const <Object?>[])
-      kind! as String,
+      switch (entry) {
+        final String kind => kind,
+        {'kind': final String kind} => kind,
+        _ => throw ArgumentError.value(entry, 'callbacks'),
+      }: entry is Map && entry['declines'] == true,
   };
-  final processor = RendererToAgentMessageProcessor(
-    catalogs: [
-      if (args['catalog'] case final Map<String, Object?> entry)
-        _catalog(entry),
-    ],
-    onAction: callbacks.contains('action')
-        ? (message) {
-            recorded.add(('action', message));
-          }
-        : null,
-    onError: callbacks.contains('error')
-        ? (message) {
-            recorded.add(('error', message));
-          }
-        : null,
-    onRendererFunctionResponse: callbacks.contains('rendererFunctionResponse')
-        ? (message) {
-            recorded.add(('rendererFunctionResponse', message));
-          }
-        : null,
-  );
+
+  /// A callback for [kind] that records the message it receives, and
+  /// declines it (returns false) when the case says so.
+  bool Function(T)? callback<T extends RendererToAgentMessage>(String kind) {
+    final bool? declines = callbacks[kind];
+    if (declines == null) return null;
+    return (T message) {
+      recorded.add((kind, message));
+      return !declines;
+    };
+  }
+
+  RendererToAgentMessageProcessor buildProcessor() =>
+      RendererToAgentMessageProcessor(
+        catalogs: [
+          if (args['catalog'] case final Map<String, Object?> entry)
+            _catalog(entry),
+          for (final Object? entry
+              in (args['catalogs'] as List<Object?>?) ?? const <Object?>[])
+            _catalog(entry! as Map<String, Object?>),
+        ],
+        onAction: callback<ActionMessage>('action'),
+        onError: callback<ErrorMessage>('error'),
+        onRendererFunctionResponse: callback<RendererFunctionResponseMessage>(
+          'rendererFunctionResponse',
+        ),
+      );
 
   if (testCase['expect_error'] case final Map<String, Object?> expectedError) {
     Object? caught;
     try {
-      await processor.processMessage(args['message']);
+      await buildProcessor().processMessage(args['message']);
     } on Object catch (e) {
       caught = e;
     }
-    expect(caught, isNotNull, reason: 'Expected processMessage to throw');
+    expect(caught, isNotNull, reason: 'Expected processing to throw');
     _assertErrorMatches(caught!, expectedError);
     expect(recorded, isEmpty, reason: 'No callback runs when processing fails');
     return;
   }
 
+  final RendererToAgentMessageProcessor processor = buildProcessor();
   final ProcessResult result = await processor.processMessage(args['message']);
   final expected = testCase['expect']! as Map<String, Object?>;
   expect(result.handled, expected['handled']);
