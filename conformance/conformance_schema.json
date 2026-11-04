@@ -38,9 +38,7 @@
       {"$ref": "#/$defs/DeclareAgentFunctionsTest"},
       {"$ref": "#/$defs/HandleAgentFunctionTest"},
       {"$ref": "#/$defs/ValidatePayloadTest"},
-      {"$ref": "#/$defs/CallRendererFunctionTest"},
-      {"$ref": "#/$defs/ProcessRendererMessageTest"},
-      {"$ref": "#/$defs/RenderSurfaceTest"}
+      {"$ref": "#/$defs/ProcessRendererMessageTest"}
     ]
   },
   "$defs": {
