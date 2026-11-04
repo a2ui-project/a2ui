@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.5.0
+
 - **Breaking:** The basic catalog `regex` function now validates patterns
   against the portable A2UI regex subset and static safety rules, compiles them
   in Unicode mode, and rejects input values longer than 4,096 code points as
@@ -113,9 +115,9 @@
 - **Breaking:** A function call naming a `catalogId` on a `DataContext`
   created without `invokerForCatalog` is now reported as a `CATALOG_ERROR`
   rather than an `EXPRESSION_ERROR`.
-  <<<<<<< HEAD
-- # (v1_0) `PayloadValidator` now validates component type names against UAX #31 identifier syntax on v1.0+ surfaces.
-  > > > > > > > 1ccf163b0e8d9a3a981889f1ec45c462591096cc
+- (v1_0) `PayloadValidator` now validates component type names against UAX #31
+  identifier syntax on v1.0+ surfaces
+  ([#3856](https://github.com/a2ui-project/a2ui/pull/3856)).
 - **Breaking:** Unify the v1.0 protocol version wire value on `'1.0'` (without
   a `'v'` prefix) across message envelopes, `MessageProcessor.getRendererCapabilities`,
   `RpcHandler`, and catalog documents (`A2uiProtocolVersion.v1_0.jsonValue` is

@@ -41,10 +41,13 @@ import {
   HostAccessibility,
   type ResolvedAccessibilityAttributes,
 } from './host_accessibility.js';
-import {renderA2uiNode} from './render-a2ui-node.js';
+import {canRenderA2uiNode, renderA2uiNode} from './render-a2ui-node.js';
 import type {WebComponentImplementation} from './web_component_implementation.js';
 
 export type {CheckableResolvedProps, ResolvedAccessibilityAttributes};
+
+/** The surface a child renders on, as its data context reports it. */
+type ChildSurface = NonNullable<ComponentContext['dataContext']['surface']>;
 
 /**
  * A reference to a child component to render. Either a string ID, or an object
@@ -396,19 +399,57 @@ export abstract class A2uiLitElement<
    * @returns A Lit template result containing the rendered child component, or `nothing` if the reference is empty.
    */
   protected renderNode(childRef?: ComponentNode | A2uiChildRef, customPath?: string) {
-    if (!childRef || !this.context?.dataContext) return nothing;
+    const child = this.resolveChild(childRef, customPath);
+    if (!child) return nothing;
+    if ('node' in child) return renderA2uiNode(child.node);
+    const childContext = new ComponentContext(child.surface, child.componentId, child.path);
+    const childCatalog: Catalog<WebComponentImplementation> = childContext.componentModel.catalog;
+    return renderA2uiNode(childContext, childCatalog);
+  }
+
+  /**
+   * Whether the child `renderNode(childRef, customPath)` would render has resolved: its
+   * component has arrived and its type has an implementation. An unresolved child (pending,
+   * unknown type or cyclic) renders nothing.
+   *
+   * Containers that give each child a slot of their own (an `<li>`, an item `div`) use this to
+   * leave unresolved children out entirely, wrapper included, so they take no marker or gap.
+   * It shares `renderNode`'s lookup, so the two always agree.
+   */
+  protected isChildResolved(childRef?: ComponentNode | A2uiChildRef, customPath?: string): boolean {
+    const child = this.resolveChild(childRef, customPath);
+    if (!child) return false;
+    if ('node' in child) return canRenderA2uiNode(child.node);
+    const model = child.surface.componentsModel.get(child.componentId);
+    const catalog = model?.catalog as Catalog<WebComponentImplementation> | undefined;
+    return !!model && !!catalog?.components.get(model.type)?.tagName;
+  }
+
+  /**
+   * Finds what `renderNode` renders for a child reference: the child's `ComponentNode` when the
+   * node tree has one, otherwise the surface, component id and data path to build a context
+   * from. Returns `undefined` when there is nothing to render.
+   */
+  private resolveChild(
+    childRef?: ComponentNode | A2uiChildRef,
+    customPath?: string,
+  ):
+    | {node: ComponentNode}
+    | {surface: ChildSurface; componentId: ComponentId; path: string}
+    | undefined {
+    if (!childRef || !this.context?.dataContext) return undefined;
     const {surface, path: parentPath} = this.context.dataContext;
     if (!surface) {
-      return nothing;
+      return undefined;
     }
 
     const surfaceContainsComponent = !!surface.componentsModel?.get(this.context.componentModel.id);
     if (!surfaceContainsComponent) {
-      return nothing;
+      return undefined;
     }
 
     if (isComponentNode(childRef) && !customPath) {
-      return renderA2uiNode(childRef);
+      return {node: childRef};
     }
 
     let componentId: ComponentId | undefined;
@@ -421,7 +462,7 @@ export abstract class A2uiLitElement<
     }
 
     if (!componentId || !surface.componentsModel?.get(componentId)) {
-      return nothing;
+      return undefined;
     }
 
     path = path ?? parentPath;
@@ -429,13 +470,11 @@ export abstract class A2uiLitElement<
     if (this.node) {
       const childNode = findChildNode(this.node, componentId, path);
       if (childNode) {
-        return renderA2uiNode(childNode);
+        return {node: childNode};
       }
     }
 
-    const childContext = new ComponentContext(surface, componentId, path);
-    const childCatalog: Catalog<WebComponentImplementation> = childContext.componentModel.catalog;
-    return renderA2uiNode(childContext, childCatalog);
+    return {surface, componentId, path};
   }
 
   /**
