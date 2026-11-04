@@ -19,14 +19,25 @@ yarn add @a2ui/react @a2ui/web_core
 
 ## Protocol Versioning
 
-A2UI supports multiple protocol versions to ensure backward compatibility. For new projects, it is recommended to use the **v0.9** protocol.
+Import the renderer from the package root (`@a2ui/react`) and the
+`MessageProcessor` from `@a2ui/web_core`. The processor accepts messages for
+every supported protocol version (v0.8, v0.9, v0.9.1 and v1.0).
 
-To use the v0.9 implementation, import from the versioned path:
+Only version-specific pieces, such as the basic catalog and its schemas, are
+imported from a versioned path:
 
 ```typescript
-import {A2uiSurface} from '@a2ui/react/v0_9';
+import {A2uiSurface} from '@a2ui/react';
+import {MessageProcessor} from '@a2ui/web_core';
+
+// Basic catalog for v0.9 / v0.9.1:
 import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+// ...or for v1.0:
+// import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 ```
+
+The `@a2ui/react/v0_9` entry point still works but only re-exports the package
+root. `@a2ui/react/v0_8` is the legacy v0.8 renderer.
 
 ## Quick Start
 
@@ -40,9 +51,9 @@ The example below creates a processor with the `basicCatalog` from `@a2ui/web_co
 
 ```tsx
 import {useState, useEffect} from 'react';
-import {MessageProcessor} from '@a2ui/web_core/v0_9';
+import {MessageProcessor} from '@a2ui/web_core';
 import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
-import {A2uiSurface} from '@a2ui/react/v0_9';
+import {A2uiSurface} from '@a2ui/react';
 
 export default function App() {
   // 1. Create the processor and feed it messages.
@@ -148,7 +159,7 @@ The API can also restrict where the component appears, with `allowedParents` and
 The `createComponentImplementation` factory uses a **Generic Binder** to resolve all dynamic values before your component renders.
 
 ```tsx
-import {createComponentImplementation} from '@a2ui/react/v0_9';
+import {createComponentImplementation} from '@a2ui/react';
 
 export const MyProfile = createComponentImplementation(MyProfileApi, ({props, buildChild}) => {
   // 'props' is strictly inferred from the Zod schema:
@@ -232,7 +243,7 @@ The Generic Binder is a framework-agnostic engine that transforms raw JSON paylo
 For advanced use cases where you need direct access to the `ComponentContext` or want to manage reactivity manually (e.g., for performance-critical animations), use `createBinderlessComponentImplementation`.
 
 ```tsx
-import {createBinderlessComponentImplementation} from '@a2ui/react/v0_9';
+import {createBinderlessComponentImplementation} from '@a2ui/react';
 
 export const RawInspector = createBinderlessComponentImplementation(InspectorApi, ({context}) => {
   // Access the raw, unresolved component model and the data model directly
@@ -253,7 +264,7 @@ export const RawInspector = createBinderlessComponentImplementation(InspectorApi
 Group your components and logic functions into a `Catalog` to be used by the `MessageProcessor`.
 
 ```typescript
-import {Catalog, createFunctionImplementation} from '@a2ui/web_core/v0_9';
+import {Catalog, createFunctionImplementation} from '@a2ui/web_core';
 import {z} from 'zod';
 
 // 1. Implement a custom logic function
@@ -288,7 +299,7 @@ export const myCatalog = new Catalog(
 `Text` renders its Markdown with a renderer the app provides. Give `MarkdownContext` a function that returns HTML, such as the one from `@a2ui/markdown-it`, or give `MarkdownComponentContext` a React component:
 
 ```tsx
-import {A2uiSurface, MarkdownComponentContext} from '@a2ui/react/v0_9';
+import {A2uiSurface, MarkdownComponentContext} from '@a2ui/react';
 
 const ChatMarkdown = ({markdown}: {markdown: string}) => <Markdown text={markdown} />;
 
