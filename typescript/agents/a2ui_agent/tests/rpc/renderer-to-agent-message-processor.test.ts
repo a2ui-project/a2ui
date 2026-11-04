@@ -457,7 +457,6 @@ describe('RendererToAgentMessageProcessor', () => {
       });
 
       for (const message of [
-        {version: '1.0', callAgentFunction: body({}), extra: 1},
         {version: '1.0', callAgentFunction: body({extra: 1})},
         {version: '1.0', callAgentFunction: body({surfaceId: undefined})},
         {version: '1.0', callAgentFunction: body({callFunction: 'echo'})},
@@ -630,13 +629,25 @@ describe('RendererToAgentMessageProcessor', () => {
 
     test('raises a validation error for more than one message key', async () => {
       const onAction = vi.fn();
-      const processor = new RendererToAgentMessageProcessor({catalogs: [], onAction});
+      const processor = new RendererToAgentMessageProcessor({
+        catalogs: [catalogWith('cat', echo)],
+        onAction,
+      });
 
       await expect(
         processor.processMessage({...ACTION, error: ERROR.error}),
       ).rejects.toBeInstanceOf(A2uiValidationError);
       await expect(
         processor.processMessage({...call('echo'), action: ACTION.action}),
+      ).rejects.toBeInstanceOf(A2uiValidationError);
+      await expect(
+        processor.processMessage({...call('echo', {args: {text: 'hi'}}), extra: 1}),
+      ).rejects.toBeInstanceOf(A2uiValidationError);
+      await expect(
+        new RendererToAgentMessageProcessor({catalogs: []}).processMessage({
+          ...ACTION,
+          extra: 1,
+        }),
       ).rejects.toBeInstanceOf(A2uiValidationError);
       expect(onAction).not.toHaveBeenCalled();
     });

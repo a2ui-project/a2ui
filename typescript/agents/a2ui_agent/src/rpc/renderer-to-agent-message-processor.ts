@@ -155,11 +155,10 @@ export class RendererToAgentMessageProcessor {
           : `A renderer message needs version '1.0', not ${JSON.stringify(version)}.`,
       );
     }
-    const keys = MESSAGE_KEYS.filter(key => Object.hasOwn(message, key));
+    const keys = Object.keys(message).filter(key => key !== 'version');
     if (keys.length === 0) {
-      const found = Object.keys(message).filter(key => key !== 'version');
       throw new A2uiValidationError(
-        `A renderer message needs one of ${MESSAGE_KEYS.join(', ')}; found ${found.length === 0 ? 'none' : found.join(', ')}.`,
+        `A renderer message needs one of ${MESSAGE_KEYS.join(', ')}; found none.`,
       );
     }
     if (keys.length > 1) {
@@ -167,8 +166,14 @@ export class RendererToAgentMessageProcessor {
         `A renderer message carries one message, but this one has ${keys.join(', ')}.`,
       );
     }
+    const kind = keys[0];
+    if (!(MESSAGE_KEYS as readonly string[]).includes(kind)) {
+      throw new A2uiValidationError(
+        `A renderer message needs one of ${MESSAGE_KEYS.join(', ')}; found ${kind}.`,
+      );
+    }
 
-    switch (keys[0]) {
+    switch (kind as (typeof MESSAGE_KEYS)[number]) {
       case 'callAgentFunction':
         return {handled: true, replies: [await this._registry.handle(message)]};
       case 'action':

@@ -112,20 +112,18 @@ function buildCatalogWithAgentFunctions(spec: CatalogWithAgentFunctionsSpec): Ca
   for (const [key, fnSpec] of Object.entries(spec.agent_functions ?? {})) {
     const name = fnSpec.name ?? key;
     const handler = buildHandler(fnSpec.behavior);
-    const direct = (): AgentFunction =>
-      new AgentFunction<Record<string, unknown>, string>({
-        name,
-        returnType: fnSpec.returnType ?? 'any',
-        schema: fnSpec.args,
-        description: fnSpec.description,
-        handler,
-      });
     if (fnSpec.from_api) {
       // The catalog's own declaration, or else a foreign one built from the
       // case's signature, which the catalog must refuse.
       let declaration: FunctionApi | undefined = base.functions.get(name);
       if (declaration === undefined) {
-        const signature = direct();
+        const signature = new AgentFunction<Record<string, unknown>, string>({
+          name,
+          returnType: fnSpec.returnType ?? 'any',
+          schema: fnSpec.args,
+          description: fnSpec.description,
+          handler,
+        });
         declaration = {
           name,
           returnType: signature.returnType,
@@ -135,7 +133,20 @@ function buildCatalogWithAgentFunctions(spec: CatalogWithAgentFunctionsSpec): Ca
       }
       agentFunctions.push(AgentFunction.fromApi(declaration, handler));
     } else {
-      agentFunctions.push(direct());
+      if (fnSpec.returnType === undefined || fnSpec.args === undefined) {
+        throw new Error(
+          `Direct AgentFunctionDeclaration '${name}' must specify args and returnType.`,
+        );
+      }
+      agentFunctions.push(
+        new AgentFunction<Record<string, unknown>, string>({
+          name,
+          returnType: fnSpec.returnType,
+          schema: fnSpec.args,
+          description: fnSpec.description,
+          handler,
+        }),
+      );
     }
   }
   return base.copyWith({agentFunctions});
@@ -213,6 +224,7 @@ async function runHandleAgentFunction(testCase: LoadedCase): Promise<void> {
   expect(result.handled).toBe(true);
   expect(result.replies).toHaveLength(1);
   const response = result.replies[0] as AgentFunctionResponseMessage;
+  expect(Object.keys(response).sort()).toEqual(['agentFunctionResponse', 'version']);
   expect(response.version).toBe('1.0');
   const body = response.agentFunctionResponse;
   const expected = testCase.expect as {
@@ -222,16 +234,19 @@ async function runHandleAgentFunction(testCase: LoadedCase): Promise<void> {
   };
 
   expect(body.functionCallId).toBe(expected.functionCallId);
-  if (Object.hasOwn(expected, 'value')) {
-    expect(Object.hasOwn(body, 'error') && body.error !== undefined).toBe(false);
-    expect(body.value).toEqual(expected.value);
-  }
   if (Object.hasOwn(expected, 'error') && expected.error !== undefined) {
-    expect(Object.hasOwn(body, 'value') && body.value !== undefined).toBe(false);
-    expect(body.error?.code).toBe(expected.error.code);
+    expect(Object.keys(body).sort()).toEqual(['error', 'functionCallId']);
+    expect(body.error).toBeDefined();
+    expect(Object.keys(body.error!).sort()).toEqual(['code', 'message']);
+    expect(typeof body.error!.message).toBe('string');
+    expect(body.error!.message.length).toBeGreaterThan(0);
+    expect(body.error!.code).toBe(expected.error.code);
     if (expected.error.message !== undefined) {
-      expect(body.error?.message).toContain(expected.error.message);
+      expect(body.error!.message).toContain(expected.error.message);
     }
+  } else {
+    expect(Object.keys(body).sort()).toEqual(['functionCallId', 'value']);
+    expect(body.value).toEqual(expected.value);
   }
 }
 
@@ -255,17 +270,28 @@ function runValidatePayload(testCase: LoadedCase): void {
 function expectReplies(actual: unknown[], expected: Array<Record<string, unknown>>): void {
   expect(actual).toHaveLength(expected.length);
   expected.forEach((want, i) => {
-    const got = structuredClone(actual[i]) as Record<string, Record<string, unknown>>;
-    const wantBody = (want['agentFunctionResponse'] ?? {}) as Record<string, unknown>;
-    const gotBody = got['agentFunctionResponse'];
-    const wantError = wantBody['error'] as {message?: string} | undefined;
-    const gotError = gotBody?.['error'] as {message?: string} | undefined;
-    if (wantError !== undefined && gotError !== undefined) {
+    const got = structuredClone(actual[i]) as Record<string, unknown>;
+    const wantBody = want['agentFunctionResponse'] as Record<string, unknown> | undefined;
+    const gotBody = got['agentFunctionResponse'] as Record<string, unknown> | undefined;
+    if (
+      wantBody !== undefined &&
+      typeof wantBody === 'object' &&
+      wantBody !== null &&
+      Object.hasOwn(wantBody, 'error') &&
+      wantBody['error'] !== undefined
+    ) {
+      expect(gotBody).toBeDefined();
+      const wantError = wantBody['error'] as {code: string; message?: string};
+      const gotError = gotBody!['error'] as Record<string, unknown> | undefined;
+      expect(gotError).toBeDefined();
+      expect(Object.keys(gotError!).sort()).toEqual(['code', 'message']);
+      expect(typeof gotError!['message']).toBe('string');
+      expect((gotError!['message'] as string).length).toBeGreaterThan(0);
       if (wantError.message === undefined) {
-        delete gotError.message;
+        delete gotError!['message'];
       } else {
-        expect(gotError.message).toContain(wantError.message);
-        gotError.message = wantError.message;
+        expect(gotError!['message'] as string).toContain(wantError.message);
+        gotError!['message'] = wantError.message;
       }
     }
     expect(got).toEqual(want);
