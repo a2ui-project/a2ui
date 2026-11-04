@@ -880,22 +880,40 @@ public final class MessageProcessor: ObservableObject {
     )
     installAgentFunctionCaller(on: vm)
 
-    if let dataModel = op.dataModel {
-      for (key, value) in dataModel {
-        let escapedKey =
-          key
-          .replacingOccurrences(of: "~", with: "~0")
-          .replacingOccurrences(of: "/", with: "~1")
-        try vm.dataModel.setThrowing("/\(escapedKey)", value: value)
-      }
-    }
-
     if let components = op.components {
       try validateComponentsBatch(components, on: vm)
-      applyComponentsBatch(components, to: vm)
     }
 
     surfaceGroupModel.addSurface(vm)
+
+    do {
+      if let dataModel = op.dataModel {
+        for (key, value) in dataModel {
+          if key.isEmpty {
+            var currentRoot = vm.dataModel.get("/")?.objectValue ?? [:]
+            if value == .null {
+              currentRoot.removeValue(forKey: "")
+            } else {
+              currentRoot[""] = value
+            }
+            try vm.dataModel.setThrowing("/", value: .object(currentRoot))
+          } else {
+            let escapedKey =
+              key
+              .replacingOccurrences(of: "~", with: "~0")
+              .replacingOccurrences(of: "/", with: "~1")
+            try vm.dataModel.setThrowing("/\(escapedKey)", value: value)
+          }
+        }
+      }
+
+      if let components = op.components {
+        applyComponentsBatch(components, to: vm)
+      }
+    } catch {
+      surfaceGroupModel.removeSurface(id: op.surfaceID)
+      throw error
+    }
   }
 
   private func processCallRendererFunctionOp(_ op: InternalCallRendererFunctionOp) throws {

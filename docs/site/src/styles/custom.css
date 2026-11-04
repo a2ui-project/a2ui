@@ -194,6 +194,11 @@ header.header {
   overflow-wrap: break-word;
 }
 
+.sl-markdown-content td code {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
 /* Ensure comfortable left and right padding inside bordered tables across all doc pages */
 .sl-markdown-content :is(th:first-child, td:first-child):not(:where(.not-content *)) {
   padding-inline-start: 1.25rem !important;

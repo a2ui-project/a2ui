@@ -39,7 +39,7 @@ This is a web-specific feature; non-web adapters (such as Flutter and SwiftUI) d
 ### **4. Rendering a node as an element**
 
 - A function, `renderA2uiNode(node)`, renders a resolved node as its implementation's custom element: it registers the element if needed, creates one element per child position, assigns `node`, and returns the element to the host framework.
-- A placeholder node (`isPlaceholder`), a disposed node, or a node whose implementation is not universal renders nothing from this path. The adapter's own dispatcher handles those cases as the module blueprint describes.
+- A placeholder node (`isPlaceholder`) has no `context`, so the caller passes the surface and its own type: the surface element for the root, and `A2uiLitElement.renderNode` for children. Before the root arrives there is no `ComponentNode` at all (`resolver.rootNode` is `undefined`), so the surface element calls the per-surface fallback renderer directly with `{componentId: surface.rootId}`. Once `rootNode` is present, including an `unknown-type` placeholder, it delegates to `renderA2uiNode(root, {surface})`. `renderA2uiNode` then asks the adapter's per-surface fallback renderer (module blueprint §4.4) for the node's category and `info`, and renders what it returns, or nothing when no fallback is set or the builder returns nothing. `renderNode` must not return early for a child that hasn't arrived yet; it has to reach this path. A disposed node, or a node whose implementation is not universal, renders nothing from this path; the adapter's own dispatcher handles those cases as the module blueprint describes.
 - A parent re-render reuses the element at each child position. The element is replaced only when the tag name at that position changes.
 
 ### **5. Hosting framework-native implementations**
@@ -138,8 +138,11 @@ function isWebComponentImplementation(entry: unknown): entry is WebComponentImpl
 /** Defines the element in `customElements` once; throws if `tagName` is taken by another class. */
 function registerUniversalElement(impl: WebComponentImplementation): void;
 
-/** Renders a resolved node as its custom element, or nothing for a placeholder or non-universal node. */
-function renderA2uiNode(node: ComponentNode): unknown;
+/** Renders a resolved node as its custom element. A placeholder renders the surface's fallback for its state (Requirement 4), using the surface and parent type the caller passes, or nothing; a non-universal node renders nothing. */
+function renderA2uiNode(
+  node: ComponentNode,
+  fallbackContext?: {surface: SurfaceModel; parentComponentType?: string},
+): unknown;
 
 /** The property every universal custom element accepts from the renderer that creates it. */
 interface A2uiWebComponentElement extends HTMLElement {
@@ -181,7 +184,7 @@ These cases run in each web adapter that implements the feature. They are framew
   - Rendering two nodes of one type defines the element once.
   - Registering a different class under a taken tag name throws.
 - **Rendering**
-  - A placeholder node renders no element; when the component arrives, the element appears at the same position.
+  - A placeholder node renders its fallback, or no element when there is none; when the component arrives, the element appears at the same position.
   - A parent re-render keeps the same element object at each child position.
 - **Hosting**
   - A universal container whose child is a native implementation renders the child inside the container's element.
