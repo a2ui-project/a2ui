@@ -1146,6 +1146,10 @@
           "minLength": 1,
           "description": "Catalog JSON path relative to the conformance directory."
         },
+        "surface": {
+          "type": "boolean",
+          "description": "Whether the runner seeds surface s before the initial expectation. When false, the runner attaches the resolver when surface s is created."
+        },
         "data": {"type": "object"},
         "components": {"$ref": "#/$defs/NodeResolutionComponents"}
       },
@@ -1208,6 +1212,14 @@
           "additionalProperties": {"$ref": "#/$defs/NodeResolutionNode"}
         },
         "emissions": {"$ref": "#/$defs/NodeResolutionCounts"},
+        "created_emissions": {
+          "type": "object",
+          "description": "Post-creation props-callback counts for nodes created during the step.",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
         "metadata_emissions": {
           "$ref": "#/$defs/NodeResolutionCounts",
           "description": "Node paths whose metadata signal emitted during the step, with counts. Omitted paths must not emit."

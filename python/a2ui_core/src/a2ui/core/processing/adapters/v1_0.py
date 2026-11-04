@@ -93,11 +93,14 @@ class V1Point0Adapter(BaseVersionAdapter):
         res: list[InternalOperation] = []
         if action == MSG_TYPE_CREATE_SURFACE:
             cs = message[MSG_TYPE_CREATE_SURFACE]
+            self._validate_component_metadata(action, cs.get("components"))
             res.append(
                 InternalCreateSurfaceOp(
                     surface_id=self._get_surface_id(cs),
                     catalog_id=cs.get("catalogId"),
                     send_data_model=bool(cs.get("sendDataModel", False)),
+                    components=cs.get("components"),
+                    data_model=cs.get("dataModel"),
                     metadata=cs.get("metadata"),
                     version=message.get("version")
                     or (
@@ -107,24 +110,6 @@ class V1Point0Adapter(BaseVersionAdapter):
                     ),
                 )
             )
-            comps = cs.get("components")
-            self._validate_component_metadata(action, comps)
-            if comps is not None:
-                res.append(
-                    InternalUpdateComponentsOp(
-                        surface_id=self._get_surface_id(cs),
-                        components=comps,
-                    )
-                )
-            dm = cs.get("dataModel")
-            if dm is not None:
-                res.append(
-                    InternalUpdateDataModelOp(
-                        surface_id=self._get_surface_id(cs),
-                        path="/",
-                        value=dm,
-                    )
-                )
         elif action == MSG_TYPE_UPDATE_COMPONENTS:
             uc = message[MSG_TYPE_UPDATE_COMPONENTS]
             self._validate_component_metadata(action, uc.get("components"))

@@ -1628,3 +1628,43 @@
               - id: root
                 component: Text
                 text: Updated
+
+- name: test_validator_theme_schema
+  description: Tests schema validation of surface theme properties against catalog theme schema.
+  action: validate
+  catalog:
+    catalogId: "theme_cat"
+    $defs:
+      theme:
+        type: "object"
+        properties:
+          primaryColor:
+            type: "string"
+            pattern: "^#[0-9a-fA-F]{6}$"
+        required: ["primaryColor"]
+        additionalProperties: false
+    theme:
+      type: "object"
+      properties:
+        primaryColor:
+          type: "string"
+          pattern: "^#[0-9a-fA-F]{6}$"
+      required: ["primaryColor"]
+      additionalProperties: false
+  steps:
+    - messages:
+        - version: "v0.9"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "theme_cat"
+            theme:
+              primaryColor: "#ff0000"
+    - messages:
+        - version: "v0.9"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "theme_cat"
+            theme:
+              primaryColor: "not-a-hex"
+      expectError:
+        category: "ValidationError"
