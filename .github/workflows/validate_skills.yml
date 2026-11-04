@@ -18,7 +18,6 @@ on:
   push:
     branches: [main]
     paths: &paths
-      - "**/SKILL.md"
       - ".agents/skills/**"
       - "blueprints/skills/**"
       - "eval/iterative_format_optimizer/skills/**"
