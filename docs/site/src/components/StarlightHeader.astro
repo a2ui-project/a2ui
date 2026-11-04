@@ -217,22 +217,24 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
   import { pagefindUserConfig } from 'virtual:starlight/pagefind-config';
 
   class A2SiteSearch extends HTMLElement {
-    constructor() {
-      super();
-      const openBtn = this.querySelector<HTMLButtonElement>('button[data-open-modal]')!;
-      const closeBtn = this.querySelector<HTMLButtonElement>('button[data-close-modal]')!;
-      const dialog = this.querySelector<HTMLDialogElement>('dialog')!;
-      const dialogFrame = this.querySelector<HTMLElement>('.a2-sl-dialog-frame')!;
-      const searchContainer = this.querySelector<HTMLElement>('#starlight__search')!;
+    private cleanup: (() => void) | null = null;
+    private pagefindPromise: Promise<void> | null = null;
+
+    connectedCallback() {
+      const openBtn = this.querySelector<HTMLButtonElement>('button[data-open-modal]');
+      const closeBtn = this.querySelector<HTMLButtonElement>('button[data-close-modal]');
+      const dialog = this.querySelector<HTMLDialogElement>('dialog');
+      const dialogFrame = this.querySelector<HTMLElement>('.a2-sl-dialog-frame');
+      const searchContainer = this.querySelector<HTMLElement>('#starlight__search');
+      if (!openBtn || !closeBtn || !dialog || !dialogFrame || !searchContainer) return;
 
       const shouldStrip = this.dataset.stripTrailingSlash !== undefined;
       const stripTrailingSlash = (path: string) => path.replace(/(.)\/(#.*)?$/, '$1$2');
       const formatURL = shouldStrip ? stripTrailingSlash : (path: string) => path;
 
-      let pagefindPromise: Promise<void> | null = null;
       const ensurePagefind = () => {
-        if (pagefindPromise) return pagefindPromise;
-        pagefindPromise = (async () => {
+        if (this.pagefindPromise) return this.pagefindPromise;
+        this.pagefindPromise = (async () => {
           try {
             // @ts-expect-error — Missing types for @pagefind/default-ui package.
             const { PagefindUI } = await import('@pagefind/default-ui');
@@ -244,23 +246,25 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
               showImages: false,
               translations: { placeholder: 'Search docs' },
               showSubResults: true,
-              processResult: (result: { url: string; sub_results: Array<{ url: string }> }) => {
+              processResult: (result: { url: string; sub_results?: Array<{ url: string }> }) => {
                 result.url = formatURL(result.url);
-                result.sub_results = result.sub_results.map((sub_result) => {
-                  sub_result.url = formatURL(sub_result.url);
-                  return sub_result;
-                });
+                if (result.sub_results) {
+                  result.sub_results = result.sub_results.map((sub_result) => {
+                    sub_result.url = formatURL(sub_result.url);
+                    return sub_result;
+                  });
+                }
               },
             });
           } catch (err) {
             console.error('Failed to initialize Pagefind UI:', err);
           }
         })();
-        return pagefindPromise;
+        return this.pagefindPromise;
       };
 
       const onClick = (event: MouseEvent) => {
-        const isLink = 'href' in (event.target || {});
+        const isLink = event.target instanceof Element && Boolean(event.target.closest('a'));
         if (
           isLink ||
           (document.body.contains(event.target as Node) && !dialogFrame.contains(event.target as Node))
@@ -287,7 +291,9 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
         event?.stopPropagation();
         if (!focusSearchInput()) {
           ensurePagefind().then(() => {
-            requestAnimationFrame(() => focusSearchInput());
+            if (dialog.open) {
+              requestAnimationFrame(() => focusSearchInput());
+            }
           });
         }
       };
@@ -296,26 +302,54 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
         if (dialog.open) dialog.close();
       };
 
-      openBtn.addEventListener('click', openModal);
-      closeBtn.addEventListener('click', closeModal);
-
-      dialog.addEventListener('close', () => {
+      const onDialogClose = () => {
         document.body.toggleAttribute('data-search-modal-open', false);
         window.removeEventListener('click', onClick);
-      });
+      };
 
-      window.addEventListener('keydown', (e) => {
+      const onKeyDown = (e: KeyboardEvent) => {
         if ((e.metaKey === true || e.ctrlKey === true) && e.key.toLowerCase() === 'k') {
           e.preventDefault();
           dialog.open ? closeModal() : openModal();
         }
-      });
+      };
 
-      const onIdle = window.requestIdleCallback || ((cb: () => void) => setTimeout(cb, 1));
+      openBtn.addEventListener('click', openModal);
+      closeBtn.addEventListener('click', closeModal);
+      dialog.addEventListener('close', onDialogClose);
+      window.addEventListener('keydown', onKeyDown);
+
+      const onIdle = window.requestIdleCallback || ((cb: () => void) => window.setTimeout(cb, 1));
+      let idleId: number | null = null;
+      const triggerIdle = () => {
+        idleId = onIdle(() => ensurePagefind());
+      };
+
       if (document.readyState === 'loading') {
-        window.addEventListener('DOMContentLoaded', () => onIdle(() => ensurePagefind()));
+        window.addEventListener('DOMContentLoaded', triggerIdle);
       } else {
-        onIdle(() => ensurePagefind());
+        triggerIdle();
+      }
+
+      this.cleanup = () => {
+        openBtn.removeEventListener('click', openModal);
+        closeBtn.removeEventListener('click', closeModal);
+        dialog.removeEventListener('close', onDialogClose);
+        window.removeEventListener('keydown', onKeyDown);
+        window.removeEventListener('click', onClick);
+        window.removeEventListener('DOMContentLoaded', triggerIdle);
+        if (idleId !== null && window.cancelIdleCallback) {
+          window.cancelIdleCallback(idleId);
+        } else if (idleId !== null) {
+          window.clearTimeout(idleId);
+        }
+      };
+    }
+
+    disconnectedCallback() {
+      if (this.cleanup) {
+        this.cleanup();
+        this.cleanup = null;
       }
     }
   }
