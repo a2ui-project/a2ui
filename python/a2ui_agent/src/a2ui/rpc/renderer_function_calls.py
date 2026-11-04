@@ -20,13 +20,20 @@ import asyncio
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 import logging
+import math
 from types import TracebackType
 from typing import Any
 import uuid
 
 from pydantic import ValidationError
 
-from a2ui.core import A2uiCatalogError, A2uiRpcError, CatalogApi, RpcErrorCode
+from a2ui.core import (
+    A2uiCatalogError,
+    A2uiRpcError,
+    CatalogApi,
+    RpcErrorCode,
+    is_valid_uax31_identifier,
+)
 from a2ui.core.schema.v1_0 import (
     CallRendererFunction,
     CallRendererFunctionMessage,
@@ -94,11 +101,12 @@ class RendererFunctionCalls:
                 nothing.
 
         Raises:
-            ValueError: If `default_timeout` or `max_pending` is not positive.
+            ValueError: If `default_timeout` is not a finite positive number
+                or None, or `max_pending` is less than 1.
             A2uiCatalogError: If two catalogs have the same ID.
         """
-        if default_timeout is not None and default_timeout <= 0:
-            raise ValueError("default_timeout must be positive or None.")
+        if default_timeout is not None:
+            _check_timeout("default_timeout", default_timeout)
         if max_pending is not None and max_pending < 1:
             raise ValueError("max_pending must be at least 1.")
         self._default_timeout = default_timeout
@@ -153,34 +161,51 @@ class RendererFunctionCalls:
                 None, or an empty string, leaves `surfaceId` out of the
                 message, so the renderer runs it against an empty data model.
             timeout: Seconds to wait for the response, in place of the
-                default timeout.
-            function_call_id: The call's ID. None generates one.
+                default timeout. None uses the default, which may be no
+                limit; a call can't turn the limit off on its own.
+            function_call_id: The call's ID. None generates one; an empty
+                string is refused.
 
         Returns:
             The `callRendererFunction` message and the future of its value.
 
+        The checks run in this order, each before anything is built,
+        registered or timed: the timeout, disposal, the ID, a duplicate ID,
+        `max_pending`, an empty `name`, an empty `catalog_id`, the `name`
+        as an identifier, the `args`, and last the `catalogs`.
+
         Raises:
+            ValueError: If `timeout` is not None or a finite positive number
+                (a bool, NaN, infinity, zero or a negative number).
             A2uiRpcError: If the instance is disposed (code `DISPOSED`), the
                 ID is already pending (code `DUPLICATE`), `max_pending` calls
-                are pending (code `TOO_MANY_PENDING`), `name` or `catalog_id`
-                is empty, or the message fails the schema (code
-                `INVALID_FUNCTION_CALL`). With `catalogs`, also if
-                `catalog_id` names none of them or that catalog has no
-                renderer function `name`, such as when `name` is an agent
+                are pending (code `TOO_MANY_PENDING`); with code
+                `INVALID_FUNCTION_CALL` if `function_call_id` is an empty
+                string, `name` or `catalog_id` is empty, `name` isn't a
+                UAX #31 identifier or starts with `@`, `args` isn't a mapping
+                with identifier keys and JSON values (null, booleans,
+                strings, finite numbers, and lists and string-keyed mappings
+                of these), or the message fails the schema. With `catalogs`,
+                also if `catalog_id` names none of them or that catalog has
+                no renderer function `name`, such as when `name` is an agent
                 function (code `UNKNOWN_FUNCTION`), or the function is
                 `rendererOnly` (also when `allowedCallers` is unset) or
                 requires user activation (code `INVALID_FUNCTION_CALL`).
             RuntimeError: If no event loop is running, or the instance
                 belongs to another loop.
-            ValueError: If `timeout` is not positive.
         """
-        if timeout is not None and timeout <= 0:
-            raise ValueError("timeout must be positive.")
+        if timeout is not None:
+            _check_timeout("timeout", timeout)
         if self._disposed:
             raise A2uiRpcError(
                 "RendererFunctionCalls has been disposed.", code=RpcErrorCode.DISPOSED
             )
         loop = self._bind_loop()
+        if function_call_id is not None and not function_call_id:
+            raise A2uiRpcError(
+                "functionCallId must not be empty.",
+                code=RpcErrorCode.INVALID_FUNCTION_CALL,
+            )
         call_id = function_call_id or f"call-{uuid.uuid4().hex}"
         if call_id in self._pending:
             raise A2uiRpcError(
@@ -207,6 +232,21 @@ class RendererFunctionCalls:
                 code=RpcErrorCode.INVALID_FUNCTION_CALL,
                 function_call_id=call_id,
             )
+        if name.startswith("@") or not is_valid_uax31_identifier(name):
+            raise A2uiRpcError(
+                f"The function name '{name}' must be a UAX #31 identifier that"
+                " doesn't start with '@'.",
+                code=RpcErrorCode.INVALID_FUNCTION_CALL,
+                function_call_id=call_id,
+            )
+        if args is not None:
+            problem = _args_problem(args)
+            if problem:
+                raise A2uiRpcError(
+                    f"Invalid arguments for '{name}': {problem}",
+                    code=RpcErrorCode.INVALID_FUNCTION_CALL,
+                    function_call_id=call_id,
+                )
         self._check_target(catalog_id, name, call_id)
         try:
             # Left unset, not None or empty, without a surface, so that
@@ -490,6 +530,56 @@ class RendererFunctionCalls:
                     "Dropping renderer function call %s: the event loop is closed.",
                     call_id,
                 )
+
+
+def _check_timeout(label: str, timeout: Any) -> None:
+    """Raises ValueError unless `timeout` is a finite positive number."""
+    if (
+        isinstance(timeout, bool)
+        or not isinstance(timeout, (int, float))
+        or not math.isfinite(timeout)
+        or timeout <= 0
+    ):
+        raise ValueError(f"{label} must be a finite positive number, got {timeout!r}.")
+
+
+def _args_problem(args: Any) -> str | None:
+    """What makes `args` unfit to send, or None if nothing does."""
+    if not isinstance(args, Mapping):
+        return f"they must be an object, got {type(args).__name__}."
+    for key in args:
+        if not isinstance(key, str) or not is_valid_uax31_identifier(key):
+            return f"the key {key!r} is not a UAX #31 identifier."
+    for key, value in args.items():
+        problem = _json_value_problem(value, key)
+        if problem:
+            return problem
+    return None
+
+
+def _json_value_problem(value: Any, path: str) -> str | None:
+    """What makes `value` (at `path`) not a JSON value, or None."""
+    if value is None or isinstance(value, (bool, str)):
+        return None
+    if isinstance(value, (int, float)):
+        if isinstance(value, float) and not math.isfinite(value):
+            return f"'{path}' is {value!r}, which isn't a JSON number."
+        return None
+    if isinstance(value, (list, tuple)):
+        for index, item in enumerate(value):
+            problem = _json_value_problem(item, f"{path}[{index}]")
+            if problem:
+                return problem
+        return None
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            if not isinstance(key, str):
+                return f"'{path}' has the key {key!r}, which isn't a string."
+            problem = _json_value_problem(item, f"{path}.{key}")
+            if problem:
+                return problem
+        return None
+    return f"'{path}' is a {type(value).__name__}, which isn't a JSON value."
 
 
 def _raw_call_id(message: Any) -> str | None:

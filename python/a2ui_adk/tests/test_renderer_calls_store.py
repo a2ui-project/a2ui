@@ -59,7 +59,15 @@ async def test_store_passes_its_settings_to_each_instance() -> None:
 
 
 @pytest.mark.parametrize(
-    "kwargs", [{"default_timeout": 0}, {"default_timeout": -1.0}, {"max_pending": 0}]
+    "kwargs",
+    [
+        {"default_timeout": 0},
+        {"default_timeout": -1.0},
+        {"default_timeout": float("nan")},
+        {"default_timeout": float("inf")},
+        {"default_timeout": True},
+        {"max_pending": 0},
+    ],
 )
 def test_store_rejects_invalid_settings(kwargs: dict[str, float]) -> None:
     with pytest.raises(ValueError):

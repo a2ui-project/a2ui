@@ -78,12 +78,12 @@ class A2uiRendererCallsStore:
                 `RendererFunctionCalls`.
 
         Raises:
-            ValueError: If `default_timeout` or `max_pending` is not positive.
+            ValueError: If `default_timeout` is not a finite positive number
+                or None, or `max_pending` is less than 1, as for
+                `RendererFunctionCalls`.
         """
-        if default_timeout is not None and default_timeout <= 0:
-            raise ValueError("default_timeout must be positive or None.")
-        if max_pending is not None and max_pending < 1:
-            raise ValueError("max_pending must be at least 1.")
+        # Checks the settings the way each session's instance will.
+        RendererFunctionCalls(default_timeout=default_timeout, max_pending=max_pending)
         self._default_timeout = default_timeout
         self._max_pending = max_pending
         self._calls: dict[str, RendererFunctionCalls] = {}

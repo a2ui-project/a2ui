@@ -188,9 +188,203 @@ class TestCall:
 
     def test_rejects_bad_settings(self) -> None:
         with pytest.raises(ValueError):
-            RendererFunctionCalls(default_timeout=0)
-        with pytest.raises(ValueError):
             RendererFunctionCalls(max_pending=0)
+
+    @pytest.mark.parametrize("timeout", [0, -1, float("nan"), float("inf"), True, "30"])
+    def test_rejects_a_default_timeout_that_is_not_finite_and_positive(
+        self, timeout: Any
+    ) -> None:
+        with pytest.raises(ValueError, match="default_timeout"):
+            RendererFunctionCalls(default_timeout=timeout)
+
+    def test_accepts_no_default_timeout(self) -> None:
+        RendererFunctionCalls(default_timeout=None)
+
+
+class TestCallChecks:
+    """The checks `call` makes, in order, before anything is registered."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "timeout", [0, -1, float("nan"), float("inf"), float("-inf"), True, False]
+    )
+    async def test_rejects_a_timeout_that_is_not_finite_and_positive(
+        self, timeout: Any
+    ) -> None:
+        calls = RendererFunctionCalls()
+
+        with pytest.raises(ValueError, match="timeout"):
+            calls.call(catalog_id=CATALOG, name="now", timeout=timeout)
+
+        assert calls.pending_count == 0
+
+    @pytest.mark.asyncio
+    async def test_checks_the_timeout_before_disposal(self) -> None:
+        calls = RendererFunctionCalls()
+        calls.dispose()
+
+        with pytest.raises(ValueError):
+            calls.call(catalog_id=CATALOG, name="now", timeout=float("nan"))
+
+    @pytest.mark.asyncio
+    async def test_rejects_an_empty_function_call_id(self) -> None:
+        calls = RendererFunctionCalls()
+
+        with pytest.raises(A2uiRpcError) as excinfo:
+            calls.call(catalog_id=CATALOG, name="now", function_call_id="")
+
+        assert excinfo.value.code == "INVALID_FUNCTION_CALL"
+        assert calls.pending_count == 0
+
+    @pytest.mark.asyncio
+    async def test_checks_disposal_before_the_function_call_id(self) -> None:
+        calls = RendererFunctionCalls()
+        calls.dispose()
+
+        with pytest.raises(A2uiRpcError) as excinfo:
+            calls.call(catalog_id=CATALOG, name="now", function_call_id="")
+
+        assert excinfo.value.code == "DISPOSED"
+
+    @pytest.mark.asyncio
+    async def test_checks_the_name_before_the_catalog_id(self) -> None:
+        calls = RendererFunctionCalls()
+
+        with pytest.raises(A2uiRpcError, match="function name"):
+            calls.call(catalog_id="", name="")
+
+    @pytest.mark.asyncio
+    async def test_checks_the_pending_limit_before_the_name(self) -> None:
+        calls = RendererFunctionCalls(max_pending=1)
+        _, future = calls.call(catalog_id=CATALOG, name="now")
+
+        with pytest.raises(A2uiRpcError) as excinfo:
+            calls.call(catalog_id=CATALOG, name="")
+
+        assert excinfo.value.code == "TOO_MANY_PENDING"
+        future.cancel()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("name", ["get-location", "@index", "1st", "a b"])
+    async def test_rejects_a_name_that_is_not_an_identifier(self, name: str) -> None:
+        calls = RendererFunctionCalls()
+
+        with pytest.raises(A2uiRpcError) as excinfo:
+            calls.call(catalog_id=CATALOG, name=name)
+
+        assert excinfo.value.code == "INVALID_FUNCTION_CALL"
+        assert calls.pending_count == 0
+
+    @pytest.mark.asyncio
+    async def test_checks_the_catalog_id_before_the_identifier(self) -> None:
+        calls = RendererFunctionCalls()
+
+        with pytest.raises(A2uiRpcError, match="needs a catalogId"):
+            calls.call(catalog_id="", name="get-location")
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("args", "text"),
+        [
+            (["Saved"], "must be an object"),
+            ("Saved", "must be an object"),
+            ({"bad-key": 1}, "bad-key"),
+            ({1: "one"}, "1"),
+            ({"x": float("nan")}, "'x'"),
+            ({"x": float("inf")}, "'x'"),
+            ({"x": [1, float("-inf")]}, "x[1]"),
+            ({"x": {"y": float("nan")}}, "x.y"),
+            ({"x": {1: "one"}}, "isn't a string"),
+            ({"x": object()}, "isn't a JSON value"),
+            ({"x": {1, 2}}, "isn't a JSON value"),
+        ],
+        ids=[
+            "list",
+            "string",
+            "bad-key",
+            "non-string-key",
+            "nan",
+            "inf",
+            "nested-inf",
+            "nested-nan",
+            "nested-non-string-key",
+            "object",
+            "set",
+        ],
+    )
+    async def test_rejects_args_that_are_not_a_json_object(
+        self, args: Any, text: str
+    ) -> None:
+        calls = RendererFunctionCalls()
+
+        with pytest.raises(A2uiRpcError) as excinfo:
+            calls.call(catalog_id=CATALOG, name="notify", args=args)
+
+        assert excinfo.value.code == "INVALID_FUNCTION_CALL"
+        assert text in str(excinfo.value)
+        assert calls.pending_count == 0
+
+    @pytest.mark.asyncio
+    async def test_accepts_json_args_and_leaves_reserved_objects_alone(self) -> None:
+        calls = RendererFunctionCalls()
+        args = {
+            "a": None,
+            "b": True,
+            "c": "text",
+            "d": 1,
+            "e": 1.5,
+            "f": [1, "two", {"g": None}],
+            "h": {"@path": "/x"},
+            "i": {"@call": "now", "args": {}},
+        }
+
+        message, future = calls.call(catalog_id=CATALOG, name="notify", args=args)
+
+        dumped = message.model_dump(by_alias=True, exclude_unset=True)
+        assert dumped["callRendererFunction"]["callFunction"]["args"] == args
+        future.cancel()
+
+    @pytest.mark.asyncio
+    async def test_checks_the_args_before_the_catalogs(self) -> None:
+        calls = RendererFunctionCalls(catalogs=[_device_catalog()])
+
+        with pytest.raises(A2uiRpcError) as excinfo:
+            calls.call(catalog_id=CATALOG, name="formatLocal", args={"bad-key": 1})
+
+        assert "bad-key" in str(excinfo.value)
+        assert "may not call" not in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    async def test_checks_the_name_identifier_before_the_catalogs(self) -> None:
+        calls = RendererFunctionCalls(catalogs=[_device_catalog()])
+
+        with pytest.raises(A2uiRpcError) as excinfo:
+            calls.call(catalog_id="https://example.com/other.json", name="@index")
+
+        assert excinfo.value.code == "INVALID_FUNCTION_CALL"
+
+    @pytest.mark.asyncio
+    async def test_no_limit_comes_only_from_the_instance(self) -> None:
+        loop = asyncio.get_running_loop()
+        delays: list[float] = []
+        call_later = loop.call_later
+
+        def recording_call_later(delay: float, *args: Any) -> asyncio.TimerHandle:
+            delays.append(delay)
+            return call_later(delay, *args)
+
+        unlimited = RendererFunctionCalls(default_timeout=None)
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setattr(loop, "call_later", recording_call_later)
+            _, first = unlimited.call(catalog_id=CATALOG, name="now")
+            _, second = unlimited.call(catalog_id=CATALOG, name="now", timeout=5)
+            _, third = RendererFunctionCalls(default_timeout=7).call(
+                catalog_id=CATALOG, name="now", timeout=None
+            )
+
+        assert delays == [5, 7]
+        for future in (first, second, third):
+            future.cancel()
 
 
 def _device_catalog(catalog_id: str = CATALOG) -> Catalog:

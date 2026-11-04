@@ -908,16 +908,34 @@ location = await result  # settled when the processor gets the response
 ```
 
 1. `call` always sets `catalogId`, which `callRendererFunction` requires,
-   generates the `functionCallId`, and checks the message against the schema.
-   An empty function name or `catalog_id` raises `A2uiRpcError` with code
-   `INVALID_FUNCTION_CALL`. An empty `surface_id` counts as none: the message
-   leaves `surfaceId` out, and the renderer runs the function against an empty
-   data model.
+   and generates the `functionCallId` unless you pass one. Before anything is
+   built, registered or timed, it checks, in this order:
+   1. `timeout`: anything but None or a finite positive number (a bool, NaN,
+      infinity, zero or a negative number) raises `ValueError`;
+   2. a disposed instance raises `A2uiRpcError` with code `DISPOSED`;
+   3. an empty `function_call_id` raises with code `INVALID_FUNCTION_CALL`;
+   4. an ID that is already pending raises with code `DUPLICATE`;
+   5. `max_pending` reached raises with code `TOO_MANY_PENDING`;
+   6. an empty `name`, then an empty `catalog_id`, raises with code
+      `INVALID_FUNCTION_CALL`;
+   7. a `name` that isn't a UAX #31 identifier or starts with `@` raises with
+      code `INVALID_FUNCTION_CALL`;
+   8. `args` that aren't a mapping with identifier keys and JSON values (null,
+      booleans, strings, finite numbers, and lists and string-keyed mappings of
+      these; NaN and infinity aren't JSON) raise with code
+      `INVALID_FUNCTION_CALL`. Values aren't otherwise interpreted: a nested
+      `@call` or `@path` object is just an object, which the renderer checks;
+   9. last, the `catalogs` checks (item 7 below).
+
+   An empty `surface_id` counts as none: the message leaves `surfaceId` out,
+   and the renderer runs the function against an empty data model.
+
 2. The instance belongs to the event loop where it is first used. `call` must
    run on that loop. `resolve` may be called from any thread.
 3. A call fails with `A2uiRpcError` if the renderer answers with an error (with
    the renderer's code) or no answer arrives in time (code `TIMEOUT`). The
-   timeout is 30 seconds by default; set `default_timeout` or pass `timeout`
+   timeout is 30 seconds by default; set `default_timeout` (None for no
+   limit, which only the instance can set) or pass `timeout`
    to `call`.
 4. Cancelling the future forgets the call. Responses to calls that are unknown,
    already answered, timed out or cancelled are logged at debug level and
