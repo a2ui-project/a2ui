@@ -20,16 +20,23 @@ import 'agent_function_registry.dart';
 
 /// A callback that receives one kind of message a renderer sent, such as an
 /// [ActionMessage]. It may return a [Future], which is awaited.
+///
+/// Returning `false` declines the message: the processor then reports it as
+/// not handled, so the caller passes it on, for example to the model's turn.
+/// Returning `true` or `null` (or nothing, from a block body) means the
+/// callback handled it.
 typedef RendererMessageCallback<T extends RendererToAgentMessage> =
-    FutureOr<void> Function(T message);
+    FutureOr<bool?> Function(T message);
 
 /// What [RendererToAgentMessageProcessor.processMessage] did with a message.
 final class ProcessResult {
   /// Whether the processor handled the message: it answered a
-  /// `callAgentFunction`, or passed the message to a callback.
+  /// `callAgentFunction`, or passed the message to a callback that didn't
+  /// decline it.
   ///
   /// False for an `action`, `error` or `rendererFunctionResponse` that has no
-  /// callback, which the caller passes on, for example to the model's turn.
+  /// callback, or whose callback returned `false`, which the caller passes
+  /// on, for example to the model's turn.
   final bool handled;
 
   /// The messages to send back to the renderer: one
@@ -57,17 +64,20 @@ final class ProcessResult {
 ///   `agentFunctionResponse`, carrying the value or an error.
 /// - An `action`, `error` or `rendererFunctionResponse` goes to its callback,
 ///   [onAction], [onError] or [onRendererFunctionResponse], once validated
-///   against the v1.0 schema. With no callback set, the message is left
-///   unhandled and unvalidated, so the caller can pass it on.
+///   against the v1.0 schema. A callback may return `false` to decline the
+///   message. With no callback set, the message is left unhandled, so the
+///   caller can pass it on.
 ///
 /// The processor keeps no state between messages, so one instance can serve
 /// every conversation of an agent, or one can be built per request from the
-/// catalogs that are active.
+/// catalogs that are active. It processes one message at a time; a caller
+/// with several runs [processMessage] on each, and so decides how they run
+/// together and what to do when one fails.
 ///
 /// ```dart
 /// final processor = RendererToAgentMessageProcessor(
 ///   catalogs: [catalog.copyWith(agentFunctions: [fetchQuote])],
-///   onAction: (action) => print(action.action.name),
+///   onAction: (action) => action.action.name == 'refresh' ? true : false,
 /// );
 /// final ProcessResult result = await processor.processMessage(message);
 /// if (!result.handled) {
@@ -95,7 +105,8 @@ class RendererToAgentMessageProcessor {
   /// an `EXECUTION_ERROR`, and its result is ignored. By default there is no
   /// limit.
   ///
-  /// Throws [ArgumentError] if [agentFunctionTimeout] is not positive.
+  /// Throws [ArgumentError] if [agentFunctionTimeout] is not positive, and
+  /// [A2uiCatalogError] if two of [catalogs] have the same id.
   RendererToAgentMessageProcessor({
     required Iterable<CatalogApi> catalogs,
     Duration? agentFunctionTimeout,
@@ -110,14 +121,27 @@ class RendererToAgentMessageProcessor {
   /// Processes one renderer-to-agent [message].
   ///
   /// [message] is a decoded JSON envelope (a `Map`) or a
-  /// [RendererToAgentMessage].
+  /// [RendererToAgentMessage], and must declare version `'1.0'`.
   ///
-  /// Throws [A2uiValidationError] when [message] is not an object, when it
-  /// carries no message key, more than one, or one the protocol doesn't
-  /// define, when a `callAgentFunction` has no non-empty `functionCallId`, or
-  /// when a message that has a callback breaks the v1.0 schema. An exception
-  /// from a callback propagates.
+  /// Throws [A2uiValidationError] when [message] is not an object, when its
+  /// version is missing or isn't `'1.0'`, when it carries no message key,
+  /// more than one, or one the protocol doesn't define, when a
+  /// `callAgentFunction` has no non-empty `functionCallId`, or when a message
+  /// that has a callback breaks the v1.0 schema. An exception from a callback
+  /// propagates.
   Future<ProcessResult> processMessage(Object? message) async {
+    final Object? version = switch (message) {
+      RendererToAgentMessage(:final String version) => version,
+      Map<Object?, Object?>() => message['version'],
+      _ => A2uiProtocolVersion.v1_0.jsonValue,
+    };
+    if (version != A2uiProtocolVersion.v1_0.jsonValue) {
+      throw A2uiValidationError(
+        "A renderer-to-agent message must declare version '"
+        "${A2uiProtocolVersion.v1_0.jsonValue}', got "
+        "${version == null ? 'none' : "'$version'"}.",
+      );
+    }
     switch (message) {
       case CallAgentFunctionMessage():
         return _answer(message);
@@ -140,16 +164,6 @@ class RendererToAgentMessageProcessor {
         );
     }
   }
-
-  /// Processes [messages] concurrently and returns their results in the
-  /// same order.
-  ///
-  /// Throws the first error [processMessage] throws for any of them, once
-  /// all have finished.
-  Future<List<ProcessResult>> processMessages(Iterable<Object?> messages) =>
-      Future.wait([
-        for (final Object? message in messages) processMessage(message),
-      ]);
 
   Future<ProcessResult> _processJson(Map<Object?, Object?> json) {
     final List<Object?> keys = [
@@ -192,8 +206,7 @@ class RendererToAgentMessageProcessor {
   ) async {
     if (callback == null) return ProcessResult(handled: false);
     _parseV1(message.toJson());
-    await callback(message);
-    return ProcessResult(handled: true);
+    return ProcessResult(handled: await callback(message) != false);
   }
 
   Future<ProcessResult> _dispatchJson<T extends RendererToAgentMessage>(
@@ -202,19 +215,11 @@ class RendererToAgentMessageProcessor {
   ) async {
     if (callback == null) return ProcessResult(handled: false);
     final RendererToAgentMessage parsed = _parseV1(json);
-    await callback(parsed as T);
-    return ProcessResult(handled: true);
+    return ProcessResult(handled: await callback(parsed as T) != false);
   }
 
-  /// Parses [json] as a v1.0 renderer-to-agent message.
+  /// Parses [json], whose version is `'1.0'`, as a renderer-to-agent message.
   static RendererToAgentMessage _parseV1(Map<Object?, Object?> json) {
-    final Object? version = json['version'];
-    if (version != A2uiProtocolVersion.v1_0.jsonValue) {
-      throw A2uiValidationError(
-        "Expected a v1.0 renderer-to-agent message (version '"
-        "${A2uiProtocolVersion.v1_0.jsonValue}'), got version $version.",
-      );
-    }
     final stringKeyed = <String, dynamic>{};
     for (final MapEntry<Object?, Object?> entry in json.entries) {
       final Object? key = entry.key;

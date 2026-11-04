@@ -360,21 +360,6 @@ void main() {
           _reply(await processor.processMessage(msg));
 
       final malformed = <String, Map<String, Object?>>{
-        'missing version': {
-          'callAgentFunction': {
-            'surfaceId': 'main',
-            'functionCallId': 'c1',
-            'callFunction': {'@call': 'echo'},
-          },
-        },
-        'unsupported version': {
-          'version': 'v0.9',
-          'callAgentFunction': {
-            'surfaceId': 'main',
-            'functionCallId': 'c1',
-            'callFunction': {'@call': 'echo'},
-          },
-        },
         'unknown body field': {
           'version': '1.0',
           'callAgentFunction': {
@@ -640,6 +625,29 @@ void main() {
       );
     });
 
+    test('a TimeoutException from the handler is a handler error', () async {
+      for (final Duration? timeout in [null, const Duration(seconds: 30)]) {
+        final processor = RendererToAgentMessageProcessor(
+          catalogs: [
+            _catalog([
+              _fn(
+                'upstream',
+                (args, _) async =>
+                    throw TimeoutException('upstream call timed out'),
+              ),
+            ]),
+          ],
+          agentFunctionTimeout: timeout,
+        );
+        final A2uiFunctionResponse response = _reply(
+          await processor.processMessage(_callMsg('upstream')),
+        );
+        expect(response, _errorCode(RpcErrorCode.executionError));
+        expect(response.error?.message, contains('upstream call timed out'));
+        expect(response.error?.message, isNot(contains('timed out after')));
+      }
+    });
+
     test('there is no timeout by default', () async {
       final processor = RendererToAgentMessageProcessor(
         catalogs: [
@@ -678,9 +686,18 @@ void main() {
       final seen = <RendererToAgentMessage>[];
       final processor = RendererToAgentMessageProcessor(
         catalogs: const [],
-        onAction: seen.add,
-        onError: seen.add,
-        onRendererFunctionResponse: seen.add,
+        onAction: (message) {
+          seen.add(message);
+          return true;
+        },
+        onError: (message) {
+          seen.add(message);
+          return true;
+        },
+        onRendererFunctionResponse: (message) {
+          seen.add(message);
+          return true;
+        },
       );
 
       final ProcessResult action = await processor.processMessage(_actionMsg());
@@ -720,9 +737,18 @@ void main() {
       final seen = <RendererToAgentMessage>[];
       final processor = RendererToAgentMessageProcessor(
         catalogs: const [],
-        onAction: seen.add,
-        onError: seen.add,
-        onRendererFunctionResponse: seen.add,
+        onAction: (message) {
+          seen.add(message);
+          return true;
+        },
+        onError: (message) {
+          seen.add(message);
+          return true;
+        },
+        onRendererFunctionResponse: (message) {
+          seen.add(message);
+          return true;
+        },
       );
       final typed = [
         RendererToAgentMessage.fromJson(_actionMsg()),
@@ -743,6 +769,7 @@ void main() {
         onAction: (message) async {
           await gate.future;
           finished = true;
+          return true;
         },
       );
       final Future<ProcessResult> result = processor.processMessage(
@@ -776,9 +803,18 @@ void main() {
       var calls = 0;
       final processor = RendererToAgentMessageProcessor(
         catalogs: const [],
-        onAction: (message) => calls++,
-        onError: (message) => calls++,
-        onRendererFunctionResponse: (message) => calls++,
+        onAction: (message) {
+          calls++;
+          return true;
+        },
+        onError: (message) {
+          calls++;
+          return true;
+        },
+        onRendererFunctionResponse: (message) {
+          calls++;
+          return true;
+        },
       );
       for (final Object message in [
         {'version': '1.0', 'action': <String, Object?>{}},
@@ -827,8 +863,7 @@ void main() {
         RendererToAgentMessage.fromJson(_actionMsg()),
         // Malformed, but nothing reads it.
         {'version': '1.0', 'action': <String, Object?>{}},
-        {'action': 'not an object'},
-        {'version': 'v0.9', 'rendererFunctionResponse': 3},
+        {'version': '1.0', 'rendererFunctionResponse': 3},
       ]) {
         final ProcessResult result = await processor.processMessage(message);
         expect(result.handled, isFalse, reason: '$message');
@@ -842,7 +877,7 @@ void main() {
         'error', () async {
       final processor = RendererToAgentMessageProcessor(
         catalogs: const [],
-        onAction: (message) {},
+        onAction: (message) => true,
       );
       for (final Object? message in [
         {'version': '1.0', 'updateComponents': <String, Object?>{}},
@@ -872,41 +907,137 @@ void main() {
     });
   });
 
-  group('RendererToAgentMessageProcessor.processMessages', () {
-    test('runs messages concurrently and returns results in order', () async {
-      final firstMayFinish = Completer<void>();
+  group('RendererToAgentMessageProcessor versions', () {
+    test('every message must declare version 1.0', () async {
+      var calls = 0;
       final processor = RendererToAgentMessageProcessor(
         catalogs: [
-          _catalog([
-            _fn('first', (args, _) async {
-              // Finishes only once the second call has run, so the calls
-              // overlap.
-              await firstMayFinish.future;
-              return 'first';
-            }),
-            _fn('second', (args, _) {
-              firstMayFinish.complete();
-              return 'second';
-            }),
-          ]),
+          _catalog([_fn('echo', (args, _) => calls++)]),
         ],
+        onAction: (message) {
+          calls++;
+          return true;
+        },
       );
-      final List<ProcessResult> results = await processor.processMessages([
-        _callMsg('first', null, _catId, 'main', 'c-1'),
-        _callMsg('second', null, _catId, 'main', 'c-2'),
+      final processorWithoutCallbacks = RendererToAgentMessageProcessor(
+        catalogs: const [],
+      );
+      final bodies = <Map<String, Object?>>[
+        _callMsg('echo'),
         _actionMsg(),
-      ]);
-      expect(results, hasLength(3));
-      expect(_reply(results[0]).value, 'first');
-      expect(_reply(results[1]).value, 'second');
-      expect(results[2].handled, isFalse);
+        _errorMsg(),
+        _rendererResponseMsg(),
+      ];
+      for (final body in bodies) {
+        for (final Object? version in [null, 'v1.0', 'v0.9', '1.0.0', 1.0]) {
+          final Map<String, Object?> message = {...body}..remove('version');
+          if (version != null) message['version'] = version;
+          for (final p in [processor, processorWithoutCallbacks]) {
+            await expectLater(
+              p.processMessage(message),
+              _throwsValidation,
+              reason: '$message',
+            );
+          }
+        }
+      }
+      // Typed messages too: a v0.9 action parses, but isn't v1.0.
+      final v09Action = RendererToAgentMessage.fromJson(
+        _actionMsg(version: 'v0.9'),
+      );
+      for (final p in [processor, processorWithoutCallbacks]) {
+        await expectLater(p.processMessage(v09Action), _throwsValidation);
+        await expectLater(
+          p.processMessage(
+            CallAgentFunctionMessage(
+              version: 'v1.0',
+              surfaceId: 'main',
+              functionCallId: 'c1',
+              callFunction: const {'@call': 'echo'},
+            ),
+          ),
+          _throwsValidation,
+        );
+      }
+      expect(calls, 0);
+    });
+  });
+
+  group('RendererToAgentMessageProcessor declining callbacks', () {
+    test('a callback that returns false declines the message', () async {
+      final seen = <String>[];
+      final processor = RendererToAgentMessageProcessor(
+        catalogs: const [],
+        onAction: (message) {
+          seen.add('action');
+          return message.action.name == 'refresh';
+        },
+        onError: (message) async {
+          seen.add('error');
+          return false;
+        },
+        onRendererFunctionResponse: (message) async {
+          seen.add('response');
+          return true;
+        },
+      );
+
+      final ProcessResult declined = await processor.processMessage(
+        _actionMsg(),
+      );
+      expect(declined.handled, isFalse);
+      expect(declined.replies, isEmpty);
+
+      final Map<String, Object?> refresh = _actionMsg();
+      (refresh['action']! as Map<String, Object?>)['name'] = 'refresh';
+      expect((await processor.processMessage(refresh)).handled, isTrue);
+
+      final ProcessResult asyncDeclined = await processor.processMessage(
+        _errorMsg(),
+      );
+      expect(asyncDeclined.handled, isFalse);
+      expect(asyncDeclined.replies, isEmpty);
+
+      expect(
+        (await processor.processMessage(_rendererResponseMsg())).handled,
+        isTrue,
+      );
+
+      // A typed message is declined the same way.
+      expect(
+        (await processor.processMessage(
+          RendererToAgentMessage.fromJson(_actionMsg()),
+        )).handled,
+        isFalse,
+      );
+      expect(seen, ['action', 'action', 'error', 'response', 'action']);
     });
 
-    test('throws when a message fails', () async {
-      final processor = RendererToAgentMessageProcessor(catalogs: const []);
-      await expectLater(
-        processor.processMessages([_actionMsg(), 'bad']),
-        _throwsValidation,
+    test('a callback that returns null handles the message', () async {
+      final processor = RendererToAgentMessageProcessor(
+        catalogs: const [],
+        onAction: (message) => null,
+        onError: (message) async => null,
+      );
+      expect((await processor.processMessage(_actionMsg())).handled, isTrue);
+      expect((await processor.processMessage(_errorMsg())).handled, isTrue);
+    });
+  });
+
+  group('RendererToAgentMessageProcessor catalogs', () {
+    test('two catalogs with the same id are a catalog error', () {
+      expect(
+        () => RendererToAgentMessageProcessor(
+          catalogs: [
+            _catalog([_fn('a', (args, _) => null)]),
+            _catalog([_fn('b', (args, _) => null)]),
+          ],
+        ),
+        throwsA(
+          isA<A2uiCatalogError>()
+              .having((e) => e.catalogId, 'catalogId', _catId)
+              .having((e) => e.message, 'message', contains(_catId)),
+        ),
       );
     });
   });

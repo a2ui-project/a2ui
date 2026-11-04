@@ -302,13 +302,22 @@ Future<void> _runProcess(Map<String, Object?> testCase) async {
         _catalog(entry),
     ],
     onAction: callbacks.contains('action')
-        ? (message) => recorded.add(('action', message))
+        ? (message) {
+            recorded.add(('action', message));
+            return true;
+          }
         : null,
     onError: callbacks.contains('error')
-        ? (message) => recorded.add(('error', message))
+        ? (message) {
+            recorded.add(('error', message));
+            return true;
+          }
         : null,
     onRendererFunctionResponse: callbacks.contains('rendererFunctionResponse')
-        ? (message) => recorded.add(('rendererFunctionResponse', message))
+        ? (message) {
+            recorded.add(('rendererFunctionResponse', message));
+            return true;
+          }
         : null,
   );
 

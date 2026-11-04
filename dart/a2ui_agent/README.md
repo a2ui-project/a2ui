@@ -222,25 +222,34 @@ final CatalogApi withHandlers = catalog.copyWith(
 `RendererToAgentMessageProcessor` answers each `callAgentFunction` with
 exactly one reply, and passes the other messages a renderer sends, `action`,
 `error` and `rendererFunctionResponse`, to the callbacks you give it. A
-message without a callback is left unhandled, so the agent can pass it on, for
-example to the model's next turn:
+message without a callback, or whose callback returns `false`, is left
+unhandled, so the agent can pass it on, for example to the model's next turn:
 
 ```dart
 final processor = RendererToAgentMessageProcessor(
   catalogs: [withHandlers],
-  onError: (message) => log(message.error.message),
+  onAction: (message) {
+    if (message.action.name != 'refresh') return false; // for the model
+    refresh(message.action.surfaceId);
+    return true;
+  },
 );
-final ProcessResult result = await processor.processMessage(message);
-sendToRenderer(result.replies);
-if (!result.handled) {
-  // An action: start a model turn with it.
+for (final Object? message in request.messages) {
+  final ProcessResult result = await processor.processMessage(message);
+  sendToRenderer(result.replies);
+  if (!result.handled) {
+    // Start a model turn with it.
+  }
 }
 ```
 
 The processor keeps no state between messages, so one processor can serve
 every conversation, or one can be built per request from the active catalogs.
-A message the protocol doesn't define, or a `callAgentFunction` without a
-`functionCallId`, throws `A2uiValidationError`.
+It takes one message at a time, which leaves the caller to decide whether
+several run one after another or together, and what to do when one fails. A
+message that isn't a v1.0 renderer-to-agent message (its `version` must be
+`'1.0'`), or a `callAgentFunction` without a `functionCallId`, throws
+`A2uiValidationError`.
 
 ## Tests
 

@@ -36,7 +36,8 @@ final class AgentFunctionRegistry {
 
   /// Indexes every [Catalog.agentFunctions] entry of [catalogs].
   ///
-  /// Throws [ArgumentError] if [timeout] is not positive.
+  /// Throws [ArgumentError] if [timeout] is not positive, and
+  /// [A2uiCatalogError] if two of [catalogs] have the same id.
   AgentFunctionRegistry(Iterable<CatalogApi> catalogs, {this.timeout}) {
     if (timeout != null && timeout! <= Duration.zero) {
       throw ArgumentError.value(
@@ -46,6 +47,13 @@ final class AgentFunctionRegistry {
       );
     }
     for (final catalog in catalogs) {
+      if (_catalogs.containsKey(catalog.id)) {
+        throw A2uiCatalogError(
+          "Two catalogs have the id '${catalog.id}'; give the processor each "
+          'catalog once.',
+          catalogId: catalog.id,
+        );
+      }
       _catalogs[catalog.id] = catalog;
       for (final MapEntry<String, AgentFunction> entry
           in catalog.agentFunctions.entries) {
@@ -58,7 +66,8 @@ final class AgentFunctionRegistry {
   /// [AgentFunctionResponseMessage] that answers it.
   ///
   /// [message] may be a [CallAgentFunctionMessage] or a raw JSON `Map`
-  /// envelope.
+  /// envelope. The processor has already checked its version and that it
+  /// carries no other message.
   ///
   /// Throws [A2uiValidationError] if [message] is not a `callAgentFunction`
   /// message or lacks a non-empty string `functionCallId`, since there is
@@ -301,28 +310,8 @@ final class AgentFunctionRegistry {
     }
     final String callId = rawCallId;
 
-    // From this point on, functionCallId is recoverable, so any envelope or
-    // body validation failure produces an INVALID_FUNCTION_CALL response.
-    if (message.length != 2 || !message.containsKey('version')) {
-      return _ParsedCallResult.failure(
-        _errorResponse(
-          callId,
-          RpcErrorCode.invalidFunctionCall.wireValue,
-          'Invalid callAgentFunction message envelope.',
-        ),
-      );
-    }
-    final Object? rawVersion = message['version'];
-    if (rawVersion != '1.0' && rawVersion != 'v1.0') {
-      return _ParsedCallResult.failure(
-        _errorResponse(
-          callId,
-          RpcErrorCode.invalidFunctionCall.wireValue,
-          "Unsupported protocol version '$rawVersion' for callAgentFunction.",
-        ),
-      );
-    }
-
+    // From this point on, functionCallId is recoverable, so any body
+    // validation failure produces an INVALID_FUNCTION_CALL response.
     for (final Object? key in rawBody.keys) {
       if (key != 'surfaceId' &&
           key != 'functionCallId' &&
