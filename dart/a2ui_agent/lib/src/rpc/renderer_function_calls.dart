@@ -43,7 +43,8 @@ const int _maxFunctionCallDepth = 50;
 /// connection that stays open, such as a WebSocket.
 ///
 /// Given the renderer's catalogs, [call] refuses a call the renderer would
-/// refuse: to a function the catalogs don't declare, to one whose
+/// refuse: to a function the catalogs don't declare as a renderer function
+/// (an agent function runs on the agent, not the renderer), to one whose
 /// `allowedCallers` doesn't let the agent call it, or to one that requires a
 /// user activation, which an agent's call doesn't carry.
 class RendererFunctionCalls {
@@ -119,7 +120,8 @@ class RendererFunctionCalls {
   /// - [maxPending] would be exceeded ([RpcErrorCode.tooManyPending]), or
   /// - the call parameters are invalid ([RpcErrorCode.invalidFunctionCall]),
   /// - given catalogs, [catalogId] names none of them or its catalog declares
-  ///   no function [name] ([RpcErrorCode.unknownFunction]), or
+  ///   no renderer function [name], such as when [name] is an agent function
+  ///   ([RpcErrorCode.unknownFunction]), or
   /// - given catalogs, the function is `rendererOnly`, which is also what an
   ///   omitted `allowedCallers` means, or requires a user activation
   ///   ([RpcErrorCode.invalidFunctionCall]).
@@ -337,12 +339,13 @@ class RendererFunctionCalls {
     final Map<String, CatalogApi>? catalogs = _catalogs;
     if (catalogs == null) return;
     final CatalogApi? catalog = catalogs[catalogId];
-    final FunctionApi? function = catalog?.functions[name];
+    // An agent function is in `functions` too, but the renderer can't run it.
+    final FunctionApi? function = catalog?.rendererFunctions[name];
     if (function == null) {
       throw A2uiRpcError(
         catalog == null
             ? "Unknown catalog '$catalogId' for renderer function '$name'."
-            : "Catalog '$catalogId' declares no function '$name'.",
+            : "Catalog '$catalogId' has no renderer function '$name'.",
         RpcErrorCode.unknownFunction,
         functionCallId: callId,
         surfaceId: surfaceId,

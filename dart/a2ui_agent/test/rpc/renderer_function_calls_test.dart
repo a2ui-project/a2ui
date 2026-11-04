@@ -507,7 +507,7 @@ void main() {
           _catId,
           'missing',
           RpcErrorCode.unknownFunction,
-          'declares no function',
+          'has no renderer function',
         );
         expectRefused(
           calls,
@@ -558,6 +558,27 @@ void main() {
           RpcErrorCode.invalidFunctionCall,
           'may not call',
         );
+      });
+
+      test('an agent function is not a renderer function', () {
+        final CatalogApi base = catalog();
+        final CatalogApi withAgentFunction = base.copyWith(
+          agentFunctions: [
+            AgentFunction.fromApi(
+              base.functions['scrollIntoView']!,
+              (args, _) => true,
+            ),
+          ],
+        );
+        final calls = RendererFunctionCalls(catalogs: [withAgentFunction]);
+        expectRefused(
+          calls,
+          _catId,
+          'scrollIntoView',
+          RpcErrorCode.unknownFunction,
+          "Catalog '$_catId' has no renderer function 'scrollIntoView'.",
+        );
+        calls.dispose();
       });
 
       test('the earlier checks come first', () {

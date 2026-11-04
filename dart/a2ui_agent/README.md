@@ -286,7 +286,8 @@ Give `RendererFunctionCalls` the renderer's catalogs, as in
 `RendererFunctionCalls(catalogs: catalogs)`, and `call` refuses a call the
 renderer would refuse, throwing `A2uiRpcError` before anything is sent:
 `UNKNOWN_FUNCTION` when the catalog id names none of the catalogs or its
-catalog declares no such function, and `INVALID_FUNCTION_CALL` when the
+catalog has no such renderer function (an agent function in the catalog runs
+on the agent, so it doesn't count), and `INVALID_FUNCTION_CALL` when the
 function's `allowedCallers` is `rendererOnly` (the default) or the function
 requires a user activation, which an agent's call doesn't have. Two catalogs
 with the same id throw `A2uiCatalogError`. Without catalogs, calls aren't
