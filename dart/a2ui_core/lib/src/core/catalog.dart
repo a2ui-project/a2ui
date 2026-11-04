@@ -280,7 +280,6 @@ class AgentFunction extends FunctionApi {
     super.returnType = A2uiReturnType.any,
     super.description,
     super.requiresUserActivation,
-    super.definition,
     required this.handler,
   }) : declaration = null;
 
@@ -302,9 +301,14 @@ class AgentFunction extends FunctionApi {
   /// `catalog.copyWith(agentFunctions: [...])` puts the result in place of
   /// [api], so the catalog document is unchanged.
   ///
-  /// Throws [ArgumentError] if [api] is already an [AgentFunction], and
-  /// [A2uiCatalogError] if [api] declares `allowedCallers: agentOnly`, which a
-  /// renderer may never call.
+  /// The result keeps [api]'s [allowedCallers] and its [definition], so the
+  /// catalog document writes the declaration as it was.
+  ///
+  /// Throws [ArgumentError] if [api] is already an [AgentFunction] (use
+  /// [withHandler] to rebind one), and [A2uiCatalogError] if [api] declares
+  /// `allowedCallers: agentOnly`, which a renderer may never call, or
+  /// `requiresUserActivation: true` with `allowedCallers` other than
+  /// `rendererOnly`, which the v1.0 catalog schema forbids.
   factory AgentFunction.fromApi(
     FunctionApi api,
     AgentFunctionHandler handler,
@@ -322,6 +326,14 @@ class AgentFunction extends FunctionApi {
         "renderer can't call it and it can't be an agent function.",
       );
     }
+    if (api.requiresUserActivation &&
+        api.allowedCallers != AllowedCallers.rendererOnly) {
+      throw A2uiCatalogError(
+        "Function '${api.name}' declares requiresUserActivation with "
+        "allowedCallers '${api.allowedCallers.jsonValue}'; a function that "
+        "requires user activation must be 'rendererOnly'.",
+      );
+    }
     return AgentFunction._fromApi(
       name: api.name,
       argumentSchema: api.argumentSchema,
@@ -332,6 +344,25 @@ class AgentFunction extends FunctionApi {
       definition: api.definition,
       handler: handler,
       declaration: api,
+    );
+  }
+
+  /// A copy of this agent function bound to [handler], with the same name,
+  /// schema, description and [allowedCallers].
+  ///
+  /// A function built with [AgentFunction.fromApi] is rebuilt from the same
+  /// [declaration], so `catalog.copyWith(agentFunctions: [...])` still puts it
+  /// in place of that declaration.
+  AgentFunction withHandler(AgentFunctionHandler handler) {
+    final FunctionApi? declaration = this.declaration;
+    if (declaration != null) return AgentFunction.fromApi(declaration, handler);
+    return AgentFunction(
+      name: name,
+      argumentSchema: argumentSchema,
+      returnType: returnType,
+      description: description,
+      requiresUserActivation: declaredRequiresUserActivation,
+      handler: handler,
     );
   }
 }
@@ -601,6 +632,14 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       } else if (declaration != null &&
           identical(merged[position], declaration)) {
         merged[position] = agentFn as T;
+      } else if (declaration != null) {
+        throw A2uiCatalogError(
+          "Agent function '$name' was built with AgentFunction.fromApi from a "
+          "different declaration than the one in catalog '$catalogId', such "
+          'as one from a reloaded or copied catalog. Build it from this '
+          "catalog's entry instead.",
+          catalogId: catalogId,
+        );
       } else {
         throw A2uiCatalogError(
           "Catalog '$catalogId' already declares a function named '$name', "
@@ -674,6 +713,15 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
             item.name,
             context: "function identifier '${item.name}'",
           );
+          for (final String arg in _schemaPropertyNames(
+            item.argumentSchema.value,
+          )) {
+            assertUax31Identifier(
+              arg,
+              context: "argument identifier '$arg' in function '${item.name}'",
+              allowLeadingAt: true,
+            );
+          }
         } on A2uiCatalogError catch (error) {
           throw A2uiCatalogError(error.message, catalogId: catalogId);
         }
@@ -690,6 +738,20 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       _addUnique(byName, catalogId, 'function', item.name, item);
     }
     return Map.unmodifiable(byName);
+  }
+
+  /// The property names an object [schema] declares, including those of its
+  /// `allOf` members.
+  static Iterable<String> _schemaPropertyNames(Object? schema) sync* {
+    if (schema is! Map) return;
+    if (schema['properties'] case final Map<Object?, Object?> properties) {
+      yield* properties.keys.whereType<String>();
+    }
+    if (schema['allOf'] case final List<Object?> members) {
+      for (final member in members) {
+        yield* _schemaPropertyNames(member);
+      }
+    }
   }
 
   static void _addUnique<T>(

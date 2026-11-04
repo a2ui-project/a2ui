@@ -187,6 +187,105 @@ void main() {
       );
     });
 
+    test(
+        'fromApi rejects requiresUserActivation unless the function is '
+        'rendererOnly', () {
+      expect(
+        () => AgentFunction.fromApi(
+          FunctionApi(
+            name: 'approve',
+            argumentSchema: _quoteSchema(),
+            allowedCallers: AllowedCallers.rendererOrAgent,
+            requiresUserActivation: true,
+          ),
+          _noopHandler,
+        ),
+        throwsA(
+          isA<A2uiCatalogError>()
+              .having((e) => e.message, 'message', contains('approve'))
+              .having((e) => e.message, 'message', contains('rendererOnly')),
+        ),
+      );
+      for (final AllowedCallers? callers in [
+        null,
+        AllowedCallers.rendererOnly,
+      ]) {
+        final fn = AgentFunction.fromApi(
+          FunctionApi(
+            name: 'approve',
+            argumentSchema: _quoteSchema(),
+            allowedCallers: callers,
+            requiresUserActivation: true,
+          ),
+          _noopHandler,
+        );
+        expect(fn.requiresUserActivation, isTrue);
+      }
+      // A standalone agent function is rendererOnly, so it may require it.
+      expect(
+        AgentFunction(
+          name: 'approve',
+          argumentSchema: _quoteSchema(),
+          requiresUserActivation: true,
+          handler: _noopHandler,
+        ).requiresUserActivation,
+        isTrue,
+      );
+    });
+
+    test('withHandler rebinds a standalone function', () async {
+      final fn = AgentFunction(
+        name: 'fetchQuote',
+        description: 'Look up a quote.',
+        returnType: A2uiReturnType.object,
+        argumentSchema: _quoteSchema(),
+        requiresUserActivation: true,
+        handler: _noopHandler,
+      );
+      Object? other(Map<String, dynamic> args, AgentFunctionContext _) =>
+          'other';
+      final AgentFunction rebound = fn.withHandler(other);
+      expect(rebound, isNot(same(fn)));
+      expect(rebound.handler, same(other));
+      expect(fn.handler, same(_noopHandler));
+      expect(rebound.name, fn.name);
+      expect(rebound.description, fn.description);
+      expect(rebound.returnType, fn.returnType);
+      expect(rebound.argumentSchema, same(fn.argumentSchema));
+      expect(rebound.declaredRequiresUserActivation, isTrue);
+      expect(rebound.allowedCallers, AllowedCallers.rendererOnly);
+      expect(rebound.declaration, isNull);
+    });
+
+    test('withHandler rebinds a fromApi function to the same declaration', () {
+      final CatalogApi catalog = _financeCatalog();
+      final FunctionApi declaration = catalog.functions['verifyProvider']!;
+      final CatalogApi bound = catalog.copyWith(
+        agentFunctions: [AgentFunction.fromApi(declaration, _noopHandler)],
+      );
+      Object? other(Map<String, dynamic> args, AgentFunctionContext _) => false;
+      final AgentFunction rebound =
+          bound.agentFunctions['verifyProvider']!.withHandler(other);
+      expect(rebound.declaration, same(declaration));
+      expect(rebound.handler, same(other));
+      expect(rebound.allowedCallers, declaration.allowedCallers);
+
+      final CatalogApi rebinding = bound.copyWith(agentFunctions: [rebound]);
+      expect(rebinding.agentFunctions['verifyProvider'], same(rebound));
+      expect(rebinding.toJson(), equals(catalog.toJson()));
+    });
+
+    test('AgentFunctionContext takes named parameters', () {
+      const context = AgentFunctionContext(
+        functionCallId: 'c1',
+        surfaceId: 'main',
+        catalogId: 'cat',
+      );
+      expect(context.catalogId, 'cat');
+      expect(context.surfaceId, 'main');
+      expect(context.functionCallId, 'c1');
+    });
+
     test('fromApi rejects an existing AgentFunction', () {
       final fn = AgentFunction(
         name: 'fetchQuote',
@@ -331,25 +430,108 @@ void main() {
     });
 
     test(
-        'fromApi of a declaration with the same name but from another '
-        'catalog is a catalog error', () {
+        'fromApi of the same declaration from another copy of the catalog '
+        'has its own message', () {
       final CatalogApi catalog = _financeCatalog();
-      final lookalike = FunctionApi(
-        name: 'verifyProvider',
-        argumentSchema: Schema.fromMap({'type': 'object'}),
-      );
+      final CatalogApi reloaded = _financeCatalog();
       expect(
         () => catalog.copyWith(
-          agentFunctions: [AgentFunction.fromApi(lookalike, _noopHandler)],
+          agentFunctions: [
+            AgentFunction.fromApi(
+              reloaded.functions['verifyProvider']!,
+              _noopHandler,
+            ),
+          ],
         ),
         throwsA(
-          isA<A2uiCatalogError>().having(
-            (e) => e.message,
-            'message',
-            contains('already declares'),
-          ),
+          isA<A2uiCatalogError>()
+              .having(
+                (e) => e.message,
+                'message',
+                contains('different declaration'),
+              )
+              .having(
+                (e) => e.message,
+                'message',
+                isNot(contains('already declares')),
+              )
+              .having((e) => e.catalogId, 'catalogId', catalog.id),
         ),
       );
+    });
+
+    test('copyWith keeps the agent functions among the functions it is given',
+        () {
+      final CatalogApi catalog = _financeCatalog();
+      final kept = AgentFunction(
+        name: 'fetchRate',
+        argumentSchema: Schema.fromMap({'type': 'object'}),
+        handler: _noopHandler,
+      );
+      final added = AgentFunction(
+        name: 'fetchQuote',
+        argumentSchema: _quoteSchema(),
+        handler: _noopHandler,
+      );
+      final CatalogApi copy = catalog.copyWith(
+        functions: [...catalog.functions.values, kept],
+        agentFunctions: [added],
+      );
+      expect(copy.agentFunctions.keys, ['fetchRate', 'fetchQuote']);
+      expect(copy.agentFunctions['fetchRate'], same(kept));
+
+      // With functions omitted, existing agent functions are replaced.
+      final CatalogApi replaced = copy.copyWith(agentFunctions: const []);
+      expect(replaced.agentFunctions, isEmpty);
+    });
+
+    test('agent function argument names must be UAX #31 identifiers', () {
+      for (final Map<String, Object?> schema in [
+        {
+          'type': 'object',
+          'properties': {
+            'target-currency': {'type': 'string'},
+          },
+        },
+        {
+          'allOf': [
+            {
+              'type': 'object',
+              'properties': {
+                'bad name': {'type': 'string'},
+              },
+            },
+          ],
+        },
+      ]) {
+        final fn = AgentFunction(
+          name: 'fetchRate',
+          argumentSchema: Schema.fromMap(schema),
+          handler: _noopHandler,
+        );
+        expect(
+          () => _financeCatalog().copyWith(agentFunctions: [fn]),
+          throwsA(
+            isA<A2uiCatalogError>()
+                .having((e) => e.message, 'message', contains('argument'))
+                .having(
+                  (e) => e.catalogId,
+                  'catalogId',
+                  'https://example.com/finance.json',
+                ),
+          ),
+          reason: '$schema',
+        );
+        expect(
+          () => Catalog(
+            id: 'cat',
+            protocolVersion: A2uiProtocolVersion.v1_0,
+            components: const <ComponentApi>[],
+            functions: [fn],
+          ),
+          throwsA(isA<A2uiCatalogError>()),
+        );
+      }
     });
 
     test('the same name twice in agentFunctions has its own message', () {
@@ -471,6 +653,17 @@ void main() {
             withFn.rendererFunctions['x'] = withFn.functions['formatCurrency']!,
         throwsUnsupportedError,
       );
+    });
+
+    test('rendererFunctions keeps the catalog function type', () {
+      final catalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'cat',
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        components: const <ComponentApi>[],
+      );
+      final Map<String, FunctionImplementation> functions =
+          catalog.rendererFunctions;
+      expect(functions, isEmpty);
     });
 
     test('validates payload calling an AgentFunction via PayloadValidator', () {
