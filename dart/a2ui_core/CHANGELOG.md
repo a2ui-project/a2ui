@@ -1,5 +1,7 @@
 # [a2ui_core](https://pub.dev/packages/a2ui_core) Changelog
 
+## Unreleased
+
 ## 0.5.0
 
 - **Breaking:** The basic catalog `regex` function now validates patterns
