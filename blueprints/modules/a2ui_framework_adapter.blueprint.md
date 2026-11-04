@@ -31,7 +31,7 @@ Packaging follows this model: the package root exports the version-agnostic `Sur
 
 An adapter integrates with the Core SDK at two primary boundaries:
 
-1. **`SurfaceModel`**: The adapter's root entrypoint (`Surface`) takes `SurfaceModel` directly as its sole input. The `SurfaceModel` encapsulates incoming message processing, the live component hierarchy, the surface's catalogs (`defaultCatalog` and `availableCatalogs`), the data model, and the event channels (`onAction`, `onError`, `onWarning`).
+1. **`SurfaceModel`**: The adapter's root entrypoint (`Surface`) takes `SurfaceModel` directly as its required input; the only other inputs are optional presentation settings such as fallbacks (§4.4). The `SurfaceModel` encapsulates incoming message processing, the live component hierarchy, the surface's catalogs (`defaultCatalog` and `availableCatalogs`), the data model, and the event channels (`onAction`, `onError`, `onWarning`).
 2. **The Node API (`NodeResolver` and `ComponentNode`)**: The adapter initializes a `NodeResolver` on the `SurfaceModel`. It never queries raw component dictionaries or evaluates JSON pointers directly. Instead, it observes the living tree of `ComponentNode` instances produced by `NodeResolver`.
 
 ```mermaid
@@ -143,13 +143,15 @@ A framework adapter exposes three categories of public APIs:
 
 The root framework view or widget embedded into the host application.
 
-**Key Requirement:** `Surface` directly accepts `SurfaceModel` from the Core SDK as its sole input. Because `SurfaceModel` already contains the component catalogs, component state graph, data model, and action/error event channels, `Surface` does not need any additional props.
+**Key Requirement:** `Surface` directly accepts `SurfaceModel` from the Core SDK as its required input. Because `SurfaceModel` already contains the component catalogs, component state graph, data model, and action/error event channels, `Surface` needs no other data. The only other input is optional presentation configuration: `fallbacks` (§4.4).
 
 ```typescript
 // Generic API Sketch
 interface SurfaceProps {
   /** The living Core SDK surface model managing state, catalogs, and messages. */
   surface: SurfaceModel;
+  /** Optional UI for nodes that can't render yet, or at all (§4.4). */
+  fallbacks?: A2uiFallbacks<NativeView>;
 }
 ```
 
@@ -157,10 +159,12 @@ interface SurfaceProps {
 // Flutter Sketch
 class A2uiSurface extends StatefulWidget {
   final SurfaceModel surface;
+  final A2uiFallbacks? fallbacks;
 
   const A2uiSurface({
     super.key,
     required this.surface,
+    this.fallbacks,
   });
 }
 ```
@@ -168,7 +172,7 @@ class A2uiSurface extends StatefulWidget {
 #### Responsibilities & Behavior:
 
 1. **Resolver Lifecycle**: Instantiates and retains a `NodeResolver` for the surface for the lifetime of the view. If the `surface` prop changes identity, disposes the old resolver and creates a new one. Disposes the resolver when the view unmounts.
-2. **Root Observation**: Observes `nodeResolver.rootNode`. While `rootNode` is empty, renders nothing. Once `rootNode` resolves, renders the root `NodeView`.
+2. **Root Observation**: Observes `nodeResolver.rootNode`. While `rootNode` is empty, renders the `pending` fallback for the root (`componentId: surface.rootId`, §4.4), or nothing. Once `rootNode` is present (including an `unknown-type` placeholder), renders the root `NodeView`.
 3. **Ambient Context Injection**: Publishes the surface instance (which exposes the surface's catalogs and event dispatchers) and any host services implementations need, such as a markdown renderer, into the framework's ambient DI/context mechanism (React Context, Flutter `InheritedWidget`, SwiftUI `Environment`, Angular DI). A host app renders Markdown in the rest of its UI with its own framework-native view, so the adapter accepts that view for `Text` as well as a renderer that returns markup, and renders it inside the app's view tree, where it reads the app's context. An adapter that needs the markup renderer to reach a component written outside its framework, such as a web component, renders a placeholder there and fills it with the native view.
 4. **Rendering only**: `Surface` does not process messages, negotiate capabilities, or execute RPC. Those belong to the Core SDK's `MessageProcessor`.
 
@@ -320,6 +324,87 @@ Adapters may provide convenience helpers to eliminate boilerplate when registeri
 
 ---
 
+### 4.4 Fallbacks
+
+By default a node that cannot render yet, or cannot render at all, renders nothing (§6). An application can supply its own UI for these cases through **fallbacks**, passed to `Surface` next to the `SurfaceModel`. Fallbacks only affect presentation: they never change what the resolver reports, and they are optional. A surface without fallbacks behaves exactly as §6 describes.
+
+#### Categories
+
+| Category  | Covers                                                                                                               | Meaning                                                        |
+| --------- | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `pending` | `pending` nodes, and the root before it arrives                                                                      | The component may still arrive; the node upgrades in place.    |
+| `error`   | `unknown-type` and `cyclic` nodes, and errors the adapter detects itself (for example an unresolved child reference) | The component will not render unless the agent sends a change. |
+
+A new error kind joins the `error` category through `error.type`, so it needs no new API.
+
+#### Shape
+
+The shape is the same on every platform: `fallbacks` → category (`pending` / `error`) → a builder function that takes `info` (in Angular, a `TemplateRef`). Extensions go on `info` or on `A2uiFallbacks` itself, so neither needs a wrapper object.
+
+```typescript
+interface A2uiFallbacks<V> {
+  /** Returns the view for a pending node, or null/undefined to render nothing. */
+  pending?: (info: A2uiPendingInfo) => V | null | undefined;
+  /** Returns the view for a node in error, or null/undefined to render nothing. */
+  error?: (info: A2uiErrorInfo) => V | null | undefined;
+}
+
+interface A2uiPendingInfo {
+  /** The id of the component that has not arrived (the surface's root id before the root arrives). */
+  componentId: string;
+  /** The type of the component whose child this is. Absent for the root. */
+  parentComponentType?: string;
+}
+
+interface A2uiErrorInfo {
+  componentId: string;
+  parentComponentType?: string;
+  error: A2uiFallbackError;
+}
+
+interface A2uiFallbackError {
+  /** Open-ended: 'unknown-type' | 'cyclic' | 'unresolved-reference' | kinds added later. */
+  type: string;
+  /** The declared type, for 'unknown-type'. */
+  componentType?: string;
+}
+```
+
+`V` is the platform's view type. The concept names (`fallbacks`, `pending`, `error`, and the `info` fields) are the same everywhere; only the delivery follows each framework:
+
+| Platform | API                                                                                                                                                                        |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Flutter  | `A2uiSurface(surface: surface, fallbacks: A2uiFallbacks(pending: (context, info) => ..., error: (context, info) => ...))`                                                  |
+| React    | `<A2uiSurface surface={surface} fallbacks={{pending: info => ..., error: info => ...}} />`                                                                                 |
+| Lit      | ``<a2ui-surface .surface=${surface} .fallbacks=${{pending: info => html`...`, error: info => html`...`}}></a2ui-surface>``                                                 |
+| Angular  | `<a2ui-v09-surface [surfaceId]="surfaceId" [fallbacks]="{pending: pendingTpl, error: errorTpl}" />`, each a `TemplateRef` rendered with `{$implicit: info}` as its context |
+| SwiftUI  | `Surface(viewModel: viewModel, catalogs: catalogs, fallbacks: A2UIFallbacks(pending: { info in ... }, error: { info in ... }))`                                            |
+
+Angular passes a `TemplateRef`, Angular's way to hand over a view factory, rendered with `{$implicit: info}` as its context so `<ng-template let-info>` works directly. A template opts out by rendering no element (for example a false `@if`). The host stays `display: contents`, so an empty view produces no layout item, which counts as nothing.
+
+#### Behavior
+
+1. **Every rendering path.** The adapter consults fallbacks wherever it would otherwise render nothing for an unresolved node: the root before it arrives, the node dispatcher (§6), and any shared path that renders children itself (on web, the universal element layer's `renderA2uiNode` and `A2uiLitElement.renderNode`). A fallback that only some paths honor is a bug. Catalog implementations do nothing special: a `Card` renders its child through `buildChild` (or `renderNode`) as usual, and if that child is unresolved the adapter renders the fallback in its place. The one exception is layout in frameworks where every child needs a widget (rule 5).
+2. **Reaching nested nodes.** Fallbacks belong to the surface, so every node of that surface sees them, however deeply nested and whichever path renders it. Adapters deliver them through their ambient mechanism (Flutter `InheritedWidget`, React context, SwiftUI `Environment`, Angular DI). Paths outside the framework's own tree, such as universal web elements, can't render framework views (a `ReactNode`, a `TemplateRef`) directly. For those, the adapter registers a per-surface **fallback renderer** (a callback, kept in a `WeakMap<SurfaceModel, …>` as `HostRegistry.forSurface` does). The callback turns a category and `info` into something the path can place in the DOM, such as a host element the adapter fills through a portal or an embedded view, or into nothing. Core's `SurfaceModel` does not change.
+3. **The caller supplies the context; the adapter builds `info`.** A placeholder `ComponentNode` has no `context`, so it can't reach its surface or parent. Whoever renders a child passes them in: the root `Surface`, a parent's `buildChild`, or a universal element's `renderNode`. Each passes the surface and its own type (as `parentComponentType`) to `NodeView` / `renderA2uiNode`. The adapter maps the node's state onto the category and `error.type`.
+4. **Nothing is still nothing.** A missing category, or a builder that returns null/undefined, renders nothing, with no layout footprint (§6).
+5. **Layout.** A fallback that renders UI is a real child and takes a slot like any other. Any container that gives each child a slot of its own (a widget per child, an item element such as `<li>`, a per-item layout modifier) must leave out children that render nothing, wrapper included, so they get no slot, marker or gap. Where every child needs a widget (Flutter), the adapter provides a per-child helper that returns the child's view or its fallback, or no widget when it renders nothing (for example `buildChildOrNull(context, node) -> Widget?`). A container can then keep each surviving widget paired with its node (for per-child weights), and simple containers can write `[for (final c in nodes) ?buildChildOrNull(context, c)]`. Containers in the basic catalog use it, and custom containers should too.
+6. **Identity.** A fallback renders in the node's slot, under the node's `instanceId` key. When the component arrives, the real view replaces it in place without remounting the parent.
+7. **No reporting.** Builders run during rendering and must not be relied on for error reporting. The resolver (or the adapter, for errors it detects itself) has already reported the error once to the surface's error channel. An exception thrown by a builder is logged, and that node renders nothing.
+8. **No built-in timing.** Adapters do not delay fallbacks. A fallback that should appear only after a node has been pending for a while does its own timing, so the delay can depend on `parentComponentType`.
+
+#### Not in this version
+
+Each of these can be added later without breaking changes:
+
+- `error.message`: a developer-facing description, planned together with debug-mode diagnostics.
+- Recovery: for example `error.actions: [{kind: 'retry', run}]`, once there is an error the client can recover from.
+- Boundaries: letting one fallback replace a whole ancestor subtree (for example a Card). This needs a subtree-status signal from Core.
+- Core-computed `info`: exposing the category, an error object, and the surface and parent on `ComponentNode`, so adapters don't map states or pass context themselves.
+- A small helper for delayed fallbacks (for example `A2uiDelayed(delay, child)`).
+
+---
+
 ## 5. Basic Catalog Implementation
 
 Each adapter package (or the shared web element layer, for web adapters) ships pre-built implementations for the standard Basic Catalog components:
@@ -359,11 +444,13 @@ function NodeView(node: ComponentNode): NativeView;
 
 1. **Check `node.state`**:
    - `resolved`: Render `node.impl`, the implementation the resolver already chose.
-   - `pending`, `unknown-type` and `cyclic`: Render nothing. These states are not meant for end users: a `pending` node is replaced in place when its component arrives, and the resolver has already reported `UNKNOWN_COMPONENT_TYPE` or `CYCLIC_REFERENCE` to the surface, so the adapter does not report it again. Applications that want visible UI for these states will configure it through fallbacks (see [#2013](https://github.com/a2ui-project/a2ui/issues/2013)).
-   - "Nothing" means **no layout footprint**: containers lay out as if the unresolved child were not in their children. It gets no size, no gap, no flex or weight share, and no part in `justify` distribution. Where the framework allows, the node produces no element at all (React `null`, Lit `nothing`, SwiftUI `EmptyView`, an empty `display: contents` host). Where every child needs a widget (Flutter), containers skip unresolved children (`node.isPlaceholder`) when they build their layout, and catalog authors writing their own containers do the same. A container's own chrome, such as a Card's padding, may still show.
+   - `pending`: Render the surface's `pending` fallback (§4.4), or nothing.
+   - `unknown-type` and `cyclic`: Render the surface's `error` fallback with `error.type` set to the state, or nothing. The resolver has already reported `UNKNOWN_COMPONENT_TYPE` or `CYCLIC_REFERENCE` to the surface, so the adapter does not report it again.
+   - By default these states show nothing to end users: a `pending` node is replaced in place when its component arrives, and errors reach the agent through the surface's error channel.
+   - "Nothing" means **no layout footprint**: containers lay out as if the unresolved child were not in their children. It gets no size, no gap, no flex or weight share, and no part in `justify` distribution. Where the framework allows, the node produces no element at all (React `null`, Lit `nothing`, SwiftUI `EmptyView`, an empty `display: contents` host). Containers that give each child its own slot, such as a widget per child (Flutter), an item element (`<li>`, a list-item `div`) or a per-item layout modifier (SwiftUI), skip children that render nothing, wrapper included, using the adapter's helper where there is one (§4.4). Catalog authors writing their own containers do the same. A fallback that renders UI is a real child and takes a slot like any other. A container's own chrome, such as a Card's padding, may still show.
 2. **Subscribe to `node.props`**: Rebuild the view when the node's props emit, and pass the current props to the implementation. Unsubscribe when the view unmounts.
 3. **Invoke Builder**: Pass `node`, its current props and a `buildChild` callback to the implementation.
-4. **Provide `buildChild`**: Construct a closure `(child: ComponentNode) => NativeView` that recursively invokes `NodeView(child)`.
+4. **Provide `buildChild`**: Construct a closure `(child: ComponentNode) => NativeView` that recursively invokes `NodeView(child)` with `node.type` as `parentComponentType` (or publish `node.type` via per-subtree ambient context where child views are instantiated declaratively, such as SwiftUI's `ComponentNodeView` or Angular's `ComponentHostComponent`, so catalog components still need no changes).
 5. **Preserve Identity**: Key each child's view by `node.instanceId`. An `instanceId` names a component at a data scope, so in an explicit child list the view follows its component through a reorder, and in a template it stays with an index. The node object behind an `instanceId` can change while the id stays: when a placeholder's component arrives, when the component's type changes, and when an explicit child list is reordered. A view keyed by `instanceId` therefore moves its subscriptions to the new node, and resets its view state when the type changes.
 
 ---
@@ -411,21 +498,22 @@ The repository maintains language-agnostic conformance tests in [`conformance/`]
 
 ### Required Adapter Test Suite
 
-| Test Area                      | Assertion                                                                                                                                                                                                                   |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Tree Hierarchy**             | Loading a surface payload builds a native view tree exactly matching the `ComponentNode` graph, with children in declared order.                                                                                            |
-| **Single-message surface**     | A `createSurface` at v1.0 or later carrying `components` and `dataModel` renders without a following `updateComponents`.                                                                                                    |
-| **Progressive Arrival**        | When a component is referenced before its definition arrives, the adapter renders nothing in its place, then upgrades to the real component in place without remounting the parent.                                         |
-| **Dynamic Repeaters (`List`)** | Modifying an array in the `DataModel` (insert, delete, reorder) updates child widgets without remounting unaffected siblings. A template item that reads `@index` shows its position.                                       |
-| **Two-Way Binding**            | User input on native controls calls `WritableBinding.set()`, updates the Core `DataModel`, and updates all observing components.                                                                                            |
-| **Action Execution**           | Triggering native events (clicks, taps) executes the action closure. An `event` action dispatches the client event with correctly scoped context; a `functionCall` action runs the function locally and dispatches nothing. |
-| **User activation**            | A `functionCall` action on an activation-gated function (`openUrl`) runs when fired from a native gesture and is refused when fired without one.                                                                            |
-| **Multiple catalogs**          | A surface whose root and one descendant come from two different catalogs renders both, and each implementation receives props shaped by its own catalog's schema.                                                           |
-| **Validation results**         | A check that returns `{valid: false, severity: "error", message}` disables the control and shows the message; one returning `severity: "warning"` leaves the control enabled; a boolean `false` behaves as an error.        |
-| **Accessibility**              | `accessibility.label`, `description`, `live`, and `hidden` reach the platform accessibility API on the focusable element, and an explicit `label` overrides the inferred one.                                               |
-| **No theme on v1.0**           | A v1.0 surface exposes no theme and adapters never read one. A v1.0 `createSurface` that carried `theme` and was accepted under relaxed validation renders exactly as one without it.                                       |
-| **Fallback States**            | Pending components, unknown component types and cyclic references render nothing and take no layout space (no gap, no flex share) without crashing, and the adapter reports nothing itself.                                 |
-| **Teardown & Cleanup**         | Unmounting `Surface` or deleting components releases all property subscriptions and frees memory.                                                                                                                           |
+| Test Area                      | Assertion                                                                                                                                                                                                                                                                                                       |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Tree Hierarchy**             | Loading a surface payload builds a native view tree exactly matching the `ComponentNode` graph, with children in declared order.                                                                                                                                                                                |
+| **Single-message surface**     | A `createSurface` at v1.0 or later carrying `components` and `dataModel` renders without a following `updateComponents`.                                                                                                                                                                                        |
+| **Progressive Arrival**        | When a component is referenced before its definition arrives, the adapter renders nothing in its place, then upgrades to the real component in place without remounting the parent.                                                                                                                             |
+| **Dynamic Repeaters (`List`)** | Modifying an array in the `DataModel` (insert, delete, reorder) updates child widgets without remounting unaffected siblings. A template item that reads `@index` shows its position.                                                                                                                           |
+| **Two-Way Binding**            | User input on native controls calls `WritableBinding.set()`, updates the Core `DataModel`, and updates all observing components.                                                                                                                                                                                |
+| **Action Execution**           | Triggering native events (clicks, taps) executes the action closure. An `event` action dispatches the client event with correctly scoped context; a `functionCall` action runs the function locally and dispatches nothing.                                                                                     |
+| **User activation**            | A `functionCall` action on an activation-gated function (`openUrl`) runs when fired from a native gesture and is refused when fired without one.                                                                                                                                                                |
+| **Multiple catalogs**          | A surface whose root and one descendant come from two different catalogs renders both, and each implementation receives props shaped by its own catalog's schema.                                                                                                                                               |
+| **Validation results**         | A check that returns `{valid: false, severity: "error", message}` disables the control and shows the message; one returning `severity: "warning"` leaves the control enabled; a boolean `false` behaves as an error.                                                                                            |
+| **Accessibility**              | `accessibility.label`, `description`, `live`, and `hidden` reach the platform accessibility API on the focusable element, and an explicit `label` overrides the inferred one.                                                                                                                                   |
+| **No theme on v1.0**           | A v1.0 surface exposes no theme and adapters never read one. A v1.0 `createSurface` that carried `theme` and was accepted under relaxed validation renders exactly as one without it.                                                                                                                           |
+| **Fallback States**            | Pending components, unknown component types and cyclic references render nothing and take no layout space (no gap, no flex share) without crashing, and the adapter reports nothing itself.                                                                                                                     |
+| **Custom Fallbacks**           | A surface's `pending` and `error` fallbacks render in place of unresolved nodes at the root, in nested containers and in every shared rendering path, receive the documented `info`, fall back to nothing when they return null (taking no layout space), and are replaced in place when the component arrives. |
+| **Teardown & Cleanup**         | Unmounting `Surface` or deleting components releases all property subscriptions and frees memory.                                                                                                                                                                                                               |
 
 ---
 
