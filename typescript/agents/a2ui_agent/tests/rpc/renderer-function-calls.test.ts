@@ -21,6 +21,7 @@ import {z} from 'zod';
 import {
   A2uiCatalogError,
   A2uiRpcError,
+  AgentFunction,
   DEFAULT_RENDERER_CALL_TIMEOUT,
   DEFAULT_RENDERER_CALL_TIMEOUT_MS,
   Catalog,
@@ -473,6 +474,21 @@ describe('RendererFunctionCalls', () => {
 
       expectRejected(calls, 'nope', 'getLocale', RpcErrorCode.UNKNOWN_FUNCTION, "'nope'");
       expectRejected(calls, 'device', 'missing', RpcErrorCode.UNKNOWN_FUNCTION, "'missing'");
+    });
+
+    test('rejects an agent function with UNKNOWN_FUNCTION', () => {
+      const withAgentFunction = device.copyWith({
+        agentFunctions: [AgentFunction.fromApi(device.functions.get('getLocale')!, () => 'en')],
+      });
+      const calls = new RendererFunctionCalls({catalogs: [withAgentFunction]});
+
+      expectRejected(
+        calls,
+        'device',
+        'getLocale',
+        RpcErrorCode.UNKNOWN_FUNCTION,
+        "Catalog 'device' has no renderer function 'getLocale'.",
+      );
     });
 
     test('rejects a rendererOnly function, or one whose allowedCallers is omitted', () => {

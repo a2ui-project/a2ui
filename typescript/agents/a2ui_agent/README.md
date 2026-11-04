@@ -181,7 +181,7 @@ send(message);
 console.log(await locale); // once the renderer's response has gone through messages.processMessage
 ```
 
-Pass the catalogs the renderer was sent as `catalogs`, and `call` checks each call against them before anything is sent: a catalog or function the catalogs don't have is an `A2uiRpcError` with `UNKNOWN_FUNCTION`, and a function the agent may not call (its `allowedCallers` is `rendererOnly` or omitted, or it requires user activation, which a call from the agent can't give) is one with `INVALID_FUNCTION_CALL`. The arguments aren't checked against the function's schema.
+Pass the catalogs the renderer was sent as `catalogs`, and `call` checks each call against them before anything is sent: a catalog the catalogs don't have, or a function that isn't one of its `rendererFunctions` (an agent function runs on the agent, not the renderer), is an `A2uiRpcError` with `UNKNOWN_FUNCTION`, and a function the agent may not call (its `allowedCallers` is `rendererOnly` or omitted, or it requires user activation, which a call from the agent can't give) is one with `INVALID_FUNCTION_CALL`. The arguments aren't checked against the function's schema.
 
 ```ts
 const calls = new RendererFunctionCalls({catalogs: [catalog]});

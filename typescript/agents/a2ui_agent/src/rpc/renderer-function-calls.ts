@@ -86,7 +86,8 @@ export interface RendererFunctionCallsOptions {
   readonly maxPending?: number | null;
   /**
    * The catalogs the renderer was sent. When given, `call` checks that the
-   * target catalog declares the function and lets the agent call it
+   * target catalog declares the function as a renderer function (not an
+   * agent function) and lets the agent call it
    * (`allowedCallers` is `rendererOrAgent` or `agentOnly`, and it doesn't
    * require user activation) before anything is sent. Without them, calls
    * aren't checked against a catalog.
@@ -464,10 +465,11 @@ export class RendererFunctionCalls {
         callId,
       );
     }
-    const fn = catalog.functions.get(name);
+    // An agent function runs on the agent, so the renderer can't run it.
+    const fn = catalog.rendererFunctions.get(name);
     if (fn === undefined) {
       throw new A2uiRpcError(
-        `Catalog '${catalogId}' has no function '${name}'.`,
+        `Catalog '${catalogId}' has no renderer function '${name}'.`,
         RpcErrorCode.UNKNOWN_FUNCTION,
         callId,
       );
