@@ -49,7 +49,7 @@ If you are assigned to a PR or an issue with the label `status: assigned-for-tri
 
     - `P0`: urgent issue. Assign someone.
     - `P1`: a priority. The team is actively working on it, or will be soon. Assign someone.
-    - `P2`: the team intends to work on it in the near future, or at a lower priority.
+    - `P2`: the team intends to work on it.
     - `P3`: a good request. It is not currently planned, but may become a priority.
 
     If the team does not plan to invest in the issue, close it as not planned instead.
