@@ -1,5 +1,11 @@
 ## Unreleased
 
+- `resolve_catalogs` reads the capabilities of v0.9 and v0.9.1 catalogs from
+  the `v0.9.1` entry, and from the `v0.9` entry when there is no `v0.9.1` entry
+  or it activates no catalog. It read only `v0.9`, so it rejected the `v0.9.1`
+  entry that web_core and the Python core renderer write for v0.9.1. When a
+  renderer sends both entries, both are validated, and each inline catalog
+  targets the protocol version of the entry that declares it.
 - **BREAKING CHANGE**: (v1_0) The `TextField` builder in
   `a2ui.builder.v1_0.catalogs.basic` requires `value`, following the basic
   catalog. Recommended migration: pass `value`, such as
