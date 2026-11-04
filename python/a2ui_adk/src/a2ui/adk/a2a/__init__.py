@@ -15,9 +15,11 @@
 """A2UI ADK A2A integration converters."""
 
 from .event_converter import A2uiEventConverter
+from .inbound_part_converter import A2uiInboundPartConverter
 from .part_converter import A2uiPartConverter
 
 __all__ = [
     "A2uiEventConverter",
+    "A2uiInboundPartConverter",
     "A2uiPartConverter",
 ]

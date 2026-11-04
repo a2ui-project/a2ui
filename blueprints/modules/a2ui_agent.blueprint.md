@@ -798,6 +798,155 @@ def read_renderer_capabilities(
     pass
 ```
 
+### H. Inbound Renderer Messages & Agent RPC Role
+
+#### Inbound Renderer Messages (`a2ui.inbound`)
+
+An agent SDK MUST validate inbound renderer-to-agent messages against the protocol version's schema (`renderer_to_agent.json` in v1.0, `client_to_server.json` in v0.8 and v0.9) and format user actions and renderer errors into model-input text.
+
+```python
+def parse_inbound_message(
+    data: Mapping[str, Any],
+    version: ProtocolVersion = ProtocolVersion.V1_0,
+) -> InboundMessage:
+    """Validates one renderer-to-agent message against the version's schema.
+
+    Raises `A2uiValidationError` if `data` is not a mapping, fails schema
+    validation, lacks a recognized message key (`action` / `userAction`,
+    `error`, `callAgentFunction`, `rendererFunctionResponse`), contains more
+    than one message key, or declares a `version` that does not match `version`.
+    """
+    pass
+
+
+def format_inbound_for_model(message: InboundMessage) -> Optional[str]:
+    """Formats an inbound `action` or `error` message as model-input text.
+
+    Returns `None` for `callAgentFunction` and `rendererFunctionResponse`,
+    which are RPC messages routed through `RendererMessageRouter` rather than
+    forwarded to the model.
+
+    Required content (exact prose is implementation-defined):
+    - For an action (`action` in v0.9+, `userAction` in v0.8): the action
+      `name`, `surfaceId`, `sourceComponentId`, and JSON-serialized `context`
+      values.
+    - For an error: the error `code`, `message`, `surfaceId` (or
+      `functionCallId`), and optional `path`.
+    """
+    pass
+```
+
+#### Agent RPC Role (`a2ui.rpc`)
+
+In v1.0, an agent both serves `callAgentFunction` requests from the renderer and tracks `callRendererFunction` requests it sends to the renderer until the matching `rendererFunctionResponse` arrives.
+
+- **Agent-hosted catalog functions**: `Catalog(agent_functions=...)` and `Catalog.copy_with(agent_functions=...)` accept `AgentFunction` declarations (v1.0+ only). An `AgentFunction` appears in `catalog.functions` and `catalog.to_json()` as a schema-only declaration (`FunctionApi`) without a local renderer handler, and rejects name collisions with `functions` unless replacing via `AgentFunction.from_api`.
+- **RPC registries and router**:
+
+```python
+AgentFunctionHandler = Callable[
+    [dict[str, Any]], Union[Any, Awaitable[Any]]
+]
+
+
+class A2uiRpcError(A2uiError):
+    """Raised when a renderer function call fails, times out, or is cancelled."""
+
+    code: str
+    function_call_id: str
+
+
+class AgentFunctionRegistry:
+    """Dispatches inbound `callAgentFunction` requests to registered agent handlers."""
+
+    def register(
+        self,
+        catalog: CatalogApi,
+        name: str,
+        handler: AgentFunctionHandler,
+    ) -> None:
+        """Registers a handler for an agent-callable function declared in `catalog`."""
+        pass
+
+    async def call(
+        self,
+        message: Mapping[str, Any],
+        timeout_ms: int = 30_000,
+    ) -> dict[str, Any]:
+        """Validates `callAgentFunction`, invokes the handler, and returns an `agentFunctionResponse` envelope."""
+        pass
+
+
+class RendererFunctionCalls:
+    """Tracks outbound `callRendererFunction` envelopes and correlates `rendererFunctionResponse` replies."""
+
+    def __init__(
+        self,
+        catalogs: Sequence[CatalogApi],
+        default_timeout_ms: int = 30_000,
+        max_pending: int = 256,
+    ):
+        pass
+
+    def call(
+        self,
+        catalog_id: str,
+        name: str,
+        args: Optional[Mapping[str, Any]] = None,
+        want_result: bool = True,
+        function_call_id: Optional[str] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> tuple[dict[str, Any], Optional[Awaitable[Any]]]:
+        """Builds a validated `callRendererFunction` envelope and, when `want_result` is true, tracks its pending result."""
+        pass
+
+    def track(
+        self,
+        envelope: Mapping[str, Any],
+        timeout_ms: Optional[int] = None,
+    ) -> Optional[Awaitable[Any]]:
+        """Validates an existing `callRendererFunction` envelope and tracks its pending result when `wantResult` is true."""
+        pass
+
+    def resolve(self, message: Mapping[str, Any]) -> bool:
+        """Settles the pending call matching a `rendererFunctionResponse` message; returns False for unknown or settled IDs."""
+        pass
+
+    def cancel_all(self, reason: str = "cancelled") -> None:
+        """Rejects all pending calls with `A2uiRpcError(code="CANCELLED")`."""
+        pass
+
+
+class RendererMessageRouter:
+    """Routes inbound `callAgentFunction` and `rendererFunctionResponse` messages."""
+
+    def __init__(
+        self,
+        agent_functions: Optional[AgentFunctionRegistry] = None,
+        renderer_calls: Optional[RendererFunctionCalls] = None,
+    ):
+        pass
+
+    async def handle(
+        self,
+        message: Mapping[str, Any],
+    ) -> Optional[dict[str, Any]]:
+        """Routes `callAgentFunction` to `agent_functions` (returning `agentFunctionResponse`) and `rendererFunctionResponse` to `renderer_calls` (returning `None`)."""
+        pass
+```
+
+1. `RendererFunctionCalls.call` and `track` reject a function whose `allowedCallers` is `rendererOnly` or that has `requiresUserActivation: true` with `A2uiValidationError` / `INVALID_FUNCTION_CALL`, a duplicate pending `functionCallId` with `DUPLICATE`, a call that exceeds `max_pending` with `TOO_MANY_PENDING`, and a call after `cancel_all` / `dispose` with `CANCELLED` / `DISPOSED`.
+2. A pending call settles on the matching `rendererFunctionResponse` (resolving with `value` or rejecting with `A2uiRpcError` carrying `error.code`), on timeout (`TIMEOUT`, default 30,000 ms), or on `cancel_all` / `dispose` (`CANCELLED`). Unknown, duplicate, or already-settled IDs return `False` from `resolve` and are ignored without raising.
+3. `AgentFunctionRegistry.call` returns one `agentFunctionResponse` envelope with the same `functionCallId`: `UNKNOWN_FUNCTION` for an unregistered function or catalog, `INVALID_FUNCTION_CALL` for a malformed message, arguments that fail strict validation, or a call to an `agentOnly` function, `EXECUTION_ERROR` (or a custom `A2uiRpcError` code) when the handler raises or exceeds `timeout_ms`, else `value` (preserving `value: null`).
+
+#### `RendererState` RPC & Inbound Integration
+
+`RendererState` accepts optional `agent_functions: Optional[AgentFunctionRegistry] = None` and `renderer_calls: Optional[RendererFunctionCalls] = None` parameters, and exposes:
+
+- `router -> RendererMessageRouter`: the router bound to the state's `agent_functions` and `renderer_calls`.
+- **Commit-time tracking rule**: When an outermost `apply` or `transaction` that applied a `callRendererFunction` message commits, `RendererState` calls `renderer_calls.track` for it. A rolled-back turn tracks nothing.
+- `receive(message) -> InboundResult` and `drain_outbound() -> list[dict[str, Any]]`: `receive` validates with `parse_inbound_message`, routes RPC messages through `router` (queuing any `agentFunctionResponse` for `drain_outbound`), and returns `format_inbound_for_model` text for `action` and `error` messages.
+
 ---
 
 ## 4. Inference Format Strategy Implementations
@@ -1075,16 +1224,20 @@ To ensure behavioral parity across all SDK implementations (Python, Kotlin, etc.
 
 The suites covering this document live under `conformance/agent/`:
 
-| Suite                                 | Covers                                                                                          |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `<format>/compiler.yaml`              | `Parser.compile`: what a block of that format means                                             |
-| `<format>/decompiler.yaml`            | `Parser.decompile`: how messages are written back into that format                              |
-| `<format>/response_parser.yaml`       | `Parser.wrap`, `unwrap` and `parse_response`: where a payload begins and ends                   |
-| `<format>/prompt_generator.yaml`      | `PromptGenerator.generate`: what the system prompt snippet has to tell the model                |
-| `direct_json/response_streaming.yaml` | `Parser.open_stream` and `ResponseStream`, for incremental Direct JSON streaming                |
-| `express/response_streaming.yaml`     | `Parser.open_stream` and `ResponseStream`, for incremental Express DSL streaming                |
-| `catalog_provider.yaml`               | `CatalogProvider.load` and the checks it makes on a document                                    |
-| `request_processor.yaml`              | `InferenceFormatFactory.create_format`, `A2uiGenerator.create_processor` and `resolve_catalogs` |
+| Suite                                 | Covers                                                                                                                  |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `<format>/compiler.yaml`              | `Parser.compile`: what a block of that format means                                                                     |
+| `<format>/decompiler.yaml`            | `Parser.decompile`: how messages are written back into that format                                                      |
+| `<format>/response_parser.yaml`       | `Parser.wrap`, `unwrap` and `parse_response`: where a payload begins and ends                                           |
+| `<format>/prompt_generator.yaml`      | `PromptGenerator.generate`: what the system prompt snippet has to tell the model                                        |
+| `direct_json/response_streaming.yaml` | `Parser.open_stream` and `ResponseStream`, for incremental Direct JSON streaming                                        |
+| `express/response_streaming.yaml`     | `Parser.open_stream` and `ResponseStream`, for incremental Express DSL streaming                                        |
+| `catalog_provider.yaml`               | `CatalogProvider.load` and the checks it makes on a document                                                            |
+| `request_processor.yaml`              | `InferenceFormatFactory.create_format`, `A2uiGenerator.create_processor` and `resolve_catalogs`                         |
+| `renderer_capabilities.yaml`          | `read_renderer_capabilities`: reading and validating renderer capabilities from transport metadata per protocol version |
+| `inbound_messages.yaml`               | `parse_inbound_message` and `format_inbound_for_model` for inbound renderer-to-agent messages                           |
+| `agent_functions.yaml`                | `Catalog(agent_functions=)`, `AgentFunctionRegistry`, `RendererFunctionCalls`, `RendererMessageRouter`, and RPC routing |
+| `renderer_state.yaml`                 | Multi-turn `RendererState` surface lifecycle, updates, and transactional rollback across turns                          |
 
 Suites under `conformance/agent/legacy/` describe the earlier interface of `kotlin/agent_sdk_legacy`, which runs them. `python/a2ui_agent` implements the current interface above and runs none of them. The TypeScript agent harness runs the subset of `legacy/parser.yaml` and `legacy/inference_format.yaml` that the current suites do not supersede ([`loader.ts`](../../typescript/agents/a2ui_agent/tests/conformance/loader.ts)).
 

@@ -33,10 +33,18 @@ export type {
 } from '@a2ui/web_core/catalog';
 
 // ./v0_8
-export {Schemas as V08Schemas} from '@a2ui/web_core/v0_8';
+export {
+  type A2UIClientEventMessage as V08ClientToServerMessage,
+  type ClientEventUserAction as V08UserAction,
+  Schemas as V08Schemas,
+} from '@a2ui/web_core/v0_8';
 
 // ./v0_9
 export {
+  type A2uiClientAction as V09ClientAction,
+  type A2uiClientError as V09ClientError,
+  type A2uiClientMessage as V09ClientToServerMessage,
+  A2uiClientMessageSchema as V09ClientToServerMessageSchema,
   CreateSurfaceMessageSchema as V09CreateSurfaceMessageSchema,
   UpdateComponentsMessageSchema as V09UpdateComponentsMessageSchema,
   UpdateDataModelMessageSchema as V09UpdateDataModelMessageSchema,
@@ -64,7 +72,12 @@ import type {
   RendererToAgentMessage,
   V10RendererCapabilities,
 } from '@a2ui/web_core/v1_0';
-export type {AgentToRendererMessage, RendererToAgentMessage, V10RendererCapabilities};
+export type {
+  AgentToRendererMessage,
+  RendererToAgentMessage,
+  RendererToAgentMessage as V10RendererToAgentMessage,
+  V10RendererCapabilities,
+};
 
 /**
  * Version-neutral alias for renderer capabilities across protocol versions.

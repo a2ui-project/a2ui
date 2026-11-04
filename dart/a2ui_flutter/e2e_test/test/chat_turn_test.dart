@@ -36,6 +36,16 @@ const String productCardRequest =
     'released on 2026-03-14. Format the price with formatCurrency and the '
     'date with formatDate. Use no images.';
 
+/// The directory the recordings of the model's replies are written to, as
+/// hub transcripts, or empty for no recording.
+const String recordDir = String.fromEnvironment('A2UI_E2E_RECORD_DIR');
+
+/// The model that answers, pinned so that a recording names it.
+const String modelName = String.fromEnvironment(
+  'A2UI_E2E_MODEL',
+  defaultValue: 'gemini-3.6-flash',
+);
+
 void main() {
   const timeout = Timeout(Duration(minutes: 5));
 
@@ -46,11 +56,30 @@ void main() {
   late RecordingClient client;
   late ChatSession session;
 
-  /// Shows the chat app and sends [request] from its text field.
-  Future<void> ask(WidgetTester tester, String request) async {
-    client = RecordingClient(GeminiClient(apiKey: apiKeyForEval()));
+  /// Shows the chat app and sends [request] from its text field. With
+  /// [recordDir] set, the test's requests and replies are written there as
+  /// [scenarioName] once it ends.
+  Future<void> ask(
+    WidgetTester tester,
+    String request, {
+    String? scenarioName,
+  }) async {
+    client = RecordingClient(
+      GeminiClient(apiKey: apiKeyForEval(), modelName: modelName),
+    );
     session = ChatSession(client: client);
     addTearDown(session.dispose);
+    if (recordDir.isNotEmpty && scenarioName != null) {
+      addTearDown(
+        () => client.writeTo(
+          recordDir,
+          scenarioName,
+          format: 'direct_json',
+          protocolVersion: '1.0',
+          model: modelName,
+        ),
+      );
+    }
     await tester.pumpWidget(ChatApp(session: session));
     await tester.enterText(
       find.widgetWithText(TextField, 'Ask for some UI'),
@@ -78,7 +107,7 @@ void main() {
 
   testWidgets('a login form renders, and its button sends an action the '
       'model answers', (tester) async {
-    await ask(tester, loginFormRequest);
+    await ask(tester, loginFormRequest, scenarioName: 'login_form_action');
     expectNoErrors();
     expect(surface, findsOne);
     expect(textFields, findsAtLeast(2));

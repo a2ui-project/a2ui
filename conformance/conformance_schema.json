@@ -15,6 +15,8 @@
       {"$ref": "#/$defs/TransformCatalogTest"},
       {"$ref": "#/$defs/ProvideCatalogTest"},
       {"$ref": "#/$defs/ResolveCatalogsTest"},
+      {"$ref": "#/$defs/ReadRendererCapabilitiesTest"},
+      {"$ref": "#/$defs/ParseInboundMessageTest"},
       {"$ref": "#/$defs/GeneratePromptSnippetTest"},
       {"$ref": "#/$defs/HasFormatContentTest"},
       {"$ref": "#/$defs/UnwrapTest"},
@@ -34,7 +36,8 @@
       {"$ref": "#/$defs/DeriveTest"},
       {"$ref": "#/$defs/RenderSurfaceTest"},
       {"$ref": "#/$defs/HandleRpcTest"},
-      {"$ref": "#/$defs/MarkdownSubsetTest"}
+      {"$ref": "#/$defs/MarkdownSubsetTest"},
+      {"$ref": "#/$defs/E2eScenarioTest"}
     ]
   },
   "$defs": {
@@ -62,6 +65,7 @@
             "data_model",
             "decompile",
             "dispatch_action",
+            "e2e_scenario",
             "evaluate_function",
             "execute_tool",
             "export_to_directory",
@@ -82,11 +86,13 @@
             "parse_chunk",
             "parse_expression_template",
             "parse_full",
+            "parse_inbound_message",
             "parse_response",
             "process_chunk",
             "process_messages",
             "provide_catalog",
             "prune",
+            "read_renderer_capabilities",
             "render",
             "render_markdown",
             "resolve_catalogs",
@@ -1683,6 +1689,73 @@
       },
       "required": ["action", "args"]
     },
+    "ReadRendererCapabilitiesTest": {
+      "type": "object",
+      "description": "Reading and validating renderer capabilities for a protocol version from transport message metadata.",
+      "properties": {
+        "action": {"const": "read_renderer_capabilities"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "version": {"type": "string"},
+            "metadata": {
+              "type": ["object", "null"],
+              "description": "The transport message metadata mapping, or null when absent."
+            }
+          },
+          "required": ["version"],
+          "additionalProperties": false
+        },
+        "expect": {
+          "type": ["object", "null"],
+          "description": "The validated renderer capabilities keyed by protocol version, or null when the version's metadata key is absent."
+        },
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["action", "args"]
+    },
+    "ParseInboundMessageTest": {
+      "type": "object",
+      "description": "Parsing and validating an inbound renderer-to-agent message for a protocol version and formatting it for the model when applicable.",
+      "properties": {
+        "action": {"const": "parse_inbound_message"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "version": {"$ref": "#/$defs/ProtocolVersion"},
+            "message": {
+              "type": ["object", "array", "string", "number", "boolean", "null"],
+              "description": "Raw decoded JSON message received from the renderer."
+            }
+          },
+          "required": ["version", "message"],
+          "additionalProperties": false
+        },
+        "expect": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": ["action", "error", "callAgentFunction", "rendererFunctionResponse"],
+              "description": "The discriminated inbound message kind."
+            },
+            "model_input_contains": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Substrings that formatInboundForModel(message) must contain."
+            },
+            "model_input": {
+              "type": ["string", "null"],
+              "description": "Exact formatted model input, or null when the message is handled by the RPC/orchestration layer rather than sent to the model."
+            }
+          },
+          "required": ["kind"],
+          "additionalProperties": false
+        },
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["action", "args"]
+    },
     "GeneratePromptSnippetTest": {
       "type": "object",
       "description": "Rendering the system prompt snippet for a format and a set of active catalogs.",
@@ -2470,6 +2543,99 @@
           {"required": ["error"]}
         ],
         "additionalProperties": false
+      }
+    },
+    "E2eScenarioTest": {
+      "type": "object",
+      "required": ["name", "action", "protocolVersion", "catalogPaths", "formats", "turns"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Unique scenario name across conformance/e2e/**."
+        },
+        "action": {"const": "e2e_scenario"},
+        "description": {"type": "string"},
+        "protocolVersion": {"$ref": "#/$defs/ProtocolVersion"},
+        "catalogPaths": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "formats": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/InferenceFormatName"}
+        },
+        "source": {"$ref": "#/$defs/E2eSource"},
+        "turns": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/E2eTurn"},
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "E2eSource": {
+      "type": "object",
+      "required": ["kind", "from"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["hand_authored", "recorded", "generated"]
+        },
+        "from": {"type": "string"},
+        "model": {"type": "string"},
+        "recordedAt": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "E2eTurn": {
+      "type": "object",
+      "required": ["modelChunks", "expectWire"],
+      "properties": {
+        "userText": {"type": ["string", "null"]},
+        "modelChunks": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        },
+        "expectWire": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/ResponsePart"}
+        },
+        "expectViewTree": {"$ref": "#/$defs/E2eViewTrees"},
+        "expectErrors": {
+          "type": "array",
+          "items": {"type": "object"}
+        },
+        "uiOps": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/E2eUiOp"}
+        },
+        "expectDataModel": {"type": "object"},
+        "expectOutbound": {"$ref": "#/$defs/OutboundEnvelopeList"}
+      },
+      "additionalProperties": false
+    },
+    "E2eUiOp": {
+      "type": "object",
+      "required": ["op", "surfaceId", "targetNode"],
+      "properties": {
+        "op": {
+          "type": "string",
+          "enum": ["user_input", "user_gesture", "programmatic_invoke"]
+        },
+        "surfaceId": {"type": "string"},
+        "targetNode": {"type": "string"},
+        "inputValue": {},
+        "userActivation": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "E2eViewTrees": {
+      "type": "object",
+      "additionalProperties": {
+        "type": ["object", "null"]
       }
     },
     "RpcUiScenario": {

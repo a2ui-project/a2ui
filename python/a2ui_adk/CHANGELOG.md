@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Add `A2uiInboundPartConverter` in `a2ui.adk` (and `a2ui.adk.a2a`) to validate inbound A2UI `DataPart`s (`action`, `userAction`, and `error`) via `parse_inbound_message`, convert them into `google.genai.types.Part(text=...)` via `format_inbound_for_model`, return `None` for RPC messages (`callAgentFunction` and `rendererFunctionResponse`), and delegate non-A2UI parts to ADK's default converter.
 - **BREAKING CHANGE**: `GenAIFileResolver` is removed, along with the
   `FileResolver` it extended in `a2ui-agent-sdk`.
   [#3731](https://github.com/a2ui-project/a2ui/pull/3731)

@@ -66,6 +66,16 @@ class RestaurantSession extends ChangeNotifier {
 
   Iterable<String> get activeSurfaceIds => _surfaceController.activeSurfaceIds;
 
+  /// The components of the active surface [surfaceId], by id, or null if
+  /// there is no such surface.
+  Map<String, Component>? componentsOf(String surfaceId) =>
+      _surfaceController.registry.getSurface(surfaceId)?.components;
+
+  final _a2uiMessages = StreamController<A2uiMessage>.broadcast();
+
+  /// The A2UI messages the agent sends, as they are applied.
+  Stream<A2uiMessage> get a2uiMessages => _a2uiMessages.stream;
+
   final _logger = Logger('RestaurantSession');
   Timer? _loadingTimer;
 
@@ -89,6 +99,7 @@ class RestaurantSession extends ChangeNotifier {
 
   void _handleUiFromAgent(A2uiMessage message) {
     _surfaceController.handleMessage(message);
+    _a2uiMessages.add(message);
   }
 
   void _handleTextFromAgent(String text) {
@@ -160,6 +171,7 @@ class RestaurantSession extends ChangeNotifier {
     _errorSub.cancel();
     _surfaceSub.cancel();
     _loadingTimer?.cancel();
+    _a2uiMessages.close();
     _surfaceController.dispose();
     _connector.dispose();
     super.dispose();

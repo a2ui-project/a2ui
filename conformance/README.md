@@ -74,6 +74,32 @@ It is the one suite under `agent/` that does not use the case vocabulary below. 
 - `extensions/a2a/a2a_integration.yaml`: Contains test cases for A2A protocol event and part conversions.
 - `extensions/adk/adk_extensions.yaml`: Contains test cases for ADK extensions and RPC handling.
 
+### End-to-end (`e2e/`)
+
+End-to-end conformance scenarios in `e2e/` capture complete multi-turn conversational transcripts and user interactions. Each scenario validates:
+
+- **Agent half**: Inbound chunks for each declared format (`direct_json`, `express`) are streamed and single-shot parsed by the agent SDK's response parser, verifying that they yield the exact expected wire messages (`expectWire`) with adjacent text parts merged.
+- **Renderer half**: The `a2ui` messages from each turn are dispatched into framework adapter harnesses (or `MessageProcessor`), which verify the resulting resolved view trees (`expectViewTree`), execute simulated user interactions (`uiOps`), and assert outbound event envelopes (`expectOutbound`) and data model states (`expectDataModel`).
+
+Harnesses running the agent half:
+
+- Python Agent: `python/a2ui_agent`
+- TypeScript Agent: `typescript/agents/a2ui_agent`
+- Dart Agent: `dart/a2ui_agent`
+
+Harnesses running the renderer half:
+
+- Web Renderers: `@a2ui/lit`, `@a2ui/react`, `@a2ui/angular`
+- Flutter Renderer: `dart/a2ui_flutter`
+- SwiftUI Renderer: `swift/swiftui`
+
+#### Adding an e2e scenario
+
+1. Author a new scenario YAML file in `conformance/e2e/<scenario_name>.yaml`.
+2. Specify `action: e2e_scenario`, `protocolVersion` (e.g. `"1.0"`), `catalogPaths`, `formats` (e.g. `[direct_json, express]`), and multi-turn exchanges with `modelChunks`, `expectWire`, `expectViewTree`, and optional `uiOps`, `expectDataModel`, and `expectOutbound`.
+3. Verify the scenario using `pytest conformance/tests/test_e2e_scenarios.py`.
+4. When targeting v0.9.1 compatibility, generate or duplicate the v0.9.1 scenario copies using the conformance generator scripts.
+
 All static test data and simplified schemas are located in the `test_data/` directory.
 
 `conformance_schema.json` at the root is the JSON schema that validates the structure of YAML test files across all domains.

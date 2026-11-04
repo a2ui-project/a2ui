@@ -130,6 +130,10 @@ jobs:
               --corpus adapter \
               --harness "$h" \
               --exclude adapter/markdown_subset.yaml="renderers render components, not raw markdown"
+            uv run --project conformance python conformance/scripts/check_executed_cases.py \
+              --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+              --corpus e2e \
+              --harness "$h"
           done
           uv run --project conformance python conformance/scripts/check_executed_cases.py \
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
@@ -142,7 +146,15 @@ jobs:
             --harness markdown-it \
             --only adapter/markdown_subset.yaml
       - name: Check TS agent executed cases
-        run: uv run --project conformance python conformance/scripts/check_executed_cases.py --manifest-dir "${{ runner.temp }}/a2ui-manifest" --corpus agent --harness ts-agent
+        run: |
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --corpus agent \
+            --harness ts-agent
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --corpus e2e \
+            --harness ts-agent
       - name: Test React 18 Compatibility
         run: yarn workspace @a2ui/react run test:react18
       - name: Verify NPM Publish Script

@@ -383,7 +383,28 @@ final class HostedViewDriver {
     guard let rootNode = surface.viewModel.rootNode else { return nil }
     var nodes: [String: A2UICore.Node] = [:]
     AdapterHarness.collectNodes(from: rootNode, into: &nodes)
-    return nodes[componentID]
+    if let node = nodes[componentID] {
+      return node
+    }
+    // Inside a template every instance has its own instance ID, so fall back to the first
+    // instance of the component in document order, as the web runners do.
+    // A template instance's ID is the component ID with a `_<suffix>` appended.
+    return firstNode(in: rootNode) { $0.id.hasPrefix("\(componentID)_") }
+  }
+
+  private func firstNode(
+    in node: A2UICore.Node,
+    where predicate: (A2UICore.Node) -> Bool
+  ) -> A2UICore.Node? {
+    if predicate(node) {
+      return node
+    }
+    for child in node.allChildNodes {
+      if let found = firstNode(in: child, where: predicate) {
+        return found
+      }
+    }
+    return nil
   }
 
   private func matchesIdentifier(_ candidate: String?, componentID: String) -> Bool {
