@@ -17,6 +17,7 @@ import 'dart:io';
 import 'package:a2ui_agent/a2ui_agent.dart';
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:fake_async/fake_async.dart';
+import 'package:json_schema_builder/json_schema_builder.dart' show Schema;
 import 'package:test/test.dart';
 
 import 'suites.dart';
@@ -120,10 +121,33 @@ void _runCalls(Map<String, Object?> testCase) {
       );
     }
     final maxPending = args['max_pending'] as int?;
-    final calls = RendererFunctionCalls(
+    final List<CatalogApi>? catalogs = switch (args['catalogs']) {
+      final List<Object?> entries => [
+        for (final Object? entry in entries)
+          _catalog(entry! as Map<String, Object?>),
+      ],
+      _ => null,
+    };
+    RendererFunctionCalls build() => RendererFunctionCalls(
       defaultTimeout: defaultTimeout,
       maxPending: maxPending,
+      catalogs: catalogs,
     );
+
+    if (testCase['expect_error'] case final Map<String, Object?> expected) {
+      expect(testCase, isNot(contains('steps')));
+      Object? caught;
+      try {
+        build();
+      } on Object catch (e) {
+        caught = e;
+      }
+      expect(caught, isNotNull, reason: 'Expected building the helper to fail');
+      _assertErrorMatches(caught!, expected);
+      return;
+    }
+
+    final RendererFunctionCalls calls = build();
     final futures = <String, _TrackedCall>{};
     final callIds = <String, String>{};
 
@@ -241,4 +265,35 @@ void _runCalls(Map<String, Object?> testCase) {
     calls.dispose();
     async.flushMicrotasks();
   });
+}
+
+/// Builds a `catalogs` entry in code as a v1.0 catalog, so the catalog schema
+/// isn't applied: each function takes any object and returns anything, and
+/// declares `allowedCallers` and `requiresUserActivation` only when the
+/// entry sets them.
+CatalogApi _catalog(Map<String, Object?> entry) {
+  final Map<String, Object?> functions =
+      (entry['functions'] as Map<String, Object?>?) ??
+      const <String, Object?>{};
+  return Catalog(
+    id: entry['catalogId']! as String,
+    protocolVersion: A2uiProtocolVersion.v1_0,
+    components: const <ComponentApi>[],
+    functions: [
+      for (final MapEntry<String, Object?> function in functions.entries)
+        FunctionApi(
+          name: function.key,
+          argumentSchema: Schema.fromMap(const {'type': 'object'}),
+          allowedCallers: switch ((function.value
+              as Map<String, Object?>?)?['allowedCallers']) {
+            final String callers => AllowedCallers.fromJson(callers),
+            _ => null,
+          },
+          requiresUserActivation:
+              (function.value
+                      as Map<String, Object?>?)?['requiresUserActivation']
+                  as bool?,
+        ),
+    ],
+  );
 }
