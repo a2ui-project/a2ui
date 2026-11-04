@@ -783,6 +783,33 @@
     error:
       code: INVALID_FUNCTION_CALL
 
+- name: test_handle_agent_function_with_return_type_on_wire_call
+  description: >-
+    In v1.0, returnType belongs only on catalog function definitions, not on wire FunctionCall envelopes, so a callAgentFunction.callFunction carrying returnType gets INVALID_FUNCTION_CALL.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchFxRate:
+            returnType: number
+            args: {type: object, properties: {base: {type: string}}}
+            behavior: {returns: 1.08}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: x-2
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: conformance/simplified
+          args: {base: EUR}
+          returnType: number
+  expect:
+    functionCallId: x-2
+    error:
+      code: INVALID_FUNCTION_CALL
+
 # --- Validating model output that calls agent functions ---
 
 - name: test_validate_payload_with_a_call_to_a_declared_agent_function
