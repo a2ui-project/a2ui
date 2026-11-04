@@ -48,7 +48,8 @@ interface CallStepSpec {
     label: string;
     catalogId: string;
     name: string;
-    args?: Record<string, unknown>;
+    /** Any JSON value, so a case can pass args that aren't an object. */
+    args?: unknown;
     surfaceId?: string;
     timeout_ms?: number | null;
     functionCallId?: string;
@@ -132,7 +133,7 @@ async function runCallRendererFunction(testCase: LoadedCase): Promise<void> {
         calls.call({
           catalogId: c.catalogId,
           name: c.name,
-          args: c.args,
+          args: c.args as Record<string, unknown> | undefined,
           surfaceId: c.surfaceId,
           timeoutMs: c.timeout_ms ?? undefined,
           functionCallId: c.functionCallId,
