@@ -770,4 +770,44 @@ describe('RendererFunctionCalls', () => {
       );
     });
   });
+
+  test('isPending follows a call from call to resolve, timeout, cancel and dispose', async () => {
+    vi.useFakeTimers();
+    const calls = new RendererFunctionCalls({defaultTimeoutMs: 50});
+    expect(calls.isPending('resolved')).toBe(false);
+
+    const [, resolved] = calls.call({catalogId: 'cat', name: 'fn', functionCallId: 'resolved'});
+    const [, timedOut] = calls.call({catalogId: 'cat', name: 'fn', functionCallId: 'timed-out'});
+    const [, cancelled] = calls.call({catalogId: 'cat', name: 'fn', functionCallId: 'cancelled'});
+    const [, disposed] = calls.call({
+      catalogId: 'cat',
+      name: 'fn',
+      functionCallId: 'disposed',
+      timeoutMs: 1000,
+    });
+    for (const id of ['resolved', 'timed-out', 'cancelled', 'disposed']) {
+      expect(calls.isPending(id)).toBe(true);
+    }
+
+    calls.resolve({
+      version: '1.0',
+      rendererFunctionResponse: {functionCallId: 'resolved', value: 1},
+    });
+    expect(calls.isPending('resolved')).toBe(false);
+    await expect(resolved).resolves.toBe(1);
+
+    cancelled.cancel();
+    expect(calls.isPending('cancelled')).toBe(false);
+    await expect(cancelled).rejects.toMatchObject({code: RpcErrorCode.CANCELLED});
+
+    vi.advanceTimersByTime(50);
+    expect(calls.isPending('timed-out')).toBe(false);
+    await expect(timedOut).rejects.toMatchObject({code: RpcErrorCode.TIMEOUT});
+    expect(calls.isPending('disposed')).toBe(true);
+
+    calls.dispose();
+    expect(calls.isPending('disposed')).toBe(false);
+    await expect(disposed).rejects.toMatchObject({code: RpcErrorCode.CANCELLED});
+    expect(calls.isPending('unknown')).toBe(false);
+  });
 });

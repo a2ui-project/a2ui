@@ -205,6 +205,18 @@ export class RendererFunctionCalls {
   }
 
   /**
+   * Whether a call with `functionCallId` is currently awaiting a renderer
+   * response.
+   *
+   * @param functionCallId The call's id.
+   * @returns `true` from `call` until the call is resolved, fails, times
+   *   out, is cancelled or the tracker is disposed.
+   */
+  isPending(functionCallId: string): boolean {
+    return this._pending.has(functionCallId);
+  }
+
+  /**
    * Whether `dispose()` has been called on this tracker.
    */
   get disposed(): boolean {
