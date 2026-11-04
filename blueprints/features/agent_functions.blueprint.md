@@ -9,15 +9,16 @@ date_added: 2026-10-31
 
 # **Agent Functions Feature Blueprint**
 
-From v1.0 a renderer sends a function call it can't run locally to the agent with `callAgentFunction`, and the agent answers with `agentFunctionResponse` (see [renderer fallback routing](../modules/a2ui_core.blueprint.md#rpc-execution-lifecycle--safeguards) in the core module blueprint). This feature is the agent's side of that exchange:
+From v1.0 the agent and the renderer can call each other's functions. A renderer sends a function call it can't run locally to the agent with `callAgentFunction`, and the agent answers with `agentFunctionResponse` (see [renderer fallback routing](../modules/a2ui_core.blueprint.md#rpc-execution-lifecycle--safeguards) in the core module blueprint). In the other direction, the agent sends `callRendererFunction` and the renderer answers with `rendererFunctionResponse`. This feature is the agent's side of both:
 
-- The agent declares the functions it hosts on its copy of a catalog, as a function definition plus a handler.
-- The agent SDK answers `callAgentFunction` by running those handlers.
-- One entry point, `RendererToAgentMessageProcessor`, takes every renderer-to-agent message, and passes the ones it doesn't answer itself to optional callbacks or back to the agent framework.
+1. The agent declares the functions it hosts on its copy of a catalog, as a function definition plus a handler.
+2. The agent SDK answers `callAgentFunction` by running those handlers.
+3. One entry point, `RendererToAgentMessageProcessor`, takes every renderer-to-agent message, and passes the ones it doesn't answer itself to optional callbacks or back to the agent framework.
+4. `RendererFunctionCalls` sends the agent's `callRendererFunction` messages and settles each call from the renderer's response, through the processor's `rendererFunctionResponse` callback.
 
-Calling renderer functions from the agent (`callRendererFunction`, and matching the renderer's `rendererFunctionResponse` to the call) is not part of this feature yet. It is a planned follow-up ([#3535](https://github.com/a2ui-project/a2ui/issues/3535)); see [Follow-up: calling renderer functions](#5-follow-up-calling-renderer-functions).
+Points 1 to 3 are implemented by [#3792](https://github.com/a2ui-project/a2ui/pull/3792), [#3793](https://github.com/a2ui-project/a2ui/pull/3793), [#3794](https://github.com/a2ui-project/a2ui/pull/3794) and [#3795](https://github.com/a2ui-project/a2ui/pull/3795) (Python), [#3862](https://github.com/a2ui-project/a2ui/pull/3862) (TypeScript) and [#3861](https://github.com/a2ui-project/a2ui/pull/3861) (Dart). Point 4, calling renderer functions, is implemented by [#3939](https://github.com/a2ui-project/a2ui/pull/3939) (Python, including the ADK integration), [#3940](https://github.com/a2ui-project/a2ui/pull/3940) (TypeScript) and [#3941](https://github.com/a2ui-project/a2ui/pull/3941) (Dart).
 
-Code identifiers below are the generic names used across SDKs. Each SDK spells them in its own style.
+Code identifiers below are the generic names used across SDKs. Each SDK spells them in its own style, and the text notes where the SDKs differ in more than spelling, such as the unit of a timeout.
 
 ---
 
@@ -37,8 +38,15 @@ Code identifiers below are the generic names used across SDKs. Each SDK spells t
 
 ### **3. The other renderer messages**
 
-- `action`, `error` and `rendererFunctionResponse` go to a callback the agent registers for that kind. Without one, the message is left for the agent framework, which passes it on to the model's turn.
+- `action`, `error` and `rendererFunctionResponse` go to a callback the agent registers for that kind. Without one, or when the callback declines, the message is left for the agent framework, which passes it on to the model's turn.
 - The entry point keeps no per-conversation state, so it fits stateless, multi-replica servers.
+
+### **4. Calling renderer functions**
+
+- The agent builds a `callRendererFunction` message and gets a pending result for it without blocking. The renderer's `rendererFunctionResponse` settles the result, and a timeout, an error response or disposal fails it.
+- Responses come from the network, so a late, duplicate, unknown or malformed response never raises. A response that answers none of the agent's pending calls, such as one to a call the model wrote itself, goes on to the model's turn.
+- Given the agent's catalogs, the agent refuses to call a function the renderer can't run or the agent may not call, before anything is sent.
+- The pending calls live in memory, so this part needs the response to reach the process that made the call (see [§5](#5-agent-sdk-calling-renderer-functions)).
 
 ---
 
@@ -107,8 +115,9 @@ interface AgentFunction extends FunctionApi {
 
 | Condition                                                                                         | Result                                                                  |
 | :------------------------------------------------------------------------------------------------ | :---------------------------------------------------------------------- |
+| A parsed message whose `version` isn't exactly `"1.0"`                                            | Raise `A2uiValidationError`, before the message kind is read.           |
 | No `functionCallId`, or an empty one                                                              | Raise `A2uiValidationError`; nothing to answer.                         |
-| Message fails the schema but has a `functionCallId`                                               | `INVALID_FUNCTION_CALL`                                                 |
+| Message fails the schema but has a `functionCallId`                                               | `INVALID_FUNCTION_CALL`, such as a call without `callFunction`.         |
 | Empty `surfaceId`                                                                                 | `INVALID_FUNCTION_CALL`                                                 |
 | Empty function name (`@call`)                                                                     | `INVALID_FUNCTION_CALL`                                                 |
 | No `catalogId`, and exactly one catalog has an agent function of that name                        | Run that function.                                                      |
@@ -122,6 +131,10 @@ interface AgentFunction extends FunctionApi {
 | The handler exceeds the processor's agent function timeout                                        | `EXECUTION_ERROR` saying that the function timed out.                   |
 | The handler returns                                                                               | `value`, which may be `null`.                                           |
 
+The version check is the processor's first check for every kind of message (see [§4](#4-agent-sdk-renderer-to-agent-message-processor)), so a `callAgentFunction` with a missing or other version raises even when it has a `functionCallId`. Once the version is right and the `functionCallId` can be read, every other problem with the message, such as a missing `callFunction`, an unknown field or an empty `surfaceId`, becomes an `INVALID_FUNCTION_CALL` reply.
+
+One difference remains between the SDKs: a validation error that a handler raises is an `EXECUTION_ERROR` in Python and TypeScript, like any other handler error, but an `INVALID_FUNCTION_CALL` in Dart.
+
 Renderers set `catalogId` on every routed call, so the missing-`catalogId` rules only matter for other senders. Every SDK applies them the same way.
 
 **Arguments.** Validate with the core `PayloadValidator.validateFunction` under strict validation, against the catalog the call resolved to, and pass the coerced result to the handler, never the raw arguments. Defaults in the schema are applied before the handler runs.
@@ -133,7 +146,7 @@ Renderers set `catalogId` on every routed call, so the missing-`catalogId` rules
 1. Each call is handled independently. The processor keeps no per-call state once it has answered, so one processor can serve many conversations, or one can be built cheaply per request from the active catalogs.
 2. A handler must not block the thread that runs the other conversations. Asynchronous handlers run on the caller's event loop or executor. Synchronous handlers run on a worker, as the language allows.
 3. There is no concurrency limit, task tracking or `dispose`: the server that hosts the agent already bounds concurrent requests and cancels the work of a request whose client went away.
-4. The agent function timeout is an optional processor setting, not a property of each function. It must be a finite positive number (not a boolean, in languages that would accept one), and it has no default, because the renderer already times out its call (30 seconds by default). When it expires, the handler is cancelled and the call gets `EXECUTION_ERROR`, so the agent stops working on an answer nobody is waiting for. Only the processor's own deadline produces the timeout message: a timeout error the handler raises itself is a handler error like any other.
+4. The agent function timeout is an optional processor setting, not a property of each function: `agent_function_timeout` in seconds in Python, `agentFunctionTimeoutMs` in milliseconds in TypeScript, and a `Duration agentFunctionTimeout` in Dart. It must be a finite positive value (not a boolean, in languages that would accept one; a bad value raises the language's argument error), and it has no default, because the renderer already times out its call (30 seconds by default). When it expires, the handler is cancelled and the call gets `EXECUTION_ERROR`, so the agent stops working on an answer nobody is waiting for. Only the processor's own deadline produces the timeout message: a timeout error the handler raises itself is a handler error like any other.
 5. Cancelling the processing of a call (the language's own cancellation) cancels its handler and sends nothing. It is never turned into `EXECUTION_ERROR`.
 
 ### **3. Validation on both sides**
@@ -156,32 +169,103 @@ interface ProcessResult {
   readonly replies: AgentToRendererMessage[];
 }
 
+/** Returning `false`, directly or asynchronously, declines the message. */
+type RendererMessageCallback<T> = (message: T) => boolean | void | Promise<boolean | void>;
+
 class RendererToAgentMessageProcessor {
   constructor(options: {
     catalogs: Iterable<CatalogApi>;
-    agentFunctionTimeoutSeconds?: number | null;
-    /** Each callback may return `false` to decline the message. */
-    onAction?: (message: ActionMessage) => boolean | void | Promise<boolean | void>;
-    onError?: (message: ErrorMessage) => boolean | void | Promise<boolean | void>;
-    onRendererFunctionResponse?: (
-      message: RendererFunctionResponseMessage,
-    ) => boolean | void | Promise<boolean | void>;
+    /** Optional. Each SDK names it with its unit (see §2). */
+    agentFunctionTimeout?: number;
+    onAction?: RendererMessageCallback<ActionMessage>;
+    onError?: RendererMessageCallback<ErrorMessage>;
+    onRendererFunctionResponse?: RendererMessageCallback<RendererFunctionResponseMessage>;
   });
   processMessage(message: RendererToAgentMessage | Record<string, unknown>): Promise<ProcessResult>;
 }
 ```
 
+The callback types follow each language: Python takes a callable returning `bool | None` or an awaitable of it, TypeScript the type above, and Dart a `FutureOr<void> Function(T message)`, where a callback that returns `false` still declines (a `bool` is a valid `FutureOr<void>`).
+
 There is no batch method: callers run `processMessage` for each message, which leaves them in charge of concurrency and of handling each message's errors.
 
-**Input.** A message is one of the v1.0 renderer-to-agent message models, or a parsed JSON object. A parsed object must have `version` exactly `"1.0"`, as `renderer_to_agent.json` requires, for every kind; a missing or other version (such as `"v1.0"`) raises `A2uiValidationError`. Any other model type is rejected the same way. The agent SDK's RPC facade re-exports the v1.0 renderer-to-agent message classes and `AgentFunctionResponseMessage`.
+**Input.** A message is one of the v1.0 renderer-to-agent message models, or a parsed JSON object. A parsed object must have `version` exactly `"1.0"`, as `renderer_to_agent.json` requires, for every kind; a missing or other version (such as `"v1.0"`) raises `A2uiValidationError`. Any other model type is rejected the same way. Python's `a2ui.rpc` facade also re-exports the v1.0 renderer-to-agent message classes and `AgentFunctionResponseMessage`.
 
 1. **`callAgentFunction`** is always handled, and `replies` holds exactly one `agentFunctionResponse`, as [§2](#2-agent-sdk-answering-callagentfunction) describes.
 2. **`action`, `error` and `rendererFunctionResponse`.** With the matching callback set, the processor validates the message against its v1.0 schema model (a malformed one raises `A2uiValidationError`), awaits the callback with the model, and returns `handled` with no replies. A callback that returns `false` declines the message: the result is not `handled`, with no replies, so the message goes on to the agent's turn. Returning nothing or `true` means handled. An exception from the callback propagates. Without the callback, it returns not `handled`, with no replies, and doesn't validate the message, so an agent framework can pass it on to the model's turn.
 3. **Anything else**, such as an unknown message key, more than one message key, or a value that isn't an object, raises `A2uiValidationError`.
 
-### **5. Follow-up: calling renderer functions**
+### **5. Agent SDK: calling renderer functions**
 
-The agent calling renderer functions (`callRendererFunction`, [#3535](https://github.com/a2ui-project/a2ui/issues/3535)) is left to a follow-up. Its open design questions are how a pending call survives a stateless, multi-replica server, where the `rendererFunctionResponse` arrives in a later request, and how responses to calls that a model emitted through an inference format, which no pending table knows, reach the model. The follow-up plugs into the processor's `onRendererFunctionResponse` callback, which declines (returns `false`) responses to calls it didn't make, so this feature's API doesn't change for it. Until then, a `rendererFunctionResponse` without a callback is unhandled and goes to the model's turn.
+`RendererFunctionCalls` holds the agent's pending `callRendererFunction` calls for one conversation.
+
+```typescript
+class RendererFunctionCalls {
+  constructor(options?: {
+    /** 30 seconds unless set; null waits without a limit. */
+    defaultTimeout?: number | null;
+    maxPending?: number | null;
+    catalogs?: Iterable<CatalogApi>;
+  });
+  /** Builds and registers the call; returns its message and pending result at once. */
+  call(options: {
+    catalogId: string;
+    name: string;
+    args?: Record<string, unknown>;
+    surfaceId?: string;
+    timeout?: number | null;
+    functionCallId?: string;
+  }): [CallRendererFunctionMessage, Promise<unknown>];
+  /** Settles the call a response answers. True if it named a pending call. Never throws for network input. */
+  resolve(message: RendererFunctionResponseMessage | Record<string, unknown>): boolean;
+  /** Fails every pending call and refuses later ones. */
+  dispose(reason?: string): void;
+}
+```
+
+The timeouts follow each SDK's units: `default_timeout` and `timeout` in seconds in Python, `defaultTimeoutMs` and `timeoutMs` in milliseconds in TypeScript, and `Duration defaultTimeout` and `timeout` in Dart. The pending result is an `asyncio.Future` in Python, a cancellable `Promise` in TypeScript (the returned tuple also has `message`, `result`, `functionCallId` and `cancel`), and a `Future` in a record in Dart.
+
+**Making a call.** `call` never blocks: the caller sends the message, then awaits the result. It checks the call and raises synchronously, before any message is built, any call is registered or any timer starts:
+
+1. A disposed instance raises with code `DISPOSED`.
+2. The `functionCallId` is generated unless one is given; each SDK generates a unique string in its own format. A given ID that is already pending raises with code `DUPLICATE`. TypeScript and Dart refuse an empty given ID with `INVALID_FUNCTION_CALL`; Python treats it as not given and generates one.
+3. With `maxPending` set, a call beyond that many pending calls raises with code `TOO_MANY_PENDING`, so a looping model can't build up calls without limit.
+4. An empty function name or an empty `catalogId` (which `callRendererFunction` requires) raises with code `INVALID_FUNCTION_CALL`.
+5. With `catalogs`, the target is checked against them (see Checking calls against the catalogs, below).
+6. The message is built through the protocol schema; a message that fails it raises with code `INVALID_FUNCTION_CALL`. TypeScript and Dart also check that the function name and argument keys are identifiers and the arguments a JSON object (Dart before the catalog check, TypeScript after it). The arguments are never validated against the function's argument schema.
+
+An empty `surfaceId` counts as no surface: the message leaves `surfaceId` out, and the renderer runs the function against an empty data model.
+
+**Timeouts.** Each call waits 30 seconds by default, as the renderer side does. The default is configurable per instance (or turned off with null), and a call can set its own timeout; in TypeScript a call can also pass null to wait without a limit, while in Python and Dart a call without its own timeout uses the default. A timeout fails the result with code `TIMEOUT` and removes the call. Settling a call cancels its timer.
+
+**Settling calls with `resolve`.**
+
+1. A well-formed response to a pending call settles it: a `value` resolves the result (with `null` allowed), and an `error` fails it with the renderer's code and message. `resolve` returns true.
+2. A response to an unknown, late (timed out or cancelled) or duplicate call is ignored, and `resolve` returns false.
+3. A malformed response (for example one with both `value` and `error`) is ignored, except that if it carries the `functionCallId` of a pending call, that call fails at once with code `UNKNOWN_ERROR` rather than waiting for its timeout, and `resolve` returns true. Otherwise it returns false.
+4. `resolve` is the processor's `onRendererFunctionResponse` callback. Because it returns false for a response it doesn't own, the processor reports that response as not handled, and it reaches the model's turn. This matters because the inference formats also compile a function call the model writes on its own (such as `<a2ui>getLocation()</a2ui>`) into a `callRendererFunction` message that `RendererFunctionCalls` never saw.
+
+Python also has `is_pending(functionCallId)`, which checks a response without settling it, and lets `resolve` run from any thread: the instance belongs to the event loop it is first used on, and `resolve` and `dispose` hand their work to that loop.
+
+**Cancellation and disposal.** Cancelling a pending result (cancelling the future in Python, `cancel()` in TypeScript) forgets the call, and a later response to it is ignored. `dispose(reason)` fails every pending result with code `CANCELLED` carrying the reason, cancels their timers, and makes later `call`s raise with code `DISPOSED`. In Python the instance is also an async context manager that disposes itself at the end of the block.
+
+**Checking calls against the catalogs.** With `catalogs`, such as the agent's active catalogs, `call` checks the target after the checks above that don't depend on it:
+
+1. A `catalogId` that names none of the catalogs, or a name that isn't one of that catalog's renderer functions, raises with code `UNKNOWN_FUNCTION`. Agent functions don't count, however they were built: they run on the agent, so the renderer can't run them.
+2. A function whose `allowedCallers` is `rendererOnly`, or that leaves `allowedCallers` out (which means `rendererOnly`), raises with code `INVALID_FUNCTION_CALL`: the agent may not call it.
+3. A function with `requiresUserActivation: true` raises with code `INVALID_FUNCTION_CALL`, since a call from the agent has no user gesture. A valid v1.0 catalog document only allows that together with `rendererOnly`, but a catalog built in code isn't checked against the schema, so this is checked on its own.
+4. Otherwise (`rendererOrAgent` or `agentOnly`, with no activation needed) the call goes ahead.
+
+Two catalogs with the same ID are an `A2uiCatalogError` when the instance is built, as for the processor. Without `catalogs`, nothing is checked.
+
+**Stateless servers.** The pending calls live in the memory of the process that made them. This suits a server that keeps a conversation on one process, such as one holding a streaming connection. On a stateless or multi-replica server, the `rendererFunctionResponse` can arrive in a later request on another replica, where no pending call matches it: `resolve` declines it, and it goes to the model. Such a server handles responses in its own `onRendererFunctionResponse` callback instead, for example by looking up state it saved by `functionCallId`.
+
+**ADK integration (Python, [#3939](https://github.com/a2ui-project/a2ui/pull/3939)).** `a2ui_rpc_callback(catalogs=..., renderer_calls=...)` returns an ADK `before_agent_callback`. `renderer_calls` provides the session's `RendererFunctionCalls`; `A2uiRendererCallsStore` keeps one per session in memory and builds them without `catalogs`. For each request, the callback:
+
+1. Processes every message that isn't a `callAgentFunction` first, with a processor whose `onRendererFunctionResponse` is the session's `resolve`. This settles every pending call the request answers, even in a request that then goes to the agent, such as one that also holds text or a response to a call the session didn't make. A malformed response that names a pending call fails it.
+2. Answers the request without a model turn only when every part is an A2UI message and every message was handled; only then do its `callAgentFunction` messages run, through a processor built from the active catalogs (with no catalogs, the agent runs instead), and their replies become the agent's response. Otherwise it returns nothing, and the agent runs with the whole request.
+
+A request that held only responses gets a response with no parts, which ADK's `A2aAgentExecutor` would leave in the `working` state; `a2ui_rpc_interceptor()` ends such a task `completed`. The model's prompt keeps `callRendererFunction` and `rendererFunctionResponse` messages, since a response the session didn't settle is for the model; only `callAgentFunction` and `agentFunctionResponse` are removed from it.
 
 ### **6. Serialization**
 
@@ -195,7 +279,7 @@ An `agentFunctionResponse` must carry `value` even when it is `null`. Serialize 
 - [`a2ui_core.blueprint.md`](../modules/a2ui_core.blueprint.md): `FunctionApi`, `Catalog`, `ValidationConfig`, and the RPC layer, including renderer fallback routing.
 - [`a2ui_agent.blueprint.md`](../modules/a2ui_agent.blueprint.md): catalog transformers, validation, and `A2uiRequestProcessor`.
 - [#3536](https://github.com/a2ui-project/a2ui/issues/3536): agent functions declared by the agent and routed by the renderer.
-- [#3535](https://github.com/a2ui-project/a2ui/issues/3535): the agent calling renderer functions (follow-up).
+- [#3535](https://github.com/a2ui-project/a2ui/issues/3535): the agent calling renderer functions.
 - [#3415](https://github.com/a2ui-project/a2ui/issues/3415): renderer fallback routing.
 
 ---
@@ -207,10 +291,16 @@ An `agentFunctionResponse` must carry `value` even when it is `null`. Serialize 
   - `handle_agent_function`: every row of the error mapping table, including an empty function name, defaults and the handler context, driven through `RendererToAgentMessageProcessor.processMessage`, which must report `handled` with exactly one reply.
   - `process_renderer_message`: each of `action`, `error` and `rendererFunctionResponse` with and without its callback (the callback receives the validated message), a callback that declines, a malformed `action` with its callback set, an unknown message key, a raw message without `version` or with `version: "v1.0"` (validation errors), two catalogs with the same ID (a catalog error), and `callAgentFunction` with an empty `functionCallId` (a validation error) or an empty `surfaceId` (an `INVALID_FUNCTION_CALL` reply).
   - `validate_payload`: validating model output that calls a declared or an undeclared function.
+- `conformance/agent/renderer_function_calls.yaml` (23 `call_renderer_function` cases, added by [#3939](https://github.com/a2ui-project/a2ui/pull/3939)): the message a call builds (with an empty `surfaceId` left out and an empty name refused), settling calls with values, `null` and error responses, ignoring unknown, duplicate and late responses, the 30-second default, per-instance and per-call timeouts, disposal, the limit on pending calls, and the catalog checks. The cases run on a fake clock that only an `advance_ms` step moves. Two forms are specific to this suite:
+  - `args.catalogs` lists catalogs that the harness builds in code as v1.0 catalogs, not from a catalog document, so the schema's rules don't apply: `[{catalogId, functions: {<name>: {allowedCallers?, requiresUserActivation?}}}]`, where each function takes any object and returns `any`, and an entry that leaves `allowedCallers` out is `rendererOnly`.
+  - A case may have a top-level `expect_error` (such as `{category: CatalogError}` for two catalogs with one ID) instead of `steps`, when building `RendererFunctionCalls` must fail.
+
+  A harness that hands responses over through the processor, with `resolve` as `onRendererFunctionResponse`, also checks that a response is handled exactly when its call is pending.
+
 - `conformance/core/message_processor_v1_0.yaml`, case `test_v10_strict_function_call_to_schema_only_function_of_surface_catalog`: under strict validation, a function the surface catalog declares schema-only passes.
 - `conformance/core/agent_function_routing.yaml`: the renderer side of routing, which this feature relies on.
 
-Every agent conformance runner that implements this feature runs every case, with no skips. An SDK without an agent function implementation lists `agent_functions.yaml` as a known gap in its agent conformance runner, naming this blueprint.
+Every agent conformance runner that implements this feature runs every case of both suites, with no skips. An SDK without an agent function implementation lists `agent_functions.yaml` (and `renderer_function_calls.yaml`) as a known gap in its agent conformance runner, naming this blueprint.
 
 ---
 
@@ -222,4 +312,5 @@ Every agent conformance runner that implements this feature runs every case, wit
    1. Read renderer-to-agent messages out of the transport's A2UI parts, and wrap replies as A2UI parts.
    2. When a request holds only `callAgentFunction` messages, build a processor from the active catalogs, answer them through it, and return the replies without running a model turn. Any other content, including `action`, `error` and `rendererFunctionResponse`, goes to the agent as before.
    3. Keep `callAgentFunction` and `agentFunctionResponse` out of the contents sent to the model, while keeping them in the session history.
-4. Add `agent_functions` to `implemented_features` in the codebase blueprints of the core and the agent SDK, pinned to the latest commit of this blueprint.
+4. **Calling renderer functions.** Add `RendererFunctionCalls`, with `resolve` returning whether it owned the response and the optional `catalogs` checks, and run `renderer_function_calls.yaml`. In each framework integration, settle the session's pending calls through `onRendererFunctionResponse`, answer a request without a model turn only when every message in it is handled, and end a task whose request held only responses as completed.
+5. Add `agent_functions` to `implemented_features` in the codebase blueprints of the core and the agent SDK, pinned to the latest commit of this blueprint.
