@@ -96,9 +96,18 @@ void _assertCallState(String label, Object actual, Object? expected) {
     return;
   }
   final actualMap = actual as Map<String, Object?>;
-  expect(actualMap, contains('error'), reason: 'call $label: $actual');
+  expect(actualMap.keys.toSet(), {'error'}, reason: 'call $label: $actual');
   final actualErr = actualMap['error']! as Map<String, Object?>;
   final expectedErr = expectedMap['error']! as Map<String, Object?>;
+  expect(actualErr.keys.toSet(), {
+    'code',
+    'message',
+  }, reason: 'call $label: $actualErr');
+  expect(
+    actualErr['message'],
+    allOf(isA<String>(), isNotEmpty),
+    reason: 'call $label: $actualErr',
+  );
   expect(actualErr['code'], expectedErr['code'], reason: 'call $label');
   if (expectedErr['message'] case final String substr) {
     expect(actualErr['message']! as String, contains(substr));
@@ -148,6 +157,10 @@ void _runCalls(Map<String, Object?> testCase) {
     }
 
     final RendererFunctionCalls calls = build();
+    final processor = RendererToAgentMessageProcessor(
+      catalogs: const <CatalogApi>[],
+      onRendererFunctionResponse: calls.resolve,
+    );
     final futures = <String, _TrackedCall>{};
     final callIds = <String, String>{};
 
@@ -256,10 +269,20 @@ void _runCalls(Map<String, Object?> testCase) {
         } else {
           response['value'] = spec['value'];
         }
-        calls.resolve(<String, Object?>{
-          'version': '1.0',
-          'rendererFunctionResponse': response,
-        });
+        final bool owned = calls.isPending(callId);
+        ProcessResult? procResult;
+        processor
+            .processMessage(<String, Object?>{
+              'version': '1.0',
+              'rendererFunctionResponse': response,
+            })
+            .then((ProcessResult r) {
+              procResult = r;
+            });
+        async.flushMicrotasks();
+        expect(procResult, isNotNull, reason: where);
+        expect(procResult!.handled, owned, reason: where);
+        expect(procResult!.replies, isEmpty, reason: where);
       } else if (step['advance_ms'] case final int ms) {
         async.elapse(Duration(milliseconds: ms));
       } else if (step['dispose'] case final Map<String, Object?> disposeSpec) {
