@@ -49,6 +49,7 @@ describe('List Component', () => {
   let surface: SurfaceModel;
   let element: A2uiWebComponentElement | null = null;
   let subscription: Subscription | null = null;
+  let resolver: NodeResolver | null = null;
 
   beforeEach(() => {
     processor = new MessageProcessor([basicCatalog]);
@@ -90,6 +91,9 @@ describe('List Component', () => {
   afterEach(() => {
     subscription?.unsubscribe();
     subscription = null;
+    // Disposed here so that a failed assertion doesn't leave it subscribed to the surface.
+    resolver?.dispose();
+    resolver = null;
     if (element) {
       element.remove();
       element = null;
@@ -164,10 +168,7 @@ describe('List Component', () => {
         },
       },
     ]);
-    const resolver = new NodeResolver(
-      nodeProcessor.model.getSurface('node-surface')!,
-      basicCatalog,
-    );
+    resolver = new NodeResolver(nodeProcessor.model.getSurface('node-surface')!, basicCatalog);
 
     await expectNoItemUntilArrival(getValue(resolver.rootNode)!, () =>
       nodeProcessor.processMessages([
@@ -180,7 +181,6 @@ describe('List Component', () => {
         },
       ]),
     );
-    resolver.dispose();
   });
 
   it('emits no item for a child that has not resolved, then adds it on arrival (v1.0)', async () => {
@@ -204,7 +204,7 @@ describe('List Component', () => {
         },
       },
     ]);
-    const resolver = new NodeResolver(nodeProcessor.model.getSurface('node-surface')!, v1Catalog);
+    resolver = new NodeResolver(nodeProcessor.model.getSurface('node-surface')!, v1Catalog);
 
     await expectNoItemUntilArrival(getValue(resolver.rootNode)!, () =>
       nodeProcessor.processMessages([
@@ -217,7 +217,26 @@ describe('List Component', () => {
         },
       ]),
     );
-    resolver.dispose();
+  });
+
+  it('emits no item for an unknown-type child when rendered from a context alone', async () => {
+    // Without a node tree, renderNode builds a ComponentContext and renders nothing for a type
+    // the catalog doesn't implement. The List must agree and leave that child out.
+    surface.componentsModel.addComponent(
+      new ComponentModel('weird', 'StarRating', {}, basicCatalog),
+    );
+    surface.componentsModel.addComponent(
+      new ComponentModel('list2', 'List', {children: ['txt1', 'weird', 'txt2']}, basicCatalog),
+    );
+    const el = document.createElement('a2ui-list') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'list2');
+    });
+
+    assert.strictEqual(el.querySelectorAll('.a2ui-list-item-none').length, 2);
+    assert.strictEqual(el.querySelectorAll('a2ui-basic-text').length, 2);
   });
 
   it('should track and reuse child elements during a reordering operation', async () => {

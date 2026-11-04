@@ -68,9 +68,9 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<ListSupportedApi
     if (!props) return nothing;
 
     const children: ResolvedChildList = (Array.isArray(props.children) ? props.children : [])
-      // A child that renders nothing gets no item: an empty <li> would still show a marker and
-      // take a gap.
-      .filter(child => !this.childRendersNothing(child));
+      // An unresolved child renders nothing and gets no item: an empty <li> would still show a
+      // marker and take a gap.
+      .filter(child => this.isChildResolved(child));
     const listStyle = (props as any).listStyle;
     const direction = props.direction || 'vertical';
     const alignItems = props.align ? (ALIGN_MAP[props.align] ?? 'stretch') : undefined;
