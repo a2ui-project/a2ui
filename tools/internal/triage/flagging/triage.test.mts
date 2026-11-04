@@ -14,14 +14,21 @@
  * limitations under the License.
  */
 
-// Tests for triage.mjs. Run from the repository root with:
-// node --test tools/internal/triage/flagging/triage.test.mjs
+// Tests for triage.mts. Run from the repository root with:
+// node --test tools/internal/triage/flagging/triage.test.mts
 
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {afterEach, beforeEach, describe, it, mock} from 'node:test';
 
 import issueTriage, {
+  type Contribution,
+  type GitHub,
+  type IssueEvent,
+  type Item,
+  type Priority,
+  type RawContribution,
+  type User,
   ASSIGNED_FOR_TRIAGE_LABEL,
   ASSIGNEE_REQUIRED_PRIORITIES,
   externalHasResponded,
@@ -37,10 +44,19 @@ import issueTriage, {
 
 const NOW = new Date('2026-06-30T00:00:00Z').getTime();
 const DAY = 24 * 60 * 60 * 1000;
-const daysAgo = n => new Date(NOW - n * DAY).toISOString();
+const daysAgo = (n: number) => new Date(NOW - n * DAY).toISOString();
+
+// An item with what the fake GitHub client below returns for it from other
+// endpoints.
+type TestItem = Item & {
+  __comments?: RawContribution[];
+  __events?: IssueEvent[];
+  // What `issues.get` returns, when it differs from the listing.
+  __fresh?: Item;
+};
 
 // Minimal factories matching the shape the script reads from the GitHub API.
-const issue = (overrides = {}) => ({
+const issue = (overrides: Partial<TestItem> = {}): TestItem => ({
   number: 1,
   state: 'open',
   pull_request: undefined,
@@ -54,11 +70,11 @@ const issue = (overrides = {}) => ({
 });
 
 // An issue opened by an external contributor. Issues default to the team.
-const externalIssue = (overrides = {}) =>
+const externalIssue = (overrides: Partial<TestItem> = {}) =>
   issue({author_association: 'NONE', user: {login: 'reporter', type: 'User'}, ...overrides});
 
 // PRs default to an external contributor, the case the automation watches.
-const pr = (overrides = {}) =>
+const pr = (overrides: Partial<TestItem> = {}) =>
   issue({
     pull_request: {url: 'x'},
     author_association: 'CONTRIBUTOR',
@@ -67,7 +83,7 @@ const pr = (overrides = {}) =>
   });
 
 // Raw comment payload, in the shape the GitHub endpoints return it.
-const comment = (overrides = {}) => ({
+const comment = (overrides: Partial<RawContribution> = {}): RawContribution => ({
   created_at: daysAgo(0),
   author_association: 'MEMBER',
   user: {login: 'maintainer', type: 'User'},
@@ -80,13 +96,21 @@ const RAW_COMMENT_KEYS = Object.keys(comment());
 // friends consume directly. Overrides use the raw key names, as for `comment`;
 // a normalized one (`createdAt`) would otherwise be dropped on the floor and
 // leave the test silently asserting against a default.
-const event = (overrides = {}) => {
+const event = (overrides: Partial<RawContribution> = {}): Contribution => {
   const unknown = Object.keys(overrides).filter(key => !RAW_COMMENT_KEYS.includes(key));
   assert.deepEqual(unknown, [], `event() takes raw comment keys, got: ${unknown.join(', ')}`);
 
   const {created_at: createdAt, author_association: association, user} = comment(overrides);
-  return {createdAt, association, user};
+  return {createdAt: createdAt!, association, user};
 };
+
+// Asserts that `flagReason` flagged an item, for a reason matching `pattern`.
+const assertReason = (reason: string | null, pattern: RegExp, message?: string) => {
+  assert.ok(reason !== null, message ?? 'expected the item to be flagged');
+  assert.match(reason, pattern, message);
+};
+
+const isPriority = (label: string) => (PRIORITY_LABELS as readonly string[]).includes(label);
 
 // Regression: PR review events checked out the PR's merge commit, whose older
 // copy of the rules kept re-adding labels that the current rules removed.
@@ -146,7 +170,7 @@ describe('lastHumanContribution', () => {
 describe('externalHasResponded', () => {
   // The label went on 3 days ago, so only contributions newer than that answer it.
   const LABELED_AT = daysAgo(3);
-  const externalReply = (age, login = 'reporter') =>
+  const externalReply = (age: number, login = 'reporter') =>
     event({created_at: daysAgo(age), author_association: 'NONE', user: {login, type: 'User'}});
 
   // Regression: the opening post is not a contribution and always predates the
@@ -208,7 +232,7 @@ describe('externalHasResponded', () => {
 
 describe('flagReason — issues', () => {
   it('flags an external issue with no priority label', () => {
-    assert.match(flagReason(externalIssue(), [], NOW), /no priority label/);
+    assertReason(flagReason(externalIssue(), [], NOW), /no priority label/);
   });
 
   // The team manages its own issues.
@@ -238,7 +262,7 @@ describe('flagReason — issues', () => {
   for (const [name, assignees] of [
     ['assigned', [{login: 'dev'}]],
     ['unassigned', []],
-  ]) {
+  ] as const) {
     describe(`${name} with no priority`, () => {
       const externalComment = event({
         author_association: 'NONE',
@@ -246,12 +270,12 @@ describe('flagReason — issues', () => {
       });
 
       it('flags an issue opened by an external contributor', () => {
-        assert.match(flagReason(externalIssue({assignees}), [], NOW), /no priority label/);
+        assertReason(flagReason(externalIssue({assignees}), [], NOW), /no priority label/);
       });
 
       it("flags a team member's issue with an external comment", () => {
         const item = issue({assignees, comments: 1});
-        assert.match(flagReason(item, [externalComment], NOW), /no priority label/);
+        assertReason(flagReason(item, [externalComment], NOW), /no priority label/);
       });
 
       // The flag is about missing priority, not an unanswered comment, so a
@@ -259,7 +283,7 @@ describe('flagReason — issues', () => {
       it('keeps flagging once a team member has replied to the external comment', () => {
         const item = issue({assignees, comments: 2});
         const reply = event({created_at: daysAgo(0)});
-        assert.match(flagReason(item, [externalComment, reply], NOW), /no priority label/);
+        assertReason(flagReason(item, [externalComment, reply], NOW), /no priority label/);
       });
 
       it("does not flag a team member's issue with only team comments", () => {
@@ -274,7 +298,7 @@ describe('flagReason — issues', () => {
           author_association: 'CONTRIBUTOR',
           user: {login: 'github-actions[bot]', type: 'Bot'},
         });
-        assert.match(flagReason(item, [], NOW), /no priority label/);
+        assertReason(flagReason(item, [], NOW), /no priority label/);
       });
 
       it("flags a team member's issue with a bot comment", () => {
@@ -283,7 +307,7 @@ describe('flagReason — issues', () => {
           author_association: 'NONE',
           user: {login: 'ci[bot]', type: 'Bot'},
         });
-        assert.match(flagReason(item, [botComment], NOW), /no priority label/);
+        assertReason(flagReason(item, [botComment], NOW), /no priority label/);
       });
     });
   }
@@ -292,14 +316,14 @@ describe('flagReason — issues', () => {
   // hardcoding P0/P1, so the test tracks the config constant.
   it('flags every assignee-required priority with no assignee', () => {
     for (const priority of ASSIGNEE_REQUIRED_PRIORITIES) {
-      assert.match(flagReason(issue({labels: [priority]}), [], NOW), /no assignee/, priority);
+      assertReason(flagReason(issue({labels: [priority]}), [], NOW), /no assignee/, priority);
     }
   });
 
   it('handles a missing assignees field without throwing', () => {
     const [priority] = ASSIGNEE_REQUIRED_PRIORITIES;
     const item = issue({labels: [priority], assignees: undefined});
-    assert.match(flagReason(item, [], NOW), /no assignee/);
+    assertReason(flagReason(item, [], NOW), /no assignee/);
   });
 
   // Drive the staleness rule off STALE_DAYS so the thresholds live in one
@@ -316,7 +340,7 @@ describe('flagReason — issues', () => {
     // was consulted, so a stale P0 or P1 was never flagged.
     it(`flags an assigned ${priority} stale beyond ${threshold} day(s)`, () => {
       const item = issue({...assigned, created_at: daysAgo(threshold + 1)});
-      assert.match(flagReason(item, [], NOW), /no human activity/);
+      assertReason(flagReason(item, [], NOW), /no human activity/);
     });
 
     it(`measures an assigned ${priority} from its latest human comment`, () => {
@@ -328,7 +352,7 @@ describe('flagReason — issues', () => {
     // An unassigned issue is reported for the missing assignee instead.
     it(`reports a stale unassigned ${priority} as having no assignee`, () => {
       const item = issue({labels: [priority], created_at: daysAgo(threshold + 1)});
-      assert.match(flagReason(item, [], NOW), /no assignee/);
+      assertReason(flagReason(item, [], NOW), /no assignee/);
     });
   }
 
@@ -336,7 +360,7 @@ describe('flagReason — issues', () => {
   // staleness is only checked on assigned issues, and unassigned ones are
   // flagged for having no assignee.
   it('requires an assignee for every priority with a staleness threshold', () => {
-    for (const priority of Object.keys(STALE_DAYS)) {
+    for (const priority of Object.keys(STALE_DAYS) as Priority[]) {
       assert.ok(ASSIGNEE_REQUIRED_PRIORITIES.has(priority), priority);
     }
   });
@@ -370,13 +394,13 @@ describe('flagReason — assigned for triage', () => {
 
   it('flags an assignment past its deadline', () => {
     const reason = flagReason(handedOut(), [], NOW, overdue);
-    assert.match(reason, /assigned-for-triage/);
-    assert.match(reason, new RegExp(`more than ${TRIAGE_ASSIGNMENT_DAYS} days`));
+    assertReason(reason, /assigned-for-triage/);
+    assertReason(reason, new RegExp(`more than ${TRIAGE_ASSIGNMENT_DAYS} days`));
   });
 
   it('flags the label when nobody is assigned, however fresh', () => {
     const item = handedOut({assignees: []});
-    assert.match(flagReason(item, [], NOW, daysAgo(0)), /nobody is assigned/);
+    assertReason(flagReason(item, [], NOW, daysAgo(0)), /nobody is assigned/);
   });
 
   // Step 2 decides alone: a fresh assignment holds back every later step.
@@ -405,7 +429,7 @@ describe('flagReason — assigned for triage', () => {
       assignees: dev,
       author_association: 'MEMBER',
     });
-    assert.match(flagReason(item, [], NOW, overdue), /assigned-for-triage/);
+    assertReason(flagReason(item, [], NOW, overdue), /assigned-for-triage/);
   });
 
   it('does not flag when the labeling time is unknown', () => {
@@ -437,9 +461,9 @@ describe('flagReason — PRIORITY_LABELS contract', () => {
 
   it('flags an issue whose label is not in PRIORITY_LABELS as unprioritized', () => {
     const notAPriority = 'area: rendering';
-    assert.ok(!PRIORITY_LABELS.includes(notAPriority));
+    assert.ok(!isPriority(notAPriority));
     const item = externalIssue({labels: [notAPriority]});
-    assert.match(flagReason(item, [], NOW), /no priority label/);
+    assertReason(flagReason(item, [], NOW), /no priority label/);
   });
 
   it('never flags a priority that has no staleness threshold', () => {
@@ -455,11 +479,11 @@ describe('flagReason — PRIORITY_LABELS contract', () => {
 
   it('keeps config constants consistent with PRIORITY_LABELS', () => {
     for (const priority of Object.keys(STALE_DAYS)) {
-      assert.ok(PRIORITY_LABELS.includes(priority), `STALE_DAYS key ${priority} not a priority`);
+      assert.ok(isPriority(priority), `STALE_DAYS key ${priority} not a priority`);
     }
     for (const priority of ASSIGNEE_REQUIRED_PRIORITIES) {
       assert.ok(
-        PRIORITY_LABELS.includes(priority),
+        isPriority(priority),
         `ASSIGNEE_REQUIRED_PRIORITIES entry ${priority} not a priority`,
       );
     }
@@ -468,13 +492,13 @@ describe('flagReason — PRIORITY_LABELS contract', () => {
 
 describe('flagReason — PRs', () => {
   // An external author's comment 2 days ago, with no maintainer reply since.
-  const externalComment = age =>
+  const externalComment = (age: number) =>
     event({
       created_at: daysAgo(age),
       author_association: 'CONTRIBUTOR',
       user: {login: 'contributor', type: 'User'},
     });
-  const memberComment = age =>
+  const memberComment = (age: number) =>
     event({
       created_at: daysAgo(age),
       author_association: 'MEMBER',
@@ -483,25 +507,25 @@ describe('flagReason — PRs', () => {
 
   it('flags an external PR with no maintainer response', () => {
     const item = pr({created_at: daysAgo(5), comments: 1});
-    assert.match(flagReason(item, [externalComment(2)], NOW), /no maintainer/);
+    assertReason(flagReason(item, [externalComment(2)], NOW), /no maintainer/);
   });
 
   it('flags an external PR that has never been answered', () => {
     // No comments: the opening post itself is the unanswered external word.
     const item = pr({created_at: daysAgo(2)});
-    assert.match(flagReason(item, [], NOW), /no maintainer/);
+    assertReason(flagReason(item, [], NOW), /no maintainer/);
   });
 
   // There is no grace period any more: a PR is triage work from the moment it
   // is opened, not a day later.
   it('flags an external PR opened moments ago', () => {
-    assert.match(flagReason(pr({created_at: daysAgo(0)}), [], NOW), /no maintainer/);
+    assertReason(flagReason(pr({created_at: daysAgo(0)}), [], NOW), /no maintainer/);
   });
 
   it('flags an assigned external PR — a PR assignee is its reviewer', () => {
     // The reviewer going quiet is exactly what step 4 watches for.
     const item = pr({created_at: daysAgo(5), assignees: [{login: 'dev'}]});
-    assert.match(flagReason(item, [], NOW), /no maintainer/);
+    assertReason(flagReason(item, [], NOW), /no maintainer/);
   });
 
   it('does not flag when a maintainer commented after the author', () => {
@@ -515,7 +539,7 @@ describe('flagReason — PRs', () => {
       created_at: daysAgo(2),
       user: {login: 'dependabot[bot]', type: 'Bot'},
     });
-    assert.match(flagReason(item, [], NOW), /no maintainer/);
+    assertReason(flagReason(item, [], NOW), /no maintainer/);
     assert.equal(flagReason({...item, comments: 1}, [memberComment(1)], NOW), null);
   });
 
@@ -530,7 +554,7 @@ describe('flagReason — PRs', () => {
     const answered = pr({created_at: daysAgo(5), comments: 2});
     assert.equal(flagReason(answered, [memberComment(3), botComment], NOW), null);
     const unanswered = pr({created_at: daysAgo(5), comments: 1});
-    assert.match(flagReason(unanswered, [botComment], NOW), /no maintainer/);
+    assertReason(flagReason(unanswered, [botComment], NOW), /no maintainer/);
   });
 
   it('never flags a maintainer-authored PR, however old', () => {
@@ -542,7 +566,7 @@ describe('flagReason — PRs', () => {
 });
 
 describe('flagReason — external comment awaiting response', () => {
-  const externalComment = age =>
+  const externalComment = (age: number) =>
     event({
       created_at: daysAgo(age),
       author_association: 'NONE',
@@ -551,13 +575,13 @@ describe('flagReason — external comment awaiting response', () => {
 
   it('flags when the latest reply is an unanswered external comment', () => {
     const item = issue({labels: ['P3'], comments: 1, created_at: daysAgo(5)});
-    assert.match(flagReason(item, [externalComment(2)], NOW), /external contributor/);
+    assertReason(flagReason(item, [externalComment(2)], NOW), /external contributor/);
   });
 
   // No grace period: the comment is triage work the moment it lands.
   it('flags an external comment posted moments ago', () => {
     const item = issue({labels: ['P3'], comments: 1, created_at: daysAgo(5)});
-    assert.match(flagReason(item, [externalComment(0)], NOW), /external contributor/);
+    assertReason(flagReason(item, [externalComment(0)], NOW), /external contributor/);
   });
 
   it('does not flag when a maintainer replied last', () => {
@@ -576,7 +600,7 @@ describe('flagReason — external comment awaiting response', () => {
   it('flags an unassigned P2 or P3 issue', () => {
     for (const priority of ['P2', 'P3']) {
       const item = issue({labels: [priority], comments: 1, created_at: daysAgo(5)});
-      assert.match(flagReason(item, [externalComment(2)], NOW), /external contributor/, priority);
+      assertReason(flagReason(item, [externalComment(2)], NOW), /external contributor/, priority);
     }
   });
 
@@ -594,47 +618,51 @@ describe('flagReason — external comment awaiting response', () => {
 });
 
 describe('issueTriage reconciliation', () => {
-  let github;
-  let calls;
+  let github: GitHub;
+  let calls: {
+    addLabels: number[];
+    removeLabel: {number: number; name: unknown}[];
+    listComments: number[];
+    listEvents: number[];
+    get: number[];
+  };
 
-  const makeGithub = openItems => {
+  const makeGithub = (openItems: TestItem[]): GitHub => {
     calls = {addLabels: [], removeLabel: [], listComments: [], listEvents: [], get: []};
-    const rest = {
-      issues: {
-        listForRepo: 'listForRepo',
-        listComments: mock.fn(async params => {
-          calls.listComments.push(params.issue_number);
-          const item = openItems.find(i => i.number === params.issue_number);
-          return {data: item.__comments ?? []};
-        }),
-        // Label history, used to find when WAITING_LABEL was added.
-        listEvents: mock.fn(async params => {
-          calls.listEvents.push(params.issue_number);
-          const item = openItems.find(i => i.number === params.issue_number);
-          return {data: item.__events ?? []};
-        }),
-        // Live re-read used to guard against concurrent double-labeling.
-        // `__fresh` lets a test simulate another run having changed the label.
-        get: mock.fn(async params => {
-          calls.get.push(params.issue_number);
-          const item = openItems.find(i => i.number === params.issue_number);
-          return {data: item.__fresh ?? item};
-        }),
-        addLabels: mock.fn(async params => calls.addLabels.push(params.issue_number)),
-        removeLabel: mock.fn(async params =>
-          calls.removeLabel.push({number: params.issue_number, name: params.name}),
-        ),
-      },
-    };
+    const numberOf = (params: Record<string, unknown>) => params.issue_number as number;
+    const find = (params: Record<string, unknown>) =>
+      openItems.find(i => i.number === numberOf(params))!;
+    const noReviews = async () => ({data: []});
     return {
-      rest,
-      paginate: mock.fn(async (endpoint, params) => {
-        if (typeof endpoint === 'function') {
-          const res = await endpoint(params);
-          return res.data;
-        }
-        return openItems;
-      }),
+      rest: {
+        issues: {
+          listForRepo: async () => ({data: openItems}),
+          listComments: async params => {
+            calls.listComments.push(numberOf(params));
+            return {data: find(params).__comments ?? []};
+          },
+          // Label history, used to find when WAITING_LABEL was added.
+          listEvents: async params => {
+            calls.listEvents.push(numberOf(params));
+            return {data: find(params).__events ?? []};
+          },
+          // Live re-read used to guard against concurrent double-labeling.
+          // `__fresh` lets a test simulate another run having changed the label.
+          get: async params => {
+            calls.get.push(numberOf(params));
+            const item = find(params);
+            return {data: item.__fresh ?? item};
+          },
+          addLabels: async params => calls.addLabels.push(numberOf(params)),
+          removeLabel: async params =>
+            calls.removeLabel.push({number: numberOf(params), name: params.name}),
+        },
+        pulls: {listReviews: noReviews, listReviewComments: noReviews},
+      },
+      paginate: async <T,>(
+        endpoint: (params: Record<string, unknown>) => Promise<unknown>,
+        params: Record<string, unknown>,
+      ) => ((await endpoint(params)) as {data: T[]}).data,
     };
   };
 
@@ -642,8 +670,8 @@ describe('issueTriage reconciliation', () => {
 
   // Unlike the `flagReason` tests, `issueTriage` measures against the real
   // clock, so these fixtures are stamped relative to now rather than to NOW.
-  const realDaysAgo = days => new Date(Date.now() - days * DAY).toISOString();
-  const labeling = (name, days) => ({
+  const realDaysAgo = (days: number) => new Date(Date.now() - days * DAY).toISOString();
+  const labeling = (name: string, days: number): IssueEvent => ({
     event: 'labeled',
     label: {name},
     created_at: realDaysAgo(days),
@@ -768,7 +796,7 @@ describe('issueTriage reconciliation', () => {
     // label alone; `labelEvent: false` drops the labeling from the item's
     // history, as if it could not be read.
     const parked = (
-      number,
+      number: number,
       {
         comments = 0,
         repliedDaysAgo = 0,
@@ -777,6 +805,12 @@ describe('issueTriage reconciliation', () => {
         labeledDaysAgo = 1,
         labelEvent = true,
         ...overrides
+      }: Partial<TestItem> & {
+        repliedDaysAgo?: number;
+        replyFrom?: User;
+        replyAssociation?: string;
+        labeledDaysAgo?: number;
+        labelEvent?: boolean;
       } = {},
     ) => {
       const item = issue({number, labels: [WAITING_LABEL], user: reporter, comments, ...overrides});
@@ -946,7 +980,10 @@ describe('issueTriage reconciliation', () => {
   describe('assigned-for-triage', () => {
     // A P3 issue handed out for triage `labeledDaysAgo` days ago. It matches no
     // other rule, so any flag comes from step 2.
-    const handedOut = (number, {labeledDaysAgo, ...overrides} = {}) => {
+    const handedOut = (
+      number: number,
+      {labeledDaysAgo, ...overrides}: Partial<TestItem> & {labeledDaysAgo?: number} = {},
+    ) => {
       const item = issue({
         number,
         labels: ['P3', ASSIGNED_FOR_TRIAGE_LABEL],

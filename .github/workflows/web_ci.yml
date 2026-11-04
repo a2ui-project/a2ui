@@ -196,7 +196,9 @@ jobs:
         run: eval "yarn workspaces foreach -A $SAMPLES_INC -p run test"
 
   # Repo automation under scripts/ and tools/internal/triage/ runs on plain
-  # Node with no workspace deps, so it only needs the built-in test runner.
+  # Node with no workspace deps, so it only needs the built-in test runner, plus
+  # tsc for the triage bot's types. Node 24 matches the runtime of
+  # actions/github-script, which runs the bot and strips its types on import.
   ci-scripts:
     needs: changes
     if: ${{ needs.changes.outputs.scripts == 'true' }}
@@ -207,9 +209,15 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-node
         with:
+          node-version: "24"
           install: "false"
       - name: Test Scripts
-        run: node --test scripts/*.test.mjs tools/internal/triage/flagging/*.test.mjs
+        run: node --test scripts/*.test.mjs tools/internal/triage/flagging/*.test.mts
+      - name: Type-check the triage bot
+        run: |
+          npm install --no-save --prefix "$RUNNER_TEMP/tsc" typescript@5.9.3 @types/node@25.9.3
+          "$RUNNER_TEMP/tsc/node_modules/.bin/tsc" -p tools/internal/triage/flagging \
+            --typeRoots "$RUNNER_TEMP/tsc/node_modules/@types"
 
   ci-other:
     needs: changes

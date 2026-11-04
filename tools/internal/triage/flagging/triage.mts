@@ -46,7 +46,7 @@ export interface Item {
   // A deleted account surfaces as a null `user`.
   user: User | null;
   labels?: (string | {name: string})[];
-  assignees?: unknown[] | null;
+  assignees?: readonly unknown[] | null;
   // Present only on PRs.
   pull_request?: unknown;
   // The number of top-level comments.
@@ -134,18 +134,20 @@ const MAINTAINER_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 // A deleted account surfaces as a null `user`; treat that as a human so their
 // past contributions still count, rather than silently classifying them as a bot.
 export const isBot = (user: User | null | undefined): boolean =>
-  Boolean(user) && (user!.type === 'Bot' || /\[bot\]$/.test(user!.login || ''));
+  user != null && (user.type === 'Bot' || /\[bot\]$/.test(user.login || ''));
 
 // True for anyone outside the team, bots included: an issue a workflow files or
 // a PR dependabot opens needs triage as much as one from an outside human.
 // Takes anything with `association`: a normalized contribution or the result of
 // `lastHumanContribution`.
-const isExternal = ({association}: {association: string}): boolean => !MAINTAINER_ASSOCIATIONS.has(association);
+const isExternal = ({association}: {association: string}): boolean =>
+  !MAINTAINER_ASSOCIATIONS.has(association);
 
 const labelNames = (item: Pick<Item, 'labels'>): string[] =>
   (item.labels || []).map(label => (typeof label === 'string' ? label : label.name));
 
-const ageInDays = (isoTimestamp: string, now: number): number => (now - new Date(isoTimestamp).getTime()) / DAY_MS;
+const ageInDays = (isoTimestamp: string, now: number): number =>
+  (now - new Date(isoTimestamp).getTime()) / DAY_MS;
 
 /**
  * Returns the most recent human contribution to an item: either its newest
@@ -339,7 +341,12 @@ async function fetchContributions(
     params: Params,
   ): Promise<RawContribution[]> => {
     try {
-      return await github.paginate<RawContribution>(endpoint, {owner, repo, per_page: 100, ...params});
+      return await github.paginate<RawContribution>(endpoint, {
+        owner,
+        repo,
+        per_page: 100,
+        ...params,
+      });
     } catch (error) {
       console.error(`Failed to fetch ${label} for #${number}:`, error);
       return [];
@@ -440,7 +447,9 @@ export default async function issueTriage({
     );
     const [contributions, addedAt] = await Promise.all([
       fetchContributions(client, item),
-      timedLabels.length > 0 ? labelsAddedAt(client, item, timedLabels) : ({} as Record<string, string>),
+      timedLabels.length > 0
+        ? labelsAddedAt(client, item, timedLabels)
+        : ({} as Record<string, string>),
     ]);
     return {
       item,
