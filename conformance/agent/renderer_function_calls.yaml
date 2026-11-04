@@ -370,3 +370,83 @@
         functions:
           vibrate: {allowedCallers: agentOnly}
   expect_error: {category: CatalogError}
+
+# --- The checks `call` makes on its own arguments ---
+# Each check runs in a fixed order before anything is built, registered or
+# timed. A rejected call sends nothing and leaves nothing pending.
+
+- name: test_call_renderer_function_with_an_empty_function_call_id
+  description: >-
+    A functionCallId given as an empty string is refused with INVALID_FUNCTION_CALL rather than replaced by a generated one.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale, functionCallId: ""}
+      expect_error: {code: INVALID_FUNCTION_CALL}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_with_a_name_that_is_not_an_identifier
+  description: >-
+    A function name that isn't a UAX #31 identifier is refused with INVALID_FUNCTION_CALL.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: get-location}
+      expect_error: {code: INVALID_FUNCTION_CALL}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_with_a_reserved_name
+  description: >-
+    A function name that starts with @, such as the @index system function, is refused with INVALID_FUNCTION_CALL.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: "@index"}
+      expect_error: {code: INVALID_FUNCTION_CALL}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_with_args_that_are_not_an_object
+  description: >-
+    Arguments given as a list instead of an object are refused with INVALID_FUNCTION_CALL.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: notify, args: [Saved]}
+      expect_error: {code: INVALID_FUNCTION_CALL}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_with_an_argument_key_that_is_not_an_identifier
+  description: >-
+    An argument key that isn't a UAX #31 identifier is refused with INVALID_FUNCTION_CALL, and the message names the key.
+  action: call_renderer_function
+  steps:
+    - call:
+        label: a
+        catalogId: conformance/agent_functions
+        name: notify
+        args: {bad-key: Saved}
+      expect_error: {code: INVALID_FUNCTION_CALL, message: bad-key}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_checks_the_name_before_the_catalog_id
+  description: >-
+    With both the name and the catalogId empty, the error is about the missing function name: the name is checked first.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: "", name: ""}
+      expect_error: {code: INVALID_FUNCTION_CALL, message: function name}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_checks_the_args_before_the_catalogs
+  description: >-
+    A call to a rendererOnly function whose arguments have a bad key is refused for the argument, which is checked before the catalogs: the message names the key.
+  action: call_renderer_function
+  args:
+    catalogs:
+      - catalogId: conformance/device
+        functions:
+          formatLocal: {allowedCallers: rendererOnly}
+  steps:
+    - call:
+        label: a
+        catalogId: conformance/device
+        name: formatLocal
+        args: {bad-key: 1}
+      expect_error: {code: INVALID_FUNCTION_CALL, message: bad-key}
+      expect_pending_count: 0

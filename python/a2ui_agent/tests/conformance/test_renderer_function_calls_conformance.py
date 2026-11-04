@@ -153,6 +153,8 @@ async def _run_calls_on_loop(case: Mapping[str, Any], loop: _FakeClockLoop) -> N
                 kwargs["surface_id"] = spec["surfaceId"]
             if "timeout_ms" in spec:
                 kwargs["timeout"] = spec["timeout_ms"] / 1000
+            if "functionCallId" in spec:
+                kwargs["function_call_id"] = spec["functionCallId"]
             if "expect_error" in step:
                 with pytest.raises(A2uiRpcError) as excinfo:
                     calls.call(**kwargs)

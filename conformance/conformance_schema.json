@@ -2701,8 +2701,14 @@
             "label": {"type": "string"},
             "catalogId": {"type": "string"},
             "name": {"type": "string"},
-            "args": {"type": "object"},
+            "args": {
+              "description": "The call's arguments. Usually an object; any other JSON value tests that `call` refuses it."
+            },
             "surfaceId": {"type": "string"},
+            "functionCallId": {
+              "type": "string",
+              "description": "The ID to give the call, in place of a generated one."
+            },
             "timeout_ms": {
               "type": "integer",
               "exclusiveMinimum": 0,
