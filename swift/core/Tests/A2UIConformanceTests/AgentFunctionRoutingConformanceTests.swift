@@ -72,9 +72,17 @@ struct AgentFunctionRoutingConformanceTests {
       }
       if let reason = Self.knownDivergences[name] {
         print("Skipping \(name): \(reason)")
+        ConformanceManifest.record(suite: Self.suite, name: name, status: .skipped, reason: reason)
         continue
       }
-      try await run(testCase, name: name)
+      do {
+        try await run(testCase, name: name)
+        ConformanceManifest.record(suite: Self.suite, name: name, status: .passed)
+      } catch {
+        ConformanceManifest.record(
+          suite: Self.suite, name: name, status: .failed, reason: "\(error)")
+        throw error
+      }
     }
   }
 
@@ -90,6 +98,10 @@ struct AgentFunctionRoutingConformanceTests {
       catalogs: try catalogs(of: testCase, version: version),
       actionHandler: recorder
     )
+    // The cases settle every call explicitly. Disable the 30-second wall-clock timeout so a
+    // heavily loaded test run (other suites share the main actor) cannot time a call out
+    // between two steps.
+    processor.agentFunctionTimeoutSeconds = 0
     if surfaceSpec["outboundListener"]?.boolValue != false {
       processor.outboundListener = { message in
         MainActor.assumeIsolated {
