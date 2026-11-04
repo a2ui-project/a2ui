@@ -17,7 +17,7 @@ name: Validate Agent Skills
 on:
   push:
     branches: [main]
-    paths:
+    paths: &paths
       - "**/SKILL.md"
       - ".agents/skills/**"
       - "blueprints/skills/**"
@@ -25,13 +25,7 @@ on:
       - "skills_lint.yaml"
       - ".github/workflows/validate_skills.yml"
   pull_request:
-    paths:
-      - "**/SKILL.md"
-      - ".agents/skills/**"
-      - "blueprints/skills/**"
-      - "eval/iterative_format_optimizer/skills/**"
-      - "skills_lint.yaml"
-      - ".github/workflows/validate_skills.yml"
+    paths: *paths
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
@@ -66,4 +60,4 @@ jobs:
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
       - name: Run skills_lint
-        run: skills_lint --print-warnings
+        run: skills_lint

@@ -12,14 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Configuration for skills_lint (https://github.com/google/skills_lint.dart),
-# which validates agent skills (SKILL.md files). Run `skills_lint` from the
-# repository root. The default rules check frontmatter YAML, skill names,
-# description length and that each skill has a SKILL.md. See RULES.md in
-# that repository for the full list.
 skills_lint:
   rules:
-    # Opt-in and warning-level rules that every skill here passes today.
     check-absolute-paths: error
     check-trailing-whitespace: error
   directories:
