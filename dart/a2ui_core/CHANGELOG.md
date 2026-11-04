@@ -159,6 +159,12 @@
   of the list the processor was created with, and adding to it throws
   `UnsupportedError`. Pass every catalog when creating the processor
   ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- `RpcHandler.dispose` takes an optional reason, which each cancelled call's
+  error message names. `SurfaceModel` and `MessageProcessor` take
+  `maxAgentCallCacheEntries` (256 by default), the number of settled agent
+  call answers a surface keeps; the oldest answer is evicted first, and calls
+  still in flight don't count
+  ([#3861](https://github.com/a2ui-project/a2ui/pull/3861)).
 - (v1_0) Added `AgentFunction` (`AgentFunction(...)`, `AgentFunction.fromApi`,
   `withHandler`), `AgentFunctionContext` and `AgentFunctionHandler`, for
   catalog functions that run on the agent, with `Catalog.agentFunctions`,
