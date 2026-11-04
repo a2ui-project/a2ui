@@ -24,7 +24,7 @@ import {ComponentContext} from '../resolution/component-context.js';
 import {NodeResolver} from '../resolution/node-resolver.js';
 import {getValue} from '../reactivity/signals.js';
 import {MessageProcessor} from '../processing/message-processor.js';
-import {renderA2uiNode} from './render-a2ui-node.js';
+import {canRenderA2uiNode, renderA2uiNode} from './render-a2ui-node.js';
 import {Catalog} from '../catalog/types.js';
 import type {A2uiWebComponentElement} from './a2ui_web_component_element.js';
 import type {WebComponentImplementation} from './web_component_implementation.js';
@@ -174,6 +174,45 @@ describe('renderA2uiNode', () => {
     assert.strictEqual(third.node, undefined);
     assert.strictEqual(third.context, contextOnly);
     resolver.dispose();
+  });
+
+  it('canRenderA2uiNode is true exactly when renderA2uiNode renders an element', () => {
+    const p = new MessageProcessor([testCatalog]);
+    p.processMessages([
+      {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'test-catalog'}},
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 's',
+          components: [
+            {id: 'root', component: 'Button', text: 'Root'},
+            {id: 'no-tag', component: 'MissingTag'},
+          ],
+        },
+      },
+    ]);
+    const resolver = new NodeResolver(p.model.getSurface('s')!, testCatalog);
+    const root = getValue(resolver.rootNode)!;
+    assert.strictEqual(canRenderA2uiNode(root), true);
+    assert.notStrictEqual(renderA2uiNode(root), nothing);
+
+    const noTagResolver = new NodeResolver(p.model.getSurface('s')!, testCatalog);
+    p.model.getSurface('s')!.componentsModel.removeComponent('root');
+    p.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {surfaceId: 's', components: [{id: 'root', component: 'MissingTag'}]},
+      },
+    ]);
+    const noTagRoot = getValue(noTagResolver.rootNode)!;
+    assert.strictEqual(noTagRoot.isPlaceholder, false);
+    assert.strictEqual(canRenderA2uiNode(noTagRoot), false);
+
+    // A disposed node renders nothing too.
+    resolver.dispose();
+    assert.strictEqual(root.disposed, true);
+    assert.strictEqual(canRenderA2uiNode(root), false);
+    noTagResolver.dispose();
   });
 
   it('returns nothing for a node whose implementation has no tagName', () => {
