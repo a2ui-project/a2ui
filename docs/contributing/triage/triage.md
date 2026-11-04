@@ -49,6 +49,23 @@ If you are assigned to a PR or an issue with the label `status: assigned-for-tri
 - Add [size: small][size-small] to a small issue.
 - Add [type: contributions-welcome][contributions-welcome] in the rare case when an issue is meant for external contributors.
 
+### Triage an issue
+
+1. If the issue is a duplicate, close it with a link to the original issue.
+2. Set a priority label:
+
+    - `P0`: very urgent. Assign someone.
+    - `P1`: actively being worked on. Assign someone.
+    - `P2`: expected to become `P1` within three months, as part of the regular planning process.
+    - `P3`: not planned, but may become a priority.
+
+    If the team does not plan to invest in the issue, close it as not planned instead.
+
+3. Answer any open questions or comments from external contributors.
+4. For common cases, such as an out-of-scope request, use the [common replies for issues](templates.md).
+
+The triage is done when the issue has a priority and no external comment is left unanswered.
+
 ### Triage a PR
 
 Review the PR when all of the following are true:
@@ -79,23 +96,6 @@ What may help:
 - Split a large change into small PRs that are each valuable on their own.
 - Before you start, check open issues and PRs for related work, so that your change does not overlap with them.
 ```
-
-### Triage an issue
-
-1. If the issue is a duplicate, close it with a link to the original issue.
-2. Set a priority label:
-
-    - `P0`: very urgent. Assign someone.
-    - `P1`: actively being worked on. Assign someone.
-    - `P2`: expected to become `P1` within three months, as part of the regular planning process.
-    - `P3`: not planned, but may become a priority.
-
-    If the team does not plan to invest in the issue, close it as not planned instead.
-
-3. Answer any open questions or comments from external contributors.
-4. For common cases, such as an out-of-scope request, use the [common replies for issues](templates.md).
-
-The triage is done when the issue has a priority and no external comment is left unanswered.
 
 [not-first-line-handled]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3A%22status%3A%20first-line-handled%22%20sort%3Acreated-asc
 [needs-triage-all]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen+sort%3Aupdated-asc+repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui+label%3A%22status%3A+needs-triage%22
