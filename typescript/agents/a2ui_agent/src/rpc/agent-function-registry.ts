@@ -31,17 +31,7 @@ import {
 
 const ALLOWED_TOP_LEVEL_KEYS = new Set(['version', 'callAgentFunction']);
 const ALLOWED_BODY_KEYS = new Set(['surfaceId', 'functionCallId', 'callFunction']);
-const ALLOWED_CALL_FUNCTION_KEYS = new Set(['@call', 'catalogId', 'args', 'returnType']);
-const ALLOWED_RETURN_TYPES = new Set([
-  'string',
-  'number',
-  'boolean',
-  'array',
-  'object',
-  'any',
-  'void',
-]);
-
+const ALLOWED_CALL_FUNCTION_KEYS = new Set(['@call', 'catalogId', 'args']);
 /**
  * Options for an {@link AgentFunctionRegistry}.
  */
@@ -376,17 +366,6 @@ function parseCallEnvelope(
   const rawArgs = rawCallFn['args'];
   if (rawArgs !== undefined && !isPlainObject(rawArgs)) {
     return failEnvelope(callId, 'callAgentFunction.callFunction.args must be an object.');
-  }
-
-  const rawReturnType = rawCallFn['returnType'];
-  if (
-    rawReturnType !== undefined &&
-    (typeof rawReturnType !== 'string' || !ALLOWED_RETURN_TYPES.has(rawReturnType))
-  ) {
-    return failEnvelope(
-      callId,
-      `Invalid returnType '${String(rawReturnType)}' in callAgentFunction.callFunction.`,
-    );
   }
 
   return {

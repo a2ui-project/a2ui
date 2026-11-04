@@ -28,7 +28,6 @@ import {
   Catalog,
   PayloadValidator,
   STRICT_VALIDATION,
-  createAgentFunction,
   isAgentFunction,
   type AgentFunctionContext,
   type AgentFunctionHandler,
@@ -132,30 +131,38 @@ describe('AgentFunction', () => {
     assert.strictEqual(fn.declaration, undefined);
   });
 
-  it('supports createAgentFunction with init options or FunctionApi', () => {
-    const fromInit = createAgentFunction({
-      name: 'fetchFxRate',
+  it('types the handler from the schema and returnType', async () => {
+    const increment = new AgentFunction({
+      name: 'increment',
       returnType: 'number',
-      schema: FX_RATE_SCHEMA,
-      handler,
+      schema: z.object({x: z.number()}),
+      handler: ({x}) => x + 1,
     });
-    assert.strictEqual(isAgentFunction(fromInit), true);
-    assert.strictEqual(fromInit.name, 'fetchFxRate');
+    const erased: AgentFunction = increment;
+    const context: AgentFunctionContext = {catalogId: 'c', surfaceId: 's', functionCallId: 'f'};
 
-    const declaration: FunctionApi = {
-      name: 'consultOracle',
-      returnType: 'string',
-      schema: FX_RATE_SCHEMA,
-    };
-    const fromApi = createAgentFunction(declaration, handler);
-    assert.strictEqual(isAgentFunction(fromApi), true);
-    assert.strictEqual(fromApi.declaration, declaration);
+    assert.strictEqual(await erased.handler({x: 1}, context), 2);
+    assert.strictEqual(isAgentFunction(erased), true);
+
+    new AgentFunction({
+      name: 'wrongReturn',
+      returnType: 'number',
+      schema: z.object({x: z.number()}),
+      // @ts-expect-error A handler for a 'number' function can't return a string.
+      handler: ({x}) => `${x}`,
+    });
+    new AgentFunction({
+      name: 'wrongArgs',
+      schema: z.object({x: z.number()}),
+      // @ts-expect-error The schema has no `y`.
+      handler: ({y}) => y,
+    });
   });
 
   it('converts a JSON Schema object into a Zod schema', () => {
     const fn = new AgentFunction({
       name: 'lookupCustomer',
-      returnType: 'object',
+      returnType: 'number',
       schema: {
         type: 'object',
         properties: {
@@ -489,26 +496,71 @@ describe('Catalog.agentFunctions', () => {
     );
   });
 
-  it('rejects an agent function parameter name that is not a UAX #31 identifier', () => {
+  it('checks agent function parameter names against UAX #31 when a v1.0 catalog gets them', () => {
     const empty = new Catalog('c', '1.0', [], []);
-    const zodParam = new AgentFunction({
-      name: 'fetchRate',
-      schema: z.object({'target-currency': z.string()}),
-      handler,
-    });
-    const isUaxError = (err: unknown) =>
-      err instanceof A2uiCatalogError && err.message.includes("'target-currency'");
+    const isUaxError = (name: string) => (err: unknown) =>
+      err instanceof A2uiCatalogError &&
+      err.message.includes('Invalid UAX #31') &&
+      err.message.includes(`'${name}'`);
+    const withSchema = (schema: z.ZodTypeAny | Record<string, unknown>) =>
+      new AgentFunction({name: 'fetchRate', schema, handler: () => 1});
+    const cases: Array<[string, z.ZodTypeAny | Record<string, unknown>]> = [
+      ['target-currency', z.object({'target-currency': z.string()})],
+      ['@target', z.object({'@target': z.string()})],
+      [
+        'target-currency',
+        z.object({'target-currency': z.string()}).refine(args => args['target-currency'] !== ''),
+      ],
+      ['target-currency', z.object({'target-currency': z.string()}).passthrough()],
+      [
+        'target-currency',
+        z.object({base: z.string()}).merge(z.object({'target-currency': z.string()})),
+      ],
+      [
+        'target-currency',
+        z.union([z.object({base: z.string()}), z.object({'target-currency': z.string()})]),
+      ],
+      [
+        'target-currency',
+        z.discriminatedUnion('kind', [
+          z.object({kind: z.literal('a')}),
+          z.object({kind: z.literal('b'), 'target-currency': z.string()}),
+        ]),
+      ],
+      [
+        'target-currency',
+        z.intersection(z.object({base: z.string()}), z.object({'target-currency': z.string()})),
+      ],
+      ['target-currency', z.object({'target-currency': z.string()}).optional()],
+      ['target-currency', {type: 'object', properties: {'target-currency': {type: 'string'}}}],
+      ['@target', {type: 'object', properties: {'@target': {type: 'string'}}}],
+      [
+        'target-currency',
+        {anyOf: [{type: 'object', properties: {'target-currency': {type: 'string'}}}]},
+      ],
+      [
+        'target-currency',
+        {
+          oneOf: [
+            {type: 'object', properties: {base: {type: 'string'}}},
+            {type: 'object', properties: {'target-currency': {type: 'string'}}},
+          ],
+        },
+      ],
+      ['target-currency', {'target-currency': {type: 'string'}}],
+    ];
 
-    assert.throws(() => empty.copyWith({agentFunctions: [zodParam]}), isUaxError);
-    assert.throws(() => new Catalog('c', '1.0', [], [zodParam]), isUaxError);
-    assert.throws(
-      () =>
-        new AgentFunction({
-          name: 'fetchRate',
-          schema: {type: 'object', properties: {'target-currency': {type: 'string'}}},
-          handler,
-        }),
-      isUaxError,
+    for (const [name, schema] of cases) {
+      // Building the agent function doesn't check, for JSON Schema or Zod alike.
+      const fn = withSchema(schema);
+      assert.throws(() => empty.copyWith({agentFunctions: [fn]}), isUaxError(name), name);
+      assert.throws(() => new Catalog('c', '1.0', [], [fn]), isUaxError(name), name);
+    }
+
+    const valid = withSchema({type: 'object', properties: {targetCurrency: {type: 'string'}}});
+    assert.deepStrictEqual(
+      [...empty.copyWith({agentFunctions: [valid]}).agentFunctions.keys()],
+      ['fetchRate'],
     );
   });
 

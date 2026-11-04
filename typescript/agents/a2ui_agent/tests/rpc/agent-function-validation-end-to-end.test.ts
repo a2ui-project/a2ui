@@ -105,7 +105,7 @@ function createTestCatalog(): CatalogApi {
     returnType: 'string',
     description: 'Fetches a ticker price.',
     schema: z.object({symbol: z.string()}).strict(),
-    handler: (args: {symbol: string}) => `${args.symbol}:150.00`,
+    handler: args => `${args.symbol}:150.00`,
   });
 
   return baseCatalog.copyWith({agentFunctions: [boundDeclared, codeDefined]});
@@ -208,7 +208,8 @@ describe('Agent Functions End-to-End Integration', () => {
     const agent = new RendererToAgentMessageProcessor({catalogs: [catalog]});
 
     const outboundFromRenderer: Array<Record<string, unknown>> = [];
-    const processor = new MessageProcessor([catalog], undefined, {
+    // The renderer holds the same catalog; its agent functions route to the agent.
+    const processor = new MessageProcessor([catalog as never], undefined, {
       version: '1.0',
       outboundListener: msg => {
         outboundFromRenderer.push(msg as unknown as Record<string, unknown>);

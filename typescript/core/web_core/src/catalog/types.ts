@@ -16,7 +16,7 @@
 
 import {z} from 'zod';
 import type {ProtocolVersion} from '../processing/adapters/base.js';
-import {DataContext} from '../resolution/data-context.js';
+import {DataContext, getDeclaredSchemaKeys} from '../resolution/data-context.js';
 import {allowsAgentRouting} from '../resolution/data-context-internal.js';
 import type {SurfaceModel} from '../state/surface-model.js';
 import {Signal} from '../reactivity/signals.js';
@@ -26,12 +26,8 @@ import {isAtLeastVersion} from '../common/semver.js';
 import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.js';
 import {assertUax31Identifier} from '../common/uax31.js';
 import {SpecVersion} from '../spec_versions.js';
-import {copyLoadedDefinition} from './json_entries.js';
-import {
-  convertFunctionArgsJsonSchemaToZod,
-  functionParameterNames,
-  parseCatalogSchema,
-} from './schema_loader.js';
+import {AgentFunction, isAgentFunction} from './agent_function.js';
+import {isZodSchema, parseCatalogSchema} from './schema_loader.js';
 import type {JsonSchemaObject} from './spec_annotations.js';
 import {generateValidationSchema} from './schema_generator.js';
 import {
@@ -52,6 +48,12 @@ import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 import {coerceDynamicBooleans} from './validation_result_coercion.js';
 
 export type {ComponentChildRefs};
+export {AgentFunction, isAgentFunction};
+export type {
+  AgentFunctionContext,
+  AgentFunctionHandler,
+  AgentFunctionInit,
+} from './agent_function.js';
 
 /**
  * Registry mapping A2UI function return type identifiers to their TypeScript runtime types.
@@ -172,287 +174,6 @@ export function createFunctionImplementation<
       ab?: AbortSignal,
     ) => unknown,
   };
-}
-
-/**
- * Execution context passed to an {@link AgentFunctionHandler} when a renderer
- * invokes an agent function via `callAgentFunction`.
- */
-export interface AgentFunctionContext {
-  /** Identifier of the catalog that owns the function. */
-  readonly catalogId: string;
-  /** Identifier of the surface that initiated the call. */
-  readonly surfaceId: string;
-  /** Unique correlation identifier for the `callAgentFunction` exchange. */
-  readonly functionCallId: string;
-}
-
-/**
- * Callback that executes an agent function on the agent side.
- *
- * A handler may take `(args)` or `(args, context)`: one that doesn't need the
- * call's metadata can leave `context` out.
- *
- * @param args Validated input arguments (with schema defaults applied).
- * @param context Call metadata including `catalogId`, `surfaceId`, and `functionCallId`.
- * @returns A JSON-compatible result value or a Promise resolving to one.
- */
-export type AgentFunctionHandler<TArgs = Record<string, unknown>, TReturn = unknown> = (
-  args: TArgs,
-  context: AgentFunctionContext,
-) => TReturn | Promise<TReturn>;
-
-/**
- * Configuration options for constructing an {@link AgentFunction}.
- *
- * An agent function built this way is always `rendererOnly`: only the
- * renderer calls it, with `callAgentFunction`. To bind a handler to a function
- * the catalog already declares, and keep its `allowedCallers`, use
- * {@link AgentFunction.fromApi}.
- */
-export interface AgentFunctionInit<
-  Schema extends z.ZodTypeAny | Record<string, unknown> = z.ZodTypeAny,
-  TReturn extends A2uiReturnType = A2uiReturnType,
-> {
-  /** Name of the function as it appears in A2UI JSON payloads. */
-  readonly name: string;
-  /** Handler invoked on the agent when a renderer calls this function. */
-  readonly handler: AgentFunctionHandler<
-    Schema extends z.ZodTypeAny ? ResolvedFunctionArgs<Schema> : Record<string, unknown>,
-    InferA2uiReturnType<TReturn>
-  >;
-  /** Return type identifier for the function. Defaults to `'any'`. */
-  readonly returnType?: TReturn;
-  /** Zod schema or JSON Schema object validating the function's input arguments. */
-  readonly schema?: Schema;
-  /** Whether the function requires explicit user interaction before execution. Defaults to `false`. */
-  readonly requiresUserActivation?: boolean;
-  /** Human-readable description of the function's purpose. */
-  readonly description?: string;
-}
-
-/** Alias for {@link AgentFunctionInit}. */
-export type AgentFunctionOptions<
-  Schema extends z.ZodTypeAny | Record<string, unknown> = z.ZodTypeAny,
-  TReturn extends A2uiReturnType = A2uiReturnType,
-> = AgentFunctionInit<Schema, TReturn>;
-
-const AGENT_FUNCTION_BRAND = Symbol.for('@a2ui/web_core/AgentFunction');
-
-/**
- * Key of the fields only `AgentFunction.fromApi` passes to the constructor,
- * so code outside this module can't set them.
- */
-const FROM_API = Symbol('AgentFunction.fromApi');
-
-interface FromApiInit extends AgentFunctionInit<any, any> {
-  readonly [FROM_API]: {
-    readonly declaration: FunctionApi;
-    readonly allowedCallers?: 'rendererOnly' | 'rendererOrAgent';
-  };
-}
-
-/**
- * A catalog function whose handler runs on the agent rather than the renderer.
- *
- * `AgentFunction` implements {@link FunctionApi} (and intentionally omits
- * `FunctionImplementation.execute`) so that:
- * - `Catalog.toJson()`, `Catalog.validationSchema`, and `PayloadValidator`
- *   treat it identically to any other declared catalog function.
- * - If a catalog containing an `AgentFunction` is passed to a renderer,
- *   `Catalog.invoker` sees no local `execute` implementation and routes calls
- *   to the agent via `callAgentFunction`.
- * - On the agent side, `RendererToAgentMessageProcessor` reads
- *   `catalog.agentFunctions` to answer incoming `callAgentFunction` messages
- *   with `handler`.
- *
- * Add agent functions to a catalog with `catalog.copyWith({agentFunctions})`.
- */
-export class AgentFunction implements FunctionApi {
-  /** @internal */
-  readonly [AGENT_FUNCTION_BRAND] = true;
-  /** Name of the function as it appears in A2UI JSON payloads. */
-  readonly name: string;
-  /** Return type identifier for the function. */
-  readonly returnType: A2uiReturnType;
-  /** Zod schema validating the function's input arguments. */
-  readonly schema: z.ZodTypeAny;
-  /** Agent-side handler callback. Use `withHandler` to bind another one. */
-  readonly handler: AgentFunctionHandler<any, any>;
-  /**
-   * Allowed caller contexts for the function: `rendererOnly`, or the
-   * `rendererOrAgent` of a declaration bound with `fromApi`.
-   */
-  readonly allowedCallers: 'rendererOnly' | 'rendererOrAgent';
-  /** Whether the function requires explicit user interaction before execution. */
-  readonly requiresUserActivation: boolean;
-  /** Human-readable description of the function's purpose. */
-  readonly description?: string;
-  /** Original `FunctionApi` declaration bound via `AgentFunction.fromApi`, if any. */
-  readonly declaration?: FunctionApi;
-  /** @internal */
-  readonly explicitAllowedCallers?: 'rendererOnly' | 'rendererOrAgent';
-  /** @internal */
-  readonly explicitRequiresUserActivation?: boolean;
-
-  /**
-   * Initializes a new `rendererOnly` agent function.
-   *
-   * @param init The function's name, handler and signature.
-   * @throws {TypeError} If `handler` is not callable.
-   */
-  constructor(init: AgentFunctionInit<any, any>) {
-    if (typeof init?.handler !== 'function') {
-      throw new TypeError(`Agent function '${init?.name ?? ''}' requires a callable handler.`);
-    }
-    const fromApi = (init as Partial<FromApiInit>)[FROM_API];
-    this.name = init.name;
-    this.returnType = init.returnType ?? 'any';
-    this.schema = resolveAgentFunctionSchema(init.name, init.schema);
-    this.handler = init.handler;
-    this.explicitAllowedCallers = fromApi?.allowedCallers;
-    this.allowedCallers = fromApi?.allowedCallers ?? 'rendererOnly';
-    this.explicitRequiresUserActivation = init.requiresUserActivation;
-    this.requiresUserActivation = init.requiresUserActivation ?? false;
-    this.description = init.description;
-    this.declaration = fromApi?.declaration;
-  }
-
-  /**
-   * Binds an agent-side `handler` to a function a catalog declares (for
-   * example, an entry from `Catalog.fromJson(doc).functions`).
-   *
-   * Keeps the declaration's signature, `allowedCallers` and JSON Schema
-   * definition, so `Catalog.toJson()` continues to emit the authored catalog
-   * document unchanged, and records `declaration` so
-   * `catalog.copyWith({agentFunctions: [...]})` replaces the declaration in
-   * place. That catalog must declare `api`.
-   *
-   * @param api Existing schema-only function declaration.
-   * @param handler Agent-side execution callback.
-   * @returns A new `AgentFunction` wrapping `api`.
-   * @throws {TypeError} If `api` is already an `AgentFunction` or `handler` is not callable.
-   * @throws {A2uiCatalogError} If `api` is `agentOnly`, which a renderer
-   *   never calls, or requires user activation without being `rendererOnly`.
-   */
-  static fromApi<TArgs = Record<string, unknown>, TReturn = unknown>(
-    api: FunctionApi,
-    handler: AgentFunctionHandler<TArgs, TReturn>,
-  ): AgentFunction {
-    if (isAgentFunction(api)) {
-      throw new TypeError(`Function '${api.name}' is already an agent function.`);
-    }
-    if (api.allowedCallers === 'agentOnly') {
-      throw new A2uiCatalogError(
-        `Function '${api.name}' is agentOnly, so a renderer never calls it and it can't be an agent function.`,
-      );
-    }
-    if (
-      api.requiresUserActivation === true &&
-      api.allowedCallers !== undefined &&
-      api.allowedCallers !== 'rendererOnly'
-    ) {
-      throw new A2uiCatalogError(
-        `Function '${api.name}' requires user activation, so its allowedCallers must be rendererOnly, not ${api.allowedCallers}.`,
-      );
-    }
-    const init: FromApiInit = {
-      name: api.name,
-      returnType: api.returnType,
-      schema: api.schema,
-      handler: handler as AgentFunctionHandler<any, any>,
-      requiresUserActivation: api.requiresUserActivation,
-      description: api.description,
-      [FROM_API]: {declaration: api, allowedCallers: api.allowedCallers},
-    };
-    const fn = new AgentFunction(init);
-    copyLoadedDefinition(api, fn);
-    return fn;
-  }
-
-  /**
-   * Returns a copy of this agent function bound to a different handler, with
-   * the same name, signature, `allowedCallers` and description: for example,
-   * to swap in a test double, or a handler for one session. One built with
-   * `fromApi` is rebuilt from the same declaration, so it still replaces that
-   * declaration in its catalog.
-   *
-   * @param handler The new agent-side execution callback.
-   * @returns A new `AgentFunction`.
-   * @throws {TypeError} If `handler` is not callable.
-   */
-  withHandler<TArgs = Record<string, unknown>, TReturn = unknown>(
-    handler: AgentFunctionHandler<TArgs, TReturn>,
-  ): AgentFunction {
-    if (this.declaration !== undefined) {
-      return AgentFunction.fromApi(this.declaration, handler);
-    }
-    return new AgentFunction({
-      name: this.name,
-      returnType: this.returnType,
-      schema: this.schema,
-      handler: handler as AgentFunctionHandler<any, any>,
-      requiresUserActivation: this.explicitRequiresUserActivation,
-      description: this.description,
-    });
-  }
-}
-
-/**
- * Type guard checking whether a value is an {@link AgentFunction}.
- */
-export function isAgentFunction(value: unknown): value is AgentFunction {
-  return (
-    value instanceof AgentFunction ||
-    (typeof value === 'object' &&
-      value !== null &&
-      (value as Record<symbol, unknown>)[AGENT_FUNCTION_BRAND] === true &&
-      typeof (value as {handler?: unknown}).handler === 'function')
-  );
-}
-
-/**
- * Creates an {@link AgentFunction} either from an {@link AgentFunctionInit}
- * configuration object or by binding a handler to an existing {@link FunctionApi}.
- */
-export function createAgentFunction<
-  Schema extends z.ZodTypeAny | Record<string, unknown> = z.ZodTypeAny,
-  TReturn extends A2uiReturnType = A2uiReturnType,
->(init: AgentFunctionInit<Schema, TReturn>): AgentFunction;
-export function createAgentFunction<TArgs = Record<string, unknown>, TReturn = unknown>(
-  api: FunctionApi,
-  handler: AgentFunctionHandler<TArgs, TReturn>,
-): AgentFunction;
-export function createAgentFunction(
-  apiOrInit: FunctionApi | AgentFunctionInit<any, any>,
-  handler?: AgentFunctionHandler<any, any>,
-): AgentFunction {
-  if (typeof handler === 'function') {
-    return AgentFunction.fromApi(apiOrInit as FunctionApi, handler);
-  }
-  return new AgentFunction(apiOrInit as AgentFunctionInit<any, any>);
-}
-
-function resolveAgentFunctionSchema(
-  name: string,
-  schema: z.ZodTypeAny | Record<string, unknown> | undefined,
-): z.ZodTypeAny {
-  if (schema === undefined) {
-    return z.record(z.unknown());
-  }
-  if (isZodSchema(schema)) {
-    return schema;
-  }
-  if (typeof schema === 'object' && schema !== null && !Array.isArray(schema)) {
-    if (Object.keys(schema).length === 0) {
-      return z.record(z.unknown());
-    }
-    for (const argName of functionParameterNames(schema)) {
-      assertUax31Identifier(argName, `argument identifier: '${argName}' in function '${name}'`);
-    }
-    return convertFunctionArgsJsonSchemaToZod(schema);
-  }
-  return z.record(z.unknown());
 }
 
 import {FunctionInvoker} from './function_invoker.js';
@@ -962,13 +683,11 @@ export class Catalog<
     return this.rebuild(nextComponents, mergedFunctions, {
       id: nextId,
       protocolVersion: options.protocolVersion ?? this.protocolVersion,
-      themeSchema: Object.hasOwn(options, 'themeSchema') ? options.themeSchema : this.themeSchema,
+      themeSchema: options.themeSchema ?? this.themeSchema,
       schemaId: this.schemaId,
       title: this.title,
       description: this.description,
-      instructions: Object.hasOwn(options, 'instructions')
-        ? options.instructions
-        : this.instructions,
+      instructions: options.instructions ?? this.instructions,
     });
   }
 
@@ -1058,9 +777,7 @@ export class Catalog<
       components,
       functions,
       {
-        themeSchema: Object.hasOwn(described, 'themeSchema')
-          ? described.themeSchema
-          : this.themeSchema,
+        themeSchema: described.themeSchema ?? this.themeSchema,
         instructions: described.instructions,
         schemaUri: this.schemaUri,
         schemaId: described.schemaId,
@@ -1217,14 +934,14 @@ export class Catalog<
       }
       for (const [name, agentFn] of agentFuncMap) {
         assertUax31Identifier(name, `function identifier: '${name}'`);
-        const shape = (agentFn.schema as {shape?: Record<string, unknown>}).shape;
-        if (typeof shape === 'object' && shape !== null) {
-          for (const argName of Object.keys(shape)) {
-            assertUax31Identifier(
-              argName,
-              `argument identifier: '${argName}' in function '${name}'`,
-            );
-          }
+        // The keys the Zod schema declares, on every branch and through
+        // wrappers, with the names a JSON Schema `schema` was written with.
+        const argNames = new Set([
+          ...getDeclaredSchemaKeys(agentFn.schema),
+          ...(agentFn.declaredParameterNames ?? []),
+        ]);
+        for (const argName of argNames) {
+          assertUax31Identifier(argName, `argument identifier: '${argName}' in function '${name}'`);
         }
       }
     }
@@ -1319,18 +1036,6 @@ export class Catalog<
  * that executes functions needs a catalog of `FunctionImplementation`s instead.
  */
 export type CatalogApi = Catalog<ComponentApi, FunctionApi>;
-
-/**
- * Whether a value is a Zod schema. Checked structurally so schemas built with
- * another copy of Zod are recognized.
- */
-function isZodSchema(value: unknown): value is z.ZodTypeAny {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    typeof (value as {safeParse?: unknown}).safeParse === 'function'
-  );
-}
 
 /**
  * Throws if two of `functions` share a name. Checked when the list holds an

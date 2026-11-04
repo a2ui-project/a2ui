@@ -19,6 +19,7 @@ import type {z} from 'zod';
 import {zodToJsonSchema} from 'zod-to-json-schema';
 
 import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
+import {isAgentFunction} from './agent_function_brand.js';
 import {exclusiveUnionOverride} from './exclusive_union.js';
 import {loadedDefinition} from './json_entries.js';
 import {getSpecAnnotation, type JsonSchemaObject} from './spec_annotations.js';
@@ -368,11 +369,11 @@ function serializeFunctionModel(
   defs?: Readonly<JsonObject>,
 ): JsonObject {
   const args = zodToUnbundledJson(fn.schema, localDefs, commonTypesUri);
-  const allowedCallers = Object.hasOwn(fn, 'explicitAllowedCallers')
-    ? (fn as {explicitAllowedCallers?: FunctionApi['allowedCallers']}).explicitAllowedCallers
-    : fn.allowedCallers;
-  const requiresUserActivation = Object.hasOwn(fn, 'explicitRequiresUserActivation')
-    ? (fn as {explicitRequiresUserActivation?: boolean}).explicitRequiresUserActivation
+  // An agent function writes only what its declaration or constructor set,
+  // not its defaults.
+  const allowedCallers = isAgentFunction(fn) ? fn.explicitAllowedCallers : fn.allowedCallers;
+  const requiresUserActivation = isAgentFunction(fn)
+    ? fn.explicitRequiresUserActivation
     : fn.requiresUserActivation;
   if (asListItem) {
     return {

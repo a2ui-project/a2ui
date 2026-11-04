@@ -23,12 +23,11 @@
  */
 
 // ./catalog
-export {AgentFunction, Catalog, createAgentFunction, isAgentFunction} from '@a2ui/web_core/catalog';
+export {AgentFunction, Catalog, isAgentFunction} from '@a2ui/web_core/catalog';
 export type {
   AgentFunctionContext,
   AgentFunctionHandler,
   AgentFunctionInit,
-  AgentFunctionOptions,
   CatalogApi,
   CatalogInterface,
   ComponentApi,
@@ -58,7 +57,6 @@ export {
   DeleteSurfaceMessageSchema as V10DeleteSurfaceMessageSchema,
   CallRendererFunctionMessageSchema as V10CallRendererFunctionMessageSchema,
   AgentFunctionResponseMessageSchema as V10AgentFunctionResponseMessageSchema,
-  CallAgentFunctionMessageSchema as V10CallAgentFunctionMessageSchema,
   RendererFunctionResponseMessageSchema as V10RendererFunctionResponseMessageSchema,
   ActionMessageSchema as V10ActionMessageSchema,
   ErrorMessageSchema as V10ErrorMessageSchema,

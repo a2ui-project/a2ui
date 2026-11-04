@@ -931,7 +931,20 @@ export function convertFunctionArgsJsonSchemaToZod(
 }
 
 /**
- * Extracts declared parameter names from a function's argument schema.
+ * Whether a value is a Zod schema. Checked structurally so schemas built with
+ * another copy of Zod are recognized.
+ */
+export function isZodSchema(value: unknown): value is z.ZodTypeAny {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as {safeParse?: unknown}).safeParse === 'function'
+  );
+}
+
+/**
+ * Extracts declared parameter names from a function's argument schema,
+ * including those of `allOf`, `anyOf` and `oneOf` members and `$ref` targets.
  */
 export function functionParameterNames(
   schema: unknown,
@@ -964,9 +977,11 @@ export function functionParameterNames(
     ) {
       names.push(...Object.keys(n.properties as Record<string, unknown>));
     }
-    if (Array.isArray(n.allOf)) {
-      for (const member of n.allOf) {
-        extractProperties(member);
+    for (const combinator of [n.allOf, n.anyOf, n.oneOf]) {
+      if (Array.isArray(combinator)) {
+        for (const member of combinator) {
+          extractProperties(member);
+        }
       }
     }
   };
@@ -977,6 +992,8 @@ export function functionParameterNames(
       s.properties !== null &&
       !Array.isArray(s.properties)) ||
     Array.isArray(s.allOf) ||
+    Array.isArray(s.anyOf) ||
+    Array.isArray(s.oneOf) ||
     typeof s.$ref === 'string'
   ) {
     extractProperties(s);

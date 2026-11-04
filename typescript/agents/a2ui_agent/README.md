@@ -123,17 +123,23 @@ const v09Catalog = CatalogConfig.fromPath(
 
 ## Agent functions
 
-From v1.0, a catalog can declare functions that run on the agent: a renderer that doesn't implement a function sends `callAgentFunction` and waits for the agent's `agentFunctionResponse`. Add agent functions to your copy of a catalog with `copyWith`. `AgentFunction.fromApi` binds a handler to a function the catalog already declares, and `new AgentFunction(...)` adds a new one. A handler takes `(args)` or `(args, context)`, where `context` has the catalog, surface and call IDs. `withHandler` returns a copy bound to another handler, such as a test double.
+From v1.0, a catalog can declare functions that run on the agent: a renderer that doesn't implement a function sends `callAgentFunction` and waits for the agent's `agentFunctionResponse`. Add agent functions to your copy of a catalog with `copyWith`. `AgentFunction.fromApi` binds a handler to a function the catalog already declares, and `new AgentFunction(...)` adds a new one, with its arguments as a Zod schema (which types the handler) or a JSON Schema object. A v1.0 catalog checks that the parameter names are UAX #31 identifiers when it gets the function. A handler takes `(args)` or `(args, context)`, where `context` has the catalog, surface and call IDs. `withHandler` returns a copy bound to another handler, such as a test double.
 
 ```ts
+import {AgentFunction} from '@a2ui/agent';
+import {z} from 'zod';
+
 const catalog = loaded.copyWith({
   agentFunctions: [
-    AgentFunction.fromApi(loaded.functions.get('lookupAccount')!, args => findAccount(args.id)),
+    AgentFunction.fromApi<{id: string}>(loaded.functions.get('lookupAccount')!, args =>
+      findAccount(args.id),
+    ),
     new AgentFunction({
       name: 'fetchFxRate',
       returnType: 'number',
-      schema: {type: 'object', properties: {base: {type: 'string'}}, required: ['base']},
-      handler: async ({base}) => rates.get(base),
+      schema: z.object({base: z.string()}),
+      // `base` is a string, and the handler must return a number.
+      handler: async ({base}) => fetchRate(base),
     }),
   ],
 });

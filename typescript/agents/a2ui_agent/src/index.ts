@@ -39,12 +39,10 @@ export {
   type AgentFunctionContext,
   type AgentFunctionHandler,
   type AgentFunctionInit,
-  type AgentFunctionOptions,
   Catalog,
   type CatalogApi,
   type CatalogInterface,
   type CopyWithCatalogOptions,
-  createAgentFunction,
   isAgentFunction,
 } from './internal/web-core.js';
 

@@ -16,6 +16,7 @@
 
 import fs from 'node:fs';
 
+import {type FunctionApi} from '@a2ui/web_core';
 import {describe, expect, test} from 'vitest';
 
 import {
@@ -27,7 +28,6 @@ import {
   type AgentFunctionResponseMessage,
   Catalog,
   type CatalogApi,
-  type FunctionApi,
   RendererToAgentMessageProcessor,
   type RendererToAgentMessageProcessorOptions,
   validatePayload,
@@ -113,9 +113,9 @@ function buildCatalogWithAgentFunctions(spec: CatalogWithAgentFunctionsSpec): Ca
     const name = fnSpec.name ?? key;
     const handler = buildHandler(fnSpec.behavior);
     const direct = (): AgentFunction =>
-      new AgentFunction({
+      new AgentFunction<Record<string, unknown>, string>({
         name,
-        returnType: (fnSpec.returnType ?? 'any') as never,
+        returnType: fnSpec.returnType ?? 'any',
         schema: fnSpec.args,
         description: fnSpec.description,
         handler,

@@ -361,6 +361,35 @@ describe('RendererToAgentMessageProcessor', () => {
       }
     });
 
+    test('replies INVALID_FUNCTION_CALL for a call that carries a returnType', async () => {
+      let ran = false;
+      const fn = new AgentFunction({
+        name: 'typed',
+        returnType: 'number',
+        handler: () => {
+          ran = true;
+          return 1;
+        },
+      });
+      const processor = new RendererToAgentMessageProcessor({catalogs: [catalogWith('cat', fn)]});
+
+      const body = onlyResponse(
+        await processor.processMessage({
+          version: '1.0',
+          callAgentFunction: {
+            surfaceId: 's1',
+            functionCallId: 'rt-1',
+            callFunction: {'@call': 'typed', catalogId: 'cat', returnType: 'number'},
+          },
+        }),
+      );
+
+      expect(body.functionCallId).toBe('rt-1');
+      expect(body.error?.code).toBe(RpcErrorCode.INVALID_FUNCTION_CALL);
+      expect(body.error?.message).toContain('returnType');
+      expect(ran).toBe(false);
+    });
+
     test('rejects two catalogs with the same id', () => {
       expect(
         () =>
