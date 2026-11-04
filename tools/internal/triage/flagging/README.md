@@ -2,7 +2,7 @@
 
 The bot adds `status: needs-triage` to open issues and PRs that need attention from the team, and removes it once they don't. The [`Flag/Unflag issues and PRs`](../../../../.github/workflows/triage.yml) workflow runs it daily and on issue and PR events.
 
-- [blueprint.md](blueprint.md): the rules the bot follows.
+- [flagging.blueprint.md](../blueprints/flagging.blueprint.md): the rules the bot follows.
 - [triage.mts](triage.mts): the script that applies the rules.
 - [triage.test.mts](triage.test.mts): the tests.
 

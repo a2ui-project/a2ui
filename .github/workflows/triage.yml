@@ -18,7 +18,7 @@
 #
 # The flagging rules are implemented in
 # ./tools/internal/triage/flagging/triage.mts and described in
-# https://github.com/a2ui-project/a2ui/blob/main/tools/internal/triage/flagging/blueprint.md
+# https://github.com/a2ui-project/a2ui/blob/main/tools/internal/triage/blueprints/flagging.blueprint.md
 
 name: Flag/Unflag issues and PRs
 
