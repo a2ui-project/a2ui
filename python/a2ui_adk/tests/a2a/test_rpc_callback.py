@@ -391,6 +391,24 @@ async def test_drops_a_call_without_a_function_call_id() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("version", [None, "v1.0"])
+async def test_drops_a_call_without_the_v1_0_version(version: str | None) -> None:
+    callback = a2ui_rpc_callback(catalogs=[CATALOG])
+    call = _call("bad")
+    if version is None:
+        del call["version"]
+    else:
+        call["version"] = version
+
+    content = await callback(
+        _callback_context(_content(_genai_part(call), _genai_part(_call())))
+    )
+
+    assert content is not None
+    assert _messages(content) == [_reply()]
+
+
+@pytest.mark.asyncio
 async def test_answers_a_call_with_an_empty_surface_id_with_an_error() -> None:
     callback = a2ui_rpc_callback(catalogs=[CATALOG])
     call = _call()

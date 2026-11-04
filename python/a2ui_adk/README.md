@@ -105,9 +105,10 @@ agent = LlmAgent(
 ```
 
 `agent_function_timeout` (seconds) cancels an agent function that takes too
-long, as for `RendererToAgentMessageProcessor`. A request whose calls all lack
-a `functionCallId` gets a response with no parts, which `A2aAgentExecutor`
-ends in the `working` state.
+long, as for `RendererToAgentMessageProcessor`. A call that the processor
+can't answer, such as one without a `functionCallId` or with a `version` other
+than `"1.0"`, is logged and dropped. A request whose calls are all dropped gets a
+response with no parts, which `A2aAgentExecutor` ends in the `working` state.
 
 ADK stores the calls and their replies in the session's events like any other
 turn. `SendA2uiToClientToolset` removes them from the model's prompt; an agent
