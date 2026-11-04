@@ -1,7 +1,5 @@
 # A2UI MCP catalog
 
-> **Experimental.** This package is under active development. Its API and the catalog schema may change between releases without notice.
-
 The A2UI MCP catalog lets A2UI surfaces invoke [Model Context Protocol](https://modelcontextprotocol.io/) tools, shape what they return, and render [MCP Apps](https://github.com/modelcontextprotocol/ext-apps). It defines the `callMcpTool` function, four data functions (`transformData`, `updateDataModel`, `split` and `regexCapture`), and the `McpApp` component, allowing agents to emit declarative payloads whose controls and bindings interact with MCP servers directly.
 
 ## Overview

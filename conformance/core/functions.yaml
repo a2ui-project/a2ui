@@ -417,15 +417,23 @@
   expect: false
 
 - name: test_evaluate_function_and_truthiness_coercion_true
-  description: Verifies and truthiness coercion on non-boolean values (D26).
+  description: Verifies and coerces non-"true" strings to false under DynamicBoolean rules.
   action: evaluate_function
   function: and
   args:
     values: [1, "non-empty"]
+  expect: false
+
+- name: test_evaluate_function_and_coercion_string_true
+  description: Verifies and coerces case-insensitive "true" strings and non-zero numbers to true.
+  action: evaluate_function
+  function: and
+  args:
+    values: ["TRUE", 2]
   expect: true
 
 - name: test_evaluate_function_and_truthiness_coercion_false
-  description: Verifies and truthiness coercion with a falsy value (D26).
+  description: Verifies and coerces an empty string to false under DynamicBoolean rules.
   action: evaluate_function
   function: and
   args:
@@ -433,7 +441,7 @@
   expect: false
 
 - name: test_evaluate_function_and_fewer_than_two_values_error
-  description: Verifies and requires at least 2 values per schema (D25).
+  description: Verifies and requires at least 2 values per schema.
   action: evaluate_function
   function: and
   args:
@@ -441,7 +449,7 @@
   expectError:
     category: ExpressionError
 
-# --- OrFunction (D25, D26) ---
+# --- OrFunction ---
 - name: test_evaluate_function_or_all_false
   description: Verifies or returns false when all values are false.
   action: evaluate_function
@@ -459,15 +467,23 @@
   expect: true
 
 - name: test_evaluate_function_or_truthiness_coercion_true
-  description: Verifies or truthiness coercion on non-boolean values (D26).
+  description: Verifies or coerces 0 and non-"true" strings to false under DynamicBoolean rules.
   action: evaluate_function
   function: or
   args:
     values: [0, "yes"]
-  expect: true
+  expect: false
+
+- name: test_evaluate_function_or_coercion_null_and_object
+  description: Verifies or coerces null and non-ValidationResult objects to false.
+  action: evaluate_function
+  function: or
+  args:
+    values: [null, {}]
+  expect: false
 
 - name: test_evaluate_function_or_fewer_than_two_values_error
-  description: Verifies or requires at least 2 values per schema (D25).
+  description: Verifies or requires at least 2 values per schema.
   action: evaluate_function
   function: or
   args:
@@ -475,7 +491,7 @@
   expectError:
     category: ExpressionError
 
-# --- NotFunction (D26) ---
+# --- NotFunction ---
 - name: test_evaluate_function_not_true
   description: Verifies not returns false for true.
   action: evaluate_function
@@ -493,7 +509,7 @@
   expect: true
 
 - name: test_evaluate_function_not_truthiness_falsy
-  description: Verifies not truthiness coercion for falsy value (D26).
+  description: Verifies not returns true when an empty string coerces to false.
   action: evaluate_function
   function: not
   args:
@@ -501,12 +517,12 @@
   expect: true
 
 - name: test_evaluate_function_not_truthiness_truthy
-  description: Verifies not truthiness coercion for truthy value (D26).
+  description: Verifies not returns true when a non-"true" string coerces to false.
   action: evaluate_function
   function: not
   args:
     value: "hello"
-  expect: false
+  expect: true
 
 # --- Logical functions over ValidationResult operands (v1.0) ---
 # In v1.0 the validators return a ValidationResult object, so a nested
@@ -547,14 +563,14 @@
   expect: true
 
 - name: test_evaluate_function_not_validation_result_operand_v0_9
-  description: Verifies v0.9, whose validators return booleans, treats a {valid} object as a plain truthy object.
+  description: Verifies v0.9 also coerces a ValidationResult object by its boolean valid member.
   protocolVersion: "v0.9"
   action: evaluate_function
   function: not
   args:
     value:
       valid: false
-  expect: false
+  expect: true
 
 # --- PluralizeFunction (D27) ---
 - name: test_evaluate_function_pluralize_explicit_zero
