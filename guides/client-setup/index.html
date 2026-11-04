@@ -1173,10 +1173,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#flutter-genui-sdk" class="md-nav__link">
+  <a href="#flutter" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Flutter (GenUI SDK)
+        Flutter
       
     </span>
   </a>
@@ -2725,10 +2725,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#flutter-genui-sdk" class="md-nav__link">
+  <a href="#flutter" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Flutter (GenUI SDK)
+        Flutter
       
     </span>
   </a>
@@ -2883,18 +2883,18 @@
 <td>✅ Stable</td>
 </tr>
 <tr>
-<td><strong><a href="https://docs.flutter.dev/ai/genui">Flutter (GenUI SDK)</a></strong></td>
+<td><strong><a href="https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_flutter">Flutter (<code>a2ui_flutter</code>)</a></strong></td>
 <td>Mobile/Desktop/Web</td>
+<td>—</td>
 <td>✅</td>
-<td>✅</td>
-<td>✅ Stable</td>
+<td>🧪 Alpha</td>
 </tr>
 <tr>
-<td><strong>Jetpack Compose</strong></td>
+<td><strong><a href="https://developer.android.com/develop/ui/compose/agentic">Jetpack Compose</a></strong></td>
 <td>Android</td>
 <td>—</td>
-<td>—</td>
-<td>🚧 Planned Q2 2026</td>
+<td>✅</td>
+<td>🧪 Alpha</td>
 </tr>
 </tbody>
 </table>
@@ -2982,11 +2982,15 @@
 <li><strong><code>useA2UI()</code> hook</strong>: Accesses the message processor from any component</li>
 </ul>
 <p><strong>See working example:</strong> <a href="https://github.com/a2ui-project/a2ui/blob/main/samples/client/react/shell">React shell</a></p>
-<h2 id="flutter-genui-sdk">Flutter (GenUI SDK)<a class="headerlink" href="#flutter-genui-sdk" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>flutter<span class="w"> </span>pub<span class="w"> </span>add<span class="w"> </span>flutter_genui
+<h2 id="flutter">Flutter<a class="headerlink" href="#flutter" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>flutter<span class="w"> </span>pub<span class="w"> </span>add<span class="w"> </span>a2ui_flutter<span class="w"> </span>a2ui_core
 </span></code></pre></div>
-<p>Flutter uses the GenUI SDK which provides native A2UI rendering.</p>
-<p><strong>Docs:</strong> <a href="https://docs.flutter.dev/ai/genui">GenUI SDK</a> | <a href="https://github.com/flutter/genui">GitHub</a> | <a href="https://github.com/flutter/genui/blob/main/packages/genui/README.md#getting-started-with-genui">README in GenUI Flutter Package</a></p>
+<p><a href="https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_flutter"><code>a2ui_flutter</code></a> renders A2UI surfaces as Flutter
+widgets, and <code>a2ui_core</code> processes the messages and holds surface state. If the
+app calls the model itself, add <code>a2ui_agent</code>. These packages replace the
+<code>genui</code> package; the older <code>flutter_genui</code> and <code>genui_a2ui</code> packages are
+discontinued.</p>
+<p><strong>See:</strong> <a href="https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_flutter"><code>a2ui_flutter</code> README</a></p>
 <h2 id="connecting-to-agents">Connecting to Agents<a class="headerlink" href="#connecting-to-agents" title="Permanent link">&para;</a></h2>
 <p>Your client application needs to:</p>
 <ol>
