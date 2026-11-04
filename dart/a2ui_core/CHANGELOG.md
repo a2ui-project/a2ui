@@ -57,11 +57,6 @@
   migrate, pass explicit booleans, non-zero/zero numbers, `'true'`/`'false'`
   strings, or `ValidationResult` maps rather than relying on truthiness or
   `null` pass-through ([#3850](https://github.com/a2ui-project/a2ui/pull/3850)).
-- Added `AgentFunction`, `AgentFunctionContext`, `AgentFunctionHandler`, and
-  `Catalog.agentFunctions` (on `Catalog` and `Catalog.copyWith`) for declaring
-  and attaching handlers to v1.0 agent-side catalog functions, along with
-  `RpcErrorCode.tooManyPending` and custom wire error code support on
-  `A2uiRpcError` (`A2uiRpcError.custom`).
 - (v1_0) The basic catalog `regex` function's `pattern` description now names the A2UI regex dialect and its safety limits ([#3820](https://github.com/a2ui-project/a2ui/pull/3820)).
 - (v1_0) `Catalog.fromJson` now rejects function definitions that set
   `requiresUserActivation: true` when `allowedCallers` is not `'rendererOnly'`
