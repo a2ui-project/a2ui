@@ -25,7 +25,7 @@
   [#3726](https://github.com/a2ui-project/a2ui/pull/3726)).
 - Support the reserved `extensions=` keyword argument on `surface(...)` and component calls in v1.0 A2UI Express (`ExpressCompiler` and `ExpressDecompiler`), compiling to and decompiling from `metadata.extensions` with UAX 31 extension key validation ([#3708](https://github.com/a2ui-project/a2ui/issues/3708), [#3757](https://github.com/a2ui-project/a2ui/pull/3757)).
 
-- Bumped `a2ui_core` constraint to `^0.4.0`.
+- Requires `a2ui_core` `^0.5.0`.
 
 - Breaking: In `ExpressCompiler`, data path assignments (`$/... = ...`) in
   scopes that update a surface (scopes without a `root` assignment) now emit one
@@ -78,11 +78,6 @@
   and keeps its `parts` in the order the model wrote them: text
   (`AnswerTextPart`), one part per surface it creates (`AnswerSurfacePart`),
   and an `AnswerErrorPart` per rejected block ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
-- Requires the `a2ui_core` release after 0.4.0, whose
-  `MessageProcessor.processMessages` takes a `validationConfig` for one call,
-  which `RendererState.of` uses. The release that publishes this version
-  raises the `a2ui_core` constraint along with that `a2ui_core` release; until
-  then the workspace resolves `a2ui_core` from this repository.
 - Breaking: `Event(...)` in Express no longer accepts the event name as a
   `name=` keyword argument; pass it positionally, as the TypeScript and Python
   compilers require. A keyword `Event` does not define now throws
@@ -132,14 +127,6 @@
   that need exponent notation (`1e-7`, `1e+21`) instead of throwing, and
   throws `A2uiValidationError` only for non-finite values
   ([#3019](https://github.com/a2ui-project/a2ui/issues/3019)).
-- Requires the next release of `a2ui_core`, which adds
-  `SurfaceComponentsModel.insertComponent`, `insertComponents`,
-  `saveReferenceFields` and `restoreReferenceFields` and
-  `SurfaceGroupModel.detachSurface`, and exports
-  `checkPathsAndRecursion` and `checkDuplicateComponentIds`. The release that
-  publishes this version raises the `a2ui_core` constraint to `^0.3.1` along
-  with that `a2ui_core` release; until then the workspace resolves
-  `a2ui_core` from this repository.
 - Breaking: `A2uiGenerator.inferenceFormatFactory` and
   `A2uiRequestProcessor.formatFactory` default to `ExpressFormatFactory`
   instead of `DirectJsonFormatFactory`.
@@ -301,7 +288,6 @@
   string with backslashes as a raw triple-quoted string, and an
   `updateDataModel` below the root as assignments at its path.
 - A check's default message has no trailing period, as in the other SDKs.
-- Bump `a2ui_core` dependency to `^0.3.0`.
 - The Direct JSON prompt lists `description` after `type` in the
   agent-to-renderer and `common_types` schemas it embeds, following the
   reordered specification files.
