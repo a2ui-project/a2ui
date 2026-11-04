@@ -971,7 +971,7 @@ async function validateRpcTestCase(testCase) {
         },
       },
     ]);
-    const surface = proc.getSurface(scenario.surfaceId);
+    const surface = procRef.current.getSurface(scenario.surfaceId);
     const resolved = collectResolvedNodes(surface);
     try {
       const observeId = scenario.observe?.componentId ?? scenario.component?.id ?? 'root';
@@ -1083,7 +1083,7 @@ async function validateRpcTestCase(testCase) {
         },
       },
     ]);
-    const surface = proc.getSurface(scenario.surfaceId);
+    const surface = procRef.current.getSurface(scenario.surfaceId);
     const ctx = new DataContext(surface, '/');
     const actionPromise = Promise.resolve(ctx.resolveAction(scenario.actionPayload));
     await new Promise(resolve => setTimeout(resolve, 0));
