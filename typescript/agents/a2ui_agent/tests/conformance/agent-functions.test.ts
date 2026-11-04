@@ -270,29 +270,38 @@ function expectReplies(actual: unknown[], expected: Array<Record<string, unknown
 async function runProcessRendererMessage(testCase: LoadedCase): Promise<void> {
   const args = (testCase.args ?? {}) as {
     catalog?: CatalogWithAgentFunctionsSpec;
-    callbacks?: CallbackKind[];
+    catalogs?: CatalogWithAgentFunctionsSpec[];
+    callbacks?: Array<CallbackKind | {kind: CallbackKind; declines: true}>;
     message: unknown;
   };
   const received: Array<{kind: CallbackKind; message: unknown}> = [];
-  const record = (kind: CallbackKind) => (message: unknown) => {
-    received.push({kind, message});
+  // Each callback records the message it receives; a declining one returns false.
+  const callbacks = new Map<CallbackKind, (message: unknown) => boolean | void>();
+  for (const entry of args.callbacks ?? []) {
+    const {kind, declines} = typeof entry === 'string' ? {kind: entry, declines: false} : entry;
+    callbacks.set(kind, (message: unknown) => {
+      received.push({kind, message});
+      return declines ? false : undefined;
+    });
+  }
+  const catalogSpecs = args.catalogs ?? (args.catalog ? [args.catalog] : []);
+  const build = () => {
+    const options: RendererToAgentMessageProcessorOptions = {
+      catalogs: catalogSpecs.map(buildCatalogWithAgentFunctions),
+      onAction: callbacks.get('action'),
+      onError: callbacks.get('error'),
+      onRendererFunctionResponse: callbacks.get('rendererFunctionResponse'),
+    };
+    return new RendererToAgentMessageProcessor(options);
   };
-  const callbacks = new Set(args.callbacks ?? []);
-  const options: RendererToAgentMessageProcessorOptions = {
-    catalogs: args.catalog ? [buildCatalogWithAgentFunctions(args.catalog)] : [],
-    onAction: callbacks.has('action') ? record('action') : undefined,
-    onError: callbacks.has('error') ? record('error') : undefined,
-    onRendererFunctionResponse: callbacks.has('rendererFunctionResponse')
-      ? record('rendererFunctionResponse')
-      : undefined,
-  };
-  const processor = new RendererToAgentMessageProcessor(options);
 
   if (testCase.expect_error) {
-    await expectRejectsCaseError(() => processor.processMessage(args.message), testCase);
+    await expectRejectsCaseError(async () => build().processMessage(args.message), testCase);
     expect(received).toEqual([]);
     return;
   }
+
+  const processor = build();
 
   const result = await processor.processMessage(args.message);
   const expected = testCase.expect as {
