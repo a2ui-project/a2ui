@@ -3,6 +3,9 @@
 ## Unreleased
 
 - Added `a2ui lint` (`LintCommand`, `lintAccessibilityLabels`, and `LabelLintFinding`), which warns when a catalog component that accepts an action or user input declares no text-bearing label property (or no required one under `--strict`) ([#3831](https://github.com/a2ui-project/a2ui/pull/3831)).
+
+## 0.2.0
+
 - **Breaking:** Bump `a2ui_core` dependency to `^0.5.0` (`a2ui_cli` exposes
   `CatalogApi`, `ComponentApi`, `FunctionApi`, and `A2uiReturnType` in its
   public API, and `CodegenCatalog.fromJson` inherits `a2ui_core` `0.5.0` catalog
