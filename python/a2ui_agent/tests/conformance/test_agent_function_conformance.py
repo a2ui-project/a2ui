@@ -133,7 +133,7 @@ def _agent_function(
     return AgentFunction(
         name,
         handler=handler,
-        return_type=declaration.get("returnType", "any"),
+        return_type=declaration["returnType"],
         schema=declaration["args"],
         description=declaration.get("description"),
     )
@@ -195,19 +195,21 @@ def _run_handle(case: Mapping[str, Any]) -> None:
     assert result.handled
     assert len(result.replies) == 1, result.replies
     dumped = result.replies[0].model_dump(by_alias=True, exclude_unset=True)
+    assert set(dumped) == {"version", "agentFunctionResponse"}, dumped
     assert dumped["version"] == "1.0"
     response = dumped["agentFunctionResponse"]
     expected = case["expect"]
     assert response["functionCallId"] == expected["functionCallId"]
     if "error" in expected:
-        assert "value" not in response, response
+        assert set(response) == {"functionCallId", "error"}, response
         error = response["error"]
+        assert set(error) == {"code", "message"}, error
+        assert isinstance(error["message"], str) and error["message"], error
         assert error["code"] == expected["error"]["code"], error
         if "message" in expected["error"]:
             assert expected["error"]["message"] in error["message"], error
     else:
-        assert "error" not in response, response
-        assert "value" in response, response
+        assert set(response) == {"functionCallId", "value"}, response
         assert response["value"] == expected["value"]
 
 
@@ -230,18 +232,22 @@ _CALLBACK_OPTIONS = {
 }
 
 
-def _assert_reply_matches(actual: Any, expected: Any) -> None:
+def _assert_reply_matches(
+    actual: Any, expected: Any, path: tuple[str, ...] = ()
+) -> None:
     """Compares a reply exactly, but an expected `error.message` as a substring."""
     if isinstance(expected, Mapping):
         assert isinstance(actual, Mapping), actual
-        if "code" in expected and "message" not in expected:
-            actual = {k: v for k, v in actual.items() if k != "message"}
+        if path == ("agentFunctionResponse", "error"):
+            assert set(actual) == {"code", "message"}, actual
+            assert isinstance(actual["message"], str) and actual["message"], actual
+            assert actual["code"] == expected["code"], (actual, expected)
+            if "message" in expected:
+                assert expected["message"] in actual["message"], (actual, expected)
+            return
         assert set(actual) == set(expected), (actual, expected)
         for key, value in expected.items():
-            if key == "message" and "code" in expected and isinstance(value, str):
-                assert value in actual[key], (actual, expected)
-            else:
-                _assert_reply_matches(actual[key], value)
+            _assert_reply_matches(actual[key], value, (*path, key))
     else:
         assert actual == expected, (actual, expected)
 

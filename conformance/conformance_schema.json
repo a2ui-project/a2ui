@@ -2356,7 +2356,7 @@
         "behavior": {"$ref": "#/$defs/AgentFunctionBehavior"}
       },
       "required": ["behavior"],
-      "anyOf": [{"required": ["args"]}, {"required": ["from_api"]}],
+      "anyOf": [{"required": ["args", "returnType"]}, {"required": ["from_api"]}],
       "additionalProperties": false
     },
     "AgentFunctionCatalog": {
