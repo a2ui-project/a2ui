@@ -5,7 +5,7 @@ generate rich, interactive user interfaces through declarative JSON.
 
 ## Features
 
-- **v0.9 Native**: Built specifically for the A2UI v0.9 protocol with improved modularity and type safety.
+- **Multi-version**: Renders A2UI v0.9, v0.9.1 and v1.0 surfaces from the same package, with improved modularity and type safety.
 - **Deep Reactivity**: Powered by the A2UI Generic Binder for automatic, fine-grained updates.
 - **Strongly Typed**: Inferred property types from Zod schemas ensure compile-time safety.
 - **Extensible**: Easily define custom component catalogs and logic functions.
@@ -288,7 +288,7 @@ export const myCatalog = new Catalog(
 
 ## Basic Catalog Components
 
-`@a2ui/web_core/v0_9/basic_catalog` provides a `basicCatalog` with the standard components. They are W3C Custom Elements, and the React renderer renders them as elements:
+`@a2ui/web_core/v0_9/basic_catalog` (v0.9) and `@a2ui/web_core/catalogs/basic/v1` (v1.0) each provide a `basicCatalog` with the same standard components. They are W3C Custom Elements, and the React renderer renders them as elements:
 
 - **Layout**: `Row`, `Column`, `List`, `Card`, `Tabs`, `Modal`, `Divider`
 - **Content**: `Text`, `Image`, `Icon`, `Video`, `AudioPlayer`
