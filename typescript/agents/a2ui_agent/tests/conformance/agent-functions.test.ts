@@ -20,6 +20,7 @@ import {describe, expect, test} from 'vitest';
 
 import {
   A2uiRpcError,
+  A2uiValidationError,
   AgentFunction,
   type AgentFunctionContext,
   type AgentFunctionHandler,
@@ -42,6 +43,7 @@ interface BehaviorSpec {
   returns_context?: boolean;
   raises?: {
     code?: string;
+    validation?: true;
     message: string;
   };
 }
@@ -67,10 +69,13 @@ function buildHandler(behavior?: BehaviorSpec): AgentFunctionHandler {
     return () => null;
   }
   if (behavior.raises) {
-    const {code, message} = behavior.raises;
+    const {code, validation, message} = behavior.raises;
     return () => {
       if (code) {
         throw new A2uiRpcError(message, code);
+      }
+      if (validation) {
+        throw new A2uiValidationError(message);
       }
       throw new Error(message);
     };

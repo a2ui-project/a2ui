@@ -321,6 +321,23 @@ describe('RendererToAgentMessageProcessor', () => {
       expect(onlyResponse(await pending).value).toBe('done');
     });
 
+    test('treats a validation error thrown by a handler as a handler error', async () => {
+      const strict = new AgentFunction({
+        name: 'strict',
+        handler: () => {
+          throw new A2uiValidationError('unsupported currency pair EUR/XYZ');
+        },
+      });
+      const processor = new RendererToAgentMessageProcessor({
+        catalogs: [catalogWith('cat', strict)],
+      });
+
+      const body = onlyResponse(await processor.processMessage(call('strict')));
+
+      expect(body.error?.code).toBe(RpcErrorCode.EXECUTION_ERROR);
+      expect(body.error?.message).toContain('unsupported currency pair EUR/XYZ');
+    });
+
     test("treats a handler's own timeout error as a handler error", async () => {
       vi.useFakeTimers();
       const upstream = new AgentFunction({
