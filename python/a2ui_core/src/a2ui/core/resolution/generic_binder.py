@@ -21,10 +21,15 @@ from functools import cache
 from typing import Any, Callable, Final
 
 from ..common import Subscription
-from ..schema._dynamic_types import dynamic_literal_kinds
+from ..schema._dynamic_types import (
+    dynamic_literal_kinds,
+    is_function_call_branch,
+    is_ref,
+)
 from ..schema.common_types_schema import get_all_dynamic_type_names
 from ..schema.v1_0 import ValidationResult
 from .component_context import ComponentContext
+from .validation_result_coercion import coerce_dynamic_boolean
 
 
 class BehaviorType(str, Enum):
@@ -46,6 +51,7 @@ class BehaviorNode:
     type: BehaviorType
     shape: dict[str, BehaviorNode] | None = None
     element: BehaviorNode | None = None
+    is_boolean: bool = False
 
 
 CHECKABLE_REF_NAMES: Final[frozenset[str]] = frozenset({"Checkable", "CheckRule"})
@@ -177,17 +183,34 @@ def _classify_combiners(
     branches = (one_of if isinstance(one_of, list) else []) + (
         any_of if isinstance(any_of, list) else []
     )
+    localized_branches = _localize_branch_refs(branches)
+    literal_branches = [
+        branch
+        for branch in localized_branches
+        if isinstance(branch, dict)
+        and not is_ref(branch, "DataBinding")
+        and not is_function_call_branch(branch)
+        and branch.get("type") != "null"
+    ]
+    is_boolean_union = bool(literal_branches) and all(
+        branch.get("type") == "boolean" for branch in literal_branches
+    )
     for branch in branches:
         if isinstance(branch, dict):
             node = classify_schema_behavior(branch, defs)
             if node.type in _SPECIAL_BEHAVIORS:
+                if (
+                    node.type == BehaviorType.DYNAMIC
+                    and is_boolean_union
+                    and not node.is_boolean
+                ):
+                    return BehaviorNode(BehaviorType.DYNAMIC, is_boolean=True)
                 return node
 
     all_of = schema.get("allOf")
     if isinstance(all_of, list):
         return _classify_all_of(schema, defs, all_of)
 
-    return None
     return None
 
 
@@ -252,11 +275,15 @@ def classify_schema_behavior(
         if ref_name in STRUCTURAL_REF_NAMES:
             return BehaviorNode(BehaviorType.STRUCTURAL)
         if ref_name in _dynamic_ref_names():
-            return BehaviorNode(BehaviorType.DYNAMIC)
+            return BehaviorNode(
+                BehaviorType.DYNAMIC, is_boolean=(ref_name == "DynamicBoolean")
+            )
         # A catalog-defined dynamic def (e.g. `DynamicDate`) is recognized by
         # the shape of the def it references.
         if "$defs/" in ref and _is_dynamic_def(defs.get(ref_name)):
-            return BehaviorNode(BehaviorType.DYNAMIC)
+            return BehaviorNode(
+                BehaviorType.DYNAMIC, is_boolean=(ref_name == "DynamicBoolean")
+            )
 
     combiner = _classify_combiners(schema, defs)
     if combiner is not None:
@@ -447,7 +474,9 @@ class GenericBinder:
             ) or (
                 raw_val is not None
                 and _classify_value_fallback(
-                    k, raw_val, at_least_v10=self.context.data_context.at_least_v10
+                    k,
+                    raw_val,
+                    at_least_v10=self.context.data_context.at_least_v10,
                 ).type
                 == BehaviorType.DYNAMIC
             )
@@ -479,11 +508,15 @@ class GenericBinder:
         path: list[str],
         is_sync: bool,
     ) -> Any:
-        if value is None:
+        if value is None and not (
+            behavior.type == BehaviorType.DYNAMIC and behavior.is_boolean
+        ):
             return None
 
         if behavior.type == BehaviorType.DYNAMIC:
-            return self._bind_dynamic_value(value, path, is_sync)
+            return self._bind_dynamic_value(
+                value, path, is_sync, is_boolean=behavior.is_boolean
+            )
 
         if behavior.type == BehaviorType.ACTION:
             return self._bind_action(value, path)
@@ -591,9 +624,18 @@ class GenericBinder:
         elif isinstance(curr, dict):
             curr[last] = new_value
 
-    def _bind_dynamic_value(self, value: Any, path: list[str], is_sync: bool) -> Any:
+    def _bind_dynamic_value(
+        self,
+        value: Any,
+        path: list[str],
+        is_sync: bool,
+        *,
+        is_boolean: bool = False,
+    ) -> Any:
+        coerce = coerce_dynamic_boolean if is_boolean else (lambda v: v)
+
         def on_change(new_val: Any) -> None:
-            self._update_deep_value(path, new_val)
+            self._update_deep_value(path, coerce(new_val))
             self._notify()
 
         bound = self.context.data_context.subscribe_dynamic_value(value, on_change)
@@ -601,7 +643,7 @@ class GenericBinder:
             self.data_listeners.append(bound)
         else:
             bound.unsubscribe()
-        return bound.value
+        return coerce(bound.value)
 
     def _bind_action(self, value: Any, path: list[str]) -> Callable[..., Any]:
         cache_key = "/".join(path)
@@ -685,7 +727,12 @@ class GenericBinder:
             {k: v for k, v in r.items() if k != "_is_obj"} for r in failed_rules
         ]
         if not failed_rules:
-            return is_valid, validation_errors, validation_results, {"valid": True}
+            return (
+                is_valid,
+                validation_errors,
+                validation_results,
+                {"valid": True},
+            )
         first_res = {k: v for k, v in failed_rules[0].items() if k != "_is_obj"}
         if not failed_rules[0].get("_is_obj"):
             first_res.pop("severity", None)

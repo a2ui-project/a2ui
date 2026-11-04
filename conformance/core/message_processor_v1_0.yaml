@@ -3244,3 +3244,21 @@
               - id: "root"
                 component: "Column"
                 children: ["mid_card"]
+
+- name: test_v10_create_surface_theme_rejected_strict
+  description: >-
+    Tests that a v1.0 createSurface message carrying a theme property is rejected with a ValidationError in strict mode.
+  action: process_messages
+  protocolVersion: "1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        theme:
+          primaryColor: "#ff0000"
+  expectError:
+    category: "ValidationError"

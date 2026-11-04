@@ -1,5 +1,6 @@
 ## Unreleased
 
+- `ExpressPromptGenerator` teaches `Event(name, context?, userMessage=...)` in rule 8 for v1.0+ catalogs, while keeping the two-argument `Event(name, context)` rule for pre-v1.0 catalogs ([#3690](https://github.com/a2ui-project/a2ui/issues/3690), [#3867](https://github.com/a2ui-project/a2ui/pull/3867)).
 - `DirectJsonParser` rejects a number out of the range of a double, such as `1e400`, with `ParseError`, as the Dart SDK does. It used to read it as `Infinity`, which `JSON.stringify` writes as `null` ([#3847](https://github.com/a2ui-project/a2ui/pull/3847)).
 
 ## 0.1.0
