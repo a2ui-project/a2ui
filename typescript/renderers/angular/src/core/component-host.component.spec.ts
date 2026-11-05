@@ -76,7 +76,10 @@ const TestTypeApi = {
   name: 'TestType',
   schema: z.object({text: DynamicStringSchema.optional(), other: DynamicStringSchema.optional()}),
 } satisfies ComponentApi;
-const OtherTypeApi = {name: 'OtherType', schema: z.object({text: DynamicStringSchema.optional()})};
+const OtherTypeApi = {
+  name: 'OtherType',
+  schema: z.object({text: DynamicStringSchema.optional()}),
+};
 
 /** Flushes root effects (the resolver updates node props in effects) and the fixture view. */
 function flush(fixture: ComponentFixture<unknown>) {
@@ -541,7 +544,7 @@ describe('ComponentHostComponent', () => {
       const wcEl = testFixture.nativeElement.querySelector('mock-host-wc') as MockWcElement;
       expect(wcEl).toBeTruthy();
       expect(wcEl.node.componentId).toBe('root');
-      expect(wcEl.context.componentModel.id).toBe('root');
+      expect(wcEl.context).toBeUndefined();
 
       surface.componentsModel.get('root')!.properties = {label: 'Updated label'};
       flush(testFixture);

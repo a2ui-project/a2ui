@@ -198,6 +198,8 @@ jobs:
           uv run mkdocs build
           ASTRO_BASE=/preview/ npm --prefix docs/site run build
           rm -rf site/preview && cp -R docs/site/dist site/preview
+          # llms.txt is rendered by the Astro build; serve it from the site root.
+          cp docs/site/dist/llms.txt site/llms.txt
           rm -f site/preview/CNAME site/preview/.nojekyll
           uv run ghp-import --no-jekyll --push \
             --message "Deployed $(git rev-parse --short HEAD) with MkDocs version: $(uv run python -c 'import mkdocs; print(mkdocs.__version__)')" \

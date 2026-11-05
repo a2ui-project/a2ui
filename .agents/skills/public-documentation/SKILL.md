@@ -5,6 +5,8 @@ description: >-
   standards for the A2UI developer site (docs/site/). Use when creating,
   editing, or reviewing public documentation, conceptual guides, tutorials, or
   quickstarts.
+metadata:
+  internal: true
 ---
 
 # Public Documentation Authoring Skill
