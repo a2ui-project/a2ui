@@ -400,7 +400,10 @@ class RpcHandler {
     }
 
     try {
-      Object? result = fn.execute(resolvedArgs, dataContext);
+      Object? result = fn.execute(
+        resolvedArgs,
+        dataContextWithCallCatalog(dataContext, catalog.id),
+      );
       if (result is Future) result = await result;
       if (result is ReadonlySignal) result = result.value;
       return A2uiFunctionResponse.value(functionCallId, result);

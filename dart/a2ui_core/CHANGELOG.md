@@ -1,5 +1,15 @@
 # [a2ui_core](https://pub.dev/packages/a2ui_core) Changelog
 
+## Unreleased
+
+- (v1_0) Function calls inside `${...}` template expressions of `formatString`
+  now inherit the `catalogId` that the enclosing `formatString` call resolved
+  to (preserving reserved `@`-prefixed system calls such as `${@index()}` as
+  catalogless), so nested template calls resolve against `formatString`'s
+  catalog on defaultless multi-catalog surfaces
+  ([#3727](https://github.com/a2ui-project/a2ui/issues/3727),
+  [#4029](https://github.com/a2ui-project/a2ui/pull/4029)).
+
 ## 0.6.0
 
 - Rename `Catalog.toLegacyInlineCatalog()` to `Catalog.toV09InlineCatalog()`.
