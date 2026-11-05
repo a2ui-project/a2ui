@@ -201,6 +201,12 @@ async def _process(
         result = await processor.process_message(message)
     except A2uiValidationError as e:
         # The message comes from the network, so it doesn't fail the request.
-        logger.warning("Dropped an A2UI RPC message that can't be answered: %s", e)
+        # Its error may quote the payload, so the details are logged only at
+        # debug level.
+        logger.warning(
+            "Dropped an A2UI RPC message that can't be answered: %s",
+            type(e).__name__,
+        )
+        logger.debug("Dropped A2UI RPC message error: %s", e)
         return []
     return result.replies

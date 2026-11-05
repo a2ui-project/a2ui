@@ -24,6 +24,7 @@ from a2ui.a2a import (
     create_a2ui_parts,
     get_a2ui_messages,
 )
+from a2ui.core.schema.v0_8 import BeginRenderingMessage
 from a2ui.core.schema.v1_0 import AgentFunctionResponseMessage
 
 CALL = {
@@ -98,3 +99,29 @@ def test_create_a2ui_parts_round_trips_through_get_a2ui_messages() -> None:
     assert get_a2ui_messages(create_a2ui_parts([reply])) == [
         reply.model_dump(by_alias=True, exclude_unset=True)
     ]
+
+
+def test_create_a2ui_parts_writes_the_default_version_of_a_model() -> None:
+    reply = AgentFunctionResponseMessage.model_validate(
+        {"agentFunctionResponse": {"functionCallId": "c1", "value": 3}}
+    )
+
+    (part,) = create_a2ui_parts([reply])
+
+    assert isinstance(part.root, DataPart)
+    assert part.root.metadata == {"mimeType": A2UI_MIME_TYPE}
+    assert part.root.data == {
+        "version": "1.0",
+        "agentFunctionResponse": {"functionCallId": "c1", "value": 3},
+    }
+
+
+def test_create_a2ui_parts_leaves_out_the_version_of_a_v0_8_model() -> None:
+    message = BeginRenderingMessage.model_validate(
+        {"version": "v0.8", "beginRendering": {"surfaceId": "s1", "root": "r"}}
+    )
+
+    (part,) = create_a2ui_parts([message])
+
+    assert isinstance(part.root, DataPart)
+    assert part.root.data == {"beginRendering": {"surfaceId": "s1", "root": "r"}}

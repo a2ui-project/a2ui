@@ -141,9 +141,10 @@ def create_a2ui_parts(
 
     Args:
         messages: The A2UI messages, as schema models or as parsed JSON.
-            Models are serialized with `model_dump(by_alias=True,
-            exclude_unset=True)`, which keeps a `value` of `None` in an
-            `agentFunctionResponse`.
+            Models are serialized as by `to_message_dicts`: JSON-ready, by
+            wire alias, with only the fields that were set (which keeps a
+            `value` of `None` in an `agentFunctionResponse`), plus the
+            model's `version` for v0.9 and later.
         version: The A2UI version, as for `create_a2ui_part`. Defaults to
             each message's own `version` field.
 
@@ -152,11 +153,17 @@ def create_a2ui_parts(
     """
     parts: list[Part] = []
     for message in messages:
-        data = (
-            message.model_dump(by_alias=True, exclude_unset=True)
-            if isinstance(message, BaseModel)
-            else dict(message)
-        )
+        if isinstance(message, BaseModel):
+            # Serialized as `to_message_dicts` does, which takes only
+            # agent-to-renderer models.
+            data = message.model_dump(mode="json", by_alias=True, exclude_unset=True)
+            msg_version = getattr(message, "version", None)
+            if msg_version == "v0.8":
+                data.pop("version", None)
+            elif isinstance(msg_version, str) and "version" not in data:
+                data = {"version": msg_version, **data}
+        else:
+            data = dict(message)
         parts.append(create_a2ui_part(data, version=version))
     return parts
 
