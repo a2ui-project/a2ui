@@ -189,18 +189,37 @@ final class AgentFunctionRegistry {
       ),
     );
 
-    final Map<String, dynamic> argsWithDefaults = _applySchemaDefaults(
-      rawArgs,
-      resolvedSchema,
-    );
-    validator.validateFunction(fn.name, argsWithDefaults);
-    _checkUndeclaredObjectArgs(
-      fn.name,
-      catalog.id,
-      argsWithDefaults,
-      resolvedSchema,
-    );
-    return argsWithDefaults;
+    // The arguments of a callAgentFunction are already resolved: they are
+    // plain JSON, in which a key such as `@type` is data rather than a
+    // directive, so they are checked against the schema as values and not
+    // walked as component expressions. Defaults are applied only once the
+    // caller's own arguments have passed.
+    _checkArgNames(fn.name, rawArgs);
+    validator.validateFunctionArgs(fn.name, rawArgs);
+    return _applySchemaDefaults(rawArgs, resolvedSchema);
+  }
+
+  /// The most arguments a call may pass, as `PayloadValidator` allows.
+  static const int _maxFunctionCallArgs = 50;
+
+  /// Rejects a call that passes more than [_maxFunctionCallArgs] arguments, or
+  /// whose top-level argument names are not UAX #31 identifiers.
+  static void _checkArgNames(String fnName, Map<String, dynamic> args) {
+    if (args.length > _maxFunctionCallArgs) {
+      throw A2uiValidationError(
+        "Function call '$fnName' exceeds maximum allowed arguments count "
+        '($_maxFunctionCallArgs)',
+      );
+    }
+    for (final String arg in args.keys) {
+      if (!isValidUax31Identifier(arg)) {
+        throw A2uiValidationError(
+          "Function argument '$arg' in function '$fnName' must be a valid "
+          'UAX #31 identifier',
+          path: '/args/${arg.replaceAll('~', '~0').replaceAll('/', '~1')}',
+        );
+      }
+    }
   }
 
   static Map<String, Object?>? _resolveLocalDef(
@@ -218,71 +237,6 @@ final class AgentFunctionRegistry {
       current = current[segment];
     }
     return current is Map ? current.cast<String, Object?>() : null;
-  }
-
-  static void _checkUndeclaredObjectArgs(
-    String fnName,
-    String catalogId,
-    Map<String, dynamic> args,
-    Map<String, Object?> schema,
-  ) {
-    final Map<String, Object?> defs = schema[r'$defs'] is Map
-        ? (schema[r'$defs']! as Map).cast<String, Object?>()
-        : const <String, Object?>{};
-    final allowed = <String>{};
-    var hasObjectConstraint = false;
-    var isOpen = false;
-    final visited = <String>{};
-
-    void inspect(Map<String, Object?> node) {
-      if (node.containsKey('oneOf') || node.containsKey('anyOf')) {
-        isOpen = true;
-        return;
-      }
-      final Object? additional =
-          node['additionalProperties'] ?? node['unevaluatedProperties'];
-      if (additional == true || additional is Map) {
-        isOpen = true;
-        return;
-      }
-      if (node['type'] == 'object' ||
-          node['properties'] is Map ||
-          additional == false) {
-        hasObjectConstraint = true;
-      }
-      if (node['properties'] case final Map<Object?, Object?> props) {
-        allowed.addAll(props.keys.whereType<String>());
-      }
-      if (node[r'$ref'] case final String ref) {
-        if (visited.add(ref)) {
-          final Map<String, Object?>? target = _resolveLocalDef(ref, defs);
-          if (target == null) {
-            isOpen = true;
-            return;
-          }
-          inspect(target);
-        }
-      }
-      if (node['allOf'] case final List<Object?> members) {
-        for (final member in members) {
-          if (member is Map) {
-            inspect(member.cast<String, Object?>());
-          }
-        }
-      }
-    }
-
-    inspect(schema);
-    if (!hasObjectConstraint || isOpen) return;
-    for (final String key in args.keys) {
-      if (!allowed.contains(key)) {
-        throw A2uiValidationError(
-          "Call to '$fnName' in catalog '$catalogId' has unknown argument "
-          "'$key'.",
-          path: '/args/$key',
-        );
-      }
-    }
   }
 
   static Future<AgentFunctionResponseMessage> _run(

@@ -29,6 +29,7 @@ Schema _quoteSchema() => Schema.fromMap({
     'quantity': {'type': 'integer', 'minimum': 1, 'default': 1},
   },
   'required': ['symbol'],
+  'additionalProperties': false,
 });
 
 Schema _anyObject() => Schema.fromMap({'type': 'object'});
@@ -506,6 +507,160 @@ void main() {
         );
       }
       expect(runs, 0);
+    });
+
+    test(
+      'arguments are checked as resolved JSON, not as expressions',
+      () async {
+        final processor = RendererToAgentMessageProcessor(
+          catalogs: [
+            _catalog([_fn('echo', (args, _) => args)]),
+          ],
+        );
+        // DataContext unescapes `@@type` to `@type`, so a resolved value may
+        // carry `@`-prefixed keys; they are data.
+        const nested = <String, Object?>{
+          'doc': {
+            '@type': 'Person',
+            '@id': 'p1',
+            'tags': [
+              {'@call': 'notACall'},
+            ],
+          },
+        };
+        final A2uiFunctionResponse ok = _reply(
+          await processor.processMessage(_callMsg('echo', nested)),
+        );
+        expect(ok.error, isNull);
+        expect(ok.value, nested);
+
+        // A top-level argument name must still be an identifier.
+        expect(
+          _reply(
+            await processor.processMessage(
+              _callMsg('echo', const {'@type': 'Person'}),
+            ),
+          ),
+          _errorCode(RpcErrorCode.invalidFunctionCall),
+        );
+      },
+    );
+
+    test('defaults are applied after the arguments are validated', () async {
+      final processor = RendererToAgentMessageProcessor(
+        catalogs: [
+          _catalog([
+            AgentFunction(
+              name: 'limited',
+              argumentSchema: Schema.fromMap({
+                'type': 'object',
+                'properties': {
+                  'symbol': {'type': 'string'},
+                  'quantity': {'type': 'integer', 'default': 1},
+                },
+                'required': ['quantity'],
+                'maxProperties': 1,
+              }),
+              handler: (args, _) => args,
+            ),
+          ]),
+        ],
+      );
+      // A default does not satisfy `required`.
+      expect(
+        _reply(
+          await processor.processMessage(
+            _callMsg('limited', const {'symbol': 'GOOG'}),
+          ),
+        ),
+        _errorCode(RpcErrorCode.invalidFunctionCall),
+      );
+      // An injected default does not count against `maxProperties`.
+      final processor2 = RendererToAgentMessageProcessor(
+        catalogs: [
+          _catalog([
+            AgentFunction(
+              name: 'limited',
+              argumentSchema: Schema.fromMap({
+                'type': 'object',
+                'properties': {
+                  'symbol': {'type': 'string'},
+                  'quantity': {'type': 'integer', 'default': 1},
+                },
+                'maxProperties': 1,
+              }),
+              handler: (args, _) => args,
+            ),
+          ]),
+        ],
+      );
+      final A2uiFunctionResponse ok = _reply(
+        await processor2.processMessage(
+          _callMsg('limited', const {'symbol': 'GOOG'}),
+        ),
+      );
+      expect(ok.error, isNull);
+      expect(ok.value, {'symbol': 'GOOG', 'quantity': 1});
+    });
+
+    test('undeclared arguments follow the JSON Schema', () async {
+      final processor = RendererToAgentMessageProcessor(
+        catalogs: [
+          _catalog([
+            AgentFunction(
+              name: 'open',
+              argumentSchema: Schema.fromMap({
+                'type': 'object',
+                'properties': {
+                  'symbol': {'type': 'string'},
+                  'meta': {
+                    'type': 'object',
+                    'properties': {
+                      'a': {'type': 'string'},
+                    },
+                    'unevaluatedProperties': false,
+                  },
+                },
+              }),
+              handler: (args, _) => args,
+            ),
+            AgentFunction(
+              name: 'patterned',
+              argumentSchema: Schema.fromMap({
+                'type': 'object',
+                'patternProperties': {
+                  '^x_': {'type': 'integer'},
+                },
+                'additionalProperties': false,
+              }),
+              handler: (args, _) => args,
+            ),
+          ]),
+        ],
+      );
+      Future<A2uiFunctionResponse> call(
+        String name,
+        Map<String, Object?> args,
+      ) async => _reply(await processor.processMessage(_callMsg(name, args)));
+
+      // An object schema that does not close its properties accepts others.
+      expect(
+        (await call('open', const {'symbol': 'G', 'extra': 1})).error,
+        isNull,
+      );
+      // A closed nested object rejects a field it does not declare.
+      expect(
+        await call('open', const {
+          'meta': {'a': 'x', 'b': 1},
+        }),
+        _errorCode(RpcErrorCode.invalidFunctionCall),
+      );
+      // patternProperties declare the keys they match.
+      expect((await call('patterned', const {'x_1': 1})).error, isNull);
+      expect(
+        await call('patterned', const {'y': 1}),
+        _errorCode(RpcErrorCode.invalidFunctionCall),
+      );
     });
 
     test('an agentOnly function gets INVALID_FUNCTION_CALL', () async {
