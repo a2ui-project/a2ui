@@ -27,8 +27,23 @@ from a2ui.inference_formats._shared import CatalogSchemaHelper
 
 from .errors import A2uiXmlParseError, A2uiXmlValidationError
 
-_RELATIVE_PATH_RE = re.compile(r"^\$[a-zA-Z_@][a-zA-Z0-9_@/-]*$")
+_RELATIVE_PATH_RE = re.compile(
+    r"^\$(?:[a-zA-Z_@][a-zA-Z0-9_@/-]*|(?:0|[1-9][0-9]*)(?:/[a-zA-Z0-9_@/-]+)?)$"
+)
 _ABSOLUTE_PATH_RE = re.compile(r"^\$/[^\s]*$")
+_SCHEMA_TYPE_CONSTRAINT_KEYS = frozenset({
+    "type",
+    "const",
+    "enum",
+    "$ref",
+    "allOf",
+    "oneOf",
+    "anyOf",
+    "properties",
+    "items",
+    "prefixItems",
+    "not",
+})
 _CALL_START_RE = re.compile(
     r"^(?:\$([a-zA-Z_][a-zA-Z0-9_]*)|(Event))\s*\(([\s\S]*)\)\s*$"
 )
@@ -111,6 +126,8 @@ def schema_allows_databinding(schema: Any) -> bool:
     """Checks whether a property JSON schema permits a dynamic ``DataBinding``."""
     if not isinstance(schema, dict):
         return False
+    if not any(k in schema for k in _SCHEMA_TYPE_CONSTRAINT_KEYS):
+        return True
     ref = schema.get("$ref")
     if isinstance(ref, str) and ("DataBinding" in ref or "Dynamic" in ref):
         return True
@@ -194,6 +211,37 @@ def schema_is_dynamic_value(schema: Any) -> bool:
         if isinstance(subs, list) and any(schema_is_dynamic_value(s) for s in subs):
             return True
     return False
+
+
+def schema_is_unconstrained(
+    schema: Any, helper: CatalogSchemaHelper | None = None
+) -> bool:
+    """Returns True when ``schema`` imposes no JSON type constraints (e.g. ``{}``)."""
+    if not isinstance(schema, dict):
+        return False
+    ref = schema.get("$ref")
+    if isinstance(ref, str) and helper is not None:
+        if ref.endswith("DynamicValue"):
+            return True
+        if "common_types.json#/$defs/" in ref:
+            def_name = ref.split("common_types.json#/$defs/", 1)[-1]
+            resolved = helper.common_types.get(def_name)
+            if isinstance(resolved, dict):
+                return schema_is_unconstrained(resolved, helper)
+        elif ref.startswith("#/$defs/"):
+            defs = helper.catalog.get("$defs")
+            if isinstance(defs, dict):
+                resolved = defs.get(ref[8:])
+                if isinstance(resolved, dict):
+                    return schema_is_unconstrained(resolved, helper)
+    for comb in ("allOf", "oneOf", "anyOf"):
+        subs = schema.get(comb)
+        if isinstance(subs, list) and subs:
+            if comb == "allOf":
+                return all(schema_is_unconstrained(s, helper) for s in subs)
+            if any(schema_is_unconstrained(s, helper) for s in subs):
+                return True
+    return not any(k in schema for k in _SCHEMA_TYPE_CONSTRAINT_KEYS)
 
 
 def parse_number_string(text: str, *, integer_only: bool = False) -> int | float:
@@ -513,8 +561,10 @@ def _try_unwrap_tuned_jsx_braces(
     stripped: str,
     raw: str,
     prop_schema: dict[str, Any] | None,
+    helper: CatalogSchemaHelper | None,
     known_functions: set[str] | None,
     *,
+    is_action: bool = False,
     strict: bool,
 ) -> tuple[bool, Any, str] | None:
     """Unwraps JSX ``{...}`` attribute wrappers in tuned mode.
@@ -536,6 +586,12 @@ def _try_unwrap_tuned_jsx_braces(
                 f" braces ({raw!r})."
             )
 
+    accepts_str = not is_action and (
+        prop_schema is None
+        or schema_is_unconstrained(prop_schema, helper)
+        or schema_accepts_type(prop_schema, "string")
+    )
+
     # 1. Quoted string inside JSX braces: `text={"Quarterly Report"}` or `{'h2'}`
     if len(inner) >= 2 and inner[0] in ('"', "'") and inner[-1] == inner[0]:
         try:
@@ -546,6 +602,9 @@ def _try_unwrap_tuned_jsx_braces(
                 return True, parsed_str, parsed_str
         except A2uiXmlParseError:
             pass
+
+    if accepts_str:
+        return None
 
     # 2. JSON array inside JSX braces: `items={["a", "b"]}`
     if inner.startswith("[") and inner.endswith("]"):
@@ -615,22 +674,27 @@ def parse_attribute_value(
     used_lenient = False
     candidate = raw
 
-    # Escaped leading dollar `\$...` produces a literal `$...` string;
-    # `\\$...` produces a literal `\$...` string.
-    if candidate.startswith(r"\\$"):
+    # Leading backslashes before `$` escape one backslash layer (`\$...` -> `$...`,
+    # `\\$...` -> `\$...`, `\\\$...` -> `\\$...`).
+    if re.match(r"^\\+\$", candidate):
         return candidate[1:], False
-    if candidate.startswith(r"\$"):
-        literal_dollar = "$" + candidate[2:]
-        return literal_dollar, False
 
     stripped = candidate.strip()
+    has_outer_ws = candidate != stripped
+    str_capable = not is_action and (
+        prop_schema is None
+        or schema_is_unconstrained(prop_schema, helper)
+        or schema_accepts_type(prop_schema, "string")
+    )
 
     if tuned:
         jsx_res = _try_unwrap_tuned_jsx_braces(
             stripped,
             raw,
             prop_schema,
+            helper,
             known_functions,
+            is_action=is_action,
             strict=strict,
         )
         if jsx_res is not None:
@@ -644,28 +708,20 @@ def parse_attribute_value(
                 ):
                     candidate = unwrapped
                     stripped = unwrapped.strip()
+                    has_outer_ws = candidate != stripped
                 else:
                     return direct_val, True
             else:
                 candidate = unwrapped
                 stripped = unwrapped.strip()
+                has_outer_ws = candidate != stripped
     else:
-        # Lenient recovery for JSX/Elemental `{...}` braces inside attributes
+        # Lenient recovery for JSX/Elemental `{...}` braces on non-string slots
         if (
-            len(stripped) >= 2
+            not str_capable
+            and len(stripped) >= 2
             and stripped.startswith("{")
             and stripped.endswith("}")
-            and not (
-                prop_schema is not None
-                and schema_accepts_type(prop_schema, "string")
-                and not stripped[1:-1].lstrip().startswith(("$", "?", "Event("))
-                and not (
-                    known_functions
-                    and _LENIENT_BARE_CALL_RE.match(stripped[1:-1].strip())
-                    and _LENIENT_BARE_CALL_RE.match(stripped[1:-1].strip()).group(1)  # type: ignore[union-attr]
-                    in known_functions
-                )
-            )
         ):
             inner = stripped[1:-1].strip()
             if inner.startswith(("$", "?", "Event(")) or (
@@ -679,14 +735,20 @@ def parse_attribute_value(
                         f" braces ({raw!r})."
                     )
                 used_lenient = True
+                candidate = inner
                 stripped = inner
+                has_outer_ws = False
 
-    # 1. Explicit `$fn(...)` or `Event(...)` call expression
-    if _CALL_START_RE.match(stripped):
+    # 1. Explicit `$fn(...)` or `Event(...)` call expression (without outer whitespace on string slots)
+    if not (has_outer_ws and str_capable) and _CALL_START_RE.match(stripped):
         return parse_expression(stripped), used_lenient
 
     # 2. Lenient bare `fnName(...)` when slot is action or function is known
-    bare_match = _LENIENT_BARE_CALL_RE.match(stripped)
+    bare_match = (
+        None
+        if (has_outer_ws and str_capable)
+        else _LENIENT_BARE_CALL_RE.match(stripped)
+    )
     if bare_match:
         fn_name = bare_match.group(1)
         fn_args_raw = bare_match.group(2).strip()
@@ -728,7 +790,11 @@ def parse_attribute_value(
         return path_expr, used_lenient
 
     # 5. Schema-driven primitive coercion
-    if prop_schema is not None and not schema_is_dynamic_value(prop_schema):
+    if (
+        prop_schema is not None
+        and not schema_is_dynamic_value(prop_schema)
+        and not schema_is_unconstrained(prop_schema, helper)
+    ):
         accepts_str = schema_accepts_type(prop_schema, "string")
         accepts_bool = schema_accepts_type(prop_schema, "boolean")
         accepts_num = (
@@ -761,6 +827,8 @@ def parse_attribute_value(
             )
 
         if accepts_arr and not accepts_str:
+            if stripped == "[]":
+                return [], used_lenient
             if strict:
                 raise A2uiXmlParseError(
                     "Law 4/5 violation: array properties must use a fenced ```json"

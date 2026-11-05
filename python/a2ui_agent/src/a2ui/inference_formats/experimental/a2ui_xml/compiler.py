@@ -228,6 +228,10 @@ def _set_nested_data_path(
                     f" {pointer!r}."
                 )
         else:
+            if not _ARRAY_INDEX_RE.match(seg):
+                raise A2uiXmlValidationError(
+                    f"Non-numeric array segment {seg!r} in path {pointer!r}."
+                )
             arr_i = int(seg)
             if arr_i > _MAX_ARRAY_INDEX:
                 raise A2uiXmlValidationError(f"Array index {arr_i} exceeds limit.")
@@ -497,6 +501,53 @@ class A2uiXmlCompiler:
             return name in pool
         return bool(catalogs_defining(self.helpers, kind, name))
 
+    @staticmethod
+    def _has_declared_property(
+        properties: list[str], raw_prop: str, *, strict: bool = False
+    ) -> bool:
+        if not raw_prop:
+            return False
+        if raw_prop in properties:
+            return True
+        if not strict:
+            norm = _normalize_identifier_key(raw_prop)
+            return any(_normalize_identifier_key(p) == norm for p in properties)
+        return False
+
+    def _element_declares_property(
+        self, elem: ElementNode, raw_prop: str, *, strict: bool = False
+    ) -> bool:
+        if not raw_prop:
+            return False
+        cat_id = elem.attrs.get("catalogId")
+        helpers_iter = (
+            [self.helpers[cat_id]]
+            if cat_id and cat_id in self.helpers
+            else list(self.helpers.values())
+        )
+        for helper in helpers_iter:
+            if elem.tag in helper.components:
+                props = helper.get_component_properties(elem.tag)
+                if self._has_declared_property(props, raw_prop, strict=strict):
+                    return True
+            elif not strict:
+                tag_norm = _normalize_identifier_key(elem.tag)
+                for cand in helper.components:
+                    if _normalize_identifier_key(cand) == tag_norm:
+                        props = helper.get_component_properties(cand)
+                        if self._has_declared_property(props, raw_prop, strict=strict):
+                            return True
+        return False
+
+    def _extract_parent_slot(
+        self, child: A2uiXmlNode, *, strict: bool = False
+    ) -> str | None:
+        if not isinstance(child, ElementNode):
+            return None
+        if self._element_declares_property(child, "slot", strict=strict):
+            return child.attrs.get("parentSlot")
+        return child.attrs.get("slot")
+
     def _resolve_catalog_entry(
         self,
         kind: Literal["component", "function"],
@@ -508,6 +559,11 @@ class A2uiXmlCompiler:
     ) -> tuple[str, CatalogSchemaHelper, str | None]:
         """Resolves ``(canonical_name, helper, write_catalog_id)`` across active catalogs."""
         if explicit_catalog_id is not None:
+            if not ctx.at_least_v10:
+                raise A2uiXmlValidationError(
+                    "A2UI v0.9 only allows catalogId on the surface. Per-component"
+                    " and per-function catalogId requires A2UI v1.0+."
+                )
             helper = self.helpers.get(explicit_catalog_id)
             if helper is None:
                 raise A2uiXmlValidationError(
@@ -516,8 +572,7 @@ class A2uiXmlCompiler:
                 )
             pool = helper.components if kind == "component" else helper.functions
             if raw_name in pool:
-                write_cat = explicit_catalog_id if len(self._catalogs) > 1 else None
-                return raw_name, helper, write_cat
+                return raw_name, helper, explicit_catalog_id
             if not ctx.strict:
                 target_norm = _normalize_identifier_key(raw_name)
                 matches = [
@@ -535,8 +590,7 @@ class A2uiXmlCompiler:
                             line=line,
                         )
                     )
-                    write_cat = explicit_catalog_id if len(self._catalogs) > 1 else None
-                    return matches[0], helper, write_cat
+                    return matches[0], helper, explicit_catalog_id
             raise A2uiXmlValidationError(
                 f"Catalog {explicit_catalog_id!r} does not define {kind} {raw_name!r}."
             )
@@ -1023,9 +1077,28 @@ class A2uiXmlCompiler:
             send_dm = self._parse_bool_flag(
                 node.attrs.get("sendDataModel"), "sendDataModel", node.line, ctx
             )
+        if "catalogId" in node.attrs:
+            surf_cat = node.attrs["catalogId"]
+            if len(self._catalogs) > 1:
+                raise A2uiXmlValidationError(
+                    "Surface cannot specify catalogId when multiple catalogs are"
+                    " active; specify catalogId per component or function instead."
+                )
+            if surf_cat not in self.helpers:
+                raise A2uiXmlValidationError(
+                    f"Unknown catalogId {surf_cat!r} on <Surface> (line"
+                    f" {node.line}). Active catalogs: {list(self.helpers)}"
+                )
         extra_data_entries: list[_DataEntry] = []
         for k, raw_val in node.attrs.items():
-            if k in ("id", "surface", "surfaceId", "update", "sendDataModel"):
+            if k in (
+                "id",
+                "surface",
+                "surfaceId",
+                "update",
+                "sendDataModel",
+                "catalogId",
+            ):
                 continue
             if (
                 ctx.tuned
@@ -1938,7 +2011,11 @@ class A2uiXmlCompiler:
         )
 
         for attr_key, attr_raw in elem.attrs.items():
-            if attr_key in ("id", "slot", "catalogId"):
+            if attr_key in ("id", "catalogId"):
+                continue
+            if attr_key == "slot" and "slot" not in properties:
+                continue
+            if attr_key == "parentSlot" and "parentSlot" not in properties:
                 continue
             if attr_key == "template" and "template" not in properties:
                 continue
@@ -1955,7 +2032,9 @@ class A2uiXmlCompiler:
                 ctx.tuned
                 and not ctx.strict
                 and _normalize_identifier_key(attr_key) == "datamodel"
-                and "dataModel" not in properties
+                and not self._has_declared_property(
+                    properties, attr_key, strict=ctx.strict
+                )
             ):
                 parsed_dm = self._parse_inline_datamodel_attr(
                     attr_raw, line=elem.line, ctx=ctx
@@ -2089,19 +2168,19 @@ class A2uiXmlCompiler:
                     sibling_value_binding = compiled_val
 
         if ctx.tuned and sibling_value_binding is None and bound_path_props:
-            if len(bound_path_props) == 1:
-                sibling_value_binding = next(iter(bound_path_props.values()))
-            else:
-                for bp_name, bp_val in bound_path_props.items():
-                    if bp_name.lower() not in (
-                        "label",
-                        "placeholder",
-                        "title",
-                        "arialabel",
-                        "supportingtext",
-                    ):
-                        sibling_value_binding = bp_val
-                        break
+            for bp_name, bp_val in bound_path_props.items():
+                if _normalize_identifier_key(bp_name) not in (
+                    "label",
+                    "placeholder",
+                    "title",
+                    "arialabel",
+                    "supportingtext",
+                    "helpertext",
+                    "caption",
+                    "text",
+                ):
+                    sibling_value_binding = bp_val
+                    break
 
         # 2. Process nested children of `<Comp>`
         prose_chunks: list[ProseNode] = []
@@ -2163,7 +2242,9 @@ class A2uiXmlCompiler:
                     ctx.tuned
                     and not ctx.strict
                     and self._is_reserved_directive(child) == "DataModel"
-                    and "dataModel" not in properties
+                    and not self._has_declared_property(
+                        properties, "dataModel", strict=ctx.strict
+                    )
                 ):
                     ctx.lifted_data_entries.append(
                         self._parse_data_model_element(child, ctx)
@@ -2337,9 +2418,7 @@ class A2uiXmlCompiler:
                             continue
 
             # Regular nested UI component or prose/divider node
-            explicit_slot = (
-                child.attrs.get("slot") if isinstance(child, ElementNode) else None
-            )
+            explicit_slot = self._extract_parent_slot(child, strict=ctx.strict)
             target_slot = explicit_slot or default_child_prop
             if target_slot is None:
                 if single_child_props:
@@ -2653,7 +2732,7 @@ class A2uiXmlCompiler:
             and not ctx.strict
             and fence.lang.lower() == "json"
             and info.lower() in ("datamodel", "data", "data_model")
-            and "dataModel" not in properties
+            and not self._has_declared_property(properties, info, strict=ctx.strict)
         ):
             ctx.lifted_data_entries.append(self._parse_data_model_fence(fence))
             ctx.violations.append(
@@ -3201,11 +3280,8 @@ class A2uiXmlCompiler:
                             descendants.extend(uw_comps)
                     continue
 
-            sub_slot = (
-                child.attrs.get("slot")
-                if isinstance(child, ElementNode) and child.attrs.get("slot")
-                else default_sub_slot
-            )
+            explicit_sub_slot = self._extract_parent_slot(child, strict=ctx.strict)
+            sub_slot = explicit_sub_slot or default_sub_slot
             if sub_slot is None:
                 raise A2uiXmlValidationError(
                     f"Nested element inside <Item> on line {elem.line} has no target"
@@ -4341,15 +4417,29 @@ class A2uiXmlCompiler:
     def _compile_event_expr(
         self, expr: CallExpr, ctx: _CompileContext, *, line: int | None = None
     ) -> dict[str, Any]:
+        if not expr.args and "name" not in expr.kwargs:
+            raise A2uiXmlValidationError("Event(...) requires an event name argument.")
         if len(expr.args) > 2:
             raise A2uiXmlValidationError(
                 "Event(...) accepts at most 2 positional arguments (name, context),"
                 f" got {len(expr.args)}."
             )
+        if expr.args and "name" in expr.kwargs:
+            raise A2uiXmlValidationError("Duplicate 'name' argument in Event(...).")
+
+        allowed_kwargs = {"name", "context", "userMessage"}
+        for k in expr.kwargs:
+            if k not in allowed_kwargs:
+                allowed_desc = "context, userMessage" if ctx.at_least_v10 else "context"
+                raise A2uiXmlValidationError(
+                    f"Unknown keyword argument {k!r} in Event(...). Allowed:"
+                    f" {allowed_desc}."
+                )
+
         event_name = (
             self._compile_expr_value(expr.args[0], ctx, line=line)
             if expr.args
-            else self._compile_expr_value(expr.kwargs.get("name", ""), ctx, line=line)
+            else self._compile_expr_value(expr.kwargs["name"], ctx, line=line)
         )
         event_dict: dict[str, Any] = {"name": event_name}
 
@@ -4394,12 +4484,6 @@ class A2uiXmlCompiler:
             if not isinstance(kw_ctx, dict):
                 raise A2uiXmlValidationError("Event context=... must be a map.")
             context_obj.update(kw_ctx)
-
-        for k, v in expr.kwargs.items():
-            if k in ("name", "context", "userMessage"):
-                continue
-            has_ctx = True
-            context_obj[k] = self._compile_expr_value(v, ctx, line=line)
 
         if has_ctx:
             event_dict["context"] = context_obj

@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Collection, Iterable, Mapping
 import re
 from typing import Any, Generic, Literal, TYPE_CHECKING, TypeVar, cast
 
@@ -38,7 +38,7 @@ from a2ui.parser import (
 )
 from a2ui.utils import RendererState
 
-from .compiler import A2uiXmlCompiler, _CompileContext, _normalize_identifier_key
+from .compiler import A2uiXmlCompiler, _CompileContext
 from .scanner import (
     ElementNode,
     FenceNode,
@@ -55,6 +55,8 @@ if TYPE_CHECKING:
     from .parser import A2uiXmlParser
 
 PartT = TypeVar("PartT", bound=StreamPart, covariant=True)
+
+DEFAULT_A2UI_XML_PROGRESSIVE_KEYS: frozenset[str] = frozenset({"text"})
 
 _OUTER_TRAILING_FENCE_RE = re.compile(
     r"(?:\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n[ \t]*)?|(?:^|(?<=\s))`{1,2})\Z"
@@ -100,6 +102,7 @@ class A2uiXmlResponseStream(ResponseStream[PartT], Generic[PartT]):
         *,
         wrapped: bool = True,
         state: RendererState | None = None,
+        progressive_keys: Collection[str] | None = None,
         after_rejected_block: Literal["end", "continue"] = "end",
     ) -> None:
         self._parser = parser
@@ -107,6 +110,11 @@ class A2uiXmlResponseStream(ResponseStream[PartT], Generic[PartT]):
         self._wrapped = wrapped
         self._state = state if state is not None else RendererState(parser.catalogs)
         self._continues = after_rejected_block == "continue"
+        self._progressive_keys: frozenset[str] = (
+            frozenset(progressive_keys)
+            if progressive_keys is not None
+            else parser.progressive_keys
+        )
         self._closed = False
         self._text = TextRun()
         self._held = ""
@@ -141,6 +149,10 @@ class A2uiXmlResponseStream(ResponseStream[PartT], Generic[PartT]):
     @property
     def state(self) -> RendererState:
         return self._state
+
+    @property
+    def progressive_keys(self) -> frozenset[str]:
+        return self._progressive_keys
 
     @property
     def is_in_block(self) -> bool:
@@ -482,6 +494,9 @@ class A2uiXmlResponseStream(ResponseStream[PartT], Generic[PartT]):
                         ctx.tuned
                         and not ctx.strict
                         and self._compiler._is_reserved_directive(child) == "DataModel"  # pylint: disable=protected-access
+                        and not self._compiler._element_declares_property(  # pylint: disable=protected-access
+                            elem, "dataModel", strict=ctx.strict
+                        )
                     ):
                         if _is_subtree_closed(child):
                             entry = self._compiler._parse_data_model_element(child, ctx)  # pylint: disable=protected-access
@@ -563,10 +578,17 @@ class A2uiXmlResponseStream(ResponseStream[PartT], Generic[PartT]):
                     walk_and_collect_closed(child, is_top=False)
                 elif isinstance(child, FenceNode) and ctx.tuned and not ctx.strict:
                     info_norm = child.info.strip().lower()
-                    if child.lang.lower() == "json" and info_norm in (
-                        "datamodel",
-                        "data",
-                        "data_model",
+                    if (
+                        child.lang.lower() == "json"
+                        and info_norm
+                        in (
+                            "datamodel",
+                            "data",
+                            "data_model",
+                        )
+                        and not self._compiler._element_declares_property(  # pylint: disable=protected-access
+                            elem, child.info.strip(), strict=ctx.strict
+                        )
                     ):
                         if child.closed:
                             entry = self._compiler._parse_data_model_fence(child)  # pylint: disable=protected-access

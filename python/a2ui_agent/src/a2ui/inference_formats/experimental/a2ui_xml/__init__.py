@@ -28,7 +28,7 @@ from .errors import (
 from .format import A2uiXmlFormat, A2uiXmlFormatFactory
 from .parser import A2uiXmlParser
 from .prompt_generator import A2uiXmlPromptGenerator
-from .response_stream import A2uiXmlResponseStream
+from .response_stream import A2uiXmlResponseStream, DEFAULT_A2UI_XML_PROGRESSIVE_KEYS
 
 __all__ = [
     "A2uiXmlCompileDiagnostics",
@@ -43,4 +43,5 @@ __all__ = [
     "A2uiXmlResponseStream",
     "A2uiXmlStrictViolation",
     "A2uiXmlValidationError",
+    "DEFAULT_A2UI_XML_PROGRESSIVE_KEYS",
 ]

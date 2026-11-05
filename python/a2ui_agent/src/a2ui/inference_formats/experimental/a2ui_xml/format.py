@@ -16,15 +16,20 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 
 from a2ui.core import CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_format import InferenceFormat, InferenceFormatFactory
+from a2ui.inference_formats._shared import (
+    catalogs_protocol_version,
+    check_mixed_catalogs,
+)
 from a2ui.utils._experimental import experimental
 
 from .parser import A2uiXmlParser
 from .prompt_generator import A2uiXmlPromptGenerator
+from .response_stream import DEFAULT_A2UI_XML_PROGRESSIVE_KEYS
 
 
 @experimental
@@ -39,10 +44,11 @@ class A2uiXmlFormat(InferenceFormat):
         *,
         surface_id: str = "main",
         version: str | None = None,
+        progressive_keys: Collection[str] | None = None,
         strict: bool = False,
         tuned: bool = True,
     ):
-        self._catalogs = list(catalogs)
+        self._catalogs = check_mixed_catalogs(catalogs)
         self._examples = (
             [list(turn) for turn in examples] if examples is not None else None
         )
@@ -51,6 +57,11 @@ class A2uiXmlFormat(InferenceFormat):
         )
         self.surface_id = surface_id
         self._version = version
+        self._progressive_keys: frozenset[str] = (
+            frozenset(progressive_keys)
+            if progressive_keys is not None
+            else DEFAULT_A2UI_XML_PROGRESSIVE_KEYS
+        )
         self._strict = strict
         self._tuned = tuned
         self._prompt_generator = A2uiXmlPromptGenerator(
@@ -61,6 +72,11 @@ class A2uiXmlFormat(InferenceFormat):
             version=version,
             tuned=tuned,
         )
+
+    @property
+    def version(self) -> str:
+        """The target protocol version: the override, else the catalogs' version."""
+        return self._version or catalogs_protocol_version(self._catalogs)
 
     @property
     def catalogs(self) -> list[CatalogApi]:
@@ -78,6 +94,11 @@ class A2uiXmlFormat(InferenceFormat):
         return (
             list(self._allowed_messages) if self._allowed_messages is not None else None
         )
+
+    @property
+    def progressive_keys(self) -> frozenset[str]:
+        """Property keys configured for progressive streaming."""
+        return self._progressive_keys
 
     @property
     def strict(self) -> bool:
@@ -103,6 +124,7 @@ class A2uiXmlFormat(InferenceFormat):
             self._catalogs,
             surface_id=self.surface_id,
             version=self._version,
+            progressive_keys=self._progressive_keys,
             strict=self._strict,
             tuned=self._tuned,
         )
@@ -117,6 +139,7 @@ class A2uiXmlFormatFactory(InferenceFormatFactory):
         surface_id: str = "main",
         *,
         version: str | None = None,
+        progressive_keys: Collection[str] | None = None,
         strict: bool = False,
         tuned: bool = True,
     ):
@@ -125,8 +148,18 @@ class A2uiXmlFormatFactory(InferenceFormatFactory):
         )
         self._surface_id = surface_id
         self._version = version
+        self._progressive_keys: frozenset[str] = (
+            frozenset(progressive_keys)
+            if progressive_keys is not None
+            else DEFAULT_A2UI_XML_PROGRESSIVE_KEYS
+        )
         self._strict = strict
         self._tuned = tuned
+
+    @property
+    def progressive_keys(self) -> frozenset[str]:
+        """Property keys configured for progressive streaming."""
+        return self._progressive_keys
 
     @property
     def tuned(self) -> bool:
@@ -144,6 +177,7 @@ class A2uiXmlFormatFactory(InferenceFormatFactory):
             allowed_messages=self._allowed_messages,
             surface_id=self._surface_id,
             version=self._version,
+            progressive_keys=self._progressive_keys,
             strict=self._strict,
             tuned=self._tuned,
         )

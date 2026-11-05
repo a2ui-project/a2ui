@@ -17,20 +17,49 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from a2ui.core import A2uiError, A2uiParseError, A2uiValidationError
+from a2ui.core import A2uiErrorDetail
 from a2ui.core.schema import AgentToRendererMessage
+from a2ui.parser import (
+    A2uiCompilationError,
+    A2uiCompilationParseError,
+    A2uiCompilationValidationError,
+)
+
+if TYPE_CHECKING:
+    from a2ui.parser import ResponsePart
 
 
-class A2uiXmlError(A2uiError):
+class A2uiXmlError(A2uiCompilationError):
     """Base class for all A2UI A2UI XML compilation and decompilation errors."""
 
+    def __init__(
+        self,
+        message: str,
+        raw_content: str = "",
+        line: int | None = None,
+        column: int | None = None,
+        help_message: str | None = None,
+        partial_results: list[ResponsePart] | None = None,
+        details: list[A2uiErrorDetail] | None = None,
+    ):
+        super().__init__(
+            message,
+            raw_content=raw_content,
+            line=line,
+            column=column,
+            help_message=help_message,
+            partial_results=partial_results,
+            details=details,
+        )
 
-class A2uiXmlParseError(A2uiXmlError, A2uiParseError):
+
+class A2uiXmlParseError(A2uiXmlError, A2uiCompilationParseError):
     """Raised when A2UI XML markup or inline expressions have invalid syntax."""
 
 
-class A2uiXmlValidationError(A2uiXmlError, A2uiValidationError):
+class A2uiXmlValidationError(A2uiXmlError, A2uiCompilationValidationError):
     """Raised when A2UI XML constructs violate catalog schemas or protocol rules."""
 
 

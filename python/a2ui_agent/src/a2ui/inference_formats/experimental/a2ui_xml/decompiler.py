@@ -19,6 +19,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 import json
 import math
+import re
 from typing import Any, Literal
 
 from a2ui.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
@@ -44,12 +45,15 @@ from a2ui.inference_formats._shared import (
 from .compiler import _get_effective_prop_kind, _schema_ref_kind
 from .errors import A2uiXmlValidationError
 from .expressions import (
+    _LENIENT_BARE_CALL_RE,
     CallExpr,
     PathExpr,
     format_data_path,
     format_expr_arg,
     format_xml_attr,
     parse_data_path,
+    schema_is_dynamic_value,
+    schema_is_unconstrained,
 )
 
 
@@ -92,6 +96,9 @@ class A2uiXmlDecompiler:
         self.helpers: dict[str, CatalogSchemaHelper] = build_catalog_helpers(
             self._catalogs
         )
+        self._known_functions: set[str] = {
+            fn for h in self.helpers.values() for fn in h.functions
+        }
         self._sole_catalog_id = surface_catalog_id(self._catalogs)
         self._v1 = is_at_least_version(
             catalogs_protocol_version(self._catalogs), ProtocolVersion.V1_0
@@ -374,7 +381,10 @@ class A2uiXmlDecompiler:
             for k, v in args.items():
                 arg_schema = fn_helper.get_function_property_schema(fn_name, k)
                 attr_str = self._try_format_inline_attr(
-                    v, arg_schema, surface_cat_id=self._sole_catalog_id
+                    v,
+                    arg_schema,
+                    helper=fn_helper,
+                    surface_cat_id=self._sole_catalog_id,
                 )
                 if attr_str is not None:
                     attrs.append(f"{k}={format_xml_attr(attr_str)}")
@@ -557,7 +567,8 @@ class A2uiXmlDecompiler:
         if force_id or preserve_ids or ref_counts.get(cid, 0) > 1:
             attrs.append(f"id={format_xml_attr(cid)}")
         if slot_override is not None:
-            attrs.append(f"slot={format_xml_attr(slot_override)}")
+            slot_attr_name = "parentSlot" if "slot" in properties else "slot"
+            attrs.append(f"{slot_attr_name}={format_xml_attr(slot_override)}")
         if write_cat is not None:
             attrs.append(f"catalogId={format_xml_attr(write_cat)}")
 
@@ -658,6 +669,9 @@ class A2uiXmlDecompiler:
                     continue
 
                 if isinstance(val, list):
+                    if not val:
+                        attrs.append(f'{prop}={format_xml_attr("[]")}')
+                        continue
                     for child_id in val:
                         if not isinstance(child_id, str):
                             continue
@@ -720,6 +734,9 @@ class A2uiXmlDecompiler:
                     for sub_s in item_schema["properties"].values()
                 )
             ):
+                if not val:
+                    attrs.append(f'{prop}={format_xml_attr("[]")}')
+                    continue
                 obj_array_count = sum(
                     1
                     for p in properties
@@ -756,7 +773,7 @@ class A2uiXmlDecompiler:
 
             # 5. Inline scalar / DataBinding / FunctionCall attribute vs Law 4 JSON fence
             inline_str = self._try_format_inline_attr(
-                val, prop_schema, surface_cat_id=surface_cat_id
+                val, prop_schema, helper=helper, surface_cat_id=surface_cat_id
             )
             if inline_str is not None:
                 attrs.append(f"{prop}={format_xml_attr(inline_str)}")
@@ -882,7 +899,7 @@ class A2uiXmlDecompiler:
                     continue
 
                 inline_v = self._try_format_inline_attr(
-                    v, sub_schema, surface_cat_id=surface_cat_id
+                    v, sub_schema, helper=helper, surface_cat_id=surface_cat_id
                 )
                 if inline_v is not None:
                     i_attrs.append(f"{k}={format_xml_attr(inline_v)}")
@@ -903,13 +920,19 @@ class A2uiXmlDecompiler:
         val: Any,
         prop_schema: dict[str, Any] | None,
         *,
+        helper: CatalogSchemaHelper | None = None,
         surface_cat_id: str | None,
     ) -> str | None:
         """Formats scalar, ``$path``, or ``$fn(...)`` as an attribute string, or ``None`` for JSON fence."""
         if isinstance(val, dict):
             bound = self._is_data_binding_dict(val)
             if bound is not None:
-                return format_data_path(bound)
+                formatted_path = format_data_path(bound)
+                return (
+                    formatted_path
+                    if parse_data_path(formatted_path) is not None
+                    else None
+                )
             if self._is_function_call_dict(val):
                 call_expr = self._dict_to_call_expr(val, surface_cat_id=surface_cat_id)
                 return format_expr_arg(call_expr) if call_expr is not None else None
@@ -918,25 +941,50 @@ class A2uiXmlDecompiler:
         if isinstance(val, list):
             return None
 
+        is_untyped_slot = prop_schema is not None and (
+            schema_is_dynamic_value(prop_schema)
+            or schema_is_unconstrained(prop_schema, helper)
+        )
+
         if isinstance(val, bool):
+            if is_untyped_slot:
+                return None
             return "true" if val else "false"
 
         if isinstance(val, int):
+            if is_untyped_slot:
+                return None
             return str(val)
 
         if isinstance(val, float):
             if not math.isfinite(val):
                 raise A2uiXmlValidationError(f"Non-finite float {val} in A2UI payload.")
+            if is_untyped_slot:
+                return None
             return repr(val)
 
         if isinstance(val, str):
-            # If literal string starts with `Event(...)`, emit via JSON fence so it isn't read as an Event call
-            if val.strip().startswith("Event(") and val.strip().endswith(")"):
+            stripped = val.strip()
+            # Emit via JSON fence if literal string resembles an Event/function call
+            # or tuned JSX quoted-string wrapper `{"..."}`.
+            if stripped.startswith("Event(") and stripped.endswith(")"):
                 return None
-            # Escape leading `$` if `parse_data_path` or `$fn(` would treat it as dynamic
-            if val.startswith("$") and (parse_data_path(val) is not None or "(" in val):
+            bare_call = _LENIENT_BARE_CALL_RE.match(stripped)
+            if bare_call and bare_call.group(1) in self._known_functions:
+                return None
+            if (
+                len(stripped) >= 4
+                and stripped.startswith("{")
+                and stripped.endswith("}")
+                and stripped[1:-1].strip()[:1] in ('"', "'")
+            ):
+                return None
+            # Escape leading `$` or `\...$` so round-trip recompilation preserves exact literal
+            if val.startswith("$") and (
+                parse_data_path(stripped) is not None or "(" in val
+            ):
                 return r"\$" + val[1:]
-            if val.startswith(r"\$"):
+            if re.match(r"^\\+\$", val):
                 return "\\" + val
             return val
 
@@ -1013,6 +1061,7 @@ class A2uiXmlDecompiler:
             and not has_msg
             and isinstance(name_val, str)
             and name_val
+            and name_val == name_val.strip()
             and not name_val.startswith(("$", "{", "Event("))
             and "(" not in name_val
         ):
@@ -1129,7 +1178,10 @@ class A2uiXmlDecompiler:
                         continue
                     arg_schema = fn_helper.get_function_property_schema(fn_name, k)
                     inline_arg = self._try_format_inline_attr(
-                        v, arg_schema, surface_cat_id=surface_cat_id
+                        v,
+                        arg_schema,
+                        helper=fn_helper,
+                        surface_cat_id=surface_cat_id,
                     )
                     if inline_arg is not None:
                         attrs.append(f"{k}={format_xml_attr(inline_arg)}")

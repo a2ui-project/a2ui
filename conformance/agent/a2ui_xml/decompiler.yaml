@@ -138,3 +138,77 @@
     - "42"
     - "<Text"
   expect_round_trip: true
+
+- name: test_decompile_xml_empty_column_children
+  description: A Column with an empty children list decompiles with children="[]" and round-trips identically.
+  action: decompile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children: []
+  expect_contains:
+    - "<Column"
+    - 'children="[]"'
+  expect_round_trip: true
+
+- name: test_decompile_xml_digit_starting_relative_data_path
+  description: A relative data binding starting with a digit decompiles to $0/title and round-trips identically.
+  action: decompile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@path": "0/title"
+  expect_contains:
+    - "<Text"
+    - "$0/title"
+  expect_round_trip: true
+
+- name: test_decompile_xml_escaped_and_whitespace_prefixed_literals
+  description: Literal strings with leading whitespace before $call, backslash-dollar prefixes, braces, and trailing backslashes round-trip identically.
+  action: decompile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              - "c1"
+              - "c2"
+              - "c3"
+              - "c4"
+          - id: "c1"
+            component: "Text"
+            text: " $formatString('a')"
+          - id: "c2"
+            component: "Text"
+            text: '\$foo'
+          - id: "c3"
+            component: "Text"
+            text: "{$/a}"
+          - id: "c4"
+            component: "Text"
+            text: 'C:\'
+  expect_round_trip: true

@@ -282,9 +282,16 @@ def parse_tag_attributes(
                 if ch == quote:
                     closed = True
                     break
-                if ch == "\\" and pos < n and attr_text[pos] == quote:
-                    val_chars.append(quote)
-                    pos += 1
+                if ch == "\\" and pos < n:
+                    nxt = attr_text[pos]
+                    if nxt == quote:
+                        val_chars.append(quote)
+                        pos += 1
+                    elif nxt == "\\":
+                        val_chars.append("\\\\")
+                        pos += 1
+                    else:
+                        val_chars.append(ch)
                 else:
                     val_chars.append(ch)
             if not closed:

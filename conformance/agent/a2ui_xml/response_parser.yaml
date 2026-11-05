@@ -59,6 +59,15 @@
   expect:
     - text: "I cannot find that flight, would you like to search other dates?"
 
+- name: test_unwrap_xml_prose_mentioning_close_tag_is_single_text_part
+  description: Conversational prose mentioning </a2ui> with no XML tags before it stays a single text part.
+  action: unwrap
+  args:
+    format: a2ui-xml
+  input: "In A2UI XML, blocks close with the </a2ui> sentinel tag."
+  expect:
+    - text: "In A2UI XML, blocks close with the </a2ui> sentinel tag."
+
 - name: test_unwrap_xml_empty_response_is_no_parts
   description: An empty response unwraps to no parts at all.
   action: unwrap

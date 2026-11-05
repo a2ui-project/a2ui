@@ -236,3 +236,275 @@
           - id: "root"
             component: "Text"
             text: "Updated message"
+
+- name: test_compile_xml_digit_starting_relative_data_paths
+  description: Relative data paths starting with an array index ($0 and $0/title) compile to DataBinding @path objects rather than literal strings.
+  action: compile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    <Column id="root">
+      <Text id="item_self" text="$0" />
+      <Text id="item_title" text="$0/title" />
+    </Column>
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              - "item_self"
+              - "item_title"
+          - id: "item_self"
+            component: "Text"
+            text:
+              "@path": "0"
+          - id: "item_title"
+            component: "Text"
+            text:
+              "@path": "0/title"
+
+- name: test_compile_xml_check_with_unconstrained_value_schema
+  description: A Check element targeting a function parameter with an unconstrained {} schema accepts string values without false numeric coercion.
+  action: compile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/forms_catalog_v1_0.json"
+  input: |-
+    <TextField id="root" label="Email" value="$/email">
+      <Check call="required" value="non_empty" message="Email is required" />
+    </TextField>
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/forms"
+        components:
+          - id: "root"
+            component: "TextField"
+            label: "Email"
+            value:
+              "@path": "/email"
+            checks:
+              - condition:
+                  "@call": "required"
+                  args:
+                    value: "non_empty"
+                message: "Email is required"
+
+- name: test_compile_xml_trailing_double_backslash_in_attribute
+  description: An escaped backslash immediately preceding a closing attribute quote does not escape the closing quote.
+  action: compile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '<Text id="root" text="C:\\" />'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: 'C:\\'
+
+- name: test_compile_xml_literal_strings_with_leading_whitespace_braces_and_escaped_dollar
+  description: Literal strings with leading whitespace before $call, brace-wrapped paths on string slots, and multi-backslash dollar prefixes are preserved as strings.
+  action: compile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    <Column id="root">
+      <Text id="ws_call" text=" $formatString('a')" />
+      <Text id="brace_path" text="{$/a}" />
+      <Text id="double_escaped_dollar" text="\\$foo" />
+    </Column>
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              - "ws_call"
+              - "brace_path"
+              - "double_escaped_dollar"
+          - id: "ws_call"
+            component: "Text"
+            text: " $formatString('a')"
+          - id: "brace_path"
+            component: "Text"
+            text: "{$/a}"
+          - id: "double_escaped_dollar"
+            component: "Text"
+            text: '\$foo'
+
+- name: test_compile_xml_empty_children_attribute
+  description: An explicit children="[]" attribute on a ChildList container compiles to an empty children list.
+  action: compile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '<Column id="root" children="[]" />'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children: []
+
+- name: test_compile_xml_v09_component_catalog_id_is_validation_error
+  description: Specifying catalogId on a component under protocol v0.9 fails with ValidationError because v0.9 only permits catalogId at the surface level.
+  action: compile
+  protocolVersion: "v0.9"
+  args:
+    format: a2ui-xml
+    catalog:
+      catalogId: "conformance/v09_inline"
+      protocolVersion: "v0.9"
+      components:
+        Text:
+          type: object
+          properties:
+            component:
+              const: "Text"
+            text:
+              type: string
+          required:
+            - component
+            - text
+  input: '<Text id="root" catalogId="conformance/v09_inline" text="Hello" />'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_xml_v10_single_catalog_preserves_explicit_catalog_id
+  description: Explicit catalogId attributes and function kwargs in v1.0 are preserved on the compiled wire output even when only one catalog is bound.
+  action: compile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    <Text id="root" catalogId="conformance/simplified" text="$formatString('Hi', catalogId='conformance/simplified')" />
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            catalogId: "conformance/simplified"
+            text:
+              "@call": "formatString"
+              catalogId: "conformance/simplified"
+              args:
+                value: "Hi"
+
+- name: test_compile_xml_surface_unknown_catalog_id_is_validation_error
+  description: A Surface element declaring an unknown catalogId fails with ValidationError.
+  action: compile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    <Surface id="s1" catalogId="unknown/catalog">
+      <Text id="root" text="Hi" />
+    </Surface>
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_xml_event_unknown_keyword_argument_is_validation_error
+  description: Passing an unsupported keyword argument to Event(...) in an action attribute fails with ValidationError.
+  action: compile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    <Button id="root" action="Event('submit', unknownKey=1)">
+      <Text id="lbl" text="Go" />
+    </Button>
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_xml_component_declaring_data_and_slot_properties
+  description: Components that declare data or slot in their own schema receive those properties directly rather than having them hijacked as surface dataModel or child-slot routing metadata.
+  action: compile
+  args:
+    format: a2ui-xml
+    catalog:
+      catalogId: "conformance/collision_props"
+      protocolVersion: "1.0"
+      components:
+        Shell:
+          type: object
+          properties:
+            component:
+              const: "Shell"
+            header:
+              $ref: "common_types.json#/$defs/Child"
+            body:
+              $ref: "common_types.json#/$defs/Child"
+          required:
+            - component
+        Badge:
+          type: object
+          properties:
+            component:
+              const: "Badge"
+            label:
+              type: string
+            slot:
+              type: string
+          required:
+            - component
+            - label
+        DataGrid:
+          type: object
+          properties:
+            component:
+              const: "DataGrid"
+            data:
+              type: array
+              items:
+                type: object
+          required:
+            - component
+            - data
+  input: |-
+    <Shell id="root">
+      <Badge id="b1" parentSlot="header" label="Status" slot="leading" />
+      <DataGrid id="g1" slot="body">
+        ```data
+        [{"id": 1}]
+        ```
+      </DataGrid>
+    </Shell>
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/collision_props"
+        components:
+          - id: "root"
+            component: "Shell"
+            header: "b1"
+            body: "g1"
+          - id: "b1"
+            component: "Badge"
+            label: "Status"
+            slot: "leading"
+          - id: "g1"
+            component: "DataGrid"
+            data:
+              - id: 1

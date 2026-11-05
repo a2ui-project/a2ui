@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 import re
 from typing import Literal, TYPE_CHECKING, overload
 
@@ -37,7 +37,10 @@ from a2ui.parser import (
 from .compiler import A2uiXmlCompiler
 from .decompiler import A2uiXmlDecompiler
 from .errors import A2uiXmlCompileDiagnostics, A2uiXmlParseError
-from .response_stream import A2uiXmlResponseStream
+from .response_stream import (
+    A2uiXmlResponseStream,
+    DEFAULT_A2UI_XML_PROGRESSIVE_KEYS,
+)
 from .scanner import (
     CLOSE_A2UI_RE,
     OPEN_A2UI_RE,
@@ -54,6 +57,7 @@ _OUTER_FENCE_AROUND_OPEN_RE = re.compile(
 _OUTER_FENCE_AFTER_CLOSE_RE = re.compile(
     r"^(?:[ \t]*\r?\n?[ \t]*```[a-zA-Z0-9_-]*|`{1,2})"
 )
+_XML_TAG_RE = re.compile(r"<[a-zA-Z_][a-zA-Z0-9_-]*(?:\s|/|>)")
 
 
 class A2uiXmlParser(Parser):
@@ -65,12 +69,18 @@ class A2uiXmlParser(Parser):
         surface_id: str = "main",
         version: str | None = None,
         *,
+        progressive_keys: Collection[str] | None = None,
         strict: bool = False,
         tuned: bool = False,
     ):
         self._catalogs = list(catalogs)
         self.surface_id = surface_id
         self.version = version
+        self._progressive_keys: frozenset[str] = (
+            frozenset(progressive_keys)
+            if progressive_keys is not None
+            else DEFAULT_A2UI_XML_PROGRESSIVE_KEYS
+        )
         self.strict = strict
         self._tuned = tuned
         self.compiler = A2uiXmlCompiler(self._catalogs, strict=strict, tuned=tuned)
@@ -81,6 +91,11 @@ class A2uiXmlParser(Parser):
     @property
     def catalogs(self) -> list[CatalogApi]:
         return list(self._catalogs)
+
+    @property
+    def progressive_keys(self) -> frozenset[str]:
+        """Property keys configured for progressive streaming."""
+        return self._progressive_keys
 
     @property
     def tuned(self) -> bool:
@@ -123,6 +138,7 @@ class A2uiXmlParser(Parser):
             wrapped=wrapped,
             state=state,
             after_rejected_block=after_rejected_block,
+            progressive_keys=self._progressive_keys,
         )
 
     def has_format_content(self, content: str, complete: bool = False) -> bool:
@@ -136,7 +152,10 @@ class A2uiXmlParser(Parser):
 
         # One-shot fallback when opening `<a2ui>` was omitted before `</a2ui>`
         close_match = CLOSE_A2UI_RE.search(content)
-        return close_match is not None
+        if close_match is not None:
+            raw_body = content[: close_match.start()].strip()
+            return bool(_XML_TAG_RE.search(raw_body))
+        return False
 
     def wrap(self, blocks: Sequence[RawResponsePart]) -> str:
         """Wraps text and raw A2UI XML parts into an ``<a2ui>...</a2ui>`` response."""
@@ -175,21 +194,22 @@ class A2uiXmlParser(Parser):
                     close_match = CLOSE_A2UI_RE.search(content, pos)
                     if close_match is not None:
                         raw_body = content[pos : close_match.start()].strip()
-                        parts.append(
-                            RawResponsePart(
-                                part=RawA2uiPart(a2ui_raw=raw_body), is_final=True
-                            )
-                        )
-                        after = _OUTER_FENCE_AFTER_CLOSE_RE.sub(
-                            "", content[close_match.end() :], count=1
-                        ).strip()
-                        if after:
+                        if _XML_TAG_RE.search(raw_body):
                             parts.append(
                                 RawResponsePart(
-                                    part=TextPart(text=after), is_final=True
+                                    part=RawA2uiPart(a2ui_raw=raw_body), is_final=True
                                 )
                             )
-                        return parts
+                            after = _OUTER_FENCE_AFTER_CLOSE_RE.sub(
+                                "", content[close_match.end() :], count=1
+                            ).strip()
+                            if after:
+                                parts.append(
+                                    RawResponsePart(
+                                        part=TextPart(text=after), is_final=True
+                                    )
+                                )
+                            return parts
 
                 tail = content[pos:].strip()
                 if tail:
