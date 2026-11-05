@@ -4,18 +4,18 @@ The staleness ping job asks the assignees of [stale items](definitions.blueprint
 
 The job runs daily. For each stale item without a [current ping](definitions.blueprint.md#staleness-pings), it does the following:
 
-1. Posts a comment on the issue or PR.
+1. Posts a [triage bot](definitions.blueprint.md#contributors) comment on the issue or PR.
 2. Sends a message to the team's Google Chat space.
 
 The job keeps no state between runs. It finds its earlier pings by the marker in its comments, and uses the comment's creation time as the time of the ping.
 
 ## The GitHub comment
 
-The comment mentions every assignee, says why the item is stale, and says what happens if nothing changes. It starts with a hidden marker that names the case:
+The job posts the comment from a team member's account, so that the comment is a triage bot comment. The comment mentions every assignee, says why the item is stale, and says what happens if nothing changes. It starts with the triage bot prefix and ends with a hidden marker that names the case:
 
 ```markdown
+**From triage bot:** `@{assignee}` this `P1` issue has had no human activity for 30 days. Please post an update, or change the priority or assignee if the plan has changed. If nothing changes in 7 days, the issue gets `status: needs-triage` and goes back to the weekly triage.
 <!-- a2ui-triage-ping: p1-inactive -->
-`@{assignee}` this `P1` issue has had no human activity for 30 days. Please post an update, or change the priority or assignee if the plan has changed. If nothing changes in 7 days, the issue gets `status: needs-triage` and goes back to the weekly triage.
 ```
 
 The marker and the first sentence for each case:
