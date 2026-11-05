@@ -88,6 +88,16 @@ header.header {
   font-weight: 600;
 }
 
+/* Prevent wide code blocks (e.g. JSONL streams) from expanding flex/grid columns */
+.main-pane,
+.content-panel,
+.sl-container,
+.sl-markdown-content,
+.sl-markdown-content .expressive-code {
+  min-width: 0;
+  max-width: 100%;
+}
+
 /* Polished Markdown typography & tables */
 .sl-markdown-content {
   font-size: 0.98rem;
@@ -99,7 +109,7 @@ header.header {
   letter-spacing: -0.03em;
 }
 
-.sl-markdown-content h2 {
+.sl-markdown-content h2:not(:where(.not-content, .not-content *)) {
   font-weight: 700;
   margin-top: 2.4rem;
   padding-bottom: 0.5rem;
@@ -107,7 +117,7 @@ header.header {
   letter-spacing: -0.02em;
 }
 
-.sl-markdown-content h3 {
+.sl-markdown-content h3:not(:where(.not-content, .not-content *)) {
   font-weight: 700;
   letter-spacing: -0.015em;
 }
@@ -194,6 +204,11 @@ header.header {
   overflow-wrap: break-word;
 }
 
+.sl-markdown-content td code {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
 /* Ensure comfortable left and right padding inside bordered tables across all doc pages */
 .sl-markdown-content :is(th:first-child, td:first-child):not(:where(.not-content *)) {
   padding-inline-start: 1.25rem !important;
@@ -213,6 +228,11 @@ header.header {
 
 :root[data-theme='light'] .sl-markdown-content tbody tr:hover {
   background-color: rgba(0, 0, 0, 0.02);
+}
+
+/* Keep property/identifier names on a single line in table first-child while allowing descriptions to wrap */
+.sl-markdown-content td:first-child code {
+  white-space: nowrap;
 }
 
 /* GitHub-flavored alert callouts rendered by remark-a2ui-includes */
@@ -259,6 +279,7 @@ header.header {
   color: #ef4444;
 }
 
+/* Theme-aware Mermaid diagram container */
 .mermaid-rendered {
   margin: 2rem 0;
   display: flex;

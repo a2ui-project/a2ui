@@ -15,17 +15,51 @@
  */
 
 // @ts-check
-import {defineConfig} from 'astro/config';
 import starlight from '@astrojs/starlight';
+import {defineConfig} from 'astro/config';
+
 import {remarkA2uiIncludes} from './src/plugins/remark-a2ui-includes.mjs';
 import {rehypeWrapTables} from './src/plugins/rehype-wrap-tables.mjs';
+
+function extractHastText(node) {
+  if (!node) return '';
+  if (node.type === 'text') return node.value || '';
+  return Array.isArray(node.children) ? node.children.map(extractHastText).join('') : '';
+}
+
+function rehypePreserveJsonHeadingIds() {
+  return tree => {
+    const walk = node => {
+      if (node?.type === 'element' && /^h[2-4]$/.test(node.tagName)) {
+        const text = extractHastText(node).trim();
+        if (/^[a-z0-9_.-]+\.json$/i.test(text)) {
+          node.properties = {...node.properties, id: text};
+        }
+      }
+      if (Array.isArray(node?.children)) node.children.forEach(walk);
+    };
+    walk(tree);
+  };
+}
 
 export default defineConfig({
   site: process.env.ASTRO_SITE || 'https://a2ui.org',
   base: process.env.ASTRO_BASE || undefined,
+  redirects: {
+    '/specification/v0.9-a2ui': '/specification/v0.9.1-a2ui/',
+    '/specification/v0.9-evolution-guide': '/specification/v0.9.1-evolution-guide/',
+    '/concepts/actions': '/concepts/actions-and-functions/',
+    '/concepts/components': '/concepts/catalogs/',
+    '/concepts/data-flow': '/concepts/data-binding/',
+    '/concepts/transports': '/concepts/messages/',
+    '/guides/a2ui_over_mcp': '/guides/a2ui-over-mcp/',
+    '/guides/defining-your-own-catalog': '/guides/defining-a-catalog/',
+    '/guides/client-setup': '/guides/client-integration/',
+    '/guides/agent-development': '/guides/agent-integration/',
+  },
   markdown: {
     remarkPlugins: [remarkA2uiIncludes],
-    rehypePlugins: [rehypeWrapTables],
+    rehypePlugins: [rehypeWrapTables, rehypePreserveJsonHeadingIds],
   },
   integrations: [
     starlight({
@@ -37,6 +71,7 @@ export default defineConfig({
         dark: './src/assets/A2UI_light.svg',
         replacesTitle: false,
       },
+      favicon: '/assets/favicon.svg',
       social: {
         github: 'https://github.com/a2ui-project/a2ui',
         discord: 'https://discord.gg/6fS2326966',
@@ -69,7 +104,7 @@ export default defineConfig({
           attrs: {
             type: 'module',
           },
-          content: `const renderMermaid = async () => { for (const pre of document.querySelectorAll('pre[data-language="mermaid"]')) { const lines = pre.querySelectorAll('.ec-line'); const code = (lines.length ? Array.from(lines, l => l.textContent).join('\n') : (pre.querySelector('code')?.textContent || pre.textContent)).trim(); const div = document.createElement('div'); div.className = 'mermaid-rendered not-content'; div.dataset.mermaidSource = code; (pre.closest('.expressive-code') || pre).replaceWith(div); } const blocks = document.querySelectorAll('.mermaid-rendered[data-mermaid-source]'); if (!blocks.length) return; const { default: mermaid } = await import('https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs'); const isDark = document.documentElement.getAttribute('data-theme') !== 'light'; mermaid.initialize({ startOnLoad: false, theme: isDark ? 'dark' : 'default', fontFamily: 'inherit' }); for (let i = 0; i < blocks.length; i++) { const div = blocks[i]; const code = div.dataset.mermaidSource; if (!code) continue; try { const id = 'mermaid-svg-' + i + '-' + Date.now().toString(36); const { svg } = await mermaid.render(id, code); div.innerHTML = svg; } catch (err) { console.error('Mermaid render error:', err); } } }; if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', renderMermaid); } else { renderMermaid(); } window.addEventListener('theme-changed', renderMermaid);`,
+          content: `const renderMermaid = async () => { for (const pre of document.querySelectorAll('pre[data-language="mermaid"]')) { const lines = pre.querySelectorAll('.ec-line'); const code = (lines.length ? Array.from(lines, l => l.textContent).join('\\n') : (pre.querySelector('code')?.textContent || pre.textContent)).trim(); const div = document.createElement('div'); div.className = 'mermaid-rendered not-content'; div.dataset.mermaidSource = code; (pre.closest('.expressive-code') || pre).replaceWith(div); } const blocks = document.querySelectorAll('.mermaid-rendered[data-mermaid-source]'); if (!blocks.length) return; const { default: mermaid } = await import('https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs'); const isDark = document.documentElement.getAttribute('data-theme') !== 'light'; mermaid.initialize({ startOnLoad: false, theme: isDark ? 'dark' : 'default', fontFamily: 'inherit' }); for (let i = 0; i < blocks.length; i++) { const div = blocks[i]; const code = div.dataset.mermaidSource; if (!code) continue; try { const id = 'mermaid-svg-' + i + '-' + Date.now().toString(36); const { svg } = await mermaid.render(id, code); div.innerHTML = svg; } catch (err) { console.error('Mermaid render error:', err); } } }; if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', renderMermaid); } else { renderMermaid(); } new MutationObserver(() => renderMermaid()).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });`,
         },
       ],
       components: {
@@ -153,20 +188,29 @@ export default defineConfig({
               slug: 'guides/defining-a-catalog',
             },
             {
-              label: 'MCP Catalog',
-              slug: 'guides/mcp-catalog',
-            },
-            {
-              label: 'A2UI over MCP',
-              slug: 'guides/a2ui-over-mcp',
-            },
-            {
-              label: 'MCP Apps in A2UI Surfaces',
-              slug: 'guides/mcp-apps-in-a2ui',
-            },
-            {
-              label: 'A2UI Dynamic Rendering within MCP Applications',
-              slug: 'guides/a2ui-in-mcp-apps',
+              label: 'Model Context Protocol (MCP)',
+              items: [
+                {
+                  label: 'Overview',
+                  slug: 'guides/mcp-overview',
+                },
+                {
+                  label: 'Call MCP Tools from A2UI',
+                  slug: 'guides/mcp-catalog',
+                },
+                {
+                  label: 'Serve A2UI Layouts from an MCP Server',
+                  slug: 'guides/a2ui-over-mcp',
+                },
+                {
+                  label: 'Embed MCP Apps in A2UI Surfaces',
+                  slug: 'guides/mcp-apps-in-a2ui',
+                },
+                {
+                  label: 'Render A2UI Inside an MCP App',
+                  slug: 'guides/a2ui-in-mcp-apps',
+                },
+              ],
             },
             {
               label: 'Authoring Universal Web Components',
@@ -196,9 +240,78 @@ export default defineConfig({
           label: 'Specifications',
           items: [
             {
-              label: 'v1.0 Protocol Spec (Pilot)',
-              slug: 'specification/v1.0-a2ui',
+              label: 'v1.0',
               badge: {text: 'Candidate', variant: 'tip'},
+              items: [
+                {
+                  label: 'Protocol Specification',
+                  slug: 'specification/v1.0-a2ui',
+                },
+                {
+                  label: 'JSON Schemas',
+                  slug: 'specification/v1.0/schemas',
+                },
+                {
+                  label: 'Basic Catalog Guide',
+                  slug: 'specification/v1.0-basic-catalog-implementation-guide',
+                },
+                {
+                  label: 'A2A Extension',
+                  slug: 'specification/v1.0-a2ui-extension-specification',
+                },
+                {
+                  label: 'Evolution Guide',
+                  slug: 'specification/v1.0-evolution-guide',
+                },
+              ],
+            },
+            {
+              label: 'v0.9.1',
+              badge: {text: 'Active', variant: 'success'},
+              items: [
+                {
+                  label: 'Protocol Specification',
+                  slug: 'specification/v0.9.1-a2ui',
+                },
+                {
+                  label: 'JSON Schemas',
+                  slug: 'specification/v0.9.1/schemas',
+                },
+                {
+                  label: 'Basic Catalog Guide',
+                  slug: 'specification/v0.9.1-basic-catalog-implementation-guide',
+                },
+                {
+                  label: 'A2A Extension',
+                  slug: 'specification/v0.9.1-a2ui-extension-specification',
+                },
+                {
+                  label: 'Evolution Guide',
+                  slug: 'specification/v0.9.1-evolution-guide',
+                },
+              ],
+            },
+            {
+              label: 'v0.8 (Legacy)',
+              collapsed: true,
+              items: [
+                {
+                  label: 'Protocol Specification',
+                  slug: 'specification/v0.8-a2ui',
+                },
+                {
+                  label: 'JSON Schemas',
+                  slug: 'specification/v0.8/schemas',
+                },
+                {
+                  label: 'A2A Extension',
+                  slug: 'specification/v0.8-a2a-extension',
+                },
+                {
+                  label: 'Custom Catalog Changes',
+                  slug: 'specification/v0.8-custom-catalog-changes',
+                },
+              ],
             },
           ],
         },
