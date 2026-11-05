@@ -622,6 +622,39 @@ describe('Catalog.agentFunctions', () => {
     );
   });
 
+  it('follows a multi-segment $defs pointer to the member it names', () => {
+    const defs = {
+      Bundle: {
+        allOf: [
+          {type: 'object', properties: {memo: {type: 'string'}}},
+          {type: 'object', properties: {'bad-name': {type: 'string'}}},
+        ],
+      },
+    };
+    const pointingAt = (ref: string) =>
+      new AgentFunction({name: 'f', schema: {$ref: ref}, handler: () => 1});
+    const isUaxError = (err: unknown) =>
+      err instanceof A2uiCatalogError && err.message.includes("'bad-name'");
+
+    const withDefs = new Catalog('c', '1.0', [], [], {defs});
+    assert.doesNotThrow(() =>
+      withDefs.copyWith({agentFunctions: [pointingAt('#/$defs/Bundle/allOf/0')]}),
+    );
+    assert.throws(
+      () => withDefs.copyWith({agentFunctions: [pointingAt('#/$defs/Bundle/allOf/1')]}),
+      isUaxError,
+    );
+
+    const local = (ref: string) =>
+      new AgentFunction({name: 'f', schema: {$defs: defs, $ref: ref}, handler: () => 1});
+    const empty = new Catalog('c', '1.0', [], []);
+    assert.doesNotThrow(() => empty.copyWith({agentFunctions: [local('#/$defs/Bundle/allOf/0')]}));
+    assert.throws(
+      () => empty.copyWith({agentFunctions: [local('#/$defs/Bundle/allOf/1')]}),
+      isUaxError,
+    );
+  });
+
   it('does not leak internal schema helpers onto public barrel exports', () => {
     for (const barrel of [rootApi, v10Api, resolutionApi] as Array<Record<string, unknown>>) {
       assert.strictEqual(barrel['getDeclaredSchemaKeys'], undefined);
@@ -910,5 +943,88 @@ describe('PayloadValidator with AgentFunction', () => {
       (err: unknown) => err instanceof A2uiValidationError,
     );
     assert.ok('MoneyArgs' in ((derived.toJson()['$defs'] as Record<string, unknown>) ?? {}));
+  });
+
+  /** Validates `args` against an agent function with the JSON Schema `schema`. */
+  const validateWith = (schema: Record<string, unknown>, args: Record<string, unknown>) =>
+    new PayloadValidator(
+      new Catalog('c', '1.0', [], []).copyWith({
+        agentFunctions: [new AgentFunction({name: 'f', schema, handler: () => 1})],
+      }),
+      STRICT_VALIDATION,
+    ).validateFunction('f', args);
+  const isValidationError = (err: unknown) => err instanceof A2uiValidationError;
+
+  it('rejects a missing required argument even when it has a default', () => {
+    const schema = {
+      type: 'object',
+      properties: {a: {type: 'string', default: 'x'}},
+      required: ['a'],
+    };
+    assert.throws(() => validateWith(schema, {}), isValidationError);
+    assert.deepStrictEqual(validateWith(schema, {a: 'y'}), {a: 'y'});
+
+    const nested = {
+      type: 'object',
+      properties: {
+        o: {type: 'object', properties: {b: {type: 'number', default: 1}}, required: ['b']},
+      },
+    };
+    assert.throws(() => validateWith(nested, {o: {}}), isValidationError);
+  });
+
+  it("checks a property's not schema before filling in the defaults", () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        o: {
+          type: 'object',
+          properties: {a: {type: 'string'}, b: {type: 'string', default: 'x'}},
+          not: {type: 'object', properties: {b: {const: 'x'}}, required: ['b']},
+        },
+      },
+    };
+    assert.deepStrictEqual(validateWith(schema, {o: {a: 'y'}}), {o: {a: 'y', b: 'x'}});
+    assert.throws(() => validateWith(schema, {o: {a: 'y', b: 'x'}}), isValidationError);
+  });
+
+  it('accepts resolved argument values whose keys start with @', () => {
+    const schema = {type: 'object', properties: {v: {type: 'object'}, w: {}}};
+    const args = {v: {'@type': 'x'}, w: {'@path': '/a', '@call': 'g'}};
+    assert.deepStrictEqual(validateWith(schema, args), args);
+  });
+
+  it('accepts the keys patternProperties match in a closed object', () => {
+    const closed = {
+      type: 'object',
+      properties: {a: {type: 'string'}},
+      patternProperties: {'^x_': {type: 'number'}},
+      additionalProperties: false,
+    };
+    for (const schema of [closed, {type: 'object', properties: {o: closed}}]) {
+      const wrap = (value: Record<string, unknown>) => (schema === closed ? value : {o: value});
+      assert.deepStrictEqual(validateWith(schema, wrap({a: 'y', x_1: 2})), wrap({a: 'y', x_1: 2}));
+      assert.throws(() => validateWith(schema, wrap({a: 'y', x_1: 'no'})), isValidationError);
+      assert.throws(() => validateWith(schema, wrap({a: 'y', zz: 2})), isValidationError);
+    }
+
+    const open = {
+      type: 'object',
+      properties: {a: {type: 'string'}},
+      patternProperties: {'^x_': {type: 'number'}},
+      additionalProperties: true,
+    };
+    assert.deepStrictEqual(validateWith(open, {zz: 2}), {zz: 2});
+    assert.throws(() => validateWith(open, {x_1: 'no'}), isValidationError);
+  });
+
+  it('rejects undeclared keys in a nested object its schema closes', () => {
+    for (const closure of [{additionalProperties: false}, {unevaluatedProperties: false}]) {
+      const schema = {
+        type: 'object',
+        properties: {o: {type: 'object', properties: {a: {type: 'string'}}, ...closure}},
+      };
+      assert.throws(() => validateWith(schema, {o: {a: 'y', extra: 1}}), isValidationError);
+    }
   });
 });

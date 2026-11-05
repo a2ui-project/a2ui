@@ -168,9 +168,17 @@ function finalizePropertyZod(
       new Set(visitedPointers),
       defCache,
     );
-    result = result.refine(val => !notSchema.safeParse(val).success, {
-      message: 'Value matched prohibited "not" schema',
-    });
+    // Checks the value as written, before `baseZod` fills in the defaults of
+    // its properties, which `not` must not see.
+    result = z.preprocess((val, ctx) => {
+      if (notSchema.safeParse(val).success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Value matched prohibited "not" schema',
+        });
+      }
+      return val;
+    }, result);
   }
   if (propSchema.default !== undefined) {
     result = result.default(propSchema.default);
@@ -366,7 +374,19 @@ function convertAllOfPropertyToZod(
             s.kind === 'json' &&
             (s.schema.additionalProperties === false || s.schema.unevaluatedProperties === false),
         );
-      const obj = forbidExtra ? baseObj.strict() : baseObj.passthrough();
+      const obj = closeObjectSchema(
+        baseObj,
+        [
+          propSchema,
+          ...subSchemas.flatMap(s =>
+            s.kind === 'json' && s.schema !== propSchema ? [s.schema] : [],
+          ),
+        ],
+        forbidExtra,
+        rootDoc,
+        visitedPointers,
+        defCache,
+      );
       return finalizePropertyZod(obj, propSchema, rootDoc, visitedPointers, defCache);
     }
   }
@@ -518,14 +538,16 @@ function convertPropertyToZod(
       // reference nested inside an array item is invisible to the reference map,
       // so the component graph would look as if it had no children there.
       const props = propSchema.properties;
+      const hasPatterns =
+        typeof propSchema.patternProperties === 'object' && propSchema.patternProperties !== null;
       let obj: z.ZodTypeAny;
-      if (typeof props === 'object' && props !== null) {
+      if ((typeof props === 'object' && props !== null) || hasPatterns) {
         const required = Array.isArray(propSchema.required)
           ? new Set(propSchema.required.filter((r): r is string => typeof r === 'string'))
           : new Set<string>();
         const baseObj = z.object(
           convertPropertiesToShape(
-            props as Record<string, unknown>,
+            (props ?? {}) as Record<string, unknown>,
             required,
             false,
             rootDoc,
@@ -535,7 +557,14 @@ function convertPropertyToZod(
         );
         const forbidExtra =
           propSchema.additionalProperties === false || propSchema.unevaluatedProperties === false;
-        obj = forbidExtra ? baseObj.strict() : baseObj.passthrough();
+        obj = closeObjectSchema(
+          baseObj,
+          [propSchema],
+          forbidExtra,
+          rootDoc,
+          visitedPointers,
+          defCache,
+        );
       } else {
         obj = z.record(z.unknown());
       }
@@ -599,15 +628,103 @@ function convertPropertiesToShape(
       // `optional()` would skip the default. Leaving it unwrapped applies the
       // default on parse, as a `.default()` in a catalog defined in code does.
       shape[propName] = zodField instanceof z.ZodDefault ? zodField : zodField.optional();
-    } else if (zodField.safeParse(undefined).success) {
-      // A schema that accepts any value, such as `{}`, also accepts a missing
-      // key, which `required` rules out.
-      shape[propName] = zodField.refine(value => value !== undefined, {message: 'Required'});
+      continue;
+    }
+    if (zodField.safeParse(undefined).success) {
+      // A required property must be present. A schema that accepts any value,
+      // such as `{}`, also accepts a missing key, and a `default` would stand
+      // in for one, so a missing key is rejected before either applies.
+      shape[propName] = z.preprocess((value, ctx) => {
+        if (value === undefined) {
+          ctx.addIssue({code: z.ZodIssueCode.custom, message: 'Required'});
+        }
+        return value;
+      }, zodField);
     } else {
       shape[propName] = zodField;
     }
   }
   return shape;
+}
+
+/**
+ * Closes or opens a converted object schema, honoring the `patternProperties`
+ * of the JSON Schema pieces it was built from.
+ *
+ * Without `patternProperties` this is `.strict()` or `.passthrough()`. With
+ * them, a key the object doesn't declare is checked against the schema of
+ * every pattern it matches, and when `forbidExtra` is set, a key that matches
+ * no pattern is rejected, as `additionalProperties: false` rejects it.
+ *
+ * @param obj The object schema of the declared properties.
+ * @param pieces The JSON Schema pieces whose `patternProperties` apply.
+ * @param forbidExtra Whether keys that are neither declared nor matched are rejected.
+ * @param rootDoc Optional root schema document for reference resolution.
+ * @param visitedPointers Set of reference pointers currently on the resolution stack.
+ * @param defCache Cache mapping reference strings to resolved Zod schemas.
+ * @returns The object schema, wrapped in a refinement when patterns apply.
+ */
+function closeObjectSchema(
+  obj: z.AnyZodObject,
+  pieces: ReadonlyArray<Record<string, unknown>>,
+  forbidExtra: boolean,
+  rootDoc?: Record<string, unknown>,
+  visitedPointers?: Set<string>,
+  defCache = new Map<string, z.ZodTypeAny>(),
+): z.ZodTypeAny {
+  const patterns: Array<{regex: RegExp; schema: z.ZodTypeAny}> = [];
+  for (const piece of new Set(pieces)) {
+    const raw = piece.patternProperties;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    for (const [pattern, patternSchema] of Object.entries(raw as Record<string, unknown>)) {
+      let regex: RegExp;
+      try {
+        regex = new RegExp(pattern, 'u');
+      } catch {
+        continue;
+      }
+      patterns.push({
+        regex,
+        schema: convertPropertyToZod(
+          typeof patternSchema === 'object' && patternSchema !== null
+            ? (patternSchema as Record<string, unknown>)
+            : {},
+          rootDoc,
+          visitedPointers ? new Set(visitedPointers) : new Set<string>(),
+          defCache,
+        ),
+      });
+    }
+  }
+  if (patterns.length === 0) {
+    return forbidExtra ? obj.strict() : obj.passthrough();
+  }
+  const declared = new Set(Object.keys(obj.shape));
+  return obj.passthrough().superRefine((value, ctx) => {
+    const unrecognized: string[] = [];
+    for (const [key, entry] of Object.entries(value)) {
+      if (declared.has(key)) continue;
+      let matched = false;
+      for (const {regex, schema} of patterns) {
+        if (!regex.test(key)) continue;
+        matched = true;
+        const result = schema.safeParse(entry);
+        if (!result.success) {
+          for (const issue of result.error.issues) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: issue.message,
+              path: [key, ...issue.path],
+            });
+          }
+        }
+      }
+      if (!matched && forbidExtra) unrecognized.push(key);
+    }
+    if (unrecognized.length > 0) {
+      ctx.addIssue({code: z.ZodIssueCode.unrecognized_keys, keys: unrecognized});
+    }
+  });
 }
 
 /**
@@ -869,6 +986,7 @@ function collectArgSubSchemas(
   if (
     schema.properties ||
     schema.required ||
+    schema.patternProperties ||
     schema.additionalProperties !== undefined ||
     schema.unevaluatedProperties !== undefined
   ) {
@@ -882,19 +1000,20 @@ function collectArgSubSchemas(
  * Converts a function argument JSON schema definition into a Zod object schema.
  *
  * Maps function argument schemas to object properties, requiring fields listed in
- * `required` and applying strictness or passthrough based on `additionalProperties`
- * and reference resolution.
+ * `required` and applying strictness or passthrough based on `additionalProperties`,
+ * `patternProperties` and reference resolution.
  *
  * @param rawSchema Raw function arguments schema.
  * @param rootDoc Optional root schema document for reference resolution.
  * @param defCache Cache mapping reference strings to resolved Zod schemas.
- * @returns Zod object schema validating function arguments.
+ * @returns Zod object schema validating function arguments, wrapped in a
+ *     refinement when `patternProperties` apply.
  */
 export function convertFunctionArgsJsonSchemaToZod(
   rawSchema: Record<string, unknown>,
   rootDoc?: Record<string, unknown>,
   defCache = new Map<string, z.ZodTypeAny>(),
-): z.ZodObject<z.ZodRawShape> {
+): z.ZodTypeAny {
   const collected = collectArgSubSchemas(rawSchema, rootDoc);
   const requiredSet = new Set<string>();
   for (const s of collected.schemas) {
@@ -927,7 +1046,14 @@ export function convertFunctionArgsJsonSchemaToZod(
     collected.hasUnresolvable ||
     collected.schemas.some(isExplicitlyOpen) ||
     isExplicitlyOpen(rawSchema);
-  return allowExtra ? obj.passthrough() : obj.strict();
+  return closeObjectSchema(
+    obj,
+    [rawSchema, ...collected.schemas.filter(s => s !== rawSchema)],
+    !allowExtra,
+    rootDoc,
+    undefined,
+    defCache,
+  );
 }
 
 /**

@@ -239,6 +239,73 @@ describe('RendererToAgentMessageProcessor', () => {
       }
     });
 
+    test('replies INVALID_FUNCTION_CALL for a missing required argument that has a default', async () => {
+      let ran = false;
+      const greet = new AgentFunction({
+        name: 'greet',
+        schema: {
+          type: 'object',
+          properties: {name: {type: 'string', default: 'world'}},
+          required: ['name'],
+        },
+        handler: () => {
+          ran = true;
+          return 'hi';
+        },
+      });
+      const processor = new RendererToAgentMessageProcessor({
+        catalogs: [catalogWith('cat', greet)],
+      });
+
+      const body = onlyResponse(await processor.processMessage(call('greet', {args: {}})));
+
+      expect(body.error?.code).toBe(RpcErrorCode.INVALID_FUNCTION_CALL);
+      expect(ran).toBe(false);
+    });
+
+    test('passes resolved argument values whose keys start with @ to the handler', async () => {
+      const store = new AgentFunction({
+        name: 'store',
+        schema: {type: 'object', properties: {record: {type: 'object'}}},
+        handler: args => args,
+      });
+      const processor = new RendererToAgentMessageProcessor({
+        catalogs: [catalogWith('cat', store)],
+      });
+      const args = {record: {'@type': 'x', '@path': '/a', nested: {'@call': 'f'}}};
+
+      const body = onlyResponse(await processor.processMessage(call('store', {args})));
+
+      expect(body.error).toBeUndefined();
+      expect(body.value).toEqual(args);
+    });
+
+    test('accepts the arguments patternProperties match when the schema is closed', async () => {
+      const tally = new AgentFunction({
+        name: 'tally',
+        schema: {
+          type: 'object',
+          properties: {label: {type: 'string'}},
+          patternProperties: {'^count_': {type: 'integer'}},
+          additionalProperties: false,
+        },
+        handler: args => args,
+      });
+      const processor = new RendererToAgentMessageProcessor({
+        catalogs: [catalogWith('cat', tally)],
+      });
+
+      const ok = onlyResponse(
+        await processor.processMessage(call('tally', {args: {label: 'a', count_x: 2}})),
+      );
+      expect(ok.value).toEqual({label: 'a', count_x: 2});
+
+      for (const args of [{count_x: 'two'}, {other: 1}]) {
+        const body = onlyResponse(await processor.processMessage(call('tally', {args})));
+        expect(body.error?.code).toBe(RpcErrorCode.INVALID_FUNCTION_CALL);
+      }
+    });
+
     test("replies with a handler's A2uiRpcError code and message, or EXECUTION_ERROR", async () => {
       const rateLimited = new AgentFunction({
         name: 'rateLimited',
