@@ -788,7 +788,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         structured = true;
         const prefix = r'#/$defs/';
         if (ref.startsWith(prefix)) {
-          final String name = ref.substring(prefix.length).split('/').first;
+          final String name = ref
+              .substring(prefix.length)
+              .split('/')
+              .first
+              .replaceAll('~1', '/')
+              .replaceAll('~0', '~');
           if (visited.add(name)) {
             collect(
               (localDefs is Map ? localDefs[name] : null) ?? definitions[name],
@@ -1743,11 +1748,24 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
                 name,
           }
         : const <String>{};
-    final Set<String> visited = expanding ?? <String>{};
+    final Object? localNodeDefs = node is Map ? node[r'$defs'] : null;
+    final Set<String> localDefNames = localNodeDefs is Map
+        ? localNodeDefs.keys.whereType<String>().toSet()
+        : const <String>{};
+    final lookupRoot = localNodeDefs is Map
+        ? <String, Object?>{
+            ...root,
+            r'$defs': <String, Object?>{
+              if (defs is Map) ...defs.cast<String, Object?>(),
+              ...localNodeDefs.cast<String, Object?>(),
+            },
+          }
+        : root;
+    final Set<String> initialVisited = expanding ?? const <String>{};
 
-    Object? visit(Object? current) {
+    Object? visit(Object? current, Set<String> visited) {
       if (current is List) {
-        return [for (final Object? item in current) visit(item)];
+        return [for (final Object? item in current) visit(item, visited)];
       }
       if (current is! Map) return current;
       final Object? ref = current[r'$ref'];
@@ -1761,25 +1779,23 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
                 .replaceAll('~0', '~')
             : '';
         final bool keep = ref.startsWith(r'#/$defs/') &&
+            !localDefNames.contains(defName) &&
             (authored.contains(defName) || isCommonTypeDef(defName));
         if (!keep) {
           if (visited.contains(ref)) return current;
-          final Object? target = followJsonPointer(root, ref.substring(1));
+          final Object? target =
+              followJsonPointer(lookupRoot, ref.substring(1));
           if (target is! Map) {
             if (ref.startsWith(r'#/$defs/')) return current;
             throw A2uiCatalogError("Unresolvable schema reference: '$ref'");
           }
-          final Object? resolved = _keepAuthoredDefRefs(
-            target,
-            root,
-            {...visited, ref},
-          );
+          final Object? resolved = visit(target, {...visited, ref});
           if (resolved is! Map) return current;
           final merged = <String, Object?>{
             ...resolved.cast<String, Object?>(),
             for (final MapEntry<Object?, Object?> entry in current.entries)
               if (entry.key != r'$ref')
-                entry.key! as String: visit(entry.value),
+                entry.key! as String: visit(entry.value, visited),
           };
           if ((_inlinedCatalogDefNodes[resolved] ?? false) ||
               (_inlinedCatalogDefNodes[current] ?? false)) {
@@ -1790,7 +1806,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       }
       final result = <String, Object?>{
         for (final MapEntry<Object?, Object?> entry in current.entries)
-          entry.key! as String: visit(entry.value),
+          entry.key! as String: visit(entry.value, visited),
       };
       if (_inlinedCatalogDefNodes[current] ?? false) {
         _inlinedCatalogDefNodes[result] = true;
@@ -1798,7 +1814,20 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       return result;
     }
 
-    return visit(node);
+    final Object? rewritten = visit(node, initialVisited);
+    if (localNodeDefs is Map && rewritten is Map<String, Object?>) {
+      final withoutDefs = Map<String, Object?>.of(rewritten)..remove(r'$defs');
+      final remainingRefs = <String>{};
+      _collectReferencedDefs(withoutDefs, remainingRefs);
+      final bool needsLocalDefs = localDefNames.any(remainingRefs.contains);
+      if (!needsLocalDefs) {
+        if (_inlinedCatalogDefNodes[rewritten] ?? false) {
+          _inlinedCatalogDefNodes[withoutDefs] = true;
+        }
+        return withoutDefs;
+      }
+    }
+    return rewritten;
   }
 
   /// The `$defs` validationSchema builds itself rather than copying from the
@@ -2334,10 +2363,19 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         return _deepCopyValue(definition)! as Map<String, Object?>;
       }
     }
-    final Object? args = _asWritten(function.argumentSchema.value);
+    final Map<String, Object?> rawArgs = function.argumentSchema.value;
+    final Object? args =
+        !(_readSchemas[rawArgs] ?? false) && rawArgs.containsKey(r'$defs')
+            ? _asWritten(
+                _keepAuthoredDefRefs(
+                  rawArgs,
+                  <String, Object?>{r'$defs': definitions},
+                ),
+              )
+            : _asWritten(rawArgs);
     final required = <String>[
       callKey,
-      if (_hasRequiredParameters(function.argumentSchema)) 'args',
+      if (_hasRequiredParameters(function.argumentSchema, definitions)) 'args',
     ];
     if (_isAtLeastV1) {
       return <String, Object?>{
@@ -2372,12 +2410,22 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     if (function.definition case final Map<String, Object?> definition) {
       return _deepCopyValue(definition)! as Map<String, Object?>;
     }
+    final Map<String, Object?> rawArgs = function.argumentSchema.value;
+    final Object? parameters =
+        !(_readSchemas[rawArgs] ?? false) && rawArgs.containsKey(r'$defs')
+            ? _asWritten(
+                _keepAuthoredDefRefs(
+                  rawArgs,
+                  <String, Object?>{r'$defs': definitions},
+                ),
+              )
+            : _asWritten(rawArgs);
     return <String, Object?>{
       'name': name,
       if (function.description != null) 'description': function.description,
       'returnType': function.returnType.jsonValue,
       ..._callerMetadata(function),
-      'parameters': _asWritten(function.argumentSchema.value),
+      'parameters': parameters,
     };
   }
 
@@ -2751,7 +2799,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     // altogether.
     final required = <Object?>[
       callKey,
-      if (_hasRequiredParameters(fn.argumentSchema)) 'args',
+      if (_hasRequiredParameters(fn.argumentSchema, definitions)) 'args',
     ];
     if (_isAtLeastV1) {
       // The published v1 shape. The entry stays open: `FunctionCall` checks
@@ -3257,9 +3305,38 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     );
   }
 
-  static bool _hasRequiredParameters(Schema schema) {
-    final Object? required = schema.value['required'];
-    return required is List && required.isNotEmpty;
+  static bool _hasRequiredParameters(
+    Schema schema,
+    Map<String, Object?> definitions,
+  ) {
+    final Map<String, Object?> raw = schema.value;
+    final Object? localDefs = raw[r'$defs'];
+    final visited = <String>{};
+    bool check(Object? node) {
+      if (node is! Map) return false;
+      final Object? required = node['required'];
+      if (required is List && required.isNotEmpty) return true;
+      if (node['allOf'] case final List<Object?> members) {
+        if (members.any(check)) return true;
+      }
+      if (node[r'$ref'] case final String ref
+          when ref.startsWith(r'#/$defs/')) {
+        final String name = ref
+            .substring(8)
+            .split('/')
+            .first
+            .replaceAll('~1', '/')
+            .replaceAll('~0', '~');
+        if (visited.add(name)) {
+          final Object? target =
+              (localDefs is Map ? localDefs[name] : null) ?? definitions[name];
+          if (check(target)) return true;
+        }
+      }
+      return false;
+    }
+
+    return check(raw);
   }
 
   static Object? _deepCopyValue(Object? value) {

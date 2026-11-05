@@ -203,20 +203,77 @@ final class AgentFunctionRegistry {
     return argsWithDefaults;
   }
 
+  static Map<String, Object?>? _resolveLocalDef(
+    String ref,
+    Map<String, Object?> defs,
+  ) {
+    const prefix = r'#/$defs/';
+    if (!ref.startsWith(prefix)) return null;
+    Object? current = defs;
+    for (final String rawSegment in ref.substring(prefix.length).split('/')) {
+      final String segment = rawSegment
+          .replaceAll('~1', '/')
+          .replaceAll('~0', '~');
+      if (current is! Map) return null;
+      current = current[segment];
+    }
+    return current is Map ? current.cast<String, Object?>() : null;
+  }
+
   static void _checkUndeclaredObjectArgs(
     String fnName,
     String catalogId,
     Map<String, dynamic> args,
     Map<String, Object?> schema,
   ) {
-    if (schema['type'] != 'object') return;
-    final Object? additional =
-        schema['additionalProperties'] ?? schema['unevaluatedProperties'];
-    if (additional == true || additional is Map) return;
-    final Object? props = schema['properties'];
-    final Set<String> allowed = props is Map
-        ? props.keys.whereType<String>().toSet()
-        : const <String>{};
+    final Map<String, Object?> defs = schema[r'$defs'] is Map
+        ? (schema[r'$defs']! as Map).cast<String, Object?>()
+        : const <String, Object?>{};
+    final allowed = <String>{};
+    var hasObjectConstraint = false;
+    var isOpen = false;
+    final visited = <String>{};
+
+    void inspect(Map<String, Object?> node) {
+      if (node.containsKey('oneOf') || node.containsKey('anyOf')) {
+        isOpen = true;
+        return;
+      }
+      final Object? additional =
+          node['additionalProperties'] ?? node['unevaluatedProperties'];
+      if (additional == true || additional is Map) {
+        isOpen = true;
+        return;
+      }
+      if (node['type'] == 'object' ||
+          node['properties'] is Map ||
+          additional == false) {
+        hasObjectConstraint = true;
+      }
+      if (node['properties'] case final Map<Object?, Object?> props) {
+        allowed.addAll(props.keys.whereType<String>());
+      }
+      if (node[r'$ref'] case final String ref) {
+        if (visited.add(ref)) {
+          final Map<String, Object?>? target = _resolveLocalDef(ref, defs);
+          if (target == null) {
+            isOpen = true;
+            return;
+          }
+          inspect(target);
+        }
+      }
+      if (node['allOf'] case final List<Object?> members) {
+        for (final member in members) {
+          if (member is Map) {
+            inspect(member.cast<String, Object?>());
+          }
+        }
+      }
+    }
+
+    inspect(schema);
+    if (!hasObjectConstraint || isOpen) return;
     for (final String key in args.keys) {
       if (!allowed.contains(key)) {
         throw A2uiValidationError(
@@ -454,34 +511,105 @@ final class AgentFunctionRegistry {
       for (final MapEntry<String, dynamic> entry in args.entries)
         entry.key: _deepCopyJson(entry.value),
     };
-    _populateObjectDefaults(result, schema);
+    final Map<String, Object?> defs = schema[r'$defs'] is Map
+        ? (schema[r'$defs']! as Map).cast<String, Object?>()
+        : const <String, Object?>{};
+    _populateObjectDefaults(result, schema, defs, const <String>{});
     return result;
+  }
+
+  static (bool, Object?) _extractPropertyDefault(
+    Map<String, Object?> propSchema,
+    Map<String, Object?> defs,
+    Set<String> visited,
+  ) {
+    if (propSchema.containsKey('default')) {
+      return (true, propSchema['default']);
+    }
+    if (propSchema[r'$ref'] case final String ref when !visited.contains(ref)) {
+      final Map<String, Object?>? target = _resolveLocalDef(ref, defs);
+      if (target != null) {
+        final (bool found, Object? value) = _extractPropertyDefault(
+          target,
+          defs,
+          <String>{...visited, ref},
+        );
+        if (found) return (true, value);
+      }
+    }
+    if (propSchema['allOf'] case final List<Object?> members) {
+      for (final member in members) {
+        if (member is Map) {
+          final (bool found, Object? value) = _extractPropertyDefault(
+            member.cast<String, Object?>(),
+            defs,
+            visited,
+          );
+          if (found) return (true, value);
+        }
+      }
+    }
+    return (false, null);
   }
 
   static void _populateObjectDefaults(
     Map<String, dynamic> target,
     Map<String, Object?> schema,
+    Map<String, Object?> defs,
+    Set<String> visited,
   ) {
     final Object? props = schema['properties'];
-    if (props is! Map) return;
-    for (final MapEntry<Object?, Object?> entry in props.entries) {
-      final Object? key = entry.key;
-      final Object? propSchema = entry.value;
-      if (key is! String || propSchema is! Map) continue;
-      final Map<String, Object?> propSchemaMap = propSchema
-          .cast<String, Object?>();
-      if (!target.containsKey(key)) {
-        if (propSchemaMap.containsKey('default')) {
-          target[key] = _deepCopyJson(propSchemaMap['default']);
+    if (props is Map) {
+      for (final MapEntry<Object?, Object?> entry in props.entries) {
+        final Object? key = entry.key;
+        final Object? propSchema = entry.value;
+        if (key is! String || propSchema is! Map) continue;
+        final Map<String, Object?> propSchemaMap = propSchema
+            .cast<String, Object?>();
+        if (!target.containsKey(key)) {
+          final (bool hasDefault, Object? defaultVal) = _extractPropertyDefault(
+            propSchemaMap,
+            defs,
+            const <String>{},
+          );
+          if (hasDefault) {
+            target[key] = _deepCopyJson(defaultVal);
+          }
+        } else if (target[key] is Map) {
+          final rawNested = target[key]! as Map<Object?, Object?>;
+          final nested = <String, dynamic>{
+            for (final MapEntry<Object?, Object?> e in rawNested.entries)
+              '${e.key}': e.value,
+          };
+          target[key] = nested;
+          _populateObjectDefaults(
+            nested,
+            propSchemaMap,
+            defs,
+            const <String>{},
+          );
         }
-      } else if (target[key] is Map) {
-        final rawNested = target[key]! as Map<Object?, Object?>;
-        final nested = <String, dynamic>{
-          for (final MapEntry<Object?, Object?> e in rawNested.entries)
-            '${e.key}': e.value,
-        };
-        target[key] = nested;
-        _populateObjectDefaults(nested, propSchemaMap);
+      }
+    }
+    if (schema[r'$ref'] case final String ref when !visited.contains(ref)) {
+      final Map<String, Object?>? refTarget = _resolveLocalDef(ref, defs);
+      if (refTarget != null) {
+        _populateObjectDefaults(target, refTarget, defs, <String>{
+          ...visited,
+          ref,
+        });
+      }
+    }
+    if (schema['allOf'] case final List<Object?> members) {
+      for (final member in members) {
+        if (member is Map) {
+          _populateObjectDefaults(
+            target,
+            member.cast<String, Object?>(),
+            defs,
+            visited,
+          );
+        }
       }
     }
   }

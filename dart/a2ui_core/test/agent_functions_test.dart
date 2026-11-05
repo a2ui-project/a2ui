@@ -896,6 +896,167 @@ void main() {
     });
 
     test(
+        'merges local agent function \$defs with catalog definitions across '
+        'UAX #31 checks, validation, and serialization', () {
+      expect(
+        () => Catalog(
+          id: 'cat',
+          protocolVersion: A2uiProtocolVersion.v1_0,
+          components: const <ComponentApi>[],
+          definitions: {
+            'Catalog/Args': {
+              'type': 'object',
+              'properties': {
+                'bad-amount': {'type': 'number'},
+              },
+            },
+          },
+          functions: [
+            AgentFunction(
+              name: 'pay',
+              argumentSchema: Schema.fromMap({
+                r'$defs': {
+                  'MemoArgs': {
+                    'type': 'object',
+                    'properties': {
+                      'memo': {'type': 'string'},
+                    },
+                  },
+                },
+                'allOf': [
+                  {r'$ref': r'#/$defs/MemoArgs'},
+                  {r'$ref': r'#/$defs/Catalog~1Args'},
+                ],
+              }),
+              handler: _noopHandler,
+            ),
+          ],
+        ),
+        throwsA(
+          isA<A2uiCatalogError>().having(
+            (e) => e.message,
+            'message',
+            contains('bad-amount'),
+          ),
+        ),
+      );
+
+      final pay = AgentFunction(
+        name: 'pay',
+        returnType: A2uiReturnType.object,
+        argumentSchema: Schema.fromMap({
+          r'$defs': {
+            'MemoArgs': {
+              'type': 'object',
+              'properties': {
+                'memo': {'type': 'string'},
+              },
+            },
+            'Shadowed': {
+              'type': 'object',
+              'properties': {
+                'note': {'type': 'string'},
+              },
+            },
+          },
+          'allOf': [
+            {r'$ref': r'#/$defs/MemoArgs'},
+            {r'$ref': r'#/$defs/Shadowed'},
+            {r'$ref': r'#/$defs/MoneyArgs'},
+          ],
+          'unevaluatedProperties': false,
+        }),
+        handler: _noopHandler,
+      );
+      final CatalogApi catalog = Catalog(
+        id: 'https://example.com/pay.json',
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        components: [
+          ComponentApi(
+            name: 'Text',
+            schema: Schema.fromMap({
+              'type': 'object',
+              'properties': {
+                'text': {r'$ref': r'common_types.json#/$defs/DynamicString'},
+              },
+              'required': ['text'],
+            }),
+          ),
+        ],
+        definitions: {
+          'MoneyArgs': {
+            'type': 'object',
+            'properties': {
+              'amount': {'type': 'number', 'exclusiveMinimum': 0},
+            },
+            'required': ['amount'],
+          },
+          'Shadowed': {
+            'type': 'object',
+            'properties': {
+              'bad-shadowed': {'type': 'string'},
+            },
+          },
+          'DroppedArgs': {
+            'type': 'object',
+            'properties': {
+              'unused': {'type': 'string'},
+            },
+          },
+        },
+        functions: [
+          pay,
+          AgentFunction(
+            name: 'other',
+            argumentSchema: Schema.fromMap({r'$ref': r'#/$defs/DroppedArgs'}),
+            handler: _noopHandler,
+          ),
+        ],
+      );
+
+      final validator = PayloadValidator<ComponentApi, FunctionApi>(
+        catalog: catalog,
+        config: ValidationConfig.strict,
+      );
+      validator.validateFunction('pay', {
+        'amount': 25,
+        'memo': 'ok',
+        'note': 'local',
+      });
+      expect(
+        () => validator.validateFunction('pay', {'memo': 'missing amount'}),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      expect(
+        () => validator.validateFunction('pay', {'amount': -5}),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      expect(
+        () => validator.validateComponent({
+          'id': 'root',
+          'component': 'Text',
+          'text': {'@call': 'pay'},
+        }),
+        throwsA(isA<A2uiValidationError>()),
+      );
+
+      final Map<String, Object?> serialized = catalog.toJson();
+      final fnOut =
+          (serialized['functions']! as Map)['pay']! as Map<String, Object?>;
+      expect(fnOut['required'], ['@call', 'args']);
+      final argsOut =
+          (fnOut['properties']! as Map)['args']! as Map<String, Object?>;
+      expect(argsOut.containsKey(r'$defs'), isFalse);
+
+      final CatalogApi derived = catalog.derive(
+        catalogId: 'https://example.com/pay-derived.json',
+        functions: const ['pay'],
+      );
+      expect(derived.definitions.containsKey('MoneyArgs'), isTrue);
+      expect(derived.definitions.containsKey('DroppedArgs'), isFalse);
+    });
+
+    test(
         'rejects duplicate names, @-prefixed names, non-UAX31 names, and '
         'pre-v1.0 catalogs', () {
       final fn1 = AgentFunction(
