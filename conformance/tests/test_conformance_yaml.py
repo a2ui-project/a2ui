@@ -378,3 +378,232 @@ def test_renderer_error_validates_against_spec(valid_renderer_error):
 def test_renderer_error_rejects_spec_violations(invalid_renderer_error):
     with pytest.raises(jsonschema.ValidationError):
         validate_renderer_error_payload(invalid_renderer_error)
+
+
+@pytest.mark.parametrize(
+    "valid_case",
+    [
+        {
+            "name": "rpc_cancelled_case",
+            "action": "handle_rpc",
+            "catalog": "test_rpc_cat_v10",
+            "args": {
+                "outboundCall": {
+                    "surfaceId": "s1",
+                    "call": {"@call": "slowAgentFunction"},
+                },
+                "afterCall": "cancel",
+            },
+            "expectError": {"code": "CANCELLED"},
+        },
+        {
+            "name": "rpc_disposed_late_response_case",
+            "action": "handle_rpc",
+            "catalog": "test_rpc_cat_v10",
+            "args": {
+                "outboundCall": {
+                    "surfaceId": "s1",
+                    "call": {"@call": "slowAgentFunction"},
+                },
+                "afterCall": "dispose",
+                "lateInboundResponse": {
+                    "version": "1.0",
+                    "agentFunctionResponse": {
+                        "functionCallId": "rpc_1",
+                        "value": "late",
+                    },
+                },
+            },
+            "expect": {"lateResponseIgnored": True},
+            "expectError": {"code": "DISPOSED"},
+        },
+        {
+            "name": "rpc_no_listener_case",
+            "action": "handle_rpc",
+            "catalog": "test_rpc_cat_v10",
+            "args": {
+                "outboundListener": False,
+                "outboundCall": {
+                    "surfaceId": "s1",
+                    "call": {"@call": "slowAgentFunction"},
+                },
+            },
+            "expectError": {"code": "NO_LISTENER"},
+        },
+        {
+            "name": "rpc_ui_binding_error_case",
+            "action": "handle_rpc",
+            "catalog": {"protocolVersion": "1.0"},
+            "args": {
+                "uiBindingScenario": {
+                    "surfaceId": "main_surface",
+                    "catalogId": "store_catalog",
+                    "components": [
+                        {
+                            "id": "root",
+                            "component": "Column",
+                            "children": ["bound_text", "sibling_text"],
+                        },
+                        {
+                            "id": "bound_text",
+                            "component": "Text",
+                            "text": {"@call": "remoteTitle"},
+                        },
+                        {
+                            "id": "sibling_text",
+                            "component": "Text",
+                            "text": "Static subtitle",
+                        },
+                    ],
+                    "observe": {"componentId": "bound_text", "property": "text"},
+                    "inboundResponseError": {
+                        "code": "EXECUTION_ERROR",
+                        "message": "Backend unavailable",
+                    },
+                }
+            },
+            "expect": {
+                "initialValue": None,
+                "outboundCall": {"version": "1.0", "callAgentFunction": {}},
+                "resolvedValue": None,
+                "siblings": {"sibling_text": {"text": "Static subtitle"}},
+                "surfaceError": {
+                    "code": "EXPRESSION_ERROR",
+                    "functionCallId": "$outboundCallId",
+                },
+            },
+        },
+        {
+            "name": "rpc_ui_action_error_case",
+            "action": "handle_rpc",
+            "catalog": {"protocolVersion": "1.0"},
+            "args": {
+                "uiActionFallbackScenario": {
+                    "surfaceId": "main_surface",
+                    "catalogId": "store_catalog",
+                    "localFunctions": {
+                        "markStarted": {
+                            "returnType": "boolean",
+                            "effect": {"setData": {"path": "/started", "value": True}},
+                        }
+                    },
+                    "actionPayload": {"functionCall": {"@call": "finish"}},
+                    "inboundResponseError": {
+                        "code": "EXECUTION_ERROR",
+                        "message": "Remote step failed",
+                    },
+                }
+            },
+            "expect": {
+                "outboundCall": {"version": "1.0", "callAgentFunction": {}},
+                "dataModel": {"started": True},
+                "surfaceError": {"code": "EXPRESSION_ERROR"},
+            },
+        },
+    ],
+)
+def test_handle_rpc_lifecycle_schema_accepts_valid_cases(valid_case):
+    jsonschema.validate(instance=[valid_case], schema=SCHEMA)
+
+
+@pytest.mark.parametrize(
+    "invalid_case",
+    [
+        {
+            "name": "rpc_invalid_after_call_enum",
+            "action": "handle_rpc",
+            "args": {
+                "outboundCall": {
+                    "surfaceId": "s1",
+                    "call": {"@call": "slowAgentFunction"},
+                },
+                "afterCall": "abort",
+            },
+        },
+        {
+            "name": "rpc_unknown_args_key",
+            "action": "handle_rpc",
+            "args": {
+                "outboundCall": {
+                    "surfaceId": "s1",
+                    "call": {"@call": "slowAgentFunction"},
+                },
+                "unknownLifecycleFlag": True,
+            },
+        },
+        {
+            "name": "rpc_unknown_expect_key",
+            "action": "handle_rpc",
+            "args": {
+                "outboundCall": {
+                    "surfaceId": "s1",
+                    "call": {"@call": "slowAgentFunction"},
+                },
+            },
+            "expect": {"unknownExpectation": True},
+        },
+        {
+            "name": "rpc_non_bool_late_response_ignored",
+            "action": "handle_rpc",
+            "args": {
+                "outboundCall": {
+                    "surfaceId": "s1",
+                    "call": {"@call": "slowAgentFunction"},
+                },
+            },
+            "expect": {"lateResponseIgnored": "yes"},
+        },
+        {
+            "name": "rpc_ui_scenario_missing_response",
+            "action": "handle_rpc",
+            "args": {
+                "uiBindingScenario": {
+                    "surfaceId": "main_surface",
+                    "catalogId": "store_catalog",
+                    "component": {"id": "root", "component": "Text", "text": "hi"},
+                }
+            },
+        },
+        {
+            "name": "rpc_ui_scenario_both_responses",
+            "action": "handle_rpc",
+            "args": {
+                "uiBindingScenario": {
+                    "surfaceId": "main_surface",
+                    "catalogId": "store_catalog",
+                    "component": {"id": "root", "component": "Text", "text": "hi"},
+                    "inboundResponseValue": "ok",
+                    "inboundResponseError": {
+                        "code": "EXECUTION_ERROR",
+                        "message": "bad",
+                    },
+                }
+            },
+        },
+        {
+            "name": "rpc_ui_scenario_missing_target",
+            "action": "handle_rpc",
+            "args": {
+                "uiBindingScenario": {
+                    "surfaceId": "main_surface",
+                    "catalogId": "store_catalog",
+                    "inboundResponseValue": "ok",
+                }
+            },
+        },
+        {
+            "name": "rpc_ui_surface_error_missing_code",
+            "action": "handle_rpc",
+            "args": {
+                "outboundCall": {
+                    "surfaceId": "s1",
+                    "call": {"@call": "slowAgentFunction"},
+                },
+            },
+            "expect": {"surfaceError": {"functionCallId": "call-1"}},
+        },
+    ],
+)
+def test_handle_rpc_lifecycle_schema_rejects_invalid_cases(invalid_case):
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=[invalid_case], schema=SCHEMA)

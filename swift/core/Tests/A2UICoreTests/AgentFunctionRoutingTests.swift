@@ -560,6 +560,8 @@ struct AgentFunctionRoutingTests {
     #expect(text(surface) == nil)
     #expect(errors.count == 1)
     #expect(errors.first?.code == "EXPRESSION_ERROR")
+    #expect(errors.first?.functionCallID == outbound.agentCalls.first?.functionCallID)
+    #expect(errors.first?.surfaceID == nil)
     #expect(errors.first?.message.contains("No such function: fetchFxRate") == true)
   }
 
@@ -575,6 +577,8 @@ struct AgentFunctionRoutingTests {
     #expect(text(surface) == nil)
     #expect(errors.count == 1)
     #expect(errors.first?.code == "EXPRESSION_ERROR")
+    #expect(errors.first?.functionCallID == outbound.agentCalls.first?.functionCallID)
+    #expect(errors.first?.surfaceID == nil)
     #expect(errors.first?.message.contains("timed out") == true)
   }
 
