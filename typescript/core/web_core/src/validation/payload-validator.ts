@@ -78,6 +78,31 @@ export function nonStringCatalogIdMessage(name: string): string {
 }
 
 /**
+ * Rejects a renderer call to a catalog function whose `allowedCallers` is
+ * `agentOnly`.
+ *
+ * A call held in a component (a property binding, a check or an action) is
+ * made by the renderer. A function whose `allowedCallers` is `agentOnly` runs
+ * only for an agent's `callRendererFunction`, so it can't be bound into a
+ * component. `DataContext` refuses such a call when it is evaluated, with the
+ * same message.
+ *
+ * @param catalog The catalog the call runs in.
+ * @param name The called function.
+ * @throws {A2uiValidationError} If the catalog declares the function
+ *   `agentOnly`. The error names no path; the caller sets the call's location.
+ */
+export function assertRendererMayCall(
+  catalog: {readonly functions: ReadonlyMap<string, {readonly allowedCallers?: string}>},
+  name: string,
+): void {
+  if (catalog.functions.get(name)?.allowedCallers !== 'agentOnly') return;
+  throw new A2uiValidationError(
+    `Function '${name}' cannot be called by renderer (allowedCallers is agentOnly).`,
+  );
+}
+
+/**
  * Decides whether a v1.0 nested function call runs in its component's catalog.
  *
  * A call runs in the catalog it names, or else in the surface's default
@@ -117,7 +142,9 @@ export function nestedCallRunsInCatalog(
  * catalog and checks it there. Any string, the empty string included, names a
  * catalog, and a non-string `catalogId` on a call is rejected. Reserved `@`
  * system functions belong to no catalog: they are always validated fully, and
- * a `catalogId` on one is rejected.
+ * a `catalogId` on one is rejected. A call held in a component is a renderer
+ * call, so a fully checked call may not call an `agentOnly` function (see
+ * `assertRendererMayCall`).
  *
  * A component that names no `catalogId` is taken to be in the surface's
  * default catalog, where calls that name none run, so its catalogless calls
@@ -378,6 +405,7 @@ export class PayloadValidator {
     const rawArgs = record['args'];
     const argsDict = (rawArgs !== undefined ? rawArgs : {}) as Record<string, unknown>;
     if (!this.enforceIdentifiers) {
+      assertRendererMayCall(this.catalog, rawName);
       this.validateFunction(rawName, argsDict);
       return;
     }
@@ -395,6 +423,7 @@ export class PayloadValidator {
         catalogIsDefault: componentCatalogId === undefined,
       })
     ) {
+      assertRendererMayCall(this.catalog, rawName);
       this.validateFunction(rawName, argsDict);
     } else {
       this.assertFunctionIdentifiers(rawName, argsDict);
