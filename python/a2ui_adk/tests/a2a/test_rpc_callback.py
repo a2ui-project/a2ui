@@ -356,6 +356,21 @@ async def test_does_not_resolve_catalogs_for_other_content() -> None:
             role="user",
             parts=[_genai_part(RENDERER_FUNCTION_RESPONSE), _genai_part(_call())],
         ),
+        _content(
+            genai_types.Part.from_bytes(data=b"\x89PNG", mime_type="image/png"),
+            _genai_part(_call()),
+        ),
+        _content(
+            genai_types.Part(inline_data=genai_types.Blob(mime_type="text/plain")),
+            _genai_part(_call()),
+        ),
+        _content(
+            genai_types.Part.from_bytes(
+                data=b"<a2a_datapart_json>not json</a2a_datapart_json>",
+                mime_type="text/plain",
+            ),
+            _genai_part(_call()),
+        ),
     ],
     ids=[
         "none",
@@ -367,6 +382,9 @@ async def test_does_not_resolve_catalogs_for_other_content() -> None:
         "renderer-function-response",
         "action-and-call",
         "renderer-function-response-and-call",
+        "media-and-call",
+        "blob-without-data-and-call",
+        "malformed-tagged-data-and-call",
     ],
 )
 async def test_lets_the_agent_run_for_other_content(
@@ -388,6 +406,25 @@ async def test_drops_a_call_without_a_function_call_id() -> None:
 
     assert content is not None
     assert _messages(content) == [_reply()]
+
+
+@pytest.mark.asyncio
+async def test_logs_a_dropped_call_without_its_payload(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    callback = a2ui_rpc_callback(catalogs=[CATALOG])
+    malformed = {
+        "version": "1.0",
+        "callAgentFunction": {"surfaceId": "s1", "callFunction": "hunter2"},
+    }
+
+    with caplog.at_level("WARNING"):
+        await callback(
+            _callback_context(_content(_genai_part(malformed), _genai_part(_call())))
+        )
+
+    assert "Dropped an A2UI RPC message that can't be answered" in caplog.text
+    assert "hunter2" not in caplog.text
 
 
 @pytest.mark.asyncio
