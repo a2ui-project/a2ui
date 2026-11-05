@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- (v1_0) `PayloadValidator.validateComponent`, and `MessageProcessor` for
+  calls into another catalog, reject a call to a function whose
+  `allowedCallers` is `agentOnly` in a property binding, a check or an action,
+  or nested in one, since only an agent's `callRendererFunction` may call one.
+  `PayloadValidator.validateFunctionArgs` rejects one when given a
+  `componentId`. A call nested in the arguments of a `callRendererFunction` is
+  a renderer call too, so `MessageProcessor` rejects one there as well. The
+  error matches the one `Catalog.invoke` reports when such a call is evaluated
+  ([#3534](https://github.com/a2ui-project/a2ui/issues/3534)).
 - (v0_9) Restore `listStyle` property to basic catalog `List` component schema ([#3956](https://github.com/a2ui-project/a2ui/pull/3956)).
 
 ## 0.5.0

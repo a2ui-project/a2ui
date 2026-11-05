@@ -848,8 +848,9 @@ class MessageProcessor<T extends ComponentApi> {
   ///
   /// A call nested in the arguments runs in the catalog it names, which this
   /// processor must hold too, or else in the call's catalog, which stands in
-  /// for a surface default. Each call may hold only the fields `FunctionCall`
-  /// allows.
+  /// for a surface default. The renderer makes each such call itself, so it
+  /// may not call an `agentOnly` function. Each call may hold only the fields
+  /// `FunctionCall` allows.
   ///
   /// Throws [A2uiValidationError] wherever a renderer would answer the call
   /// with an `INVALID_FUNCTION_CALL` error, which includes a catalog this
@@ -1550,9 +1551,13 @@ class MessageProcessor<T extends ComponentApi> {
   /// [where] places each call in an error message, such as "in component
   /// 'x'", and [componentId] names the component that holds the calls.
   ///
+  /// Every nested call, in a component or in a call's arguments, is made by
+  /// the renderer, so none may call a function the resolved catalog declares
+  /// [AllowedCallers.agentOnly].
+  ///
   /// Throws what [resolve] throws for a catalog a call cannot resolve to,
   /// and [A2uiValidationError] when the resolved catalog declares no such
-  /// function or a call does not match its schema.
+  /// function, declares it `agentOnly`, or a call does not match its schema.
   void _validateNestedFunctionCalls(
     Object? node, {
     required Catalog<T, FunctionImplementation> home,
@@ -1657,6 +1662,21 @@ class MessageProcessor<T extends ComponentApi> {
     }
     final Catalog<T, FunctionImplementation> catalog =
         resolve(catalogId as String?, subject);
+    if (catalog.functions[name]?.allowedCallers == AllowedCallers.agentOnly) {
+      final msg = "$subject is a call the renderer can't make: "
+          '${rendererMayNotCall(name)}';
+      throw A2uiValidationError(
+        msg,
+        path: path,
+        errors: [
+          A2uiErrorDetail(
+            path: path,
+            code: 'invalid_function_call',
+            message: msg,
+          ),
+        ],
+      );
+    }
     final PayloadValidator<T, FunctionImplementation> validator =
         validatorFor(catalog, version: version);
     if (checkFields) validator.validateFunctionCallFields(node);

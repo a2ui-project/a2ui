@@ -25,15 +25,7 @@ import 'conformance_harness.dart';
 const Map<String, String> _v09ExpectedFailures = {};
 
 /// Cases in `core/validator_v1_0.yaml` expected to fail.
-const Map<String, String> _v10ExpectedFailures = {
-  'test_v10_agent_only_function_in_binding_error':
-      'Validation does not reject an agentOnly function bound into a component '
-          'property; it is refused only when the binding is evaluated '
-          '(https://github.com/a2ui-project/a2ui/issues/3534).',
-  'test_v10_agent_only_function_in_action_error':
-      'Validation does not reject an agentOnly function in an action '
-          'functionCall (https://github.com/a2ui-project/a2ui/issues/3534).',
-};
+const Map<String, String> _v10ExpectedFailures = {};
 
 /// The `validate` cases in `core/reserved_keys.yaml` expected to fail.
 const Map<String, String> _reservedKeysExpectedFailures = {};

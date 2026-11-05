@@ -283,6 +283,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       '',
       componentId: id,
       componentCatalogId: component['catalogId'],
+      rendererCall: true,
     );
 
     if (schema == null) return;
@@ -361,6 +362,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
           '/$key',
           componentId: id,
           componentCatalogId: component['catalogId'],
+          rendererCall: true,
         );
       }
       _throwOnErrors(
@@ -436,17 +438,25 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// [validateComponent] and checks each nested call against the catalog it
   /// resolves to, as `MessageProcessor` does, and an agent reading a payload
   /// that names catalogs per call. [componentId] names the component the call
-  /// is nested in, for the error message.
+  /// is nested in, for the error message. A call nested in a component is a
+  /// renderer call, so with a [componentId] the function may not be
+  /// [AllowedCallers.agentOnly].
   ///
-  /// Throws [A2uiValidationError] if the catalog declares no such function or
-  /// the arguments do not match its schema.
+  /// Throws [A2uiValidationError] if the catalog declares no such function,
+  /// the renderer may not call it, or the arguments do not match its schema.
   void validateFunctionArgs(
     String name,
     Map<String, Object?> args, {
     Object? componentId,
     String? path,
   }) =>
-      _checkArgs(name, _jsonMap(args), componentId: componentId, path: path);
+      _checkArgs(
+        name,
+        _jsonMap(args),
+        componentId: componentId,
+        path: path,
+        rendererCall: componentId != null,
+      );
 
   /// Rejects a field of [call], a v1.0 function call of [catalog], that
   /// `FunctionCall` does not evaluate: one other than `@call`, `catalogId`,
@@ -479,11 +489,18 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
 
   static const Set<String> _functionCallKeys = {'@call', 'catalogId', 'args'};
 
+  /// Checks one call's arguments against [catalog]'s schema for [name].
+  ///
+  /// With [rendererCall], the call is one the renderer makes, such as a call
+  /// held in a component (a property binding, a check or an action), so the
+  /// function may not be [AllowedCallers.agentOnly]; `Catalog.invoke`
+  /// refuses such a call with the same message when it is evaluated.
   void _checkArgs(
     String name,
     Map<String, Object?> args, {
     Object? componentId,
     String? path,
+    bool rendererCall = false,
   }) {
     final where = componentId == null ? '' : "In component '$componentId': ";
     final Schema? schema = _resolvedFunctionSchemas[name];
@@ -500,6 +517,22 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
             A2uiErrorDetail(
               path: path,
               code: 'unrecognized_function',
+              message: msg,
+            ),
+        ],
+      );
+    }
+    if (rendererCall &&
+        catalog.functions[name]?.allowedCallers == AllowedCallers.agentOnly) {
+      final msg = '$where${rendererMayNotCall(name)}';
+      throw A2uiValidationError(
+        msg,
+        path: path,
+        errors: [
+          if (path != null && path.isNotEmpty)
+            A2uiErrorDetail(
+              path: path,
+              code: 'invalid_function_call',
               message: msg,
             ),
         ],
@@ -595,6 +628,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     String path, {
     Object? componentId,
     Object? componentCatalogId,
+    bool rendererCall = false,
   }) {
     if (value is List) {
       for (var i = 0; i < value.length; i++) {
@@ -603,6 +637,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
           '$path/$i',
           componentId: componentId,
           componentCatalogId: componentCatalogId,
+          rendererCall: rendererCall,
         );
       }
       return;
@@ -651,15 +686,28 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
           '$path/args/${_escape(arg.key)}',
           componentId: componentId,
           componentCatalogId: componentCatalogId,
+          rendererCall: rendererCall,
         );
       }
 
       if (_v1) {
         if (runsInThisCatalog && !name.startsWith('@')) {
-          _checkArgs(name, args, componentId: componentId, path: path);
+          _checkArgs(
+            name,
+            args,
+            componentId: componentId,
+            path: path,
+            rendererCall: rendererCall,
+          );
         }
       } else {
-        _checkArgs(name, args, componentId: componentId, path: path);
+        _checkArgs(
+          name,
+          args,
+          componentId: componentId,
+          path: path,
+          rendererCall: rendererCall,
+        );
       }
       return;
     }
@@ -670,6 +718,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
         '$path/${_escape(entry.key)}',
         componentId: componentId,
         componentCatalogId: componentCatalogId,
+        rendererCall: rendererCall,
       );
     }
   }
