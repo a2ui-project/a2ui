@@ -11,6 +11,20 @@
   functions an agent calls with `allowedCallers` set to `agentOnly` or
   `rendererOrAgent` in the catalog the call names
   ([#3534](https://github.com/a2ui-project/a2ui/issues/3534)).
+- **BREAKING CHANGE**: `PromptGenerator.generate()` is now final and returns
+  `assemble_instructions(self)`, which `SkillGenerator.generate_skill()` also
+  uses, so a monolithic skill for a format's own catalogs holds its prompt
+  snippet. A `PromptGenerator` subclass now implements the abstract `catalogs`
+  property and the three hooks (`generate_base_rules`,
+  `generate_catalog_instructions`, `generate_examples`) instead of overriding
+  `generate()`; built-in snippets are unchanged.
+  [#3568](https://github.com/a2ui-project/a2ui/pull/3568)
+- **BREAKING CHANGE**: `ExpressPromptGenerator`, `DirectJsonPromptGenerator`,
+  `ElementalPromptGenerator` and `AtomPromptGenerator` are no longer exported
+  from `a2ui.inference_formats` or their format packages. Reach a format's
+  generator through `InferenceFormat.prompt_generator`, and subclass
+  `PromptGenerator` to write a format of your own.
+  [#3568](https://github.com/a2ui-project/a2ui/pull/3568)
 - **BREAKING CHANGE**: (v1_0) The `TextField` builder in
   `a2ui.builder.v1_0.catalogs.basic` requires `value`, following the basic
   catalog. Recommended migration: pass `value`, such as
