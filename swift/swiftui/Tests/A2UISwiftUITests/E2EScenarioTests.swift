@@ -452,7 +452,7 @@ struct E2EScenarioTests {
     }
     if let existing = mountedBySurfaceID[surfaceID], existing.surface.viewModel === vm {
       session.mountedHarness = existing
-      existing.driver.flush()
+      existing.driver?.flush()
       session.currentTree = try extractViewTree(session)
       return
     }
@@ -464,7 +464,7 @@ struct E2EScenarioTests {
       catalogs: session.uiCatalogs,
       defaultCatalogID: defaultCatalogID
     )
-    let harness = MountedSurfaceHarness(surface: surface)
+    let harness = MountedSurfaceHarness(surface: surface, hostsViews: session.hostsViews)
     mountedBySurfaceID[surfaceID] = harness
     session.mountedHarness = harness
     session.currentTree = try extractViewTree(session)
@@ -477,11 +477,11 @@ struct E2EScenarioTests {
       var tornDown: Set<ObjectIdentifier> = []
       if let active = session.mountedHarness {
         tornDown.insert(ObjectIdentifier(active))
-        active.driver.tearDown()
+        active.driver?.tearDown()
       }
       for harness in mountedBySurfaceID.values {
         if tornDown.insert(ObjectIdentifier(harness)).inserted {
-          harness.driver.tearDown()
+          harness.driver?.tearDown()
         }
       }
     }

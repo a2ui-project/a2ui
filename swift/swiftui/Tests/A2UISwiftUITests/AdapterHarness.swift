@@ -173,7 +173,7 @@ final class MountedSurfaceHarness {
     isMounted ? subscriptions.count : 0
   }
 
-  init(surface: Surface, hostsViews: Bool) {
+  init(surface: Surface, hostsViews: Bool = true) {
     self.surface = surface
     self.driver = hostsViews ? HostedViewDriver(surface: surface) : nil
     surface.viewModel.objectWillChange
@@ -352,20 +352,24 @@ enum AdapterHarness {
     "features",
     "action",
     "protocolVersion",
+    "catalogPath",
     "catalogPaths",
+    "surface",
     "messages",
     "assertions",
     "steps",
   ]
 
   static let accessibilityStepKnownKeys: Set<String> = [
+    "description",
     "messages",
     "assertions",
     "accessibilityTree",
   ]
 
   static let accessibilityAssertionsKnownKeys: Set<String> = [
-    "accessibilityTree"
+    "accessibilityTree",
+    "axeCore",
   ]
 
   // MARK: - Unknown-Key Validation
@@ -1720,7 +1724,7 @@ enum AdapterHarness {
     }
     for (idx, exp) in expected.enumerated() where idx < actual.count {
       let entry = actual[idx]
-      guard case .event(let name, let actCtx, let sourceID) = entry.action.identity else {
+      guard case .event(let name, let actCtx, _) = entry.action.identity else {
         Issue.record("\(context): expected event action at \(idx)")
         throw AdapterConformanceError("\(context): expected event action at \(idx)")
       }
@@ -1737,6 +1741,7 @@ enum AdapterHarness {
         }
       }
       if let expSource = exp["sourceComponentId"] as? String {
+        let sourceID = entry.action.sourceComponentID
         #expect(sourceID == expSource, "\(context): action sourceComponentId mismatch")
         if sourceID != expSource {
           throw AdapterConformanceError("\(context): action sourceComponentId mismatch")

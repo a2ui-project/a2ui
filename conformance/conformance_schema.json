@@ -1886,6 +1886,9 @@
           },
           "required": ["format", "catalogs"],
           "additionalProperties": false
+        },
+        "features": {
+          "$ref": "#/$defs/FeatureTags"
         }
       },
       "required": ["action", "args"]
