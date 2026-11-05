@@ -68,13 +68,17 @@ SCHEMA_PATH = DATASETS_DIR / "dataset_schema.json"
 DEFAULT_CATALOG = "specification/{version}/catalogs/basic/catalog.json"
 
 _A2UI_BLOCK_RE = re.compile(
-    r"<a2ui-json>(?P<json>.*?)</a2ui-json>|<a2ui>(?P<a2ui>.*?)</a2ui>", re.DOTALL
+    r"<a2ui-json>(?P<json>.*?)</a2ui-json>|<a2ui>(?P<a2ui>.*?)</a2ui>",
+    re.DOTALL,
 )
 
 # Order matters: the token patterns run before the email pattern so that a key
 # embedded in an address-like string is still reported as a key.
 _REDACTIONS: tuple[tuple[re.Pattern[str], str], ...] = (
-    (re.compile(r"(?i)\bbearer\s+[A-Za-z0-9\-._~+/]{8,}=*"), "Bearer [REDACTED_TOKEN]"),
+    (
+        re.compile(r"(?i)\bbearer\s+[A-Za-z0-9\-._~+/]{8,}=*"),
+        "Bearer [REDACTED_TOKEN]",
+    ),
     (re.compile(r"\bAIza[0-9A-Za-z\-_]{20,}"), "[REDACTED_API_KEY]"),
     (re.compile(r"\bsk-[A-Za-z0-9_\-]{16,}"), "[REDACTED_API_KEY]"),
     (
@@ -195,7 +199,10 @@ def _normalize_chat_message(message: dict[str, Any], index: int) -> dict[str, An
         raise TraceImportError(f"Message {index} has unsupported role {role!r}.")
     if role == "assistant":
         return _normalize_assistant_message(message)
-    result: dict[str, Any] = {"role": role, "content": _text_of(message.get("content"))}
+    result: dict[str, Any] = {
+        "role": role,
+        "content": _text_of(message.get("content")),
+    }
     if role == "tool":
         result["tool_call_id"] = str(message.get("tool_call_id") or "")
         function = message.get("function") or message.get("name")
@@ -204,7 +211,9 @@ def _normalize_chat_message(message: dict[str, Any], index: int) -> dict[str, An
     return result
 
 
-def normalize_chat_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def normalize_chat_messages(
+    messages: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Normalises a list of OpenAI/Inspect style chat messages."""
     return [_normalize_chat_message(m, i) for i, m in enumerate(messages)]
 
@@ -628,7 +637,8 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"Repo-relative catalog path (default: {DEFAULT_CATALOG}).",
     )
     parser.add_argument(
-        "--description", help="What the sample tests; also used as the judge target."
+        "--description",
+        help="What the sample tests; also used as the judge target.",
     )
     parser.add_argument("--tags", help="Comma-separated tags, e.g. smoke,real.")
     parser.add_argument(
@@ -638,10 +648,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-sanitize", action="store_true", help="Skip secret/PII redaction."
     )
     parser.add_argument(
-        "--force", action="store_true", help="Replace an entry with the same name."
+        "--force",
+        action="store_true",
+        help="Replace an entry with the same name.",
     )
     parser.add_argument(
-        "--dry-run", action="store_true", help="Print the entry instead of writing."
+        "--dry-run",
+        action="store_true",
+        help="Print the entry instead of writing.",
     )
     return parser
 

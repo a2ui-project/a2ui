@@ -908,12 +908,12 @@ void main() {
         processor.processMessages(
           AgentToRendererMessagePayload([
             CreateSurfaceMessage(
-              version: 'v1.0',
+              version: '1.0',
               surfaceId: 's',
               catalogId: defaultCatalog,
             ),
             UpdateComponentsMessage(
-              version: 'v1.0',
+              version: '1.0',
               surfaceId: 's',
               components: [component],
             ),
@@ -1134,7 +1134,7 @@ void main() {
           processor.processMessages(
             AgentToRendererMessagePayload([
               UpdateComponentsMessage(
-                version: 'v1.0',
+                version: '1.0',
                 surfaceId: 's',
                 components: components,
               ),

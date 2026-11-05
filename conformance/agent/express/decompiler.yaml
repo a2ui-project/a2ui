@@ -66,7 +66,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -90,7 +90,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -140,7 +140,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -162,7 +162,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -185,7 +185,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s1"
         components:
@@ -198,13 +198,13 @@
   expect_round_trip: true
 
 - name: test_decompile_express_update_data_model
-  description: A standalone data model update writes back out as the data path assignment that would produce it, with no component assignment beside it to make the block a create.
+  description: A standalone root data model update writes back out as a root map assignment ($/ = {...}), with no component assignment beside it to make the block a create, and round-trips without losing replace semantics.
   action: decompile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       updateDataModel:
         surfaceId: "s1"
         path: "/"
@@ -212,7 +212,7 @@
           title: "Hello"
   expect_contains:
     - 'surface("s1")'
-    - '$/title = "Hello"'
+    - '$/ = {title: "Hello"}'
   expect_round_trip: true
 
 - name: test_decompile_express_delete_surface
@@ -222,7 +222,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       deleteSurface:
         surfaceId: "s1"
   expect_contains:
@@ -236,7 +236,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -255,7 +255,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -274,7 +274,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -301,7 +301,7 @@
     format: express
     catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       callRendererFunction:
         functionCallId: "call_1"
         callFunction:
@@ -320,7 +320,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -341,17 +341,21 @@
   expect_round_trip: true
 
 - name: test_decompile_express_nested_data_model_is_one_assignment_per_leaf
-  description: A data model of nested maps writes out as one assignment per leaf path rather than as a map literal against the root, because the compiler builds the nesting back up from the paths.
+  description: A surface creation dataModel of nested maps writes out as one assignment per leaf path rather than as a map literal against the root, because the compiler builds the nesting back up from the paths.
   action: decompile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
-      updateDataModel:
+    - version: "1.0"
+      createSurface:
         surfaceId: "s1"
-        path: "/"
-        value:
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+        dataModel:
           user:
             name: "Ada"
             city: "London"
@@ -367,7 +371,7 @@
     format: express
     catalog: "test_data/catalogs/custom_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/custom"
@@ -387,7 +391,7 @@
     format: express
     catalog: "test_data/catalogs/custom_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/custom"
@@ -407,7 +411,7 @@
     format: express
     catalog: "test_data/catalogs/custom_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/custom"
@@ -427,7 +431,7 @@
     format: express
     catalog: "test_data/catalogs/custom_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/custom"
@@ -448,7 +452,7 @@
       - "test_data/catalogs/simplified_catalog_v1_0.json"
       - "test_data/catalogs/custom_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         components:
@@ -456,7 +460,7 @@
             component: "Text"
             catalogId: "conformance/simplified"
             text: "Summary"
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s2"
         components:
@@ -479,7 +483,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -499,7 +503,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -525,7 +529,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -551,7 +555,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -576,7 +580,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -598,6 +602,107 @@
     - 'Event("save", {userId: "u123", confirmed: true, count: 5})'
   expect_round_trip: true
 
+- name: test_decompile_express_event_action_with_user_message
+  description: An event action carrying a userMessage writes it out as a userMessage= keyword argument, after the context map when there is one, so the message survives a round trip instead of being dropped.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["plain", "withContext"]
+          - id: "plain"
+            component: "Button"
+            child: "plainText"
+            action:
+              event:
+                name: "reply"
+                userMessage: "Replying now"
+          - id: "plainText"
+            component: "Text"
+            text: "Reply"
+          - id: "withContext"
+            component: "Button"
+            child: "withContextText"
+            action:
+              event:
+                name: "reply"
+                userMessage:
+                  "@path": "/draft/message"
+                context:
+                  threadId: "t1"
+          - id: "withContextText"
+            component: "Text"
+            text: "Reply from draft"
+  expect_contains:
+    - 'Event("reply", userMessage="Replying now")'
+    - 'Event("reply", {threadId: "t1"}, userMessage=$/draft/message)'
+  expect_round_trip: true
+
+- name: test_decompile_express_event_action_with_function_call_user_message
+  description: An event whose userMessage is a function call is still written as an Event, with the call as the userMessage= argument, so it compiles back to the same action.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            child: "bText"
+            action:
+              event:
+                name: "reply"
+                userMessage:
+                  "@call": "formatString"
+                  args:
+                    value: "Replying to ${/thread/title}"
+          - id: "bText"
+            component: "Text"
+            text: "Reply"
+  expect_contains:
+    - 'Event("reply", userMessage=formatString("Replying to ${/thread/title}"))'
+  expect_round_trip: true
+
+- name: test_decompile_express_function_call_in_list_item_action_slot
+  description: A functionCall action nested inside a list item writes out as a plain function call in the item's map literal, which the compiler reads back into the same functionCall because the slot is an action.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/list_item_action_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/list_item_action"
+        components:
+          - id: "root"
+            component: "Links"
+            items:
+              - label: "Docs"
+                action:
+                  functionCall:
+                    "@call": "openUrl"
+                    args:
+                      url: "https://a2ui.org"
+              - label: "Go"
+                action:
+                  event:
+                    name: "go"
+  expect_contains:
+    - 'root = Links([{label: "Docs", action: openUrl("https://a2ui.org")}, {label: "Go", action: Event("go")}])'
+  expect_round_trip: true
+
 - name: test_decompile_express_event_action_with_nested_context
   description: A nested map inside an event's context writes out as a nested Express map literal rather than being flattened into path assignments.
   action: decompile
@@ -605,7 +710,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -634,7 +739,7 @@
     format: express
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/forms"
@@ -662,7 +767,7 @@
     format: express
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/forms"
@@ -691,7 +796,7 @@
     format: express
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/forms"
@@ -720,7 +825,7 @@
     format: express
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/forms"
@@ -755,7 +860,7 @@
     format: express
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/forms"
@@ -781,7 +886,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -789,7 +894,7 @@
           - id: "root"
             component: "Text"
             text: "First"
-    - version: "v1.0"
+    - version: "1.0"
       updateDataModel:
         surfaceId: "s1"
         value:
@@ -800,7 +905,7 @@
     - 'root = Text("First")'
   expect_round_trip: false
   expect_recompiled:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -812,13 +917,13 @@
           status: "loaded"
 
 - name: test_decompile_express_update_data_model_scalar_at_path
-  description: An updateDataModel setting a scalar value at a non-root path ("/title") writes out as a single path assignment ($/title = "x").
+  description: An updateDataModel setting a scalar value at a non-root path ("/title") writes out as a single path assignment ($/title = "x") and round-trips back to the same updateDataModel message.
   action: decompile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       updateDataModel:
         surfaceId: "s1"
         path: "/title"
@@ -826,23 +931,16 @@
   expect_contains:
     - 'surface("s1")'
     - '$/title = "x"'
-  expect_round_trip: false
-  expect_recompiled:
-    - version: "v1.0"
-      updateDataModel:
-        surfaceId: "s1"
-        path: "/"
-        value:
-          title: "x"
+  expect_round_trip: true
 
 - name: test_decompile_express_update_data_model_map_at_path
-  description: An updateDataModel setting a map at a non-root path ("/user") prefixes each leaf assignment with that path ($/user/name = ...).
+  description: An updateDataModel setting a map at a non-root path ("/user") writes out as a map literal assignment at that path ($/user = {...}) so that replacing the map round-trips without merging into sibling keys.
   action: decompile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       updateDataModel:
         surfaceId: "s1"
         path: "/user"
@@ -851,18 +949,25 @@
           city: "London"
   expect_contains:
     - 'surface("s1")'
-    - '$/user/city = "London"'
-    - '$/user/name = "Ada"'
-  expect_round_trip: false
-  expect_recompiled:
-    - version: "v1.0"
+    - '$/user = {name: "Ada", city: "London"}'
+  expect_round_trip: true
+
+- name: test_decompile_express_update_data_model_empty_root
+  description: A standalone updateDataModel at the root path ("/") with an empty map value ({}) writes out as $/ = {} so that clearing the root data model round-trips.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
       updateDataModel:
         surfaceId: "s1"
         path: "/"
-        value:
-          user:
-            city: "London"
-            name: "Ada"
+        value: {}
+  expect_contains:
+    - 'surface("s1")'
+    - "$/ = {}"
+  expect_round_trip: true
 
 - name: test_decompile_express_map_with_keys_named_like_express_constructs
   description: In v1.0 only `@path` marks a data binding and `@call` a function call, so an object whose keys are plain `path` or `call`, or whose `event` or `functionCall` is not an object, is data and writes back out as a map literal.
@@ -871,7 +976,7 @@
     format: express
     catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/literal_map"
@@ -896,7 +1001,7 @@
     format: express
     catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/literal_map"
@@ -918,7 +1023,7 @@
     format: express
     catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/literal_map"

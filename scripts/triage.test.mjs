@@ -17,6 +17,7 @@
 // Tests for scripts/triage.mjs. Run with `node --test scripts/`.
 
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {afterEach, beforeEach, describe, it, mock} from 'node:test';
 
 import issueTriage, {
@@ -85,6 +86,22 @@ const event = (overrides = {}) => {
   const {created_at: createdAt, author_association: association, user} = comment(overrides);
   return {createdAt, association, user};
 };
+
+// Regression: PR review events checked out the PR's merge commit, whose older
+// copy of the rules kept re-adding labels that the current rules removed.
+describe('triage workflow', () => {
+  it('runs the script from main, whatever the triggering event', () => {
+    const workflow = readFileSync(
+      new URL('../.github/workflows/triage.yml', import.meta.url),
+      'utf8',
+    );
+    const checkout = workflow.match(
+      /uses: actions\/checkout@.*\n\s+with:\n((?:\s+\w[\w-]*:.*\n)+)/,
+    );
+    assert.ok(checkout, 'checkout step with a `with:` block not found');
+    assert.match(checkout[1], /^\s+ref: main$/m);
+  });
+});
 
 describe('isBot', () => {
   it('detects bots by account type and login suffix', () => {
@@ -168,6 +185,7 @@ describe('externalHasResponded', () => {
     }
   });
 
+  // Bots count as external everywhere else, but cannot answer a question.
   it('ignores bot replies', () => {
     const reply = event({
       created_at: daysAgo(1),
@@ -248,13 +266,23 @@ describe('flagReason — issues', () => {
         assert.equal(flagReason(item, [event()], NOW), null);
       });
 
-      it('ignores bot comments', () => {
+      // Regression: #3595, filed by the e2e workflow, never stayed flagged.
+      it('flags an issue opened by a bot', () => {
+        const item = issue({
+          assignees,
+          author_association: 'CONTRIBUTOR',
+          user: {login: 'github-actions[bot]', type: 'Bot'},
+        });
+        assert.match(flagReason(item, [], NOW), /no priority label/);
+      });
+
+      it("flags a team member's issue with a bot comment", () => {
         const item = issue({assignees, comments: 1});
         const botComment = event({
           author_association: 'NONE',
           user: {login: 'ci[bot]', type: 'Bot'},
         });
-        assert.equal(flagReason(item, [botComment], NOW), null);
+        assert.match(flagReason(item, [botComment], NOW), /no priority label/);
       });
     });
   }
@@ -479,6 +507,29 @@ describe('flagReason — PRs', () => {
     const item = pr({created_at: daysAgo(5), comments: 2});
     const comments = [externalComment(3), memberComment(2)];
     assert.equal(flagReason(item, comments, NOW), null);
+  });
+
+  it('flags a bot PR until a maintainer responds', () => {
+    const item = pr({
+      created_at: daysAgo(2),
+      user: {login: 'dependabot[bot]', type: 'Bot'},
+    });
+    assert.match(flagReason(item, [], NOW), /no maintainer/);
+    assert.equal(flagReason({...item, comments: 1}, [memberComment(1)], NOW), null);
+  });
+
+  // A bot comment is no response, from the author or the team, so it neither
+  // flags nor unflags a PR.
+  it('ignores bot comments on PRs', () => {
+    const botComment = event({
+      created_at: daysAgo(1),
+      author_association: 'NONE',
+      user: {login: 'gemini-code-assist[bot]', type: 'Bot'},
+    });
+    const answered = pr({created_at: daysAgo(5), comments: 2});
+    assert.equal(flagReason(answered, [memberComment(3), botComment], NOW), null);
+    const unanswered = pr({created_at: daysAgo(5), comments: 1});
+    assert.match(flagReason(unanswered, [botComment], NOW), /no maintainer/);
   });
 
   it('never flags a maintainer-authored PR, however old', () => {

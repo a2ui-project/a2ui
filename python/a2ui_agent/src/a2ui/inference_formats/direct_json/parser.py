@@ -17,6 +17,8 @@ from __future__ import annotations
 from collections.abc import Collection
 from collections.abc import Sequence
 import re
+from typing import Literal
+from typing import overload
 
 from a2ui.core import A2uiParseError
 from a2ui.core import CatalogApi
@@ -26,6 +28,8 @@ from a2ui.inference_formats._shared import to_message_models
 from a2ui.parser import Parser
 from a2ui.parser import RawA2uiPart
 from a2ui.parser import RawResponsePart
+from a2ui.parser import ResponsePart
+from a2ui.parser import StreamPart
 from a2ui.parser import TextPart
 from a2ui.utils import RendererState
 
@@ -235,11 +239,36 @@ class DirectJsonParser(Parser):
         """Encloses decompiled JSON blocks in sentinel tags."""
         return self._decompiler.wrap_decompiled_blocks(blocks)
 
+    @overload
     def open_stream(
-        self, *, wrapped: bool = True, state: RendererState | None = None
-    ) -> DirectJsonResponseStream:
+        self,
+        *,
+        wrapped: bool = True,
+        state: RendererState | None = None,
+        after_rejected_block: Literal["end"] = "end",
+    ) -> DirectJsonResponseStream[ResponsePart]:
+        ...
+
+    @overload
+    def open_stream(
+        self,
+        *,
+        wrapped: bool = True,
+        state: RendererState | None = None,
+        after_rejected_block: Literal["end", "continue"],
+    ) -> DirectJsonResponseStream[StreamPart]:
+        ...
+
+    def open_stream(
+        self,
+        *,
+        wrapped: bool = True,
+        state: RendererState | None = None,
+        after_rejected_block: Literal["end", "continue"] = "end",
+    ) -> DirectJsonResponseStream[StreamPart]:
         return DirectJsonResponseStream(
             self,
             wrapped=wrapped,
             state=state if state is not None else self._empty_state(),
+            after_rejected_block=after_rejected_block,
         )

@@ -74,7 +74,7 @@
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
       - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified"]
   expect:
     active_catalog_ids: ["conformance/simplified"]
@@ -87,7 +87,7 @@
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
       - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified", "conformance/custom"]
   expect:
     active_catalog_ids: ["conformance/simplified", "conformance/custom"]
@@ -104,7 +104,7 @@
     catalogs:
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["renderer/only", "conformance/simplified"]
   expect:
     active_catalog_ids: ["conformance/simplified"]
@@ -116,7 +116,7 @@
     catalogs:
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["renderer/only"]
   expect_error:
     category: CatalogError
@@ -127,7 +127,7 @@
   args:
     catalogs: []
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified"]
   expect_error:
     category: CatalogError
@@ -139,7 +139,7 @@
     catalogs:
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified", "conformance/simplified"]
   expect:
     active_catalog_ids: ["conformance/simplified"]
@@ -171,7 +171,7 @@
     catalogs:
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: []
   expect_error:
     category: CatalogError
@@ -186,7 +186,7 @@
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     accepts_inline_catalogs: true
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified"]
         inlineCatalogs:
           - catalogId: "renderer/inline"
@@ -213,7 +213,7 @@
     catalogs:
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified"]
         inlineCatalogs:
           - catalogId: "renderer/inline"
@@ -236,7 +236,7 @@
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     accepts_inline_catalogs: true
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: []
         inlineCatalogs:
           - catalogId: "renderer/inline"
@@ -261,7 +261,7 @@
     catalogs:
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: []
         inlineCatalogs:
           - catalogId: "renderer/inline"
@@ -284,7 +284,7 @@
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     accepts_inline_catalogs: true
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified"]
         inlineCatalogs:
           - catalogId: "renderer/inline_one"
@@ -323,7 +323,7 @@
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     accepts_inline_catalogs: true
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified"]
         inlineCatalogs:
           - protocolVersion: "1.0"
@@ -345,7 +345,7 @@
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     accepts_inline_catalogs: true
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified"]
         inlineCatalogs:
           - catalogId: ""
@@ -366,7 +366,7 @@
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     accepts_inline_catalogs: false
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified"]
         inlineCatalogs:
           - components:
@@ -386,7 +386,7 @@
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     accepts_inline_catalogs: true
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified"]
         inlineCatalogs: ["conformance/simplified"]
   expect_error:
@@ -400,7 +400,7 @@
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     accepts_inline_catalogs: false
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified"]
         inlineCatalogs: "conformance/simplified"
   expect_error:
@@ -418,7 +418,7 @@
           - component_pruning: ["Text", "Card"]
           - function_pruning: ["required"]
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified"]
   expect:
     active_catalog_ids: ["conformance/simplified"]
@@ -437,7 +437,7 @@
           - component_pruning: ["Text"]
     accepts_inline_catalogs: true
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified"]
         inlineCatalogs:
           - catalogId: "renderer/inline"

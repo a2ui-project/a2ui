@@ -12,7 +12,7 @@ Activate this subskill when:
 
 ## Overview
 
-The Dart packages under `dart/`, such as `a2ui_core` and `a2ui_agent`, are published to `pub.dev` by a maintainer, as described in [`docs/contributing/release.md`](../../../../../docs/contributing/release.md). Several pull requests usually land between two releases, and only a release pull request changes the version.
+The Dart packages under `dart/`, such as `a2ui_core` and `a2ui_agent`, are published to `pub.dev` by a maintainer, as described in [`docs/contributing/release/release.md`](../../../../../docs/contributing/release/release.md). Several pull requests usually land between two releases, and only a release pull request changes the version.
 
 ## Recording a Change
 
@@ -26,7 +26,7 @@ The Dart packages under `dart/`, such as `a2ui_core` and `a2ui_agent`, are publi
 
 A release is a pull request of its own. It moves the notes from `## Unreleased` under a heading with the new version and sets `version:` in `pubspec.yaml` to the same value. After it merges, the maintainer runs `flutter pub publish` from the commit of that pull request.
 
-The new version follows [`docs/contributing/release-pub-dev.md`](../../../../../docs/contributing/release-pub-dev.md):
+The new version follows [`docs/contributing/release/pub-dev.md`](../../../../../docs/contributing/release/pub-dev.md):
 
 - A `-wipNNN` version is followed by the next number, zero-padded to three digits: `0.0.1-wip004` becomes `0.0.1-wip005`.
 - Before 1.0.0, a breaking change increments the minor number and any other change increments the patch number: `0.2.2` becomes `0.3.0` or `0.2.3`.

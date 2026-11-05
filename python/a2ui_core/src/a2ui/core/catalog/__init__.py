@@ -27,7 +27,6 @@ from .catalog import (
     ThemeLocation,
     inline_local_refs,
     is_valid_uax31_identifier,
-    link_catalogs,
 )
 from .components import (
     ComponentApi,
@@ -88,6 +87,5 @@ __all__ = [
     "inline_local_refs",
     "is_system_function_name",
     "is_valid_uax31_identifier",
-    "link_catalogs",
     "system_functions_for",
 ]

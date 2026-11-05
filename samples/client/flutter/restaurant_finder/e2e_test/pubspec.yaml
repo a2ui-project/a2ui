@@ -27,6 +27,7 @@ dependencies:
     sdk: flutter
   genui: ^0.8.0
   genui_a2a: ^0.8.0
+  googleai_dart: ^8.0.0
   logging: ^1.3.0
   restaurant_finder_client:
     path: ../app

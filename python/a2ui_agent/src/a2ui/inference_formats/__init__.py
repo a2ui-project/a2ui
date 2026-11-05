@@ -31,6 +31,7 @@ from .experimental.elemental import ElementalParser
 from .express import ExpressFormat
 from .express import ExpressFormatFactory
 from .express import ExpressParser
+from .express import ExpressResponseStream
 
 __all__ = [
     "AtomFormat",
@@ -46,6 +47,7 @@ __all__ = [
     "ExpressFormat",
     "ExpressFormatFactory",
     "ExpressParser",
+    "ExpressResponseStream",
     "direct_json",
     "express",
     "to_message_dicts",

@@ -42,7 +42,7 @@ def basic_catalog() -> CatalogApi:
 
 def _stream_create_surface(catalog: CatalogApi, extensions: dict[str, int]) -> None:
     message = {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "main",
             "catalogId": catalog.catalog_id,

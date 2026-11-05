@@ -56,7 +56,7 @@ Catalog<ComponentApi, FunctionImplementation> _wireCatalog(
   final CatalogApi parsed = Catalog.fromJson({
     'catalogId': 'wire-references',
     // `Child` is a v1.0 common type.
-    'protocolVersion': 'v1.0',
+    'protocolVersion': '1.0',
     r'$defs': definitions,
     'components': {
       'Parent': schema,
@@ -616,11 +616,11 @@ void main() {
     ) =>
         AgentToRendererMessage.parseAll([
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'createSurface': {'surfaceId': 's', 'catalogId': catalogId},
           },
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'updateComponents': {'surfaceId': 's', 'components': components},
           },
         ], protocolVersion: A2uiProtocolVersion.v1_0);
@@ -815,7 +815,7 @@ void main() {
           processor.processMessages(
             AgentToRendererMessagePayload.of(
               CreateSurfaceMessage(
-                  version: 'v1.0', surfaceId: 's', catalogId: catalog.id),
+                  version: '1.0', surfaceId: 's', catalogId: catalog.id),
             ),
           );
           final SurfaceModel<ComponentApi> surface =
@@ -829,7 +829,7 @@ void main() {
             processor.processMessages(
               AgentToRendererMessage.parseAll([
                 {
-                  'version': 'v1.0',
+                  'version': '1.0',
                   'updateComponents': {
                     'surfaceId': 's',
                     'components': components,
@@ -883,7 +883,7 @@ void main() {
       processor.processMessages(
         AgentToRendererMessagePayload.of(
           CreateSurfaceMessage(
-              version: 'v1.0', surfaceId: 's', catalogId: catalog.id),
+              version: '1.0', surfaceId: 's', catalogId: catalog.id),
         ),
       );
       final SurfaceModel<ComponentApi> surface =
@@ -897,7 +897,7 @@ void main() {
         processor.processMessages(
           AgentToRendererMessage.parseAll([
             {
-              'version': 'v1.0',
+              'version': '1.0',
               'updateComponents': {'surfaceId': 's', 'components': components},
             },
           ], protocolVersion: A2uiProtocolVersion.v1_0),

@@ -30,18 +30,18 @@
 - name: test_scaling_process_single_component_messages_relaxed_v10
   description: Processing n messages of one component each, under a validation config, takes about four times as long at 4n, since each message is checked against what it changes rather than the whole surface.
   action: measure_growth
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   args:
     validation_config: relaxed
   operation: process_messages
   payload:
-    - '[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": ['
+    - '[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"}}, {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": ['
     - repeat: '"item_{i}"'
       separator: ", "
     - "]}]}}, "
-    - repeat: '{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "item_{i}", "component": "Text", "text": "Item number {i}"}]}}'
+    - repeat: '{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "item_{i}", "component": "Text", "text": "Item number {i}"}]}}'
       separator: ", "
     - "]"
   sizes: [200, 800]
@@ -50,18 +50,18 @@
 - name: test_scaling_process_single_component_messages_v10
   description: Processing n messages of one component each, without a validation config, takes about four times as long at 4n.
   action: measure_growth
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   args:
     validation_config: none
   operation: process_messages
   payload:
-    - '[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": ['
+    - '[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"}}, {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": ['
     - repeat: '"item_{i}"'
       separator: ", "
     - "]}]}}, "
-    - repeat: '{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "item_{i}", "component": "Text", "text": "Item number {i}"}]}}'
+    - repeat: '{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "item_{i}", "component": "Text", "text": "Item number {i}"}]}}'
       separator: ", "
     - "]"
   sizes: [200, 800]
@@ -70,18 +70,18 @@
 - name: test_scaling_process_single_component_messages_composition_v10
   description: Processing n messages of one component each, under a validation config and with a catalog whose components declare allowedParents and allowedChildren, takes about four times as long at 4n. A message that adds a child to a container checks the constraints the child changes, rather than every child of the container.
   action: measure_growth
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "conformance/test_data/catalogs/composition_catalog_v1_0.json"
   args:
     validation_config: relaxed
   operation: process_messages
   payload:
-    - '[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/composition"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": ['
+    - '[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/composition"}}, {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": ['
     - repeat: '"item_{i}"'
       separator: ", "
     - "]}]}}, "
-    - repeat: '{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "item_{i}", "component": "Text", "text": "Item number {i}"}]}}'
+    - repeat: '{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "item_{i}", "component": "Text", "text": "Item number {i}"}]}}'
       separator: ", "
     - "]"
   sizes: [1000, 4000]

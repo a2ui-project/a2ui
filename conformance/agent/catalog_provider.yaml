@@ -60,7 +60,7 @@
     path: "test_data/catalogs/simplified_catalog_v1_0.json"
   expect:
     catalog_id: "conformance/simplified"
-    protocol_version: "v1.0"
+    protocol_version: "1.0"
     components: ["Text", "Button", "Card", "Column"]
     functions: ["required", "formatString", "openUrl"]
 
@@ -91,10 +91,10 @@
     provider: file_system
     path: "test_data/catalogs/catalog_without_id.json"
     catalog_id: "conformance/provided"
-    protocol_version: "v1.0"
+    protocol_version: "1.0"
   expect:
     catalog_id: "conformance/provided"
-    protocol_version: "v1.0"
+    protocol_version: "1.0"
     components: ["Text"]
 
 - name: test_provider_id_agrees_with_document
@@ -124,7 +124,7 @@
   args:
     provider: file_system
     path: "test_data/catalogs/catalog_without_id.json"
-    protocol_version: "v1.0"
+    protocol_version: "1.0"
   expect_error:
     category: CatalogError
 
@@ -136,10 +136,10 @@
   args:
     provider: file_system
     path: "test_data/catalogs/simplified_catalog_v1_0.json"
-    protocol_version: "v1.0"
+    protocol_version: "1.0"
   expect:
     catalog_id: "conformance/simplified"
-    protocol_version: "v1.0"
+    protocol_version: "1.0"
 
 - name: test_provider_version_conflicts_with_document
   description: A provider that declares v0.9 for a document that states 1.0 fails.

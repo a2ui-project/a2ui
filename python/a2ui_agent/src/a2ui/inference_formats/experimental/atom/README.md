@@ -106,7 +106,7 @@ from a2ui.inference_formats.experimental.atom import AtomDecompiler
 
 decompiler = AtomDecompiler([catalog])
 json_payload = {
-    "version": "v1.0",
+    "version": "1.0",
     "createSurface": {
         "surfaceId": "main",
         "catalogId": catalog.catalog_id,

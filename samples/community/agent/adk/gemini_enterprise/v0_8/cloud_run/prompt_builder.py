@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from a2ui.core.schema.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
+from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 
 ROLE_DESCRIPTION = (
     "You are a helpful contact lookup assistant. Your final output MUST always"

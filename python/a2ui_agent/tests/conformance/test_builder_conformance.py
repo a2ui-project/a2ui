@@ -19,13 +19,16 @@ from __future__ import annotations
 import pytest
 
 from .builder_suite import Case, load_cases, run_case, validate_payload
+from .conformance_helpers import case_params
 
+SUITE = "agent/builder/builder.yaml"
 CASES = load_cases()
 
 
-@pytest.mark.parametrize("case", CASES, ids=lambda c: c.id)
-def test_matches_golden(case: Case) -> None:
+@pytest.mark.parametrize("suite, case", case_params(SUITE, CASES))
+def test_matches_golden(suite: str, case: Case) -> None:
     """The builder emits exactly the recorded wire payload."""
+    del suite
     assert run_case(case) == case.load_golden(), case.description
 
 

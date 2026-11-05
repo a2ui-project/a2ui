@@ -48,7 +48,7 @@ def primary_catalog() -> Catalog:
                         {
                             "properties": {
                                 "primaryArg": {"type": "string"},
-                                "action": {"type": "object"},
+                                "action": {"$ref": "common_types.json#/$defs/Action"},
                             }
                         },
                     ]
@@ -82,7 +82,7 @@ def primary_catalog() -> Catalog:
                 },
             },
         },
-        protocol_version="v1.0",
+        protocol_version="1.0",
     )
 
 
@@ -104,7 +104,7 @@ def secondary_catalog() -> Catalog:
                         {
                             "properties": {
                                 "secondaryArg": {"type": "string"},
-                                "action": {"type": "object"},
+                                "action": {"$ref": "common_types.json#/$defs/Action"},
                             }
                         },
                     ]
@@ -138,7 +138,7 @@ def secondary_catalog() -> Catalog:
                 },
             },
         },
-        protocol_version="v1.0",
+        protocol_version="1.0",
     )
 
 
@@ -148,7 +148,7 @@ def test_express_multi_catalog_per_component_and_function_override(
     fmt = ExpressFormat(
         catalogs=[primary_catalog, secondary_catalog],
         surface_id="main",
-        version="v1.0",
+        version="1.0",
     )
     dsl = """<a2ui>
 surface("main")
@@ -250,7 +250,7 @@ sharedFn("call-sec-1", "call-sec-2", catalogId="https://a2ui.org/catalogs/second
         fmt.create_parser().parse_response(call_dsl)[0].a2ui
     )
     assert call_messages == [{
-        "version": "v1.0",
+        "version": "1.0",
         "callRendererFunction": {
             "functionCallId": "call_1",
             "callFunction": {
@@ -283,7 +283,7 @@ def test_elemental_multi_catalog_per_component_and_function_override(
         surface_id="main",
     )
     surface_envelope = {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "main",
             "components": [
@@ -376,7 +376,7 @@ def test_elemental_multi_catalog_per_component_and_function_override(
 
     # Also test standalone callFunction with catalogId override in Elemental
     call_envelope = {
-        "version": "v1.0",
+        "version": "1.0",
         "callRendererFunction": {
             "functionCallId": "call_1",
             "callFunction": {
@@ -530,7 +530,7 @@ def test_atom_multi_catalog_per_component_and_function_override(
         fmt.create_parser().parse_response(call_sexpr)[0].a2ui
     )[0]
     assert call_compiled == {
-        "version": "v1.0",
+        "version": "1.0",
         "callRendererFunction": {
             "functionCallId": "call_1",
             "callFunction": {

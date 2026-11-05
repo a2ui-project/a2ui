@@ -39,11 +39,11 @@ void main() {
     final Map<String, String> payloads = {
       'several messages with nested lists and maps': jsonEncode([
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {'surfaceId': 's', 'catalogId': 'c'},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'updateComponents': {
             'surfaceId': 's',
             'components': [
@@ -66,7 +66,7 @@ void main() {
         },
       ]),
       'a single message': jsonEncode({
-        'version': 'v1.0',
+        'version': '1.0',
         'updateDataModel': {
           'surfaceId': 's',
           'value': {
@@ -78,7 +78,7 @@ void main() {
         },
       }),
       'curly quotes for JSON quotes':
-          '[{“version”: “v1.0”, “updateComponents”: {“surfaceId”: “s”, '
+          '[{“version”: “1.0”, “updateComponents”: {“surfaceId”: “s”, '
           '“components”: [{“id”: “a”, “text”: “Hi”}, {“id”: “b”}]}}]',
     };
 

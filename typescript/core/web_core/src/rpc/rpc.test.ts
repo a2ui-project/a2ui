@@ -62,11 +62,26 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
   };
   const signalImpl = createFunctionImplementation(signalApi, () => signal(42) as any);
 
+  const agentOnlyApi = {
+    name: 'agentOnlyFunc',
+    returnType: 'string' as const,
+    schema: z.object({text: z.string()}),
+    allowedCallers: 'agentOnly' as const,
+  };
+  const agentOnlyImpl = createFunctionImplementation(agentOnlyApi, args => `Agent: ${args.text}`);
+
   const mockCatalog = new Catalog(
     'basic',
     '1.0',
     [],
-    [customRpcImpl, rendererOnlyImpl, restrictedImpl, signalImpl, IndexImplementation],
+    [
+      customRpcImpl,
+      rendererOnlyImpl,
+      restrictedImpl,
+      signalImpl,
+      agentOnlyImpl,
+      IndexImplementation,
+    ],
   );
 
   it('instantiates via options bag RpcHandlerOptions', () => {
@@ -89,7 +104,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     const context = new DataContext(surface, '/');
 
     const message = {
-      version: 'v1.0' as const,
+      version: '1.0' as const,
       callRendererFunction: {
         functionCallId: 'rpc-listener-1',
         callFunction: {
@@ -103,7 +118,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     const response = await handler.handleCallRendererFunction(message, context, false);
     assert.strictEqual(response.rendererFunctionResponse.value, 'Processed: Streaming test');
     assert.strictEqual(emittedMessages.length, 1);
-    assert.strictEqual(emittedMessages[0].version, 'v1.0');
+    assert.strictEqual(emittedMessages[0].version, '1.0');
     assert.strictEqual(
       emittedMessages[0].rendererFunctionResponse?.functionCallId,
       'rpc-listener-1',
@@ -130,14 +145,19 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
         catalogId: 'basic',
         args: {query: 'test'},
       },
-      {functionCallId: 'agent-call-100', version: 'v1.0'},
+      {functionCallId: 'agent-call-100', version: '1.0'},
     );
 
-    assert.strictEqual(emittedMessage.version, 'v1.0');
+    assert.strictEqual(emittedMessage.version, '1.0');
     assert.strictEqual(emittedMessage.callAgentFunction.functionCallId, 'agent-call-100');
+    assert.deepStrictEqual(emittedMessage.callAgentFunction.callFunction, {
+      '@call': 'fetchRemoteData',
+      catalogId: 'basic',
+      args: {query: 'test'},
+    });
 
     handler.handleAgentFunctionResponse({
-      version: 'v1.0',
+      version: '1.0',
       agentFunctionResponse: {
         functionCallId: 'agent-call-100',
         value: {items: [1, 2, 3]},
@@ -228,7 +248,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     const context = new DataContext(surface, '/');
     const response = await handler.handleCallRendererFunction(
       {
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           functionCallId: 'call-post-dispose',
           callFunction: {call: 'customRpc', catalogId: 'basic', args: {text: 'hi'}},
@@ -324,7 +344,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
       {functionCallId: 'err-call-1'},
     );
     handler.handleAgentFunctionResponse({
-      version: 'v1.0',
+      version: '1.0',
       agentFunctionResponse: {
         functionCallId: 'err-call-1',
         error: {code: 'SERVER_FAULT', message: 'Internal server failure'},
@@ -346,7 +366,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
       {functionCallId: 'err-call-partial'},
     );
     handler.handleAgentFunctionResponse({
-      version: 'v1.0',
+      version: '1.0',
       agentFunctionResponse: {
         functionCallId: 'err-call-partial',
         error: {} as any,
@@ -391,7 +411,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
 
     assert.strictEqual(emittedMsg.callAgentFunction.functionCallId, 'custom-id-99');
     handler.handleAgentFunctionResponse({
-      version: 'v1.0',
+      version: '1.0',
       agentFunctionResponse: {
         functionCallId: 'custom-id-99',
         value: {data: 'payload'},
@@ -409,7 +429,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
 
     const res = await handler.handleCallRendererFunction(
       {
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           functionCallId: 'call-signal-1',
           callFunction: {
@@ -425,13 +445,38 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     assert.strictEqual(res.rendererFunctionResponse.value, 42);
   });
 
+  it('runs an agentOnly function for an agent-initiated callRendererFunction', async () => {
+    const handler = new RpcHandler([mockCatalog]);
+    const surface = new SurfaceModel('s1', mockCatalog);
+    const dataContext = new DataContext(surface, '/');
+
+    const res = await handler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'call-agent-only-1',
+          callFunction: {
+            call: 'agentOnlyFunc',
+            catalogId: 'basic',
+            args: {text: 'hi'},
+          },
+        },
+      },
+      dataContext,
+      false,
+    );
+
+    assert.strictEqual(res.rendererFunctionResponse.error, undefined);
+    assert.strictEqual(res.rendererFunctionResponse.value, 'Agent: hi');
+  });
+
   it('rejects callRendererFunction when catalogId is omitted, with or without surface context', async () => {
     const handler = new RpcHandler([mockCatalog]);
     const emptyContext = {} as DataContext;
 
     const res = await handler.handleCallRendererFunction(
       {
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           functionCallId: 'call-no-surface-default',
           callFunction: {
@@ -456,7 +501,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     const surfaceContext = new DataContext(surface, '/');
     const resWithSurface = await handler.handleCallRendererFunction(
       {
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           surfaceId: 's1',
           functionCallId: 'call-with-surface-no-catalog',
@@ -482,6 +527,81 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     );
   });
 
+  it('awaits an asynchronous nested call in the arguments before validating a callRendererFunction', async () => {
+    const asyncEchoImpl = createFunctionImplementation(
+      {
+        name: 'asyncEcho',
+        returnType: 'any' as const,
+        schema: z.object({value: z.string()}),
+        allowedCallers: 'rendererOrAgent' as const,
+      },
+      async args => {
+        await Promise.resolve();
+        return args.value;
+      },
+    );
+    const catalog = new Catalog('basic', '1.0', [], [customRpcImpl, asyncEchoImpl]);
+    const handler = new RpcHandler({catalogs: [catalog]});
+    const surface = new SurfaceModel('s1', catalog);
+    const context = new DataContext(surface, '/');
+
+    const response = await handler.handleCallRendererFunction(
+      {
+        version: '1.0' as const,
+        callRendererFunction: {
+          functionCallId: 'rpc-async-arg',
+          callFunction: {
+            '@call': 'customRpc',
+            catalogId: 'basic',
+            args: {text: {'@call': 'asyncEcho', args: {value: 'settled'}}},
+          },
+        },
+      } as any,
+      context,
+      false,
+    );
+    assert.strictEqual(response.rendererFunctionResponse.error, undefined);
+    assert.strictEqual(response.rendererFunctionResponse.value, 'Processed: settled');
+  });
+
+  it('answers with an error when an asynchronous nested argument rejects', async () => {
+    const asyncFailImpl = createFunctionImplementation(
+      {
+        name: 'asyncFail',
+        returnType: 'any' as const,
+        schema: z.object({}),
+        allowedCallers: 'rendererOrAgent' as const,
+      },
+      async () => {
+        await Promise.resolve();
+        throw new Error('upstream failed');
+      },
+    );
+    const catalog = new Catalog('basic', '1.0', [], [customRpcImpl, asyncFailImpl]);
+    const handler = new RpcHandler({catalogs: [catalog]});
+    const surface = new SurfaceModel('s1', catalog);
+    const context = new DataContext(surface, '/');
+
+    const response = await handler.handleCallRendererFunction(
+      {
+        version: '1.0' as const,
+        callRendererFunction: {
+          functionCallId: 'rpc-async-fail',
+          callFunction: {
+            '@call': 'customRpc',
+            catalogId: 'basic',
+            args: {text: {'@call': 'asyncFail', args: {}}},
+          },
+        },
+      } as any,
+      context,
+      false,
+    );
+    assert.strictEqual(response.rendererFunctionResponse.error?.code, RpcErrorCode.EXECUTION_ERROR);
+    assert.match(response.rendererFunctionResponse.error?.message ?? '', /upstream failed/);
+    assert.strictEqual(response.rendererFunctionResponse.value, undefined);
+  });
+
   it('formats A2uiRpcError with the blueprint-standard (message, code, functionCallId, details) signature', () => {
     const standardErr = new A2uiRpcError('Something failed', RpcErrorCode.TIMEOUT, 'call-1');
     assert.strictEqual(standardErr.code, 'TIMEOUT');
@@ -499,5 +619,84 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     assert.strictEqual(customCodeErr.message, '[SERVER_FAULT] Server blew up');
     assert.strictEqual(customCodeErr.functionCallId, 'call-2');
     assert.deepStrictEqual(customCodeErr.details, {status: 500});
+  });
+
+  it('enforces the default 30s timeout when timeoutMs is omitted', async t => {
+    t.mock.timers.enable({apis: ['setTimeout']});
+    const handler = new RpcHandler({
+      catalogs: [mockCatalog],
+      outboundListener: () => {},
+    });
+    const pendingMap = (handler as unknown as {pendingAgentCalls: Map<string, unknown>})
+      .pendingAgentCalls;
+
+    const promise = handler.callAgentFunction(
+      'surface-1',
+      {call: 'defaultTimeoutFunc'},
+      {functionCallId: 'default-timeout-1'},
+    );
+    assert.strictEqual(pendingMap.size, 1);
+
+    t.mock.timers.tick(29999);
+    assert.strictEqual(pendingMap.size, 1);
+
+    t.mock.timers.tick(1);
+    await assert.rejects(promise, (err: unknown) => {
+      assert.ok(err instanceof A2uiRpcError);
+      assert.strictEqual(err.code, RpcErrorCode.TIMEOUT);
+      assert.strictEqual(err.functionCallId, 'default-timeout-1');
+      assert.match(err.message, /timed out after 30000ms/);
+      return true;
+    });
+    assert.strictEqual(pendingMap.size, 0);
+
+    // A late response for the timed-out call ID is ignored and leaves the pending map empty.
+    handler.handleAgentFunctionResponse({
+      version: '1.0',
+      agentFunctionResponse: {
+        functionCallId: 'default-timeout-1',
+        value: 'too-late',
+      },
+    });
+    assert.strictEqual(pendingMap.size, 0);
+  });
+
+  it('cleans up pending call when outbound listener rejects asynchronously and ignores late response', async () => {
+    let rejectSend!: (reason?: unknown) => void;
+    const handler = new RpcHandler({
+      catalogs: [mockCatalog],
+      outboundListener: () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectSend = reject;
+        }),
+    });
+    const pendingMap = (handler as unknown as {pendingAgentCalls: Map<string, unknown>})
+      .pendingAgentCalls;
+
+    const promise = handler.callAgentFunction(
+      'surface-1',
+      {call: 'abortableFunc'},
+      {functionCallId: 'abort-call-1'},
+    );
+    assert.strictEqual(pendingMap.size, 1);
+
+    const thrown = new Error('transport aborted');
+    rejectSend(thrown);
+
+    await assert.rejects(promise, (err: unknown) => {
+      assert.strictEqual(err, thrown);
+      return true;
+    });
+    assert.strictEqual(pendingMap.size, 0);
+
+    // A later response for the rejected functionCallId is ignored and leaves the map empty.
+    handler.handleAgentFunctionResponse({
+      version: '1.0',
+      agentFunctionResponse: {
+        functionCallId: 'abort-call-1',
+        value: {ignored: true},
+      },
+    });
+    assert.strictEqual(pendingMap.size, 0);
   });
 });

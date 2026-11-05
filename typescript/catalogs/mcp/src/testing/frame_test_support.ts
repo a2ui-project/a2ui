@@ -230,7 +230,7 @@ export class FrameTestHarness {
   ): void {
     this.processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {surfaceId: this.surfaceId, components: [component]},
       },
     ]);
@@ -239,7 +239,7 @@ export class FrameTestHarness {
   /** Writes a value into the surface data model, as an `updateDataModel` message would. */
   setData(path: string, value: unknown): void {
     this.processor.processMessages([
-      {version: 'v1.0', updateDataModel: {surfaceId: this.surfaceId, path, value}},
+      {version: '1.0', updateDataModel: {surfaceId: this.surfaceId, path, value}},
     ]);
   }
 

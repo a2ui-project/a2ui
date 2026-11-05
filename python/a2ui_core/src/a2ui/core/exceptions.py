@@ -26,74 +26,146 @@ class A2uiErrorDetail:
     path: str
     code: str
     message: str
+    surface_id: str | None = None
 
     def to_dict(self) -> dict[str, str]:
-        return dataclasses.asdict(self)
+        res = {"path": self.path, "code": self.code, "message": self.message}
+        if self.surface_id is not None:
+            res["surfaceId"] = self.surface_id
+        return res
+
+
+_PASSTHROUGH_DETAIL_CODES = frozenset({
+    "UNALLOWED_PARENT",
+    "UNALLOWED_CHILD",
+    "INVALID_FUNCTION_CALL",
+    "INVALID_RESERVED_KEY",
+})
 
 
 class A2uiError(ValueError):
     """Base exception class for all A2UI SDK failures."""
 
+    DEFAULT_CODE: str | None = None
+
     def __init__(
-        self, message: str, details: list[A2uiErrorDetail] | None = None
+        self,
+        message: str,
+        details: list[A2uiErrorDetail] | None = None,
+        *,
+        code: str | None = None,
+        path: str | None = None,
+        surface_id: str | None = None,
+        function_call_id: str | None = None,
     ) -> None:
         super().__init__(message)
-        self.details = details or []
+        self.message: str = message
+        self.details: list[A2uiErrorDetail] = details or []
+        first_detail = self.details[0] if self.details else None
+        resolved_code = code
+        if resolved_code is None:
+            if first_detail and first_detail.code in _PASSTHROUGH_DETAIL_CODES:
+                resolved_code = first_detail.code
+            else:
+                resolved_code = self.DEFAULT_CODE
+        self.code: str | None = resolved_code
+        self.path: str | None = (
+            path
+            if path is not None
+            else (first_detail.path if first_detail and first_detail.path else None)
+        )
+        self.surface_id: str | None = (
+            surface_id
+            if surface_id is not None
+            else (first_detail.surface_id if first_detail else None)
+        )
+        self.function_call_id: str | None = function_call_id
 
 
 class A2uiParseError(A2uiError):
     """Exception raised when failing to parse or extract A2UI payloads."""
 
-    pass
-
 
 class A2uiValidationError(A2uiError):
     """Exception raised when A2UI payload violates schema constraints."""
 
-    pass
+    DEFAULT_CODE = "VALIDATION_FAILED"
 
 
 class A2uiCatalogError(A2uiError):
     """Exception raised during catalog management or loading."""
 
-    pass
+    DEFAULT_CODE = "CATALOG_NOT_FOUND"
 
 
 class A2uiStateError(A2uiError):
     """Exception raised for UI tree structural errors."""
 
-    pass
+    DEFAULT_CODE = "STATE_ERROR"
 
 
 class A2uiIntegrityError(A2uiValidationError):
     """Exception raised when layout graph integrity or relationship checks fail."""
 
-    pass
+    DEFAULT_CODE = "INTEGRITY_ERROR"
 
 
 class A2uiRecursionError(A2uiValidationError):
     """Exception raised when recursive or traversal limits are exceeded."""
 
-    pass
+    DEFAULT_CODE = "RECURSION_LIMIT_EXCEEDED"
 
 
 class A2uiDataError(A2uiError):
     """Exception raised when accessing or mutating data model with invalid paths or types."""
+
+    DEFAULT_CODE = "DATA_ERROR"
 
     def __init__(
         self,
         message: str,
         path: str | None = None,
         details: list[A2uiErrorDetail] | None = None,
+        *,
+        code: str | None = None,
+        surface_id: str | None = None,
+        function_call_id: str | None = None,
     ) -> None:
-        super().__init__(message, details=details)
-        self.path: str | None = path
+        super().__init__(
+            message,
+            details=details,
+            code=code,
+            path=path,
+            surface_id=surface_id,
+            function_call_id=function_call_id,
+        )
 
 
 class A2uiExpressionError(A2uiError):
     """Exception raised when parsing or evaluating expressions and functions."""
 
-    pass
+    DEFAULT_CODE = "EXPRESSION_ERROR"
+
+    def __init__(
+        self,
+        message: str,
+        details: list[A2uiErrorDetail] | None = None,
+        *,
+        expression: str | None = None,
+        code: str | None = None,
+        path: str | None = None,
+        surface_id: str | None = None,
+        function_call_id: str | None = None,
+    ) -> None:
+        super().__init__(
+            message,
+            details=details,
+            code=code,
+            path=path,
+            surface_id=surface_id,
+            function_call_id=function_call_id,
+        )
+        self.expression = expression
 
 
 class RpcErrorCode(str, enum.Enum):

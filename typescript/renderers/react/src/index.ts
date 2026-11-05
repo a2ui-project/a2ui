@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-export {A2uiSurface} from './A2uiSurface';
+export {A2uiSurface, useA2uiSurface} from './A2uiSurface';
 export {createBinderlessComponentImplementation, createComponentImplementation} from './adapter';
-export {useSignalValue} from './node-view';
+export {useNodeView, useSignalValue} from './node-view';
 export type {
   NodeBuildChild,
   NodeViewProps,
@@ -25,4 +25,9 @@ export type {
   ReactComponentImplementation,
 } from './react_component_implementation';
 
-export {MarkdownContext, useMarkdownRenderer} from './markdown-context';
+export {
+  MarkdownComponentContext,
+  MarkdownContext,
+  type MarkdownComponentProps,
+  useMarkdownRenderer,
+} from './markdown-context';

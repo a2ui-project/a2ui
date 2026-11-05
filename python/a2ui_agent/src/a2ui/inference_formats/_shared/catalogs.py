@@ -19,7 +19,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Literal
 
-from a2ui.core import A2uiCatalogError, CatalogApi, link_catalogs
+from a2ui.core import A2uiCatalogError, CatalogApi
 from a2ui.core.common import is_at_least_version, to_protocol_version
 from a2ui.core.schema import ProtocolVersion
 
@@ -64,7 +64,7 @@ def check_catalogs(catalogs: Sequence[CatalogApi]) -> list[CatalogApi]:
             "The catalogs target incompatible protocol versions:"
             f" {sorted(v.value for v in versions)}."
         )
-    return link_catalogs(items)
+    return items
 
 
 def check_mixed_catalogs(catalogs: Sequence[CatalogApi]) -> list[CatalogApi]:
@@ -167,4 +167,4 @@ def build_catalog_helpers(
         A2uiCatalogError: If two catalogs share a catalog ID.
     """
     _check_unique_ids(catalogs)
-    return {c.catalog_id: CatalogSchemaHelper(c) for c in link_catalogs(catalogs)}
+    return {c.catalog_id: CatalogSchemaHelper(c) for c in catalogs}

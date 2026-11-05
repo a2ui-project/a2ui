@@ -17,32 +17,40 @@
 /**
  * Client application for the A2UI-over-MCP filesystem browser sample.
  *
- * Connects to a filesystem MCP server and loads the static A2UI payload
- * (`a2ui_filesystem.json`). All tool calls and data transformations are
- * defined declaratively in the payload.
+ * Connects to a filesystem MCP server and loads the static A2UI v1.0 payload
+ * (`a2ui_filesystem.json`) on the basic catalog and the MCP catalog of
+ * `@a2ui/catalog-mcp`. All tool calls and data transformations are defined
+ * declaratively in the payload; the host only runs the first listing.
  */
 
-import {Context, basicCatalog} from '@a2ui/lit/v0_9';
-import '@a2ui/lit/v0_9'; // Registers <a2ui-surface>.
+import {Context} from '@a2ui/lit'; // Also registers <a2ui-surface>.
 import {renderMarkdown} from '@a2ui/markdown-it';
-import {CallMcpToolImplementation, configureMcpCatalog} from '@a2ui/catalog-mcp';
-import {Catalog, MessageProcessor, type A2uiMessage, type SurfaceModel} from '@a2ui/web_core/v0_9';
+import {configureMcpCatalog, mcpCatalog} from '@a2ui/catalog-mcp';
+import {
+  basicCatalog,
+  DataContext,
+  MessageProcessor,
+  type ProcessableMessagePayload,
+  type SurfaceModel,
+  type WebComponentImplementation,
+} from '@a2ui/web_core/v1_0';
 import {provide} from '@lit/context';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import type {ClientCapabilities} from '@modelcontextprotocol/sdk/types.js';
 import {LitElement, css, html} from 'lit';
 import {customElement, state} from 'lit/decorators.js';
 
 import surfaceMessages from '../a2ui_filesystem.json';
-import {JmespathImplementation} from './functions/jmespath.js';
-import {RegexCaptureImplementation} from './functions/regexCapture.js';
-import {RegexReplaceImplementation} from './functions/regexReplace.js';
-import {SplitImplementation} from './functions/split.js';
-import {UpdateDataModelImplementation} from './functions/updateDataModel.js';
 
-/** Catalog ID combining basic A2UI components with MCP catalog functions. */
-export const CATALOG_ID =
-  'https://a2ui.org/specification/v0_9/catalogs/basic_with_mcp/catalog.json';
+/** ID of the catalog the payload creates its surface on; the MCP calls name `mcpCatalog.id`. */
+export const BASIC_CATALOG_ID = basicCatalog.id;
+
+/** ID of the surface the payload creates. */
+export const SURFACE_ID = 'fs-browser';
+
+/** Button whose action lists `/dir`; the host runs it once for the first listing. */
+const OPEN_BUTTON_ID = 'open_button';
 
 /** Local proxy endpoint forwarding requests to the MCP server. */
 export const MCP_ENDPOINT = '/mcp';
@@ -51,33 +59,22 @@ export const MCP_ENDPOINT = '/mcp';
 export class A2uiFilesystemApp extends LitElement {
   /** Markdown renderer for displaying file contents and formatted text. */
   @provide({context: Context.markdown})
-  markdownRenderer = (value: string, options?: unknown) =>
+  readonly markdownRenderer = (value: string, options?: unknown) =>
     Promise.resolve(renderMarkdown(value, options as never));
 
-  readonly processor: MessageProcessor<any>;
+  readonly processor: MessageProcessor<WebComponentImplementation>;
 
-  @state() accessor surface: SurfaceModel<any> | undefined;
+  @state() accessor surface: SurfaceModel<WebComponentImplementation> | undefined;
   @state() private accessor error = '';
 
   private mcpClient?: Client;
 
   constructor() {
     super();
-    this.processor = new MessageProcessor<any>([
-      new Catalog<any>(CATALOG_ID, '0.9', Array.from(basicCatalog.components.values()), [
-        ...Array.from(basicCatalog.functions.values()),
-        CallMcpToolImplementation,
-        JmespathImplementation,
-        SplitImplementation,
-        RegexCaptureImplementation,
-        RegexReplaceImplementation,
-        UpdateDataModelImplementation,
-      ]),
-    ]);
+    this.processor = new MessageProcessor<WebComponentImplementation>([basicCatalog, mcpCatalog]);
     configureMcpCatalog({
       getMcpClientForTool: () => this.mcpClient,
       processor: this.processor,
-      defaultVersion: 'v0.9',
     });
 
     this.processor.onSurfaceCreated(surface => {
@@ -91,21 +88,49 @@ export class A2uiFilesystemApp extends LitElement {
   override async connectedCallback() {
     super.connectedCallback();
     try {
+      // The `a2ui` capability is an extension the MCP SDK's capability type
+      // does not declare, hence the cast.
+      const capabilities = {
+        a2ui: {clientCapabilities: this.processor.getClientCapabilities({versions: ['1.0']})},
+      } as ClientCapabilities;
       this.mcpClient = new Client(
         {name: 'a2ui-filesystem-browser', version: '1.0.0'},
-        {
-          capabilities: {
-            a2ui: {clientCapabilities: this.processor.getClientCapabilities({versions: ['v0.9']})},
-          } as any,
-        },
+        {capabilities},
       );
       await this.mcpClient.connect(
         new StreamableHTTPClientTransport(new URL(MCP_ENDPOINT, window.location.origin)),
       );
-      this.processor.processMessages(structuredClone(surfaceMessages) as unknown as A2uiMessage[]);
+      this.processor.processMessages(structuredClone(surfaceMessages) as ProcessableMessagePayload);
+      await this.listInitialDirectory();
     } catch (error: unknown) {
       this.error = error instanceof Error ? error.message : String(error);
     }
+  }
+
+  override disconnectedCallback() {
+    super.disconnectedCallback();
+    const client = this.mcpClient;
+    this.mcpClient = undefined;
+    client?.close().catch((error: unknown) => {
+      console.error('Failed to close the MCP client:', error);
+    });
+  }
+
+  /**
+   * Lists the directory the payload starts on by running the `List directory`
+   * button's action once, as if the user had pressed it.
+   */
+  private async listInitialDirectory(): Promise<void> {
+    const surface = this.processor.model.getSurface(SURFACE_ID);
+    const openButton = surface?.componentsModel.get(OPEN_BUTTON_ID);
+    if (!surface || !openButton) {
+      throw new Error(`The payload declares no ${OPEN_BUTTON_ID} on surface ${SURFACE_ID}.`);
+    }
+    const action = openButton.properties['action'];
+    if (!action) {
+      throw new Error(`The ${OPEN_BUTTON_ID} on surface ${SURFACE_ID} has no action.`);
+    }
+    await new DataContext(surface, '/').resolveAction(action);
   }
 
   static styles = css`

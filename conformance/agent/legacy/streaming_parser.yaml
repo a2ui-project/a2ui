@@ -3271,16 +3271,16 @@
 - name: test_v1_0_streaming_create_surface_inline_components
   description: Verifies streaming v1.0 createSurface messages with inline components and data model.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     catalogSchema:
       catalogId: "basic"
   disableValidation: true
   action: process_chunk
   steps:
-    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "basic", "components": [{"id": "root", "component": "Text", "text": "Streaming v1.0"}], "dataModel": {"count": 10}}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "basic", "components": [{"id": "root", "component": "Text", "text": "Streaming v1.0"}], "dataModel": {"count": 10}}}]</a2ui-json>'
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "main"
                 catalogId: "basic"
@@ -3296,9 +3296,9 @@
     Verifies that a v1.0 stream parser holding several catalogs resolves a
     component that names no catalog against its surface's catalog, and a
     component that names a catalog against that catalog.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogs:
-    - protocolVersion: "v1.0"
+    - protocolVersion: "1.0"
       catalogSchema:
         catalogId: "https://a2ui.org/catalogs/basic"
         components:
@@ -3317,7 +3317,7 @@
               children:
                 $ref: "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList"
             required: ["id", "component", "children"]
-    - protocolVersion: "v1.0"
+    - protocolVersion: "1.0"
       catalogSchema:
         catalogId: "https://a2ui.org/catalogs/custom"
         components:
@@ -3330,19 +3330,19 @@
             required: ["id", "component", "value"]
   action: process_chunk
   steps:
-    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/catalogs/basic"}}, '
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/catalogs/basic"}}, '
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "main"
                 catalogId: "https://a2ui.org/catalogs/basic"
-    - input: '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": ["t1", "m1"]}, {"id": "t1", "component": "Text", "text": "Users"}, {"id": "m1", "catalogId": "https://a2ui.org/catalogs/custom", "component": "CustomMetric"'
+    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": ["t1", "m1"]}, {"id": "t1", "component": "Text", "text": "Users"}, {"id": "m1", "catalogId": "https://a2ui.org/catalogs/custom", "component": "CustomMetric"'
       expect: []
     - input: ', "value": 42}'
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               updateComponents:
                 surfaceId: "main"
                 components:
@@ -3366,9 +3366,9 @@
     rejected, as a renderer would reject it. The component is closed when it is
     checked and can't become valid later, so the error is raised on the chunk
     that closes it rather than at the end of the block.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogs:
-    - protocolVersion: "v1.0"
+    - protocolVersion: "1.0"
       catalogSchema:
         catalogId: "https://a2ui.org/catalogs/basic"
         components:
@@ -3379,7 +3379,7 @@
               component: {type: string, enum: ["Text"]}
               text: {type: string}
             required: ["id", "component", "text"]
-    - protocolVersion: "v1.0"
+    - protocolVersion: "1.0"
       catalogSchema:
         catalogId: "https://a2ui.org/catalogs/custom"
         components:
@@ -3392,14 +3392,14 @@
             required: ["id", "component", "value"]
   action: process_chunk
   steps:
-    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/catalogs/basic"}}, '
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/catalogs/basic"}}, '
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "main"
                 catalogId: "https://a2ui.org/catalogs/basic"
-    - input: '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": ['
+    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": ['
       expect: []
     - input: '{"id": "root", "component": "CustomMetric", "value": 42}'
       expectError: "Validation failed"
@@ -3410,9 +3410,9 @@
     catalogId that arrives after the type and properties picks the catalog the
     component is checked against. Yielded early, the component would be
     checked against the surface's catalog, which does not define it.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogs:
-    - protocolVersion: "v1.0"
+    - protocolVersion: "1.0"
       catalogSchema:
         catalogId: "https://a2ui.org/catalogs/basic"
         components:
@@ -3424,7 +3424,7 @@
               children:
                 $ref: "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList"
             required: ["id", "component", "children"]
-    - protocolVersion: "v1.0"
+    - protocolVersion: "1.0"
       catalogSchema:
         catalogId: "https://a2ui.org/catalogs/custom"
         components:
@@ -3437,19 +3437,19 @@
             required: ["id", "component", "value"]
   action: process_chunk
   steps:
-    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/catalogs/basic"}}, '
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/catalogs/basic"}}, '
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "main"
                 catalogId: "https://a2ui.org/catalogs/basic"
-    - input: '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": ["m1"]}, {"id": "m1", "component": "CustomMetric", "value": 42'
+    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": ["m1"]}, {"id": "m1", "component": "CustomMetric", "value": 42'
       expect: []
     - input: ', "catalogId": "https://a2ui.org/catalogs/custom"}'
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               updateComponents:
                 surfaceId: "main"
                 components:
@@ -3468,9 +3468,9 @@
     Verifies that a v1.0 component whose catalogId key and value are split
     across chunks, at the key, between the key and its value, and inside the
     value, is yielded once, after its object closes.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogs:
-    - protocolVersion: "v1.0"
+    - protocolVersion: "1.0"
       catalogSchema:
         catalogId: "https://a2ui.org/catalogs/basic"
         components:
@@ -3481,7 +3481,7 @@
               component: {type: string, enum: ["Text"]}
               text: {type: string}
             required: ["id", "component", "text"]
-    - protocolVersion: "v1.0"
+    - protocolVersion: "1.0"
       catalogSchema:
         catalogId: "https://a2ui.org/catalogs/custom"
         components:
@@ -3494,14 +3494,14 @@
             required: ["id", "component", "value"]
   action: process_chunk
   steps:
-    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/catalogs/basic"}}, '
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/catalogs/basic"}}, '
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "main"
                 catalogId: "https://a2ui.org/catalogs/basic"
-    - input: '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "CustomMetric", "value": 42, "catal'
+    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "CustomMetric", "value": 42, "catal'
       expect: []
     - input: 'ogId"'
       expect: []
@@ -3514,7 +3514,7 @@
     - input: "}"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               updateComponents:
                 surfaceId: "main"
                 components:
@@ -3530,9 +3530,9 @@
     Verifies that a v1.0 component that names no catalog, and so uses its
     surface's catalog, is still held back until its object closes rather than
     yielded with a healed partial string.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogs:
-    - protocolVersion: "v1.0"
+    - protocolVersion: "1.0"
       catalogSchema:
         catalogId: "https://a2ui.org/catalogs/basic"
         components:
@@ -3545,21 +3545,21 @@
             required: ["id", "component", "text"]
   action: process_chunk
   steps:
-    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/catalogs/basic"}}, '
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/catalogs/basic"}}, '
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "main"
                 catalogId: "https://a2ui.org/catalogs/basic"
-    - input: '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Text", "text": "Hel'
+    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Text", "text": "Hel'
       expect: []
     - input: 'lo"'
       expect: []
     - input: "}"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               updateComponents:
                 surfaceId: "main"
                 components:

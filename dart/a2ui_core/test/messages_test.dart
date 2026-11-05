@@ -340,7 +340,7 @@ void main() {
     test('rejects an envelope declaring another protocol version', () {
       expect(
         () => parse({
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {'surfaceId': 's1', 'catalogId': 'cat1'},
         }),
         throwsA(isA<A2uiValidationError>()),
@@ -726,7 +726,7 @@ void main() {
     test('rejects an envelope declaring another protocol version', () {
       expect(
         () => parse({
-          'version': 'v1.0',
+          'version': '1.0',
           'error': {'code': 'A', 'surfaceId': 's1', 'message': 'boom'},
         }),
         throwsA(isA<A2uiValidationError>()),
@@ -1061,7 +1061,7 @@ void main() {
     test('round-trips every v1.0 message', () {
       final envelopes = <Map<String, Object?>>[
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {
             'surfaceId': 's1',
             'catalogId': 'cat1',
@@ -1076,11 +1076,11 @@ void main() {
           },
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {'surfaceId': 's1', 'sendDataModel': false},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'updateComponents': {
             'surfaceId': 's1',
             'components': [
@@ -1089,19 +1089,19 @@ void main() {
           },
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'updateDataModel': {'surfaceId': 's1', 'path': '/a', 'value': 3},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'updateDataModel': {'surfaceId': 's1', 'path': '/a', 'value': null},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'deleteSurface': {'surfaceId': 's1'},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'callRendererFunction': {
             'functionCallId': 'call-1',
             'callFunction': {
@@ -1112,15 +1112,15 @@ void main() {
           },
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'agentFunctionResponse': {'functionCallId': 'call-2', 'value': 42},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'agentFunctionResponse': {'functionCallId': 'call-3', 'value': null},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'agentFunctionResponse': {
             'functionCallId': 'call-4',
             'error': {'code': 'FAILED', 'message': 'nope'},
@@ -1134,7 +1134,7 @@ void main() {
 
     test('parses v1.0 createSurface fields', () {
       final msg = AgentToRendererMessage.fromJson({
-        'version': 'v1.0',
+        'version': '1.0',
         'createSurface': {
           'surfaceId': 's1',
           'components': [
@@ -1154,7 +1154,7 @@ void main() {
 
     test('parses callRendererFunction and agentFunctionResponse', () {
       final call = AgentToRendererMessage.fromJson({
-        'version': 'v1.0',
+        'version': '1.0',
         'callRendererFunction': {
           'functionCallId': 'call-1',
           'callFunction': {'@call': 'playMedia', 'catalogId': 'media'},
@@ -1164,7 +1164,7 @@ void main() {
       expect(call.callFunction, {'@call': 'playMedia', 'catalogId': 'media'});
 
       final response = AgentToRendererMessage.fromJson({
-        'version': 'v1.0',
+        'version': '1.0',
         'agentFunctionResponse': {
           'functionCallId': 'call-1',
           'error': {'code': 'FAILED', 'message': 'nope'},
@@ -1177,7 +1177,7 @@ void main() {
 
     final invalid = <String, Map<String, Object?>>{
       'v1.0 createSurface with theme': {
-        'version': 'v1.0',
+        'version': '1.0',
         'createSurface': {
           'surfaceId': 's1',
           'catalogId': 'c',
@@ -1226,7 +1226,7 @@ void main() {
         'agentFunctionResponse': {'functionCallId': 'call-1', 'value': 1},
       },
       'unknown envelope key': {
-        'version': 'v1.0',
+        'version': '1.0',
         'deleteSurface': {'surfaceId': 's1'},
         'extra': true,
       },
@@ -1236,40 +1236,40 @@ void main() {
         'extra': true,
       },
       'unknown body key': {
-        'version': 'v1.0',
+        'version': '1.0',
         'deleteSurface': {'surfaceId': 's1', 'extra': true},
       },
       'v1.0 updateDataModel without value': {
-        'version': 'v1.0',
+        'version': '1.0',
         'updateDataModel': {'surfaceId': 's1', 'path': '/a'},
       },
       'empty components list': {
-        'version': 'v1.0',
+        'version': '1.0',
         'updateComponents': {'surfaceId': 's1', 'components': <Object?>[]},
       },
       'metadata with an unknown key': {
-        'version': 'v1.0',
+        'version': '1.0',
         'createSurface': {
           'surfaceId': 's1',
           'metadata': {'other': 1},
         },
       },
       'callRendererFunction without catalogId': {
-        'version': 'v1.0',
+        'version': '1.0',
         'callRendererFunction': {
           'functionCallId': 'call-1',
           'callFunction': {'@call': 'f'},
         },
       },
       'callRendererFunction with a non-string id': {
-        'version': 'v1.0',
+        'version': '1.0',
         'callRendererFunction': {
           'functionCallId': 7,
           'callFunction': {'@call': 'f', 'catalogId': 'c'},
         },
       },
       'function response with value and error': {
-        'version': 'v1.0',
+        'version': '1.0',
         'agentFunctionResponse': {
           'functionCallId': 'call-1',
           'value': 1,
@@ -1277,11 +1277,11 @@ void main() {
         },
       },
       'function response with neither value nor error': {
-        'version': 'v1.0',
+        'version': '1.0',
         'agentFunctionResponse': {'functionCallId': 'call-1'},
       },
       'function response error with an extra key': {
-        'version': 'v1.0',
+        'version': '1.0',
         'agentFunctionResponse': {
           'functionCallId': 'call-1',
           'error': {'code': 'X', 'message': 'y', 'details': 1},
@@ -1310,7 +1310,7 @@ void main() {
           isA<A2uiValidationError>().having(
             (e) => e.message,
             'message',
-            contains('v1.0'),
+            contains("'1.0'"),
           ),
         ),
       );
@@ -1356,7 +1356,7 @@ void main() {
     test('round-trips every v1.0 message', () {
       final envelopes = <Map<String, Object?>>[
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'action': action({
             'catalogId': 'cat1',
             'metadata': {
@@ -1365,7 +1365,7 @@ void main() {
           }),
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'callAgentFunction': {
             'surfaceId': 's1',
             'functionCallId': 'call-1',
@@ -1376,11 +1376,11 @@ void main() {
           },
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'rendererFunctionResponse': {'functionCallId': 'call-1', 'value': 1},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'error': {
             'code': 'UNALLOWED_CHILD',
             'surfaceId': 's1',
@@ -1389,7 +1389,7 @@ void main() {
           },
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'error': {
             'code': 'EXECUTION_ERROR',
             'functionCallId': 'call-1',
@@ -1409,7 +1409,7 @@ void main() {
 
     test('an action carries catalogId and metadata', () {
       final msg = RendererToAgentMessage.fromJson({
-        'version': 'v1.0',
+        'version': '1.0',
         'action': action({
           'catalogId': 'cat1',
           'metadata': {'extensions': <String, Object?>{}},
@@ -1435,7 +1435,7 @@ void main() {
 
     test('a generic error keeps its additional properties', () {
       final msg = RendererToAgentMessage.fromJson({
-        'version': 'v1.0',
+        'version': '1.0',
         'error': {
           'code': 'EXECUTION_ERROR',
           'surfaceId': 's1',
@@ -1449,7 +1449,7 @@ void main() {
 
     test('parses callAgentFunction and rendererFunctionResponse', () {
       final call = RendererToAgentMessage.fromJson({
-        'version': 'v1.0',
+        'version': '1.0',
         'callAgentFunction': {
           'surfaceId': 's1',
           'functionCallId': 'call-1',
@@ -1461,7 +1461,7 @@ void main() {
       expect(call.callFunction, {'@call': 'lookup'});
 
       final response = RendererToAgentMessage.fromJson({
-        'version': 'v1.0',
+        'version': '1.0',
         'rendererFunctionResponse': {'functionCallId': 'call-1', 'value': 'x'},
       }) as RendererFunctionResponseMessage;
       expect(response.response.value, 'x');
@@ -1470,7 +1470,7 @@ void main() {
 
     final invalid = <String, Map<String, Object?>>{
       'v1.0 validation error with an extra property': {
-        'version': 'v1.0',
+        'version': '1.0',
         'error': {
           'code': 'VALIDATION_FAILED',
           'surfaceId': 's1',
@@ -1480,7 +1480,7 @@ void main() {
         },
       },
       'v1.0 unallowed-parent error without a path': {
-        'version': 'v1.0',
+        'version': '1.0',
         'error': {
           'code': 'UNALLOWED_PARENT',
           'surfaceId': 's1',
@@ -1488,7 +1488,7 @@ void main() {
         },
       },
       'v1.0 unallowed-child error without a surfaceId': {
-        'version': 'v1.0',
+        'version': '1.0',
         'error': {'code': 'UNALLOWED_CHILD', 'path': '/a', 'message': 'm'},
       },
       'v0.9 validation error with an extra property': {
@@ -1502,7 +1502,7 @@ void main() {
         },
       },
       'v1.0 generic error with both surfaceId and functionCallId': {
-        'version': 'v1.0',
+        'version': '1.0',
         'error': {
           'code': 'X',
           'surfaceId': 's1',
@@ -1511,7 +1511,7 @@ void main() {
         },
       },
       'v1.0 generic error with neither surfaceId nor functionCallId': {
-        'version': 'v1.0',
+        'version': '1.0',
         'error': {'code': 'X', 'message': 'm'},
       },
       'v0.9 generic error without a surfaceId': {
@@ -1531,7 +1531,7 @@ void main() {
         'rendererFunctionResponse': {'functionCallId': 'call-1', 'value': 1},
       },
       'callAgentFunction with an unknown key': {
-        'version': 'v1.0',
+        'version': '1.0',
         'callAgentFunction': {
           'surfaceId': 's1',
           'functionCallId': 'call-1',
@@ -1540,13 +1540,13 @@ void main() {
         },
       },
       'action metadata with an unknown key': {
-        'version': 'v1.0',
+        'version': '1.0',
         'action': action({
           'metadata': {'other': 1},
         }),
       },
       'unknown envelope key': {
-        'version': 'v1.0',
+        'version': '1.0',
         'action': action(),
         'extra': 1,
       },

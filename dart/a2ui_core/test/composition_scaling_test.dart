@@ -49,7 +49,7 @@ final Catalog<ComponentApi, FunctionImplementation> _catalog = rendererCatalog(
       },
     },
   },
-  protocolVersion: 'v1.0',
+  protocolVersion: '1.0',
 );
 
 void main() {
@@ -60,15 +60,15 @@ void main() {
     // than its square.
     const Map<String, Object?> testCase = {
       'payload': [
-        '[{"version": "v1.0", "createSurface": {"surfaceId": "s1", '
+        '[{"version": "1.0", "createSurface": {"surfaceId": "s1", '
             '"catalogId": "allowed_children"}}, '
-            '{"version": "v1.0", "updateComponents": {"surfaceId": "s1", '
+            '{"version": "1.0", "updateComponents": {"surfaceId": "s1", '
             '"components": [{"id": "root", "component": "Column", '
             '"children": [',
         {'repeat': '"item_{i}"', 'separator': ', '},
         ']}]}}, ',
         {
-          'repeat': '{"version": "v1.0", "updateComponents": '
+          'repeat': '{"version": "1.0", "updateComponents": '
               '{"surfaceId": "s1", "components": [{"id": "item_{i}", '
               '"component": "Text", "text": "Item number {i}"}]}}',
           'separator': ', ',

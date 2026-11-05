@@ -124,10 +124,10 @@ SchemaValidator: Any = extend(  # type: ignore[no-untyped-call]
 
 
 def _refuse_retrieval(uri: str) -> referencing.Resource[Any]:
-    # A2UI v1.0 "Cross-Catalog References": peers must already be held locally.
+    # Catalogs come from renderers too, so fetching would let catalog content
+    # make the agent send requests (SSRF).
     raise A2uiCatalogError(
-        f"Cannot resolve '{uri}': it names no catalog held locally, and"
-        " catalogs are never fetched over the network."
+        f"Cannot resolve '{uri}': A2UI never fetches $ref targets over the network."
     )
 
 

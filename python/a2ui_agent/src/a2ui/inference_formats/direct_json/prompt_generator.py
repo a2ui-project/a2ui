@@ -109,8 +109,9 @@ class DirectJsonPromptGenerator(PromptGenerator):
         """
         if not include_schema:
             return ""
-        targets = [catalog] if catalog is not None else self._catalogs
-        return "\n\n".join(catalog_schema_prompt([c]) for c in targets)
+        return catalog_schema_prompt(
+            [catalog] if catalog is not None else self._catalogs
+        )
 
     def generate_examples(
         self,

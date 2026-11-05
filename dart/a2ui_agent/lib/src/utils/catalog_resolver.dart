@@ -51,12 +51,6 @@ import 'catalogs.dart';
 /// is already active is dropped, so a renderer that names a catalog and also
 /// redefines it gets the agent's registration.
 ///
-/// The active catalogs are copies linked with one another, and with each
-/// registered catalog of their version as declared and as transformed, so a
-/// cross-catalog `$ref` resolves, including one to an entry a transformer
-/// pruned; see [linkCatalogs]. The registered catalogs are not changed. A
-/// refused inline catalog is linked with nothing.
-///
 /// Without capabilities, throws [A2uiCatalogError] if the registered
 /// catalogs target different versions. Given capabilities, throws
 /// [A2uiValidationError] if they declare nothing for any version of the
@@ -74,9 +68,9 @@ List<CatalogApi> resolveCatalogs(
         for (final CatalogConfig config in catalogs) config.catalog,
       ]);
     }
-    return linkCatalogs([
+    return [
       for (final CatalogConfig config in catalogs) config.transformedCatalog,
-    ], extraPeers: _registeredPeers(catalogs));
+    ];
   }
   if (catalogs.isEmpty) {
     throw A2uiCatalogError(
@@ -98,11 +92,7 @@ List<CatalogApi> resolveCatalogs(
       capabilities,
       acceptsInlineCatalogs: acceptsInlineCatalogs,
     );
-    // An accepted inline catalog is already active, and a refused one is
-    // linked with nothing.
-    if (active.isNotEmpty) {
-      return linkCatalogs(active, extraPeers: _registeredPeers(configs));
-    }
+    if (active.isNotEmpty) return active;
     declined.add(
       '${version.jsonValue}: renderer ${capabilities.supportedCatalogIds}, '
       'agent ${[for (final CatalogConfig c in configs) c.catalog.id]}',
@@ -121,13 +111,6 @@ List<CatalogApi> resolveCatalogs(
     '${declined.join('; ')}.',
   );
 }
-
-/// Each of [catalogs] as declared and as transformed, so a reference to an
-/// entry a transformer pruned still resolves.
-List<CatalogApi> _registeredPeers(List<CatalogConfig> catalogs) => [
-  for (final CatalogConfig config in catalogs) config.catalog,
-  for (final CatalogConfig config in catalogs) config.transformedCatalog,
-];
 
 /// [catalogs] grouped by the protocol version they target, latest version
 /// first, each group in registration order.

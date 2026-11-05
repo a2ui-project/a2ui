@@ -200,8 +200,8 @@ def main(argv: list[str] | None = None) -> None:
         action="append",
         dest="worktrees",
         help=(
-            "Path to worktree directory to sync history from (can be specified multiple"
-            " times)"
+            "Path to worktree directory to sync history from (can be specified"
+            " multiple times)"
         ),
     )
     parser.add_argument(

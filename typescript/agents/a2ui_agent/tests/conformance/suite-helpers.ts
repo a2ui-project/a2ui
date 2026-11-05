@@ -18,17 +18,19 @@
  * Shared helpers for the harnesses that run the agent suites written against the module
  * blueprint (`conformance/agent/*.yaml` and `conformance/agent/direct-json/*.yaml`).
  *
- * Those suites spell their keys in snake_case (`expect_error`, `catalog_id`), unlike the
+ * Those suites write their keys in snake_case (`expect_error`, `catalog_id`), unlike the
  * legacy suites that `conformance.test.ts` runs.
  */
 
-import * as path from 'path';
-import {expect, test} from 'vitest';
+import {resolve} from 'path';
 
-import {CatalogApi} from '../../src/internal/web-core.js';
+import {describe, expect, test} from 'vitest';
+
 import {
   A2uiCatalogError,
   A2uiCompilationError,
+  A2uiCompilationParseError,
+  A2uiCompilationValidationError,
   A2uiError,
   A2uiValidationError,
   AgentToRendererMessage,
@@ -41,7 +43,70 @@ import {
   Parser,
   validatePayload,
 } from '../../src/index.js';
-import {CONFORMANCE_ROOT, LoadedCase} from './loader.js';
+import {CatalogApi} from '../../src/internal/web-core.js';
+import {CONFORMANCE_ROOT, KNOWN_FAILURES, LoadedCase, SUPERSEDED, UNSUPPORTED} from './loader.js';
+import {
+  ActiveCase,
+  recordCase,
+  registerAfterEachManifestRecorder,
+  setActiveCase,
+} from './manifest.js';
+
+export {KNOWN_FAILURES, SUPERSEDED, UNSUPPORTED};
+
+/** Thrown when a conformance case or sub-object contains an unrecognized YAML key. */
+export class UnknownConformanceKeyError extends Error {
+  constructor(where: string, unknownKeys: string[]) {
+    super(`Unknown conformance keys at ${where}: ${unknownKeys.join(', ')}`);
+    this.name = 'UnknownConformanceKeyError';
+  }
+}
+
+/** Common metadata keys allowed at the top level of every conformance case. */
+export const CASE_METADATA_KEYS: ReadonlySet<string> = new Set([
+  'name',
+  'description',
+  'features',
+  'action',
+  'sourceFile',
+]);
+
+/** Keys recognized inside an `expect_error` block. */
+export const EXPECT_ERROR_KEYS: ReadonlySet<string> = new Set([
+  'category',
+  'message',
+  'message_is_regex',
+  'details',
+]);
+
+/** Keys recognized inside a catalog expectation block. */
+export const CATALOG_EXPECT_KEYS: ReadonlySet<string> = new Set([
+  'catalog_id',
+  'protocol_version',
+  'components',
+  'functions',
+  'serialized_defs_contain',
+  'serialized_defs_omit',
+]);
+
+/**
+ * Throws `UnknownConformanceKeyError` if `obj` contains any keys not in `allowed`.
+ */
+export function assertKnownKeys(
+  obj: Record<string, unknown> | undefined | null,
+  allowed: ReadonlySet<string>,
+  where: string,
+): void {
+  if (!obj || typeof obj !== 'object') {
+    return;
+  }
+  const unknown = Object.keys(obj)
+    .filter(k => !allowed.has(k))
+    .sort();
+  if (unknown.length > 0) {
+    throw new UnknownConformanceKeyError(where, unknown);
+  }
+}
 
 /** Error categories the suites name, mapped to the SDK's error classes. */
 const ERROR_BY_CATEGORY: Record<string, new (...args: never[]) => Error> = {
@@ -57,19 +122,53 @@ export interface CatalogRegistration {
 }
 
 /** Resolves a path the suites give relative to `conformance/`. */
+/** The suite's category for an error, or the error's class name if it has none. */
+export function categoryOf(error: unknown): string {
+  if (error instanceof ParseError || error instanceof A2uiCompilationParseError) {
+    return 'ParseError';
+  }
+  if (error instanceof A2uiValidationError || error instanceof A2uiCompilationValidationError) {
+    return 'ValidationError';
+  }
+  if (error instanceof A2uiCatalogError) return 'CatalogError';
+  return (error as Error).constructor.name;
+}
+
 export function conformancePath(relative: string): string {
-  return path.resolve(CONFORMANCE_ROOT, relative);
+  return resolve(CONFORMANCE_ROOT, relative);
 }
 
 /** The error class for the category a case names in `expect_error`. */
 export function errorClassFor(testCase: LoadedCase): new (...args: never[]) => Error {
-  const expectError = testCase.expect_error as {category?: string} | undefined;
+  const expectError = testCase.expect_error as {category?: string; message?: string} | undefined;
+  if (expectError && typeof expectError === 'object') {
+    assertKnownKeys(expectError as Record<string, unknown>, EXPECT_ERROR_KEYS, 'expect_error');
+  }
   const category = expectError?.category ?? '';
   const errorClass = ERROR_BY_CATEGORY[category];
   if (!errorClass) {
     throw new Error(`Unknown error category '${category}' in case ${testCase.name}`);
   }
   return errorClass;
+}
+
+/**
+ * Runs `fn` and asserts that it throws the error class and optional message pattern
+ * specified in `testCase.expect_error`.
+ */
+export function assertExpectedError(fn: () => unknown, testCase: LoadedCase): void {
+  const expectError = testCase.expect_error as {category?: string; message?: string} | undefined;
+  const errorClass = errorClassFor(testCase);
+  let thrown: unknown;
+  try {
+    fn();
+  } catch (e) {
+    thrown = e;
+  }
+  expect(thrown, `Expected case ${testCase.name} to throw`).toBeInstanceOf(errorClass);
+  if (expectError?.message) {
+    expect((thrown as Error).message).toMatch(new RegExp(expectError.message, 'i'));
+  }
 }
 
 /**
@@ -112,11 +211,25 @@ export function loadRegistrations(registrations: CatalogRegistration[]): Catalog
   });
 }
 
-/** Asserts a catalog declares exactly the named components and, if given, functions. */
+/** Asserts a catalog declares the expected id, protocol version, components, and functions. */
 export function expectCatalogContents(
   catalog: CatalogApi,
-  expected: {components?: string[]; functions?: string[]},
+  expected: {
+    catalog_id?: string;
+    protocol_version?: string;
+    components?: string[];
+    functions?: string[];
+    serialized_defs_contain?: string[];
+    serialized_defs_omit?: string[];
+  },
 ): void {
+  assertKnownKeys(expected as Record<string, unknown>, CATALOG_EXPECT_KEYS, 'expect.catalog');
+  if (expected.catalog_id !== undefined) {
+    expect(catalog.id).toBe(expected.catalog_id);
+  }
+  if (expected.protocol_version !== undefined) {
+    expect(catalog.protocolVersion).toBe(expected.protocol_version);
+  }
   if (expected.components) {
     expect([...catalog.components.keys()].sort()).toEqual([...expected.components].sort());
   }
@@ -127,7 +240,7 @@ export function expectCatalogContents(
 
 /**
  * Registers one case with vitest, as an expected failure when it is listed in
- * `knownFailures`.
+ * `knownFailures` or as a skip when `skipReason` is given.
  *
  * An expected failure still runs, and the suite asserts that it fails, so fixing the gap
  * turns the test red and prompts removing the entry.
@@ -136,12 +249,77 @@ export function registerCase(
   testCase: LoadedCase,
   knownFailures: ReadonlyMap<string, string>,
   run: () => void | Promise<void>,
+  skipReason?: string,
 ): void {
   const title = `${testCase.action} · ${testCase.name}`;
-  const knownFailure = knownFailures.get(testCase.name);
-  if (knownFailure) {
-    test.fails(`${title} (known gap: ${knownFailure})`, run);
-  } else {
-    test(title, run);
+  const compositeKey = `${testCase.sourceFile}::${testCase.name}`;
+  const effectiveSkip =
+    skipReason ?? UNSUPPORTED.get(compositeKey) ?? UNSUPPORTED.get(testCase.name);
+  if (effectiveSkip) {
+    test(`${title} (${effectiveSkip})`, ctx => {
+      const active: ActiveCase = {
+        suite: testCase.sourceFile,
+        name: testCase.name,
+        skipReason: effectiveSkip,
+        recorded: true,
+      };
+      setActiveCase(ctx.task, active);
+      recordCase(testCase.sourceFile, testCase.name, 'skipped', effectiveSkip);
+      ctx.skip(effectiveSkip);
+    });
+    return;
   }
+  const knownFailure =
+    knownFailures.get(compositeKey) ??
+    knownFailures.get(testCase.name) ??
+    knownFailures.get(title) ??
+    KNOWN_FAILURES.get(compositeKey) ??
+    KNOWN_FAILURES.get(testCase.name);
+  const wrappedRun = async (ctx: {task: object}) => {
+    const active: ActiveCase = {
+      suite: testCase.sourceFile,
+      name: testCase.name,
+      knownFailure,
+    };
+    setActiveCase(ctx.task, active);
+    try {
+      await run();
+    } catch (err) {
+      if (err instanceof UnknownConformanceKeyError && knownFailure) {
+        active.unexpectedError = err;
+        return;
+      }
+      throw err;
+    }
+  };
+  if (knownFailure) {
+    test.fails(`${title} (known gap: ${knownFailure})`, wrappedRun);
+  } else {
+    test(title, wrappedRun);
+  }
+}
+
+export interface DescribeSuiteOptions {
+  knownFailures?: ReadonlyMap<string, string>;
+  skipReason?: (testCase: LoadedCase) => string | undefined;
+}
+
+/**
+ * Declares a Vitest `describe` block for one or more conformance suites, registers the
+ * `afterEach` manifest recorder, and registers each loaded case.
+ */
+export function describeSuite(
+  suiteTitle: string,
+  cases: readonly LoadedCase[],
+  run: (testCase: LoadedCase) => void | Promise<void>,
+  options: DescribeSuiteOptions = {},
+): void {
+  const knownFailures = options.knownFailures ?? new Map<string, string>();
+  describe(suiteTitle, () => {
+    registerAfterEachManifestRecorder();
+    for (const testCase of cases) {
+      const reason = options.skipReason?.(testCase);
+      registerCase(testCase, knownFailures, () => run(testCase), reason);
+    }
+  });
 }
