@@ -234,6 +234,31 @@
     category: CatalogError
     message: "bad-amount"
 
+- name: test_declare_agent_function_follows_a_deep_defs_pointer
+  description: >-
+    A local $ref is followed as a JSON Pointer, so `#/$defs/Bundle/allOf/0` reaches only that member: its invalid parameter name is a catalog error, and the name in the rest of Bundle is not reached.
+  action: declare_agent_functions
+  args:
+    catalog:
+      catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      agent_functions:
+        pay:
+          returnType: object
+          args:
+            $defs:
+              Bundle:
+                properties:
+                  other-name: {type: string}
+                allOf:
+                  - type: object
+                    properties:
+                      bad-amount: {type: number}
+            $ref: "#/$defs/Bundle/allOf/0"
+          behavior: {returns_args: true}
+  expect_error:
+    category: CatalogError
+    message: "bad-amount"
+
 # --- Answering callAgentFunction ---
 
 - name: test_handle_agent_function_returns_the_value_and_copies_the_call_id
@@ -583,6 +608,126 @@
           args: {amount: 25, extra: true}
   expect:
     functionCallId: pay-3
+    error:
+      code: INVALID_FUNCTION_CALL
+
+- name: test_handle_agent_function_does_not_let_a_default_satisfy_required
+  description: >-
+    Defaults are applied after validation, so a call that leaves out a required argument gets INVALID_FUNCTION_CALL even when the schema gives that argument a default.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchFxRate:
+            returnType: number
+            args:
+              type: object
+              properties:
+                base: {type: string, default: EUR}
+              required: [base]
+            behavior: {returns: 1.08}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: fx-req-default
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: conformance/simplified
+          args: {}
+  expect:
+    functionCallId: fx-req-default
+    error:
+      code: INVALID_FUNCTION_CALL
+
+- name: test_handle_agent_function_accepts_at_keys_in_resolved_values
+  description: >-
+    The arguments of callAgentFunction are resolved JSON, not expressions, so a nested object whose keys start with `@` is ordinary data.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          saveRecord:
+            returnType: object
+            args:
+              type: object
+              properties:
+                record: {type: object}
+              required: [record]
+            behavior: {returns_args: true}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: rec-1
+        callFunction:
+          "@call": saveRecord
+          catalogId: conformance/simplified
+          args:
+            record: {"@type": Person, "@id": p-1, name: Ada}
+  expect:
+    functionCallId: rec-1
+    value:
+      record: {"@type": Person, "@id": p-1, name: Ada}
+
+- name: test_handle_agent_function_accepts_keys_matched_by_pattern_properties
+  description: >-
+    A closed args schema accepts the keys its `patternProperties` match, validating them against the pattern's schema.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          setTags:
+            returnType: object
+            args:
+              type: object
+              patternProperties:
+                "^tag_": {type: string}
+              additionalProperties: false
+            behavior: {returns_args: true}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: tags-1
+        callFunction:
+          "@call": setTags
+          catalogId: conformance/simplified
+          args: {tag_color: red}
+  expect:
+    functionCallId: tags-1
+    value: {tag_color: red}
+
+- name: test_handle_agent_function_rejects_keys_pattern_properties_do_not_match
+  description: >-
+    A closed args schema with `patternProperties` still rejects a key no pattern matches with INVALID_FUNCTION_CALL.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          setTags:
+            returnType: object
+            args:
+              type: object
+              patternProperties:
+                "^tag_": {type: string}
+              additionalProperties: false
+            behavior: {returns_args: true}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: tags-2
+        callFunction:
+          "@call": setTags
+          catalogId: conformance/simplified
+          args: {color: red}
+  expect:
+    functionCallId: tags-2
     error:
       code: INVALID_FUNCTION_CALL
 
