@@ -41,6 +41,10 @@
   `generate_base_rules()` with `schema_to_prompt()` (such as
   `SendA2uiToClientToolset` users) should use `DEFAULT_WORKFLOW_RULES` instead.
   [#3559](https://github.com/a2ui-project/a2ui/pull/3559)
+- Add A2UI Protocol v1.0 support to `@macro` and `MacroExpander`:
+  - Synthesize v1.0 schemas (`component` const discriminators, `Child` and `Extensions` `$ref`s, `Annotated` field descriptions, `oneOf` unions, typed `dict[str, V]` `additionalProperties`, and nested Pydantic sub-models such as `TabItem`, `ChoicePickerOption`, `IconNameSvgPath`, and `ActionEvent`) and coerce v1.0 wire directives (`@path`, `@call`, `Action` with `userMessage`, `CheckRule`, `DynamicChildList`, `AccessibilityAttributes`, typed `dict[str, V]` maps, and nested sub-models).
+  - Add `MacroExpander.transform_catalogs(catalogs)`, `protocol_version`, and `on_error="passthrough" | "raise"`, enforce single-version invariants and UAX #31 / reserved `'Surface'` macro name checks, and close `transform_to_transport` over registered `base_catalogs` by rewriting pure macro-sidecar `createSurface.catalogId` defaults and stamping unique owning `catalogId`s onto unannotated lowered primitives.
+  - Export `Extensions` from `a2ui.builder.v1_0` and support `class MyCatalogNode(ComponentBuilderNode, catalog_id=...)` alongside field-default `catalog_id` overrides while preserving wire aliases ([#3776](https://github.com/a2ui-project/a2ui/issues/3776), [#3778](https://github.com/a2ui-project/a2ui/pull/3778)).
 - The Direct JSON prompt rule says the JSON part is a JSON array of A2UI messages, each following the schema, instead of "a single, raw JSON object (usually a list of A2UI messages)" that "MUST validate" against it. [#3721](https://github.com/a2ui-project/a2ui/pull/3721)
 - `open_stream` takes `after_rejected_block="continue"` to read past a
   rejected block. The stream then returns an `ErrorPart` in its place, skips
