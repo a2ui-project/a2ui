@@ -21,11 +21,13 @@ from collections.abc import Sequence
 from a2ui.core import CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_format import InferenceFormat, InferenceFormatFactory
+from a2ui.utils._experimental import experimental
 
 from .parser import A2uiXmlParser
 from .prompt_generator import A2uiXmlPromptGenerator
 
 
+@experimental
 class A2uiXmlFormat(InferenceFormat):
     """Concrete strategy for A2UI XML representation."""
 

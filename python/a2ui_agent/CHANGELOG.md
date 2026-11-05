@@ -1,9 +1,10 @@
 ## Unreleased
 
-- Add `a2ui-xml` inference format (`A2uiXmlFormat`, `A2uiXmlFormatFactory`,
-  `A2uiXmlCompiler`, `A2uiXmlDecompiler`, `A2uiXmlParser`,
-  `A2uiXmlPromptGenerator`, `A2uiXmlResponseStream`) providing concise XML-based
-  UI generation with progressive streaming, data-model binding, and catalog
+- Add `a2ui-xml` experimental inference format (`A2uiXmlFormat`,
+  `A2uiXmlFormatFactory`, `A2uiXmlCompiler`, `A2uiXmlDecompiler`,
+  `A2uiXmlParser`, `A2uiXmlPromptGenerator`, `A2uiXmlResponseStream`) in
+  `a2ui.inference_formats.experimental.a2ui_xml` providing concise XML-based UI
+  generation with progressive streaming, data-model binding, and catalog
   pruning.
 
 - **BREAKING CHANGE**: (v1_0) The `TextField` builder in

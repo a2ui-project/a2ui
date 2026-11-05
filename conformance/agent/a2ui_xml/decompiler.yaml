@@ -68,3 +68,73 @@
     - 'text="First"'
     - 'text="Second"'
   expect_round_trip: true
+
+- name: test_decompile_xml_data_binding
+  description: Dynamic data binding paths decompile to $/path string attribute and round-trips.
+  action: decompile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@path": "/user/email"
+  expect_contains:
+    - "<Text"
+    - '$/user/email'
+  expect_round_trip: true
+
+- name: test_decompile_xml_button_with_action
+  description: Button action decompiles to submit action and round-trips.
+  action: decompile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            child: "btn_text"
+            action:
+              event:
+                name: "submit"
+          - id: "btn_text"
+            component: "Text"
+            text: "Submit"
+  expect_contains:
+    - "<Button"
+    - 'action="submit"'
+  expect_round_trip: true
+
+- name: test_decompile_xml_with_data_model
+  description: createSurface containing dataModel decompiles to dataModel tag and round-trips.
+  action: decompile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Welcome"
+        dataModel:
+          count: 42
+  expect_contains:
+    - "dataModel"
+    - "42"
+    - "<Text"
+  expect_round_trip: true

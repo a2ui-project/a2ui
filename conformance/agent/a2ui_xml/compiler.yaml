@@ -184,3 +184,55 @@
   input: '<Text id="root" text="Streaming in progress"'
   expect_error:
     category: "ParseError"
+
+- name: test_compile_xml_currency_string_is_literal
+  description: A string starting with a currency dollar sign like $99.99 is preserved as a literal string.
+  action: compile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '<Text id="root" text="$99.99" />'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "$99.99"
+
+- name: test_compile_xml_escaped_dollar_string
+  description: Backslash escaped dollar sign preserves literal dollar string path.
+  action: compile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '<Text id="root" text="\$/literal/path" />'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "$/literal/path"
+
+- name: test_compile_xml_surface_update_directive
+  description: A surface directive with update=true emits updateComponents.
+  action: compile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    <surface id="main" update="true" />
+    <Text id="root" text="Updated message" />
+  expect:
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Updated message"

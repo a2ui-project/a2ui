@@ -28,7 +28,7 @@ from a2ui.inference_formats import (
     A2uiXmlParser,
     to_message_dicts,
 )
-from a2ui.inference_formats.a2ui_xml import (
+from a2ui.inference_formats.experimental.a2ui_xml import (
     A2uiXmlParseError,
     A2uiXmlValidationError,
 )
