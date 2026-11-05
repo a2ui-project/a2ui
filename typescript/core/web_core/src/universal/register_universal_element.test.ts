@@ -100,17 +100,39 @@ describe('registerUniversalElement', () => {
     }, /Custom element tag name collision for "a2ui-test"/);
   });
 
-  it('no-ops safely if customElements is undefined (e.g. non-browser environment)', () => {
+  it('no-ops safely if customElements is undefined and logs console.error once per module load', async () => {
     delete (globalThis as any).customElements;
-    const comp: WebComponentImplementation = {
-      name: 'Test',
+    const compA: WebComponentImplementation = {
+      name: 'TestA',
       schema: z.object({}),
-      tagName: 'a2ui-test',
+      tagName: 'a2ui-test-a',
       element: MockElementA,
     };
+    const compB: WebComponentImplementation = {
+      name: 'TestB',
+      schema: z.object({}),
+      tagName: 'a2ui-test-b',
+      element: MockElementB,
+    };
 
-    assert.doesNotThrow(() => {
-      registerUniversalElement(comp);
-    });
+    const {registerUniversalElement: freshRegister} = await import(
+      `./register_universal_element.js?fresh=${Date.now()}`
+    );
+    const errorCalls: unknown[][] = [];
+    const originalConsoleError = console.error;
+    console.error = (...args: unknown[]) => {
+      errorCalls.push(args);
+    };
+
+    try {
+      assert.doesNotThrow(() => {
+        freshRegister(compA);
+        freshRegister(compB);
+      });
+      assert.strictEqual(errorCalls.length, 1);
+      assert.match(String(errorCalls[0][0]), /Cannot register "a2ui-test-a"/);
+    } finally {
+      console.error = originalConsoleError;
+    }
   });
 });
