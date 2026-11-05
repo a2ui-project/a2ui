@@ -99,7 +99,7 @@ function validateSchemaPointer(version, fragment, contextLabel, expectedGuideRou
 
 /** Validates `/specification/<ver>/schemas/#...` and `/<catalog-guide-route>/#<alias>...` links. */
 function validateSchemaPermalink(rawHref, contextLabel) {
-  const schemasMatch = /\/specification\/(v1\.0|v0\.9\.1|v0\.8)\/schemas\/(?:#([^\s"'<>)]+))?/.exec(
+  const schemasMatch = /\/specification\/(v1\.0|v0\.9\.1)\/schemas\/(?:#([^\s"'<>)]+))?/.exec(
     rawHref,
   );
   if (schemasMatch) {
@@ -262,9 +262,7 @@ if (checkDist) {
       }
 
       const schemaPageMatch =
-        /^dist[\\/]specification[\\/](v1\.0|v0\.9\.1|v0\.8)[\\/]schemas[\\/]index\.html$/.exec(
-          relHtml,
-        );
+        /^dist[\\/]specification[\\/](v1\.0|v0\.9\.1)[\\/]schemas[\\/]index\.html$/.exec(relHtml);
       if (schemaPageMatch) {
         const pageVer = schemaPageMatch[1];
         const ids = getHtmlIds(htmlFile);
