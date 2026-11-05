@@ -37,7 +37,10 @@ _V08_COLUMN = {
     "id": "root",
     "component": {"Column": {"children": {"explicitList": ["t"]}}},
 }
-_V08_TEXT = {"id": "t", "component": {"Text": {"text": {"literalString": "Hi"}}}}
+_V08_TEXT = {
+    "id": "t",
+    "component": {"Text": {"text": {"literalString": "Hi"}}},
+}
 
 
 def _create(catalog_id: str, version: str = "v0.9") -> dict[str, Any]:
@@ -201,8 +204,8 @@ def test_v1_0_catalogs_accept_v1_0_messages():
     validate_payload(
         [catalog],
         [
-            _create(catalog.catalog_id, version="v1.0"),
-            _update(_COLUMN, _TEXT, version="v1.0"),
+            _create(catalog.catalog_id, version="1.0"),
+            _update(_COLUMN, _TEXT, version="1.0"),
         ],
     )
 
@@ -249,7 +252,10 @@ def test_v0_8_message_that_states_a_version_is_rejected():
     with pytest.raises(A2uiValidationError, match="Message 0 states a version"):
         validate_payload(
             [BasicCatalog("0.8")],
-            [{"version": "v0.8", **_V08_BEGIN}, _v08_update(_V08_COLUMN, _V08_TEXT)],
+            [
+                {"version": "v0.8", **_V08_BEGIN},
+                _v08_update(_V08_COLUMN, _V08_TEXT),
+            ],
         )
 
 
@@ -328,7 +334,10 @@ def _sized_text_catalog(catalog_id: str, size_type: str) -> CatalogApi:
 def test_updated_surface_catalog_must_accept_every_update_to_the_surface():
     # Both catalogs accept the first update, and only "b" accepts the second,
     # so the surface is assumed on "b".
-    catalogs = [_sized_text_catalog("a", "string"), _sized_text_catalog("b", "number")]
+    catalogs = [
+        _sized_text_catalog("a", "string"),
+        _sized_text_catalog("b", "number"),
+    ]
 
     validate_payload(
         catalogs,
@@ -340,7 +349,10 @@ def test_updated_surface_catalog_must_accept_every_update_to_the_surface():
 
 
 def test_updated_surface_reports_the_first_catalog_error_when_none_accepts_all():
-    catalogs = [_sized_text_catalog("a", "string"), _sized_text_catalog("b", "number")]
+    catalogs = [
+        _sized_text_catalog("a", "string"),
+        _sized_text_catalog("b", "number"),
+    ]
 
     with pytest.raises(A2uiValidationError, match="components.t.size"):
         validate_payload(
@@ -398,7 +410,7 @@ def test_component_that_names_its_catalog_does_not_choose_the_surface_catalog():
         {"id": "t", "component": "Text", "text": "Hi"},
     ]
 
-    validate_payload(catalogs, [_update(*components, version="v1.0")])
+    validate_payload(catalogs, [_update(*components, version="1.0")])
 
 
 def test_surface_on_a_catalog_that_is_not_held_is_a_validation_error():
@@ -414,7 +426,8 @@ def test_v0_9_and_v0_9_1_catalogs_can_be_combined():
         [
             _create("a", version="v0.9.1"),
             _update(
-                {"id": "root", "component": "Text", "text": "Hi"}, version="v0.9.1"
+                {"id": "root", "component": "Text", "text": "Hi"},
+                version="v0.9.1",
             ),
         ],
     )
@@ -435,7 +448,10 @@ def test_full_v0_9_flow_on_the_basic_catalog_is_accepted():
     payload = [
         {
             "version": "v0.9",
-            "createSurface": {"surfaceId": surface, "catalogId": _BASIC.catalog_id},
+            "createSurface": {
+                "surfaceId": surface,
+                "catalogId": _BASIC.catalog_id,
+            },
         },
         {
             "version": "v0.9",
@@ -447,8 +463,16 @@ def test_full_v0_9_flow_on_the_basic_catalog_is_accepted():
                         "component": "Column",
                         "children": ["avatar", "name", "email", "submit"],
                     },
-                    {"id": "avatar", "component": "Image", "url": {"path": "/image"}},
-                    {"id": "name", "component": "Text", "text": {"path": "/name"}},
+                    {
+                        "id": "avatar",
+                        "component": "Image",
+                        "url": {"path": "/image"},
+                    },
+                    {
+                        "id": "name",
+                        "component": "Text",
+                        "text": {"path": "/name"},
+                    },
                     {
                         "id": "email",
                         "component": "TextField",
@@ -470,7 +494,11 @@ def test_full_v0_9_flow_on_the_basic_catalog_is_accepted():
             "updateDataModel": {
                 "surfaceId": surface,
                 "path": "/",
-                "value": {"name": "Ada", "email": "ada@example.com", "image": "a.png"},
+                "value": {
+                    "name": "Ada",
+                    "email": "ada@example.com",
+                    "image": "a.png",
+                },
             },
         },
         {"version": "v0.9", "deleteSurface": {"surfaceId": surface}},
@@ -500,7 +528,10 @@ def test_full_v0_8_flow_on_the_basic_catalog_is_accepted():
                     {
                         "id": "profile_image",
                         "component": {
-                            "Image": {"url": {"path": "/image"}, "usageHint": "avatar"}
+                            "Image": {
+                                "url": {"path": "/image"},
+                                "usageHint": "avatar",
+                            }
                         },
                     },
                     {
@@ -578,7 +609,10 @@ def test_created_surface_ignores_its_known_catalog():
 
     validate_payload(
         catalogs,
-        [_create("b"), _update({"id": "root", "component": "Card", "text": "Hi"})],
+        [
+            _create("b"),
+            _update({"id": "root", "component": "Card", "text": "Hi"}),
+        ],
         surface_catalog_ids={"s": "a"},
     )
 

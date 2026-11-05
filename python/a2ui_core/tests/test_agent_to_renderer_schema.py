@@ -228,7 +228,7 @@ def test_modern_models_round_trip_through_generated_schema(
     if protocol_version == ProtocolVersion.V1_0:
         instances.extend([
             {
-                "version": "v1.0",
+                "version": protocol_version.value,
                 "callRendererFunction": {
                     "functionCallId": "call_1",
                     "callFunction": {
@@ -239,7 +239,7 @@ def test_modern_models_round_trip_through_generated_schema(
                 },
             },
             {
-                "version": "v1.0",
+                "version": protocol_version.value,
                 "agentFunctionResponse": {
                     "functionCallId": "call_1",
                     "value": {"ok": True},

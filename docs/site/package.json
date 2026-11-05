@@ -1,0 +1,22 @@
+{
+  "name": "@a2ui/site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "node scripts/prepare-spec-assets.mjs",
+    "dev": "astro dev",
+    "verify:specs": "node scripts/verify-spec-links.mjs",
+    "check:anchors": "node scripts/check-anchors.mjs",
+    "prebuild": "node scripts/prepare-spec-assets.mjs && node scripts/verify-spec-links.mjs",
+    "build": "astro build && node scripts/verify-spec-links.mjs --check-dist && node scripts/check-anchors.mjs",
+    "check": "node scripts/prepare-spec-assets.mjs && node scripts/verify-spec-links.mjs",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.32.0",
+    "astro": "^5.5.0",
+    "mermaid": "^11.12.0",
+    "sharp": "^0.33.5"
+  }
+}

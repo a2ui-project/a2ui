@@ -1,0 +1,489 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+---
+
+<div
+  class="cs-root not-content"
+  data-diagram
+  data-diagram-title="collection-scope"
+>
+  <div class="cs-header">
+    <div class="cs-header__left">
+      <span class="cs-badge">DYNAMIC LIST TEMPLATES</span>
+      <span class="cs-title">
+        Repeating a Template with <code>ChildList</code> &amp; Local Paths
+      </span>
+    </div>
+    <code class="cs-expr"
+      >children: &#123; "path": "/guests", "componentId": "guestRow"
+      &#125;</code
+    >
+  </div>
+
+  <div class="cs-grid">
+    <!-- Left: Data Model Array & Template Blueprint -->
+    <div class="cs-left-col">
+      <div class="cs-card">
+        <div class="cs-card__head">
+          <span>1. Data Model List</span>
+          <code>path: "/guests"</code>
+        </div>
+        <div class="cs-code">
+          <div>[</div>
+          <div class="cs-indent">
+            &#123; <span class="cs-k">"name"</span>:
+            <span class="cs-s">"Alex Rivera"</span> &#125;,
+          </div>
+          <div class="cs-indent">
+            &#123; <span class="cs-k">"name"</span>:
+            <span class="cs-s">"Sam Taylor"</span> &#125;
+          </div>
+          <div>]</div>
+        </div>
+      </div>
+
+      <div class="cs-card">
+        <div class="cs-card__head">
+          <span>2. Template Component</span>
+          <code>id: "guestRow"</code>
+        </div>
+        <div class="cs-code">
+          <div>&#123;</div>
+          <div class="cs-indent">
+            <span class="cs-k">"id"</span>:
+            <span class="cs-s">"guestRow"</span>,
+          </div>
+          <div class="cs-indent">
+            <span class="cs-k">"component"</span>:
+            <span class="cs-s">"Text"</span>,
+          </div>
+          <div class="cs-indent">
+            <span class="cs-k">"text"</span>: &#123;
+            <span class="cs-p">"@path"</span>: <span class="cs-s">"name"</span>
+            &#125;
+          </div>
+          <div>&#125;</div>
+        </div>
+        <div class="cs-legend">
+          <span>
+            <strong class="cs-p">Local path:</strong>
+            <code>"name"</code> (no leading <code>/</code>) resolves relative to each
+            array item.
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Rendered UI inside a Window Outline -->
+    <div class="cs-ui-col">
+      <div class="cs-ui-caption">Rendered List UI</div>
+      <div class="cs-window-frame">
+        <div class="cs-window-chrome">
+          <div class="cs-window-dots" aria-hidden="true">
+            <span class="cs-wdot cs-wdot--red"></span>
+            <span class="cs-wdot cs-wdot--yellow"></span>
+            <span class="cs-wdot cs-wdot--green"></span>
+          </div>
+          <span class="cs-window-title">Column#root</span>
+        </div>
+
+        <div class="cs-window-screen">
+          <div class="cs-ui-section-label">Guests (2)</div>
+
+          <div class="cs-ui-row">
+            <div class="cs-ui-row__left">
+              <span class="cs-ui-avatar">AR</span>
+              <span class="cs-ui-name">Alex Rivera</span>
+            </div>
+            <code class="cs-ui-scope-tag">/guests/0/name</code>
+          </div>
+
+          <div class="cs-ui-row">
+            <div class="cs-ui-row__left">
+              <span class="cs-ui-avatar">ST</span>
+              <span class="cs-ui-name">Sam Taylor</span>
+            </div>
+            <code class="cs-ui-scope-tag">/guests/1/name</code>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Agent & Accessibility View: Machine-readable spec hidden from human UI -->
+  <script type="text/vnd.mermaid" data-agent-diagram="spec" style="display: none;">
+    flowchart LR
+      subgraph DataModel["Data Model (/guests)"]
+        g0["/guests/0: { name: 'Alex Rivera' }"]
+        g1["/guests/1: { name: 'Sam Taylor' }"]
+      end
+      subgraph Template["Template Component (Text#guestRow)"]
+        tpl["text: { '@path': 'name' }"]
+      end
+      subgraph Rendered["Rendered List UI (Column#root)"]
+        r0["Row 0: 'Alex Rivera' (/guests/0/name)"]
+        r1["Row 1: 'Sam Taylor' (/guests/1/name)"]
+      end
+      g0 --> tpl --> r0
+      g1 --> tpl --> r1
+  </script>
+</div>
+
+<style>
+  .cs-root {
+    margin: 1.5rem 0 2rem;
+    font-family: var(--sl-font);
+    color: #e2e8f0;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #0c1322 0%, #090d16 100%);
+    border: 1px solid #1e293b;
+    overflow: hidden;
+  }
+
+  :root[data-theme='light'] .cs-root {
+    color: #0f172a;
+    background: #f8fafc;
+    border-color: #cbd5e1;
+  }
+
+  .cs-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.8rem 1.15rem;
+    background: rgba(15, 23, 42, 0.85);
+    border-bottom: 1px solid #1e293b;
+  }
+
+  :root[data-theme='light'] .cs-header {
+    background: #f1f5f9;
+    border-bottom-color: #cbd5e1;
+  }
+
+  .cs-header__left {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+
+  .cs-badge {
+    font-family: var(--sl-font-mono);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 0.18rem 0.5rem;
+    border-radius: 4px;
+    background: rgba(168, 85, 247, 0.16);
+    color: #c084fc;
+    border: 1px solid rgba(168, 85, 247, 0.35);
+  }
+
+  :root[data-theme='light'] .cs-badge {
+    background: #f3e8ff;
+    color: #6b21a8;
+    border-color: #d8b4fe;
+  }
+
+  .cs-title {
+    font-weight: 700;
+    font-size: 0.85rem;
+  }
+
+  .cs-title code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.78rem;
+    color: #c084fc;
+  }
+
+  :root[data-theme='light'] .cs-title code {
+    color: #7e22ce;
+  }
+
+  .cs-expr {
+    font-family: var(--sl-font-mono);
+    font-size: 0.68rem;
+    padding: 0.18rem 0.5rem;
+    border-radius: 5px;
+    background: rgba(2, 6, 23, 0.6);
+    border: 1px solid #334155;
+    color: #cbd5e1;
+  }
+
+  :root[data-theme='light'] .cs-expr {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    color: #1e293b;
+  }
+
+  .cs-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    gap: 1.1rem;
+    padding: 1.05rem 1.15rem;
+    align-items: center;
+  }
+
+  .cs-left-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    min-width: 0;
+  }
+
+  .cs-card {
+    padding: 0.75rem 0.85rem;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid #1e293b;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+
+  :root[data-theme='light'] .cs-card {
+    background: #ffffff;
+    border-color: #cbd5e1;
+  }
+
+  .cs-card__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    font-weight: 700;
+    font-size: 0.78rem;
+  }
+
+  .cs-card__head code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.68rem;
+    color: #c084fc;
+  }
+
+  :root[data-theme='light'] .cs-card__head code {
+    color: #7e22ce;
+  }
+
+  .cs-code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.69rem;
+    line-height: 1.5;
+    padding: 0.5rem 0.65rem;
+    border-radius: 6px;
+    background: rgba(2, 6, 23, 0.7);
+    border: 1px solid #1e293b;
+  }
+
+  :root[data-theme='light'] .cs-code {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+  }
+
+  .cs-indent {
+    padding-left: 0.9rem;
+  }
+
+  .cs-k {
+    color: #94a3b8;
+  }
+
+  :root[data-theme='light'] .cs-k {
+    color: #475569;
+  }
+
+  .cs-p {
+    color: #c084fc;
+    font-weight: 600;
+  }
+
+  :root[data-theme='light'] .cs-p {
+    color: #7e22ce;
+  }
+
+  .cs-s {
+    color: #2dd4bf;
+  }
+
+  :root[data-theme='light'] .cs-s {
+    color: #0f766e;
+  }
+
+  .cs-legend {
+    font-size: 0.68rem;
+    color: #94a3b8;
+  }
+
+  :root[data-theme='light'] .cs-legend {
+    color: #475569;
+  }
+
+  .cs-legend code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.65rem;
+  }
+
+  /* Right Column: Window Outline */
+  .cs-ui-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+
+  .cs-ui-caption {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #94a3b8;
+  }
+
+  :root[data-theme='light'] .cs-ui-caption {
+    color: #475569;
+  }
+
+  .cs-window-frame {
+    width: 100%;
+    max-width: 340px;
+    border-radius: 16px;
+    padding: 0.4rem;
+    background: linear-gradient(145deg, #334155 0%, #1e293b 100%);
+    border: 2px solid #475569;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+    display: flex;
+    flex-direction: column;
+  }
+
+  :root[data-theme='light'] .cs-window-frame {
+    background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+    border-color: #334155;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
+  }
+
+  .cs-window-chrome {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.3rem 0.6rem 0.42rem;
+  }
+
+  .cs-window-dots {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .cs-wdot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+  }
+
+  .cs-wdot--red {
+    background: #fb7185;
+  }
+
+  .cs-wdot--yellow {
+    background: #fbbf24;
+  }
+
+  .cs-wdot--green {
+    background: #34d399;
+  }
+
+  .cs-window-title {
+    font-family: var(--sl-font-mono);
+    font-size: 0.64rem;
+    color: #cbd5e1;
+  }
+
+  .cs-window-screen {
+    background: #ffffff;
+    color: #0f172a;
+    border-radius: 11px;
+    padding: 0.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .cs-ui-section-label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748b;
+  }
+
+  .cs-ui-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    padding: 0.48rem 0.6rem;
+    border-radius: 8px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+  }
+
+  .cs-ui-row__left {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  .cs-ui-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.45rem;
+    height: 1.45rem;
+    border-radius: 50%;
+    background: #f3e8ff;
+    color: #7e22ce;
+    font-size: 0.62rem;
+    font-weight: 800;
+  }
+
+  .cs-ui-name {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  .cs-ui-scope-tag {
+    font-family: var(--sl-font-mono);
+    font-size: 0.6rem;
+    padding: 0.1rem 0.38rem;
+    border-radius: 4px;
+    background: #f3e8ff;
+    color: #6b21a8;
+    border: 1px solid #d8b4fe;
+  }
+
+  @media (max-width: 900px) {
+    .cs-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

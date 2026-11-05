@@ -24,7 +24,25 @@
 export * from '../catalog/function_invoker.js';
 export * from '../catalog/types.js';
 export * from '../common/events.js';
+export {
+  validateMetadata,
+  cloneMetadata,
+  metadataEquals,
+  type A2uiMetadata,
+  type Extensions,
+  type ActionDispatchOptions,
+} from '../common/metadata.js';
 export * from '../processing/message-processor.js';
+export {
+  mapErrorToRendererMessage,
+  extractEnvelopeErrorContext,
+  normalizeJsonPointer,
+  type RendererErrorMessage,
+  type A2uiRendererError,
+  type ValidationFailedErrorBody,
+  type GenericErrorBody,
+  type ErrorEnvelopeContext,
+} from '../processing/message-error-mapper.js';
 export * from '../resolution/index.js';
 export * from './schema/index.js';
 export * from './standard_defs.js';
@@ -38,6 +56,19 @@ export type {ResolvedChildRef} from '../resolution/index.js';
 export type {DataBindingType, FunctionCallType} from '../types/common-types.js';
 export {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
 export * from './basic_catalog/index.js';
+export {
+  MAX_REGEX_PATTERN_CODE_POINTS,
+  MAX_REGEX_VALUE_CODE_POINTS,
+  RegexSyntaxError,
+  analyzeRegex,
+  checkRegexSafety,
+  parseRegexSubset,
+  type AnchorKind,
+  type CodePointRange,
+  type RegexAnalysisResult,
+  type RegexNode,
+  type RegexRejection,
+} from '../common/regex_subset.js';
 export * from '../validation/integrity-checker.js';
 export {
   /** @deprecated Import from `@a2ui/web_core/v0_9/basic_catalog` instead. */

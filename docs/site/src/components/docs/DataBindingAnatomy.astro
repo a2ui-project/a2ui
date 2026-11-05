@@ -1,0 +1,763 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+---
+
+<div
+  class="db-root not-content"
+  data-diagram
+  data-diagram-title="data-binding-anatomy"
+>
+  <div class="db-banner">
+    <div class="db-banner__left">
+      <span class="db-badge">REACTIVE DATA BINDING</span>
+      <span class="db-banner__title">
+        Surface Data Model &amp; Bound UI Components
+      </span>
+    </div>
+    <div class="db-banner__pills">
+      <span class="db-pill db-pill--teal">1-Way Read (<code>@path</code>)</span>
+      <span class="db-pill db-pill--amber"
+        >2-Way Input (<code>@path</code>)</span
+      >
+    </div>
+  </div>
+
+  <div class="db-stage">
+    <!-- Left Column: Data Model + Component Bindings (Diagram Side) -->
+    <div class="db-diagram-col">
+      <div class="db-card">
+        <div class="db-card__header">
+          <span class="db-card__title">1. Surface Data Model</span>
+          <code class="db-card__tag">surfaceId: "booking"</code>
+        </div>
+        <div class="db-json-box">
+          <div class="db-json-line">&#123;</div>
+          <div class="db-json-line db-indent-1">
+            <span class="db-k">"reservation"</span>: &#123;
+          </div>
+          <div class="db-json-line db-indent-2">
+            <span class="db-k">"destination"</span>:
+            <span class="db-v-str">"Kyoto, Japan"</span>,
+          </div>
+          <div class="db-json-line db-indent-2">
+            <span class="db-k">"guestEmail"</span>:
+            <span class="db-v-amber">"alex@example.com"</span>
+          </div>
+          <div class="db-json-line db-indent-1">&#125;</div>
+          <div class="db-json-line">&#125;</div>
+        </div>
+      </div>
+
+      <div class="db-card">
+        <div class="db-card__header">
+          <span class="db-card__title">2. Component Bindings</span>
+          <code class="db-card__tag">updateComponents</code>
+        </div>
+        <div class="db-bindings-list">
+          <div class="db-binding-item db-binding-item--teal">
+            <div class="db-binding-item__top">
+              <code>Text#destinationText</code>
+              <span class="db-mini-badge db-mini-badge--teal">Display</span>
+            </div>
+            <code class="db-binding-expr"
+              >text: &#123;"@path": "/reservation/destination"&#125;</code
+            >
+          </div>
+
+          <div class="db-binding-item db-binding-item--amber">
+            <div class="db-binding-item__top">
+              <code>TextField#emailInput</code>
+              <span class="db-mini-badge db-mini-badge--amber"
+                >2-Way Input</span
+              >
+            </div>
+            <code class="db-binding-expr"
+              >value: &#123;"@path": "/reservation/guestEmail"&#125;</code
+            >
+          </div>
+
+          <div class="db-binding-item db-binding-item--blue">
+            <div class="db-binding-item__top">
+              <code>Button#submitButton</code>
+              <span class="db-mini-badge db-mini-badge--blue"
+                >Event Context</span
+              >
+            </div>
+            <code class="db-binding-expr"
+              >context.email: &#123;"@path":
+              "/reservation/guestEmail"&#125;</code
+            >
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Rendered UI inside a Phone / Window Outline -->
+    <div class="db-ui-col">
+      <div class="db-ui-caption">Rendered Surface UI</div>
+      <div class="db-phone-frame">
+        <!-- Window / Phone Top Chrome -->
+        <div class="db-phone-chrome">
+          <div class="db-window-dots" aria-hidden="true">
+            <span class="db-wdot db-wdot--red"></span>
+            <span class="db-wdot db-wdot--yellow"></span>
+            <span class="db-wdot db-wdot--green"></span>
+          </div>
+          <div class="db-phone-notch">Reservation App</div>
+          <div class="db-phone-status">9:41</div>
+        </div>
+
+        <!-- Distinct Light App Canvas -->
+        <div class="db-phone-screen">
+          <!-- Bound Text Component -->
+          <div class="db-ui-header-block">
+            <div class="db-ui-eyebrow">Destination</div>
+            <div class="db-ui-heading-row">
+              <span class="db-ui-heading">Kyoto, Japan</span>
+              <span class="db-ui-ptr db-ui-ptr--teal"
+                >&larr; /reservation/destination</span
+              >
+            </div>
+          </div>
+
+          <!-- Bound TextField Component -->
+          <div class="db-ui-field-block">
+            <div class="db-ui-field-label-row">
+              <label class="db-ui-label">Guest Email</label>
+              <span class="db-ui-ptr db-ui-ptr--amber"
+                >&harr; /reservation/guestEmail</span
+              >
+            </div>
+            <div class="db-ui-input">
+              <span>alex@example.com</span>
+              <span class="db-ui-caret" aria-hidden="true"></span>
+            </div>
+          </div>
+
+          <!-- Bound Button Component -->
+          <div class="db-ui-action-block">
+            <div class="db-ui-button">Confirm Reservation</div>
+            <div class="db-ui-action-hint">
+              Sends <code>submit_reservation</code> with resolved
+              <code>email</code>
+            </div>
+          </div>
+        </div>
+
+        <!-- Phone Home Bar -->
+        <div class="db-phone-footer" aria-hidden="true">
+          <div class="db-home-indicator"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Agent & Accessibility View: Machine-readable spec hidden from human UI -->
+  <script type="text/vnd.mermaid" data-agent-diagram="spec" style="display: none;">
+    flowchart LR
+      subgraph DataModel["Surface DataModel (surfaceId: booking)"]
+        dest["/reservation/destination: 'Kyoto, Japan'"]
+        email["/reservation/guestEmail: 'alex@example.com'"]
+      end
+      subgraph UI["Rendered Surface UI"]
+        textComp["Text#destinationText (1-way read @path)"]
+        inputComp["TextField#emailInput (2-way input @path)"]
+        btnComp["Button#submitButton (event context @path)"]
+      end
+      dest --> textComp
+      email <--> inputComp
+      email --> btnComp
+  </script>
+</div>
+
+<style>
+  .db-root {
+    margin: 1.5rem 0 2rem;
+    font-family: var(--sl-font);
+    color: #e2e8f0;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #0c1322 0%, #090d16 100%);
+    border: 1px solid #1e293b;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
+    overflow: hidden;
+  }
+
+  :root[data-theme='light'] .db-root {
+    color: #0f172a;
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
+  }
+
+  .db-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem;
+    padding: 0.75rem 1.15rem;
+    background: rgba(15, 23, 42, 0.85);
+    border-bottom: 1px solid #1e293b;
+  }
+
+  :root[data-theme='light'] .db-banner {
+    background: #f1f5f9;
+    border-bottom-color: #cbd5e1;
+  }
+
+  .db-banner__left {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    flex-wrap: wrap;
+  }
+
+  .db-badge {
+    font-family: var(--sl-font-mono);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 0.18rem 0.5rem;
+    border-radius: 4px;
+    background: rgba(20, 184, 166, 0.16);
+    color: #2dd4bf;
+    border: 1px solid rgba(20, 184, 166, 0.35);
+  }
+
+  :root[data-theme='light'] .db-badge {
+    background: #ccfbf1;
+    color: #0f766e;
+    border-color: #5eead4;
+  }
+
+  .db-banner__title {
+    font-weight: 700;
+    font-size: 0.86rem;
+    color: #f8fafc;
+  }
+
+  :root[data-theme='light'] .db-banner__title {
+    color: #0f172a;
+  }
+
+  .db-banner__pills {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  .db-pill {
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+  }
+
+  .db-pill code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.66rem;
+  }
+
+  .db-pill--teal {
+    background: rgba(20, 184, 166, 0.12);
+    color: #5eead4;
+    border: 1px solid rgba(20, 184, 166, 0.28);
+  }
+
+  :root[data-theme='light'] .db-pill--teal {
+    background: #ccfbf1;
+    color: #0f766e;
+    border-color: #99f6e4;
+  }
+
+  .db-pill--amber {
+    background: rgba(245, 158, 11, 0.12);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.28);
+  }
+
+  :root[data-theme='light'] .db-pill--amber {
+    background: #fef3c7;
+    color: #92400e;
+    border-color: #fcd34d;
+  }
+
+  /* 2-Column Layout */
+  .db-stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    gap: 1.1rem;
+    padding: 1.1rem 1.15rem;
+    align-items: center;
+  }
+
+  .db-diagram-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
+  .db-card {
+    padding: 0.75rem 0.85rem;
+    border-radius: 9px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid #1e293b;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  :root[data-theme='light'] .db-card {
+    background: #ffffff;
+    border-color: #cbd5e1;
+  }
+
+  .db-card__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.45);
+  }
+
+  :root[data-theme='light'] .db-card__header {
+    border-bottom-color: #e2e8f0;
+  }
+
+  .db-card__title {
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: #f8fafc;
+  }
+
+  :root[data-theme='light'] .db-card__title {
+    color: #0f172a;
+  }
+
+  .db-card__tag {
+    font-family: var(--sl-font-mono);
+    font-size: 0.66rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    background: rgba(20, 184, 166, 0.12);
+    color: #2dd4bf;
+    border: 1px solid rgba(20, 184, 166, 0.25);
+  }
+
+  :root[data-theme='light'] .db-card__tag {
+    background: #f0fdfa;
+    color: #0f766e;
+    border-color: #99f6e4;
+  }
+
+  .db-json-box {
+    font-family: var(--sl-font-mono);
+    font-size: 0.7rem;
+    line-height: 1.45;
+    padding: 0.5rem 0.65rem;
+    border-radius: 6px;
+    background: rgba(2, 6, 23, 0.65);
+    border: 1px solid #1e293b;
+  }
+
+  :root[data-theme='light'] .db-json-box {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+  }
+
+  .db-indent-1 {
+    padding-left: 0.85rem;
+  }
+
+  .db-indent-2 {
+    padding-left: 1.7rem;
+  }
+
+  .db-k {
+    color: #94a3b8;
+  }
+
+  :root[data-theme='light'] .db-k {
+    color: #475569;
+  }
+
+  .db-v-str {
+    color: #2dd4bf;
+    font-weight: 600;
+  }
+
+  :root[data-theme='light'] .db-v-str {
+    color: #0f766e;
+  }
+
+  .db-v-amber {
+    color: #fbbf24;
+    font-weight: 600;
+  }
+
+  :root[data-theme='light'] .db-v-amber {
+    color: #b45309;
+  }
+
+  .db-bindings-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .db-binding-item {
+    padding: 0.42rem 0.6rem;
+    border-radius: 6px;
+    background: rgba(2, 6, 23, 0.55);
+    border: 1px solid #1e293b;
+    display: flex;
+    flex-direction: column;
+    gap: 0.18rem;
+  }
+
+  :root[data-theme='light'] .db-binding-item {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+  }
+
+  .db-binding-item--teal {
+    border-left: 3px solid #14b8a6;
+  }
+
+  .db-binding-item--amber {
+    border-left: 3px solid #f59e0b;
+  }
+
+  .db-binding-item--blue {
+    border-left: 3px solid #38bdf8;
+  }
+
+  .db-binding-item__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  .db-binding-item__top code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #f8fafc;
+  }
+
+  :root[data-theme='light'] .db-binding-item__top code {
+    color: #0f172a;
+  }
+
+  .db-mini-badge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.06rem 0.35rem;
+    border-radius: 3px;
+  }
+
+  .db-mini-badge--teal {
+    background: rgba(20, 184, 166, 0.16);
+    color: #2dd4bf;
+  }
+
+  :root[data-theme='light'] .db-mini-badge--teal {
+    background: #ccfbf1;
+    color: #0f766e;
+  }
+
+  .db-mini-badge--amber {
+    background: rgba(245, 158, 11, 0.16);
+    color: #fbbf24;
+  }
+
+  :root[data-theme='light'] .db-mini-badge--amber {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .db-mini-badge--blue {
+    background: rgba(56, 189, 248, 0.16);
+    color: #38bdf8;
+  }
+
+  :root[data-theme='light'] .db-mini-badge--blue {
+    background: #e0f2fe;
+    color: #0369a1;
+  }
+
+  .db-binding-expr {
+    font-family: var(--sl-font-mono);
+    font-size: 0.61rem;
+    color: #cbd5e1;
+    word-break: break-word;
+  }
+
+  :root[data-theme='light'] .db-binding-expr {
+    color: #334155;
+  }
+
+  /* Right Column: Phone / App Window Frame (Visually Distinct UI) */
+  .db-ui-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+
+  .db-ui-caption {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #94a3b8;
+  }
+
+  :root[data-theme='light'] .db-ui-caption {
+    color: #475569;
+  }
+
+  .db-phone-frame {
+    width: 100%;
+    max-width: 340px;
+    border-radius: 22px;
+    padding: 0.45rem;
+    background: linear-gradient(145deg, #334155 0%, #1e293b 100%);
+    border: 2px solid #475569;
+    box-shadow:
+      0 14px 32px rgba(0, 0, 0, 0.45),
+      inset 0 1px 1px rgba(255, 255, 255, 0.15);
+    display: flex;
+    flex-direction: column;
+  }
+
+  :root[data-theme='light'] .db-phone-frame {
+    background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+    border-color: #334155;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+  }
+
+  .db-phone-chrome {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.35rem 0.65rem 0.45rem;
+    color: #cbd5e1;
+    font-size: 0.65rem;
+    font-weight: 600;
+  }
+
+  .db-window-dots {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .db-wdot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+  }
+
+  .db-wdot--red {
+    background: #fb7185;
+  }
+
+  .db-wdot--yellow {
+    background: #fbbf24;
+  }
+
+  .db-wdot--green {
+    background: #34d399;
+  }
+
+  .db-phone-notch {
+    font-size: 0.64rem;
+    font-weight: 700;
+    padding: 0.1rem 0.55rem;
+    border-radius: 999px;
+    background: #090d16;
+    color: #94a3b8;
+  }
+
+  .db-phone-status {
+    font-family: var(--sl-font-mono);
+    font-size: 0.64rem;
+    color: #94a3b8;
+  }
+
+  /* Crisp Light App Screen Inside the Phone Frame */
+  .db-phone-screen {
+    background: #ffffff;
+    color: #0f172a;
+    border-radius: 14px;
+    padding: 0.9rem 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06);
+  }
+
+  .db-ui-header-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding-bottom: 0.55rem;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .db-ui-eyebrow {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748b;
+  }
+
+  .db-ui-heading-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+  }
+
+  .db-ui-heading {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #0f172a;
+  }
+
+  .db-ui-ptr {
+    font-family: var(--sl-font-mono);
+    font-size: 0.58rem;
+    font-weight: 700;
+    padding: 0.08rem 0.35rem;
+    border-radius: 4px;
+  }
+
+  .db-ui-ptr--teal {
+    background: #ccfbf1;
+    color: #0f766e;
+    border: 1px solid #99f6e4;
+  }
+
+  .db-ui-ptr--amber {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fde68a;
+  }
+
+  .db-ui-field-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.28rem;
+  }
+
+  .db-ui-field-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+  }
+
+  .db-ui-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #334155;
+  }
+
+  .db-ui-input {
+    display: flex;
+    align-items: center;
+    padding: 0.42rem 0.55rem;
+    border-radius: 7px;
+    background: #f8fafc;
+    border: 1.5px solid #f59e0b;
+    font-family: var(--sl-font-mono);
+    font-size: 0.72rem;
+    color: #0f172a;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.14);
+  }
+
+  .db-ui-caret {
+    display: inline-block;
+    width: 2px;
+    height: 0.85rem;
+    background: #d97706;
+    margin-left: 2px;
+  }
+
+  .db-ui-action-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding-top: 0.15rem;
+  }
+
+  .db-ui-button {
+    text-align: center;
+    padding: 0.48rem 0.75rem;
+    border-radius: 8px;
+    background: linear-gradient(180deg, #0d9488 0%, #0f766e 100%);
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 0.76rem;
+    box-shadow: 0 2px 6px rgba(13, 148, 136, 0.3);
+  }
+
+  .db-ui-action-hint {
+    text-align: center;
+    font-size: 0.62rem;
+    color: #64748b;
+  }
+
+  .db-ui-action-hint code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.6rem;
+    color: #0f766e;
+  }
+
+  .db-phone-footer {
+    display: flex;
+    justify-content: center;
+    padding: 0.35rem 0 0.15rem;
+  }
+
+  .db-home-indicator {
+    width: 72px;
+    height: 4px;
+    border-radius: 999px;
+    background: #64748b;
+  }
+
+  @media (max-width: 900px) {
+    .db-stage {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

@@ -22,12 +22,7 @@
  */
 
 import {A2uiCatalogError} from '../../errors.js';
-import {
-  CatalogApi,
-  inlinePeerAndLocalRefs,
-  V09_STANDARD_DEFS,
-  V10_STANDARD_DEFS,
-} from '../../internal/web-core.js';
+import {CatalogApi, V09_STANDARD_DEFS, V10_STANDARD_DEFS} from '../../internal/web-core.js';
 import {toWireProtocolVersion} from '../../utils/protocol-version.js';
 
 const COMMON_DEF_REGEX = /(?:^|\/)common_types\.json#\/(?:\$defs|definitions)\/(\w+)$/;
@@ -157,7 +152,7 @@ function standardDefsFor(protocolVersion: string): Record<string, unknown> {
     case 'v0.9':
     case 'v0.9.1':
       return V09_STANDARD_DEFS;
-    case 'v1.0':
+    case '1.0':
       return V10_STANDARD_DEFS;
     default:
       throw new A2uiCatalogError(`No common types for protocol version '${protocolVersion}'.`);
@@ -205,12 +200,7 @@ export class CatalogSchemaHelper {
   private readonly functionRequired = new Map<string, string[]>();
 
   constructor(catalog: CatalogApi, protocolVersion: string) {
-    const rawCatalog = catalog.toJson();
-    const peers = catalog.peerCatalogs ?? [];
-    this.catalog =
-      peers.length > 0
-        ? (inlinePeerAndLocalRefs(rawCatalog, rawCatalog, peers) as Record<string, unknown>)
-        : rawCatalog;
+    this.catalog = catalog.toJson();
     try {
       this.commonTypes = {$defs: standardDefsFor(protocolVersion)};
       this.commonTypesLoaded = true;
@@ -275,16 +265,22 @@ export class CatalogSchemaHelper {
     return ref ? this.resolveJsonPointer(this.catalog, ref) : undefined;
   }
 
+  /**
+   * Lists the sub-schemas of a component in the order its properties are read.
+   *
+   * The component's own schema comes first, so its own definition of a property
+   * overrides an inherited one. Then come the allOf entries that declare
+   * `component` (the specific schemas), then the other allOf entries (the
+   * common mixins). Each allOf entry is expanded depth first: a local `#/...`
+   * reference is resolved against the catalog, and the entries of its own
+   * allOf follow it. References into `common_types.json` are kept as is.
+   *
+   * @param schema The component schema.
+   * @returns The ordered sub-schemas.
+   */
   private orderedComponentSubSchemas(schema: Record<string, unknown>): Record<string, unknown>[] {
     const specific: Record<string, unknown>[] = [];
     const inherited: Record<string, unknown>[] = [];
-    if (
-      schema.properties &&
-      typeof schema.properties === 'object' &&
-      'component' in (schema.properties as Record<string, unknown>)
-    ) {
-      specific.push(schema);
-    }
     if (Array.isArray(schema.allOf)) {
       for (let sub of schema.allOf) {
         if (localRef(sub)) {
@@ -309,11 +305,9 @@ export class CatalogSchemaHelper {
         }
       }
     }
-    if (specific.length === 0 && schema.properties && typeof schema.properties === 'object') {
-      specific.push(schema);
-    }
 
-    const expanded: Record<string, unknown>[] = [];
+    const expanded: Record<string, unknown>[] = [schema];
+    const visited = new Set<Record<string, unknown>>([schema]);
     const expand = (node: Record<string, unknown>) => {
       let target = node;
       if (localRef(target)) {
@@ -322,6 +316,10 @@ export class CatalogSchemaHelper {
           target = resolved as Record<string, unknown>;
         }
       }
+      if (visited.has(target)) {
+        return;
+      }
+      visited.add(target);
       expanded.push(target);
       if (Array.isArray(target.allOf)) {
         for (const child of target.allOf) {
@@ -331,15 +329,7 @@ export class CatalogSchemaHelper {
         }
       }
     };
-
-    for (const s of specific) {
-      if (s === schema) {
-        expanded.push(s);
-      } else {
-        expand(s);
-      }
-    }
-    for (const s of inherited) {
+    for (const s of [...specific, ...inherited]) {
       expand(s);
     }
     return expanded;
@@ -381,7 +371,22 @@ export class CatalogSchemaHelper {
   private loadMappings(): void {
     const findEnum = (s: unknown): string[] | undefined => {
       if (s && typeof s === 'object') {
-        const obj = s as Record<string, unknown>;
+        let obj = s as Record<string, unknown>;
+        const visitedPointers = new Set<string>();
+        let ref = localRef(obj);
+        while (ref) {
+          if (visitedPointers.has(ref)) {
+            break;
+          }
+          visitedPointers.add(ref);
+          const resolved = this.resolveJsonPointer(this.catalog, ref);
+          if (resolved && typeof resolved === 'object') {
+            obj = resolved as Record<string, unknown>;
+            ref = localRef(obj);
+          } else {
+            break;
+          }
+        }
         if (Array.isArray(obj.enum)) {
           return obj.enum as string[];
         }
@@ -480,14 +485,20 @@ export class CatalogSchemaHelper {
 
       for (const subObj of subSchemas) {
         if (subObj.properties && typeof subObj.properties === 'object') {
-          const subProps = subObj.properties as Record<string, unknown>;
-          for (const [pk, pv] of Object.entries(subProps)) {
-            if (!(pk in props)) {
-              props[pk] = pv;
-              const enumVal = findEnum(pv);
-              if (enumVal) {
-                this.componentPropertyEnums.set(`${name}.${pk}`, enumVal);
-              }
+          // `subSchemas` lists the component's own schema first, then its
+          // specific allOf entries, then its mixins, each with its nested
+          // allOf. The first definition of a property wins, as in
+          // `getPropertySchema`, so the component's own definition overrides
+          // an inherited one, and a property keeps the position where it is
+          // first declared.
+          for (const [pk, pv] of Object.entries(subObj.properties as Record<string, unknown>)) {
+            if (Object.hasOwn(props, pk)) {
+              continue;
+            }
+            props[pk] = pv;
+            const enumVal = findEnum(pv);
+            if (enumVal) {
+              this.componentPropertyEnums.set(`${name}.${pk}`, enumVal);
             }
           }
         }
@@ -500,10 +511,10 @@ export class CatalogSchemaHelper {
         }
       }
 
-      // Filter out structural properties 'component', 'id', and 'catalogId'
+      // Filter out structural properties 'component' and 'id'
       const orderedKeys: string[] = [];
       for (const k of Object.keys(props)) {
-        if (k !== 'component' && k !== 'id' && k !== 'catalogId') {
+        if (k !== 'component' && k !== 'id') {
           orderedKeys.push(k);
         }
       }
@@ -702,6 +713,11 @@ export class CatalogSchemaHelper {
 
   /**
    * Crawls all sub-schemas of a component to retrieve a property's schema definition.
+   *
+   * The sub-schemas are searched in the order `orderedComponentSubSchemas`
+   * lists them, the component's own schema first, and the first definition
+   * found is returned, so the component's own definition of a property
+   * overrides an inherited one, including one from a nested allOf.
    */
   getPropertySchema(
     componentName: string,
@@ -712,13 +728,35 @@ export class CatalogSchemaHelper {
       return undefined;
     }
 
-    const subSchemas = this.orderedComponentSubSchemas(schema);
-
-    for (const subObj of subSchemas) {
+    for (const subObj of this.orderedComponentSubSchemas(schema)) {
       if (subObj.properties && typeof subObj.properties === 'object') {
         const props = subObj.properties as Record<string, unknown>;
         if (propertyName in props) {
-          return props[propertyName] as Record<string, unknown>;
+          const propVal = props[propertyName];
+          if (!propVal || typeof propVal !== 'object') {
+            return undefined;
+          }
+          const current = propVal as Record<string, unknown>;
+          const visitedPointers = new Set<string>();
+          let ref = localRef(current);
+          let merged: Record<string, unknown> = current;
+          while (ref) {
+            if (visitedPointers.has(ref)) {
+              break;
+            }
+            visitedPointers.add(ref);
+            const resolved = this.resolveJsonPointer(this.catalog, ref);
+            if (resolved && typeof resolved === 'object') {
+              merged = {
+                ...(resolved as Record<string, unknown>),
+                ...merged,
+              };
+              ref = localRef(resolved);
+            } else {
+              break;
+            }
+          }
+          return merged;
         }
       }
     }
@@ -925,16 +963,41 @@ export class CatalogSchemaHelper {
   }
 
   /**
-   * Resolves a subschema for an array item ('items') or an object property key.
+   * Resolves the schema of an array's items.
    *
    * Traverses $ref (both in common types and catalog document), allOf, oneOf, and anyOf
    * to find the declared schema at that position.
    *
-   * @param schema The parent JSON schema to inspect.
-   * @param key 'items' for array items, or property name for object properties.
-   * @returns The resolved subschema, or undefined if not declared.
+   * @param schema The array's JSON schema.
+   * @returns The resolved item schema, or undefined if not declared.
    */
-  resolveSubschema(schema: unknown, key: string): Record<string, unknown> | undefined {
+  resolveItemSchema(schema: unknown): Record<string, unknown> | undefined {
+    return this.resolveAt(schema, undefined);
+  }
+
+  /**
+   * Resolves the schema of an object's property, falling back to `additionalProperties`
+   * when the property is not declared.
+   *
+   * Traverses $ref (both in common types and catalog document), allOf, oneOf, and anyOf
+   * to find the declared schema at that position. A property named `items` is looked up
+   * as a property, not as the array items.
+   *
+   * @param schema The object's JSON schema.
+   * @param name The property name.
+   * @returns The resolved property schema, or undefined if not declared.
+   */
+  resolvePropertySchema(schema: unknown, name: string): Record<string, unknown> | undefined {
+    return this.resolveAt(schema, name);
+  }
+
+  /**
+   * @param property The property to resolve, or undefined for the array items.
+   */
+  private resolveAt(
+    schema: unknown,
+    property: string | undefined,
+  ): Record<string, unknown> | undefined {
     const visited = new Set<unknown>();
 
     const resolve = (s: unknown, inCommonTypes: boolean): Record<string, unknown> | undefined => {
@@ -948,15 +1011,16 @@ export class CatalogSchemaHelper {
 
       const obj = s as Record<string, unknown>;
 
-      if (key === 'items') {
+      if (property === undefined) {
         if (obj.items && typeof obj.items === 'object') {
           return obj.items as Record<string, unknown>;
         }
       } else {
         if (obj.properties && typeof obj.properties === 'object') {
           const props = obj.properties as Record<string, unknown>;
-          if (key in props && props[key] && typeof props[key] === 'object') {
-            return props[key] as Record<string, unknown>;
+          const declared = Object.hasOwn(props, property) ? props[property] : undefined;
+          if (declared && typeof declared === 'object') {
+            return declared as Record<string, unknown>;
           }
         }
         if (obj.additionalProperties && typeof obj.additionalProperties === 'object') {

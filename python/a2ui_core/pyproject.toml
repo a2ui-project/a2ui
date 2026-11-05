@@ -43,7 +43,7 @@ build-backend = "hatchling.build"
 
 # Version is derived from the `python/a2ui-core/v*` git tags. Do not hand-edit a
 # version anywhere in this package; cut a release instead (see
-# docs/contributing/release.md).
+# docs/contributing/release/release.md).
 #
 # `fallback-version` is what a checkout without tags (for example a CI job using
 # actions/checkout at the default fetch-depth of 1) resolves to. It is pinned to
@@ -53,7 +53,7 @@ build-backend = "hatchling.build"
 # computed from the tags, so a tagless release build cannot slip through.
 [tool.hatch.version]
 source = "vcs"
-fallback-version = "0.1.1"
+fallback-version = "0.5.0"
 
 [tool.hatch.version.raw-options]
 root = "../.."

@@ -1141,8 +1141,8 @@ class ElementalCompiler:
         """Compiles a DOM node into a component and returns its ID."""
         if not node.tag.startswith(TAG_PREFIX):
             raise ValueError(
-                f"Invalid element tag '{node.tag}'. Only '{TAG_PREFIX}*' components are"
-                " supported inside A2UI surfaces."
+                f"Invalid element tag '{node.tag}'. Only '{TAG_PREFIX}*' components"
+                " are supported inside A2UI surfaces."
             )
 
         # Map kebab-case to PascalCase (e.g., ui-text-input -> TextInput)
@@ -1257,7 +1257,11 @@ class ElementalCompiler:
 
             if parsed_val is None:
                 continue
-            if parsed_val == "" and prop_name in ["action", "submitAction", "onclick"]:
+            if parsed_val == "" and prop_name in [
+                "action",
+                "submitAction",
+                "onclick",
+            ]:
                 continue
 
             # Try case-insensitive matching for enums, raising ValueError if still invalid

@@ -40,8 +40,9 @@ class V08Capabilities(StrictBaseModel):
         default=None,
         alias="inlineCatalogs",
         description=(
-            "An array of inline catalog definitions. This should only be provided if"
-            " the agent declares 'acceptsInlineCatalogs: true' in its capabilities."
+            "An array of inline catalog definitions. This should only be provided"
+            " if the agent declares 'acceptsInlineCatalogs: true' in its"
+            " capabilities."
         ),
     )
 

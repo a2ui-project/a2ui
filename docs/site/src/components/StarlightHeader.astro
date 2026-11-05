@@ -1,0 +1,1004 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+import '@pagefind/default-ui/css/ui.css';
+import project from 'virtual:starlight/project-context';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const pathname = Astro.url.pathname;
+const isOverview = pathname === `${base}/` || pathname === `${base}` || pathname === '/';
+const isSpec = !isOverview && pathname.includes('/specification/');
+const isDocs = !isOverview && !isSpec;
+
+const dataAttributes: Record<string, string> = {};
+if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash'] = '';
+---
+
+<div class="a2-sl-header">
+  <div class="a2-sl-header__left">
+    <a href={`${base}/`} class="a2-sl-brand" aria-label="A2UI Home">
+      <svg class="a2-sl-logo" width="26" height="26" viewBox="12 11 48 47" fill="none" aria-hidden="true">
+        <path
+          d="M52 44C55.866 44 59 47.134 59 51C59 54.866 55.866 58 52 58H44C40.134 58 37 54.866 37 51C37 47.134 40.134 44 44 44H52ZM52 47C49.7909 47 48 48.7909 48 51C48 53.2091 49.7909 55 52 55C54.2091 55 56 53.2091 56 51C56 48.7909 54.2091 47 52 47Z"
+          fill="currentColor"
+        />
+        <path
+          d="M27 41C22.85 41 19.3 39.55 16.35 36.65C13.45 33.7 12 30.15 12 26C12 21.85 13.45 18.325 16.35 15.425C19.3 12.475 22.85 11 27 11H45C49.15 11 52.675 12.475 55.575 15.425C58.525 18.325 60 21.85 60 26C60 30.15 58.525 33.7 55.575 36.65C52.675 39.55 49.15 41 45 41H27ZM27 36.5H45C47.9 36.5 50.375 35.475 52.425 33.425C54.475 31.375 55.5 28.9 55.5 26C55.5 23.1 54.475 20.625 52.425 18.575C50.375 16.525 47.9 15.5 45 15.5H27C24.1 15.5 21.625 16.525 19.575 18.575C17.525 20.625 16.5 23.1 16.5 26C16.5 28.9 17.525 31.375 19.575 33.425C21.625 35.475 24.1 36.5 27 36.5ZM27 28.25C27.65 28.25 28.175 28.05 28.575 27.65C29.025 27.2 29.25 26.65 29.25 26C29.25 25.35 29.025 24.825 28.575 24.425C28.175 23.975 27.65 23.75 27 23.75C26.35 23.75 25.8 23.975 25.35 24.425C24.95 24.825 24.75 25.35 24.75 26C24.75 26.65 24.95 27.2 25.35 27.65C25.8 28.05 26.35 28.25 27 28.25ZM45 28.25C45.65 28.25 46.175 28.05 46.575 27.65C47.025 27.2 47.25 26.65 47.25 26C47.25 25.35 47.025 24.825 46.575 24.425C46.175 23.975 45.65 23.75 45 23.75C44.35 23.75 43.8 23.975 43.35 24.425C42.95 24.825 42.75 25.35 42.75 26C42.75 26.65 42.95 27.2 43.35 27.65C43.8 28.05 44.35 28.25 45 28.25Z"
+          fill="currentColor"
+        />
+        <path
+          d="M32.5 53C33.8807 53 35 54.1193 35 55.5C35 56.8807 33.8807 58 32.5 58H22.5C21.1193 58 20 56.8807 20 55.5C20 54.1193 21.1193 53 22.5 53H32.5Z"
+          fill="currentColor"
+        />
+        <path
+          d="M14.5 53C15.8807 53 17 54.1193 17 55.5C17 56.8807 15.8807 58 14.5 58C13.1193 58 12 56.8807 12 55.5C12 54.1193 13.1193 53 14.5 53Z"
+          fill="currentColor"
+        />
+        <path
+          d="M32.5 44C33.8807 44 35 45.1193 35 46.5C35 47.8807 33.8807 49 32.5 49C31.1193 49 30 47.8807 30 46.5C30 45.1193 31.1193 44 32.5 44Z"
+          fill="currentColor"
+        />
+        <path
+          d="M24.5 44C25.8807 44 27 45.1193 27 46.5C27 47.8807 25.8807 49 24.5 49H17.5C16.1193 49 15 47.8807 15 46.5C15 45.1193 16.1193 44 17.5 44H24.5Z"
+          fill="currentColor"
+        />
+      </svg>
+      <span>A2UI</span>
+    </a>
+    <span class="a2-sl-header__slash" aria-hidden="true">/</span>
+    <nav class="a2-sl-header__tabs" aria-label="Primary section navigation">
+      <a
+        href={`${base}/`}
+        class:list={['a2-sl-tab', { 'is-active': isOverview }]}
+        aria-current={isOverview ? 'page' : undefined}>Overview</a
+      >
+      <a
+        href={`${base}/quickstart/`}
+        class:list={['a2-sl-tab', { 'is-active': isDocs }]}
+        aria-current={isDocs ? 'page' : undefined}>Docs</a
+      >
+      <a
+        href={`${base}/specification/v1.0-a2ui/`}
+        class:list={['a2-sl-tab', { 'is-active': isSpec }]}
+        aria-current={isSpec ? 'page' : undefined}>Specification</a
+      >
+    </nav>
+  </div>
+
+  <div class="a2-sl-header__right print:hidden">
+    <a2-site-search {...dataAttributes}>
+      <button
+        type="button"
+        data-open-modal
+        class="a2-sl-search-btn"
+        aria-label="Search docs"
+        aria-keyshortcuts="Meta+K Control+K"
+        title="Search documentation (⌘K / Ctrl+K)"
+      >
+        <span class="a2-sl-search-btn__lead">
+          <svg
+            class="a2-sl-search-icon"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"
+            />
+          </svg>
+          <span class="a2-sl-search-label">Search docs</span>
+        </span>
+        <kbd class="a2-sl-search-kbd" aria-hidden="true">
+          <span data-platform-key>⌘</span><span>K</span>
+        </kbd>
+      </button>
+
+      <dialog class="a2-sl-search-dialog" aria-label="Search docs">
+        <div class="a2-sl-dialog-frame">
+          <button type="button" data-close-modal class="a2-sl-search-cancel">Cancel</button>
+          <div class="a2-sl-search-container">
+            <div id="starlight__search"></div>
+          </div>
+        </div>
+      </dialog>
+    </a2-site-search>
+
+    <div class="a2-sl-header__controls">
+      <a
+        class="a2-sl-icon-btn"
+        href="https://github.com/a2ui-project/a2ui"
+        target="_blank"
+        rel="noopener"
+        aria-label="GitHub Repository"
+        title="GitHub"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path
+            d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.08-.73.08-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"
+          />
+        </svg>
+      </a>
+      <a
+        class="a2-sl-icon-btn"
+        href="https://discord.gg/6fS2326966"
+        target="_blank"
+        rel="noopener"
+        aria-label="Discord Community"
+        title="Discord"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path
+            d="M20.32 4.37a19.8 19.8 0 0 0-4.89-1.52.07.07 0 0 0-.08.04c-.2.38-.44.87-.61 1.25a18.27 18.27 0 0 0-5.48 0 12.64 12.64 0 0 0-.62-1.25.08.08 0 0 0-.08-.04 19.74 19.74 0 0 0-4.89 1.52.07.07 0 0 0-.03.03C.53 9.05-.32 13.58.09 18.06a.08.08 0 0 0 .03.05 19.9 19.9 0 0 0 5.99 3.03.08.08 0 0 0 .08-.03c.46-.63.87-1.3 1.22-2a.08.08 0 0 0-.04-.11 13.1 13.1 0 0 1-1.87-.9.08.08 0 0 1-.01-.12c.13-.09.25-.19.37-.29a.08.08 0 0 1 .08-.01c3.93 1.8 8.18 1.8 12.07 0a.08.08 0 0 1 .08.01c.12.1.24.2.37.29a.08.08 0 0 1 0 .12c-.6.35-1.22.65-1.87.9a.08.08 0 0 0-.04.11c.36.7.77 1.37 1.22 2a.08.08 0 0 0 .08.03 19.83 19.83 0 0 0 6-3.03.08.08 0 0 0 .03-.05c.5-5.18-.84-9.68-3.55-13.66a.06.06 0 0 0-.03-.03ZM8.02 15.33c-1.18 0-2.16-1.08-2.16-2.42 0-1.33.96-2.42 2.16-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.34-.96 2.42-2.16 2.42Zm7.97 0c-1.18 0-2.16-1.08-2.16-2.42 0-1.33.96-2.42 2.16-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.34-.95 2.42-2.16 2.42Z"
+          />
+        </svg>
+      </a>
+      <button
+        type="button"
+        class="a2-sl-icon-btn a2-sl-theme-btn"
+        id="a2-sl-theme-toggle"
+        title="Toggle color theme"
+        aria-label="Toggle color theme"
+      >
+        <svg
+          class="a2-theme-icon a2-theme-icon--dark"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          aria-hidden="true"
+        >
+          <path
+            d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"
+          />
+        </svg>
+        <svg
+          class="a2-theme-icon a2-theme-icon--light"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          aria-hidden="true"
+        >
+          <path
+            d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"
+          />
+        </svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script is:inline>
+  (() => {
+    const platformKey = document.querySelector('[data-platform-key]');
+    if (platformKey && !/(Mac|iPhone|iPod|iPad)/i.test(navigator.platform)) {
+      platformKey.textContent = 'Ctrl+';
+    }
+
+    const btn = document.getElementById('a2-sl-theme-toggle');
+    if (!btn) return;
+    const syncLabel = () => {
+      const current = document.documentElement.getAttribute('data-theme') || 'dark';
+      const label = current === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+      btn.setAttribute('title', label);
+      btn.setAttribute('aria-label', label);
+    };
+    syncLabel();
+    new MutationObserver(syncLabel).observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
+    btn.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme') || 'dark';
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      try {
+        localStorage.setItem('starlight-theme', next);
+        localStorage.setItem('a2ui-theme', next);
+      } catch (e) {}
+      if (
+        typeof StarlightThemeProvider !== 'undefined' &&
+        typeof StarlightThemeProvider.updatePickers === 'function'
+      ) {
+        StarlightThemeProvider.updatePickers(next);
+      }
+      window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme: next } }));
+    });
+  })();
+</script>
+
+<script>
+  import { pagefindUserConfig } from 'virtual:starlight/pagefind-config';
+
+  class A2SiteSearch extends HTMLElement {
+    private cleanup: (() => void) | null = null;
+    private pagefindPromise: Promise<void> | null = null;
+
+    connectedCallback() {
+      const openBtn = this.querySelector<HTMLButtonElement>('button[data-open-modal]');
+      const closeBtn = this.querySelector<HTMLButtonElement>('button[data-close-modal]');
+      const dialog = this.querySelector<HTMLDialogElement>('dialog');
+      const dialogFrame = this.querySelector<HTMLElement>('.a2-sl-dialog-frame');
+      const searchContainer = this.querySelector<HTMLElement>('#starlight__search');
+      if (!openBtn || !closeBtn || !dialog || !dialogFrame || !searchContainer) return;
+
+      const shouldStrip = this.dataset.stripTrailingSlash !== undefined;
+      const stripTrailingSlash = (path: string) => path.replace(/(.)\/(#.*)?$/, '$1$2');
+      const formatURL = shouldStrip ? stripTrailingSlash : (path: string) => path;
+
+      const ensurePagefind = () => {
+        if (this.pagefindPromise) return this.pagefindPromise;
+        this.pagefindPromise = (async () => {
+          try {
+            // @ts-expect-error — Missing types for @pagefind/default-ui package.
+            const { PagefindUI } = await import('@pagefind/default-ui');
+            new PagefindUI({
+              ...pagefindUserConfig,
+              element: '#starlight__search',
+              baseUrl: import.meta.env.BASE_URL,
+              bundlePath: import.meta.env.BASE_URL.replace(/\/$/, '') + '/pagefind/',
+              showImages: false,
+              translations: { placeholder: 'Search docs' },
+              showSubResults: true,
+              processResult: (result: { url: string; sub_results?: Array<{ url: string }> }) => {
+                result.url = formatURL(result.url);
+                if (result.sub_results) {
+                  result.sub_results = result.sub_results.map((sub_result) => {
+                    sub_result.url = formatURL(sub_result.url);
+                    return sub_result;
+                  });
+                }
+              },
+            });
+          } catch (err) {
+            console.error('Failed to initialize Pagefind UI:', err);
+          }
+        })();
+        return this.pagefindPromise;
+      };
+
+      const onClick = (event: MouseEvent) => {
+        const isLink = event.target instanceof Element && Boolean(event.target.closest('a[href]'));
+        if (
+          isLink ||
+          (document.body.contains(event.target as Node) && !dialogFrame.contains(event.target as Node))
+        ) {
+          closeModal();
+        }
+      };
+
+      const focusSearchInput = () => {
+        const input = searchContainer.querySelector<HTMLInputElement>('input');
+        if (input) {
+          input.focus();
+          return true;
+        }
+        return false;
+      };
+
+      const openModal = (event?: Event) => {
+        if (!dialog.open) {
+          dialog.showModal();
+          document.body.toggleAttribute('data-search-modal-open', true);
+          window.addEventListener('click', onClick);
+        }
+        event?.stopPropagation();
+        if (!focusSearchInput()) {
+          ensurePagefind().then(() => {
+            if (dialog.open) {
+              requestAnimationFrame(() => focusSearchInput());
+            }
+          });
+        }
+      };
+
+      const closeModal = () => {
+        if (dialog.open) dialog.close();
+      };
+
+      const onDialogClose = () => {
+        document.body.toggleAttribute('data-search-modal-open', false);
+        window.removeEventListener('click', onClick);
+      };
+
+      const onKeyDown = (e: KeyboardEvent) => {
+        if ((e.metaKey === true || e.ctrlKey === true) && e.key.toLowerCase() === 'k') {
+          e.preventDefault();
+          dialog.open ? closeModal() : openModal();
+        }
+      };
+
+      openBtn.addEventListener('click', openModal);
+      closeBtn.addEventListener('click', closeModal);
+      dialog.addEventListener('close', onDialogClose);
+      window.addEventListener('keydown', onKeyDown);
+
+      const onIdle = window.requestIdleCallback || ((cb: () => void) => window.setTimeout(cb, 1));
+      let idleId: number | null = null;
+      const triggerIdle = () => {
+        idleId = onIdle(() => ensurePagefind());
+      };
+
+      if (document.readyState === 'loading') {
+        window.addEventListener('DOMContentLoaded', triggerIdle);
+      } else {
+        triggerIdle();
+      }
+
+      this.cleanup = () => {
+        openBtn.removeEventListener('click', openModal);
+        closeBtn.removeEventListener('click', closeModal);
+        dialog.removeEventListener('close', onDialogClose);
+        window.removeEventListener('keydown', onKeyDown);
+        window.removeEventListener('click', onClick);
+        window.removeEventListener('DOMContentLoaded', triggerIdle);
+        if (idleId !== null && window.cancelIdleCallback) {
+          window.cancelIdleCallback(idleId);
+        } else if (idleId !== null) {
+          window.clearTimeout(idleId);
+        }
+      };
+    }
+
+    disconnectedCallback() {
+      if (this.cleanup) {
+        this.cleanup();
+        this.cleanup = null;
+      }
+    }
+  }
+
+  if (!customElements.get('a2-site-search')) {
+    customElements.define('a2-site-search', A2SiteSearch);
+  }
+</script>
+
+<script>
+  let renderGeneration = 0;
+
+  const renderMermaid = async () => {
+    const generation = ++renderGeneration;
+    for (const pre of document.querySelectorAll<HTMLPreElement>('pre[data-language="mermaid"]')) {
+      const lines = pre.querySelectorAll('.ec-line');
+      const code = (
+        lines.length
+          ? Array.from(lines, l => l.textContent ?? '').join('\n')
+          : (pre.querySelector('code')?.textContent || pre.textContent || '')
+      ).trim();
+      const div = document.createElement('div');
+      div.className = 'mermaid-rendered not-content';
+      div.dataset.mermaidSource = code;
+      (pre.closest('.expressive-code') || pre).replaceWith(div);
+    }
+
+    const blocks = document.querySelectorAll<HTMLElement>(
+      '.mermaid-rendered[data-mermaid-source]',
+    );
+    if (!blocks.length) return;
+
+    const {default: mermaid} = await import('mermaid');
+    await document.fonts?.ready;
+    if (generation !== renderGeneration) return;
+
+    const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'strict',
+      theme: isDark ? 'dark' : 'default',
+      fontFamily: 'inherit',
+    });
+
+    for (let i = 0; i < blocks.length; i++) {
+      if (generation !== renderGeneration) return;
+      const div = blocks[i];
+      const code = div.dataset.mermaidSource;
+      if (!code) continue;
+      try {
+        const id = `mermaid-svg-${generation}-${i}-${Date.now().toString(36)}`;
+        const {svg} = await mermaid.render(id, code);
+        if (generation === renderGeneration) {
+          div.innerHTML = svg;
+        }
+      } catch (err) {
+        if (!div.innerHTML) {
+          const pre = document.createElement('pre');
+          pre.textContent = code;
+          div.replaceChildren(pre);
+        }
+        console.error('Mermaid render error:', err);
+      }
+    }
+  };
+
+  let lastTheme = document.documentElement.getAttribute('data-theme');
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      lastTheme = document.documentElement.getAttribute('data-theme');
+      void renderMermaid();
+    });
+  } else {
+    void renderMermaid();
+  }
+  new MutationObserver(() => {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    if (currentTheme !== lastTheme) {
+      lastTheme = currentTheme;
+      void renderMermaid();
+    }
+  }).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme'],
+  });
+</script>
+
+<style>
+  .a2-sl-header {
+    --a2-hdr-text: var(--sl-color-white, #f8fafc);
+    --a2-hdr-text-secondary: var(--sl-color-gray-2, #cbd5e1);
+    --a2-hdr-text-muted: var(--sl-color-gray-3, #94a3b8);
+    --a2-hdr-surface: var(--sl-color-bg-sidebar, #111c33);
+    --a2-hdr-hover-bg: var(--sl-color-gray-6, #162440);
+    --a2-hdr-border: var(--sl-color-hairline, #1e293b);
+    --a2-hdr-border-strong: var(--sl-color-gray-5, #334155);
+    --a2-hdr-accent: var(--sl-color-accent, #14b8a6);
+    --a2-hdr-accent-text: var(--sl-color-text-accent, #2dd4bf);
+    --a2-hdr-accent-soft: rgba(20, 184, 166, 0.12);
+
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 100%;
+    width: 100%;
+    gap: 16px;
+  }
+
+  :global(:root[data-theme='light']) .a2-sl-header {
+    --a2-hdr-text: #0f172a;
+    --a2-hdr-text-secondary: #334155;
+    --a2-hdr-text-muted: #64748b;
+    --a2-hdr-surface: #ffffff;
+    --a2-hdr-hover-bg: #e2e8f0;
+    --a2-hdr-border: #e2e8f0;
+    --a2-hdr-border-strong: #cbd5e1;
+    --a2-hdr-accent: #0d9488;
+    --a2-hdr-accent-text: #0d9488;
+    --a2-hdr-accent-soft: rgba(13, 148, 136, 0.1);
+  }
+
+  .a2-sl-header__left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .a2-sl-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    font-weight: 800;
+    font-size: 18px;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--a2-hdr-text);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .a2-sl-brand:hover {
+    color: var(--a2-hdr-text);
+  }
+
+  .a2-sl-logo {
+    flex-shrink: 0;
+    display: block;
+  }
+
+  .a2-sl-header__slash {
+    color: var(--a2-hdr-border-strong);
+    font-size: 18px;
+    font-weight: 300;
+    line-height: 1;
+    margin: 0 4px;
+    user-select: none;
+  }
+
+  .a2-sl-header__tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .a2-sl-header__tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .a2-sl-tab {
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+    color: var(--a2-hdr-text-secondary);
+    text-decoration: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    white-space: nowrap;
+    transition: color 0.15s ease, background-color 0.15s ease;
+  }
+
+  .a2-sl-tab:hover {
+    color: var(--a2-hdr-text);
+    background: var(--a2-hdr-hover-bg);
+  }
+
+  .a2-sl-tab.is-active {
+    color: var(--a2-hdr-accent-text);
+    background: var(--a2-hdr-accent-soft);
+    font-weight: 600;
+  }
+
+  .a2-sl-header__right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  a2-site-search {
+    display: contents;
+  }
+
+  .a2-sl-search-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    height: 36px;
+    padding: 0 10px 0 12px;
+    border-radius: 8px;
+    background: var(--a2-hdr-surface);
+    border: 1px solid var(--a2-hdr-border-strong);
+    color: var(--a2-hdr-text-muted);
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 0.15s ease, color 0.15s ease;
+  }
+
+  @media (max-width: 49.999rem) {
+    :global(header.header) .a2-sl-header {
+      padding-inline-end: 44px;
+    }
+
+    :global(header.header) .a2-sl-header__controls {
+      display: none;
+    }
+
+    .a2-sl-header__slash {
+      margin: 0 2px;
+    }
+
+    .a2-sl-tab {
+      padding: 6px 9px;
+    }
+  }
+
+  @media (min-width: 900px) {
+    .a2-sl-search-btn {
+      min-width: 230px;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .a2-sl-search-kbd {
+      display: none;
+    }
+    .a2-sl-search-btn {
+      gap: 8px;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .a2-sl-search-label {
+      display: none;
+    }
+    .a2-sl-search-btn {
+      padding: 0 8px;
+      gap: 0;
+    }
+    :global(header.header) .a2-sl-header__controls,
+    .a2-sl-header__controls a.a2-sl-icon-btn {
+      display: none;
+    }
+  }
+
+  .a2-sl-search-btn:hover {
+    border-color: var(--a2-hdr-accent);
+    color: var(--a2-hdr-text);
+  }
+
+  .a2-sl-search-btn__lead {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .a2-sl-search-icon {
+    flex-shrink: 0;
+    color: var(--a2-hdr-text-muted);
+    transition: color 0.15s ease;
+  }
+
+  .a2-sl-search-btn:hover .a2-sl-search-icon {
+    color: var(--a2-hdr-text);
+  }
+
+  .a2-sl-search-label {
+    white-space: nowrap;
+  }
+
+  .a2-sl-search-kbd {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-family: var(--sl-font-mono, var(--font-mono, ui-monospace, monospace));
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    padding: 4px 6px;
+    border-radius: 4px;
+    background: var(--a2-hdr-hover-bg);
+    border: 1px solid var(--a2-hdr-border);
+    color: var(--a2-hdr-text-secondary);
+  }
+
+  .a2-sl-header__controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .a2-sl-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--a2-hdr-text-secondary);
+    text-decoration: none;
+    cursor: pointer;
+    transition: color 0.15s ease, background-color 0.15s ease;
+  }
+
+  .a2-sl-icon-btn:hover {
+    color: var(--a2-hdr-text);
+    background: var(--a2-hdr-hover-bg);
+  }
+
+  :global(:root[data-theme='light']) .a2-theme-icon--dark {
+    display: none;
+  }
+
+  :global(:root:not([data-theme='light'])) .a2-theme-icon--light {
+    display: none;
+  }
+
+  /* --- Search Modal Dialog --- */
+  .a2-sl-search-dialog {
+    margin: 0;
+    background-color: var(--sl-color-gray-6, #0d1527);
+    border: 1px solid var(--a2-hdr-border-strong);
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    max-height: 100%;
+    box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.65);
+    padding: 0;
+    color: var(--a2-hdr-text);
+  }
+
+  :global(:root[data-theme='light']) .a2-sl-search-dialog {
+    background-color: #f8fafc;
+    box-shadow: 0 20px 40px -12px rgba(15, 23, 42, 0.18);
+  }
+
+  .a2-sl-search-dialog[open] {
+    display: flex;
+  }
+
+  .a2-sl-search-dialog::backdrop {
+    background-color: hsla(223, 13%, 10%, 0.66);
+    -webkit-backdrop-filter: blur(0.25rem);
+    backdrop-filter: blur(0.25rem);
+  }
+
+  .a2-sl-dialog-frame {
+    position: relative;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  .a2-sl-search-cancel {
+    position: absolute;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    align-self: flex-end;
+    height: calc(64px * var(--pagefind-ui-scale, 0.8));
+    padding: 0.25rem;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    color: var(--a2-hdr-accent-text);
+    font-family: inherit;
+    font-weight: 600;
+  }
+
+  @media (min-width: 50rem) {
+    .a2-sl-search-cancel {
+      display: none;
+    }
+
+    .a2-sl-search-dialog {
+      margin: 4rem auto auto;
+      border-radius: 0.625rem;
+      width: 90%;
+      max-width: 40rem;
+      height: max-content;
+      min-height: 15rem;
+      max-height: calc(100% - 8rem);
+    }
+
+    .a2-sl-dialog-frame {
+      padding: 1.5rem;
+    }
+  }
+</style>
+
+<style is:global>
+  [data-search-modal-open] {
+    overflow: hidden;
+  }
+
+  #starlight__search {
+    --pagefind-ui-primary: var(--sl-color-text, #cbd5e1);
+    --pagefind-ui-text: var(--sl-color-gray-2, #cbd5e1);
+    --pagefind-ui-font: var(--sl-font, var(--font-sans, sans-serif));
+    --pagefind-ui-background: var(--sl-color-black, #080d1a);
+    --pagefind-ui-border: var(--sl-color-gray-5, #334155);
+    --pagefind-ui-border-width: 1px;
+    --pagefind-ui-tag: var(--sl-color-gray-5, #334155);
+    --sl-search-cancel-space: 5rem;
+    --sl-search-result-spacing: calc(1.25rem * var(--pagefind-ui-scale, 0.8));
+    --sl-search-result-pad-inline-start: calc(3.75rem * var(--pagefind-ui-scale, 0.8));
+    --sl-search-result-pad-inline-end: calc(1.25rem * var(--pagefind-ui-scale, 0.8));
+    --sl-search-result-pad-block: calc(0.9375rem * var(--pagefind-ui-scale, 0.8));
+    --sl-search-result-nested-pad-block: calc(0.625rem * var(--pagefind-ui-scale, 0.8));
+    --sl-search-corners: calc(0.3125rem * var(--pagefind-ui-scale, 0.8));
+    --sl-search-page-icon-size: calc(1.875rem * var(--pagefind-ui-scale, 0.8));
+    --sl-search-page-icon-inline-start: calc(
+      (var(--sl-search-result-pad-inline-start) - var(--sl-search-page-icon-size)) / 2
+    );
+    --sl-search-tree-diagram-size: calc(2.5rem * var(--pagefind-ui-scale, 0.8));
+    --sl-search-tree-diagram-inline-start: calc(
+      (var(--sl-search-result-pad-inline-start) - var(--sl-search-tree-diagram-size)) / 2
+    );
+  }
+
+  :root[data-theme='light'] #starlight__search {
+    --pagefind-ui-primary: #0f172a;
+    --pagefind-ui-text: #334155;
+    --pagefind-ui-background: #ffffff;
+    --pagefind-ui-border: #cbd5e1;
+    --pagefind-ui-tag: #e2e8f0;
+    --sl-color-accent-low: #ccfbf1;
+    --sl-color-accent: #0d9488;
+    --sl-color-accent-high: #0f766e;
+    --sl-color-text-accent: #0d9488;
+  }
+
+  @media (min-width: 50rem) {
+    #starlight__search {
+      --sl-search-cancel-space: 0px;
+    }
+  }
+
+  #starlight__search .pagefind-ui__form::before {
+    --pagefind-ui-text: var(--sl-color-gray-1, #f1f5f9);
+    opacity: 1;
+  }
+
+  :root[data-theme='light'] #starlight__search .pagefind-ui__form::before {
+    --pagefind-ui-text: #475569;
+  }
+
+  #starlight__search .pagefind-ui__search-input {
+    color: var(--sl-color-white, #f8fafc);
+    font-weight: 400;
+    width: calc(100% - var(--sl-search-cancel-space));
+  }
+
+  :root[data-theme='light'] #starlight__search .pagefind-ui__search-input {
+    color: #0f172a;
+  }
+
+  #starlight__search input:focus {
+    --pagefind-ui-border: var(--sl-color-accent, #14b8a6);
+  }
+
+  #starlight__search .pagefind-ui__search-clear {
+    inset-inline-end: var(--sl-search-cancel-space);
+    width: calc(60px * var(--pagefind-ui-scale, 0.8));
+    padding: 0;
+    background-color: transparent;
+    overflow: hidden;
+  }
+
+  #starlight__search .pagefind-ui__search-clear:focus {
+    outline: 1px solid var(--sl-color-accent, #14b8a6);
+  }
+
+  #starlight__search .pagefind-ui__search-clear::before {
+    content: '';
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m13.41 12 6.3-6.29a1 1 0 1 0-1.42-1.42L12 10.59l-6.29-6.3a1 1 0 0 0-1.42 1.42l6.3 6.29-6.3 6.29a1 1 0 0 0 .33 1.64 1 1 0 0 0 1.09-.22l6.29-6.3 6.29 6.3a1 1 0 0 0 1.64-.33 1 1 0 0 0-.22-1.09L13.41 12Z'/%3E%3C/svg%3E")
+      center / 50% no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m13.41 12 6.3-6.29a1 1 0 1 0-1.42-1.42L12 10.59l-6.29-6.3a1 1 0 0 0-1.42 1.42l6.3 6.29-6.3 6.29a1 1 0 0 0 .33 1.64 1 1 0 0 0 1.09-.22l6.29-6.3 6.29 6.3a1 1 0 0 0 1.64-.33 1 1 0 0 0-.22-1.09L13.41 12Z'/%3E%3C/svg%3E")
+      center / 50% no-repeat;
+    background-color: var(--sl-color-text-accent, #2dd4bf);
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  #starlight__search .pagefind-ui__results > * + * {
+    margin-top: var(--sl-search-result-spacing);
+  }
+
+  #starlight__search .pagefind-ui__result {
+    border: 0;
+    padding: 0;
+  }
+
+  #starlight__search .pagefind-ui__result-nested {
+    position: relative;
+    padding: var(--sl-search-result-nested-pad-block) var(--sl-search-result-pad-inline-end);
+    padding-inline-start: var(--sl-search-result-pad-inline-start);
+  }
+
+  #starlight__search .pagefind-ui__result-title:not(:where(.pagefind-ui__result-nested *)),
+  #starlight__search .pagefind-ui__result-nested {
+    position: relative;
+    background-color: var(--pagefind-ui-background);
+  }
+
+  #starlight__search .pagefind-ui__result-title:not(:where(.pagefind-ui__result-nested *)):hover,
+  #starlight__search
+    .pagefind-ui__result-title:not(:where(.pagefind-ui__result-nested *)):focus-within,
+  #starlight__search .pagefind-ui__result-nested:hover,
+  #starlight__search .pagefind-ui__result-nested:focus-within {
+    outline: 1px solid var(--sl-color-accent-high, #5eead4);
+  }
+
+  #starlight__search
+    .pagefind-ui__result-title:not(:where(.pagefind-ui__result-nested *)):focus-within,
+  #starlight__search .pagefind-ui__result-nested:focus-within {
+    background-color: var(--sl-color-accent-low, #0d3b38);
+  }
+
+  #starlight__search .pagefind-ui__result-thumb,
+  #starlight__search .pagefind-ui__result-inner {
+    margin-top: 0;
+  }
+
+  #starlight__search .pagefind-ui__result-inner > :first-child {
+    border-radius: var(--sl-search-corners) var(--sl-search-corners) 0 0;
+  }
+
+  #starlight__search .pagefind-ui__result-inner > :last-child {
+    border-radius: 0 0 var(--sl-search-corners) var(--sl-search-corners);
+  }
+
+  #starlight__search .pagefind-ui__result-inner > .pagefind-ui__result-title {
+    padding: var(--sl-search-result-pad-block) var(--sl-search-result-pad-inline-end);
+    padding-inline-start: var(--sl-search-result-pad-inline-start);
+  }
+
+  #starlight__search .pagefind-ui__result-inner > .pagefind-ui__result-title::before {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: var(--sl-search-page-icon-inline-start);
+    width: var(--sl-search-page-icon-size);
+    background: var(--sl-color-gray-3, #64748b);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='currentColor' viewBox='0 0 24 24'%3E%3Cpath d='M9 10h1a1 1 0 1 0 0-2H9a1 1 0 0 0 0 2Zm0 2a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2H9Zm11-3V8l-6-6a1 1 0 0 0-1 0H7a3 3 0 0 0-3 3v14a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V9Zm-6-4 3 3h-2a1 1 0 0 1-1-1V5Zm4 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5v3a3 3 0 0 0 3 3h3v9Zm-3-3H9a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2Z'/%3E%3C/svg%3E")
+      center no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='currentColor' viewBox='0 0 24 24'%3E%3Cpath d='M9 10h1a1 1 0 1 0 0-2H9a1 1 0 0 0 0 2Zm0 2a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2H9Zm11-3V8l-6-6a1 1 0 0 0-1 0H7a3 3 0 0 0-3 3v14a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V9Zm-6-4 3 3h-2a1 1 0 0 1-1-1V5Zm4 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5v3a3 3 0 0 0 3 3h3v9Zm-3-3H9a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2Z'/%3E%3C/svg%3E")
+      center no-repeat;
+  }
+
+  #starlight__search .pagefind-ui__result-inner {
+    align-items: stretch;
+    gap: 1px;
+  }
+
+  #starlight__search .pagefind-ui__result-link {
+    position: unset;
+    --pagefind-ui-text: var(--sl-color-white, #f8fafc);
+    font-weight: 600;
+  }
+
+  :root[data-theme='light'] #starlight__search .pagefind-ui__result-link {
+    --pagefind-ui-text: #0f172a;
+  }
+
+  #starlight__search .pagefind-ui__result-link:hover {
+    text-decoration: none;
+  }
+
+  #starlight__search .pagefind-ui__result-nested .pagefind-ui__result-link::before {
+    content: unset;
+  }
+
+  #starlight__search .pagefind-ui__result-nested::before {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: var(--sl-search-tree-diagram-inline-start);
+    width: var(--sl-search-tree-diagram-size);
+    background: var(--sl-color-gray-4, #475569);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='currentColor' stroke-linecap='round' viewBox='0 0 16 1000' preserveAspectRatio='xMinYMin slice'%3E%3Cpath d='M8 0v1000m6-988H8'/%3E%3C/svg%3E")
+      0% 0% / 100% no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='currentColor' stroke-linecap='round' viewBox='0 0 16 1000' preserveAspectRatio='xMinYMin slice'%3E%3Cpath d='M8 0v1000m6-988H8'/%3E%3C/svg%3E")
+      0% 0% / 100% no-repeat;
+  }
+
+  #starlight__search .pagefind-ui__result-nested:last-of-type::before {
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='currentColor' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 16 16'%3E%3Cpath d='M8 0v12m6 0H8'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='currentColor' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 16 16'%3E%3Cpath d='M8 0v12m6 0H8'/%3E%3C/svg%3E");
+  }
+
+  #starlight__search .pagefind-ui__result-link::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+
+  #starlight__search .pagefind-ui__result-excerpt {
+    font-size: calc(1rem * var(--pagefind-ui-scale, 0.8));
+    overflow-wrap: anywhere;
+  }
+
+  #starlight__search mark {
+    color: var(--sl-color-text-accent, #2dd4bf);
+    background-color: transparent;
+    font-weight: 600;
+  }
+</style>

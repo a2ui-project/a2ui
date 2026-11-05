@@ -29,8 +29,10 @@ import {
   CatalogApi,
   ComponentApi,
   FunctionApi,
+  FunctionImplementation,
   createFunctionImplementation,
 } from '../catalog/types.js';
+import {CommonSchemas} from '../types/common-types.js';
 import {ComponentModel} from '../state/component-model.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {A2uiClientAction} from '../v0_9/schema/client-to-server.js';
@@ -40,7 +42,7 @@ import {
   ComponentIdSchema,
   DynamicStringSchema,
 } from '../v0_9/schema/common-types.js';
-import {effect, getValue, peekValue, Signal} from '../reactivity/signals.js';
+import {effect, getValue, peekValue, setValue, Signal} from '../reactivity/signals.js';
 import {ComponentNode, NodeProps, PLACEHOLDER_TYPE, isComponentNode} from './component-node.js';
 import {NodeResolver} from './node-resolver.js';
 import {ResolvedBinding, isWritable} from './resolved-binding.js';
@@ -1318,7 +1320,7 @@ describe('NodeResolver on a surface without a default catalog', () => {
       undefined,
       undefined,
       undefined,
-      'v1.0',
+      '1.0',
     );
     const errors: Array<Record<string, unknown>> = [];
     surface.onError.subscribe(e => {
@@ -1369,5 +1371,342 @@ describe('NodeResolver on a surface without a default catalog', () => {
       },
     ]);
     resolver.dispose();
+  });
+
+  it('tracks node.metadata independently of node.props and forwards action metadata', async () => {
+    const {catalog, surface, resolver} = setup();
+    const actions: Array<Record<string, unknown>> = [];
+    surface.onAction.subscribe(a => {
+      actions.push(a as unknown as Record<string, unknown>);
+    });
+
+    surface.componentsModel.addComponent(
+      new ComponentModel(
+        'root',
+        'Button',
+        {label: 'Go', action: {event: {name: 'go_evt', context: {k: 'v'}}}},
+        catalog,
+        {extensions: {trace: {spanId: '1'}}},
+      ),
+    );
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.deepStrictEqual(peekValue(root.metadata), {extensions: {trace: {spanId: '1'}}});
+
+    // Attempting to write to read-only node.metadata throws TypeError
+    assert.throws(() => setValue(root.metadata as any, {extensions: {x: 1}}), TypeError);
+
+    const propsCounter = countEmissions(root.props);
+    const metaCounter = countEmissions(root.metadata);
+
+    const model = surface.componentsModel.get('root')!;
+    model.metadata = {extensions: {trace: {spanId: '2'}}};
+
+    assert.strictEqual(propsCounter.count, 0);
+    assert.strictEqual(metaCounter.count, 1);
+    assert.deepStrictEqual(peekValue(root.metadata), {extensions: {trace: {spanId: '2'}}});
+
+    const invokeAction = props(root).action as (opts?: {
+      metadata?: Record<string, unknown>;
+    }) => void;
+    await invokeAction({metadata: {extensions: {click_source: 'keyboard'}}});
+    assert.strictEqual(actions.length, 1);
+    assert.deepStrictEqual(actions[0].metadata, {extensions: {click_source: 'keyboard'}});
+
+    propsCounter.dispose();
+    metaCounter.dispose();
+    resolver.dispose();
+  });
+});
+
+describe('NodeResolver omitted property pruning on update (#3779)', () => {
+  it('prunes omitted scalar, nested object, array, dynamic-bound, action, and ref properties on update (#3779)', async () => {
+    const RichWidgetApi = {
+      name: 'RichWidget',
+      schema: z.object({
+        variant: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+        accessibility: z
+          .object({
+            label: DynamicStringSchema.optional(),
+            description: z.string().optional(),
+          })
+          .optional(),
+        value: DynamicStringSchema.optional(),
+        action: ActionSchema.optional(),
+        child: ComponentIdSchema.optional(),
+        children: ChildListSchema.optional(),
+      }),
+    };
+    const catalog = new Catalog<ComponentApi>(
+      'prune-test-catalog',
+      '0.9',
+      [TextApi, RichWidgetApi],
+      [],
+    );
+    const surface = new SurfaceModel('surf-prune', catalog);
+    surface.dataModel.set('/val', 'Initial');
+    surface.dataModel.set('/a11y', 'Save');
+    const resolver = new NodeResolver(surface, catalog);
+
+    add(surface, 'c1', 'Text', {text: 'Child 1'});
+    add(surface, 'c2', 'Text', {text: 'Child 2'});
+    add(surface, 'root', 'RichWidget', {
+      variant: 'filled',
+      tags: ['one', 'two'],
+      accessibility: {
+        label: {path: '/a11y'},
+        description: 'Submit form',
+      },
+      value: {path: '/val'},
+      action: {event: {name: 'submit'}},
+      child: 'c1',
+      children: ['c2'],
+    });
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const c1Node = child(root, 'child');
+    const c2Node = child(root, 'children', 0);
+    assert.strictEqual(props(root).variant, 'filled');
+    assert.deepStrictEqual(props(root).tags, ['one', 'two']);
+    assert.strictEqual(bound(root, 'value'), 'Initial');
+    assert.strictEqual(isWritable(props(root).value as ResolvedBinding<unknown>), true);
+    assert.strictEqual(typeof props(root).action, 'function');
+
+    // Update omitting variant, tags, accessibility.description, value, action, child, and children
+    const rootModel = surface.componentsModel.get('root')!;
+    rootModel.properties = {
+      accessibility: {
+        label: {path: '/a11y'},
+      },
+    };
+
+    assert.strictEqual(c1Node.disposed, true);
+    assert.strictEqual(c2Node.disposed, true);
+    assert.strictEqual(Object.hasOwn(props(root), 'variant'), false);
+    assert.strictEqual(Object.hasOwn(props(root), 'tags'), false);
+    assert.strictEqual(Object.hasOwn(props(root), 'action'), false);
+    assert.strictEqual(Object.hasOwn(props(root), 'child'), false);
+    assert.strictEqual(Object.hasOwn(props(root), 'children'), false);
+
+    // Omitted DYNAMIC property resets to a read-only ResolvedBinding(undefined)
+    assert.strictEqual(bound(root, 'value'), undefined);
+    assert.strictEqual(isWritable(props(root).value as ResolvedBinding<unknown>), false);
+
+    const a11y = props(root).accessibility as Record<string, unknown>;
+    assert.strictEqual(Object.hasOwn(a11y, 'description'), false);
+    assert.ok(a11y.label instanceof ResolvedBinding);
+    assert.strictEqual(a11y.label.value, 'Save');
+
+    // Old /val data binding is unsubscribed and does not emit or resurrect value
+    const counter = countEmissions(root.props);
+    surface.dataModel.set('/val', 'Changed');
+    await flush();
+    assert.strictEqual(counter.count, 0);
+    assert.strictEqual(bound(root, 'value'), undefined);
+    counter.dispose();
+
+    // Matches a freshly initialized component with the same properties
+    const freshSurface = new SurfaceModel('surf-fresh', catalog);
+    freshSurface.dataModel.set('/a11y', 'Save');
+    const freshResolver = new NodeResolver(freshSurface, catalog);
+    add(freshSurface, 'root', 'RichWidget', {
+      accessibility: {
+        label: {path: '/a11y'},
+      },
+    });
+    const freshRoot = getValue(freshResolver.rootNode);
+    assert.ok(freshRoot);
+    assert.deepStrictEqual(Object.keys(props(root)).sort(), Object.keys(props(freshRoot)).sort());
+    assert.strictEqual(bound(root, 'value'), bound(freshRoot, 'value'));
+
+    freshResolver.dispose();
+    freshSurface.dispose();
+    resolver.dispose();
+    surface.dispose();
+  });
+
+  it('preserves checkable validation state when checks remain and prunes it when checks are omitted (#3779)', async () => {
+    const required: FunctionImplementation = {
+      name: 'required',
+      returnType: 'boolean',
+      schema: z.object({value: z.unknown()}),
+      execute: (args: Record<string, unknown>) => Boolean(args.value),
+    };
+    const ValidatedInputApi = {
+      name: 'ValidatedInput',
+      schema: z.object({
+        value: CommonSchemas.DynamicString.optional(),
+        placeholder: z.string().optional(),
+        checks: CommonSchemas.Checkable.shape.checks,
+      }),
+    };
+    const catalog = new Catalog<ComponentApi>(
+      'check-prune-catalog',
+      '1.0',
+      [ValidatedInputApi],
+      [required],
+    );
+    const surface = new SurfaceModel('surf-check', catalog);
+    surface.dataModel.set('/name', '');
+    const resolver = new NodeResolver(surface, catalog);
+
+    const checks = [
+      {
+        condition: {'@call': 'required', args: {value: {'@path': '/name'}}},
+        message: 'Name is required',
+      },
+    ];
+    add(surface, 'root', 'ValidatedInput', {
+      value: {'@path': '/name'},
+      placeholder: 'Enter name',
+      checks,
+    });
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.strictEqual(props(root).placeholder, 'Enter name');
+    assert.strictEqual(props(root).isValid, false);
+    assert.deepStrictEqual(props(root).validationErrors, ['Name is required']);
+
+    // Update omitting placeholder while keeping checks preserves validation state
+    const rootModel = surface.componentsModel.get('root')!;
+    rootModel.properties = {
+      value: {'@path': '/name'},
+      checks,
+    };
+    assert.strictEqual(Object.hasOwn(props(root), 'placeholder'), false);
+    assert.strictEqual(props(root).isValid, false);
+    assert.deepStrictEqual(props(root).validationErrors, ['Name is required']);
+
+    // Reactive data update still updates validation state
+    surface.dataModel.set('/name', 'Alice');
+    await flush();
+    assert.strictEqual(props(root).isValid, true);
+    assert.deepStrictEqual(props(root).validationErrors, []);
+    assert.deepStrictEqual(props(root).validationResults, []);
+
+    // Omitting checks clears checks, isValid, validationErrors, and validationResults
+    rootModel.properties = {};
+    assert.strictEqual(Object.hasOwn(props(root), 'checks'), false);
+    assert.strictEqual(Object.hasOwn(props(root), 'isValid'), false);
+    assert.strictEqual(Object.hasOwn(props(root), 'validationErrors'), false);
+    assert.strictEqual(Object.hasOwn(props(root), 'validationResults'), false);
+    assert.strictEqual(bound(root, 'value'), undefined);
+
+    // Changing /name afterwards does not resurrect validation props
+    surface.dataModel.set('/name', '');
+    await flush();
+    assert.strictEqual(Object.hasOwn(props(root), 'isValid'), false);
+    assert.strictEqual(Object.hasOwn(props(root), 'validationErrors'), false);
+    assert.strictEqual(Object.hasOwn(props(root), 'validationResults'), false);
+
+    resolver.dispose();
+    surface.dispose();
+  });
+
+  it('prunes omitted non-ref properties during materialize even before a delayed binder onUpdated runs (#3779)', async () => {
+    const WidgetWithChildApi = {
+      name: 'WidgetWithChild',
+      schema: z.object({
+        variant: z.string().nullable().optional(),
+        extraMap: z.record(z.string()).optional(),
+        grid: z
+          .array(
+            z.array(
+              z.object({
+                title: z.string(),
+                badge: z.string().optional(),
+              }),
+            ),
+          )
+          .optional(),
+        child: ComponentIdSchema.optional(),
+        children: ChildListSchema.optional(),
+      }),
+    };
+    const catalog = new Catalog<ComponentApi>(
+      'delayed-binder-catalog',
+      '0.9',
+      [TextApi, WidgetWithChildApi],
+      [],
+    );
+    const surface = new SurfaceModel('surf-delayed', catalog);
+    add(surface, 'c1', 'Text', {text: 'First'});
+    add(surface, 'c2', 'Text', {text: 'Second'});
+    const rootModel = new ComponentModel(
+      'root',
+      'WidgetWithChild',
+      {
+        variant: 'outlined',
+        extraMap: {keep: 'yes', drop: 'no'},
+        grid: [
+          [
+            {title: 'Cell 1', badge: 'New'},
+            {title: 'Cell 2', badge: 'Old'},
+          ],
+        ],
+        child: 'pending-child',
+        children: ['c1', 'c2'],
+      },
+      catalog,
+    );
+
+    let releaseGate!: () => void;
+    const gate = new Promise<void>(resolve => {
+      releaseGate = resolve;
+    });
+    let blockUpdates = false;
+    // Subscribed before NodeResolver creates its GenericBinder so EventEmitter
+    // awaits this listener before running GenericBinder.rebuildAllBindings.
+    rootModel.onUpdated.subscribe(async () => {
+      if (blockUpdates) {
+        await gate;
+      }
+    });
+
+    surface.componentsModel.addComponent(rootModel);
+    const resolver = new NodeResolver(surface, catalog);
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.strictEqual(props(root).variant, 'outlined');
+    assert.strictEqual(child(root, 'child').state, 'pending');
+    assert.strictEqual((props(root).children as ComponentNode[]).length, 2);
+
+    // Update rootModel setting `variant: null`, omitting `extraMap.drop`,
+    // `badge`, the second cell, and `c2` from `children`, while keeping
+    // `child: 'pending-child'`, then add `pending-child` while GenericBinder's
+    // onUpdated is still blocked.
+    blockUpdates = true;
+    rootModel.properties = {
+      variant: null,
+      extraMap: {keep: 'yes'},
+      grid: [[{title: 'Cell 1'}]],
+      child: 'pending-child',
+      children: ['c1'],
+    };
+    add(surface, 'pending-child', 'Text', {text: 'Arrived'});
+
+    // materialize ran for pending-child arrival with stale lastBinderProps:
+    // cleared `variant: null`, omitted `extraMap.drop`, nested `badge`, shrunk
+    // array elements, and shrunk static `children` must already be reflected.
+    assert.strictEqual(child(root, 'child').type, 'Text');
+    assert.strictEqual(props(root).variant, null);
+    assert.deepStrictEqual(props(root).extraMap, {keep: 'yes'});
+    assert.deepStrictEqual(props(root).grid, [[{title: 'Cell 1'}]]);
+    assert.strictEqual((props(root).children as ComponentNode[]).length, 1);
+    assert.strictEqual(child(root, 'children', 0).componentId, 'c1');
+
+    releaseGate();
+    await flush();
+    assert.strictEqual(props(root).variant, null);
+    assert.deepStrictEqual(props(root).extraMap, {keep: 'yes'});
+    assert.deepStrictEqual(props(root).grid, [[{title: 'Cell 1'}]]);
+    assert.strictEqual((props(root).children as ComponentNode[]).length, 1);
+
+    resolver.dispose();
+    surface.dispose();
   });
 });

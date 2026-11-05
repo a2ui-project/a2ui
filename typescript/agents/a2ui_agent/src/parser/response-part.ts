@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {AgentToRendererMessage} from '../internal/web-core.js';
+import {A2uiError, AgentToRendererMessage} from '../internal/web-core.js';
 
 /**
  * A text segment from the model's response.
@@ -51,3 +51,19 @@ export interface A2uiPart {
  * A structured part of a model's response.
  */
 export type ResponsePart = TextPart | A2uiPart;
+
+/**
+ * A block that a response stream rejected and read past, in place of the block.
+ *
+ * Only a stream opened with `afterRejectedBlock: 'continue'` returns one.
+ */
+export interface ErrorPart {
+  type: 'error';
+  /** Why the block was rejected. */
+  error: A2uiError;
+}
+
+/**
+ * A part of a streamed response.
+ */
+export type StreamPart = ResponsePart | ErrorPart;

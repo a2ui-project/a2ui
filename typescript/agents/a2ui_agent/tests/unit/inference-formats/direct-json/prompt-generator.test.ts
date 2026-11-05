@@ -24,7 +24,7 @@ import {
 } from '../../../../src/internal/web-core.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 
-const basicCatalogV10 = loadBasicCatalog('v1.0');
+const basicCatalogV10 = loadBasicCatalog('1.0');
 
 describe('DirectJsonPromptGenerator', () => {
   const catalog = basicCatalogV10;
@@ -58,7 +58,7 @@ describe('DirectJsonPromptGenerator', () => {
   });
 
   it('describes protocol schemas once, however many catalogs use it', () => {
-    const customCatalog = new Catalog('https://a2ui.org/catalogs/custom_v10', 'v1.0', [], []);
+    const customCatalog = new Catalog('https://a2ui.org/catalogs/custom_v10', '1.0', [], []);
     const twoCatalogs = new DirectJsonPromptGenerator([catalog, customCatalog]);
     const baseRules = twoCatalogs.generateBaseRules();
     const instructions = twoCatalogs.generateCatalogInstructions();
@@ -161,7 +161,7 @@ describe('DirectJsonPromptGenerator', () => {
   });
 
   it('inserts a preformatted string example verbatim', () => {
-    const text = '---BEGIN confirmation---\n[{"version": "v1.0"}]\n---END confirmation---';
+    const text = '---BEGIN confirmation---\n[{"version": "1.0"}]\n---END confirmation---';
     const stringGenerator = new DirectJsonPromptGenerator([catalog], {[catalog.id]: text});
     expect(stringGenerator.generateExamples()).toBe(text);
   });

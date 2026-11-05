@@ -95,7 +95,9 @@ def to_message_models(
         raise A2uiValidationError(f"Invalid A2UI message payload: {e}") from e
 
 
-def _message_to_dict(msg: AgentToRendererMessage | Mapping[str, Any]) -> dict[str, Any]:
+def _message_to_dict(
+    msg: AgentToRendererMessage | Mapping[str, Any],
+) -> dict[str, Any]:
     """Converts a single message model or dict into a wire-format dict."""
     if isinstance(msg, BaseModel):
         d = msg.model_dump(mode="json", by_alias=True, exclude_unset=True)
@@ -190,7 +192,7 @@ def normalize_prompt_example_messages(
             if v is None or not v:
                 raise A2uiValidationError("Version cannot be None or empty.")
             v_str = str(v)
-            if v_str and v_str[0].isdigit():
+            if v_str.startswith("0."):
                 d["version"] = f"v{v_str}"
         if (
             "version" not in d

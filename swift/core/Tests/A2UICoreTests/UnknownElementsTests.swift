@@ -90,7 +90,7 @@ struct UnknownElementsTests {
     try processor.processMessages(
       try JSONValue.parse(
         """
-        { "version": "v1.0", "createSurface": { "surfaceId": "s", "catalogId": "a" } }
+        { "version": "1.0", "createSurface": { "surfaceId": "s", "catalogId": "a" } }
         """
       )
     )
@@ -101,7 +101,7 @@ struct UnknownElementsTests {
     try JSONValue.parse(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": { "surfaceId": "s", "components": [\(component)] }
       }
       """

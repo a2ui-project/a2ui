@@ -605,8 +605,42 @@ Tabbed interface for organizing content into switchable panels.
 All components share:
 
 - `id` (required): Unique identifier within the surface.
-- `accessibility`: Accessibility attributes (label, role).
 - `weight`: Flex-grow value when inside a Row or Column.
+- `accessibility`: Attributes for assistive technologies such as screen readers. There is no `role` key.
+    - v0.9 or later: `label` and `description`. Each takes a string or a dynamic value (a data binding or a function call).
+    - v1.0 or later: adds `live` (`"off"`, `"polite"`, or `"assertive"`; default `"off"`) and `hidden` (a boolean or a dynamic value; default `false`). Any other key fails validation.
+
+In these examples the label is static and the description comes from the data model. In v1.0, screen readers also announce text changes politely, and the text is hidden from assistive technologies while `/order/visible` is false:
+
+=== "v0.9"
+
+    ```json
+    {
+      "id": "order_status",
+      "component": "Text",
+      "text": {"path": "/order/status"},
+      "accessibility": {
+        "label": "Order status",
+        "description": {"path": "/order/statusDetails"}
+      }
+    }
+    ```
+
+=== "v1.0"
+
+    ```json
+    {
+      "id": "order_status",
+      "component": "Text",
+      "text": {"@path": "/order/status"},
+      "accessibility": {
+        "label": "Order status",
+        "description": {"@path": "/order/statusDetails"},
+        "live": "polite",
+        "hidden": {"@call": "not", "args": {"value": {"@path": "/order/visible"}}}
+      }
+    }
+    ```
 
 ## Version Differences Summary
 

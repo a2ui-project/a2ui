@@ -106,7 +106,9 @@ def test_schema_strategy_base_rules_hold_the_protocol_schemas(test_catalog):
     )
 
 
-def test_schema_strategy_base_rules_keep_only_the_allowed_messages(test_catalog):
+def test_schema_strategy_base_rules_keep_only_the_allowed_messages(
+    test_catalog,
+):
     generator = DirectJsonFormat([test_catalog]).prompt_generator
     pruned_generator = DirectJsonFormat(
         [test_catalog], allowed_messages=["CreateSurfaceMessage"]
@@ -155,23 +157,13 @@ def test_schema_parser_with_nested_close_tag(test_catalog):
     parser = DirectJsonParser([test_catalog])
     # The JSON string literal itself contains '</a2ui-json>'
     response = (
-        "<a2ui-json>[{\n"
-        '  "version": "v0.9",\n'
-        '  "createSurface": {\n'
-        '    "surfaceId": "main",\n'
-        '    "catalogId": "https://a2ui.org/test_catalog"\n'
-        "  }\n"
-        "}, {\n"
-        '  "version": "v0.9",\n'
-        '  "updateComponents": {\n'
-        '    "surfaceId": "main",\n'
-        '    "components": [{\n'
-        '      "id": "root",\n'
-        '      "component": "Text",\n'
-        '      "text": "This is a literal close tag: </a2ui-json> inside a string."\n'
-        "    }]\n"
-        "  }\n"
-        "}]</a2ui-json>"
+        '<a2ui-json>[{\n  "version": "v0.9",\n  "createSurface": {\n   '
+        ' "surfaceId": "main",\n    "catalogId":'
+        ' "https://a2ui.org/test_catalog"\n  }\n}, {\n  "version": "v0.9",\n '
+        ' "updateComponents": {\n    "surfaceId": "main",\n    "components": [{\n'
+        '      "id": "root",\n      "component": "Text",\n      "text": "This is'
+        ' a literal close tag: </a2ui-json> inside a string."\n    }]\n '
+        " }\n}]</a2ui-json>"
     )
     parsed = parser.parse_response(response)
     assert len(parsed) == 1
@@ -207,10 +199,10 @@ def test_supports_streaming_property(test_catalog):
     assert direct_json_fmt.supports_streaming is True
     assert direct_json_fmt.create_parser().supports_streaming is True
 
-    # 2. ExpressFormat parser does not support streaming
+    # 2. ExpressFormat parser supports streaming
     express_fmt = ExpressFormat([test_catalog])
-    assert express_fmt.supports_streaming is False
-    assert express_fmt.create_parser().supports_streaming is False
+    assert express_fmt.supports_streaming is True
+    assert express_fmt.create_parser().supports_streaming is True
 
     # 3. ElementalFormat parser does not support streaming
     elemental_fmt = ElementalFormat([test_catalog])
@@ -219,10 +211,10 @@ def test_supports_streaming_property(test_catalog):
 
 
 def test_open_stream_raises_not_implemented(test_catalog):
+    from a2ui.inference_formats.express import ExpressResponseStream
+
     express_parser = ExpressParser([test_catalog])
-    with pytest.raises(NotImplementedError) as exc_info:
-        express_parser.open_stream()
-    assert "Streaming is not supported by ExpressParser" in str(exc_info.value)
+    assert isinstance(express_parser.open_stream(), ExpressResponseStream)
 
     elemental_parser = ElementalParser([test_catalog])
     with pytest.raises(NotImplementedError) as exc_info:
@@ -344,8 +336,9 @@ def test_direct_json_format_passes_all_catalogs_to_v1_0_parsers():
 
 _CUT_TEXT_CHUNK = (
     '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "s1",'
-    ' "catalogId": "%s"}}, {"version": "v0.9", "updateComponents": {"surfaceId":'
-    ' "s1", "components": [{"id": "root", "component": "Text", "text": "Hel'
+    ' "catalogId": "%s"}}, {"version": "v0.9", "updateComponents":'
+    ' {"surfaceId": "s1", "components": [{"id": "root", "component": "Text",'
+    ' "text": "Hel'
 )
 
 

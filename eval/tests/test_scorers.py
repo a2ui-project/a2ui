@@ -443,7 +443,11 @@ _STAGE2_MESSAGES: list[dict[str, Any]] = [
         "updateComponents": {
             "surfaceId": "main",
             "components": [
-                {"id": "root", "component": "Column", "children": ["date", "go"]},
+                {
+                    "id": "root",
+                    "component": "Column",
+                    "children": ["date", "go"],
+                },
                 {
                     "id": "date",
                     "component": "DateTimeInput",
@@ -465,7 +469,11 @@ _STAGE2_MESSAGES: list[dict[str, Any]] = [
     },
     {
         "version": "v0.9",
-        "updateDataModel": {"surfaceId": "main", "path": "/booking", "value": {}},
+        "updateDataModel": {
+            "surfaceId": "main",
+            "path": "/booking",
+            "value": {},
+        },
     },
 ]
 
@@ -533,7 +541,7 @@ def test_stage2_reports_every_failed_field() -> None:
 
 def test_stage2_recognises_alternative_shapes() -> None:
     messages = [{
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
             "surfaceId": "main",
             "components": [{
@@ -635,6 +643,35 @@ async def test_scorer_marks_solver_failure_in_metadata() -> None:
     assert score is not None
     assert score.value == 0.0
     assert state.metadata[STAGE12_PASSED_KEY] is False
+    assert score.explanation == "Compilation/validation failed: nope"
+
+
+@pytest.mark.asyncio
+async def test_scorer_preserves_multiline_solver_failure_explanation() -> None:
+    state = _state_with_completion(
+        "Compilation/validation failed: Invalid A2UI message payload: 1 validation"
+        " error\n0.CreateSurfaceMessage.createSurface.catalogId\n  Field"
+        " required\nTraceback (most recent call last):\n  File 'runner.py', line 1, in"
+        " <module>\nRaw output:\n<a2ui-json>[]</a2ui-json>"
+    )
+    score = await a2ui_scorer(version="0.9.1")(state, Target(""))
+    assert score is not None
+    assert score.value == 0.0
+    assert score.explanation == (
+        "Compilation/validation failed: Invalid A2UI message payload: 1 validation"
+        " error\n0.CreateSurfaceMessage.createSurface.catalogId\n  Field required"
+    )
+
+
+@pytest.mark.asyncio
+async def test_scorer_solver_failure_with_empty_error_omits_raw_output() -> None:
+    state = _state_with_completion(
+        "Compilation/validation failed: \nRaw output:\n<a2ui-json>[]</a2ui-json>"
+    )
+    score = await a2ui_scorer(version="0.9.1")(state, Target(""))
+    assert score is not None
+    assert score.value == 0.0
+    assert score.explanation == "Compilation/validation failed:"
 
 
 # --- measured_model_graded_qa: Stage 3 gating ------------------------------
@@ -687,7 +724,7 @@ async def test_no_judge_mode_never_calls_model(
 def test_stage2_written_data_paths_count_as_bindings() -> None:
     """Data written inline or via updateDataModel satisfies required_bindings."""
     folded = [{
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "main",
             "catalogId": "cat",
@@ -698,7 +735,7 @@ def test_stage2_written_data_paths_count_as_bindings() -> None:
         },
     }]
     written = [{
-        "version": "v1.0",
+        "version": "1.0",
         "updateDataModel": {
             "surfaceId": "main",
             "path": "/user",

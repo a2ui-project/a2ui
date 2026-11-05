@@ -16,6 +16,7 @@
 
 import {html, nothing, css} from 'lit';
 import {consume} from '@lit/context';
+import {getAccessibilityDescription, getAccessibilityLabel} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {TextSupportedApis} from './supported_apis.js';
 import {Context} from '../context/context.js';
@@ -107,27 +108,46 @@ export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<TextSupport
 
     const flexStyle = typeof props.weight === 'number' ? `flex: ${props.weight};` : nothing;
 
+    const a11yLabel = getAccessibilityLabel(props.accessibility);
+    const a11yDescription = getAccessibilityDescription(props.accessibility);
+
     if (NON_MARKDOWN_VARIANTS.has(variant)) {
       let content = html`${text}`;
       switch (variant) {
         case 'h1':
-          content = html`<h1>${text}</h1>`;
+          content = html`<h1 aria-label=${a11yLabel} aria-description=${a11yDescription}>
+            ${text}
+          </h1>`;
           break;
         case 'h2':
-          content = html`<h2>${text}</h2>`;
+          content = html`<h2 aria-label=${a11yLabel} aria-description=${a11yDescription}>
+            ${text}
+          </h2>`;
           break;
         case 'h3':
-          content = html`<h3>${text}</h3>`;
+          content = html`<h3 aria-label=${a11yLabel} aria-description=${a11yDescription}>
+            ${text}
+          </h3>`;
           break;
         case 'h4':
-          content = html`<h4>${text}</h4>`;
+          content = html`<h4 aria-label=${a11yLabel} aria-description=${a11yDescription}>
+            ${text}
+          </h4>`;
           break;
         case 'h5':
-          content = html`<h5>${text}</h5>`;
+          content = html`<h5 aria-label=${a11yLabel} aria-description=${a11yDescription}>
+            ${text}
+          </h5>`;
           break;
         case 'caption':
-          content = html`<em>${text}</em>`;
-          break;
+          return html`<span
+            class="a2ui-text a2ui-text-caption"
+            style=${flexStyle}
+            role=${a11yLabel !== nothing ? 'note' : nothing}
+            aria-label=${a11yLabel}
+            aria-description=${a11yDescription}
+            ><em>${text}</em></span
+          >`;
       }
       return html`<span class="a2ui-text a2ui-text-${variant}" style=${flexStyle}
         >${content}</span
@@ -135,7 +155,12 @@ export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<TextSupport
     }
 
     const renderedMarkdown = markdown(text, this.markdownRenderer);
-    return html`<span class="a2ui-text a2ui-text-${variant}" style=${flexStyle}
+    return html`<span
+      class="a2ui-text a2ui-text-${variant}"
+      style=${flexStyle}
+      role=${a11yLabel !== nothing ? 'note' : nothing}
+      aria-label=${a11yLabel}
+      aria-description=${a11yDescription}
       >${renderedMarkdown}</span
     >`;
   }

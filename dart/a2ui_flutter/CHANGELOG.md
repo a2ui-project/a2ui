@@ -14,9 +14,43 @@
  limitations under the License.
 -->
 
-# a2ui_flutter Changelog
+# [a2ui_flutter](https://pub.dev/packages/a2ui_flutter) Changelog
 
 ## Unreleased
+
+## 0.1.0
+
+- Requires `a2ui_core` `^0.5.0`.
+
+- **Breaking:** a component that has not arrived, has an unknown type, or
+  repeats one of its ancestors now renders nothing, as does the surface until
+  its root arrives. Previously these showed a progress indicator or a red
+  diagnostic. "Nothing" takes no layout space: Row, Column and List skip such
+  children, so they get no gap and no flex share. Unknown types and cycles are
+  still reported to the surface's error listeners. Apps that showed users the
+  old indicator should render their own loading state until the fallback API
+  from [#2013](https://github.com/a2ui-project/a2ui/issues/2013) lands
+  ([#3714](https://github.com/a2ui-project/a2ui/pull/3714)).
+- `TextField` (v0.9) compiles `validationRegexp` through `compileGuarded` from
+  `package:a2ui_core/a2ui_core.dart`; when the portable regex subset guard
+  rejects a pattern, the regex constraint is disabled and an `EXPRESSION_ERROR`
+  is reported once on the surface error channel
+  ([#3854](https://github.com/a2ui-project/a2ui/pull/3854)).
+- Dynamic bindings in `accessibility` attributes (`label`, `description`,
+  `live`, and `hidden`) now update `NodeView` semantics reactively
+  ([#3583](https://github.com/a2ui-project/a2ui/pull/3583)).
+- `NodeView` subscribes to `node.metadata` so custom `ComponentImplementation` widgets rebuild when component extension metadata changes, and `ComponentProps.action(key)` returns a `NodeAction?` accepting optional `ActionDispatchOptions(metadata: ...)` ([#3469](https://github.com/a2ui-project/a2ui/issues/3469), [#3708](https://github.com/a2ui-project/a2ui/issues/3708), [#3757](https://github.com/a2ui-project/a2ui/pull/3757)).
+- `ComponentImplementation` takes `allowedParents` and `allowedChildren`, so a
+  custom Flutter component can declare where it may appear. The message
+  processor rejects a payload that breaks them with `UNALLOWED_PARENT` or
+  `UNALLOWED_CHILD`. The basic catalog components keep the constraints of
+  their catalog definition
+  ([#3533](https://github.com/a2ui-project/a2ui/issues/3533)).
+- `Image` keeps its `description` when it does not load: the broken-image icon
+  is labelled with it, as an `alt` text is on the web
+  ([#3412](https://github.com/a2ui-project/a2ui/pull/3412)).
+
+## 0.0.1-wip003
 
 - An `accessibility.live` of `polite` or `assertive` makes a component a live
   region, and an `accessibility.hidden` that is true excludes it and its

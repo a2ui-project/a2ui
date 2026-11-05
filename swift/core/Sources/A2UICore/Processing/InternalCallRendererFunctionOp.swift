@@ -22,7 +22,6 @@ public struct InternalCallRendererFunctionOp: Sendable, Equatable {
   public let version: A2UIProtocolVersion
   public let catalogID: String?
   public let args: [String: JSONValue]?
-  public let returnType: String?
   public let isUserActivated: Bool
 
   /// Blueprint-compatible camelCase alias for `surfaceID`.
@@ -41,7 +40,6 @@ public struct InternalCallRendererFunctionOp: Sendable, Equatable {
     version: A2UIProtocolVersion,
     catalogID: String? = nil,
     args: [String: JSONValue]? = nil,
-    returnType: String? = nil,
     isUserActivated: Bool = false
   ) {
     self.surfaceID = surfaceID
@@ -50,7 +48,6 @@ public struct InternalCallRendererFunctionOp: Sendable, Equatable {
     self.version = version
     self.catalogID = catalogID
     self.args = args
-    self.returnType = returnType
     self.isUserActivated = isUserActivated
   }
 }

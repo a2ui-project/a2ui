@@ -20,10 +20,10 @@
   description: >-
     Valid v1.0 DataBinding using the reserved @path prefix.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   payload:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: s1
         catalogId: basic
@@ -37,10 +37,10 @@
   description: >-
     Valid v1.0 FunctionCall using the reserved @call prefix.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   payload:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: s1
         catalogId: basic
@@ -56,10 +56,10 @@
   description: >-
     Valid v1.0 FunctionCall invoking the @index system context function within a List template.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   payload:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: s1
         catalogId: basic
@@ -82,7 +82,7 @@
     intercepted as a dynamic DataBinding or FunctionCall directive.
   catalog:
     catalogId: custom
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     components:
       CustomCard:
         type: object
@@ -91,7 +91,7 @@
             $ref: "common_types.json#/$defs/DynamicValue"
   action: validate
   payload:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: s1
         catalogId: custom
@@ -108,7 +108,7 @@
     as plain object keys.
   catalog:
     catalogId: custom
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     components:
       CustomCard:
         type: object
@@ -117,7 +117,7 @@
             $ref: "common_types.json#/$defs/DynamicValue"
   action: validate
   payload:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: s1
         catalogId: custom
@@ -134,7 +134,7 @@
     backward compatibility for future directives.
   catalog:
     catalogId: custom
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     components:
       CustomCard:
         type: object
@@ -143,7 +143,7 @@
             $ref: "common_types.json#/$defs/DynamicValue"
   action: validate
   payload:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: s1
         catalogId: custom
@@ -162,7 +162,7 @@
     disallowed. It must be escaped as "@@" to appear as literal data.
   catalog:
     catalogId: custom
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     components:
       CustomCard:
         type: object
@@ -171,7 +171,7 @@
             $ref: "common_types.json#/$defs/DynamicValue"
   action: validate
   payload:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: s1
         catalogId: custom
@@ -188,7 +188,7 @@
     Verifies that doubled-@ keys ('@@path') are unescaped to '@path' during dynamic evaluation in v1.0.
   catalog:
     catalogId: custom
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     components:
       CustomCard:
         type: object
@@ -197,7 +197,7 @@
             $ref: "common_types.json#/$defs/DynamicValue"
   action: process_messages
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: s1
         catalogId: custom

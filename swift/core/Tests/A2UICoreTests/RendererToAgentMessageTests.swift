@@ -265,7 +265,7 @@ struct RendererToAgentMessageTests {
     let message = RendererToAgentMessage.action(action)
     let data = try JSONEncoder().encode(message)
     let json = try #require(String(data: data, encoding: .utf8))
-    #expect(json.contains("\"version\":\"v1.0\""))
+    #expect(json.contains("\"version\":\"1.0\""))
   }
 
   @Test func encodeProducesFlatActionPayload() throws {
@@ -340,7 +340,7 @@ struct RendererToAgentMessageTests {
     let json = try #require(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "callAgentFunction": {
           "surfaceId": "main",
           "functionCallId": "call_1",
@@ -363,11 +363,43 @@ struct RendererToAgentMessageTests {
     }
   }
 
+  @Test func encodeCallAgentFunctionUsesAtCallWithoutReturnType() throws {
+    let message = RendererToAgentMessage.callAgentFunction(
+      CallAgentFunctionMessage(
+        surfaceID: "main",
+        functionCallID: "call_1",
+        callFunction: CallFunctionPayload(
+          call: "fetchData",
+          catalogID: "custom",
+          args: ["query": .string("weather")]
+        ),
+        version: .v10
+      )
+    )
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = .sortedKeys
+
+    let json = try #require(String(data: try encoder.encode(message), encoding: .utf8))
+
+    #expect(
+      json == """
+        {"callAgentFunction":{"callFunction":{"@call":"fetchData","args":{"query":"weather"},\
+        "catalogId":"custom"},"functionCallId":"call_1","surfaceId":"main"},"version":"1.0"}
+        """
+    )
+    let decoded = try JSONDecoder().decode(RendererToAgentMessage.self, from: Data(json.utf8))
+    guard case .callAgentFunction(let call) = decoded else {
+      Issue.record("Expected .callAgentFunction")
+      return
+    }
+    #expect(call.callFunction.call == "fetchData")
+  }
+
   @Test func decodeRendererFunctionResponse() throws {
     let json = try #require(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "rendererFunctionResponse": {
           "functionCallId": "call_2",
           "value": "ok"
@@ -504,6 +536,47 @@ struct RendererToAgentMessageTests {
     )
     #expect(throws: DecodingError.self) {
       try decoder.decode(RendererFunctionResponseMessage.self, from: neitherJSON)
+    }
+  }
+
+  @Test func functionResponsesTreatExplicitNullErrorAsAbsent() throws {
+    let decoder = makeVersionedDecoder(.v10)
+    let valueJSON = Data(#"{"functionCallId": "c1", "value": 1, "error": null}"#.utf8)
+    let rendererValue = try decoder.decode(RendererFunctionResponseMessage.self, from: valueJSON)
+    #expect(rendererValue.value == .number(1))
+    #expect(rendererValue.error == nil)
+    let agentValue = try decoder.decode(AgentFunctionResponseMessage.self, from: valueJSON)
+    #expect(agentValue.value == .number(1))
+    #expect(agentValue.error == nil)
+
+    // A null value is still a value.
+    let nullValueJSON = Data(#"{"functionCallId": "c1", "value": null, "error": null}"#.utf8)
+    let rendererNull = try decoder.decode(
+      RendererFunctionResponseMessage.self, from: nullValueJSON)
+    #expect(rendererNull.value == .null)
+    #expect(rendererNull.error == nil)
+    let agentNull = try decoder.decode(AgentFunctionResponseMessage.self, from: nullValueJSON)
+    #expect(agentNull.value == .null)
+    #expect(agentNull.error == nil)
+
+    // A null error alone carries neither a value nor an error.
+    let nullErrorJSON = Data(#"{"functionCallId": "c1", "error": null}"#.utf8)
+    #expect(throws: DecodingError.self) {
+      try decoder.decode(RendererFunctionResponseMessage.self, from: nullErrorJSON)
+    }
+    #expect(throws: DecodingError.self) {
+      try decoder.decode(AgentFunctionResponseMessage.self, from: nullErrorJSON)
+    }
+
+    // An error with a null value still carries both.
+    let errorAndNullValueJSON = Data(
+      #"{"functionCallId": "c1", "value": null, "error": {"code": "ERR", "message": "fail"}}"#
+        .utf8)
+    #expect(throws: DecodingError.self) {
+      try decoder.decode(RendererFunctionResponseMessage.self, from: errorAndNullValueJSON)
+    }
+    #expect(throws: DecodingError.self) {
+      try decoder.decode(AgentFunctionResponseMessage.self, from: errorAndNullValueJSON)
     }
   }
 

@@ -84,6 +84,55 @@ export type FunctionDefinition = z.infer<typeof FunctionDefinitionSchema>;
 
 export type FunctionDefinitionInput = z.input<typeof FunctionDefinitionSchema>;
 
+export const LeafDefinitionSchema = z
+  .record(z.string(), z.any())
+  .and(
+    z.intersection(
+      z.record(z.string(), z.any()),
+      z.any().refine(
+        value =>
+          !z
+            .union([
+              z.object({
+                'properties': z.object({
+                  'component': z.record(z.string(), z.any()).refine(c => 'const' in c),
+                }),
+                'type': z.any().optional(),
+              }),
+              z.object({
+                'allOf': z
+                  .array(z.any())
+                  .refine(
+                    arr =>
+                      arr.some(item =>
+                        Boolean(
+                          item &&
+                          typeof item === 'object' &&
+                          'properties' in item &&
+                          item.properties &&
+                          typeof item.properties === 'object' &&
+                          'component' in item.properties &&
+                          item.properties.component &&
+                          typeof item.properties.component === 'object' &&
+                          'const' in item.properties.component,
+                        ),
+                      ),
+                    'Contains component schema',
+                  ),
+              }),
+            ])
+            .safeParse(value).success,
+        'Invalid input: Should NOT be valid against schema',
+      ),
+    ),
+  )
+  .describe(
+    'Describes a reusable leaf data type (e.g. design token, value union, or payload structure). Must not define a component schema.',
+  );
+export type LeafDefinition = z.infer<typeof LeafDefinitionSchema>;
+
+export type LeafDefinitionInput = z.input<typeof LeafDefinitionSchema>;
+
 export const ComponentDefinitionSchema = z
   .record(z.string(), z.any())
   .and(
@@ -117,6 +166,10 @@ export const ComponentDefinitionSchema = z
           .optional(),
       }),
     ),
+  )
+  .refine(
+    val => !('anyOf' in val) && !('oneOf' in val),
+    'ComponentDefinition must not have root-level anyOf or oneOf.',
   )
   .describe("Describes a component's validation schema and composition constraints.");
 export type ComponentDefinition = z.infer<typeof ComponentDefinitionSchema>;
