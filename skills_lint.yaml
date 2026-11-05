@@ -20,3 +20,4 @@ skills_lint:
     - path: ".agents/skills"
     - path: "blueprints/skills"
     - path: "eval/iterative_format_optimizer/skills"
+    - path: "skills"

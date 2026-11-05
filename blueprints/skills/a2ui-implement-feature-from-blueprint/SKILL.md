@@ -1,6 +1,8 @@
 ---
 name: a2ui-implement-feature-from-blueprint
 description: Provides instructions on implementing feature specs or module blueprint commit diffs in a specific codebase.
+metadata:
+  internal: true
 ---
 
 # A2UI Implement Feature from Blueprint Skill

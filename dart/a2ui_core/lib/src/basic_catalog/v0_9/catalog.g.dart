@@ -494,6 +494,16 @@ List<ComponentApi> basicComponentsV0_9() => [
                   ],
                   'default': 'stretch',
                 },
+                'listStyle': <String, Object?>{
+                  'type': 'string',
+                  'description':
+                      'The style of the list (ordered, unordered, or none).',
+                  'enum': <Object?>[
+                    'ordered',
+                    'unordered',
+                    'none',
+                  ],
+                },
               },
               'required': <Object?>[
                 'component',

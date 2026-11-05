@@ -8,6 +8,7 @@
   `RpcErrorCode.tooManyPending` and custom wire error code support on
   `A2uiRpcError` (`A2uiRpcError.custom`)
   ([#3881](https://github.com/a2ui-project/a2ui/pull/3881)).
+- (v0_9) Restore `listStyle` property to basic catalog `List` component schema ([#3956](https://github.com/a2ui-project/a2ui/pull/3956)).
 
 ## 0.5.0
 
