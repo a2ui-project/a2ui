@@ -202,6 +202,38 @@
     category: CatalogError
     message: "target-currency"
 
+- name: test_declare_agent_function_with_an_invalid_parameter_name_in_catalog_defs_is_a_catalog_error
+  description: >-
+    Parameter names referenced through the catalog's own $defs are checked against UAX #31 even when the agent function's args schema also declares local $defs.
+  action: declare_agent_functions
+  args:
+    catalog:
+      catalog:
+        catalogId: conformance/defs_uax31
+        protocolVersion: "1.0"
+        components: {}
+        $defs:
+          CatalogArgs:
+            type: object
+            properties:
+              bad-amount: {type: number}
+      agent_functions:
+        pay:
+          returnType: object
+          args:
+            $defs:
+              MemoArgs:
+                type: object
+                properties:
+                  memo: {type: string}
+            allOf:
+              - $ref: "#/$defs/MemoArgs"
+              - $ref: "#/$defs/CatalogArgs"
+          behavior: {returns_args: true}
+  expect_error:
+    category: CatalogError
+    message: "bad-amount"
+
 # --- Answering callAgentFunction ---
 
 - name: test_handle_agent_function_returns_the_value_and_copies_the_call_id
@@ -414,6 +446,143 @@
           args: {base: EUR, precision: 4}
   expect:
     functionCallId: fx-4
+    error:
+      code: INVALID_FUNCTION_CALL
+
+- name: test_handle_agent_function_resolves_catalog_and_local_defs_and_applies_defaults
+  description: >-
+    An agent function whose args schema combines local $defs with the catalog's $defs validates against both and passes both sets of defaults to the handler.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog:
+          catalogId: conformance/defs_pay
+          protocolVersion: "1.0"
+          components: {}
+          $defs:
+            MoneyArgs:
+              type: object
+              properties:
+                amount: {type: number, exclusiveMinimum: 0}
+                currency: {type: string, default: USD}
+              required: [amount]
+        agent_functions:
+          pay:
+            returnType: object
+            args:
+              $defs:
+                MemoArgs:
+                  type: object
+                  properties:
+                    memo: {type: string, default: standard}
+              allOf:
+                - $ref: "#/$defs/MemoArgs"
+                - $ref: "#/$defs/MoneyArgs"
+              unevaluatedProperties: false
+            behavior: {returns_args: true}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: pay-1
+        callFunction:
+          "@call": pay
+          catalogId: conformance/defs_pay
+          args: {amount: 25}
+  expect:
+    functionCallId: pay-1
+    value:
+      amount: 25
+      currency: USD
+      memo: standard
+
+- name: test_handle_agent_function_validates_constraints_in_catalog_defs
+  description: >-
+    A call whose arguments violate a constraint inside the catalog's $defs gets INVALID_FUNCTION_CALL even when the agent function also declares local $defs.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog:
+          catalogId: conformance/defs_pay
+          protocolVersion: "1.0"
+          components: {}
+          $defs:
+            MoneyArgs:
+              type: object
+              properties:
+                amount: {type: number, exclusiveMinimum: 0}
+                currency: {type: string, default: USD}
+              required: [amount]
+        agent_functions:
+          pay:
+            returnType: object
+            args:
+              $defs:
+                MemoArgs:
+                  type: object
+                  properties:
+                    memo: {type: string, default: standard}
+              allOf:
+                - $ref: "#/$defs/MemoArgs"
+                - $ref: "#/$defs/MoneyArgs"
+              unevaluatedProperties: false
+            behavior: {returns_args: true}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: pay-2
+        callFunction:
+          "@call": pay
+          catalogId: conformance/defs_pay
+          args: {amount: -5}
+  expect:
+    functionCallId: pay-2
+    error:
+      code: INVALID_FUNCTION_CALL
+
+- name: test_handle_agent_function_rejects_undeclared_argument_across_catalog_and_local_defs
+  description: >-
+    A closed agent function schema composed from local $defs and catalog $defs rejects arguments declared in neither.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog:
+          catalogId: conformance/defs_pay
+          protocolVersion: "1.0"
+          components: {}
+          $defs:
+            MoneyArgs:
+              type: object
+              properties:
+                amount: {type: number, exclusiveMinimum: 0}
+                currency: {type: string, default: USD}
+              required: [amount]
+        agent_functions:
+          pay:
+            returnType: object
+            args:
+              $defs:
+                MemoArgs:
+                  type: object
+                  properties:
+                    memo: {type: string, default: standard}
+              allOf:
+                - $ref: "#/$defs/MemoArgs"
+                - $ref: "#/$defs/MoneyArgs"
+              unevaluatedProperties: false
+            behavior: {returns_args: true}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: pay-3
+        callFunction:
+          "@call": pay
+          catalogId: conformance/defs_pay
+          args: {amount: 25, extra: true}
+  expect:
+    functionCallId: pay-3
     error:
       code: INVALID_FUNCTION_CALL
 
