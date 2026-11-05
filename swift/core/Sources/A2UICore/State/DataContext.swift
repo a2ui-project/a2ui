@@ -48,6 +48,9 @@ public final class DataContext {
   /// such as a `formatString` `${...}` part, can't wait for the agent.
   private var runningFunctionDepth = 0
 
+  /// The catalog ID of the catalog function currently executing in this context, if any.
+  public internal(set) var activeFunctionCatalogID: String?
+
   /// Whether a function call was not evaluated or sent because one of its arguments includes a
   /// call that has no value (see `unsettledCallCount`).
   ///
@@ -116,7 +119,7 @@ public final class DataContext {
     guard let handler = functionHandler else { return nil }
     let absPath = JSONValue.absolutePath(for: relativePath, in: self.path)
 
-    return DataContext(
+    let ctx = DataContext(
       dataModel: dataModel,
       path: absPath,
       functionHandler: handler,
@@ -124,6 +127,8 @@ public final class DataContext {
       index: index ?? self.index,
       isUserActivated: isUserActivated
     )
+    ctx.activeFunctionCatalogID = activeFunctionCatalogID
+    return ctx
   }
 
   public nonisolated static func unescapeObjectKey(_ key: String) -> String {
@@ -136,14 +141,16 @@ public final class DataContext {
   /// (`call` / `@call`), arrays, and nested plain objects.
   public func resolveDynamicValue(_ value: JSONValue, userActivation: Bool? = nil) -> JSONValue {
     if let userActivation, userActivation != isUserActivated, let handler = functionHandler {
-      return DataContext(
+      let ctx = DataContext(
         dataModel: dataModel,
         path: path,
         functionHandler: handler,
         protocolVersion: protocolVersion,
         index: index,
         isUserActivated: userActivation
-      ).resolveDynamicValue(value)
+      )
+      ctx.activeFunctionCatalogID = activeFunctionCatalogID
+      return ctx.resolveDynamicValue(value)
     }
     switch value {
     case .array(let arr):
@@ -260,8 +267,15 @@ public final class DataContext {
       }
     }
 
+    let previousCatalogID = activeFunctionCatalogID
+    if atLeastV10 && !callName.hasPrefix("@") {
+      activeFunctionCatalogID = dict["catalogId"]?.stringValue
+    }
     runningFunctionDepth += 1
-    defer { runningFunctionDepth -= 1 }
+    defer {
+      runningFunctionDepth -= 1
+      activeFunctionCatalogID = previousCatalogID
+    }
     do {
       return try function.evaluate(arguments: resolvedArguments, context: self)
     } catch {

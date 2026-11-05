@@ -219,6 +219,9 @@ public final class RPCHandler {
       )
     }
 
+    let previousCatalogID = effectiveContext.activeFunctionCatalogID
+    effectiveContext.activeFunctionCatalogID = catalog.id
+    defer { effectiveContext.activeFunctionCatalogID = previousCatalogID }
     do {
       let result = try function.evaluate(arguments: resolvedArgs, context: effectiveContext)
       return RendererFunctionResponseMessage(
