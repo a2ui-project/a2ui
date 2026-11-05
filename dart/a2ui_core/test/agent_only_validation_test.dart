@@ -172,7 +172,8 @@ void main() {
       );
     });
 
-    test('rejects an agentOnly call in validateFunctionArgs only for a '
+    test(
+        'rejects an agentOnly call in validateFunctionArgs only for a '
         'component', () {
       expect(
         () => validator(agentOnly).validateFunctionArgs(
@@ -345,7 +346,8 @@ void main() {
         );
       });
 
-      test('rejects an agentOnly function of another catalog nested in its '
+      test(
+          'rejects an agentOnly function of another catalog nested in its '
           'arguments', () {
         final CatalogApi other = declaring(
           {'formatString': 'agentOnly'},
