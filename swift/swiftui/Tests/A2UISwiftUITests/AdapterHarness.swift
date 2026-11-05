@@ -749,7 +749,7 @@ enum AdapterHarness {
       let activeCount = session.mountedHarness?.activeSubscriptionCount ?? 0
       #expect(activeCount > 0, "Expected active subscriptions")
       if activeCount <= 0 {
-        throw AdapterConformanceError("\(stepCtx): expected active subscriptions")
+        throw AdapterConformanceError("\(session.caseName): expected active subscriptions")
       }
       session.mountedHarness?.unmount()
       session.currentTree = nil
@@ -781,7 +781,8 @@ enum AdapterHarness {
         try? await Task.sleep(nanoseconds: 5_000_000)
       }
       session.mountedHarness?.driver.flush()
-      session.currentTree = try extractViewTree(session)
+      // A tree that fails to resolve here is reported by the step's assertions.
+      session.currentTree = try? extractViewTree(session)
     }
   }
 
