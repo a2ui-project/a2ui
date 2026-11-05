@@ -25,12 +25,23 @@ export interface ActiveCase {
   suite: string;
   name: string;
   knownFailure?: string;
+  skipReason?: string;
+  unexpectedError?: Error;
+  recorded?: boolean;
 }
 
-let activeCase: ActiveCase | undefined;
+const activeCases = new WeakMap<object, ActiveCase>();
 
-export function setActiveCase(current: ActiveCase | undefined): void {
-  activeCase = current;
+export function setActiveCase(task: object, current: ActiveCase | undefined): void {
+  if (current === undefined) {
+    activeCases.delete(task);
+  } else {
+    activeCases.set(task, current);
+  }
+}
+
+export function getActiveCase(task: object): ActiveCase | undefined {
+  return activeCases.get(task);
 }
 
 /**
@@ -54,8 +65,9 @@ export function recordCase(
     case: testCase,
     status,
   };
-  if (reason) {
-    record['reason'] = reason;
+  const trimmed = reason?.trim();
+  if (trimmed) {
+    record['reason'] = trimmed;
   }
   const workerId = process.env['VITEST_WORKER_ID'] ?? '0';
   const filePath = join(manifestDir, `ts-agent-${process.pid}-${workerId}.jsonl`);
@@ -68,17 +80,47 @@ export function recordCase(
  */
 export function registerAfterEachManifestRecorder(): void {
   afterEach(ctx => {
-    const current = activeCase;
-    activeCase = undefined;
-    if (!current) {
+    const current = activeCases.get(ctx.task);
+    activeCases.delete(ctx.task);
+    if (!current || current.recorded) {
       return;
     }
+    current.recorded = true;
     const state = ctx.task.result?.state;
+    if (state === 'skip') {
+      const reason = current.skipReason?.trim() || ctx.task.result?.note?.trim() || 'skipped';
+      recordCase(current.suite, current.name, 'skipped', reason);
+      return;
+    }
     if (ctx.task.fails) {
+      if (current.unexpectedError) {
+        recordCase(
+          current.suite,
+          current.name,
+          'failed',
+          current.unexpectedError.message.trim() || 'test failed',
+        );
+        return;
+      }
+      const firstError = ctx.task.result?.errors?.[0];
+      if (firstError?.name === 'UnknownConformanceKeyError') {
+        recordCase(
+          current.suite,
+          current.name,
+          'failed',
+          firstError.message?.trim() || 'test failed',
+        );
+        return;
+      }
       // Vitest flips `task.result.state` for `test.fails` after `afterEach` completes, so
       // `state === 'fail'` inside `afterEach` means the expected failure threw as expected.
       if (state === 'fail') {
-        recordCase(current.suite, current.name, 'xfailed', current.knownFailure ?? 'known failure');
+        recordCase(
+          current.suite,
+          current.name,
+          'xfailed',
+          current.knownFailure?.trim() || 'known failure',
+        );
       } else {
         recordCase(current.suite, current.name, 'failed', 'Expected test to fail');
       }
@@ -87,7 +129,7 @@ export function registerAfterEachManifestRecorder(): void {
     if (state === 'pass') {
       recordCase(current.suite, current.name, 'passed');
     } else {
-      const message = ctx.task.result?.errors?.[0]?.message ?? 'test failed';
+      const message = ctx.task.result?.errors?.[0]?.message?.trim() || 'test failed';
       recordCase(current.suite, current.name, 'failed', message);
     }
   });

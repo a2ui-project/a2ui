@@ -83,12 +83,16 @@ def case_params(
     return params
 
 
+class UnknownConformanceKeyError(Exception):
+    """Raised when a conformance YAML case contains an unrecognized key."""
+
+
 def assert_known_keys(
     obj: Mapping[str, Any],
     allowed: frozenset[str],
     where: str,
 ) -> None:
-    """Fails the test if `obj` contains any keys not in `allowed`."""
+    """Raises UnknownConformanceKeyError if `obj` contains any keys not in `allowed`."""
     unknown = sorted(set(obj) - allowed)
     if unknown:
-        pytest.fail(f"Unknown {where} keys: {unknown}")
+        raise UnknownConformanceKeyError(f"Unknown {where} keys: {unknown}")

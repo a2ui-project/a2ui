@@ -93,6 +93,12 @@ function ConformanceManifestReporter(baseReporterDecorator) {
     fs.appendFileSync(manifestPath, `${JSON.stringify(entry)}\n`, 'utf8');
   }
 
+  this.onBrowserStart = function () {
+    if (manifestPath && fs.existsSync(manifestPath)) {
+      fs.unlinkSync(manifestPath);
+    }
+  };
+
   this.onBrowserInfo = function (_browser, info) {
     if (info && info.conformanceManifestRecord) {
       appendRecord(info.conformanceManifestRecord);
