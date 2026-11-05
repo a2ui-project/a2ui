@@ -320,7 +320,12 @@ class RendererFunctionCalls:
                 else RendererFunctionResponseMessage.model_validate(message)
             )
         except ValidationError as e:
-            logger.warning("Ignoring a malformed rendererFunctionResponse: %s", e)
+            # The response comes from the network and the error may quote it,
+            # so the details are logged only at debug level.
+            logger.warning(
+                "Ignoring a malformed rendererFunctionResponse: %s", type(e).__name__
+            )
+            logger.debug("Malformed rendererFunctionResponse error: %s", e)
             call_id = _raw_call_id(message)
             if not call_id:
                 return False
@@ -348,8 +353,12 @@ class RendererFunctionCalls:
             function_call_id: The `functionCallId` of a response.
 
         Returns:
-            True if `resolve` would settle a call with this response.
+            True if `resolve` would settle a call with this response. False
+            once the instance is disposed, even before `dispose` has failed
+            the pending calls on the instance's loop.
         """
+        if self._disposed:
+            return False
         pending = self._pending.get(function_call_id)
         return pending is not None and not pending.future.done()
 
@@ -451,6 +460,10 @@ class RendererFunctionCalls:
             )
 
     def _fail_malformed(self, call_id: str, reason: str) -> None:
+        if self._disposed:
+            # `dispose` cancels every pending call, even if it ran on another
+            # thread and its `_fail_all` hasn't run on the loop yet.
+            return
         pending = self._pending.pop(call_id, None)
         if pending is None or pending.future.done():
             return
@@ -465,6 +478,12 @@ class RendererFunctionCalls:
     def _settle(self, response: RendererFunctionResponseMessage) -> None:
         body = response.renderer_function_response
         call_id = body.function_call_id
+        if self._disposed:
+            logger.debug(
+                "Ignoring rendererFunctionResponse %s: the calls were disposed.",
+                call_id,
+            )
+            return
         pending = self._pending.pop(call_id, None)
         if pending is None or pending.future.done():
             logger.debug(
@@ -488,6 +507,9 @@ class RendererFunctionCalls:
             pending.future.set_result(body.value)
 
     def _time_out(self, call_id: str, timeout: float) -> None:
+        if self._disposed:
+            # `_fail_all` cancels the call.
+            return
         pending = self._pending.pop(call_id, None)
         if pending is None or pending.future.done():
             return

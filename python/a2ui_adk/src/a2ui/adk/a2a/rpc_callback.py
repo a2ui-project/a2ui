@@ -260,9 +260,19 @@ async def _process_other(
     try:
         return (await processor.process_message(message)).handled
     except A2uiValidationError as e:
-        logger.warning("Passing an invalid A2UI message on to the agent: %s", e)
-        if calls is not None and message_kind(message) == RENDERER_FUNCTION_RESPONSE:
-            return calls.resolve(message)
+        if (
+            calls is not None
+            and message_kind(message) == RENDERER_FUNCTION_RESPONSE
+            and calls.resolve(message)
+        ):
+            # `resolve` logged the malformed response and failed its call.
+            return True
+        # The error may quote the payload, so the details are logged only at
+        # debug level.
+        logger.warning(
+            "Passing an invalid A2UI message on to the agent: %s", type(e).__name__
+        )
+        logger.debug("Invalid A2UI message error: %s", e)
         return False
 
 

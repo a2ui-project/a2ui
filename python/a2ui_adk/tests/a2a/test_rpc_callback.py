@@ -35,6 +35,8 @@ from a2a.types import (
     Part,
     Role,
     TaskArtifactUpdateEvent,
+    TaskState,
+    TaskStatus,
     TaskStatusUpdateEvent,
     TextPart,
 )
@@ -971,3 +973,102 @@ async def test_interceptor_leaves_a_failed_rpc_task_unchanged() -> None:
     )
 
     assert _final_state(events) == "failed"
+
+
+def _request_context(task_id: str, *parts: Part) -> MagicMock:
+    context = MagicMock(spec=RequestContext)
+    context.task_id = task_id
+    context.message = Message(
+        message_id=str(uuid.uuid4()), role=Role.user, parts=list(parts)
+    )
+    return context
+
+
+def _working_event(task_id: str) -> TaskStatusUpdateEvent:
+    return TaskStatusUpdateEvent(
+        task_id=task_id,
+        context_id="ctx",
+        status=TaskStatus(state=TaskState.working),
+        final=True,
+    )
+
+
+@pytest.mark.asyncio
+async def test_interceptor_forgets_an_rpc_request_that_never_finished() -> None:
+    interceptor = a2ui_rpc_interceptor()
+    assert interceptor.before_agent is not None
+    assert interceptor.after_agent is not None
+    rpc_part = create_a2ui_part(_renderer_response("c1"))
+
+    # The RPC-only request fails before `after_agent` runs.
+    await interceptor.before_agent(_request_context("t1", rpc_part))
+    # A later request on the task that isn't RPC-only keeps its `working`.
+    await interceptor.before_agent(
+        _request_context("t1", Part(root=TextPart(text="hi")))
+    )
+    event = await interceptor.after_agent(MagicMock(), _working_event("t1"))
+
+    assert event.status.state == TaskState.working
+
+
+@pytest.mark.asyncio
+async def test_interceptor_keeps_a_task_it_sees_again_past_older_ones() -> None:
+    interceptor = a2ui_rpc_interceptor()
+    assert interceptor.before_agent is not None
+    assert interceptor.after_agent is not None
+    rpc_part = create_a2ui_part(_renderer_response("c1"))
+
+    await interceptor.before_agent(_request_context("again", rpc_part))
+    # The tracker keeps 1024 tasks, so it is full after 1023 more. "again"
+    # comes once more before the next ones, so they drop older tasks instead.
+    for index in range(1030):
+        if index == 1023:
+            await interceptor.before_agent(_request_context("again", rpc_part))
+        await interceptor.before_agent(_request_context(f"t{index}", rpc_part))
+    event = await interceptor.after_agent(MagicMock(), _working_event("again"))
+
+    assert event.status.state == TaskState.completed
+
+
+@pytest.mark.asyncio
+async def test_malformed_response_to_a_pending_call_logs_no_pass_on_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    store = A2uiRendererCallsStore()
+    message, result = store.get_for_session("session-1").call(
+        catalog_id=CATALOG_ID, name="getLocation"
+    )
+    malformed = {
+        "version": "1.0",
+        "rendererFunctionResponse": {
+            "functionCallId": message.call_renderer_function.function_call_id,
+            "secret": "hunter2",
+        },
+    }
+    callback = a2ui_rpc_callback(renderer_calls=store.get)
+
+    with caplog.at_level("WARNING"):
+        await callback(_callback_context(_content(_genai_part(malformed))))
+
+    assert "Passing an invalid A2UI message on to the agent" not in caplog.text
+    assert "hunter2" not in caplog.text
+    with pytest.raises(A2uiRpcError):
+        await result
+
+
+@pytest.mark.asyncio
+async def test_malformed_response_to_no_pending_call_warns_without_the_payload(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    malformed = {
+        "version": "1.0",
+        "rendererFunctionResponse": {"functionCallId": "c1", "secret": "hunter2"},
+    }
+    callback = a2ui_rpc_callback(renderer_calls=A2uiRendererCallsStore().get)
+
+    with caplog.at_level("WARNING"):
+        content = await callback(_callback_context(_content(_genai_part(malformed))))
+
+    assert content is None
+    assert "Passing an invalid A2UI message on to the agent" in caplog.text
+    assert "hunter2" not in caplog.text

@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Mapping
-import re
 import selectors
 from typing import Any
 
@@ -49,13 +48,36 @@ def test_suite_is_not_empty() -> None:
 CATEGORY_TO_EXCEPTION: dict[str, type[Exception]] = {"CatalogError": A2uiCatalogError}
 
 
-def _assert_error_matches(error: BaseException, expected: Mapping[str, Any]) -> None:
-    if "category" in expected:
-        assert isinstance(error, CATEGORY_TO_EXCEPTION[expected["category"]]), error
-    if "code" in expected:
-        assert getattr(error, "code", None) == expected["code"], error
+def _assert_build_error_matches(
+    error: BaseException, expected: Mapping[str, Any]
+) -> None:
+    """Checks an error against a `RendererCallsBuildError`.
+
+    `category` is required, and `message` is a literal substring of the
+    error's text.
+    """
+    assert isinstance(expected, Mapping), expected
+    unknown = set(expected) - {"category", "message"}
+    assert not unknown, f"Unhandled expect_error keys: {sorted(unknown)}"
+    assert isinstance(error, CATEGORY_TO_EXCEPTION[expected["category"]]), error
     if "message" in expected:
-        assert re.search(re.escape(expected["message"]), str(error)), error
+        assert expected["message"] in str(error), error
+
+
+def _assert_call_error_matches(
+    error: A2uiRpcError, expected: Mapping[str, Any]
+) -> None:
+    """Checks a refused call's error against a `RendererCallError`.
+
+    `code` is required, and `message` is a literal substring of the error's
+    text.
+    """
+    assert isinstance(expected, Mapping), expected
+    unknown = set(expected) - {"code", "message"}
+    assert not unknown, f"Unhandled expect_error keys: {sorted(unknown)}"
+    assert error.code == expected["code"], error
+    if "message" in expected:
+        assert expected["message"] in str(error), error
 
 
 class _FakeClockLoop(asyncio.SelectorEventLoop):
@@ -128,7 +150,7 @@ async def _run_calls_on_loop(case: Mapping[str, Any], loop: _FakeClockLoop) -> N
     if "expect_error" in case:
         with pytest.raises(Exception) as excinfo:
             RendererFunctionCalls(**options)
-        _assert_error_matches(excinfo.value, case["expect_error"])
+        _assert_build_error_matches(excinfo.value, case["expect_error"])
         return
     if "default_timeout_ms" in args:
         timeout_ms = args["default_timeout_ms"]
@@ -163,7 +185,7 @@ async def _run_calls_on_loop(case: Mapping[str, Any], loop: _FakeClockLoop) -> N
             if "expect_error" in step:
                 with pytest.raises(A2uiRpcError) as excinfo:
                     calls.call(**kwargs)
-                _assert_error_matches(excinfo.value, step["expect_error"])
+                _assert_call_error_matches(excinfo.value, step["expect_error"])
             else:
                 message, future = calls.call(**kwargs)
                 dumped = message.model_dump(by_alias=True, exclude_unset=True)

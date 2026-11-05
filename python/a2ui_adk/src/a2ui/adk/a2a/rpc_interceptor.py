@@ -54,11 +54,13 @@ class _RpcTaskTracker:
         self._rpc_task_ids: dict[str, None] = {}
 
     async def before_agent(self, context: RequestContext) -> RequestContext:
-        if (
-            context.task_id is not None
-            and context.message is not None
-            and is_renderer_rpc_only(context.message.parts)
-        ):
+        if context.task_id is None:
+            return context
+        # Forgets an entry left by an earlier request on this task that never
+        # reached `after_agent`, so a later request that isn't RPC-only keeps
+        # its status. Re-adding the key moves it to the end of the order.
+        self._rpc_task_ids.pop(context.task_id, None)
+        if context.message is not None and is_renderer_rpc_only(context.message.parts):
             self._rpc_task_ids[context.task_id] = None
             while len(self._rpc_task_ids) > _MAX_TRACKED_TASKS:
                 del self._rpc_task_ids[next(iter(self._rpc_task_ids))]

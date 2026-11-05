@@ -657,6 +657,66 @@ class TestResolve:
         other.cancel()
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "version, body, extra",
+        [
+            ("1.0", {"error": None}, {}),
+            ("1.0", {}, {}),
+            ("1.0", {"value": 1, "extra": 2}, {}),
+            ("1.0", {"value": 1}, {"extra": 2}),
+            ("0.9", {"value": 1}, {}),
+            ("v1.0", {"value": 1}, {}),
+        ],
+        ids=[
+            "null-error",
+            "neither-value-nor-error",
+            "extra-body-key",
+            "extra-message-key",
+            "version-0.9",
+            "version-v1.0",
+        ],
+    )
+    async def test_malformed_response_shapes_fail_the_pending_call(
+        self, version: str, body: dict[str, Any], extra: dict[str, Any]
+    ) -> None:
+        calls = RendererFunctionCalls()
+        message, future = calls.call(catalog_id=CATALOG, name="now")
+
+        response = {
+            "version": version,
+            "rendererFunctionResponse": {"functionCallId": _id(message), **body},
+            **extra,
+        }
+        assert calls.resolve(response) is True
+
+        with pytest.raises(A2uiRpcError) as excinfo:
+            await _settle(future)
+        assert excinfo.value.code == "UNKNOWN_ERROR"
+        assert calls.pending_count == 0
+
+    @pytest.mark.asyncio
+    async def test_malformed_response_is_logged_without_its_payload(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        calls = RendererFunctionCalls()
+        message, future = calls.call(catalog_id=CATALOG, name="now")
+
+        with caplog.at_level(logging.WARNING, logger="a2ui.rpc"):
+            calls.resolve({
+                "version": "1.0",
+                "rendererFunctionResponse": {
+                    "functionCallId": _id(message),
+                    "value": 1,
+                    "secret": "hunter2",
+                },
+            })
+
+        assert "Ignoring a malformed rendererFunctionResponse" in caplog.text
+        assert "hunter2" not in caplog.text
+        with pytest.raises(A2uiRpcError):
+            await _settle(future)
+
+    @pytest.mark.asyncio
     async def test_malformed_response_to_an_unknown_call_is_ignored(self) -> None:
         calls = RendererFunctionCalls()
         _, future = calls.call(catalog_id=CATALOG, name="now")
@@ -847,6 +907,31 @@ class TestCancellationAndDisposal:
         thread.start()
         thread.join()
 
+        with pytest.raises(A2uiRpcError) as excinfo:
+            await _settle(future)
+        assert excinfo.value.code == "CANCELLED"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("malformed", [False, True])
+    async def test_response_after_dispose_from_another_thread_is_ignored(
+        self, malformed: bool
+    ) -> None:
+        calls = RendererFunctionCalls()
+        message, future = calls.call(catalog_id=CATALOG, name="now")
+        call_id = _id(message)
+
+        # `dispose` hands `_fail_all` to the loop, which hasn't run it yet.
+        thread = threading.Thread(target=calls.dispose, args=("closed",))
+        thread.start()
+        thread.join()
+        response = (
+            {"version": "1.0", "rendererFunctionResponse": {"functionCallId": call_id}}
+            if malformed
+            else _value(call_id, "too late")
+        )
+
+        assert not calls.is_pending(call_id)
+        assert calls.resolve(response) is False
         with pytest.raises(A2uiRpcError) as excinfo:
             await _settle(future)
         assert excinfo.value.code == "CANCELLED"

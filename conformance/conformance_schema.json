@@ -2631,7 +2631,7 @@
           "minItems": 1
         },
         "expect_error": {
-          "$ref": "#/$defs/ExpectError",
+          "$ref": "#/$defs/RendererCallsBuildError",
           "description": "Building the calls helper fails with this error, such as a CatalogError for two catalogs with one id. The case then has no `steps`."
         }
       },
@@ -2689,6 +2689,32 @@
           "additionalProperties": false
         }
       ]
+    },
+    "RendererCallsBuildError": {
+      "type": "object",
+      "description": "The error building the calls helper fails with: its category and, optionally, a literal substring of its message.",
+      "properties": {
+        "category": {"enum": ["CatalogError"]},
+        "message": {
+          "type": "string",
+          "description": "A literal substring of the error's message, not a regular expression."
+        }
+      },
+      "required": ["category"],
+      "additionalProperties": false
+    },
+    "RendererCallError": {
+      "type": "object",
+      "description": "The RPC error a `call` step is refused with: its code and, optionally, a literal substring of its message.",
+      "properties": {
+        "code": {"type": "string"},
+        "message": {
+          "type": "string",
+          "description": "A literal substring of the error's message, not a regular expression."
+        }
+      },
+      "required": ["code"],
+      "additionalProperties": false
     },
     "RendererCallStep": {
       "type": "object",
@@ -2759,8 +2785,8 @@
           "description": "On a `call` step, the callRendererFunction message, less its functionCallId."
         },
         "expect_error": {
-          "$ref": "#/$defs/ExpectError",
-          "description": "On a `call` step, the call is refused with this RPC error code instead of being made."
+          "$ref": "#/$defs/RendererCallError",
+          "description": "On a `call` step, the call is refused with this RPC error instead of being made."
         },
         "expect_calls": {
           "type": "object",
