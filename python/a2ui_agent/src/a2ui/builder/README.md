@@ -254,6 +254,23 @@ Because `MetricCard` inherits from `ComponentBuilderNode` and annotates `icon` a
 - No custom serialization code is required, or accepted: annotating the slot is the whole mechanism.
 - It passes validation when nested inside standard containers (`Card`, `Column`, `Row`).
 
+In A2UI v1.0 surfaces that mix multiple catalogs without a surface default `catalogId`, custom subclasses of `a2ui.builder.v1_0.ComponentBuilderNode` can set a default `catalog_id` directly on the class so every flattened instance emits `"catalogId"` on the wire:
+
+```python
+from typing import Literal, Optional
+from a2ui.builder.v1_0 import Child, ComponentBuilderNode
+
+METRICS_CID = "https://example.com/catalogs/metrics/v1/catalog.json"
+
+
+class MetricCard(ComponentBuilderNode):
+    component: Literal["MetricCard"] = "MetricCard"
+    catalog_id: str | None = METRICS_CID
+    label: str
+    value: str
+    icon: Optional[Child] = None
+```
+
 ## Code generation
 
 Everything under `v0_9/catalogs/` and `v1_0/catalogs/` is generated from the catalog JSON schema by the A2UI CLI (`dart/a2ui_cli`) and should never be edited by hand. Only the runtime in `core/`, `v0_9/`, and `v1_0/` is written directly.

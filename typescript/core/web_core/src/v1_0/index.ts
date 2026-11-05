@@ -39,6 +39,19 @@ export {
   type ActionDispatchOptions,
 } from '../common/metadata.js';
 export * from '../catalogs/basic/v1/index.js';
+export {
+  MAX_REGEX_PATTERN_CODE_POINTS,
+  MAX_REGEX_VALUE_CODE_POINTS,
+  RegexSyntaxError,
+  analyzeRegex,
+  checkRegexSafety,
+  parseRegexSubset,
+  type AnchorKind,
+  type CodePointRange,
+  type RegexAnalysisResult,
+  type RegexNode,
+  type RegexRejection,
+} from '../common/regex_subset.js';
 export * from '../universal/index.js';
 export * from '../spec_versions.js';
 

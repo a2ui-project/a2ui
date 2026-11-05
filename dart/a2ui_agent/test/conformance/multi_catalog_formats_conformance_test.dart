@@ -24,6 +24,30 @@ import 'suites.dart';
 /// The suite is about a surface drawing on several catalogs, which only v1.0
 /// can state: a component or function call names its own `catalogId`. So it
 /// runs as written in v1.0 only.
+const Map<String, Set<String>> _knownKeys = {
+  'case:compile': {
+    ...caseMetadataKeys,
+    'args',
+    'expect',
+    'expect_error',
+    'input',
+  },
+  'case:create_format': {...caseMetadataKeys, 'args', 'expect_error'},
+  'case:decompile': {
+    ...caseMetadataKeys,
+    'args',
+    'expect_absent',
+    'expect_contains',
+    'expect_round_trip',
+    'messages',
+  },
+  'case:parse_response': {...caseMetadataKeys, 'args', 'expect', 'input'},
+  'args:compile': {'catalogs', 'format'},
+  'args:create_format': {'catalogs', 'format'},
+  'args:decompile': {'catalogs', 'format'},
+  'args:parse_response': {'catalogs', 'format'},
+};
+
 void main() {
   const path = 'agent/multi_catalog_formats.yaml';
   const SuiteVersion version = SuiteVersion.v1_0;
@@ -37,13 +61,21 @@ void main() {
 }
 
 void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
+  final action = testCase['action'] as String?;
+  final Set<String>? allowedCaseKeys = _knownKeys['case:$action'];
+  if (allowedCaseKeys == null) {
+    throw UnsupportedError('Unknown action $action');
+  }
+  assertKnownKeys(testCase, allowedCaseKeys, 'case:$action');
+  final args = testCase['args']! as Map<String, Object?>;
+  assertKnownKeys(args, _knownKeys['args:$action']!, 'args:$action');
   final Object? error = testCase['expect_error'];
   if (error != null) {
     expectThrowsCategory(() => _perform(testCase, version), error);
     return;
   }
   final Object? result = _perform(testCase, version);
-  switch (testCase['action']) {
+  switch (action) {
     case 'decompile':
       _checkDecompiled(testCase, version, result! as String);
     default:

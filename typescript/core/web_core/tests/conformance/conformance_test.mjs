@@ -16,6 +16,7 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {isDeepStrictEqual} from 'node:util';
 
 import yaml from 'js-yaml';
 import {z} from 'zod';
@@ -41,12 +42,15 @@ import {ExpressionParser} from '../../dist/src/expressions/expression_parser.js'
 import {SUPPORTED_PROTOCOL_VERSIONS} from '../../dist/src/processing/adapters/base.js';
 import {MessageProcessor, STRICT_VALIDATION} from '../../dist/src/processing/message-processor.js';
 import {effect, getValue, isSignal, peekValue} from '../../dist/src/reactivity/signals.js';
+import {ComponentContext} from '../../dist/src/resolution/component-context.js';
 import {DataContext} from '../../dist/src/resolution/data-context.js';
 import {GenericBinder} from '../../dist/src/resolution/generic-binder.js';
 import {NodeResolver} from '../../dist/src/resolution/node-resolver.js';
 import {ResolvedBinding} from '../../dist/src/resolution/resolved-binding.js';
+import {ComponentModel} from '../../dist/src/state/component-model.js';
 import {DataModel} from '../../dist/src/state/data-model.js';
 import {SurfaceModel} from '../../dist/src/state/surface-model.js';
+import {CommonSchemas} from '../../dist/src/types/common-types.js';
 import {basicCatalog as V0_8_SDK_BASIC_CATALOG} from '../../dist/src/v0_8/basic_catalog/catalog.js';
 import {
   BASIC_COMPONENTS as V0_8_BASIC_COMPONENTS,
@@ -58,11 +62,10 @@ import {
   BASIC_FUNCTIONS as V0_9_BASIC_FUNCTIONS,
   ThemeSchema as V0_9_ThemeSchema,
 } from '../../dist/src/v0_9/basic_catalog/index.js';
+import {CommonSchemas as V0_9_COMMON_SCHEMAS} from '../../dist/src/v0_9/schema/common-types.js';
+import {CommonSchemas as V1_0_COMMON_SCHEMAS} from '../../dist/src/v1_0/schema/common-types.js';
 import {PayloadValidator} from '../../dist/src/validation/index.js';
 import {runNodeResolutionCase} from '../../dist/tests/conformance/node-resolution.js';
-import {ComponentModel} from '../../dist/src/state/component-model.js';
-import {ComponentContext} from '../../dist/src/resolution/component-context.js';
-import {CommonSchemas} from '../../dist/src/types/common-types.js';
 
 // Dedicated basic catalog component definitions per specification version
 const v0_8Components = V0_8_BASIC_COMPONENTS;
@@ -146,6 +149,39 @@ const KNOWN_DIVERGENCES = new Map([
         'web_core re-evaluates a nested call only when its own arguments change, so an unrelated ' +
           'path change does not re-evaluate it; the rule is covered by ' +
           'test_agent_routing_cancelled_call_is_sent_again_when_its_value_is_rewritten',
+      ],
+    ]),
+  ],
+  [
+    'core/common_types.yaml',
+    new Map([
+      [
+        'test_v10_index_system_function_requires_call',
+        'IndexSystemFunctionSchema.args in web_core is not strict and allows extra argument keys',
+      ],
+      [
+        'test_v10_dynamic_value_object_branches_are_exclusive',
+        'v1.0 DataBindingSchema and DynamicValueSchema literal object branch in web_core are not strict on extra/reserved keys',
+      ],
+      [
+        'test_v10_function_call_rejects_unknown_keys',
+        'v1.0 FunctionCallSchema in web_core allows extra keys on function call objects',
+      ],
+      [
+        'test_v09_function_call_rejects_unknown_keys',
+        "v0.9 FunctionCallSchema in web_core is not strict (allows extra keys) and defaults returnType to 'boolean' when omitted",
+      ],
+      [
+        'test_v09_dynamic_value_branches_are_exclusive',
+        "v0.9 FunctionCallSchema in web_core is not strict (an object with both call and path matches FunctionCallSchema) and defaults returnType to 'boolean' when omitted",
+      ],
+      [
+        'test_v091_function_call_rejects_unknown_keys',
+        "v0.9 FunctionCallSchema in web_core is not strict (allows extra keys) and defaults returnType to 'boolean' when omitted",
+      ],
+      [
+        'test_v091_dynamic_value_branches_are_exclusive',
+        "v0.9 FunctionCallSchema in web_core is not strict (an object with both call and path matches FunctionCallSchema) and defaults returnType to 'boolean' when omitted",
       ],
     ]),
   ],
@@ -255,12 +291,11 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['transform_catalog', 'catalog transformers are agent-side only'],
   ['provide_catalog', 'catalog providers are agent-side only'],
   ['resolve_catalogs', 'catalog resolution is agent-side only'],
-  ['common_types_schema', 'web_core does not generate the common types schema from its own models'],
+  ['common_types_schema', 'no schema generation from models'],
   [
     'agent_to_renderer_schema',
     'web_core does not generate the agent_to_renderer schema from its own models',
   ],
-  ['validate_common_type', 'web_core has no per-definition validators for the common types'],
   [
     'measure_growth',
     'the timing cases depend on the machine, so `yarn test:timing` runs them apart from the other tests (tests/timing/)',
@@ -465,14 +500,17 @@ async function dispatchTestCase(testCase) {
     case 'resolve_nodes':
       await runNodeResolutionCase(testCase, CONFORMANCE_ROOT);
       break;
-    case 'route_agent_function':
-      await validateRouteAgentFunctionTestCase(testCase);
-      break;
     case 'evaluate_function':
       validateEvaluateFunctionTestCase(testCase);
       break;
     case 'dispatch_action':
       await validateDispatchActionTestCase(testCase);
+      break;
+    case 'validate_common_type':
+      validateCommonTypeTestCase(testCase);
+      break;
+    case 'route_agent_function':
+      await validateRouteAgentFunctionTestCase(testCase);
       break;
     default:
       throw new Error(`Unhandled action type in conformance harness: '${action}'`);
@@ -693,36 +731,81 @@ const RPC_KNOWN_KEYS = {
     'protocolVersion',
   ]),
   args: new Set([
+    'afterCall',
     'catalogId',
     'catalogVersion',
     'dataModel',
     'functionMetadata',
     'inboundResponse',
+    'lateInboundResponse',
     'message',
     'outboundCall',
+    'outboundListener',
     'secondOutboundCall',
     'surfaceId',
     'uiActionFallbackScenario',
     'uiBindingScenario',
     'userActivationPresent',
   ]),
-  uiBindingScenario: new Set(['catalogId', 'component', 'inboundResponseValue', 'surfaceId']),
+  uiBindingScenario: new Set([
+    'catalogId',
+    'component',
+    'components',
+    'inboundResponseError',
+    'inboundResponseValue',
+    'localFunctions',
+    'observe',
+    'surfaceId',
+  ]),
   uiActionFallbackScenario: new Set([
     'actionPayload',
     'catalogId',
+    'inboundResponseError',
     'inboundResponseValue',
+    'localFunctions',
     'surfaceId',
   ]),
   expect: new Set([
     'correlatedCallId',
+    'dataModel',
     'error',
+    'inFlightError',
     'initialValue',
+    'lateResponseIgnored',
     'outboundCall',
     'resolvedValue',
     'response',
     'result',
+    'siblings',
+    'surfaceError',
+    'validationResult',
   ]),
 };
+
+function buildScenarioLocalFunctions(localFunctions, getSurface) {
+  const fns = [];
+  for (const [fnName, spec] of Object.entries(localFunctions ?? {})) {
+    fns.push(
+      createFunctionImplementation(
+        {
+          name: fnName,
+          returnType: spec.returnType || 'any',
+          schema: z.record(z.string(), z.any()).optional().default({}),
+        },
+        () => {
+          const setData = spec.effect?.setData;
+          if (setData) {
+            const surface = getSurface();
+            surface.dataModel.set(setData.path, setData.value);
+          }
+          if (spec.returnType === 'boolean') return true;
+          return null;
+        },
+      ),
+    );
+  }
+  return fns;
+}
 
 async function validateRpcTestCase(testCase) {
   assertKnownKeys(testCase, RPC_KNOWN_KEYS.case, 'handle_rpc');
@@ -817,14 +900,21 @@ async function validateRpcTestCase(testCase) {
   const cat = new Catalog(catId, catVersion, [], funcs, undefined, undefined);
   let sentOutboundMsg;
   let lastErrorMsg;
+  const outboundMessages = [];
+  const errorMessages = [];
   const rpcCatalogs = cat.id === 'basic' ? [cat] : [cat, v1_0BasicCatalog];
   const processor = new MessageProcessor(rpcCatalogs, undefined, {
     version: '1.0',
-    outboundListener: msg => {
-      sentOutboundMsg = msg;
-    },
+    outboundListener:
+      args.outboundListener === false
+        ? undefined
+        : msg => {
+            sentOutboundMsg = msg;
+            outboundMessages.push(msg);
+          },
     errorHandler: msg => {
       lastErrorMsg = msg;
+      errorMessages.push(msg);
     },
   });
 
@@ -847,37 +937,50 @@ async function validateRpcTestCase(testCase) {
 
   if (args.uiBindingScenario) {
     const scenario = args.uiBindingScenario;
+    const components = scenario.components ?? [scenario.component];
+    const procRef = {current: null};
+    const localFns = buildScenarioLocalFunctions(scenario.localFunctions, () =>
+      procRef.current.getSurface(scenario.surfaceId),
+    );
     const storeCat = new Catalog(
       scenario.catalogId,
       '1.0',
       v1_0Components,
-      [],
+      localFns,
       undefined,
       undefined,
     );
-    const proc = new MessageProcessor([storeCat, v1_0BasicCatalog], undefined, {
+    const surfaceErrors = [];
+    procRef.current = new MessageProcessor([storeCat, v1_0BasicCatalog], undefined, {
       version: '1.0',
       validationConfig: {allowUnknownElements: true},
       outboundListener: msg => {
         sentOutboundMsg = msg;
       },
     });
-    proc.processMessages([
+    procRef.current.model.onError.subscribe(err => {
+      surfaceErrors.push(err);
+    });
+    procRef.current.processMessages([
       {
         version: '1.0',
         createSurface: {
           surfaceId: scenario.surfaceId,
           catalogId: scenario.catalogId,
-          components: [scenario.component],
+          components,
         },
       },
     ]);
-    const surface = proc.getSurface(scenario.surfaceId);
+    const surface = procRef.current.getSurface(scenario.surfaceId);
     const resolved = collectResolvedNodes(surface);
     try {
-      const rootNode = resolved.nodes.get(scenario.component.id);
-      const initialText = normalizeComponentRefs(peekValue(rootNode.props).text);
-      assert.strictEqual(initialText ?? null, expect.initialValue);
+      const observeId = scenario.observe?.componentId ?? scenario.component?.id ?? 'root';
+      const observeProp = scenario.observe?.property ?? 'text';
+      const targetNode = resolved.nodes.get(observeId);
+      if (expect.initialValue !== undefined) {
+        const initialVal = normalizeComponentRefs(peekValue(targetNode.props)[observeProp]);
+        assert.strictEqual(initialVal ?? null, expect.initialValue);
+      }
       await new Promise(resolve => setTimeout(resolve, 0));
       assert.ok(sentOutboundMsg?.callAgentFunction, 'Expected outbound callAgentFunction');
       assert.strictEqual(sentOutboundMsg.version, expect.outboundCall.version);
@@ -889,16 +992,57 @@ async function validateRpcTestCase(testCase) {
         sentOutboundMsg.callAgentFunction.callFunction,
         expect.outboundCall.callAgentFunction.callFunction,
       );
-      proc.processMessages({
+      const callId = sentOutboundMsg.callAgentFunction.functionCallId;
+      const responsePayload = scenario.inboundResponseError
+        ? {functionCallId: callId, error: scenario.inboundResponseError}
+        : {functionCallId: callId, value: scenario.inboundResponseValue};
+      procRef.current.processMessages({
         version: '1.0',
-        agentFunctionResponse: {
-          functionCallId: sentOutboundMsg.callAgentFunction.functionCallId,
-          value: scenario.inboundResponseValue,
-        },
+        agentFunctionResponse: responsePayload,
       });
       await new Promise(resolve => setTimeout(resolve, 0));
-      const updatedText = normalizeComponentRefs(peekValue(rootNode.props).text);
-      assert.strictEqual(updatedText, expect.resolvedValue);
+      if (expect.resolvedValue !== undefined) {
+        const updatedVal = normalizeComponentRefs(peekValue(targetNode.props)[observeProp]);
+        assert.strictEqual(updatedVal ?? null, expect.resolvedValue);
+      }
+      if (expect.siblings) {
+        for (const [sibId, expectedProps] of Object.entries(expect.siblings)) {
+          const sibNode = resolved.nodes.get(sibId);
+          assert.ok(sibNode, `Expected sibling node '${sibId}' to be resolved`);
+          const sibProps = peekValue(sibNode.props);
+          for (const [propKey, expVal] of Object.entries(expectedProps)) {
+            assert.deepStrictEqual(normalizeComponentRefs(sibProps[propKey]), expVal);
+          }
+        }
+      }
+      if (expect.validationResult) {
+        const nodeProps = peekValue(targetNode.props);
+        const firstResult = Array.isArray(nodeProps.validationResults)
+          ? nodeProps.validationResults[0]
+          : undefined;
+        if (expect.validationResult.valid !== undefined) {
+          assert.strictEqual(firstResult?.valid, expect.validationResult.valid);
+        }
+        if (expect.validationResult.message !== undefined) {
+          assert.strictEqual(firstResult?.message, expect.validationResult.message);
+        }
+        if (expect.validationResult.errors !== undefined) {
+          assert.deepStrictEqual(nodeProps.validationErrors, expect.validationResult.errors);
+        }
+      }
+      if (expect.surfaceError) {
+        assert.ok(surfaceErrors.length > 0, 'Expected a surface error to be dispatched');
+        const err = surfaceErrors[surfaceErrors.length - 1];
+        assert.strictEqual(err.code, expect.surfaceError.code);
+        if (expect.surfaceError.functionCallId !== undefined) {
+          const expectedCallId =
+            expect.surfaceError.functionCallId === '$outboundCallId'
+              ? callId
+              : expect.surfaceError.functionCallId;
+          assert.strictEqual(err.functionCallId, expectedCallId);
+          assert.strictEqual(err.surfaceId, undefined);
+        }
+      }
     } finally {
       resolved.dispose();
     }
@@ -907,22 +1051,30 @@ async function validateRpcTestCase(testCase) {
 
   if (args.uiActionFallbackScenario) {
     const scenario = args.uiActionFallbackScenario;
+    const procRef = {current: null};
+    const localFns = buildScenarioLocalFunctions(scenario.localFunctions, () =>
+      procRef.current.getSurface(scenario.surfaceId),
+    );
     const storeCat = new Catalog(
       scenario.catalogId,
       '1.0',
       v1_0Components,
-      [],
+      localFns,
       undefined,
       undefined,
     );
-    const proc = new MessageProcessor([storeCat], undefined, {
+    const surfaceErrors = [];
+    procRef.current = new MessageProcessor([storeCat], undefined, {
       version: '1.0',
       validationConfig: {allowUnknownElements: true},
       outboundListener: msg => {
         sentOutboundMsg = msg;
       },
     });
-    proc.processMessages([
+    procRef.current.model.onError.subscribe(err => {
+      surfaceErrors.push(err);
+    });
+    procRef.current.processMessages([
       {
         version: '1.0',
         createSurface: {
@@ -931,9 +1083,9 @@ async function validateRpcTestCase(testCase) {
         },
       },
     ]);
-    const surface = proc.getSurface(scenario.surfaceId);
+    const surface = procRef.current.getSurface(scenario.surfaceId);
     const ctx = new DataContext(surface, '/');
-    const actionPromise = ctx.resolveAction(scenario.actionPayload);
+    const actionPromise = Promise.resolve(ctx.resolveAction(scenario.actionPayload));
     await new Promise(resolve => setTimeout(resolve, 0));
     assert.ok(sentOutboundMsg?.callAgentFunction, 'Expected outbound callAgentFunction');
     assert.strictEqual(sentOutboundMsg.version, expect.outboundCall.version);
@@ -945,15 +1097,37 @@ async function validateRpcTestCase(testCase) {
       sentOutboundMsg.callAgentFunction.callFunction,
       expect.outboundCall.callAgentFunction.callFunction,
     );
-    proc.processMessages({
+    const callId = sentOutboundMsg.callAgentFunction.functionCallId;
+    const responsePayload = scenario.inboundResponseError
+      ? {functionCallId: callId, error: scenario.inboundResponseError}
+      : {functionCallId: callId, value: scenario.inboundResponseValue};
+    procRef.current.processMessages({
       version: '1.0',
-      agentFunctionResponse: {
-        functionCallId: sentOutboundMsg.callAgentFunction.functionCallId,
-        value: scenario.inboundResponseValue,
-      },
+      agentFunctionResponse: responsePayload,
     });
     const result = await actionPromise;
-    assert.deepStrictEqual(result, expect.result);
+    if (expect.result !== undefined) {
+      assert.deepStrictEqual(result ?? null, expect.result);
+    }
+    if (expect.dataModel !== undefined) {
+      assert.deepStrictEqual(
+        JSON.parse(JSON.stringify(surface.dataModel.get('/'))),
+        expect.dataModel,
+      );
+    }
+    if (expect.surfaceError) {
+      assert.ok(surfaceErrors.length > 0, 'Expected a surface error to be dispatched');
+      const err = surfaceErrors[surfaceErrors.length - 1];
+      assert.strictEqual(err.code, expect.surfaceError.code);
+      if (expect.surfaceError.functionCallId !== undefined) {
+        const expectedCallId =
+          expect.surfaceError.functionCallId === '$outboundCallId'
+            ? callId
+            : expect.surfaceError.functionCallId;
+        assert.strictEqual(err.functionCallId, expectedCallId);
+        assert.strictEqual(err.surfaceId, undefined);
+      }
+    }
     return;
   }
 
@@ -978,7 +1152,12 @@ async function validateRpcTestCase(testCase) {
         isUserActivated: userActivation,
       });
       if (expectResp === null) {
+        // An ignored message: no response, no outbound message, no surface
+        // error, and no pending calls left behind.
         assert.strictEqual(responses.length, 0);
+        assert.strictEqual(outboundMessages.length, 0);
+        assert.strictEqual(errorMessages.length, 0);
+        assert.strictEqual(processor.rpc.pendingAgentCalls.size, 0);
       } else {
         assert.strictEqual(responses.length, 1);
         const actual = responses[0];
@@ -1016,7 +1195,7 @@ async function validateRpcTestCase(testCase) {
   }
 
   if (outboundCall && inboundResponse) {
-    const correlatedId = expect.correlatedCallId;
+    const correlatedId = expect.correlatedCallId ?? outboundCall.functionCallId;
     assert.strictEqual(inboundResponse.agentFunctionResponse.functionCallId, correlatedId);
 
     const callName = outboundCall.callFunction['@call'] ?? outboundCall.callFunction.call;
@@ -1045,7 +1224,41 @@ async function validateRpcTestCase(testCase) {
   } else if (outboundCall && (expect?.error || expectError)) {
     const expectedErr = expect?.error || expectError;
     const callName = outboundCall.callFunction['@call'] ?? outboundCall.callFunction.call;
-    if (args.secondOutboundCall) {
+    const matchesExpectedError = err => {
+      if (expectedErr.code) {
+        return err.code === expectedErr.code || err.message.includes(expectedErr.code);
+      }
+      if (expectedErr.message) {
+        return err.message.includes(expectedErr.message);
+      }
+      return true;
+    };
+    const assertLateResponseIgnored = () => {
+      if (!args.lateInboundResponse) return;
+      const beforeOutbound = outboundMessages.length;
+      const beforeErrors = errorMessages.length;
+      processor.processMessages(args.lateInboundResponse);
+      if (expect?.lateResponseIgnored) {
+        assert.strictEqual(outboundMessages.length, beforeOutbound);
+        assert.strictEqual(errorMessages.length, beforeErrors);
+        assert.strictEqual(processor.rpc.pendingAgentCalls.size, 0);
+      }
+    };
+    if (args.outboundListener === false) {
+      await assert.rejects(async () => {
+        await processor.callAgentFunction(
+          outboundCall.surfaceId,
+          {
+            call: callName,
+            catalogId: outboundCall.callFunction.catalogId,
+            args: outboundCall.callFunction.args,
+          },
+          {
+            functionCallId: outboundCall.functionCallId,
+          },
+        );
+      }, matchesExpectedError);
+    } else if (args.secondOutboundCall) {
       processor.callAgentFunction(
         outboundCall.surfaceId,
         {
@@ -1057,59 +1270,87 @@ async function validateRpcTestCase(testCase) {
           functionCallId: outboundCall.functionCallId,
         },
       );
-      await assert.rejects(
-        async () => {
-          const secondCallName =
-            args.secondOutboundCall.callFunction['@call'] ??
-            args.secondOutboundCall.callFunction.call;
-          await processor.callAgentFunction(
-            args.secondOutboundCall.surfaceId,
-            {
-              call: secondCallName,
-              catalogId: args.secondOutboundCall.callFunction.catalogId,
-              args: args.secondOutboundCall.callFunction.args,
-            },
-            {
-              functionCallId: args.secondOutboundCall.functionCallId,
-            },
-          );
+      await assert.rejects(async () => {
+        const secondCallName =
+          args.secondOutboundCall.callFunction['@call'] ??
+          args.secondOutboundCall.callFunction.call;
+        await processor.callAgentFunction(
+          args.secondOutboundCall.surfaceId,
+          {
+            call: secondCallName,
+            catalogId: args.secondOutboundCall.callFunction.catalogId,
+            args: args.secondOutboundCall.callFunction.args,
+          },
+          {
+            functionCallId: args.secondOutboundCall.functionCallId,
+          },
+        );
+      }, matchesExpectedError);
+    } else if (args.afterCall === 'cancel') {
+      const pending = processor.callAgentFunction(
+        outboundCall.surfaceId,
+        {
+          call: callName,
+          catalogId: outboundCall.callFunction.catalogId,
+          args: outboundCall.callFunction.args,
         },
-        err => {
-          if (expectedErr.code) {
-            return err.code === expectedErr.code || err.message.includes(expectedErr.code);
-          }
-          if (expectedErr.message) {
-            return err.message.includes(expectedErr.message);
-          }
-          return true;
+        {
+          functionCallId: outboundCall.functionCallId,
         },
       );
+      processor.rpc.cancelSurfaceCalls(outboundCall.surfaceId);
+      await assert.rejects(async () => {
+        await pending;
+      }, matchesExpectedError);
+    } else if (args.afterCall === 'dispose') {
+      const pending = processor.callAgentFunction(
+        outboundCall.surfaceId,
+        {
+          call: callName,
+          catalogId: outboundCall.callFunction.catalogId,
+          args: outboundCall.callFunction.args,
+        },
+        {
+          functionCallId: outboundCall.functionCallId,
+        },
+      );
+      processor.rpc.dispose();
+      await assert.rejects(
+        async () => {
+          await pending;
+        },
+        err => err.code === (expect?.inFlightError?.code ?? 'CANCELLED'),
+      );
+      await assert.rejects(async () => {
+        await processor.callAgentFunction(
+          outboundCall.surfaceId,
+          {
+            call: callName,
+            catalogId: outboundCall.callFunction.catalogId,
+            args: outboundCall.callFunction.args,
+          },
+          {
+            functionCallId: outboundCall.functionCallId,
+          },
+        );
+      }, matchesExpectedError);
+      assertLateResponseIgnored();
     } else if (outboundCall.timeoutMs !== undefined) {
-      await assert.rejects(
-        async () => {
-          await processor.callAgentFunction(
-            outboundCall.surfaceId,
-            {
-              call: callName,
-              catalogId: outboundCall.callFunction.catalogId,
-              args: outboundCall.callFunction.args,
-            },
-            {
-              functionCallId: outboundCall.functionCallId,
-              timeoutMs: outboundCall.timeoutMs,
-            },
-          );
-        },
-        err => {
-          if (expectedErr.code) {
-            return err.code === expectedErr.code || err.message.includes(expectedErr.code);
-          }
-          if (expectedErr.message) {
-            return err.message.includes(expectedErr.message);
-          }
-          return true;
-        },
-      );
+      await assert.rejects(async () => {
+        await processor.callAgentFunction(
+          outboundCall.surfaceId,
+          {
+            call: callName,
+            catalogId: outboundCall.callFunction.catalogId,
+            args: outboundCall.callFunction.args,
+          },
+          {
+            functionCallId: outboundCall.functionCallId,
+            timeoutMs: outboundCall.timeoutMs,
+          },
+        );
+      }, matchesExpectedError);
+      assertLateResponseIgnored();
     }
   }
 }
@@ -2113,6 +2354,15 @@ const DATA_MODEL_KNOWN_KEYS = {
       'path',
     ]),
     dispose: new Set(['expectError', 'expect_error', 'op']),
+    mutate_input: new Set([
+      'expectError',
+      'expect_error',
+      'expect_notified',
+      'expect_values',
+      'op',
+      'path',
+      'value',
+    ]),
   },
 };
 
@@ -2138,6 +2388,7 @@ function validateDataModelTestCase(testCase) {
     }
   }
 
+  const inputState = {lastSetValue: undefined};
   if (steps && Array.isArray(steps)) {
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
@@ -2150,7 +2401,7 @@ function validateDataModelTestCase(testCase) {
         assertKnownKeys(expectErr, EXPECT_ERROR_KNOWN_KEYS.error, 'data_model.step.expectError');
         assert.throws(
           () => {
-            applyDataModelOp(model, step);
+            applyDataModelOp(model, step, inputState);
           },
           err => {
             if (expectErr.message) {
@@ -2167,7 +2418,7 @@ function validateDataModelTestCase(testCase) {
         continue;
       }
 
-      applyDataModelOp(model, step);
+      applyDataModelOp(model, step, inputState);
 
       if (step.expect_notified !== undefined) {
         const notified = [];
@@ -2203,7 +2454,7 @@ function validateDataModelTestCase(testCase) {
   }
 }
 
-function applyDataModelOp(model, step) {
+function applyDataModelOp(model, step, inputState) {
   const {op, path: stepPath, value, expect: stepExpect, expect_absent, expect_type} = step;
   switch (op) {
     case 'get': {
@@ -2235,7 +2486,35 @@ function applyDataModelOp(model, step) {
     }
     case 'set': {
       assertKnownKeys(step, DATA_MODEL_KNOWN_KEYS.step.set, 'data_model.step.set');
-      model.set(stepPath, value);
+      const callerValue = value !== undefined ? structuredClone(value) : undefined;
+      if (inputState) {
+        inputState.lastSetValue = callerValue;
+      }
+      model.set(stepPath, callerValue);
+      break;
+    }
+    case 'mutate_input': {
+      assertKnownKeys(
+        step,
+        DATA_MODEL_KNOWN_KEYS.step.mutate_input,
+        'data_model.step.mutate_input',
+      );
+      const tokens = (stepPath ?? '')
+        .split('/')
+        .filter(Boolean)
+        .map(t => t.replace(/~1/g, '/').replace(/~0/g, '~'));
+      let curr = inputState?.lastSetValue;
+      if (tokens.length > 0 && curr !== null && curr !== undefined) {
+        for (let i = 0; i < tokens.length - 1; i++) {
+          curr = Array.isArray(curr) ? curr[Number(tokens[i])] : curr[tokens[i]];
+        }
+        const last = tokens[tokens.length - 1];
+        if (Array.isArray(curr)) {
+          curr[Number(last)] = value;
+        } else if (curr && typeof curr === 'object') {
+          curr[last] = value;
+        }
+      }
       break;
     }
     case 'delete': {
@@ -3878,19 +4157,22 @@ function validateEvaluateFunctionTestCase(testCase) {
   try {
     const fn = defaultCat?.functions?.get(funcName);
     if (errorSpec) {
-      assert.throws(() => {
-        let r;
-        if (fn && typeof fn.execute === 'function') {
-          r = fn.execute(args, ctx);
-        } else if (defaultCat && defaultCat.invoker) {
-          r = defaultCat.invoker(funcName, args, ctx);
-        } else {
-          r = ctx.resolveDynamicValue({call: funcName, args});
-        }
-        if (isSignal(r)) {
-          getValue(r);
-        }
-      });
+      assert.throws(
+        () => {
+          let r;
+          if (fn && typeof fn.execute === 'function') {
+            r = fn.execute(args, ctx);
+          } else if (defaultCat && defaultCat.invoker) {
+            r = defaultCat.invoker(funcName, args, ctx);
+          } else {
+            r = ctx.resolveDynamicValue({call: funcName, args});
+          }
+          if (isSignal(r)) {
+            getValue(r);
+          }
+        },
+        err => matchesEvaluateFunctionError(err, errorSpec),
+      );
       return;
     }
 
@@ -3906,13 +4188,112 @@ function validateEvaluateFunctionTestCase(testCase) {
 
     const actualJson = result === undefined ? null : JSON.parse(JSON.stringify(result));
     if (expect !== undefined) {
-      assert.deepStrictEqual(actualJson, expect);
+      if (
+        expect !== null &&
+        typeof expect === 'object' &&
+        !Array.isArray(expect) &&
+        Object.keys(expect).length === 1 &&
+        'valid' in expect &&
+        actualJson !== null &&
+        typeof actualJson === 'object' &&
+        'valid' in actualJson
+      ) {
+        assert.strictEqual(actualJson.valid, expect.valid);
+      } else {
+        assert.deepStrictEqual(actualJson, expect);
+      }
     }
   } finally {
     if (originalWindow === undefined) {
       delete globalThis.window;
     } else {
       globalThis.window = originalWindow;
+    }
+  }
+}
+
+const VALIDATE_COMMON_TYPE_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'definition',
+    'description',
+    'features',
+    'name',
+    'protocolVersion',
+    'steps',
+  ]),
+  step: new Set(['expectError', 'value']),
+};
+
+/**
+ * Step-level round-trip divergences in `validate_common_type` cases that are
+ * not already skipped as a whole in `KNOWN_DIVERGENCES`. An entry whose step
+ * round-trips cleanly fails the test so stale entries are caught.
+ */
+const VALIDATE_COMMON_TYPE_ROUND_TRIP_DIVERGENCES = new Map([
+  [
+    'test_v09_action_is_event_or_function_call#1',
+    "v0.9 FunctionCallSchema in web_core defaults returnType to 'boolean' when omitted",
+  ],
+  [
+    'test_v091_action_is_event_or_function_call#1',
+    "v0.9 FunctionCallSchema in web_core defaults returnType to 'boolean' when omitted",
+  ],
+]);
+
+function validateCommonTypeTestCase(testCase) {
+  assertKnownKeys(testCase, VALIDATE_COMMON_TYPE_KNOWN_KEYS.case, 'validate_common_type');
+  assertKnownKeysList(
+    testCase.steps,
+    VALIDATE_COMMON_TYPE_KNOWN_KEYS.step,
+    'validate_common_type.steps',
+  );
+  const rawVersion = testCase.protocolVersion || 'v0.9';
+  const version = toCanonicalVersion(rawVersion);
+  const schemas = version === '1.0' ? V1_0_COMMON_SCHEMAS : V0_9_COMMON_SCHEMAS;
+  const schema = schemas[testCase.definition];
+  assert.ok(
+    schema,
+    `No common type schema found for '${testCase.definition}' in protocol version '${rawVersion}'`,
+  );
+
+  for (let i = 0; i < testCase.steps.length; i++) {
+    const step = testCase.steps[i];
+    if (step.expectError) {
+      assertKnownKeys(
+        step.expectError,
+        EXPECT_ERROR_KNOWN_KEYS.error,
+        `validate_common_type.steps[${i}].expectError`,
+      );
+    }
+    const result = schema.safeParse(step.value);
+    if (step.expectError) {
+      assert.strictEqual(
+        result.success,
+        false,
+        `Step ${i}: expected validation error for ${testCase.definition} with ${JSON.stringify(step.value)}, but succeeded`,
+      );
+    } else {
+      assert.strictEqual(
+        result.success,
+        true,
+        `Step ${i}: expected ${testCase.definition} to accept ${JSON.stringify(step.value)}, got error: ${result.error?.message}`,
+      );
+      const stepKey = `${testCase.name}#${i}`;
+      const divergence = VALIDATE_COMMON_TYPE_ROUND_TRIP_DIVERGENCES.get(stepKey);
+      if (divergence !== undefined) {
+        assert.strictEqual(
+          isDeepStrictEqual(result.data, step.value),
+          false,
+          `Step ${i} (${stepKey}): known round-trip divergence (${divergence}) passed unexpectedly`,
+        );
+      } else {
+        assert.deepStrictEqual(
+          result.data,
+          step.value,
+          `Step ${i}: expected ${testCase.definition} to round-trip ${JSON.stringify(step.value)}, got ${JSON.stringify(result.data)}`,
+        );
+      }
     }
   }
 }
