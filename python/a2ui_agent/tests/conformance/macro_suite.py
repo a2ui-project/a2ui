@@ -14,6 +14,7 @@
 
 """Execution and validation harness for ``conformance/agent/macros/macros.yaml``."""
 
+import copy
 from dataclasses import dataclass, field
 import json
 import os
@@ -24,10 +25,17 @@ import yaml
 
 from a2ui.builder import v0_9 as builder_v0_9, v1_0 as builder_v1_0
 from a2ui.builder.core import ComponentRef
-from a2ui.core import A2uiValidationError, Catalog, CatalogApi
+from a2ui.core import (
+    A2uiValidationError,
+    Catalog,
+    CatalogApi,
+    MessageProcessor,
+    MessageProcessorOptions,
+    SurfaceModel,
+    ValidationConfig,
+)
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
-from a2ui.core.validation import ValidationConfig
 from a2ui.transformers.macros import MacroExpander, macro
 from a2ui.utils import to_version_number
 
@@ -85,6 +93,7 @@ class Case:
     expect: Optional[dict[str, Any]] = None
     envelope_version: Optional[str] = None
     passthrough_components: Optional[list[str]] = None
+    macro_catalog_id: Optional[str] = None
 
     @property
     def golden_path(self) -> str:
@@ -118,6 +127,7 @@ def load_cases() -> list[Case]:
             expect=raw.get("expect"),
             envelope_version=raw.get("envelope_version"),
             passthrough_components=raw.get("passthrough_components"),
+            macro_catalog_id=raw.get("macro_catalog_id"),
         )
         for raw in suite["tests"]
     ]
@@ -270,6 +280,29 @@ SUITE_MACROS_BY_VERSION = {
 SUITE_MACROS = SUITE_MACROS_BY_VERSION["v0.9"]
 
 
+def get_scoped_suite_macros() -> dict[str, list[Any]]:
+    """Builds and returns catalog-scoped reference macros keyed by ``catalog_id``."""
+
+    @macro(name="Text")
+    def BrandText(
+        text: str, variant: builder_v1_0.TextVariant = "body"
+    ) -> builder_v1_0.Card:
+        """Custom brand Text macro wrapping a basic Text inside a Card."""
+        return builder_v1_0.Card(
+            child=builder_v1_0.Text(
+                text=f"[Brand] {text}",
+                variant=variant,
+            )
+        )
+
+    return {
+        "https://example.com/brand.json": [BrandText],
+    }
+
+
+SCOPED_SUITE_MACROS = get_scoped_suite_macros()
+
+
 # =============================================================================
 # Execution
 # =============================================================================
@@ -350,7 +383,15 @@ def run_case(case: Case) -> Any:
     except Exception as e:
         raise A2uiValidationError(f"Invalid message envelope: {e}") from e
 
-    expander = MacroExpander(macros)
+    if case.macro_catalog_id:
+        scoped_macros = SCOPED_SUITE_MACROS.get(case.macro_catalog_id)
+        if scoped_macros is None:
+            raise KeyError(
+                f"No scoped macros registered for catalog_id={case.macro_catalog_id!r}."
+            )
+        expander = MacroExpander(scoped_macros, catalog_id=case.macro_catalog_id)
+    else:
+        expander = MacroExpander(macros)
     expanded_msgs = expander.transform_to_transport(typed_raw_msgs)
     return [m.model_dump(by_alias=True, exclude_none=True) for m in expanded_msgs]
 
@@ -362,14 +403,16 @@ def run_case(case: Case) -> Any:
 _catalogs_by_version: dict[str, CatalogApi] = {}
 
 
-def basic_catalog_schema(version: str = "v0.9") -> CatalogApi:
-    """Loads the basic catalog for ``version``, memoized because schema loading is slow."""
+def basic_catalog_schema(version: str = PROTOCOL_VERSION) -> CatalogApi:
+    """Loads the basic catalog for the requested protocol version, memoized."""
     if version not in _catalogs_by_version:
         proto_ver = (
             to_version_number(ProtocolVersion.V1_0)
-            if version == "v1.0"
+            if version in ("v1.0", "1.0")
             else PROTOCOL_VERSION
         )
+        # BasicCatalog serves v0.9.1 with the v0.9 catalog, which reports v0.9,
+        # so the catalog is parsed again for the version under test.
         basic = BasicCatalog(proto_ver)
         _catalogs_by_version[version] = Catalog.from_json(
             catalog_schema=basic.validation_schema,
@@ -381,13 +424,20 @@ def basic_catalog_schema(version: str = "v0.9") -> CatalogApi:
 
 def validate_payload(payload: list[dict[str, Any]], case: Case) -> None:
     """Validates ``payload`` against the bundled basic catalog schema and topology rules."""
-    import copy
-
-    from a2ui.core import MessageProcessor, MessageProcessorOptions
-
     config = case.validation.to_config()
     has_create = any(isinstance(m, dict) and "createSurface" in m for m in payload)
-    catalogs = [basic_catalog_schema(case.version)]
+    version = (
+        "1.0"
+        if (
+            case.version == "v1.0"
+            or (
+                case.envelope_version
+                and to_version_number(case.envelope_version) == "1.0"
+            )
+        )
+        else PROTOCOL_VERSION
+    )
+    catalogs = [basic_catalog_schema(version)]
     if case.catalog_id and case.catalog_id != getattr(catalogs[0], "catalog_id", None):
         alias_cat = copy.copy(catalogs[0])
         alias_cat.catalog_id = case.catalog_id
@@ -398,8 +448,6 @@ def validate_payload(payload: list[dict[str, Any]], case: Case) -> None:
         options=MessageProcessorOptions(validation_config=config),
     )
     if not has_create:
-        from a2ui.core import SurfaceModel
-
         processor.model.add_surface(
             SurfaceModel(
                 surface_id=case.surface_id,
