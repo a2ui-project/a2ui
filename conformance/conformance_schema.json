@@ -1477,7 +1477,7 @@
         "args": {
           "type": "object",
           "properties": {
-            "format": {"type": "string"},
+            "format": {"$ref": "#/$defs/InferenceFormatName"},
             "catalogs": {
               "type": "array",
               "minItems": 1,
@@ -1485,7 +1485,8 @@
               "description": "Catalog document paths, relative to the repository root."
             }
           },
-          "required": ["format", "catalogs"]
+          "required": ["format", "catalogs"],
+          "additionalProperties": false
         }
       },
       "required": ["action", "args"]
