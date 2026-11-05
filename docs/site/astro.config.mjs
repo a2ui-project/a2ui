@@ -78,6 +78,10 @@ export default defineConfig({
       },
       head: [
         {
+          tag: 'script',
+          content: `(function(){try{var t=localStorage.getItem('a2ui-theme');var d=t==='dark'||t==='light'?t:'light';localStorage.setItem('starlight-theme',d);document.documentElement.setAttribute('data-theme',d);}catch(e){}})();`,
+        },
+        {
           tag: 'link',
           attrs: {
             rel: 'preconnect',
@@ -96,7 +100,7 @@ export default defineConfig({
           tag: 'link',
           attrs: {
             rel: 'stylesheet',
-            href: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap',
+            href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Inter+Tight:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap',
           },
         },
         {

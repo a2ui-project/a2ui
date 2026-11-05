@@ -20,7 +20,7 @@ import StarlightHeader from '../components/StarlightHeader.astro';
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -34,74 +34,167 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Inter+Tight:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
     />
     <script is:inline>
-      // Sync theme with Starlight's localStorage key ('starlight-theme')
+      // Default to the A2UI design system light theme unless user explicitly chose dark mode
       (function () {
-        const stored = typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme');
-        const theme = stored === 'light' || stored === 'dark' ? stored : 'dark';
-        document.documentElement.setAttribute('data-theme', theme);
+        try {
+          const stored = localStorage.getItem('a2ui-theme');
+          const theme = stored === 'dark' || stored === 'light' ? stored : 'light';
+          document.documentElement.setAttribute('data-theme', theme);
+          localStorage.setItem('starlight-theme', theme);
+        } catch (_) {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
       })();
     </script>
     <style is:global>
       :root,
-      :root[data-theme='dark'] {
-        --bg: #080d1a;
-        --bg-alt: #0d1527;
-        --surface: #111c33;
-        --surface-raised: #162440;
-        --surface-subtle: #0c1425;
-        --code-bg: #060a14;
-        --code-header: #0f182d;
-        --text: #f8fafc;
-        --text-secondary: #cbd5e1;
-        --text-muted: #94a3b8;
-        --border: #1e293b;
-        --border-strong: #334155;
-        --accent: #14b8a6;
-        --accent-strong: #2dd4bf;
-        --accent-soft: rgba(20, 184, 166, 0.14);
-        --accent-border: rgba(45, 212, 191, 0.35);
-        --blue: #38bdf8;
-        --blue-soft: rgba(56, 189, 248, 0.14);
-        --amber: #fbbf24;
-        --amber-soft: rgba(251, 191, 36, 0.14);
-        --success: #34d399;
-        --success-soft: rgba(52, 211, 153, 0.14);
-        --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
-        --shadow-md: 0 12px 28px -6px rgba(0, 0, 0, 0.5), 0 4px 10px -2px rgba(0, 0, 0, 0.35);
-        --shadow-lg: 0 24px 48px -12px rgba(0, 0, 0, 0.65);
-        --font-sans: "Plus Jakarta Sans", "Inter", "Google Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        --font-mono: "JetBrains Mono", "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      :root[data-theme='light'] {
+        /* Canonical A2UI Design System Color Tokens (from tokens.css) */
+        --surface-page: #f3f4f6;
+        --surface: #ffffff;
+        --surface-sunken: #f8f9fa;
+        --surface-tile: #eeeff1;
+        --surface-disabled: #eef0f2;
+        --nav-glass: rgba(243, 244, 246, 0.86);
+        --border: #e5e7eb;
+        --border-strong: #9ca3af;
+        --ink: #111827;
+        --ink-hover: #1f2937;
+        --on-ink: #ffffff;
+        --hairline-on-ink: rgba(255, 255, 255, 0.1);
+        --text-strong: #374151;
+        --text-muted: #4b5563;
+        --text-subtle: #6b7280;
+        --text-eyebrow: #5f6672;
+        --code: #1e293b;
+        --success: #047857;
+        --success-border: #10b981;
+        --warning-surface: #fffbeb;
+        --warning-border: #f59e0b;
+        --warning-text: #92400e;
+        --blue-700: #24599a;
+        --blue-600: #3a78bd;
+        --blue-500: #3f7fc3;
+        --blue-450: #5c95d0;
+        --blue-400: #6c9fd4;
+        --blue-300: #96bee8;
+        --blue-200: #c3d8ee;
+        --blue-150: #c6daef;
+        --blue-100: #d9e6f4;
+        --blue-50: #eaf2fb;
+        --illus-fill-1: rgba(17, 24, 39, 0.02);
+        --illus-fill-2: rgba(17, 24, 39, 0.03);
+        --illus-fill-3: rgba(17, 24, 39, 0.05);
+        --on-blue: #ffffff;
+        --ink-on-blue: #111827;
+        --feature-glow-a: rgba(234, 242, 251, 0.85);
+        --feature-glow-b: rgba(150, 190, 232, 0.55);
+        --story-glow-a: rgba(240, 246, 252, 0.95);
+        --story-glow-b: rgba(232, 241, 250, 0.9);
+        --cta-glow-a: rgba(255, 255, 255, 0.95);
+        --cta-glow-b: rgba(255, 255, 255, 0.9);
+        --cta-glow-c: rgba(255, 255, 255, 0.5);
+        --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.03);
+
+        /* Mapped Page Semantic Aliases */
+        --bg: var(--surface-page);
+        --bg-alt: var(--surface-page);
+        --surface-raised: var(--surface);
+        --surface-subtle: var(--surface-sunken);
+        --code-bg: var(--surface-sunken);
+        --code-header: var(--surface-page);
+        --text: var(--ink);
+        --text-secondary: var(--text-muted);
+        --accent: var(--blue-700);
+        --accent-strong: var(--ink);
+        --accent-soft: var(--blue-50);
+        --accent-border: var(--blue-300);
+        --blue: var(--blue-700);
+        --blue-soft: var(--blue-50);
+        --amber: var(--warning-text);
+        --amber-soft: var(--warning-surface);
+        --success-soft: rgba(16, 185, 129, 0.1);
+        --shadow-sm: var(--shadow-card);
+        --shadow-md: var(--shadow-card);
+        --shadow-lg: var(--shadow-card);
+        --font-display: "Inter Tight", Inter, sans-serif;
+        --font-heading: "Google Sans", Inter, sans-serif;
+        --font-body: "Google Sans Text", "Google Sans", Inter, system-ui, sans-serif;
+        --font-mono: "JetBrains Mono", "Google Sans Mono", ui-monospace, monospace;
+        --font-sans: var(--font-body);
       }
 
-      :root[data-theme='light'] {
-        --bg: #f8fafc;
-        --bg-alt: #f1f5f9;
-        --surface: #ffffff;
-        --surface-raised: #ffffff;
-        --surface-subtle: #f8fafc;
-        --code-bg: #0f172a;
-        --code-header: #1e293b;
-        --text: #0f172a;
-        --text-secondary: #334155;
-        --text-muted: #64748b;
-        --border: #e2e8f0;
-        --border-strong: #cbd5e1;
-        --accent: #0d9488;
-        --accent-strong: #0f766e;
-        --accent-soft: rgba(13, 148, 136, 0.1);
-        --accent-border: rgba(13, 148, 136, 0.32);
-        --blue: #0284c7;
-        --blue-soft: rgba(2, 132, 199, 0.1);
-        --amber: #d97706;
-        --amber-soft: rgba(217, 119, 6, 0.1);
-        --success: #059669;
-        --success-soft: rgba(5, 150, 105, 0.12);
-        --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
-        --shadow-md: 0 8px 24px -4px rgba(15, 23, 42, 0.07), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
-        --shadow-lg: 0 20px 40px -12px rgba(15, 23, 42, 0.1);
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --surface-page: #101216;
+        --surface: #191c22;
+        --surface-sunken: #14161b;
+        --surface-tile: #1a1d23;
+        --surface-disabled: #23272f;
+        --nav-glass: rgba(16, 18, 22, 0.82);
+        --border: #2a2e37;
+        --border-strong: #5b6270;
+        --ink: #dfe2e8;
+        --ink-hover: #ffffff;
+        --on-ink: #191c22;
+        --hairline-on-ink: rgba(255, 255, 255, 0.1);
+        --on-blue: #ffffff;
+        --ink-on-blue: #111827;
+        --text-strong: #c4c9d2;
+        --text-muted: #a3a9b5;
+        --text-subtle: #8d94a1;
+        --text-eyebrow: #8d94a1;
+        --code: #d3d7de;
+        --success: #4cc9a0;
+        --success-border: #2f9e78;
+        --warning-surface: rgba(245, 158, 11, 0.10);
+        --warning-border: rgba(245, 158, 11, 0.55);
+        --warning-text: #f2b652;
+        --blue-700: #1b4275;
+        --blue-600: #2a5a96;
+        --blue-500: #28568e;
+        --blue-450: #3a6ba8;
+        --blue-400: #4a79b2;
+        --blue-300: #6c9fd4;
+        --blue-200: #172234;
+        --blue-150: #162030;
+        --blue-100: #1c293d;
+        --blue-50: #1c293d;
+        --illus-fill-1: rgba(223, 226, 232, 0.02);
+        --illus-fill-2: rgba(223, 226, 232, 0.03);
+        --illus-fill-3: rgba(223, 226, 232, 0.05);
+        --feature-glow-a: rgba(170, 200, 240, 0.30);
+        --feature-glow-b: rgba(100, 140, 200, 0.30);
+        --story-glow-a: rgba(170, 200, 240, 0.26);
+        --story-glow-b: rgba(160, 190, 235, 0.22);
+        --cta-glow-a: rgba(120, 160, 220, 0.22);
+        --cta-glow-b: rgba(140, 175, 230, 0.20);
+        --cta-glow-c: rgba(120, 160, 220, 0.08);
+        --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.28);
+
+        --bg: var(--surface-page);
+        --bg-alt: var(--surface-page);
+        --surface-raised: var(--surface-tile);
+        --surface-subtle: var(--surface-sunken);
+        --code-bg: var(--surface-sunken);
+        --code-header: var(--surface-page);
+        --text: var(--ink);
+        --text-secondary: var(--text-muted);
+        --accent: #7aa7de;
+        --accent-strong: var(--ink);
+        --accent-soft: var(--blue-100);
+        --accent-border: #3a6ba8;
+        --blue: #7aa7de;
+        --blue-soft: var(--blue-100);
+        --amber: var(--warning-text);
+        --amber-soft: var(--warning-surface);
+        --success-soft: rgba(76, 201, 160, 0.12);
+        --shadow-sm: var(--shadow-card);
+        --shadow-md: var(--shadow-card);
+        --shadow-lg: var(--shadow-card);
       }
 
       *,
@@ -112,12 +205,43 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
       body {
         margin: 0;
-        font-family: var(--font-sans);
-        font-size: 16px;
+        font-family: var(--font-body);
+        font-size: 15px;
         line-height: 1.6;
+        letter-spacing: -0.005em;
         color: var(--text);
         background-color: var(--bg);
         -webkit-font-smoothing: antialiased;
+      }
+
+      h1,
+      h2,
+      h3,
+      h4 {
+        text-wrap: balance;
+      }
+
+      h3,
+      h4 {
+        font-family: var(--font-heading);
+        font-weight: 500;
+        letter-spacing: -0.02em;
+        line-height: 1.3;
+      }
+
+      p {
+        text-wrap: pretty;
+      }
+
+      code,
+      pre,
+      .a2-eyebrow,
+      .a2-status-tag,
+      .a2-flight-badge,
+      .a2-code-window__badge,
+      .a2-code-window__title {
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: "tnum" 1;
       }
 
       a {
@@ -131,9 +255,10 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         z-index: 50;
         height: 60px;
         box-sizing: border-box;
-        background: var(--bg-alt);
+        background: var(--nav-glass);
         border-bottom: 1px solid var(--border);
         backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
       }
 
       .a2-nav__inner {
@@ -164,43 +289,48 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       .a2-eyebrow {
         display: inline-block;
         font-family: var(--font-mono);
-        font-size: 12px;
-        font-weight: 600;
-        letter-spacing: 0.08em;
+        font-size: 11px;
+        font-weight: 500;
+        line-height: 1.4;
+        letter-spacing: 0.04em;
         text-transform: uppercase;
-        color: var(--accent);
-        margin-bottom: 12px;
+        color: var(--text-eyebrow);
+        margin-bottom: 16px;
       }
 
       .a2-h1 {
-        font-size: clamp(36px, 4.5vw, 56px);
-        font-weight: 800;
-        line-height: 1.08;
-        letter-spacing: -0.035em;
+        font-family: var(--font-display);
+        font-size: clamp(44px, 6.2vw, 76px);
+        font-weight: 600;
+        line-height: 1.15;
+        letter-spacing: -0.03em;
         color: var(--text);
-        margin: 0 0 20px 0;
+        margin: 0 0 24px 0;
       }
 
       .a2-h2 {
-        font-size: clamp(28px, 3.2vw, 38px);
-        font-weight: 700;
-        line-height: 1.16;
-        letter-spacing: -0.025em;
+        font-family: var(--font-display);
+        font-size: clamp(34px, 4vw, 52px);
+        font-weight: 500;
+        line-height: 1.08;
+        letter-spacing: -0.03em;
         color: var(--text);
-        margin: 0 0 16px 0;
+        margin: 0 0 18px 0;
       }
 
       .a2-lead {
+        font-family: var(--font-body);
         font-size: 18px;
-        line-height: 1.65;
+        font-weight: 400;
+        line-height: 1.6;
         color: var(--text-secondary);
         margin: 0 0 28px 0;
-        max-width: 70ch;
+        max-width: 68ch;
       }
 
       .a2-section-intro {
         max-width: 840px;
-        margin-bottom: 40px;
+        margin-bottom: 48px;
       }
 
       /* --- Buttons --- */
@@ -215,44 +345,50 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       .a2-btn {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
-        font-size: 14.5px;
-        font-weight: 600;
-        padding: 11px 20px;
+        gap: 10px;
+        font-size: 15px;
+        font-weight: 500;
+        line-height: 1.2;
+        padding: 13px 22px;
         border-radius: 8px;
         text-decoration: none;
         cursor: pointer;
         transition: all 0.15s ease;
         border: 1px solid transparent;
-        font-family: var(--font-sans);
+        font-family: var(--font-body);
       }
 
       .a2-btn--primary {
-        background: var(--accent);
-        color: #ffffff;
-        box-shadow: 0 2px 8px rgba(13, 148, 136, 0.25);
+        background: var(--ink);
+        color: var(--on-ink);
+        border-color: var(--hairline-on-ink);
       }
 
       .a2-btn--primary:hover {
-        background: var(--accent-strong);
+        background: var(--ink-hover);
       }
 
       .a2-btn--secondary {
         background: var(--surface);
         color: var(--text);
-        border-color: var(--border-strong);
+        border-color: var(--border);
       }
 
       .a2-btn--secondary:hover {
-        border-color: var(--accent);
+        border-color: var(--border-strong);
       }
 
       .a2-btn--code {
-        background: var(--code-bg);
-        color: #e2e8f0;
-        border-color: #334155;
+        background: var(--surface);
+        color: var(--text);
+        border-color: var(--border);
         font-family: var(--font-mono);
-        font-size: 13px;
+        font-size: 14px;
+        font-weight: 400;
+      }
+
+      .a2-btn--code:hover {
+        border-color: var(--border-strong);
       }
 
       /* --- Hero Section --- */
@@ -262,12 +398,13 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       }
 
       .a2-hero__header {
-        max-width: 900px;
-        margin: 0 auto 44px auto;
+        max-width: 920px;
+        margin: 0 auto 48px auto;
         text-align: center;
       }
 
       .a2-hero__header .a2-lead {
+        font-size: 19px;
         margin-left: auto;
         margin-right: auto;
       }
@@ -276,30 +413,34 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       .a2-status-tag {
         font-family: var(--font-mono);
         font-size: 11px;
-        font-weight: 600;
+        font-weight: 500;
+        letter-spacing: 0.04em;
         padding: 2px 8px;
-        border-radius: 4px;
+        border-radius: 999px;
       }
 
       .a2-status-tag--good {
-        background: var(--success-soft);
+        background: var(--surface);
         color: var(--success);
+        border: 1px solid var(--success-border);
       }
 
       .a2-flight-badge {
         font-family: var(--font-mono);
         font-size: 11px;
-        font-weight: 600;
-        padding: 2px 6px;
-        border-radius: 4px;
-        background: var(--blue-soft);
-        color: var(--blue);
+        font-weight: 500;
+        letter-spacing: 0.04em;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid var(--border);
       }
 
       /* --- Section 2: Generative UI Spectrum --- */
       .a2-spectrum-shell {
         background: var(--surface);
-        border: 1px solid var(--border-strong);
+        border: 1px solid var(--border);
         border-radius: 12px;
         padding: 26px;
         box-shadow: var(--shadow-md);
@@ -310,10 +451,11 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         align-items: center;
         justify-content: space-between;
         font-family: var(--font-mono);
-        font-size: 11.5px;
-        font-weight: 700;
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.04em;
         text-transform: uppercase;
-        color: var(--text-muted);
+        color: var(--text-subtle);
         margin-bottom: 14px;
       }
 
@@ -321,7 +463,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         flex: 1;
         height: 4px;
         border-radius: 2px;
-        background: linear-gradient(90deg, var(--blue), var(--accent), var(--amber));
+        background: linear-gradient(90deg, var(--ink), var(--blue-600), var(--blue-300));
         margin: 0 16px;
       }
 
@@ -347,36 +489,44 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         cursor: pointer;
         transition: all 0.15s ease;
         color: var(--text);
-        font-family: var(--font-sans);
+        font-family: var(--font-body);
       }
 
       .a2-band-card:hover {
-        border-color: var(--accent);
+        border-color: var(--border-strong);
       }
 
       .a2-band-card.is-active {
-        background: var(--accent-soft);
-        border-color: var(--accent);
+        background: var(--surface);
+        border-color: var(--ink);
         box-shadow: var(--shadow-sm);
       }
 
       .a2-band-card__tag {
         font-family: var(--font-mono);
         font-size: 11px;
-        font-weight: 700;
-        color: var(--accent);
+        font-weight: 500;
+        letter-spacing: 0.04em;
+        color: var(--text-eyebrow);
         display: block;
         margin-bottom: 4px;
       }
 
+      .a2-band-card.is-active .a2-band-card__tag {
+        color: var(--accent);
+      }
+
       .a2-band-card__title {
-        font-size: 15.5px;
-        font-weight: 700;
+        font-family: var(--font-heading);
+        font-size: 18px;
+        font-weight: 500;
+        letter-spacing: -0.02em;
+        line-height: 1.3;
         margin: 0 0 6px 0;
       }
 
       .a2-band-card__sub {
-        font-size: 12.5px;
+        font-size: 14px;
         color: var(--text-secondary);
         margin: 0;
         line-height: 1.5;
@@ -413,15 +563,17 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       .a2-meta-kv__label {
         font-family: var(--font-mono);
         font-size: 11px;
-        font-weight: 700;
+        font-weight: 500;
+        letter-spacing: 0.04em;
         text-transform: uppercase;
-        color: var(--accent);
+        color: var(--text-eyebrow);
         display: block;
         margin-bottom: 3px;
       }
 
       .a2-meta-kv__val {
-        font-size: 13.5px;
+        font-size: 14px;
+        line-height: 1.6;
         color: var(--text-secondary);
         margin: 0;
       }
@@ -442,7 +594,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
       .a2-logo-tab {
         background: var(--surface);
-        border: 1px solid var(--border-strong);
+        border: 1px solid var(--border);
         border-radius: 10px;
         padding: 16px 14px;
         cursor: pointer;
@@ -453,17 +605,17 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         gap: 8px;
         transition: all 0.15s ease;
         color: var(--text);
-        font-family: var(--font-sans);
+        font-family: var(--font-body);
       }
 
       .a2-logo-tab:hover {
-        border-color: var(--accent);
+        border-color: var(--border-strong);
         transform: translateY(-1px);
       }
 
       .a2-logo-tab.is-active {
         background: var(--accent-soft);
-        border-color: var(--accent);
+        border-color: var(--ink);
         box-shadow: var(--shadow-sm);
       }
 
@@ -475,20 +627,23 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       }
 
       .a2-logo-tab__name {
-        font-size: 13.5px;
-        font-weight: 700;
+        font-family: var(--font-heading);
+        font-size: 14px;
+        font-weight: 500;
+        letter-spacing: -0.01em;
         color: var(--text);
       }
 
       .a2-logo-tab__role {
         font-family: var(--font-mono);
-        font-size: 10.5px;
-        color: var(--text-muted);
+        font-size: 11px;
+        letter-spacing: 0.02em;
+        color: var(--text-subtle);
       }
 
       .a2-usecase-stage {
         background: var(--surface);
-        border: 1px solid var(--border-strong);
+        border: 1px solid var(--border);
         border-radius: 12px;
         overflow: hidden;
         box-shadow: var(--shadow-lg);
@@ -520,7 +675,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
       .a2-screenshot-window {
         background: var(--surface);
-        border: 1px solid var(--border-strong);
+        border: 1px solid var(--border);
         border-radius: 10px;
         overflow: hidden;
         box-shadow: var(--shadow-md);
@@ -528,7 +683,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
       .a2-screenshot-chrome {
         background: var(--code-header);
-        color: #cbd5e1;
+        color: var(--text-subtle);
+        border-bottom: 1px solid var(--border);
         padding: 10px 16px;
         display: flex;
         align-items: center;
@@ -546,7 +702,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         width: 9px;
         height: 9px;
         border-radius: 50%;
-        background: #475569;
+        background: var(--border-strong);
       }
 
       .a2-screenshot-body {
@@ -556,7 +712,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       /* --- Code Windows & Why A2UI Sections --- */
       .a2-code-window {
         background: var(--code-bg);
-        border: 1px solid var(--border-strong);
+        border: 1px solid var(--border);
         border-radius: 10px;
         overflow: hidden;
         box-shadow: var(--shadow-md);
@@ -570,42 +726,47 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         display: flex;
         align-items: center;
         justify-content: space-between;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        border-bottom: 1px solid var(--border);
       }
 
       .a2-code-window__title {
         font-family: var(--font-mono);
-        font-size: 12px;
-        font-weight: 600;
-        color: #e2e8f0;
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--text-subtle);
       }
 
       .a2-code-window__badge {
         font-family: var(--font-mono);
         font-size: 11px;
-        font-weight: 600;
+        font-weight: 500;
+        letter-spacing: 0.04em;
         padding: 2px 8px;
-        border-radius: 4px;
-        background: rgba(20, 184, 166, 0.2);
-        color: #5eead4;
+        border-radius: 999px;
+        background: var(--surface);
+        color: var(--success);
+        border: 1px solid var(--success-border);
       }
 
       .a2-code-pre {
         margin: 0;
         padding: 16px 18px;
         font-family: var(--font-mono);
-        font-size: 12px;
-        line-height: 1.6;
-        color: #e2e8f0;
+        font-size: 12.5px;
+        line-height: 1.85;
+        font-weight: 400;
+        color: var(--code);
         overflow-x: auto;
         flex: 1;
       }
 
-      .a2-tok-path { color: #38bdf8; }
-      .a2-tok-comp { color: #2dd4bf; font-weight: 600; }
-      .a2-tok-str { color: #fcd34d; }
-      .a2-tok-kw { color: #f472b6; }
-      .a2-tok-comment { color: #64748b; }
+      .a2-tok-path { color: var(--ink); font-weight: 400; }
+      .a2-tok-comp { color: var(--accent); font-weight: 500; }
+      .a2-tok-str { color: var(--success); }
+      .a2-tok-kw { color: var(--accent); font-weight: 500; }
+      .a2-tok-comment { color: var(--text-subtle); }
 
       .a2-express-grid {
         display: grid;
@@ -646,7 +807,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         font-family: var(--font-mono);
         font-size: 11.5px;
         font-weight: 700;
-        color: #ffffff;
+        color: var(--on-ink);
       }
 
       /* --- Macros 3-Stage Grid --- */
@@ -664,7 +825,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
       .a2-macro-stage {
         background: var(--surface);
-        border: 1px solid var(--border-strong);
+        border: 1px solid var(--border);
         border-radius: 10px;
         overflow: hidden;
         display: flex;
@@ -681,8 +842,9 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         gap: 10px;
         font-family: var(--font-mono);
         font-size: 11px;
-        font-weight: 700;
-        color: var(--accent);
+        font-weight: 500;
+        letter-spacing: 0.04em;
+        color: var(--text);
       }
 
       .a2-macro-stage__body {
@@ -694,7 +856,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       }
 
       .a2-macro-stage__body .a2-code-pre {
-        font-size: 11.8px;
+        font-size: 12px;
+        line-height: 1.8;
         padding: 14px;
       }
 
@@ -714,21 +877,27 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
       .a2-plat-tab {
         padding: 10px 12px;
-        border-radius: 8px;
-        border: 1px solid var(--border-strong);
-        background: var(--surface);
+        border-radius: 7px;
+        border: 1px solid var(--border);
+        background: var(--surface-subtle);
         color: var(--text-secondary);
-        font-family: var(--font-sans);
-        font-size: 13px;
-        font-weight: 600;
+        font-family: var(--font-mono);
+        font-size: 12px;
+        font-weight: 500;
         cursor: pointer;
         text-align: center;
+        transition: all 0.15s ease;
+      }
+
+      .a2-plat-tab:hover {
+        border-color: var(--border-strong);
+        color: var(--text);
       }
 
       .a2-plat-tab.is-active {
-        background: var(--accent);
-        border-color: var(--accent);
-        color: #ffffff;
+        background: var(--ink);
+        border-color: var(--ink);
+        color: var(--on-ink);
       }
 
       .a2-platform-showcase {
@@ -756,7 +925,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         font-size: 10.5px;
         font-weight: 700;
         letter-spacing: 0.06em;
-        color: var(--text-muted);
+        color: var(--text-subtle);
         background: var(--surface-subtle);
         margin-bottom: 4px;
       }
@@ -764,7 +933,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       .a2-logo-tab.is-active .a2-logo-placeholder-box {
         border-color: var(--accent);
         color: var(--accent-strong);
-        background: var(--accent-soft);
+        background: var(--surface);
       }
 
       .a2-ui-placeholder-frame {
@@ -825,7 +994,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       .a2-why-card {
         text-align: left;
         background: var(--surface);
-        border: 1px solid var(--border-strong);
+        border: 1px solid var(--border);
         border-radius: 12px;
         padding: 22px;
         cursor: pointer;
@@ -839,47 +1008,50 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       }
 
       .a2-why-card:hover {
-        border-color: var(--accent);
+        border-color: var(--border-strong);
         transform: translateY(-2px);
       }
 
       .a2-why-card.is-active {
-        border-color: var(--accent);
+        border-color: var(--ink);
         background: linear-gradient(180deg, var(--accent-soft), var(--surface));
-        box-shadow: 0 0 0 1px var(--accent);
+        box-shadow: 0 0 0 1px var(--ink);
       }
 
       .a2-why-card__num {
         font-family: var(--font-mono);
         font-size: 11px;
-        font-weight: 700;
-        letter-spacing: 0.07em;
+        font-weight: 500;
+        letter-spacing: 0.04em;
         text-transform: uppercase;
-        color: var(--accent);
+        color: var(--text-eyebrow);
         display: flex;
         align-items: center;
         justify-content: space-between;
       }
 
       .a2-why-card__title {
-        font-size: 19px;
-        font-weight: 800;
+        font-family: var(--font-heading);
+        font-size: 22px;
+        font-weight: 500;
+        line-height: 1.3;
         letter-spacing: -0.02em;
         margin: 6px 0 8px 0;
       }
 
       .a2-why-card__desc {
-        font-size: 13.5px;
+        font-size: 15px;
         color: var(--text-secondary);
-        line-height: 1.58;
+        line-height: 1.6;
         margin: 0;
       }
 
       .a2-why-card__cta {
         font-family: var(--font-mono);
-        font-size: 11.5px;
-        font-weight: 600;
-        color: var(--accent-strong);
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.04em;
+        color: var(--accent);
         display: flex;
         align-items: center;
         gap: 6px;
@@ -887,7 +1059,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
       .a2-why-deck {
         background: var(--surface);
-        border: 1px solid var(--border-strong);
+        border: 1px solid var(--border);
         border-radius: 14px;
         padding: 24px;
         box-shadow: var(--shadow-lg);
@@ -901,11 +1073,15 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         display: block;
       }
 
-      /* --- Bottom Docs Transition Banner --- */
+      /* --- Bottom Docs Transition Banner (Design System Closing CTA Band) --- */
       .a2-docs-bridge {
         margin-top: 56px;
-        background: linear-gradient(135deg, var(--surface), var(--bg-alt));
-        border: 1px solid var(--border-strong);
+        background:
+          radial-gradient(120% 70% at 15% 115%, var(--cta-glow-a), transparent 55%),
+          radial-gradient(90% 60% at 88% -15%, var(--cta-glow-b), transparent 60%),
+          radial-gradient(50% 35% at 55% 55%, var(--cta-glow-c), transparent 70%),
+          linear-gradient(160deg, var(--blue-200) 0%, var(--blue-100) 50%, var(--blue-150) 100%);
+        border: 1px solid var(--border);
         border-radius: 14px;
         padding: 32px;
         display: flex;
@@ -1008,7 +1184,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
                     <p class="a2-meta-kv__val" id="band-bestfor">High-traffic, brand-critical surfaces (flight tickets, checkout cards, approval widgets) where predictability and zero layout drift are mandatory.</p>
                   </div>
                 </div>
-                <div style="padding-top: 12px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-muted);">
+                <div style="padding-top: 12px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-subtle);">
                   ✓ Mix all 4 bands in a single conversation using the same A2UI wire protocol &amp; client renderers.
                 </div>
               </div>
@@ -1085,7 +1261,7 @@ def flight_ticket(flight: str, origin: str, dest: str, price_eur: int) -&gt; Car
             <div class="a2-usecase-info">
               <div>
                 <span class="a2-eyebrow" id="uc-eyebrow">APP EXAMPLE 01 · CONSUMER HARDWARE &amp; IOT</span>
-                <h3 style="font-size: 24px; font-weight: 700; margin: 0 0 12px 0;" id="uc-title">Dynamic Smart Home Automation &amp; Device Control Cards</h3>
+                <h3 style="font-size: 22px; font-weight: 500; letter-spacing: -0.02em; margin: 0 0 12px 0;" id="uc-title">Dynamic Smart Home Automation &amp; Device Control Cards</h3>
                 <p style="font-size: 14.5px; color: var(--text-secondary); margin: 0 0 18px 0; line-height: 1.65;" id="uc-desc">
                   Placeholder description for App Example 01: Instead of returning a paragraph of text when a user asks to configure an automation routine, the agent streams an interactive A2UI surface with device sliders, status tiles, and 1-tap triggers.
                 </p>
@@ -1095,7 +1271,7 @@ def flight_ticket(flight: str, origin: str, dest: str, price_eur: int) -&gt; Car
                   <div>✓ <strong>Key Capability:</strong> Two-way <code>updateDataModel</code> bindings for live controls</div>
                 </div>
               </div>
-              <div style="margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-muted);" id="uc-footer">
+              <div style="margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-subtle);" id="uc-footer">
                 Placeholder slot — replace with approved partner logo and product surface screenshot.
               </div>
             </div>
@@ -1131,7 +1307,7 @@ def flight_ticket(flight: str, origin: str, dest: str, price_eur: int) -&gt; Car
                         </div>
                       </div>
                     </div>
-                    <div style="font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); text-align: center;">
+                    <div style="font-family: var(--font-mono); font-size: 11.5px; color: var(--text-subtle); text-align: center;">
                       Drop screenshot asset into <code>docs/site/public/assets/use-cases/app-01.png</code>
                     </div>
                   </div>
@@ -1207,7 +1383,7 @@ def flight_ticket(flight: str, origin: str, dest: str, price_eur: int) -&gt; Car
               <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
                 <div>
                   <span class="a2-eyebrow" style="margin-bottom: 4px;">PILLAR 01 · SWAPPABLE INFERENCE FORMATS</span>
-                  <h3 style="font-size: 20px; font-weight: 800; margin: 0;">Decouple LLM token generation from the JSON wire contract.</h3>
+                  <h3 style="font-size: 20px; font-weight: 500; letter-spacing: -0.02em; margin: 0;">Decouple LLM token generation from the JSON wire contract.</h3>
                 </div>
                 <span style="font-size: 13px; color: var(--text-secondary);">Swap between JSON, A2UI Express, or custom formats in 1 line of SDK config.</span>
               </div>
@@ -1236,7 +1412,7 @@ no_btn = <span class="a2-tok-comp">Button</span>(no_btn_text, _, <span class="a2
                 <div class="a2-code-window">
                   <div class="a2-code-window__header">
                     <span class="a2-code-window__title">What the SDK sends on the wire · Standard A2UI v1.0 JSON</span>
-                    <span class="a2-code-window__badge" style="background: rgba(148,163,184,0.18); color: #cbd5e1;">104 lines · 1,780 chars</span>
+                    <span class="a2-code-window__badge" style="background: var(--surface); color: var(--text-subtle); border-color: var(--border);">104 lines · 1,780 chars</span>
                   </div>
                   <pre class="a2-code-pre"><code>&#123;
   <span class="a2-tok-path">"version"</span>: <span class="a2-tok-str">"1.0"</span>,
@@ -1259,19 +1435,19 @@ no_btn = <span class="a2-tok-comp">Button</span>(no_btn_text, _, <span class="a2
                 <div style="margin-bottom: 12px;">
                   <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 600;">
                     <span>A2UI Express Inference Format (LLM Output)</span>
-                    <span style="color: var(--accent); font-family: var(--font-mono);">397 chars · ~3x faster generation · 55–70% fewer tokens across spec</span>
+                    <span style="color: var(--success); font-family: var(--font-mono);">397 chars · ~3x faster generation · 55–70% fewer tokens across spec</span>
                   </div>
                   <div class="a2-bench-track">
-                    <div class="a2-bench-fill" style="width: 22.3%; min-width: 155px; background: var(--accent);">397 chars (−77%)</div>
+                    <div class="a2-bench-fill" style="width: 22.3%; min-width: 155px; background: var(--ink); color: var(--on-ink);">397 chars (−77%)</div>
                   </div>
                 </div>
                 <div>
                   <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 600;">
                     <span>Raw JSON Inference Baseline</span>
-                    <span style="color: var(--text-muted); font-family: var(--font-mono);">1,780 chars · 1.0x baseline</span>
+                    <span style="color: var(--text-subtle); font-family: var(--font-mono);">1,780 chars · 1.0x baseline</span>
                   </div>
                   <div class="a2-bench-track">
-                    <div class="a2-bench-fill" style="width: 100%; background: #475569;">1,780 chars (100% wire JSON)</div>
+                    <div class="a2-bench-fill" style="width: 100%; background: var(--blue-600); color: #ffffff;">1,780 chars (100% wire JSON)</div>
                   </div>
                 </div>
               </div>
@@ -1282,7 +1458,7 @@ no_btn = <span class="a2-tok-comp">Button</span>(no_btn_text, _, <span class="a2
               <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
                 <div>
                   <span class="a2-eyebrow" style="margin-bottom: 4px;">PILLAR 02 · SERVER-DEFINED @MACROS</span>
-                  <h3 style="font-size: 20px; font-weight: 800; margin: 0;">Write rich UI treatments on the server; give the LLM a single domain call.</h3>
+                  <h3 style="font-size: 20px; font-weight: 500; letter-spacing: -0.02em; margin: 0;">Write rich UI treatments on the server; give the LLM a single domain call.</h3>
                 </div>
                 <span style="font-size: 13px; color: var(--text-secondary);">Ship new domain cards instantaneously without client binary updates.</span>
               </div>
@@ -1291,7 +1467,7 @@ no_btn = <span class="a2-tok-comp">Button</span>(no_btn_text, _, <span class="a2
                 <div class="a2-macro-stage">
                   <div class="a2-macro-stage__head">
                     <span>1. MODEL WRITES MACRO</span>
-                    <span style="color: var(--text-muted);">Inference Catalog</span>
+                    <span style="color: var(--text-subtle);">Inference Catalog</span>
                   </div>
                   <div class="a2-macro-stage__body">
                     <div class="a2-code-window" style="margin-bottom: 12px;">
@@ -1315,7 +1491,7 @@ root = <span class="a2-tok-comp">FlightCard</span>(
                 <div class="a2-macro-stage">
                   <div class="a2-macro-stage__head">
                     <span>2. SERVER EXPANDS</span>
-                    <span style="color: var(--text-muted);">@macro Decorator</span>
+                    <span style="color: var(--text-subtle);">@macro Decorator</span>
                   </div>
                   <div class="a2-macro-stage__body">
                     <div class="a2-code-window" style="margin-bottom: 12px;">
@@ -1341,13 +1517,13 @@ root = <span class="a2-tok-comp">FlightCard</span>(
                 <div class="a2-macro-stage">
                   <div class="a2-macro-stage__head">
                     <span>3. EXPANDED PRIMITIVES</span>
-                    <span style="color: var(--text-muted);">Rendering Catalog</span>
+                    <span style="color: var(--text-subtle);">Rendering Catalog</span>
                   </div>
                   <div class="a2-macro-stage__body">
                     <div style="background: var(--surface-subtle); border: 1px solid var(--border-strong); border-radius: 8px; padding: 14px; margin-bottom: 12px;">
                       <div style="display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 700; margin-bottom: 8px;">
                         <span style="color: var(--accent);">✈️ OS 87</span>
-                        <span style="color: var(--text-muted);">Mon, Dec 15</span>
+                        <span style="color: var(--text-subtle);">Mon, Dec 15</span>
                       </div>
                       <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: 800; padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 8px;">
                         <span>Vienna</span>
@@ -1380,7 +1556,7 @@ root = <span class="a2-tok-comp">FlightCard</span>(
               <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
                 <div>
                   <span class="a2-eyebrow" style="margin-bottom: 4px;">PILLAR 03 · MULTI-PLATFORM NATIVE SDKS</span>
-                  <h3 style="font-size: 20px; font-weight: 800; margin: 0;">Render genuine host widgets on Mobile, Desktop, and Web.</h3>
+                  <h3 style="font-size: 20px; font-weight: 500; letter-spacing: -0.02em; margin: 0;">Render genuine host widgets on Mobile, Desktop, and Web.</h3>
                 </div>
                 <span style="font-size: 13px; color: var(--text-secondary);">Inherits system dark mode, Dynamic Type, and VoiceOver / TalkBack accessibility.</span>
               </div>
@@ -1414,21 +1590,21 @@ root = <span class="a2-tok-comp">FlightCard</span>(
                       </p>
                       <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 12px;">
                         <div style="padding: 8px; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 6px;">
-                          <span style="color: var(--text-muted); display: block;">Region</span>
+                          <span style="color: var(--text-subtle); display: block;">Region</span>
                           <strong>us-central1</strong>
                         </div>
                         <div style="padding: 8px; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 6px;">
-                          <span style="color: var(--text-muted); display: block;">Nodes</span>
+                          <span style="color: var(--text-subtle); display: block;">Nodes</span>
                           <strong>12 → 18 replicas</strong>
                         </div>
                         <div style="padding: 8px; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 6px;">
-                          <span style="color: var(--text-muted); display: block;">Est. Delta</span>
+                          <span style="color: var(--text-subtle); display: block;">Est. Delta</span>
                           <strong>+$140/mo</strong>
                         </div>
                       </div>
                     </div>
                   </div>
-                  <div style="margin-top: 14px; display: flex; justify-content: space-between; font-size: 12.5px; color: var(--text-muted);">
+                  <div style="margin-top: 14px; display: flex; justify-content: space-between; font-size: 12.5px; color: var(--text-subtle);">
                     <span>All renderers pass the shared A2UI Conformance Suite</span>
                     <a href={`${base}/quickstart/`} style="color: var(--accent-strong); font-weight: 600; text-decoration: none;">Explore Quickstart →</a>
                   </div>
@@ -1458,8 +1634,8 @@ struct AgentSurfaceScreen: View &#123;
           <div class="a2-docs-bridge">
             <div>
               <span class="a2-eyebrow" style="margin-bottom: 6px;">READY TO BUILD?</span>
-              <h3 style="font-size: 24px; font-weight: 800; margin: 0 0 6px 0; letter-spacing: -0.02em;">Explore the A2UI Documentation &amp; Protocol Specification.</h3>
-              <p style="font-size: 14.5px; color: var(--text-secondary); margin: 0;">
+              <h3 style="font-family: var(--font-display); font-size: clamp(24px, 3vw, 32px); font-weight: 500; line-height: 1.1; margin: 0 0 6px 0; letter-spacing: -0.03em;">Explore the A2UI Documentation &amp; Protocol Specification.</h3>
+              <p style="font-size: 15px; color: var(--text-secondary); margin: 0;">
                 Run a working Gemini + A2UI agent in 5 minutes or inspect the full v1.0 protocol schema.
               </p>
             </div>
@@ -1630,7 +1806,7 @@ root = Card(Column([
                 </div>
               </div>
             </div>
-            <div style="font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); text-align: center;">
+            <div style="font-family: var(--font-mono); font-size: 11.5px; color: var(--text-subtle); text-align: center;">
               Drop screenshot asset into <code>docs/site/public/assets/use-cases/${assetFile}</code>
             </div>
           </div>`;

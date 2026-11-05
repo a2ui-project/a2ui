@@ -174,11 +174,7 @@ flowchart TD
     container-type: inline-size;
     margin: 1.75rem 0 2.25rem;
     font-family: var(--sl-font);
-    color: #e2e8f0;
-  }
-
-  :root[data-theme='light'] .ca-root {
-    color: #0f172a;
+    color: var(--ink, #111827);
   }
 
   .ca-root code {
@@ -201,13 +197,8 @@ flowchart TD
     min-width: 0;
     padding: 0.7rem 0.85rem;
     border-radius: 10px;
-    background: #0f172a;
-    border: 1px solid #1e293b;
-  }
-
-  :root[data-theme='light'] .ca-endpoint {
-    background: #ffffff;
-    border-color: #cbd5e1;
+    background: var(--surface, #ffffff);
+    border: 1px solid var(--border, #e5e7eb);
   }
 
   .ca-endpoint__icon {
@@ -226,23 +217,14 @@ flowchart TD
   }
 
   .ca-endpoint--agent .ca-endpoint__icon {
-    background: rgba(20, 184, 166, 0.14);
-    color: #2dd4bf;
-  }
-
-  :root[data-theme='light'] .ca-endpoint--agent .ca-endpoint__icon {
-    background: #ccfbf1;
-    color: #0f766e;
+    background: var(--blue-50, #eaf2fb);
+    color: var(--sl-color-text-accent, #24599a);
   }
 
   .ca-endpoint--renderer .ca-endpoint__icon {
-    background: rgba(56, 189, 248, 0.14);
-    color: #38bdf8;
-  }
-
-  :root[data-theme='light'] .ca-endpoint--renderer .ca-endpoint__icon {
-    background: #e0f2fe;
-    color: #0369a1;
+    background: var(--surface-sunken, #f8f9fa);
+    border: 1px solid var(--border, #e5e7eb);
+    color: var(--ink, #111827);
   }
 
   .ca-endpoint__body {
@@ -259,11 +241,7 @@ flowchart TD
   .ca-endpoint__sub {
     font-size: 0.74rem;
     line-height: 1.3;
-    color: #94a3b8;
-  }
-
-  :root[data-theme='light'] .ca-endpoint__sub {
-    color: #475569;
+    color: var(--text-muted, #4b5563);
   }
 
   .ca-handshake__bridge {
@@ -287,37 +265,23 @@ flowchart TD
     font-size: 0.7rem;
     padding: 0.1rem 0.4rem;
     border-radius: 4px;
-    background: rgba(30, 41, 59, 0.7);
-    border: 1px solid #334155;
-    color: #cbd5e1;
-  }
-
-  :root[data-theme='light'] .ca-wire code {
-    background: #f1f5f9;
-    border-color: #cbd5e1;
-    color: #1e293b;
+    background: var(--surface, #ffffff);
+    border: 1px solid var(--border, #e5e7eb);
+    color: var(--code, #1e293b);
   }
 
   .ca-arrow {
     font-weight: 700;
-    color: #2dd4bf;
-  }
-
-  :root[data-theme='light'] .ca-arrow {
-    color: #0d9488;
+    color: var(--sl-color-text-accent, #24599a);
   }
 
   /* Catalog card */
   .ca-catalog {
     border-radius: 14px;
-    background: #0b1120;
-    border: 1px solid #1e293b;
+    background: var(--surface, #ffffff);
+    border: 1px solid var(--border, #e5e7eb);
+    box-shadow: var(--shadow-card, 0 1px 2px rgba(0, 0, 0, 0.03));
     overflow: hidden;
-  }
-
-  :root[data-theme='light'] .ca-catalog {
-    background: #ffffff;
-    border-color: #cbd5e1;
   }
 
   .ca-catalog__header {
@@ -326,13 +290,8 @@ flowchart TD
     align-items: center;
     gap: 0.6rem;
     padding: 0.8rem 1rem;
-    background: rgba(15, 23, 42, 0.75);
-    border-bottom: 1px solid #1e293b;
-  }
-
-  :root[data-theme='light'] .ca-catalog__header {
-    background: #f8fafc;
-    border-bottom-color: #e2e8f0;
+    background: var(--surface-sunken, #f8f9fa);
+    border-bottom: 1px solid var(--border, #e5e7eb);
   }
 
   .ca-badge {
@@ -341,16 +300,10 @@ flowchart TD
     letter-spacing: 0.07em;
     text-transform: uppercase;
     padding: 0.2rem 0.55rem;
-    border-radius: 5px;
-    background: rgba(20, 184, 166, 0.16);
-    color: #2dd4bf;
-    border: 1px solid rgba(20, 184, 166, 0.35);
-  }
-
-  :root[data-theme='light'] .ca-badge {
-    background: #ccfbf1;
-    color: #0f766e;
-    border-color: #5eead4;
+    border-radius: 999px;
+    background: var(--surface, #ffffff);
+    color: var(--ink, #111827);
+    border: 1px solid var(--border, #e5e7eb);
   }
 
   .ca-catalog__uri {
@@ -358,11 +311,7 @@ flowchart TD
     font-size: 0.78rem;
     font-weight: 600;
     overflow-wrap: anywhere;
-    color: #f8fafc;
-  }
-
-  :root[data-theme='light'] .ca-catalog__uri {
-    color: #0f172a;
+    color: var(--ink, #111827);
   }
 
   .ca-grid {
@@ -379,13 +328,8 @@ flowchart TD
     min-width: 0;
     padding: 0.85rem;
     border-radius: 10px;
-    background: rgba(15, 23, 42, 0.55);
-    border: 1px solid #1e293b;
-  }
-
-  :root[data-theme='light'] .ca-panel {
-    background: #f8fafc;
-    border-color: #e2e8f0;
+    background: var(--surface-sunken, #f8f9fa);
+    border: 1px solid var(--border, #e5e7eb);
   }
 
   .ca-panel__head {
@@ -404,13 +348,9 @@ flowchart TD
     font-size: 0.72rem;
     padding: 0.08rem 0.38rem;
     border-radius: 4px;
-    background: rgba(20, 184, 166, 0.1);
-    color: #2dd4bf;
-  }
-
-  :root[data-theme='light'] .ca-key {
-    background: #ccfbf1;
-    color: #0f766e;
+    background: var(--surface, #ffffff);
+    border: 1px solid var(--border, #e5e7eb);
+    color: var(--success, #047857);
   }
 
   /* Component and function cards */
@@ -422,52 +362,31 @@ flowchart TD
     min-width: 0;
     padding: 0.7rem 0.75rem;
     border-radius: 8px;
-    background: rgba(2, 6, 23, 0.45);
-    border: 1px solid #1e293b;
-  }
-
-  :root[data-theme='light'] .ca-card {
-    background: #ffffff;
-    border-color: #cbd5e1;
+    background: var(--surface, #ffffff);
+    border: 1px solid var(--border, #e5e7eb);
   }
 
   .ca-card--featured {
-    border-color: rgba(20, 184, 166, 0.4);
-  }
-
-  :root[data-theme='light'] .ca-card--featured {
-    border-color: #5eead4;
+    border-color: var(--blue-300, #96bee8);
   }
 
   .ca-card__name {
     font-size: 0.84rem;
     font-weight: 700;
-    color: #f8fafc;
-  }
-
-  :root[data-theme='light'] .ca-card__name {
-    color: #0f172a;
+    color: var(--ink, #111827);
   }
 
   .ca-card__desc {
     margin: 0;
     font-size: 0.76rem;
     line-height: 1.4;
-    color: #94a3b8;
+    color: var(--text-muted, #4b5563);
   }
 
   .ca-card__desc code {
     font-size: 0.7rem;
     overflow-wrap: anywhere;
-    color: #cbd5e1;
-  }
-
-  :root[data-theme='light'] .ca-card__desc {
-    color: #475569;
-  }
-
-  :root[data-theme='light'] .ca-card__desc code {
-    color: #0f172a;
+    color: var(--ink, #111827);
   }
 
   .ca-props {
@@ -479,13 +398,8 @@ flowchart TD
     padding: 0.5rem 0.6rem;
     list-style: none;
     border-radius: 6px;
-    background: rgba(15, 23, 42, 0.7);
-    border: 1px solid #1e293b;
-  }
-
-  :root[data-theme='light'] .ca-props {
-    background: #f8fafc;
-    border-color: #e2e8f0;
+    background: var(--surface-sunken, #f8f9fa);
+    border: 1px solid var(--border, #e5e7eb);
   }
 
   .ca-prop {
@@ -499,11 +413,7 @@ flowchart TD
 
   .ca-prop__name {
     font-weight: 600;
-    color: #e2e8f0;
-  }
-
-  :root[data-theme='light'] .ca-prop__name {
-    color: #0f172a;
+    color: var(--ink, #111827);
   }
 
   .ca-type {
@@ -511,46 +421,27 @@ flowchart TD
     font-size: 0.67rem;
     padding: 0.06rem 0.35rem;
     border-radius: 4px;
-    background: rgba(56, 189, 248, 0.1);
-    color: #38bdf8;
-  }
-
-  :root[data-theme='light'] .ca-type {
-    background: #e0f2fe;
-    color: #0369a1;
+    background: var(--blue-50, #eaf2fb);
+    color: var(--sl-color-text-accent, #24599a);
   }
 
   .ca-req {
     font-family: var(--sl-font-mono);
     font-size: 0.66rem;
-    color: #fb7185;
-  }
-
-  :root[data-theme='light'] .ca-req {
-    color: #be123c;
+    color: var(--warning-text, #92400e);
   }
 
   .ca-rule {
     font-size: 0.7rem;
     padding: 0.15rem 0.45rem;
     border-radius: 4px;
-    background: rgba(30, 41, 59, 0.6);
-    border: 1px solid #334155;
-    color: #94a3b8;
+    background: var(--surface-sunken, #f8f9fa);
+    border: 1px solid var(--border, #e5e7eb);
+    color: var(--text-muted, #4b5563);
   }
 
   .ca-rule code {
-    color: #2dd4bf;
-  }
-
-  :root[data-theme='light'] .ca-rule {
-    background: #f1f5f9;
-    border-color: #cbd5e1;
-    color: #475569;
-  }
-
-  :root[data-theme='light'] .ca-rule code {
-    color: #0f766e;
+    color: var(--success, #047857);
   }
 
   .ca-others {
@@ -564,11 +455,7 @@ flowchart TD
     font-weight: 600;
     letter-spacing: 0.05em;
     text-transform: uppercase;
-    color: #94a3b8;
-  }
-
-  :root[data-theme='light'] .ca-others__label {
-    color: #64748b;
+    color: var(--text-subtle, #6b7280);
   }
 
   .ca-chips,
@@ -583,46 +470,28 @@ flowchart TD
     font-weight: 600;
     padding: 0.15rem 0.5rem;
     border-radius: 5px;
-    background: rgba(2, 6, 23, 0.4);
-    border: 1px solid #1e293b;
-    color: #e2e8f0;
-  }
-
-  :root[data-theme='light'] .ca-chip {
-    background: #ffffff;
-    border-color: #cbd5e1;
-    color: #0f172a;
+    background: var(--surface, #ffffff);
+    border: 1px solid var(--border, #e5e7eb);
+    color: var(--ink, #111827);
   }
 
   .ca-caller {
     font-family: var(--sl-font-mono);
     font-size: 0.67rem;
     padding: 0.06rem 0.4rem;
-    border-radius: 4px;
+    border-radius: 999px;
   }
 
   .ca-caller--teal {
-    background: rgba(20, 184, 166, 0.1);
-    color: #5eead4;
-    border: 1px solid rgba(20, 184, 166, 0.25);
-  }
-
-  :root[data-theme='light'] .ca-caller--teal {
-    background: #f0fdfa;
-    color: #0f766e;
-    border-color: #99f6e4;
+    background: var(--surface, #ffffff);
+    color: var(--success, #047857);
+    border: 1px solid var(--success-border, #10b981);
   }
 
   .ca-caller--blue {
-    background: rgba(56, 189, 248, 0.1);
-    color: #7dd3fc;
-    border: 1px solid rgba(56, 189, 248, 0.25);
-  }
-
-  :root[data-theme='light'] .ca-caller--blue {
-    background: #f0f9ff;
-    color: #0369a1;
-    border-color: #bae6fd;
+    background: var(--blue-50, #eaf2fb);
+    color: var(--sl-color-text-accent, #24599a);
+    border: 1px solid var(--blue-200, #c3d8ee);
   }
 
   /* Instructions */
@@ -631,24 +500,15 @@ flowchart TD
     flex-direction: column;
     gap: 0.45rem;
     padding: 0.85rem 1rem 1rem;
-    background: rgba(15, 23, 42, 0.8);
-    border-top: 1px solid #1e293b;
-  }
-
-  :root[data-theme='light'] .ca-instructions {
-    background: #f8fafc;
-    border-top-color: #e2e8f0;
+    background: var(--surface-sunken, #f8f9fa);
+    border-top: 1px solid var(--border, #e5e7eb);
   }
 
   .ca-instructions__sub {
     margin: 0;
     font-size: 0.76rem;
     line-height: 1.4;
-    color: #94a3b8;
-  }
-
-  :root[data-theme='light'] .ca-instructions__sub {
-    color: #475569;
+    color: var(--text-muted, #4b5563);
   }
 
   .ca-instructions__quote {
@@ -657,15 +517,9 @@ flowchart TD
     font-size: 0.71rem;
     line-height: 1.45;
     border-radius: 6px;
-    background: rgba(2, 6, 23, 0.6);
-    border: 1px solid #1e293b;
-    color: #5eead4;
-  }
-
-  :root[data-theme='light'] .ca-instructions__quote {
-    background: #ffffff;
-    border-color: #cbd5e1;
-    color: #0f766e;
+    background: var(--surface, #ffffff);
+    border: 1px solid var(--border, #e5e7eb);
+    color: var(--success, #047857);
   }
 
   /* Give the components panel more room when both panels sit side by side. */
