@@ -44,23 +44,53 @@ void main() {
   });
 }
 
+/// The keys an `expect_error` may hold on a whole case, which expects
+/// building the helper to fail.
+const Set<String> _caseErrorKeys = {'category', 'code', 'message'};
+
+/// The keys an `expect_error` may hold on a step, which expects a `call` to
+/// be refused.
+const Set<String> _stepErrorKeys = {'code', 'message'};
+
+/// Checks that [expected], an `expect_error`, is a non-empty map of [allowed]
+/// keys, and returns it.
+Map<String, Object?> _expectedError(
+  Object? expected,
+  Set<String> allowed,
+  String where,
+) {
+  if (expected is! Map<String, Object?> || expected.isEmpty) {
+    fail('$where: expect_error must be a non-empty map, got $expected');
+  }
+  final Set<String> unknown = expected.keys.toSet().difference(allowed);
+  if (unknown.isNotEmpty) {
+    fail(
+      '$where: expect_error has unknown keys $unknown; allowed are $allowed',
+    );
+  }
+  return expected;
+}
+
 void _assertErrorMatches(Object error, Map<String, Object?> expected) {
-  if (expected['category'] case final String category) {
-    switch (category) {
+  if (expected.containsKey('category')) {
+    switch (expected['category']) {
       case 'CatalogError':
         expect(error, isA<A2uiCatalogError>());
       case 'ValidationError':
         expect(error, isA<A2uiValidationError>());
-      default:
+      case final Object? category:
         fail('Unknown error category: $category');
     }
   }
-  if (expected['code'] case final String code) {
+  if (expected.containsKey('code')) {
     expect(error, isA<A2uiError>());
-    expect((error as A2uiError).code, code);
+    expect((error as A2uiError).code, expected['code']);
   }
-  if (expected['message'] case final String msg) {
-    expect(error.toString(), contains(msg));
+  if (expected.containsKey('message')) {
+    final Object? msg = expected['message'];
+    if (msg is! String) fail('expect_error.message must be a string: $msg');
+    // A literal substring, not a pattern.
+    expect(error.toString().contains(msg), isTrue, reason: '$error');
   }
 }
 
@@ -143,7 +173,12 @@ void _runCalls(Map<String, Object?> testCase) {
       catalogs: catalogs,
     );
 
-    if (testCase['expect_error'] case final Map<String, Object?> expected) {
+    if (testCase.containsKey('expect_error')) {
+      final Map<String, Object?> expected = _expectedError(
+        testCase['expect_error'],
+        _caseErrorKeys,
+        'case',
+      );
       expect(testCase, isNot(contains('steps')));
       Object? caught;
       try {
@@ -187,6 +222,7 @@ void _runCalls(Map<String, Object?> testCase) {
           // TypeError) rather than by the INVALID_FUNCTION_CALL code that
           // dynamically typed SDKs return; nothing is sent or registered.
           expect(step, contains('expect_error'), reason: where);
+          _expectedError(step['expect_error'], _stepErrorKeys, where);
           final int pendingBefore = calls.pendingCount;
           expect(
             () => calls.call(
@@ -201,8 +237,12 @@ void _runCalls(Map<String, Object?> testCase) {
             reason: where,
           );
           expect(calls.pendingCount, pendingBefore, reason: where);
-        } else if (step['expect_error']
-            case final Map<String, Object?> expectedErr) {
+        } else if (step.containsKey('expect_error')) {
+          final Map<String, Object?> expectedErr = _expectedError(
+            step['expect_error'],
+            _stepErrorKeys,
+            where,
+          );
           Object? caught;
           try {
             calls.call(
