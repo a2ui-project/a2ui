@@ -356,6 +356,11 @@
               "description": "Defines the alignment of children along the cross axis.",
               "enum": ["start", "center", "end", "stretch"],
               "default": "stretch"
+            },
+            "listStyle": {
+              "type": "string",
+              "description": "The style of the list (ordered, unordered, or none).",
+              "enum": ["ordered", "unordered", "none"]
             }
           },
           "required": ["component", "children"]
