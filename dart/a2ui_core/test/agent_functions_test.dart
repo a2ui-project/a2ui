@@ -1057,6 +1057,99 @@ void main() {
     });
 
     test(
+        'follows multi-segment \$defs pointers and function-level \$defs '
+        'for parameter names and required arguments', () {
+      Matcher rejects(String name) => throwsA(
+            isA<A2uiCatalogError>().having(
+              (e) => e.message,
+              'message',
+              contains(name),
+            ),
+          );
+      CatalogApi build(Map<String, Object?> schema) => Catalog(
+            id: 'cat',
+            protocolVersion: A2uiProtocolVersion.v1_0,
+            components: const <ComponentApi>[],
+            definitions: {
+              'Bundle': {
+                'type': 'object',
+                'properties': {
+                  'inner': {
+                    'type': 'object',
+                    'properties': {
+                      'bad-deep': {'type': 'string'},
+                    },
+                  },
+                },
+              },
+            },
+            functions: [
+              AgentFunction(
+                name: 'fn',
+                argumentSchema: Schema.fromMap(schema),
+                handler: _noopHandler,
+              ),
+            ],
+          );
+
+      // A pointer into a definition is followed to the node it names.
+      expect(
+        () => build({r'$ref': r'#/$defs/Bundle/properties/inner'}),
+        rejects('bad-deep'),
+      );
+      // A whole function definition's own $defs resolve its args' refs.
+      expect(
+        () => build({
+          r'$defs': {
+            'Outer': {
+              'type': 'object',
+              'properties': {
+                'bad-outer': {'type': 'string'},
+              },
+            },
+          },
+          'properties': {
+            '@call': {'const': 'fn'},
+            'args': {r'$ref': r'#/$defs/Outer'},
+          },
+        }),
+        rejects('bad-outer'),
+      );
+
+      // A required argument behind a deep pointer makes `args` required.
+      final CatalogApi catalog = Catalog(
+        id: 'cat',
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        components: const <ComponentApi>[],
+        definitions: {
+          'Bundle': {
+            'type': 'object',
+            'properties': {
+              'inner': {
+                'type': 'object',
+                'properties': {
+                  'amount': {'type': 'number'},
+                },
+                'required': ['amount'],
+              },
+            },
+          },
+        },
+        functions: [
+          AgentFunction(
+            name: 'fn',
+            argumentSchema:
+                Schema.fromMap({r'$ref': r'#/$defs/Bundle/properties/inner'}),
+            handler: _noopHandler,
+          ),
+        ],
+      );
+      final fnOut = (catalog.toJson()['functions']! as Map)['fn']!
+          as Map<String, Object?>;
+      expect(fnOut['required'], ['@call', 'args']);
+    });
+
+    test(
         'rejects duplicate names, @-prefixed names, non-UAX31 names, and '
         'pre-v1.0 catalogs', () {
       final fn1 = AgentFunction(

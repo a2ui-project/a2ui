@@ -751,9 +751,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// [schema] is the schema of the function's `args`, or a whole function
   /// definition, whose `args` (or shorthand `parameters`) is read instead.
   /// Names come from `properties`, from the members of `allOf`, `anyOf` and
-  /// `oneOf`, from local `#/$defs/<name>` references into the schema's own
-  /// `$defs` or the catalog's [definitions], and from a shorthand map of
-  /// parameter names to schemas.
+  /// `oneOf`, from local `#/$defs/...` references (followed as JSON Pointers)
+  /// into the `$defs` of the function definition and its `args`, or the
+  /// catalog's [definitions], and from a shorthand map of parameter names to
+  /// schemas.
   static Iterable<String> _agentFunctionParameterNames(
     Object? schema,
     Map<String, Object?> definitions,
@@ -767,7 +768,15 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     } else if (schema case {'parameters': final Map<Object?, Object?> params}) {
       args = params;
     }
-    final Object? localDefs = args is Map ? args[r'$defs'] : null;
+    // A local reference resolves against the function's own `$defs`, then
+    // those of its `args`, over the catalog's.
+    final defs = <String, Object?>{
+      ...definitions,
+      if (schema case {r'$defs': final Map<Object?, Object?> outer})
+        ...outer.cast<String, Object?>(),
+      if (args case {r'$defs': final Map<Object?, Object?> inner})
+        ...inner.cast<String, Object?>(),
+    };
     final names = <String>{};
     final visited = <String>{};
 
@@ -787,18 +796,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       if (node[r'$ref'] case final String ref) {
         structured = true;
         const prefix = r'#/$defs/';
-        if (ref.startsWith(prefix)) {
-          final String name = ref
-              .substring(prefix.length)
-              .split('/')
-              .first
-              .replaceAll('~1', '/')
-              .replaceAll('~0', '~');
-          if (visited.add(name)) {
-            collect(
-              (localDefs is Map ? localDefs[name] : null) ?? definitions[name],
-            );
-          }
+        if (ref.startsWith(prefix) && visited.add(ref)) {
+          collect(followJsonPointer(defs, '/${ref.substring(prefix.length)}'));
         }
       }
       if (structured) return;
@@ -3310,7 +3309,11 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     Map<String, Object?> definitions,
   ) {
     final Map<String, Object?> raw = schema.value;
-    final Object? localDefs = raw[r'$defs'];
+    final defs = <String, Object?>{
+      ...definitions,
+      if (raw case {r'$defs': final Map<Object?, Object?> local})
+        ...local.cast<String, Object?>(),
+    };
     final visited = <String>{};
     bool check(Object? node) {
       if (node is! Map) return false;
@@ -3320,17 +3323,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         if (members.any(check)) return true;
       }
       if (node[r'$ref'] case final String ref
-          when ref.startsWith(r'#/$defs/')) {
-        final String name = ref
-            .substring(8)
-            .split('/')
-            .first
-            .replaceAll('~1', '/')
-            .replaceAll('~0', '~');
-        if (visited.add(name)) {
-          final Object? target =
-              (localDefs is Map ? localDefs[name] : null) ?? definitions[name];
-          if (check(target)) return true;
+          when ref.startsWith(r'#/$defs/') && visited.add(ref)) {
+        if (check(followJsonPointer(defs, '/${ref.substring(8)}'))) {
+          return true;
         }
       }
       return false;
