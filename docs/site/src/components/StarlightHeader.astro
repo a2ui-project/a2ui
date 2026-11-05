@@ -368,6 +368,84 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
   }
 </script>
 
+<script>
+  let renderGeneration = 0;
+
+  const renderMermaid = async () => {
+    const generation = ++renderGeneration;
+    for (const pre of document.querySelectorAll<HTMLPreElement>('pre[data-language="mermaid"]')) {
+      const lines = pre.querySelectorAll('.ec-line');
+      const code = (
+        lines.length
+          ? Array.from(lines, l => l.textContent ?? '').join('\n')
+          : (pre.querySelector('code')?.textContent || pre.textContent || '')
+      ).trim();
+      const div = document.createElement('div');
+      div.className = 'mermaid-rendered not-content';
+      div.dataset.mermaidSource = code;
+      (pre.closest('.expressive-code') || pre).replaceWith(div);
+    }
+
+    const blocks = document.querySelectorAll<HTMLElement>(
+      '.mermaid-rendered[data-mermaid-source]',
+    );
+    if (!blocks.length) return;
+
+    const {default: mermaid} = await import('mermaid');
+    await document.fonts?.ready;
+    if (generation !== renderGeneration) return;
+
+    const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'strict',
+      theme: isDark ? 'dark' : 'default',
+      fontFamily: 'inherit',
+    });
+
+    for (let i = 0; i < blocks.length; i++) {
+      if (generation !== renderGeneration) return;
+      const div = blocks[i];
+      const code = div.dataset.mermaidSource;
+      if (!code) continue;
+      try {
+        const id = `mermaid-svg-${generation}-${i}-${Date.now().toString(36)}`;
+        const {svg} = await mermaid.render(id, code);
+        if (generation === renderGeneration) {
+          div.innerHTML = svg;
+        }
+      } catch (err) {
+        if (!div.innerHTML) {
+          const pre = document.createElement('pre');
+          pre.textContent = code;
+          div.replaceChildren(pre);
+        }
+        console.error('Mermaid render error:', err);
+      }
+    }
+  };
+
+  let lastTheme = document.documentElement.getAttribute('data-theme');
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      lastTheme = document.documentElement.getAttribute('data-theme');
+      void renderMermaid();
+    });
+  } else {
+    void renderMermaid();
+  }
+  new MutationObserver(() => {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    if (currentTheme !== lastTheme) {
+      lastTheme = currentTheme;
+      void renderMermaid();
+    }
+  }).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme'],
+  });
+</script>
+
 <style>
   .a2-sl-header {
     --a2-hdr-text: var(--sl-color-white, #f8fafc);

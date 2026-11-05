@@ -25,6 +25,9 @@ import {
   SurfaceModel,
   Subscription,
 } from '../../../v0_9/index.js';
+import {NodeResolver} from '../../../resolution/node-resolver.js';
+import type {ComponentNode} from '../../../resolution/component-node.js';
+import {getValue} from '../../../reactivity/signals.js';
 import {
   type A2uiWebComponentElement,
   registerUniversalElement,
@@ -46,6 +49,7 @@ describe('List Component', () => {
   let surface: SurfaceModel;
   let element: A2uiWebComponentElement | null = null;
   let subscription: Subscription | null = null;
+  let resolver: NodeResolver | null = null;
 
   beforeEach(() => {
     processor = new MessageProcessor([basicCatalog]);
@@ -87,6 +91,9 @@ describe('List Component', () => {
   afterEach(() => {
     subscription?.unsubscribe();
     subscription = null;
+    // Disposed here so that a failed assertion doesn't leave it subscribed to the surface.
+    resolver?.dispose();
+    resolver = null;
     if (element) {
       element.remove();
       element = null;
@@ -111,6 +118,125 @@ describe('List Component', () => {
     assert.strictEqual(textElements.length, 2);
     assert.strictEqual(el.textContent?.includes('List Item 1'), true);
     assert.strictEqual(el.textContent?.includes('List Item 2'), true);
+  });
+
+  /**
+   * Mounts a List over `root`, whose `late` child has not arrived, and checks it gets no item;
+   * then runs `sendLate` and checks the item appears in order.
+   */
+  async function expectNoItemUntilArrival(root: ComponentNode, sendLate: () => void) {
+    const el = document.createElement('a2ui-list') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+    await asyncUpdate(el, e => {
+      e.node = root;
+    });
+
+    const items = () => el.querySelectorAll('.a2ui-list-item-none');
+    // `late` has not arrived: no empty item (box, gap) stands in for it.
+    assert.strictEqual(items().length, 2);
+    assert.strictEqual(el.querySelectorAll('a2ui-basic-text').length, 2);
+
+    sendLate();
+    await (el as unknown as {updateComplete: Promise<unknown>}).updateComplete;
+
+    assert.strictEqual(items().length, 3);
+    assert.deepStrictEqual(
+      [...el.querySelectorAll<A2uiWebComponentElement>('a2ui-basic-text')].map(
+        t => t.node?.componentId,
+      ),
+      ['a', 'late', 'b'],
+    );
+  }
+
+  it('emits no item for a child that has not resolved, then adds it on arrival (v0.9)', async () => {
+    const nodeProcessor = new MessageProcessor([basicCatalog]);
+    nodeProcessor.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {surfaceId: 'node-surface', catalogId: basicCatalog.id},
+      },
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'node-surface',
+          components: [
+            {id: 'root', component: 'List', children: ['a', 'late', 'b']},
+            {id: 'a', component: 'Text', text: 'A'},
+            {id: 'b', component: 'Text', text: 'B'},
+          ],
+        },
+      },
+    ]);
+    resolver = new NodeResolver(nodeProcessor.model.getSurface('node-surface')!, basicCatalog);
+
+    await expectNoItemUntilArrival(getValue(resolver.rootNode)!, () =>
+      nodeProcessor.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'node-surface',
+            components: [{id: 'late', component: 'Text', text: 'Late'}],
+          },
+        },
+      ]),
+    );
+  });
+
+  it('emits no item for a child that has not resolved, then adds it on arrival (v1.0)', async () => {
+    // v1.0 uses the same universal List as v0.9.
+    const v1Catalog = (await import('../../../catalogs/basic/v1/index.js')).basicCatalog;
+    const nodeProcessor = new MessageProcessor([v1Catalog]);
+    nodeProcessor.processMessages([
+      {
+        version: '1.0',
+        createSurface: {surfaceId: 'node-surface', catalogId: v1Catalog.id},
+      },
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'node-surface',
+          components: [
+            {id: 'root', component: 'List', children: ['a', 'late', 'b']},
+            {id: 'a', component: 'Text', text: 'A'},
+            {id: 'b', component: 'Text', text: 'B'},
+          ],
+        },
+      },
+    ]);
+    resolver = new NodeResolver(nodeProcessor.model.getSurface('node-surface')!, v1Catalog);
+
+    await expectNoItemUntilArrival(getValue(resolver.rootNode)!, () =>
+      nodeProcessor.processMessages([
+        {
+          version: '1.0',
+          updateComponents: {
+            surfaceId: 'node-surface',
+            components: [{id: 'late', component: 'Text', text: 'Late'}],
+          },
+        },
+      ]),
+    );
+  });
+
+  it('emits no item for an unknown-type child when rendered from a context alone', async () => {
+    // Without a node tree, renderNode builds a ComponentContext and renders nothing for a type
+    // the catalog doesn't implement. The List must agree and leave that child out.
+    surface.componentsModel.addComponent(
+      new ComponentModel('weird', 'StarRating', {}, basicCatalog),
+    );
+    surface.componentsModel.addComponent(
+      new ComponentModel('list2', 'List', {children: ['txt1', 'weird', 'txt2']}, basicCatalog),
+    );
+    const el = document.createElement('a2ui-list') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'list2');
+    });
+
+    assert.strictEqual(el.querySelectorAll('.a2ui-list-item-none').length, 2);
+    assert.strictEqual(el.querySelectorAll('a2ui-basic-text').length, 2);
   });
 
   it('should track and reuse child elements during a reordering operation', async () => {
