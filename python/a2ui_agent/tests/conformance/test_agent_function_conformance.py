@@ -23,8 +23,8 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable, Mapping
+from datetime import datetime, timezone
 import os
-import re
 from typing import Any
 
 import pytest
@@ -156,12 +156,17 @@ def _catalog(entry: Mapping[str, Any]) -> CatalogApi:
 
 
 def _assert_error_matches(error: BaseException, expected: Mapping[str, Any]) -> None:
-    if "category" in expected:
-        assert isinstance(error, CATEGORY_TO_EXCEPTION[expected["category"]]), error
-    if "code" in expected:
-        assert getattr(error, "code", None) == expected["code"], error
+    """Checks an error against an `AgentFunctionExpectError`.
+
+    `category` is required, so a case can't pass on an unrelated exception,
+    and `message` is a literal substring of the error's text.
+    """
+    assert isinstance(expected, Mapping), expected
+    unknown = set(expected) - {"category", "message"}
+    assert not unknown, f"Unhandled expect_error keys: {sorted(unknown)}"
+    assert isinstance(error, CATEGORY_TO_EXCEPTION[expected["category"]]), error
     if "message" in expected:
-        assert re.search(re.escape(expected["message"]), str(error)), error
+        assert expected["message"] in str(error), error
 
 
 def _run_declare(case: Mapping[str, Any]) -> None:
@@ -252,6 +257,32 @@ def _assert_reply_matches(
         assert actual == expected, (actual, expected)
 
 
+def _normalize_timestamps(value: Any) -> Any:
+    """Writes every `timestamp` that is an ISO 8601 instant in one spelling.
+
+    `2026-01-01T00:00:00Z` and `2026-01-01T00:00:00.000Z` then compare equal,
+    as the suite compares `action.timestamp` values as instants.
+    """
+    if isinstance(value, Mapping):
+        normalized: dict[str, Any] = {}
+        for key, item in value.items():
+            if key == "timestamp" and isinstance(item, str):
+                try:
+                    instant = datetime.fromisoformat(item.replace("Z", "+00:00"))
+                except ValueError:
+                    normalized[key] = item
+                else:
+                    if instant.tzinfo is not None:
+                        instant = instant.astimezone(timezone.utc)
+                    normalized[key] = instant.isoformat()
+            else:
+                normalized[key] = _normalize_timestamps(item)
+        return normalized
+    if isinstance(value, list):
+        return [_normalize_timestamps(item) for item in value]
+    return value
+
+
 def _run_process(case: Mapping[str, Any]) -> None:
     args = case["args"]
     received: list[tuple[str, Any]] = []
@@ -297,10 +328,9 @@ def _run_process(case: Mapping[str, Any]) -> None:
         assert len(received) == 1, received
         kind, message = received[0]
         assert kind == expected["callback"]["kind"]
-        assert (
-            message.model_dump(by_alias=True, exclude_unset=True)
-            == expected["callback"]["message"]
-        )
+        assert _normalize_timestamps(
+            message.model_dump(by_alias=True, exclude_unset=True, mode="json")
+        ) == _normalize_timestamps(expected["callback"]["message"])
     else:
         assert received == []
 
