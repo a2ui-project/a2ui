@@ -48,13 +48,7 @@ class SkillGenerator:
         If catalogs is not specified, defaults to the catalogs configured on the inference format.
         """
         # Without explicit catalogs, the body is the format's prompt snippet.
-        content_str = (
-            assemble_instructions(
-                self.fmt.prompt_generator,
-                None if catalogs is None else list(catalogs),
-            )
-            + "\n"
-        )
+        content_str = assemble_instructions(self.fmt.prompt_generator, catalogs) + "\n"
         desc = (
             description
             or "Generates interactive user interface components for user requests."

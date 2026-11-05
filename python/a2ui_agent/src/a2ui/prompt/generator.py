@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from typing import Any, final
+from typing import final
 import weakref
 
 from a2ui.constants import EXAMPLES_HEADING
@@ -40,8 +40,8 @@ class PromptGenerator(ABC):
     for the same catalogs have the same body. Formats override the hooks, never
     `generate()`.
 
-    A generator is treated as immutable once built: the assembled text is
-    cached per generator and set of catalogs.
+    A generator is treated as immutable once built: the assembled text for its
+    own catalogs is cached per generator.
     """
 
     @property
@@ -56,19 +56,18 @@ class PromptGenerator(ABC):
     def generate_catalog_instructions(
         self,
         include_schema: bool = True,
-        catalog: Any | None = None,
+        catalog: CatalogApi | None = None,
     ) -> str:
         """Returns component and function signatures or JSON schemas for a catalog.
 
         With no catalog, returns the instructions for every catalog in
-        `catalogs`, which must be the catalogs' own instructions joined by a
-        blank line.
+        `catalogs`, including any shared multi-catalog headings or definitions.
         """
         return ""
 
     def generate_examples(
         self,
-        catalog: Any | None = None,
+        catalog: CatalogApi | None = None,
         validate: bool = False,
     ) -> str:
         """Returns formatted few-shot examples for a catalog."""
