@@ -9,9 +9,9 @@ Define a custom A2UI catalog by writing a `catalog.json` schema file, loading it
 
 ## When you need a catalog.json file
 
-If your agent and client share the same language and repository, you can define component schemas directly in code, as shown in [Catalogs](../../concepts/catalogs/#defining-components-in-code). Write a standalone `catalog.json` file when your backend agent and client app use different languages (for example, a Python agent serving a Flutter, React, or SwiftUI app) or when you publish a reusable catalog for other teams.
+If your agent and client share the same language and repository, you can define component schemas directly in code, as shown in [Catalogs](../../concepts/catalogs/#registering-a-catalog-in-a-renderer). Write a standalone `catalog.json` file when your backend agent and client app use different languages (for example, a Python agent serving a Flutter, React, or SwiftUI app) or when you publish a reusable catalog for other teams.
 
-In A2UI v1.0, your catalog works alongside the built-in [basic catalog](../../specification/v1.0/schemas/#basic_catalog.json), so you keep standard layout widgets (`Column`, `Row`, `Text`, `Button`) and define only the custom widgets unique to your app. See [Catalogs](../../concepts/catalogs/) for how catalog negotiation works at runtime.
+In A2UI v1.0, your catalog works alongside the built-in [basic catalog](../../specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json), so you keep standard layout widgets (`Column`, `Row`, `Text`, `Button`) and define only the custom widgets unique to your app. See [Catalogs](../../concepts/catalogs/) for how catalog negotiation works at runtime.
 
 ## Step 1: Create a minimal catalog.json
 
