@@ -1,0 +1,70 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# A2UI XML decompilation conformance test suite.
+#
+# Verifies writing A2UI messages back into idiomatic A2UI XML markup and round-tripping.
+
+- name: test_decompile_xml_components
+  description: A createSurface writes back out as nested A2UI XML component tags.
+  action: decompile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "body"
+          - id: "body"
+            component: "Text"
+            text: "Hello"
+  expect_contains:
+    - "<Card"
+    - "<Text"
+    - 'text="Hello"'
+  expect_round_trip: true
+
+- name: test_decompile_xml_column_with_children
+  description: Multi-child container decompiles to nested children elements and round-trips.
+  action: decompile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              - "c1"
+              - "c2"
+          - id: "c1"
+            component: "Text"
+            text: "First"
+          - id: "c2"
+            component: "Text"
+            text: "Second"
+  expect_contains:
+    - "<Column"
+    - 'text="First"'
+    - 'text="Second"'
+  expect_round_trip: true

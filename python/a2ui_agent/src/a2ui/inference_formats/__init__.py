@@ -14,10 +14,20 @@
 
 from __future__ import annotations
 
+from . import a2ui_xml as a2ui_xml
 from . import direct_json as direct_json
 from . import express as express
 from ._shared import to_message_dicts
 from ._shared import to_message_models
+from .a2ui_xml import A2uiXmlCompileDiagnostics
+from .a2ui_xml import A2uiXmlCompiler
+from .a2ui_xml import A2uiXmlDecompiler
+from .a2ui_xml import A2uiXmlFormat
+from .a2ui_xml import A2uiXmlFormatFactory
+from .a2ui_xml import A2uiXmlParser
+from .a2ui_xml import A2uiXmlPromptGenerator
+from .a2ui_xml import A2uiXmlResponseStream
+from .a2ui_xml import A2uiXmlStrictViolation
 from .direct_json import DirectJsonDecompiler
 from .direct_json import DirectJsonFormat
 from .direct_json import DirectJsonFormatFactory
@@ -38,6 +48,15 @@ from .express import ExpressPromptGenerator
 from .express import ExpressResponseStream
 
 __all__ = [
+    "A2uiXmlCompileDiagnostics",
+    "A2uiXmlCompiler",
+    "A2uiXmlDecompiler",
+    "A2uiXmlFormat",
+    "A2uiXmlFormatFactory",
+    "A2uiXmlParser",
+    "A2uiXmlPromptGenerator",
+    "A2uiXmlResponseStream",
+    "A2uiXmlStrictViolation",
     "AtomFormat",
     "AtomFormatFactory",
     "AtomParser",
@@ -56,6 +75,7 @@ __all__ = [
     "ExpressParser",
     "ExpressPromptGenerator",
     "ExpressResponseStream",
+    "a2ui_xml",
     "direct_json",
     "express",
     "to_message_dicts",

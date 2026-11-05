@@ -1,0 +1,150 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# A2UI XML response parsing conformance test suite.
+#
+# Covers unwrap, wrap, and parse_response for A2UI XML payloads.
+
+# --- Unwrapping a response ---
+
+- name: test_unwrap_xml_text_between_blocks
+  description: A2UI XML blocks sit between <a2ui> tags and are ordered against conversational text.
+  action: unwrap
+  args:
+    format: a2ui-xml
+  input: |-
+    Here is a greeting.
+    <a2ui>
+    <Text id="root" text="Hello" />
+    </a2ui>
+    And here is a second one.
+    <a2ui>
+    <Text id="root" text="Hello again" />
+    </a2ui>
+  expect:
+    - text: "Here is a greeting."
+    - a2ui_raw: '<Text id="root" text="Hello" />'
+    - text: "And here is a second one."
+    - a2ui_raw: '<Text id="root" text="Hello again" />'
+
+- name: test_unwrap_xml_block_with_no_surrounding_text
+  description: A response that is only an A2UI XML block yields only a payload part.
+  action: unwrap
+  args:
+    format: a2ui-xml
+  input: |-
+    <a2ui>
+    <Text id="root" text="Hello" />
+    </a2ui>
+  expect:
+    - a2ui_raw: '<Text id="root" text="Hello" />'
+
+- name: test_unwrap_xml_no_sentinel_tags_is_single_text_part
+  description: A response mentioning no <a2ui> tags unwraps to a single text part.
+  action: unwrap
+  args:
+    format: a2ui-xml
+  input: "I cannot find that flight, would you like to search other dates?"
+  expect:
+    - text: "I cannot find that flight, would you like to search other dates?"
+
+- name: test_unwrap_xml_empty_response_is_no_parts
+  description: An empty response unwraps to no parts at all.
+  action: unwrap
+  args:
+    format: a2ui-xml
+  input: ""
+  expect: []
+
+# --- Writing parts back out ---
+
+- name: test_wrap_xml_text_only_parts
+  description: A text-only part writes out as its text with no a2ui tags.
+  action: wrap
+  args:
+    format: a2ui-xml
+  parts:
+    - text: "Looking up data..."
+  expect_output: "Looking up data..."
+
+- name: test_wrap_xml_restores_tags_and_order
+  description: A2UI XML parts are wrapped back inside <a2ui> tags in order.
+  action: wrap
+  args:
+    format: a2ui-xml
+  parts:
+    - text: "Here is your card."
+    - a2ui_raw: '<Text id="root" text="Hello" />'
+  expect_contains:
+    - "<a2ui>"
+    - '<Text id="root" text="Hello" />'
+    - "</a2ui>"
+  expect_round_trip: true
+
+# --- Parsing a whole response ---
+
+- name: test_parse_response_xml_with_text
+  description: An A2UI XML block and surrounding text compile and preserve sequence.
+  action: parse_response
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    Here is the greeting:
+    <a2ui>
+    <Text id="root" text="Hello" />
+    </a2ui>
+  expect:
+    - text: "Here is the greeting:"
+    - a2ui:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "default_surface"
+            catalogId: "conformance/simplified"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Hello"
+
+- name: test_parse_response_xml_unwrapped_compiles_whole_body
+  description: An unwrapped A2UI XML response is compiled directly.
+  action: parse_response
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    wrapped: false
+  input: '<Text id="root" text="Hello" />'
+  expect:
+    - a2ui:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "default_surface"
+            catalogId: "conformance/simplified"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Hello"
+
+- name: test_parse_response_xml_validation_error_surfaces
+  description: An A2UI XML block referencing an unknown component fails with ValidationError.
+  action: parse_response
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    <a2ui>
+    <UnknownComponent id="root" />
+    </a2ui>
+  expect_error:
+    category: "ValidationError"

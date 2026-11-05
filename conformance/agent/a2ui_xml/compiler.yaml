@@ -1,0 +1,186 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# A2UI XML compilation conformance test suite.
+#
+# Verifies compilation of raw A2UI XML markup blocks into standard A2UI
+# AgentToRendererMessage envelopes.
+
+- name: test_compile_xml_minimal_root
+  description: A block that defines a root component compiles to createSurface carrying that component.
+  action: compile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '<Text id="root" text="Hello" />'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+
+- name: test_compile_xml_nested_child_reference
+  description: A child component nested inside a container slot becomes a component id reference in the parent.
+  action: compile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    <Card id="root">
+      <Text id="body" text="Card content" />
+    </Card>
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "body"
+          - id: "body"
+            component: "Text"
+            text: "Card content"
+
+- name: test_compile_xml_multiple_children_in_column
+  description: Multiple children in a container slot compile into an ordered children list of component ids.
+  action: compile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    <Column id="root">
+      <Text id="title" text="Title" />
+      <Text id="subtitle" text="Subtitle" />
+    </Column>
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              - "title"
+              - "subtitle"
+          - id: "title"
+            component: "Text"
+            text: "Title"
+          - id: "subtitle"
+            component: "Text"
+            text: "Subtitle"
+
+- name: test_compile_xml_databinding_path
+  description: An attribute referencing $/path compiles into an A2UI DataBinding object.
+  action: compile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '<Text id="root" text="$/user/displayName" />'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@path": "/user/displayName"
+
+- name: test_compile_xml_event_action
+  description: An Event(...) call expression in an action attribute compiles to an Action event shape.
+  action: compile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    <Button id="root" action="$Event(\"submit\")">
+      <Text id="btn_text" text="Submit" />
+    </Button>
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            action:
+              event:
+                name: "submit"
+            child: "btn_text"
+          - id: "btn_text"
+            component: "Text"
+            text: "Submit"
+
+- name: test_compile_xml_embedded_datamodel_block
+  description: A fenced or tagged dataModel block compiles into surface dataModel initialization.
+  action: compile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    <dataModel>
+    {"count": 42, "user": {"name": "Test"}}
+    </dataModel>
+    <Text id="root" text="$/user/name" />
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@path": "/user/name"
+        dataModel:
+          count: 42
+          user:
+            name: "Test"
+
+- name: test_compile_xml_custom_surface_attribute
+  description: A surface directive routes compilation to the specified surfaceId.
+  action: compile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    <surface id="modal_surface" />
+    <Text id="root" text="Modal dialog" />
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "modal_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Modal dialog"
+
+- name: test_compile_xml_unclosed_tag_parse_error
+  description: An unclosed tag in an incomplete block raises ParseError when parsed as final.
+  action: compile
+  args:
+    format: a2ui-xml
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '<Text id="root" text="Streaming in progress"'
+  expect_error:
+    category: "ParseError"

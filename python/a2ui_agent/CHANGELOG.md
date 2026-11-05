@@ -1,5 +1,11 @@
 ## Unreleased
 
+- Add `a2ui-xml` inference format (`A2uiXmlFormat`, `A2uiXmlFormatFactory`,
+  `A2uiXmlCompiler`, `A2uiXmlDecompiler`, `A2uiXmlParser`,
+  `A2uiXmlPromptGenerator`, `A2uiXmlResponseStream`) providing concise XML-based
+  UI generation with progressive streaming, data-model binding, and catalog
+  pruning.
+
 - **BREAKING CHANGE**: (v1_0) The `TextField` builder in
   `a2ui.builder.v1_0.catalogs.basic` requires `value`, following the basic
   catalog. Recommended migration: pass `value`, such as

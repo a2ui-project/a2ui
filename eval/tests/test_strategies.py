@@ -605,6 +605,28 @@ async def test_a2ui_express_solvers() -> None:
 
 
 @pytest.mark.asyncio
+async def test_a2ui_xml_solvers() -> None:
+    prompt_solver = format_system_prompt("a2ui_xml", version="1.0")
+    state = await prompt_solver(_state({"catalog": str(V1_CATALOG)}), dummy_generate)
+    assert len(state.messages) == 1
+    assert state.messages[0].role == "system"
+    assert "<a2ui>" in state.messages[0].content
+
+    compile_solver = compile_format_payload("a2ui_xml", version="1.0")
+    _set_completion(
+        state,
+        "Here is the domain research synthesis.\n\n"
+        '<a2ui>\n<Text id="root" text="Hello" />\n</a2ui>\n\n'
+        "Additional reference notes.",
+    )
+    state = await compile_solver(state, dummy_generate)
+    assert "Here is the domain research synthesis." in state.output.completion
+    assert "Additional reference notes." in state.output.completion
+    assert "<a2ui-json>" in state.output.completion
+    assert '"component": "Text"' in state.output.completion
+
+
+@pytest.mark.asyncio
 async def test_a2ui_elemental_solvers() -> None:
     prompt_solver = format_system_prompt("elemental", version="1.0")
     state = await prompt_solver(_state({"catalog": str(V1_CATALOG)}), dummy_generate)
