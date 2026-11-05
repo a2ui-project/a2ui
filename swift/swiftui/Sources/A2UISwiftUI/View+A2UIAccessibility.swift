@@ -63,7 +63,14 @@ extension View {
     if attributes?.label?.isEmpty == false || attributes?.description?.isEmpty == false {
       accessibilityElement(children: children)
     } else {
-      self
+      // The children stay separate elements, and SwiftUI passes a stack's identifier on to each
+      // child that has none of its own. An empty identifier here, inside the `a2ui-<id>` that
+      // ``ComponentNodeView`` sets, keeps the container's identifier off its children.
+      if children == .contain {
+        accessibilityIdentifier("")
+      } else {
+        self
+      }
     }
   }
 

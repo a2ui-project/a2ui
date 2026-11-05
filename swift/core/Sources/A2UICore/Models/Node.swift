@@ -156,6 +156,12 @@ public struct Node: Identifiable, @preconcurrency Equatable, Sendable {
   @MainActor
   public var extensions: [String: JSONValue]? { MetadataValidator.extensions(from: box.metadata) }
 
+  /// The identity of the node's backing store.
+  ///
+  /// The resolver updates a node in place while its component keeps its type and state, so two
+  /// nodes with the same identity are the same node instance at different points in time.
+  public var identity: ObjectIdentifier { ObjectIdentifier(box) }
+
   /// Creates a new resolved component node.
   public init(
     id: String,
@@ -179,26 +185,35 @@ public struct Node: Identifiable, @preconcurrency Equatable, Sendable {
     )
   }
 
-  /// Creates a placeholder component node for an unresolved, unknown, or cyclic component.
-  public init(
-    placeholderID: String,
-    state: NodeState,
-    declaredType: String? = nil,
-    catalogID: String? = nil,
+  /// Creates a placeholder node for a referenced component ID that has not arrived yet.
+  public static func pending(
+    id: String,
     scopeKey: String? = nil,
-    dataContextPath: String = "/",
-    metadata: [String: JSONValue]? = nil
-  ) {
-    let resolvedType = state == .unknownType ? (declaredType ?? "Placeholder") : "Placeholder"
-    self.init(
-      id: placeholderID,
-      type: resolvedType,
-      catalogID: catalogID,
-      state: state,
+    dataContextPath: String = "/"
+  ) -> Node {
+    Node(
+      id: id,
+      type: "Placeholder",
+      state: .pending,
       scopeKey: scopeKey,
       dataContextPath: dataContextPath,
-      properties: [:],
-      metadata: metadata
+      properties: [:]
+    )
+  }
+
+  /// Creates a placeholder node for a component reference that closes a cycle.
+  public static func cyclic(
+    id: String,
+    scopeKey: String? = nil,
+    dataContextPath: String = "/"
+  ) -> Node {
+    Node(
+      id: id,
+      type: "Placeholder",
+      state: .cyclic,
+      scopeKey: scopeKey,
+      dataContextPath: dataContextPath,
+      properties: [:]
     )
   }
 
@@ -223,8 +238,12 @@ public struct Node: Identifiable, @preconcurrency Equatable, Sendable {
       return true
     }
     guard
-      lhs.id == rhs.id && lhs.type == rhs.type && lhs.catalogID == rhs.catalogID
-        && lhs.state == rhs.state,
+      lhs.id == rhs.id,
+      lhs.type == rhs.type,
+      lhs.catalogID == rhs.catalogID,
+      lhs.state == rhs.state,
+      lhs.scopeKey == rhs.scopeKey,
+      lhs.dataContextPath == rhs.dataContextPath,
       MetadataValidator.areEqual(lhs.metadata, rhs.metadata),
       lhs.properties.count == rhs.properties.count
     else {
