@@ -44,18 +44,14 @@ function ensureJasmineManifestReporter(): void {
   jasmine.getEnv().addReporter({
     specDone(result) {
       const meta = specMetadataByFullName.get(result.fullName);
-      if (!meta) {
+      if (!meta || result.status === 'excluded') {
         return;
       }
       const status: ManifestRecord['status'] =
-        result.status === 'pending' || result.status === 'excluded'
-          ? 'skipped'
-          : result.status === 'passed'
-            ? 'passed'
-            : 'failed';
+        result.status === 'pending' ? 'skipped' : result.status === 'passed' ? 'passed' : 'failed';
       const reason =
         status === 'skipped'
-          ? result.pendingReason || 'skipped'
+          ? result.pendingReason || undefined
           : status === 'failed'
             ? result.failedExpectations[0]?.message || 'failed'
             : undefined;
@@ -71,7 +67,8 @@ function ensureJasmineManifestReporter(): void {
 }
 
 afterAll(() => {
-  assertAllUnsupportedMatched();
+  const {accessibility, adapterConformance} = getConformanceSuites();
+  assertAllUnsupportedMatched(accessibility, adapterConformance);
 });
 
 describe('@a2ui/angular Accessibility Conformance (conformance/core/accessibility.yaml)', () => {
@@ -88,7 +85,6 @@ describe('@a2ui/angular Accessibility Conformance (conformance/core/accessibilit
     });
 
     it(specTitle, async () => {
-      assertKnownAccessibilityCase(testCase);
       const steps: AccessibilityStep[] = testCase.steps ?? [
         {
           messages: testCase.messages ?? [],
@@ -103,6 +99,7 @@ describe('@a2ui/angular Accessibility Conformance (conformance/core/accessibilit
         pending(skipReason);
         return;
       }
+      assertKnownAccessibilityCase(testCase);
 
       TestBed.configureTestingModule({
         imports: [SurfaceComponent],
@@ -142,10 +139,20 @@ describe('@a2ui/angular Adapter Conformance (conformance/core/adapter_conformanc
   ensureJasmineManifestReporter();
   const suiteTitle =
     '@a2ui/angular Adapter Conformance (conformance/core/adapter_conformance.yaml)';
-  const {adapterConformance} = getConformanceSuites();
+  const {adapterConformance, basicCatalogJson} = getConformanceSuites();
 
   beforeEach(() => {
     spyOn(window, 'open').and.returnValue(null);
+  });
+
+  it('preserves String.prototype.replace special sequences in injected basicCatalogJson', () => {
+    const functions = basicCatalogJson['functions'] as
+      | Record<string, {properties?: {args?: {properties?: {pattern?: {description?: string}}}}}>
+      | undefined;
+    const regexPatternDescription =
+      functions?.['regex']?.properties?.args?.properties?.pattern?.description;
+    expect(regexPatternDescription).toContain("'^' and '$'");
+    expect(regexPatternDescription).toContain("'\\p{...}'");
   });
 
   for (const testCase of adapterConformance) {
@@ -156,7 +163,6 @@ describe('@a2ui/angular Adapter Conformance (conformance/core/adapter_conformanc
     });
 
     it(specTitle, async () => {
-      assertKnownAdapterCase(testCase);
       const skipReason = findUnsupportedReason(
         testCase.name,
         testCase.steps as unknown as Array<Record<string, unknown>>,
@@ -165,6 +171,7 @@ describe('@a2ui/angular Adapter Conformance (conformance/core/adapter_conformanc
         pending(skipReason);
         return;
       }
+      assertKnownAdapterCase(testCase);
 
       const state = mountSurface(testCase);
       try {

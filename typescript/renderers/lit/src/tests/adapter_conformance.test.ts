@@ -68,7 +68,7 @@ describe('@a2ui/lit Adapter & Accessibility Conformance', () => {
   });
 
   after(() => {
-    assertAllUnsupportedMatched();
+    assertAllUnsupportedMatched(accessibilityCases, adapterCases);
     teardownTestDom();
   });
 
@@ -82,7 +82,6 @@ describe('@a2ui/lit Adapter & Accessibility Conformance', () => {
           status: 'failed',
         };
         try {
-          assertKnownAccessibilityCase(testCase);
           const steps: AccessibilityStep[] = testCase.steps ?? [
             {
               messages: testCase.messages ?? [],
@@ -96,9 +95,12 @@ describe('@a2ui/lit Adapter & Accessibility Conformance', () => {
           if (skipReason) {
             pendingManifest.status = 'skipped';
             pendingManifest.reason = skipReason;
+            writeManifestRecord(pendingManifest);
+            pendingManifest = undefined;
             t.skip(skipReason);
             return;
           }
+          assertKnownAccessibilityCase(testCase);
 
           const session = mountSurface(undefined, mountedElements);
           for (const step of steps) {
@@ -115,8 +117,10 @@ describe('@a2ui/lit Adapter & Accessibility Conformance', () => {
           }
           pendingManifest.status = 'passed';
         } catch (err) {
-          pendingManifest.status = 'failed';
-          pendingManifest.reason = err instanceof Error ? err.message : String(err);
+          if (pendingManifest) {
+            pendingManifest.status = 'failed';
+            pendingManifest.reason = err instanceof Error ? err.message : String(err);
+          }
           throw err;
         }
       });
@@ -133,7 +137,6 @@ describe('@a2ui/lit Adapter & Accessibility Conformance', () => {
           status: 'failed',
         };
         try {
-          assertKnownAdapterCase(testCase);
           const skipReason = findUnsupportedReason(
             testCase.name,
             testCase.steps as unknown as Array<Record<string, unknown>>,
@@ -141,9 +144,12 @@ describe('@a2ui/lit Adapter & Accessibility Conformance', () => {
           if (skipReason) {
             pendingManifest.status = 'skipped';
             pendingManifest.reason = skipReason;
+            writeManifestRecord(pendingManifest);
+            pendingManifest = undefined;
             t.skip(skipReason);
             return;
           }
+          assertKnownAdapterCase(testCase);
 
           const session = mountSurface(testCase, mountedElements);
           for (const step of testCase.steps) {
@@ -151,8 +157,10 @@ describe('@a2ui/lit Adapter & Accessibility Conformance', () => {
           }
           pendingManifest.status = 'passed';
         } catch (err) {
-          pendingManifest.status = 'failed';
-          pendingManifest.reason = err instanceof Error ? err.message : String(err);
+          if (pendingManifest) {
+            pendingManifest.status = 'failed';
+            pendingManifest.reason = err instanceof Error ? err.message : String(err);
+          }
           throw err;
         }
       });

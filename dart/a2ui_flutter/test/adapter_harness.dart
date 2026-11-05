@@ -318,7 +318,27 @@ String? findUnsupportedReason(
   return null;
 }
 
-void assertAllUnsupportedMatched() {
+void assertAllUnsupportedMatched([
+  List<Object?> accessibilityCases = const [],
+  List<Object?> adapterCases = const [],
+]) {
+  for (final rawCase in accessibilityCases) {
+    final testCase = rawCase! as Map<String, Object?>;
+    final name = testCase['name']! as String;
+    final List<Object?> steps =
+        (testCase['steps'] as List<Object?>?) ??
+        <Object?>[
+          <String, Object?>{'assertions': testCase['assertions']},
+        ];
+    findUnsupportedReason(name, steps);
+  }
+  for (final rawCase in adapterCases) {
+    final testCase = rawCase! as Map<String, Object?>;
+    final name = testCase['name']! as String;
+    final List<Object?> steps =
+        (testCase['steps'] as List<Object?>?) ?? const [];
+    findUnsupportedReason(name, steps);
+  }
   final List<String> unused =
       unsupported.keys
           .where((k) => !_matchedUnsupportedKeys.contains(k))

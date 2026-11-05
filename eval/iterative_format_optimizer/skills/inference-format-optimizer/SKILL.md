@@ -6,6 +6,8 @@ description: >-
   or loops on an inference format, (2) Evaluate or benchmark format accuracy, latency, or token
   efficiency, (3) Create parallel worktree subagents for format iteration, or (4) Benchmark format
   trade-offs against baselines.
+metadata:
+  internal: true
 ---
 
 # Inference Format Optimizer

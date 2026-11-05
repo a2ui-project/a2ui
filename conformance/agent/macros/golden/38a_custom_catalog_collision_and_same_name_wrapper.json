@@ -1,0 +1,116 @@
+[
+  {
+    "version": "1.0",
+    "createSurface": {
+      "surfaceId": "s_products",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "1.0",
+    "updateComponents": {
+      "surfaceId": "s_products",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": ["p_cat_a", "p_cat_b"]
+        },
+        {
+          "id": "p_cat_a",
+          "component": "ProductCard",
+          "catalogId": "https://example.com/catalog_a.json",
+          "sku": "SKU-1"
+        },
+        {
+          "component": "Text",
+          "id": "p_cat_b__text_1",
+          "text": "Product: Widget",
+          "variant": "body"
+        },
+        {
+          "component": "Card",
+          "id": "p_cat_b",
+          "child": "p_cat_b__text_1"
+        }
+      ]
+    }
+  },
+  {
+    "version": "1.0",
+    "createSurface": {
+      "surfaceId": "s_wrap",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "1.0",
+    "updateComponents": {
+      "surfaceId": "s_wrap",
+      "components": [
+        {
+          "component": "Text",
+          "id": "root__text_1",
+          "text": "Wrapped",
+          "variant": "body"
+        },
+        {
+          "component": "BrandBox",
+          "id": "root__brandbox_1",
+          "catalogId": "https://example.com/catalog_a.json",
+          "child": "root__text_1"
+        },
+        {
+          "component": "Card",
+          "id": "root",
+          "child": "root__brandbox_1"
+        }
+      ]
+    }
+  },
+  {
+    "version": "1.0",
+    "createSurface": {
+      "surfaceId": "s_inherited",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "1.0",
+    "updateComponents": {
+      "surfaceId": "s_inherited",
+      "components": [
+        {
+          "component": "Text",
+          "id": "root__text_1",
+          "text": "Inherited",
+          "variant": "body"
+        },
+        {
+          "component": "Text",
+          "id": "root__innerbadgeinherited_1__text_1",
+          "text": "Inherited Badge: Inherited",
+          "variant": "caption"
+        },
+        {
+          "component": "BrandBox",
+          "id": "root__innerbadgeinherited_1",
+          "catalogId": "https://example.com/catalog_a.json",
+          "child": "root__innerbadgeinherited_1__text_1"
+        },
+        {
+          "component": "Column",
+          "id": "root__column_1",
+          "children": ["root__text_1", "root__innerbadgeinherited_1"],
+          "justify": "start",
+          "align": "stretch"
+        },
+        {
+          "component": "Card",
+          "id": "root",
+          "child": "root__column_1"
+        }
+      ]
+    }
+  }
+]
