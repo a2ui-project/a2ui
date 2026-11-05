@@ -202,6 +202,16 @@ header.header {
   border-left-color: var(--sl-color-accent);
 }
 
+/* Prevent wide code blocks (e.g. JSONL streams) from expanding flex/grid columns */
+.main-pane,
+.content-panel,
+.sl-container,
+.sl-markdown-content,
+.sl-markdown-content .expressive-code {
+  min-width: 0;
+  max-width: 100%;
+}
+
 /* Polished Markdown typography & tables (A2UI Design System Type Scale) */
 .sl-markdown-content {
   font-family: var(--font-body);
@@ -229,7 +239,7 @@ header.header {
   letter-spacing: -0.03em;
 }
 
-.sl-markdown-content h2 {
+.sl-markdown-content h2:not(:where(.not-content, .not-content *)) {
   font-family: var(--font-display);
   font-weight: 500;
   line-height: 1.12;
@@ -239,8 +249,8 @@ header.header {
   letter-spacing: -0.03em;
 }
 
-.sl-markdown-content h3,
-.sl-markdown-content h4 {
+.sl-markdown-content h3:not(:where(.not-content, .not-content *)),
+.sl-markdown-content h4:not(:where(.not-content, .not-content *)) {
   font-family: var(--font-heading);
   font-weight: 500;
   line-height: 1.3;
@@ -351,6 +361,11 @@ header.header {
   background-color: rgba(255, 255, 255, 0.02);
 }
 
+/* Keep property/identifier names on a single line in table first-child while allowing descriptions to wrap */
+.sl-markdown-content td:first-child code {
+  white-space: nowrap;
+}
+
 /* GitHub-flavored alert callouts rendered by remark-a2ui-includes */
 .a2-callout {
   margin: 1.35rem 0;
@@ -392,6 +407,7 @@ header.header {
   color: #ef4444;
 }
 
+/* Theme-aware Mermaid diagram container */
 .mermaid-rendered {
   margin: 2rem 0;
   display: flex;
