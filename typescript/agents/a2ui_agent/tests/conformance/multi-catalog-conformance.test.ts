@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import * as fs from 'fs';
-import {describe, expect, test} from 'vitest';
+import {readFileSync} from 'fs';
+
+import {expect} from 'vitest';
 
 import {
   A2uiCatalogError,
@@ -44,14 +45,72 @@ import {
 import {CatalogApi, RendererCapabilities} from '../../src/internal/web-core.js';
 import {loadCases, LoadedCase} from './loader.js';
 import {
+  assertKnownKeys,
+  CASE_METADATA_KEYS,
   CatalogRegistration,
   compileChecked,
   conformancePath,
+  describeSuite,
+  EXPECT_ERROR_KEYS,
   expectCatalogContents,
 } from './suite-helpers.js';
 
 const CONFORMANCE_SURFACE_ID = 'default_surface';
 const DEFAULT_CATALOG = 'test_data/catalogs/simplified_catalog_v1_0.json';
+
+const MULTI_CATALOG_CASE_KEYS: Record<string, ReadonlySet<string>> = {
+  compile: new Set([
+    ...CASE_METADATA_KEYS,
+    'args',
+    'input',
+    'expect',
+    'expect_error',
+    'expect_present',
+  ]),
+  decompile: new Set([
+    ...CASE_METADATA_KEYS,
+    'args',
+    'messages',
+    'expect_contains',
+    'expect_absent',
+    'expect_error',
+    'expect_recompiled',
+    'expect_round_trip',
+  ]),
+  parse_response: new Set([...CASE_METADATA_KEYS, 'args', 'input', 'expect', 'expect_error']),
+  generate_prompt_snippet: new Set([
+    ...CASE_METADATA_KEYS,
+    'args',
+    'expect_file',
+    'expect_contains',
+    'expect_absent',
+    'expect_deterministic',
+    'expect_error',
+  ]),
+  create_format: new Set([...CASE_METADATA_KEYS, 'args', 'expect', 'expect_error']),
+  create_processor: new Set([
+    ...CASE_METADATA_KEYS,
+    'args',
+    'expect',
+    'expect_error',
+    'then_parse',
+  ]),
+};
+
+const CREATE_FORMAT_EXPECT_KEYS = new Set([
+  'parsers_are_distinct',
+  'parser_state_isolated',
+  'prompt_snippet_contains',
+  'prompt_snippet_absent',
+]);
+const CREATE_PROCESSOR_EXPECT_KEYS = new Set([
+  'active_catalog_ids',
+  'catalogs',
+  'generator_catalogs_unchanged',
+  'prompt_snippet_contains',
+  'prompt_snippet_absent',
+]);
+const THEN_PARSE_KEYS = new Set(['input', 'expect', 'expect_error']);
 
 function assertThrows(fn: () => void, expectError: Record<string, unknown> | string): void {
   if (typeof expectError === 'string') {
@@ -59,6 +118,7 @@ function assertThrows(fn: () => void, expectError: Record<string, unknown> | str
     return;
   }
 
+  assertKnownKeys(expectError, EXPECT_ERROR_KEYS, 'expect_error');
   const category = expectError.category as string;
   let thrownError: unknown;
   try {
@@ -151,7 +211,7 @@ function loadExamples(
   const examples: Record<string, AgentToRendererMessage[]> = {};
   for (let i = 0; i < examplePaths.length; i++) {
     const fullPath = conformancePath(examplePaths[i]);
-    const content = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
+    const content = JSON.parse(readFileSync(fullPath, 'utf8'));
     const messages: AgentToRendererMessage[] = Array.isArray(content) ? content : [content];
     const firstSurfaceCatId = (messages[0] as {createSurface?: {catalogId?: string}} | undefined)
       ?.createSurface?.catalogId;
@@ -270,6 +330,10 @@ function describeConfigs(
 
 function runFormatCase(testCase: LoadedCase): void {
   const action = testCase.action;
+  const allowedKeys = MULTI_CATALOG_CASE_KEYS[action];
+  if (allowedKeys) {
+    assertKnownKeys(testCase, allowedKeys, `${action} case`);
+  }
   const args = (testCase.args as Record<string, unknown>) || {};
 
   if (action === 'compile') {
@@ -290,6 +354,15 @@ function runFormatCase(testCase: LoadedCase): void {
   } else if (action === 'decompile') {
     const parser: Parser = makeFormat(args).createParser();
     const messages = testCase.messages as AgentToRendererMessage[];
+    if (testCase.expect_error) {
+      assertThrows(
+        () => {
+          parser.decompile(messages);
+        },
+        testCase.expect_error as Record<string, unknown>,
+      );
+      return;
+    }
     const notation = parser.decompile(messages);
     expectSnippet(
       notation,
@@ -299,6 +372,12 @@ function runFormatCase(testCase: LoadedCase): void {
     if (testCase.expect_round_trip) {
       const recompiled = compileChecked(parser, notation);
       expect(sortComponentsById(recompiled)).toEqual(sortComponentsById(messages));
+    }
+    if (testCase.expect_recompiled) {
+      const recompiled = compileChecked(parser, notation);
+      expect(sortComponentsById(recompiled)).toEqual(
+        sortComponentsById(testCase.expect_recompiled as AgentToRendererMessage[]),
+      );
     }
   } else if (action === 'parse_response') {
     const parser: Parser = makeFormat(args).createParser();
@@ -325,6 +404,10 @@ function runFormatCase(testCase: LoadedCase): void {
     }
     const fmt = makeFormat(args);
     const snippet = fmt.promptGenerator.generate();
+    if (typeof testCase.expect_file === 'string') {
+      const expectedText = readFileSync(conformancePath(testCase.expect_file), 'utf8');
+      expect(snippet).toBe(expectedText);
+    }
     expectSnippet(
       snippet,
       testCase.expect_contains as string[] | undefined,
@@ -345,6 +428,7 @@ function runFormatCase(testCase: LoadedCase): void {
     }
     const fmt = makeFormat(args);
     const expected = (testCase.expect as Record<string, unknown>) || {};
+    assertKnownKeys(expected, CREATE_FORMAT_EXPECT_KEYS, 'create_format expect');
 
     if (expected.parsers_are_distinct) {
       expect(fmt.createParser()).not.toBe(fmt.createParser());
@@ -398,6 +482,7 @@ function runFormatCase(testCase: LoadedCase): void {
     const {processor, snippet} = create();
     const active = processor.catalogs;
     const expected = (testCase.expect as Record<string, unknown>) || {};
+    assertKnownKeys(expected, CREATE_PROCESSOR_EXPECT_KEYS, 'create_processor expect');
 
     if (expected.active_catalog_ids) {
       expect(active.map(c => c.id)).toEqual(expected.active_catalog_ids);
@@ -405,13 +490,11 @@ function runFormatCase(testCase: LoadedCase): void {
     if (Array.isArray(expected.catalogs)) {
       const expCats = expected.catalogs as Array<{
         catalog_id?: string;
+        protocol_version?: string;
         components?: string[];
         functions?: string[];
       }>;
       for (let i = 0; i < expCats.length; i++) {
-        if (expCats[i].catalog_id) {
-          expect(active[i].id).toBe(expCats[i].catalog_id);
-        }
         expectCatalogContents(active[i], expCats[i]);
       }
     }
@@ -426,6 +509,7 @@ function runFormatCase(testCase: LoadedCase): void {
 
     const thenParse = testCase.then_parse as Record<string, unknown> | undefined;
     if (thenParse) {
+      assertKnownKeys(thenParse, THEN_PARSE_KEYS, 'then_parse');
       if (thenParse.expect_error) {
         assertThrows(
           () => {
@@ -443,29 +527,25 @@ function runFormatCase(testCase: LoadedCase): void {
   }
 }
 
-describe('Conformance: multi_catalog_formats.yaml & request_processor.yaml', () => {
-  const files = [
+describeSuite(
+  'Conformance: multi_catalog_formats.yaml & request_processor.yaml',
+  loadCases([
     conformancePath('agent/multi_catalog_formats.yaml'),
     conformancePath('agent/request_processor.yaml'),
-  ];
-
-  for (const testCase of loadCases(files)) {
-    const args = (testCase.args as Record<string, unknown>) || {};
-    const fmt = (args.format as string) ?? 'express';
-    const fmtOverride = args.format_override as string | undefined;
-    const isUnsupportedFormat =
-      (fmt !== 'express' && fmt !== 'direct_json') ||
-      (fmtOverride !== undefined && fmtOverride !== 'express' && fmtOverride !== 'direct_json');
-
-    const title = `${testCase.action} · ${testCase.name}`;
-    if (isUnsupportedFormat) {
-      test.skip(title, () => {
-        runFormatCase(testCase);
-      });
-    } else {
-      test(title, () => {
-        runFormatCase(testCase);
-      });
-    }
-  }
-});
+  ]),
+  testCase => runFormatCase(testCase),
+  {
+    skipReason: testCase => {
+      const args = (testCase.args as Record<string, unknown>) || {};
+      const fmt = (args.format as string) ?? 'express';
+      const fmtOverride = args.format_override as string | undefined;
+      if (fmt !== 'express' && fmt !== 'direct_json') {
+        return `Unsupported format: ${fmt}`;
+      }
+      if (fmtOverride !== undefined && fmtOverride !== 'express' && fmtOverride !== 'direct_json') {
+        return `Unsupported format override: ${fmtOverride}`;
+      }
+      return undefined;
+    },
+  },
+);

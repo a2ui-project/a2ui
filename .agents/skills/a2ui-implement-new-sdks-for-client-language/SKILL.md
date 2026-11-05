@@ -1,6 +1,8 @@
 ---
 name: a2ui-implement-new-sdks-for-client-language
 description: Step-by-step phased instructions for building new A2UI Core SDKs, Framework Adapters, and Inference SDKs from scratch in any client language.
+metadata:
+  internal: true
 ---
 
 # A2UI SDK Implementation Guide (Phased Execution)
