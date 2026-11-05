@@ -404,12 +404,12 @@ final jsonProcessor = generator.createProcessor(
 
 The A2UI evaluation suite (`eval/`) benchmarks each format on the 54-sample `core_v1_0` suite using `gemini-3.8-flash` (`temperature=0.0`). For earlier benchmark background, see [Fast, reliable A2UI, with swappable inference formats](https://developers.googleblog.com/fast-reliable-a2ui/). Whether thinking is disabled (`thinking_budget=0`) or left unbounded (default), Express cuts the prompt tokens and generated code tokens while matching Direct JSON on accuracy:
 
-| Format and Thinking Mode                | Median Input Tokens | Median Code Tokens | Median Thinking Tokens | Median Total Output (`Code + Thinking`) | Pass@1 / Pass@2       | Judge Quality |
-| :-------------------------------------- | :------------------ | :----------------- | :--------------------- | :-------------------------------------- | :-------------------- | :------------ |
-| Direct JSON (`thinking_budget=0`)       | 10,980              | 807                | 0                      | 811                                     | 98.1% / 98.1% (53/54) | 97.2%         |
-| Express (`thinking_budget=0`, default)  | 6,000 (-45.4%)      | 297 (-63.2%, 2.7x) | 0                      | 299 (-63.1%)                            | 98.1% / 98.1% (53/54) | 97.2%         |
-| Direct JSON (`unbounded` thinking)      | 10,980              | 794                | 1,413                  | 2,320                                   | 98.1% / 98.1% (53/54) | 98.1%         |
-| Express (`unbounded` thinking, default) | 6,000 (-45.4%)      | 260 (-67.3%, 3.1x) | 1,447                  | 1,789 (-22.9%)                          | 98.1% / 98.1% (53/54) | 98.1%         |
+| Format and Thinking Mode           | Median Input Tokens | Median Code Tokens | Median Thinking Tokens | Median Total Output (`Code + Thinking`) | Pass@1 / Pass@2       | Judge Quality |
+| :--------------------------------- | :------------------ | :----------------- | :--------------------- | :-------------------------------------- | :-------------------- | :------------ |
+| Direct JSON (`thinking_budget=0`)  | 10,980              | 807                | 0                      | 811                                     | 98.1% / 98.1% (53/54) | 97.2%         |
+| Express (`thinking_budget=0`)      | 6,000 (-45.4%)      | 297 (-63.2%, 2.7x) | 0                      | 299 (-63.1%)                            | 98.1% / 98.1% (53/54) | 97.2%         |
+| Direct JSON (`unbounded` thinking) | 10,980              | 794                | 1,413                  | 2,320                                   | 98.1% / 98.1% (53/54) | 98.1%         |
+| Express (`unbounded` thinking)     | 6,000 (-45.4%)      | 260 (-67.3%, 3.1x) | 1,447                  | 1,789 (-22.9%)                          | 98.1% / 98.1% (53/54) | 98.1%         |
 
 ## Creating a custom inference format
 
