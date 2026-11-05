@@ -16,7 +16,10 @@
 
 import {Catalog, FunctionImplementation} from '../catalog/types.js';
 import {DataContext} from '../resolution/data-context.js';
-import {resolveArgumentValue} from '../resolution/data-context-internal.js';
+import {
+  resolveArgumentValue,
+  withActiveCallCatalogId,
+} from '../resolution/data-context-internal.js';
 import {isSignal, getValue} from '../reactivity/signals.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {FunctionCall} from '../v1_0/schema/common-types.js';
@@ -253,10 +256,14 @@ export class RpcHandler {
       return errorResponse;
     }
 
+    const scopedContext =
+      effectiveContext && resolved.catalog.id
+        ? withActiveCallCatalogId(effectiveContext, resolved.catalog.id)
+        : effectiveContext;
     const response = await this.executeFunctionSafely(
       resolved.funcImpl,
       parsedArgsResult.args,
-      effectiveContext,
+      scopedContext,
       functionCallId,
       version,
     );

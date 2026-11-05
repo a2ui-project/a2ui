@@ -27,7 +27,7 @@ import {createFunctionImplementation, FunctionImplementation} from '../catalog/t
 import {coerceDynamicBoolean} from '../catalog/validation_result_coercion.js';
 import {A2uiExpressionError} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
-import {withoutAgentRouting} from '../resolution/data-context-internal.js';
+import {activeCallCatalogId, withoutAgentRouting} from '../resolution/data-context-internal.js';
 import {isAtLeastVersion} from './semver.js';
 import {MAX_REGEX_VALUE_CODE_POINTS, analyzeRegex, countCodePoints} from './regex_subset.js';
 
@@ -447,23 +447,47 @@ export function executeNot(value: unknown, truthy: TruthyFn = coerceDynamicBoole
   return !truthy(value);
 }
 
-function adaptAstPartForV10(part: any): any {
-  if (typeof part !== 'object' || part === null || Array.isArray(part)) {
+function adaptAstPartForV10(part: any, catalogId?: string): any {
+  if (Array.isArray(part)) {
+    return part.map(item => adaptAstPartForV10(item, catalogId));
+  }
+  if (typeof part !== 'object' || part === null) {
     return part;
   }
-  if ('path' in part && typeof part.path === 'string' && !('@path' in part)) {
+  if (
+    Object.hasOwn(part, 'path') &&
+    typeof part.path === 'string' &&
+    !Object.hasOwn(part, '@path')
+  ) {
     return {'@path': part.path};
   }
-  if ('call' in part && typeof part.call === 'string' && !('@call' in part)) {
+  if (
+    Object.hasOwn(part, 'call') &&
+    typeof part.call === 'string' &&
+    !Object.hasOwn(part, '@call')
+  ) {
+    const callName = part.call;
     const args: Record<string, unknown> = {};
     if (part.args && typeof part.args === 'object') {
       for (const [k, v] of Object.entries(part.args)) {
-        args[k] = adaptAstPartForV10(v);
+        args[k] = adaptAstPartForV10(v, catalogId);
       }
     }
-    return {'@call': part.call, args, returnType: part.returnType};
+    const adapted: Record<string, unknown> = {
+      '@call': callName,
+      args,
+      returnType: part.returnType,
+    };
+    if (catalogId !== undefined && !callName.startsWith('@')) {
+      adapted['catalogId'] = catalogId;
+    }
+    return adapted;
   }
-  return part;
+  const adaptedObj: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(part)) {
+    adaptedObj[k] = adaptAstPartForV10(v, catalogId);
+  }
+  return adaptedObj;
 }
 
 /** Formats a template string by resolving embedded expressions. */
@@ -480,6 +504,7 @@ export function executeFormatString(
     context.surface?.protocolVersion ?? context.surface?.defaultCatalog?.protocolVersion,
     '1.0',
   );
+  const catalogId = atLeastV10 ? activeCallCatalogId(context) : undefined;
   // A template part never waits for the agent: from v1.0, a part that calls
   // a function the renderer does not implement fails with an
   // `EXPRESSION_ERROR` naming it, sends nothing, and renders empty.
@@ -488,7 +513,7 @@ export function executeFormatString(
     if (typeof part !== 'object' || part === null || Array.isArray(part)) {
       return part;
     }
-    const adapted = atLeastV10 ? adaptAstPartForV10(part) : part;
+    const adapted = atLeastV10 ? adaptAstPartForV10(part, catalogId) : part;
     return partContext.resolveSignal(adapted);
   });
 

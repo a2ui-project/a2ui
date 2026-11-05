@@ -39,6 +39,10 @@ import {
   validateReservedDirectives,
 } from './data-context.js';
 import {Catalog, createFunctionImplementation} from '../catalog/types.js';
+import {
+  FormatStringImplementation,
+  PluralizeImplementation,
+} from '../catalogs/basic/v1/functions/basic_functions.js';
 import {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
 import {
   A2uiCatalogError,
@@ -1730,5 +1734,42 @@ describe('DataContext asynchronous function arguments', () => {
       ctx.resolveDynamicValue<{nested: unknown}>({nested: pendingValue}).nested,
       pendingValue,
     );
+  });
+
+  it('inherits formatString catalogId for v1.0 template calls while keeping @index catalogless', () => {
+    const basicId = 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json';
+    const basicCat = new Catalog(
+      basicId,
+      '1.0',
+      [],
+      [FormatStringImplementation, PluralizeImplementation],
+    );
+    const defaultlessSurface = new SurfaceModel(
+      's-no-default',
+      undefined,
+      new Map([[basicId, basicCat]]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '1.0',
+    );
+    const errors: unknown[] = [];
+    defaultlessSurface.onError.subscribe(e => {
+      errors.push(e);
+    });
+    const itemCtx = new DataContext(defaultlessSurface, '/items/2', 2);
+
+    const callExpr = {
+      '@call': 'formatString',
+      catalogId: basicId,
+      args: {
+        value: "Row ${@index()}: ${pluralize(value: 2, one: 'drop', other: 'drops')}",
+      },
+    };
+    assert.strictEqual(itemCtx.resolveDynamicValue(callExpr), 'Row 2: drops');
+    assert.strictEqual(getValue(itemCtx.resolveSignal(callExpr)), 'Row 2: drops');
+    assert.strictEqual(errors.length, 0);
   });
 });
