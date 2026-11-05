@@ -490,11 +490,19 @@ class RendererFunctionCalls {
     }
   }
 
+  /// Reads [message] as a v1.0 `rendererFunctionResponse`, or returns null
+  /// if it breaks the v1.0 `FunctionResponse` schema.
+  ///
+  /// The message must declare version `'1.0'` and carry nothing but the
+  /// response, whose body holds a `functionCallId` and exactly one of `value`
+  /// (null for a function that returns nothing) and `error`, which is an
+  /// object of a string `code` and `message`. An empty `functionCallId` names
+  /// no call, so it is treated as malformed too.
   static _ParsedRendererResponse? _parseResponse(Object message) {
     if (message is RendererFunctionResponseMessage) {
+      if (message.version != A2uiProtocolVersion.v1_0.jsonValue) return null;
       final A2uiFunctionResponse resp = message.response;
       if (resp.functionCallId.isEmpty) return null;
-      if (resp.error != null && resp.error!.code.isEmpty) return null;
       return _ParsedRendererResponse(
         functionCallId: resp.functionCallId,
         value: resp.value,
@@ -503,9 +511,8 @@ class RendererFunctionCalls {
     }
 
     if (message is! Map) return null;
-    if (message.length != 2 || !message.containsKey('version')) return null;
-    final Object? version = message['version'];
-    if (version != '1.0' && version != 'v1.0') return null;
+    if (message.length != 2) return null;
+    if (message['version'] != A2uiProtocolVersion.v1_0.jsonValue) return null;
 
     final Object? rawBody = message['rendererFunctionResponse'];
     if (rawBody is! Map) return null;
@@ -519,21 +526,15 @@ class RendererFunctionCalls {
     if (rawCallId is! String || rawCallId.isEmpty) return null;
 
     final bool hasValue = rawBody.containsKey('value');
-    final bool hasError =
-        rawBody.containsKey('error') && rawBody['error'] != null;
-    if (hasValue && hasError) return null;
+    final bool hasError = rawBody.containsKey('error');
+    if (hasValue == hasError) return null;
 
     if (hasError) {
       final Object? rawError = rawBody['error'];
-      if (rawError is! Map) return null;
-      for (final Object? key in rawError.keys) {
-        if (key != 'code' && key != 'message') return null;
-      }
+      if (rawError is! Map || rawError.length != 2) return null;
       final Object? rawCode = rawError['code'];
       final Object? rawMessage = rawError['message'];
-      if (rawCode is! String || rawCode.isEmpty || rawMessage is! String) {
-        return null;
-      }
+      if (rawCode is! String || rawMessage is! String) return null;
       return _ParsedRendererResponse(
         functionCallId: rawCallId,
         value: null,

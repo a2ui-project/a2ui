@@ -75,7 +75,7 @@ void main() {
       expect(await fut1, {'scrolled': true});
       expect(calls.pendingCount, 0);
 
-      // Void response (neither value nor error).
+      // Void (null) response carries explicit value: null.
       final (_, Future<Object?> futVoid) = calls.call(
         catalogId: _catId,
         name: 'clearSelection',
@@ -83,25 +83,39 @@ void main() {
       );
       calls.resolve({
         'version': A2uiProtocolVersion.v1_0.jsonValue,
-        'rendererFunctionResponse': {'functionCallId': 'rcall-void'},
+        'rendererFunctionResponse': {
+          'functionCallId': 'rcall-void',
+          'value': null,
+        },
       });
       expect(await futVoid, isNull);
 
-      // Explicit null error alongside value resolves value.
-      final (_, Future<Object?> futNullErr) = calls.call(
-        catalogId: _catId,
-        name: 'scrollIntoView',
-        functionCallId: 'rcall-null-err',
-      );
-      calls.resolve({
-        'version': A2uiProtocolVersion.v1_0.jsonValue,
-        'rendererFunctionResponse': {
-          'functionCallId': 'rcall-null-err',
-          'value': {'ok': true},
-          'error': null,
-        },
-      });
-      expect(await futNullErr, {'ok': true});
+      // Omitting value/error or sending error: null fails as malformed.
+      for (final (id, extra) in [
+        ('rcall-empty', const <String, Object?>{}),
+        ('rcall-null-only', const <String, Object?>{'error': null}),
+        (
+          'rcall-null-err',
+          const <String, Object?>{'value': true, 'error': null},
+        ),
+      ]) {
+        final (_, Future<Object?> futBad) = calls.call(
+          catalogId: _catId,
+          name: 'scrollIntoView',
+          functionCallId: id,
+        );
+        expect(calls.resolve(_response(id, extra)), isTrue);
+        await expectLater(
+          futBad,
+          throwsA(
+            isA<A2uiRpcError>().having(
+              (e) => e.rpcCode,
+              'rpcCode',
+              RpcErrorCode.unknownError,
+            ),
+          ),
+        );
+      }
 
       // Typed RendererFunctionResponseMessage with custom error code.
       final (_, Future<Object?> futErr) = calls.call(
@@ -324,7 +338,16 @@ void main() {
       fakeAsync((FakeAsync async) {
         final calls = RendererFunctionCalls();
         final errors = <String, Object>{};
-        for (final id in ['both', 'bad-error', 'typed']) {
+        const ids = [
+          'both',
+          'bad-error',
+          'error-extra',
+          'body-extra',
+          'top-extra',
+          'v-prefixed',
+          'typed',
+        ];
+        for (final id in ids) {
           final (_, Future<Object?> future) = calls.call(
             catalogId: _catId,
             name: 'scrollIntoView',
@@ -345,17 +368,28 @@ void main() {
           }),
         );
         calls.resolve(
+          _response('error-extra', {
+            'error': {'code': 'X', 'message': 'm', 'details': 1},
+          }),
+        );
+        calls.resolve(_response('body-extra', {'value': 1, 'extra': true}));
+        calls.resolve({
+          ..._response('top-extra', {'value': 1}),
+          'extra': 1,
+        });
+        calls.resolve({
+          ..._response('v-prefixed', {'value': 1}),
+          'version': 'v1.0',
+        });
+        calls.resolve(
           RendererFunctionResponseMessage(
-            version: '1.0',
-            response: const A2uiFunctionResponse.error(
-              'typed',
-              A2uiFunctionResponseError(code: '', message: 'no code'),
-            ),
+            version: 'v1.0',
+            response: const A2uiFunctionResponse.value('typed', 1),
           ),
         );
         async.flushMicrotasks();
 
-        expect(errors.keys, unorderedEquals(['both', 'bad-error', 'typed']));
+        expect(errors.keys, unorderedEquals(ids));
         for (final Object error in errors.values) {
           expect(
             error,
@@ -420,6 +454,70 @@ void main() {
         calls.dispose();
         expect(calls.isPending('d'), isFalse);
         expect(calls.isPending('unknown'), isFalse);
+      });
+    });
+
+    test('a response after dispose settles nothing', () {
+      fakeAsync((FakeAsync async) {
+        final calls = RendererFunctionCalls();
+        final (_, Future<Object?> future) = calls.call(
+          catalogId: _catId,
+          name: 'scrollIntoView',
+          functionCallId: 'rcall-1',
+        );
+        Object? value;
+        Object? error;
+        future.then<void>((v) => value = v, onError: (Object e) => error = e);
+
+        calls.dispose();
+        expect(calls.isPending('rcall-1'), isFalse);
+        expect(calls.resolve(_response('rcall-1', {'value': 1})), isFalse);
+        expect(
+          calls.resolve(_response('rcall-1', {'value': 1, 'error': null})),
+          isFalse,
+        );
+        async.flushMicrotasks();
+
+        expect(value, isNull);
+        expect(
+          error,
+          isA<A2uiRpcError>().having(
+            (e) => e.rpcCode,
+            'rpcCode',
+            RpcErrorCode.cancelled,
+          ),
+        );
+        expect(calls.isPending('rcall-1'), isFalse);
+        expect(calls.pendingCount, 0);
+      });
+    });
+
+    test('an error with an empty code settles the call with that code', () {
+      fakeAsync((FakeAsync async) {
+        final calls = RendererFunctionCalls();
+        final (_, Future<Object?> future) = calls.call(
+          catalogId: _catId,
+          name: 'scrollIntoView',
+          functionCallId: 'rcall-1',
+        );
+        Object? error;
+        future.then<void>((_) {}, onError: (Object e) => error = e);
+        expect(
+          calls.resolve(
+            _response('rcall-1', {
+              'error': {'code': '', 'message': 'no code'},
+            }),
+          ),
+          isTrue,
+        );
+        async.flushMicrotasks();
+        expect(
+          error,
+          isA<A2uiRpcError>()
+              .having((e) => e.code, 'code', '')
+              .having((e) => e.rpcCode, 'rpcCode', RpcErrorCode.unknownError)
+              .having((e) => e.message, 'message', 'no code'),
+        );
       });
     });
 
