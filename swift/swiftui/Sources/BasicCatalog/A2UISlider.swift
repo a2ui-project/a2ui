@@ -92,24 +92,21 @@ public struct A2UISlider: View {
         }
       }
 
-      if let stepValue {
-        Slider(
-          value: sliderBinding,
-          in: minValue...max(minValue + 0.001, maxValue),
-          step: stepValue
-        )
-        .accessibilityValue(Text(formattedValueText))
+      sliderControl
+        .accessibilityValue(formattedValueText)
         .a2uiAccessibilityControl(for: node, defaultLabel: labelText)
-      } else {
-        Slider(
-          value: sliderBinding,
-          in: minValue...max(minValue + 0.001, maxValue)
-        )
-        .accessibilityValue(Text(formattedValueText))
-        .a2uiAccessibilityControl(for: node, defaultLabel: labelText)
-      }
 
       A2UICheckMessage(node: node, identifierPrefix: "A2UISlider")
+    }
+  }
+
+  @ViewBuilder
+  private var sliderControl: some View {
+    let range = minValue...max(minValue + 0.001, maxValue)
+    if let stepValue {
+      Slider(value: sliderBinding, in: range, step: stepValue)
+    } else {
+      Slider(value: sliderBinding, in: range)
     }
   }
 }
