@@ -1718,3 +1718,36 @@ async def test_generic_binder_action_closure_returns_no_pending_object():
 
     result = binder.current_props["action"]()
     assert result is None, "the closure returns the current value, not a signal"
+
+
+@pytest.mark.asyncio
+async def test_agent_rpc_error_dispatches_expression_error_with_function_call_id():
+    import asyncio
+    from a2ui.core.exceptions import A2uiRpcError
+
+    binder, surface = _action_button(
+        {"functionCall": {"@call": "remoteFn", "args": {}}}
+    )
+    errors: list[dict[str, Any]] = []
+    surface.on_error.subscribe(errors.append)
+    loop = asyncio.get_running_loop()
+    fut: asyncio.Future[Any] = loop.create_future()
+    surface.agent_function_caller = lambda call: fut
+
+    assert binder.current_props["action"]() is None
+    fut.set_exception(
+        A2uiRpcError(
+            "Agent function error [EXECUTION_ERROR]: remote boom",
+            function_call_id="call-test-123",
+            code="EXECUTION_ERROR",
+        )
+    )
+    for _ in range(5):
+        await asyncio.sleep(0)
+
+    assert len(errors) == 1
+    assert errors[0]["code"] == "EXPRESSION_ERROR"
+    assert errors[0]["functionCallId"] == "call-test-123"
+    assert "surfaceId" not in errors[0]
+    assert errors[0]["expression"] == "remoteFn"
+    binder.dispose()
