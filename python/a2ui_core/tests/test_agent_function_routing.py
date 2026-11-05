@@ -372,6 +372,7 @@ def test_runs_implemented_function_locally() -> None:
 async def test_reports_agent_error_as_expression_error() -> None:
     h = _Harness()
     result = _read(h.ctx, {"@call": "fetchFxRate", "args": {"base": "EUR"}}, peek=False)
+    call_id = h.outbound[0]["callAgentFunction"]["functionCallId"]
     h.respond(
         0,
         error={"code": "UNKNOWN_FUNCTION", "message": "No such function: fetchFxRate"},
@@ -380,6 +381,8 @@ async def test_reports_agent_error_as_expression_error() -> None:
     assert result.peek() is None
     assert len(h.errors) == 1
     assert h.errors[0]["code"] == "EXPRESSION_ERROR"
+    assert h.errors[0]["functionCallId"] == call_id
+    assert "surfaceId" not in h.errors[0]
     assert "No such function: fetchFxRate" in h.errors[0]["message"]
 
 

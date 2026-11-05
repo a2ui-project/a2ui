@@ -610,7 +610,10 @@ class SurfaceModel:
                 f"Expected error payload to be a dict, got {type(error).__name__}"
             )
         err_payload = copy.deepcopy(error)
-        err_payload["surfaceId"] = self.id
+        if err_payload.get("functionCallId"):
+            err_payload.pop("surfaceId", None)
+        else:
+            err_payload["surfaceId"] = self.id
         self.on_error.emit(err_payload)
 
     def dispatch_warning(self, warning: dict[str, Any]) -> None:

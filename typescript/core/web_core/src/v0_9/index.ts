@@ -56,6 +56,19 @@ export type {ResolvedChildRef} from '../resolution/index.js';
 export type {DataBindingType, FunctionCallType} from '../types/common-types.js';
 export {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
 export * from './basic_catalog/index.js';
+export {
+  MAX_REGEX_PATTERN_CODE_POINTS,
+  MAX_REGEX_VALUE_CODE_POINTS,
+  RegexSyntaxError,
+  analyzeRegex,
+  checkRegexSafety,
+  parseRegexSubset,
+  type AnchorKind,
+  type CodePointRange,
+  type RegexAnalysisResult,
+  type RegexNode,
+  type RegexRejection,
+} from '../common/regex_subset.js';
 export * from '../validation/integrity-checker.js';
 export {
   /** @deprecated Import from `@a2ui/web_core/v0_9/basic_catalog` instead. */
