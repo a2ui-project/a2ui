@@ -929,13 +929,28 @@ function pruneOmittedProps(
 }
 
 function pruneOmittedValue(resolved: unknown, rawValue: unknown, behavior?: BehaviorNode): unknown {
-  if (behavior?.type === 'OBJECT' && isPlainObject(resolved) && isPlainObject(rawValue)) {
+  if (rawValue === undefined || rawValue === null) {
+    return rawValue;
+  }
+  if (behavior?.type === 'STRUCTURAL' && Array.isArray(rawValue)) {
+    return [...rawValue];
+  }
+  if (
+    (!behavior || behavior.type === 'OBJECT' || behavior.type === 'STATIC') &&
+    isPlainObject(resolved) &&
+    isPlainObject(rawValue)
+  ) {
     return pruneOmittedProps(resolved, rawValue, behavior);
   }
-  if (behavior?.type === 'ARRAY' && Array.isArray(resolved) && Array.isArray(rawValue)) {
+  if (
+    (!behavior || behavior.type === 'ARRAY' || behavior.type === 'STATIC') &&
+    Array.isArray(resolved) &&
+    Array.isArray(rawValue)
+  ) {
+    const elementBehavior = behavior?.type === 'ARRAY' ? behavior.element : undefined;
     return resolved
       .slice(0, rawValue.length)
-      .map((item, index) => pruneOmittedValue(item, rawValue[index], behavior.element));
+      .map((item, index) => pruneOmittedValue(item, rawValue[index], elementBehavior));
   }
   return resolved;
 }

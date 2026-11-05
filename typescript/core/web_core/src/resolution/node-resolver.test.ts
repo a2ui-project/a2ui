@@ -1418,7 +1418,9 @@ describe('NodeResolver on a surface without a default catalog', () => {
     metaCounter.dispose();
     resolver.dispose();
   });
+});
 
+describe('NodeResolver omitted property pruning on update (#3779)', () => {
   it('prunes omitted scalar, nested object, array, dynamic-bound, action, and ref properties on update (#3779)', async () => {
     const RichWidgetApi = {
       name: 'RichWidget',
@@ -1609,7 +1611,8 @@ describe('NodeResolver on a surface without a default catalog', () => {
     const WidgetWithChildApi = {
       name: 'WidgetWithChild',
       schema: z.object({
-        variant: z.string().optional(),
+        variant: z.string().nullable().optional(),
+        extraMap: z.record(z.string()).optional(),
         grid: z
           .array(
             z.array(
@@ -1621,6 +1624,7 @@ describe('NodeResolver on a surface without a default catalog', () => {
           )
           .optional(),
         child: ComponentIdSchema.optional(),
+        children: ChildListSchema.optional(),
       }),
     };
     const catalog = new Catalog<ComponentApi>(
@@ -1630,11 +1634,14 @@ describe('NodeResolver on a surface without a default catalog', () => {
       [],
     );
     const surface = new SurfaceModel('surf-delayed', catalog);
+    add(surface, 'c1', 'Text', {text: 'First'});
+    add(surface, 'c2', 'Text', {text: 'Second'});
     const rootModel = new ComponentModel(
       'root',
       'WidgetWithChild',
       {
         variant: 'outlined',
+        extraMap: {keep: 'yes', drop: 'no'},
         grid: [
           [
             {title: 'Cell 1', badge: 'New'},
@@ -1642,6 +1649,7 @@ describe('NodeResolver on a surface without a default catalog', () => {
           ],
         ],
         child: 'pending-child',
+        children: ['c1', 'c2'],
       },
       catalog,
     );
@@ -1665,27 +1673,38 @@ describe('NodeResolver on a surface without a default catalog', () => {
     assert.ok(root);
     assert.strictEqual(props(root).variant, 'outlined');
     assert.strictEqual(child(root, 'child').state, 'pending');
+    assert.strictEqual((props(root).children as ComponentNode[]).length, 2);
 
-    // Update rootModel omitting `variant`, `badge`, and the second cell while
-    // keeping `child: 'pending-child'`, then add `pending-child` while
-    // GenericBinder's onUpdated is still blocked.
+    // Update rootModel setting `variant: null`, omitting `extraMap.drop`,
+    // `badge`, the second cell, and `c2` from `children`, while keeping
+    // `child: 'pending-child'`, then add `pending-child` while GenericBinder's
+    // onUpdated is still blocked.
     blockUpdates = true;
     rootModel.properties = {
+      variant: null,
+      extraMap: {keep: 'yes'},
       grid: [[{title: 'Cell 1'}]],
       child: 'pending-child',
+      children: ['c1'],
     };
     add(surface, 'pending-child', 'Text', {text: 'Arrived'});
 
     // materialize ran for pending-child arrival with stale lastBinderProps:
-    // omitted `variant`, nested `badge`, and shrunk array elements must already be pruned.
+    // cleared `variant: null`, omitted `extraMap.drop`, nested `badge`, shrunk
+    // array elements, and shrunk static `children` must already be reflected.
     assert.strictEqual(child(root, 'child').type, 'Text');
-    assert.strictEqual(Object.hasOwn(props(root), 'variant'), false);
+    assert.strictEqual(props(root).variant, null);
+    assert.deepStrictEqual(props(root).extraMap, {keep: 'yes'});
     assert.deepStrictEqual(props(root).grid, [[{title: 'Cell 1'}]]);
+    assert.strictEqual((props(root).children as ComponentNode[]).length, 1);
+    assert.strictEqual(child(root, 'children', 0).componentId, 'c1');
 
     releaseGate();
     await flush();
-    assert.strictEqual(Object.hasOwn(props(root), 'variant'), false);
+    assert.strictEqual(props(root).variant, null);
+    assert.deepStrictEqual(props(root).extraMap, {keep: 'yes'});
     assert.deepStrictEqual(props(root).grid, [[{title: 'Cell 1'}]]);
+    assert.strictEqual((props(root).children as ComponentNode[]).length, 1);
 
     resolver.dispose();
     surface.dispose();

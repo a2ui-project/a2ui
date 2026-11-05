@@ -523,7 +523,7 @@ export class GenericBinder<T> {
   private resolveInitialProps() {
     const props = this.context.componentModel.properties;
     const resolved = this.resolveAndBind(props, this.behaviorTree, [], true);
-    this.currentProps = mergeBindingState(this.currentProps, resolved ?? {}) as Partial<T>;
+    this.currentProps = (resolved ?? {}) as Partial<T>;
   }
 
   private connect() {
@@ -553,7 +553,7 @@ export class GenericBinder<T> {
     } finally {
       this.prevActionClosures = undefined;
     }
-    this.currentProps = mergeBindingState(this.currentProps, resolved ?? {}) as Partial<T>;
+    this.currentProps = (resolved ?? {}) as Partial<T>;
 
     this.notify();
   }
@@ -812,14 +812,12 @@ export class GenericBinder<T> {
 
     // Set initial state directly on the enclosing object being built so
     // rebuilding `this.currentProps` from `resolved` preserves validation
-    // state at both root and nested object levels without merging stale keys.
+    // state at root, nested object, and array-element levels.
     if (initialTarget) {
       const state = computeValidationState();
       initialTarget.isValid = state.isValid;
       initialTarget.validationErrors = state.validationErrors;
       initialTarget.validationResults = state.validationResults;
-    } else {
-      applyValidationState();
     }
 
     return value;
@@ -1058,36 +1056,6 @@ export class GenericBinder<T> {
   get snapshot() {
     return this.currentProps as T;
   }
-}
-
-/**
- * Merges resolved props over the state bindings wrote while binding, at any
- * depth. A check writes `isValid`, `validationErrors` and `validationResults`
- * next to its `checks`, which can be inside a nested object.
- *
- * @param written The props that bindings wrote while binding.
- * @param resolved The props that binding resolved.
- * @returns `resolved`, with the values from `written` that it lacks.
- */
-function mergeBindingState(written: unknown, resolved: unknown): unknown {
-  if (resolved === undefined) return written;
-  if (Array.isArray(written) && Array.isArray(resolved)) {
-    return resolved.map((item, index) => mergeBindingState(written[index], item));
-  }
-  if (isPlainObject(written) && isPlainObject(resolved)) {
-    const merged: Record<string, unknown> = {...written};
-    for (const [key, value] of Object.entries(resolved)) {
-      merged[key] = mergeBindingState(written[key], value);
-    }
-    return merged;
-  }
-  return resolved;
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (typeof value !== 'object' || value === null) return false;
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
 }
 
 /**

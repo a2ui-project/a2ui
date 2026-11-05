@@ -1639,7 +1639,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     surface.dispose();
   });
 
-  it('preserves top-level and nested checkable validation state when checks remain and prunes it when omitted', async () => {
+  it('preserves top-level, nested, and array-of-object checkable validation state when checks remain and prunes it when omitted', async () => {
     const required: FunctionImplementation = {
       name: 'required',
       returnType: 'boolean',
@@ -1658,6 +1658,13 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
         .object({
           checks: CommonSchemas.Checkable.shape.checks,
         })
+        .optional(),
+      items: z
+        .array(
+          z.object({
+            checks: CommonSchemas.Checkable.shape.checks,
+          }),
+        )
         .optional(),
     });
 
@@ -1678,6 +1685,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
         nested: {
           checks: checkRule('Nested required'),
         },
+        items: [{checks: checkRule('Item 0 required')}],
       },
       catalog,
     );
@@ -1688,13 +1696,16 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       schema,
     );
 
-    // Synchronous initial snapshot includes both top-level and nested validation state
+    // Synchronous initial snapshot includes top-level, nested, and array-element validation state
     assert.strictEqual(binder.snapshot.isValid, false);
     assert.deepStrictEqual(binder.snapshot.validationErrors, ['Top required']);
     assert.strictEqual((binder.snapshot.nested as Record<string, unknown>).isValid, false);
     assert.deepStrictEqual((binder.snapshot.nested as Record<string, unknown>).validationErrors, [
       'Nested required',
     ]);
+    const initialItems = binder.snapshot.items as Record<string, unknown>[];
+    assert.strictEqual(initialItems[0].isValid, false);
+    assert.deepStrictEqual(initialItems[0].validationErrors, ['Item 0 required']);
 
     const sub = binder.subscribe(() => {});
 
@@ -1705,6 +1716,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       nested: {
         checks: checkRule('Nested required'),
       },
+      items: [{checks: checkRule('Item 0 required')}],
     };
     assert.strictEqual(Object.hasOwn(binder.snapshot, 'extra'), false);
     assert.strictEqual(binder.snapshot.isValid, false);
@@ -1713,8 +1725,11 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     assert.deepStrictEqual((binder.snapshot.nested as Record<string, unknown>).validationErrors, [
       'Nested required',
     ]);
+    const updatedItems = binder.snapshot.items as Record<string, unknown>[];
+    assert.strictEqual(updatedItems[0].isValid, false);
+    assert.deepStrictEqual(updatedItems[0].validationErrors, ['Item 0 required']);
 
-    // Reactive data update updates both top-level and nested validation state
+    // Reactive data update updates top-level, nested, and array-element validation state
     surface.dataModel.set('/v', 'non-empty');
     await new Promise(resolve => setTimeout(resolve, 0));
     assert.strictEqual(binder.snapshot.isValid, true);
@@ -1725,8 +1740,11 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       (binder.snapshot.nested as Record<string, unknown>).validationErrors,
       [],
     );
+    const reactiveItems = binder.snapshot.items as Record<string, unknown>[];
+    assert.strictEqual(reactiveItems[0].isValid, true);
+    assert.deepStrictEqual(reactiveItems[0].validationErrors, []);
 
-    // Component update omitting `checks`, `nested`, and `value` clears validation state
+    // Component update omitting `checks`, `nested`, `items`, and `value` clears validation state
     compModel.properties = {};
     assert.strictEqual(Object.hasOwn(binder.snapshot, 'value'), false);
     assert.strictEqual(Object.hasOwn(binder.snapshot, 'checks'), false);
@@ -1734,6 +1752,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     assert.strictEqual(Object.hasOwn(binder.snapshot, 'validationErrors'), false);
     assert.strictEqual(Object.hasOwn(binder.snapshot, 'validationResults'), false);
     assert.strictEqual(Object.hasOwn(binder.snapshot, 'nested'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'items'), false);
 
     // Subsequent updates to /v do not resurrect validation state or value
     surface.dataModel.set('/v', '');
@@ -1742,6 +1761,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     assert.strictEqual(Object.hasOwn(binder.snapshot, 'validationErrors'), false);
     assert.strictEqual(Object.hasOwn(binder.snapshot, 'validationResults'), false);
     assert.strictEqual(Object.hasOwn(binder.snapshot, 'value'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'items'), false);
 
     sub.unsubscribe();
     surface.dispose();
