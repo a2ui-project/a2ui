@@ -1938,12 +1938,13 @@ struct AgentFunctionRoutingTests {
     validation()
     await waitUntil { errors.count == 1 }
 
-    try render(
-      processor,
-      """
-      {"id": "root", "component": "Text",
-       "onClick": {"event": {"name": "audit", "context": {"logged": {"@call": "auditLog"}}}}}
-      """
+    // Payload validation refuses an `agentOnly` call in a component, so the component is added
+    // without it, to check the refusal at evaluation time too.
+    try render(processor, #"{"id": "root", "component": "Text", "text": "audit"}"#)
+    await waitUntil { surface.rootNode?.properties["onClick"] == nil }
+    try await addUnvalidated(
+      surface,
+      ["onClick": ["event": ["name": "audit", "context": ["logged": ["@call": "auditLog"]]]]]
     )
     let agentOnly = try #require(surface.rootNode?.properties["onClick"] as? ResolvedAction)
     agentOnly()
