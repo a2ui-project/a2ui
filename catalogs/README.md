@@ -17,6 +17,9 @@ catalogs/
 │       ├── catalog.json
 │       ├── examples/
 │       └── basic_catalog_implementation_guide.md
+├── file_upload/            # File Upload catalog (protocol v1.0)
+│   ├── catalog.json
+│   └── examples/
 ├── mcp/                    # MCP catalog
 │   ├── catalog.json        # Pre-1.0 MCP catalog, protocol v0.9
 │   └── v1/                 # MCP catalog, major version 1 (protocol v1.0)

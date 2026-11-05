@@ -530,6 +530,19 @@ def main():
             ],
             "examples": "catalogs/mcp/v1/examples/*.json",
         },
+        # The file upload catalog adds one input component to a basic surface,
+        # so its examples are validated against the union of the two catalogs.
+        "file_upload": {
+            "protocol_version": "v1_0",
+            "root_schema": "specification/v1_0/json/agent_to_renderer.json",
+            "catalog": "catalogs/basic/v1/catalog.json",
+            "refs": [
+                "specification/v1_0/json/common_types.json",
+                "catalogs/file_upload/catalog.json",
+                "catalogs/basic/v1/catalog.json",
+            ],
+            "examples": "catalogs/file_upload/examples/*.json",
+        },
     }
 
     for version, config in configs.items():

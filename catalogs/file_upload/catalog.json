@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v1_0/catalogs/file_upload/catalog.json",
+  "protocolVersion": "1.0",
+  "title": "A2UI File Upload Catalog",
+  "description": "A2UI catalog for uploading files from a surface. It defines the `FileUpload` component, an input that lets the user pick or drop files, hands them to the host application to upload, and writes a list of file references (a pointer per file, never the bytes) to the data model.",
+  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/file_upload/catalog.json",
+  "components": {
+    "FileUpload": {
+      "type": "object",
+      "description": "An input that lets the user pick or drag and drop files. The renderer uploads each file through the host application and writes the resulting file references to the data model path bound to `value`. The action payload and the data model carry only a `fileId` pointer and metadata per file; the agent resolves the pointer to the file content out of band.",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/Checkable"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "FileUpload"
+            },
+            "label": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "The prompt shown in the drop zone, e.g. \"Drop a PDF here or click to upload\". Defaults to a generic prompt chosen by the renderer."
+            },
+            "accept": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "Comma-separated list of accepted MIME types or file extensions, e.g. \"image/*, application/pdf\" or \".csv, .xlsx\". Defaults to accepting any file. This is a convenience filter for the file picker; the agent must still validate what it receives."
+            },
+            "maxSize": {
+              "$ref": "common_types.json#/$defs/DynamicNumber",
+              "description": "Maximum size of each file in bytes. The renderer rejects larger files with an inline error and does not upload them. Defaults to a limit chosen by the renderer."
+            },
+            "multiple": {
+              "type": "boolean",
+              "description": "Whether the user may upload more than one file. When false, picking a new file replaces the previous one.",
+              "default": false
+            },
+            "value": {
+              "$ref": "common_types.json#/$defs/DataBinding",
+              "description": "The data model path where the renderer writes the uploaded files, as an array of FileReference objects (see `$defs/FileReference`). The array is replaced after every upload and removal, and is empty until the first upload completes. Read it from a Button action context with a path to the same location, e.g. {\"files\": {\"@path\": \"/upload/files\"}}."
+            },
+            "action": {
+              "$ref": "common_types.json#/$defs/Action",
+              "description": "Optional action dispatched each time `value` changes: after a successful upload and after the user removes a file. Use it to notify the agent without a separate submit button, binding the files into the event context with a path to `value`. Uploads that fail do not dispatch the action."
+            }
+          },
+          "required": ["component", "value"]
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "FileReference": {
+      "type": "object",
+      "description": "A pointer to an uploaded file. The renderer writes one per uploaded file to the data model path bound to `FileUpload.value`.",
+      "properties": {
+        "fileId": {
+          "type": "string",
+          "description": "An opaque URI that identifies the uploaded file, returned by the host's upload handler (e.g. \"gdrive://1AbC\", \"s3://bucket/key\", or an ephemeral \"https://\" download URL). When the host has no upload handler, the renderer falls back to an \"inline://<uuid>\" pointer and puts the content in `inlineData`. The agent resolves the URI to the file content out of band; the pointer itself never carries the bytes."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "The name of the file as selected by the user."
+        },
+        "fileSize": {
+          "type": "integer",
+          "description": "The size of the file in bytes."
+        },
+        "mimeType": {
+          "type": "string",
+          "description": "The MIME type of the file, e.g. \"application/pdf\"."
+        },
+        "inlineData": {
+          "type": "string",
+          "description": "The file content as a data URI. Present only when `fileId` is an \"inline://\" pointer, i.e. when the host has no upload handler and the file is within the renderer's inline size limit. The host's transport should move it out of the action payload (for example into an A2A FilePart whose metadata carries the `fileId`) so conversation history is not bloated with base64 content."
+        }
+      },
+      "required": ["fileId", "fileName", "fileSize", "mimeType"],
+      "additionalProperties": false
+    },
+    "anyComponent": {
+      "oneOf": [
+        {
+          "$ref": "#/components/FileUpload"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "component"
+      }
+    },
+    "anyFunction": {
+      "not": {}
+    }
+  }
+}
