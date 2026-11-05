@@ -185,7 +185,7 @@ struct OpenURLFunctionTests {
   func makeCatalogPassesOpenURLHandlerToOpenURLFunction(version: A2UIProtocolVersion) throws {
     let handler = MockOpenURLHandler()
     let catalog = BasicCatalog.makeCatalog(
-      version: version, locale: BasicFunctions.defaultLocale, openURLHandler: handler)
+      version: version, openURLHandler: handler)
     let function = try #require(catalog.functions["openUrl"])
 
     _ = try function.evaluate(arguments: ["url": .string("https://example.com")], context: context)
@@ -198,7 +198,7 @@ struct OpenURLFunctionTests {
   func makeCatalogDoesNotPassDisallowedURLToOpenURLHandler(version: A2UIProtocolVersion) throws {
     let handler = MockOpenURLHandler()
     let catalog = BasicCatalog.makeCatalog(
-      version: version, locale: BasicFunctions.defaultLocale, openURLHandler: handler)
+      version: version, openURLHandler: handler)
     let function = try #require(catalog.functions["openUrl"])
 
     #expect(throws: FunctionError.self) {
@@ -216,7 +216,7 @@ struct OpenURLFunctionTests {
       let handler = MockOpenURLHandler()
       releasedHandler = handler
       catalog = BasicCatalog.makeCatalog(
-        version: version, locale: BasicFunctions.defaultLocale, openURLHandler: handler)
+        version: version, openURLHandler: handler)
     }
     let function = try #require(catalog.functions["openUrl"] as? OpenURLFunction)
 

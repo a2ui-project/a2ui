@@ -77,5 +77,21 @@ struct BasicCatalogImplementationLocaleTests {
     _ = try function.evaluate(arguments: ["url": .string("https://example.com")], context: context)
 
     #expect(handler.openedURL?.absoluteString == "https://example.com")
+    #expect(function.api.requiresUserActivation == (version == .v10))
+  }
+
+  @Test(arguments: A2UIProtocolVersion.allCases)
+  func makeCatalogHoldsOpenURLHandlerWeakly(version: A2UIProtocolVersion) throws {
+    weak var releasedHandler: MockOpenURLHandler?
+    let catalog: Catalog<ComponentImplementation>
+    do {
+      let handler = MockOpenURLHandler()
+      releasedHandler = handler
+      catalog = BasicCatalogImplementation.makeCatalog(version: version, openURLHandler: handler)
+    }
+    let function = try #require(catalog.functions["openUrl"] as? OpenURLFunction)
+
+    #expect(releasedHandler == nil)
+    #expect(function.handler == nil)
   }
 }

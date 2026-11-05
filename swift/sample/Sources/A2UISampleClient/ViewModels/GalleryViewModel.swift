@@ -105,25 +105,18 @@ public final class GalleryViewModel: @unchecked Sendable, ObservableObject {
   public let catalogs: [Catalog<ComponentImplementation>]
   /// Opens links for `openUrl`. The catalogs hold it weakly, so the view model owns it.
   private let urlOpener = SystemURLOpener()
-  /// Basic catalogs for the processor, whose `openUrl` opens links with `urlOpener`.
-  private let processorCatalogs: [AnyCatalog]
   private var processor: MessageProcessor
   private let parser = MessageParser()
   private var surfaceSubscription: AnyCancellable?
   private let handler = GalleryActionHandler()
 
   public init() {
-    self.catalogs = BasicCatalogImplementation.allCatalogs
-    let processorCatalogs = A2UIProtocolVersion.allCases.map { [urlOpener] version in
-      BasicCatalog.makeCatalog(
-        version: version,
-        locale: BasicFunctions.defaultLocale,
-        openURLHandler: urlOpener
-      )
+    let catalogs = A2UIProtocolVersion.allCases.map { [urlOpener] version in
+      BasicCatalogImplementation.makeCatalog(version: version, openURLHandler: urlOpener)
     }
-    self.processorCatalogs = processorCatalogs
+    self.catalogs = catalogs
     self.processor = MessageProcessor(
-      catalogs: processorCatalogs,
+      catalogs: catalogs,
       actionHandler: self.handler
     )
     self.handler.viewModel = self
@@ -157,7 +150,7 @@ public final class GalleryViewModel: @unchecked Sendable, ObservableObject {
     surfaceSubscription = nil
 
     self.processor = MessageProcessor(
-      catalogs: processorCatalogs,
+      catalogs: catalogs,
       actionHandler: self.handler
     )
     self.currentStepIndex = 0

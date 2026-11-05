@@ -90,11 +90,7 @@ final class SystemURLOpener: OpenURLHandler {
 }
 
 let urlOpener = SystemURLOpener()  // Keep this alive, e.g. in your view model.
-let catalog = BasicCatalog.makeCatalog(
-  version: .v10,
-  locale: BasicFunctions.defaultLocale,
-  openURLHandler: urlOpener
-)
+let catalog = BasicCatalog.makeCatalog(version: .v10, openURLHandler: urlOpener)
 ```
 
 The catalog holds the handler weakly, following the delegate pattern, so it never creates a retain
@@ -102,8 +98,10 @@ cycle. Keep a strong reference to the handler outside the catalog, for example i
 model that owns the `MessageProcessor`, or share one instance across the app. If nothing else
 holds it, it is released and links stop opening.
 
-`BasicCatalogImplementation.makeCatalog(version:locale:openURLHandler:)` takes the same handler.
-Give it to the catalogs of your `MessageProcessor`, because that is where functions run.
+In SwiftUI, `BasicCatalogImplementation.makeCatalog(version:locale:openURLHandler:)` takes the same
+handler. Pass that catalog to both `MessageProcessor` and `Surface`, since
+`Catalog<ComponentImplementation>` conforms to `CatalogProtocol`. If you use separate catalogs, give
+`openURLHandler` to the `MessageProcessor` catalog, because that is where functions run.
 
 ## Agent guidelines and coding standards
 

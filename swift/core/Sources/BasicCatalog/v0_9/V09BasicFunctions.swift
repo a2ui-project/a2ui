@@ -25,7 +25,7 @@ public enum V09BasicFunctions: Sendable {
   /// `formatNumber`, `formatCurrency` and `pluralize` use `locale`, and whose `openUrl` passes
   /// the resolved URL to `openURLHandler`, held weakly.
   public static func makeFunctions(
-    locale: Locale,
+    locale: Locale = BasicFunctions.defaultLocale,
     openURLHandler: (any OpenURLHandler)? = nil
   ) -> [any FunctionImplementation] {
     [

@@ -51,7 +51,7 @@ public enum BasicCatalog: Sendable {
   /// and have no `OpenURLHandler`, so their `openUrl` only validates the URL.
   public static func makeCatalog(
     version: A2UIProtocolVersion,
-    locale: Locale,
+    locale: Locale = BasicFunctions.defaultLocale,
     openURLHandler: (any OpenURLHandler)? = nil
   ) -> AnyCatalog {
     switch version {
