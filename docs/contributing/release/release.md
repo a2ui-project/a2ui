@@ -229,11 +229,8 @@ repository directly:
 and name it `a2ui` in their product dependencies, for example
 `.product(name: "A2UISwiftUI", package: "a2ui")`.
 
-Each Swift release commit gets two tags:
+Each Swift release commit gets a tag:
 
-- `swift/v<version>`, the prefixed form used by the other packages in this
-  repository, such as `python/a2ui-core/v<version>`. Swift Package Manager
-  ignores it.
 - `v<version>+swift`, which Swift Package Manager reads as `<version>`,
   because it ignores Semver build metadata after the `+`. The `+swift` suffix
   keeps it clear that the tag belongs to the Swift package and not to the whole
