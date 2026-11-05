@@ -17,7 +17,7 @@
 # owned by this automation and reconciled on every run.
 #
 # The flagging rules are implemented in
-# ./tools/internal/triage/flagging/triage.mts and described in
+# ./tools/internal/triage/flagging/flagging.mts and described in
 # https://github.com/a2ui-project/a2ui/blob/main/tools/internal/triage/blueprints/flagging.blueprint.md
 
 name: Flag/Unflag issues and PRs
@@ -82,7 +82,7 @@ jobs:
 
     steps:
       # Always run the rules from main. A PR review event otherwise checks out
-      # the PR's merge commit, whose copy of triage.mts can predate a rule
+      # the PR's merge commit, whose copy of flagging.mts can predate a rule
       # change, and the two copies then add and remove each other's labels on
       # every run. It also keeps a PR's own edits to the script from running
       # with this job's write token.
@@ -99,7 +99,7 @@ jobs:
             const path = require('path');
             const { pathToFileURL } = require('url');
 
-            const filePath = path.resolve('./tools/internal/triage/flagging/triage.mts');
+            const filePath = path.resolve('./tools/internal/triage/flagging/flagging.mts');
             const fileUrl = pathToFileURL(filePath).href;
 
             const importedModule = await import(fileUrl);

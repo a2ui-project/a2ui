@@ -1,25 +1,36 @@
-# Staleness cases and thresholds
+# Triage definitions
 
-An open issue or PR is **stale** when a team member owns it and it has gone quiet for longer than its case allows. The bot handles a stale item in two stages:
+Terms used in [flagging.blueprint.md](flagging.blueprint.md) and [staleness_ping.blueprint.md](staleness_ping.blueprint.md).
 
-1. It pings the assignees on GitHub and in Google Chat, as described in [ping.blueprint.md](staleness_ping.blueprint.md).
-2. If the item is still stale when the grace period after the ping ends, the bot adds `status: needs-triage`, as described in [flagging.blueprint.md](flagging.blueprint.md).
+## Contributors
 
-## Cases
+1. A **team member** is anyone with the `OWNER`, `MEMBER` or `COLLABORATOR` association on the repository.
+2. An **out-of-team contributor** is anyone else. Bots are out-of-team contributors, so an issue filed by a workflow or a PR opened by dependabot needs triage like any other.
 
-1. **Triage assignment.** An issue or PR with `status: assigned-for-triage` and at least one assignee is stale 14 days after the label was last added. The grace period after the ping is 7 days.
-2. **Inactive `P0`.** An issue with `P0` and at least one assignee is stale after 1 day with no human contribution. The grace period after the ping is 1 day.
-3. **Inactive `P1`.** An issue with `P1` and at least one assignee is stale after 30 days with no human contribution. The grace period after the ping is 7 days.
+## Human contributions
 
-## What is never stale
+A **human contribution** is the opening of an item, or a comment, review, or inline review comment from someone who is not a bot. The **last human contribution** is the newest one.
 
-1. A closed item.
-2. An item with `status: waiting-for-author-response`. The team is waiting for someone outside it, so the team's silence is expected.
+The following are not human contributions, so they neither count as a reply nor reset a staleness clock:
 
-## The last human contribution
-
-Cases 2 and 3 measure time from the last human contribution: the newest comment, review, or inline review comment from a human, or the opening of the item if there are none. The bot ignores the following:
-
-1. Contributions from bots, including the bot's own ping comments. Otherwise the ping would reset the clock it reports on.
+1. Bot comments, including staleness pings.
 2. Changes to labels, assignees, the title, or the description.
-3. The item's `updated_at`, which bot edits also change.
+3. Changes to the item's `updated_at`, which bot edits also change.
+
+## Stale items
+
+An open issue or PR is **stale** when it matches one of these cases:
+
+1. **Triage assignment.** It has `status: assigned-for-triage`, at least one assignee, and the label was last added more than 14 days ago. Grace period: 7 days.
+2. **Inactive `P0`.** It is an issue with `P0`, at least one assignee, and no human contribution for more than 1 day. Grace period: 1 day.
+3. **Inactive `P1`.** It is an issue with `P1`, at least one assignee, and no human contribution for more than 30 days. Grace period: 7 days.
+
+An item with `status: assigned-for-triage` is checked against case 1 only. An item with `status: waiting-for-author-response` is never stale, because the team is waiting for someone outside it.
+
+## Staleness pings
+
+A **staleness ping** is a comment that the staleness ping job posts on a stale item, marked with the item's case.
+
+A ping is **current** when it was posted for the item's current case after that case's clock started: the latest `status: assigned-for-triage` labeling for case 1, or the last human contribution for cases 2 and 3.
+
+A current ping is **expired** when it is older than the grace period of its case.
