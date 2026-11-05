@@ -35,12 +35,15 @@ from a2ui.core import (
     ComponentModel,
     MessageProcessor,
     MessageProcessorOptions,
+    PayloadValidator,
     STRICT_VALIDATION,
     SurfaceModel,
     ValidationConfig,
 )
+from a2ui.core.catalog import is_system_function_name
 from a2ui.core.common import is_at_least_version, to_protocol_version
 from a2ui.core.processing import (
+    InternalCallRendererFunctionOp,
     InternalCreateSurfaceOp,
     InternalDeleteSurfaceOp,
     InternalOperation,
@@ -53,7 +56,11 @@ from a2ui.core.schema import (
     AgentToRendererMessagePayload,
     ProtocolVersion,
 )
-from a2ui.core.validation import analyze_topology, validate_component_integrity
+from a2ui.core.validation import (
+    analyze_topology,
+    validate_component_integrity,
+    validate_system_function,
+)
 
 __all__ = [
     "RendererState",
@@ -741,6 +748,9 @@ class RendererState:
     def _apply_message(self, payload: list[dict[str, Any]], index: int) -> str | None:
         """Applies the message at an index and returns the surface it targets."""
         message = payload[index]
+        if "callRendererFunction" in message:
+            self._check_renderer_function_call(payload, index)
+            return None
         surface_id, creates = _target(message)
         if surface_id is None:
             self._process([message])
@@ -776,6 +786,47 @@ class RendererState:
         if comp_ids:
             self._note_changed(surface_id, comp_ids)
         return surface_id
+
+    def _check_renderer_function_call(
+        self, payload: list[dict[str, Any]], index: int
+    ) -> None:
+        """Checks a `callRendererFunction` the way the renderer would.
+
+        The call is checked, never run: running it would run the renderer's
+        function on the agent, and the state has no renderer to answer. A
+        renderer refuses a call with `INVALID_FUNCTION_CALL` when the surface
+        it names doesn't exist, its catalog isn't registered, the catalog
+        doesn't declare the function, the agent may not call the function, or
+        its arguments don't match the function's schema, so each of these is
+        rejected; see `_check_function_call`.
+
+        A payload state assumes a surface the payload never named before, as
+        it does for an update, since an earlier payload may have created it.
+
+        Raises:
+          A2uiValidationError: If the renderer would refuse the call.
+        """
+        message = payload[index]
+        with _as_validation_error():
+            adapter = VersionAdapterFactory.resolve_from_payload([message])
+            ops = adapter.extract_operations([message])
+        for op in ops:
+            if not isinstance(op, InternalCallRendererFunctionOp):
+                continue
+            surface_id = op.surface_id
+            if (
+                surface_id is not None
+                and self._processor.model.get_surface(surface_id) is None
+                and not (
+                    self._assumes_unknown_surfaces
+                    and self._assumes(surface_id, payload, index)
+                )
+            ):
+                raise A2uiValidationError(
+                    f"Function call '{op.function_call_id}' names surface"
+                    f" '{surface_id}', which does not exist."
+                )
+            _check_function_call(self._catalogs, op)
 
     def _assumes(
         self, surface_id: str, payload: list[dict[str, Any]], index: int
@@ -937,6 +988,12 @@ def validate_payload(
     `surface_catalog_ids`, and the surface is then checked against that
     catalog only.
 
+    A v1.0 `callRendererFunction` is checked against the catalogs, never run:
+    its catalog must be active and declare the function, the agent must be
+    allowed to call the function, and its arguments must match the function's
+    schema. A surface it names must exist when it arrives, or be one the
+    payload never named before, which an earlier payload may have created.
+
     To check a payload against what earlier payloads sent, keep a
     `RendererState` and call its `apply` and `check_topology` inside
     `with state.transaction():`, so a rejected response is rolled back whole.
@@ -964,6 +1021,127 @@ def validate_payload(
     """
     state = _PayloadState(catalogs, surface_catalog_ids)
     state.check_topology(state.apply(payload))
+
+
+def _check_function_call(
+    catalogs: Sequence[CatalogApi], op: InternalCallRendererFunctionOp
+) -> None:
+    """Checks the call of a `callRendererFunction` against the catalogs.
+
+    The catalog the call names must be one of the catalogs, and it must
+    declare the function. The agent may call a function whose
+    `allowedCallers` is `agentOnly` or `rendererOrAgent`, and never one that
+    requires a user activation, since a call from the agent has no user
+    gesture. The arguments are checked as written, as a component's nested
+    calls are, rather than resolved against the data model first, which only
+    the renderer holds. A call nested in the arguments is checked by
+    `_check_nested_calls`.
+
+    Raises:
+      A2uiValidationError: If a renderer holding the catalogs would refuse the
+        call.
+    """
+    subject = f"Function call '{op.function_call_id}'"
+    name = op.call
+    catalog = _held_catalog(catalogs, op.catalog_id, subject)
+    function = catalog.functions.get(name)
+    if function is None:
+        raise A2uiValidationError(
+            f"{subject} names '{name}', which catalog '{catalog.catalog_id}' does"
+            " not declare."
+        )
+    allowed_callers = getattr(function, "allowed_callers", None) or "rendererOnly"
+    if allowed_callers not in ("agentOnly", "rendererOrAgent"):
+        raise A2uiValidationError(
+            f"{subject} names '{name}', which only the renderer may call"
+            f" (allowedCallers is {allowed_callers})."
+        )
+    if getattr(function, "requires_user_activation", False):
+        raise A2uiValidationError(
+            f"{subject} names '{name}', which requires a user activation, and a"
+            " call from the agent has none."
+        )
+    _check_args(catalog, name, op.args, subject)
+    _check_nested_calls(catalogs, catalog, op.args, subject)
+
+
+def _held_catalog(
+    catalogs: Sequence[CatalogApi], catalog_id: str | None, subject: str
+) -> CatalogApi:
+    """Returns the catalog with the id, or raises if it isn't one of them."""
+    for catalog in catalogs:
+        if catalog.catalog_id == catalog_id:
+            return catalog
+    raise A2uiValidationError(
+        f"{subject} names catalog '{catalog_id}', which isn't one of the active"
+        f" catalogs: {', '.join(c.catalog_id for c in catalogs)}."
+    )
+
+
+def _check_args(catalog: CatalogApi, name: str, args: Any, subject: str) -> None:
+    """Checks a call's arguments against its function's schema in the catalog."""
+    try:
+        PayloadValidator(catalog, config=STRICT_VALIDATION).validate_function(
+            name, args
+        )
+    except A2uiValidationError as e:
+        raise A2uiValidationError(
+            f"{subject} does not match the arguments of '{name}': {e}",
+            details=e.details,
+        ) from e
+
+
+def _check_nested_calls(
+    catalogs: Sequence[CatalogApi], home: CatalogApi, value: Any, subject: str
+) -> None:
+    """Checks the function calls nested in a `callRendererFunction`'s arguments.
+
+    The renderer resolves each one as it resolves the arguments, as a renderer
+    call: one that names a catalog runs in it, which must be one of the
+    catalogs, and one that names none runs in `home`, the catalog of the
+    `callRendererFunction`. The renderer can't run an `agentOnly` function
+    there. A reserved `@` system function belongs to no catalog, so it must
+    not name one.
+
+    Raises:
+      A2uiValidationError: If a nested call is one the renderer can't make.
+    """
+    if isinstance(value, list):
+        for item in value:
+            _check_nested_calls(catalogs, home, item, subject)
+        return
+    if not isinstance(value, Mapping):
+        return
+    name = value.get("@call")
+    if isinstance(name, str):
+        where = f"{subject} holds a call to '{name}' that"
+        catalog_id = value.get("catalogId")
+        if is_system_function_name(name):
+            if "catalogId" in value:
+                raise A2uiValidationError(
+                    f"{where} names a catalogId, but system functions belong to"
+                    " no catalog."
+                )
+            try:
+                validate_system_function(name, value.get("args"), home.protocol_version)
+            except A2uiValidationError as e:
+                raise A2uiValidationError(f"{where} is invalid: {e}") from e
+        else:
+            catalog = (
+                home
+                if catalog_id is None
+                else _held_catalog(catalogs, catalog_id, f"{where}")
+            )
+            function = catalog.functions.get(name)
+            if getattr(function, "allowed_callers", None) == "agentOnly":
+                raise A2uiValidationError(
+                    f"{where} the renderer can't make: Function '{name}' cannot"
+                    " be called by renderer (allowedCallers is agentOnly)."
+                )
+            _check_args(catalog, name, value.get("args"), where)
+    for key, item in value.items():
+        if key != "@call":
+            _check_nested_calls(catalogs, home, item, subject)
 
 
 @contextlib.contextmanager

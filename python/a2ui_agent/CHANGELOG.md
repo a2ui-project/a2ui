@@ -1,5 +1,16 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v1_0) `validate_payload` and `RendererState.apply`
+  check each `callRendererFunction` against the catalogs instead of running
+  it, and reject one the renderer would refuse: a surface that doesn't exist
+  when the call arrives, a catalog that isn't active, a function the catalog
+  doesn't declare, a `rendererOnly` function (the default) or one that
+  requires user activation, arguments that don't match the function's schema,
+  and a nested call to an `agentOnly` function. They also reject an `agentOnly`
+  function bound into a component. Recommended migration: declare the
+  functions an agent calls with `allowedCallers` set to `agentOnly` or
+  `rendererOrAgent` in the catalog the call names
+  ([#3534](https://github.com/a2ui-project/a2ui/issues/3534)).
 - **BREAKING CHANGE**: (v1_0) The `TextField` builder in
   `a2ui.builder.v1_0.catalogs.basic` requires `value`, following the basic
   catalog. Recommended migration: pass `value`, such as
