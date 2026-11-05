@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- (v1_0) `validatePayload` accepts a `callRendererFunction` on a surface the
+  payload never named, as it does an update to one, since an earlier payload
+  may have created it. A surface the payload deleted earlier, or creates only
+  later, is still rejected. With `a2ui_core`'s checks, `validatePayload`,
+  `RendererState.apply` and the parsers also reject an `agentOnly` function
+  bound into a component, and one nested in the arguments of a
+  `callRendererFunction`
+  ([#3534](https://github.com/a2ui-project/a2ui/issues/3534)).
+
 ## 0.1.0
 
 - Remove `(Agent to UI)` from the embedded v0.9 `server_to_client.json` and v1.0

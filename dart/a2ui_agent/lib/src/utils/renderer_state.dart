@@ -418,8 +418,21 @@ class RendererState {
   /// included, so that a call it hands over is not rejected once nothing
   /// can be rolled back.
   void _holdCall(CallRendererFunctionMessage message) {
+    _checkCall(message);
+    _calls.add(message);
+    _record(_calls.removeLast);
+  }
+
+  /// Checks [message] as the processor would, without running it.
+  ///
+  /// The surface it names must exist, unless [assumesSurface], for a call on
+  /// a surface the state assumes (see [_assumesCallSurface]).
+  void _checkCall(
+    CallRendererFunctionMessage message, {
+    bool assumesSurface = false,
+  }) {
     if (message.surfaceId case final String surfaceId
-        when getSurface(surfaceId) == null) {
+        when !assumesSurface && getSurface(surfaceId) == null) {
       throw A2uiValidationError(
         "Function call '${message.functionCallId}' names surface "
         "'$surfaceId', which does not exist.",
@@ -429,9 +442,23 @@ class RendererState {
       _processor.checkRendererFunctionCall(message);
       checkPathsAndRecursion(message.toJson());
     });
-    _calls.add(message);
-    _record(_calls.removeLast);
   }
+
+  /// Whether a payload state assumes the surface [message], the message at
+  /// [index] of [payload], names, which the state lacks.
+  ///
+  /// As for an update (see [_assumes]), an earlier payload may have created
+  /// a surface the payload never named before. A call does not create the
+  /// surface, so it is checked as on a surface that exists.
+  bool _assumesCallSurface(
+    CallRendererFunctionMessage message,
+    List<AgentToRendererMessage> payload,
+    int index,
+  ) => switch (message.surfaceId) {
+    final String surfaceId =>
+      getSurface(surfaceId) == null && _assumes(surfaceId, payload, index),
+    null => false,
+  };
 
   /// Undoes the changes logged after [mark], latest first.
   ///
@@ -821,8 +848,11 @@ class RendererState {
     final AgentToRendererMessage message = payload[index];
     final String? surfaceId = _target(message);
     if (surfaceId == null) {
-      if (_sharesProcessor && message is CallRendererFunctionMessage) {
+      if (message is CallRendererFunctionMessage && _sharesProcessor) {
         _holdCall(message);
+      } else if (message is CallRendererFunctionMessage &&
+          _assumesCallSurface(message, payload, index)) {
+        _checkCall(message, assumesSurface: true);
       } else {
         _process(message);
       }
