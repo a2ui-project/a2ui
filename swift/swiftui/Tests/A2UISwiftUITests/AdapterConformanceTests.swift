@@ -75,12 +75,28 @@ struct AccessibilityCase: CustomTestStringConvertible, Sendable {
   }
 }
 
-/// Runs `conformance/core/accessibility.yaml` and `conformance/core/adapter_conformance.yaml`
-/// against `A2UISwiftUI.Surface`, `SurfaceViewModel`, `HostedViewDriver`, and
-/// `A2UIAccessibilityModifier`.
+/// Runs `conformance/core/accessibility.yaml`, `conformance/core/adapter_conformance.yaml`, and
+/// `conformance/adapter/adapter_conformance_v0_9.yaml` against `A2UISwiftUI.Surface`,
+/// `SurfaceViewModel`, `HostedViewDriver`, and `A2UIAccessibilityModifier`, once for each
+/// ``DriverKind``.
 @Suite(.serialized)
 @MainActor
 struct AdapterConformanceTests {
+  /// How a test drives the surface under test.
+  enum DriverKind: CaseIterable {
+    /// Drives the resolved nodes of the surface: interactions write through the component
+    /// views' bindings and run node actions, and accessibility is read from
+    /// `A2UIAccessibilityModifier`.
+    case nodeHarness
+    /// Hosts the surface in a platform window and drives it through `HostedViewDriver`:
+    /// interactions go through the native controls, and accessibility is read from the native
+    /// accessibility elements.
+    case hostedView
+
+    /// Whether the surface is hosted in a platform window.
+    var hostsViews: Bool { self == .hostedView }
+  }
+
   /// Adapter conformance cases that depend on runtime features not yet implemented in `A2UICore` /
   /// `A2UISwiftUI`, recorded as expected failures with their root-cause reason.
   private static let expectedAdapterFailures: [String: String] = [:]
@@ -151,8 +167,14 @@ struct AdapterConformanceTests {
         )
         return
       }
-      let checkedCount = try runAccessibilityCase(testCase, name: name)
-      #expect(checkedCount > 0, "\(name): should verify at least one accessibility node")
+      for driverKind in DriverKind.allCases {
+        let checkedCount = try runAccessibilityCase(
+          testCase,
+          name: name,
+          driverKind: driverKind
+        )
+        #expect(checkedCount > 0, "\(name) [\(driverKind)]: should verify at least one node")
+      }
       writeManifestRecord(
         AdapterManifestRecord(suite: suite, caseName: name, status: "passed")
       )
@@ -220,8 +242,10 @@ struct AdapterConformanceTests {
     }
 
     if let reason = Self.expectedAdapterFailures[name] {
-      await withKnownIssue("\(name): \(reason)") {
-        try await runAdapterCase(testCase, name: name)
+      for driverKind in DriverKind.allCases {
+        await withKnownIssue("\(name) [\(driverKind)]: \(reason)") {
+          try await runAdapterCase(testCase, name: name, driverKind: driverKind)
+        }
       }
       writeManifestRecord(
         AdapterManifestRecord(
@@ -235,7 +259,9 @@ struct AdapterConformanceTests {
     }
 
     do {
-      try await runAdapterCase(testCase, name: name)
+      for driverKind in DriverKind.allCases {
+        try await runAdapterCase(testCase, name: name, driverKind: driverKind)
+      }
       writeManifestRecord(
         AdapterManifestRecord(suite: suite, caseName: name, status: "passed")
       )
@@ -280,7 +306,9 @@ struct AdapterConformanceTests {
         )
         return
       }
-      try await runAdapterCase(testCase, name: name)
+      for driverKind in DriverKind.allCases {
+        try await runAdapterCase(testCase, name: name, driverKind: driverKind)
+      }
       writeManifestRecord(
         AdapterManifestRecord(suite: suite, caseName: name, status: "passed")
       )
@@ -300,7 +328,11 @@ struct AdapterConformanceTests {
 
   // MARK: - Accessibility Suite Runner
 
-  private func runAccessibilityCase(_ testCase: [String: Any], name: String) throws -> Int {
+  private func runAccessibilityCase(
+    _ testCase: [String: Any],
+    name: String,
+    driverKind: DriverKind
+  ) throws -> Int {
     let handler = AdapterTestActionHandler()
     let processor = MessageProcessor(
       catalogs: BasicCatalog.allCatalogs,
@@ -313,7 +345,8 @@ struct AdapterConformanceTests {
         steps,
         processor: processor,
         surfaceID: surfaceID,
-        name: name
+        name: name,
+        driverKind: driverKind
       )
     }
     if let messages = testCase["messages"] {
@@ -327,7 +360,8 @@ struct AdapterConformanceTests {
       expected,
       processor: processor,
       surfaceID: surfaceID,
-      context: name
+      context: name,
+      driverKind: driverKind
     )
   }
 
@@ -335,7 +369,8 @@ struct AdapterConformanceTests {
     _ steps: [[String: Any]],
     processor: MessageProcessor,
     surfaceID: String,
-    name: String
+    name: String,
+    driverKind: DriverKind
   ) throws -> Int {
     var checked = 0
     for (idx, step) in steps.enumerated() {
@@ -348,7 +383,8 @@ struct AdapterConformanceTests {
           expected,
           processor: processor,
           surfaceID: surfaceID,
-          context: "\(name) [step \(idx)]"
+          context: "\(name) [step \(idx)]",
+          driverKind: driverKind
         )
       }
     }
@@ -359,7 +395,8 @@ struct AdapterConformanceTests {
     _ expected: [String: [String: Any]],
     processor: MessageProcessor,
     surfaceID: String,
-    context: String
+    context: String,
+    driverKind: DriverKind
   ) throws -> Int {
     guard
       let viewModel = processor.surfaceGroupModel.surfacesMap[surfaceID]
@@ -369,12 +406,14 @@ struct AdapterConformanceTests {
       Issue.record("\(context): missing resolved root node for \(surfaceID)")
       throw AdapterConformanceError("\(context): missing resolved root node for \(surfaceID)")
     }
-    let driver = HostedViewDriver(
-      viewModel: viewModel,
-      catalogs: BasicCatalogImplementation.allCatalogs,
-      defaultCatalogID: BasicCatalog.catalogURI(version: .v10)
-    )
-    defer { driver.tearDown() }
+    let driver =
+      driverKind.hostsViews
+      ? HostedViewDriver(
+        viewModel: viewModel,
+        catalogs: BasicCatalogImplementation.allCatalogs,
+        defaultCatalogID: BasicCatalog.catalogURI(version: .v10)
+      ) : nil
+    defer { driver?.tearDown() }
 
     var nodesByID: [String: A2UICore.Node] = [:]
     AdapterHarness.collectNodes(from: rootNode, into: &nodesByID)
@@ -385,7 +424,7 @@ struct AdapterConformanceTests {
         Issue.record("\(context): node '\(componentID)' not found")
         throw AdapterConformanceError("\(context): node '\(componentID)' not found")
       }
-      let hostedElement = driver.accessibilityNode(componentID: componentID)
+      let hostedElement = driver?.accessibilityNode(componentID: componentID)
       let modifier = A2UIAccessibilityModifier(node: node)
       try AdapterHarness.assertModifierMatches(
         modifier,
@@ -401,16 +440,20 @@ struct AdapterConformanceTests {
 
   // MARK: - Adapter Conformance Suite Runner
 
-  private func runAdapterCase(_ testCase: [String: Any], name: String) async throws {
-    let session = try mountSurface(testCase)
+  private func runAdapterCase(
+    _ testCase: [String: Any],
+    name: String,
+    driverKind: DriverKind
+  ) async throws {
+    let session = try mountSurface(testCase, hostsViews: driverKind.hostsViews)
     defer {
       if session.mountedHarness?.isMounted == true {
-        session.mountedHarness?.driver.tearDown()
+        session.mountedHarness?.driver?.tearDown()
       }
     }
     let steps = (testCase["steps"] as? [[String: Any]]) ?? []
     for (idx, step) in steps.enumerated() {
-      let stepCtx = "\(name) [step \(idx)]"
+      let stepCtx = "\(name) [\(driverKind), step \(idx)]"
       try await AdapterHarness.runStepAsync(session, step, context: stepCtx)
     }
   }

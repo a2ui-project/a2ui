@@ -32,7 +32,6 @@ from a2ui.inference_formats.express import (
     ExpressCompiler,
     ExpressFormat,
     ExpressParser,
-    ExpressPromptGenerator,
     ExpressValidationError,
 )
 from a2ui.parser import A2uiCompilationValidationError
@@ -889,7 +888,8 @@ def test_pre_v1_0_prompt_rules_omit_event_user_message(version: str) -> None:
 def test_prompt_rules_normalize_crlf_line_endings(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    module = sys.modules[ExpressPromptGenerator.__module__]
+    generator = ExpressFormat([_primary()]).prompt_generator
+    module = sys.modules[type(generator).__module__]
     monkeypatch.setattr(module, "EXPRESS_RULES", EXPRESS_RULES.replace("\n", "\r\n"))
     monkeypatch.setattr(
         module,
