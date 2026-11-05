@@ -81,9 +81,15 @@ jobs:
       pull-requests: write
 
     steps:
+      # Always run the rules from main. A PR review event otherwise checks out
+      # the PR's merge commit, whose copy of triage.mjs can predate a rule
+      # change, and the two copies then add and remove each other's labels on
+      # every run. It also keeps a PR's own edits to the script from running
+      # with this job's write token.
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: main
           persist-credentials: false
 
       - name: Reconcile triage flag labels

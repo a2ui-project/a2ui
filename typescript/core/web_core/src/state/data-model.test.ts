@@ -40,6 +40,18 @@ describe('DataModel', () => {
     assert.strictEqual(Object.keys(model.get('/user')).includes('name'), false);
   });
 
+  it('removes keys when value is null unless preserveNull is set', () => {
+    model.set('/user/name', null);
+    assert.strictEqual(Object.keys(model.get('/user')).includes('name'), false);
+
+    model.set('/user/nickname', null, true);
+    assert.strictEqual(model.get('/user/nickname'), null);
+    assert.strictEqual(Object.keys(model.get('/user')).includes('nickname'), true);
+
+    model.set('/items/1', null, true);
+    assert.deepStrictEqual(model.get('/items'), ['a', null, 'c']);
+  });
+
   // --- Subscriptions (TS-specific Subscription API) ---
 
   it('returns a subscription object', () => {
@@ -126,5 +138,22 @@ describe('DataModel', () => {
     assert.strictEqual(notifiedVal[500], 'test_val');
 
     sub.unsubscribe();
+  });
+
+  it('keeps a JSON-parsed __proto__ key as an inert own property', () => {
+    const model = new DataModel();
+    model.set('/u', JSON.parse('{"name":"x","__proto__":{"isAdmin":true}}'));
+    const stored = model.get('/u') as Record<string, unknown>;
+    assert.strictEqual(Object.getPrototypeOf(stored), Object.prototype);
+    assert.strictEqual((stored as {isAdmin?: unknown}).isAdmin, undefined);
+    assert.ok(Object.hasOwn(stored, '__proto__'));
+    assert.deepStrictEqual(Object.keys(stored), ['name', '__proto__']);
+  });
+
+  it('keeps a JSON-parsed __proto__ key in initial data inert', () => {
+    const model = new DataModel(JSON.parse('{"__proto__":{"polluted":true}}'));
+    const root = model.get('/') as Record<string, unknown>;
+    assert.strictEqual((root as {polluted?: unknown}).polluted, undefined);
+    assert.ok(Object.hasOwn(root, '__proto__'));
   });
 });

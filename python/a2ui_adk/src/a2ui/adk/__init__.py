@@ -14,11 +14,11 @@
 
 """A2UI extension for the Agent Development Kit (ADK).
 
-`SendA2uiToClientToolset`, `A2uiProcessorStore` and `GenAIFileResolver` only
+`SendA2uiToClientToolset`, `A2uiInstruction` and `A2uiProcessorStore` only
 need ADK. The ADK-to-A2A converters (`A2uiPartConverter`, `A2uiEventConverter`,
-the `a2a` subpackage) and the A2A subagent orchestration helpers (`A2uiSubagentMap`,
-`SurfaceIdAlreadyExistsError`, the `orchestration` subpackage) need the `a2a`
-extra:
+the `a2a` subpackage) and the A2A subagent orchestration helpers
+(`A2uiSubagentMap`, `SurfaceIdAlreadyExistsError`, the `orchestration`
+subpackage) need the `a2a` extra:
 
   pip install "a2ui-adk[a2a]"
 
@@ -30,7 +30,7 @@ from __future__ import annotations
 import importlib
 from typing import TYPE_CHECKING, Any
 
-from .genai_file_resolver import GenAIFileResolver
+from .instruction import A2uiInstruction
 from .processor_store import A2uiProcessorStore
 from .send_a2ui_to_client_toolset import (
     A2uiEnabledProvider,
@@ -53,7 +53,10 @@ _A2A_EXPORTS: dict[str, tuple[str, str | None]] = {
     "A2uiEventConverter": (".a2a", "A2uiEventConverter"),
     "A2uiPartConverter": (".a2a", "A2uiPartConverter"),
     "A2uiSubagentMap": (".orchestration", "A2uiSubagentMap"),
-    "SurfaceIdAlreadyExistsError": (".orchestration", "SurfaceIdAlreadyExistsError"),
+    "SurfaceIdAlreadyExistsError": (
+        ".orchestration",
+        "SurfaceIdAlreadyExistsError",
+    ),
 }
 
 
@@ -95,11 +98,11 @@ def __getattr__(name: str) -> Any:
 __all__ = [
     "A2uiEnabledProvider",
     "A2uiEventConverter",
+    "A2uiInstruction",
     "A2uiPartConverter",
     "A2uiProcessorProvider",
     "A2uiProcessorStore",
     "A2uiSubagentMap",
-    "GenAIFileResolver",
     "SendA2uiToClientToolset",
     "SurfaceIdAlreadyExistsError",
     "a2a",

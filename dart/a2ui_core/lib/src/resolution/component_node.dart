@@ -111,6 +111,9 @@ abstract interface class ComponentNode<T extends ComponentApi> {
   /// read-only binding of null.
   ReadonlySignal<NodeProps> get props;
 
+  /// Read-only reactive signal tracking the component's metadata envelope.
+  ReadonlySignal<Map<String, Object?>?> get metadata;
+
   /// Fires exactly once, when this node is disposed. Listener failures are
   /// logged individually and do not interrupt the remaining teardown.
   /// Listeners added during or after destruction notification are not called.
@@ -163,6 +166,9 @@ final class MutableComponentNode<T extends ComponentApi>
   @override
   ReadonlySignal<NodeProps> get props => _props;
 
+  @override
+  final ReadonlySignal<Map<String, Object?>?> metadata;
+
   final _onDestroyed = _DestructionListeners();
 
   @override
@@ -183,7 +189,9 @@ final class MutableComponentNode<T extends ComponentApi>
     NodeProps initialProps, [
     this.impl,
     this.state = NodeState.resolved,
-  ]) : _props = signal(initialProps);
+    ReadonlySignal<Map<String, Object?>?>? metadata,
+  ])  : _props = signal(initialProps),
+        metadata = metadata ?? signal<Map<String, Object?>?>(null);
 
   @override
   bool get disposed => _disposed;
@@ -249,6 +257,10 @@ final class MutableComponentNode<T extends ComponentApi>
       return {'id': componentId, 'type': type, 'state': state.jsonValue};
     }
     final serialized = <String, Object?>{'id': componentId, 'type': type};
+    final Map<String, Object?>? meta = metadata.peek();
+    if (meta != null) {
+      serialized['metadata'] = meta;
+    }
     for (final MapEntry<String, Object?> entry in _props.peek().entries) {
       serialized[entry.key] = _serializeValue(entry.value);
     }

@@ -112,6 +112,7 @@ extra_css:
 # Configuration
 theme:
   name: material
+  custom_dir: docs/overrides
   font:
     text: Google Sans
     code: Roboto Mono
@@ -150,7 +151,6 @@ theme:
 
   features:
     - announce.dismiss
-    - content.action.view
     - content.code.annotate
     - content.code.copy
     - content.code.select

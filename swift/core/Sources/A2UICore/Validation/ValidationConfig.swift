@@ -29,6 +29,8 @@ public struct ValidationConfig: Sendable, Equatable, Hashable {
   ///
   /// An unknown function call is accepted so that a renderer can forward it to the agent; its
   /// catalog must still resolve, and from v1.0 an unknown reserved `@` name is always rejected.
+  /// Without this, declare the agent-side functions with ``SchemaOnlyFunction`` for their calls to
+  /// reach the agent.
   /// An unknown property is one rejected by `additionalProperties` or `unevaluatedProperties`;
   /// a key rejected by a schema that also has `patternProperties` breaks a key format instead,
   /// so it is still reported.

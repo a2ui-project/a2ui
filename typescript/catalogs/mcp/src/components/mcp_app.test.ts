@@ -54,14 +54,14 @@ import {
 const example = {
   messages: [
     {
-      version: 'v1.0',
+      version: '1.0',
       createSurface: {
         surfaceId: 'gallery-mcp-app-data-binding',
         catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
       },
     },
     {
-      version: 'v1.0',
+      version: '1.0',
       updateDataModel: {
         surfaceId: 'gallery-mcp-app-data-binding',
         value: {
@@ -73,7 +73,7 @@ const example = {
       },
     },
     {
-      version: 'v1.0',
+      version: '1.0',
       updateComponents: {
         surfaceId: 'gallery-mcp-app-data-binding',
         components: [

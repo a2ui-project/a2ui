@@ -25,7 +25,7 @@ import {
 } from '../../../src/index.js';
 import {loadBasicCatalog} from '../../helpers/basic-catalogs.js';
 
-const BASIC = loadBasicCatalog('v1.0');
+const BASIC = loadBasicCatalog('1.0');
 
 /** A parser whose blocks each name the surface their `createSurface` creates. */
 class TestParser extends Parser {
@@ -40,7 +40,7 @@ class TestParser extends Parser {
     if (formatContent === 'throw') throw new Error('broken notation');
     return [
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: formatContent, catalogId: BASIC.id},
       } as AgentToRendererMessage,
     ];
@@ -73,7 +73,7 @@ describe('Parser', () => {
     expect(parts.map(p => p.type)).toEqual(['text', 'a2ui', 'text']);
     expect(parts[1]).toEqual({
       type: 'a2ui',
-      a2ui: [{version: 'v1.0', createSurface: {surfaceId: 'a', catalogId: BASIC.id}}],
+      a2ui: [{version: '1.0', createSurface: {surfaceId: 'a', catalogId: BASIC.id}}],
     });
   });
 
@@ -83,7 +83,7 @@ describe('Parser', () => {
     expect(parts).toEqual([
       {
         type: 'a2ui',
-        a2ui: [{version: 'v1.0', createSurface: {surfaceId: 'whole', catalogId: BASIC.id}}],
+        a2ui: [{version: '1.0', createSurface: {surfaceId: 'whole', catalogId: BASIC.id}}],
       },
     ]);
   });

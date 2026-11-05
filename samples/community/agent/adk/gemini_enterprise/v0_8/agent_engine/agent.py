@@ -26,7 +26,7 @@ from a2a.types import (
 )
 from a2ui.a2a import (
     get_a2ui_agent_extension,
-    parse_response_to_parts,
+    to_a2a_parts,
 )
 from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 from a2ui.core.basic_catalog import BasicCatalog
@@ -374,7 +374,10 @@ class ContactAgent:
                 )
 
                 # Already validated, so we can return the parts.
-                return parse_response_to_parts(final_response_content)
+                if ui_version and processor:
+                    return to_a2a_parts(response_parts)
+                else:
+                    return [Part(root=TextPart(text=final_response_content))]
 
             # --- If we're here, it means validation failed ---
             if attempt <= max_retries:

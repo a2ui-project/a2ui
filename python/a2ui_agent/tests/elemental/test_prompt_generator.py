@@ -40,7 +40,10 @@ class TestElementalPromptGenerator(unittest.TestCase):
                     },
                     "RichComponent": {
                         "properties": {
-                            "checks": {"type": "array", "items": {"type": "string"}},
+                            "checks": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
                             "refComponent": {"$ref": "#/$defs/ComponentId"},
                             "refChildList": {"$ref": "#/$defs/ChildList"},
                             "refAction": {"$ref": "#/$defs/Action"},
@@ -142,7 +145,9 @@ class TestElementalPromptGenerator(unittest.TestCase):
         desc = generator.generate_catalog_instructions(include_schema=False)
         self.assertEqual(desc, "")
 
-    def test_catalog_description_initializes_helper_and_decompiles_instructions(self):
+    def test_catalog_description_initializes_helper_and_decompiles_instructions(
+        self,
+    ):
         """Verifies helper initialization and JSON instructions decompiling in catalog_description."""
         custom_catalog = Catalog.from_json(
             protocol_version=ProtocolVersion.V1_0,
@@ -271,13 +276,15 @@ class TestElementalPromptGenerator(unittest.TestCase):
         from a2ui.inference_formats import to_message_models
 
         example_payload = {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "welcome",
                 "catalogId": self.catalog.catalog_id,
-                "components": [
-                    {"id": "root", "component": "RichComponent", "refString": "hello"}
-                ],
+                "components": [{
+                    "id": "root",
+                    "component": "RichComponent",
+                    "refString": "hello",
+                }],
             },
         }
         md_content = (
@@ -306,13 +313,15 @@ class TestElementalPromptGenerator(unittest.TestCase):
         from a2ui.utils import load_examples
 
         example_payload = {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "welcome",
                 "catalogId": self.catalog.catalog_id,
-                "components": [
-                    {"id": "root", "component": "RichComponent", "refString": "hello"}
-                ],
+                "components": [{
+                    "id": "root",
+                    "component": "RichComponent",
+                    "refString": "hello",
+                }],
             },
         }
         json_file_path = os.path.join(self.tmp_dir.name, "example_1.json")
@@ -338,9 +347,9 @@ class TestElementalPromptGenerator(unittest.TestCase):
             catalog_schema={
                 "catalogId": "https://a2ui.org/inst_catalog",
                 "instructions": (
-                    'Here is an example:\n```json\n{"version": "1.0", "createSurface":'
-                    ' {"surfaceId": "main", "components": [{"id": "root", "component":'
-                    ' "Text", "text": "Hi"}]}}\n```\nList'
+                    'Here is an example:\n```json\n{"version": "1.0",'
+                    ' "createSurface": {"surfaceId": "main", "components": [{"id":'
+                    ' "root", "component": "Text", "text": "Hi"}]}}\n```\nList'
                     ' example:\n```json\n[{"version": "1.0", "deleteSurface":'
                     ' {"surfaceId": "main"}}]\n```'
                 ),

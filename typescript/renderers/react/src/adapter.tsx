@@ -16,12 +16,14 @@
 
 import React, {useRef, useSyncExternalStore, useCallback, memo, useEffect} from 'react';
 import {
+  type A2uiMetadata,
   type ComponentApi,
   type ComponentContext,
   GenericBinder,
   type InferredComponentApiSchemaType,
   type ResolveA2uiProps,
 } from '@a2ui/web_core/v0_9';
+import {hostRefsOf} from './catalog/host_accessibility';
 import {useNodeView} from './node-view';
 import type {
   NodeViewProps,
@@ -31,6 +33,32 @@ import type {
 } from './react_component_implementation';
 
 // --- Component Factories ---
+
+type MemoizedRenderInternalProps<Props> = {
+  props: Props;
+  buildChild: (id: string, basePath?: string) => React.ReactNode;
+  context: ComponentContext;
+  accessibilityRef?: (element: Element | null) => void;
+  validationErrorsRef?: (element: Element | null) => void;
+  metadataSnapshot: A2uiMetadata | undefined;
+  hasReadMetadata: () => boolean;
+  getMetadata: () => A2uiMetadata | undefined;
+};
+
+/**
+ * Copies the `ComponentApi` fields of `api`. Spreading `api` instead would also copy fields of a
+ * richer entry, such as the `tagName` and `element` of a Web Component implementation, and the
+ * surface would then render that element instead of the React component.
+ */
+function componentApiFields(api: ComponentApi): ComponentApi {
+  return {
+    name: api.name,
+    schema: api.schema,
+    allowedParents: api.allowedParents,
+    allowedChildren: api.allowedChildren,
+    ...(api.metadata !== undefined ? {metadata: api.metadata} : {}),
+  };
+}
 
 /**
  * Creates a React component implementation using the deep generic binder.
@@ -43,19 +71,47 @@ export function createComponentImplementation<Api extends ComponentApi>(
 ): ReactComponentImplementation {
   type Props = ResolveA2uiProps<InferredComponentApiSchemaType<Api>>;
 
-  const MemoizedRender = memo(RenderComponent, (prev, next) => {
-    if (prev.props !== next.props) return false;
-    // The child index is rebuilt when a child arrives, leaves, or is
-    // replaced; binder props don't change with it, so the builder's identity
-    // is the only signal.
-    if (prev.buildChild !== next.buildChild) return false;
-    if (prev.context.componentModel.id !== next.context.componentModel.id) return false;
-    if (prev.context.dataContext.path !== next.context.dataContext.path) return false;
-    return true;
-  });
+  const MemoizedRender = memo(
+    ({
+      props,
+      buildChild,
+      context,
+      accessibilityRef,
+      validationErrorsRef,
+      getMetadata,
+    }: MemoizedRenderInternalProps<Props>) => {
+      const componentProps = {
+        props,
+        buildChild,
+        context,
+        accessibilityRef,
+        validationErrorsRef,
+      } as ReactA2uiComponentProps<Props>;
+      Object.defineProperty(componentProps, 'metadata', {
+        enumerable: true,
+        get: getMetadata,
+      });
+      return RenderComponent(componentProps);
+    },
+    (prev, next) => {
+      if (prev.props !== next.props) return false;
+      if (prev.hasReadMetadata() && prev.metadataSnapshot !== next.metadataSnapshot) return false;
+      // The child index is rebuilt when a child arrives, leaves, or is
+      // replaced; binder props don't change with it, so the builder's identity
+      // is the only signal.
+      if (prev.buildChild !== next.buildChild) return false;
+      if (prev.accessibilityRef !== next.accessibilityRef) return false;
+      if (prev.validationErrorsRef !== next.validationErrorsRef) return false;
+      if (prev.context.componentModel.id !== next.context.componentModel.id) return false;
+      if (prev.context.dataContext.path !== next.context.dataContext.path) return false;
+      return true;
+    },
+  );
+  MemoizedRender.displayName = `${api.name}.memo`;
 
   const ReactWrapper: React.FC<ReactRenderProps> = ({context, buildChild}) => {
     const bindingRef = useRef<GenericBinder<Props> | null>(null);
+    const metadataReadRef = useRef(false);
 
     // Create or recreate the binder if the context object changes. Callers
     // memoize `context`, so a new reference means the component's model or its
@@ -79,27 +135,65 @@ export function createComponentImplementation<Api extends ComponentApi>(
     const getSnapshot = useCallback(() => binding.snapshot, [binding]);
     const props = useSyncExternalStore(subscribe, getSnapshot);
 
+    const subscribeMetadata = useCallback(
+      (callback: () => void) => {
+        const sub = context.componentModel.onMetadataChanged.subscribe(() => {
+          if (metadataReadRef.current) {
+            callback();
+          }
+        });
+        return () => sub.unsubscribe();
+      },
+      [context.componentModel],
+    );
+    const getMetadataSnapshot = useCallback(
+      () => context.componentModel.metadata,
+      [context.componentModel],
+    );
+    const metadataSnapshot = useSyncExternalStore(subscribeMetadata, getMetadataSnapshot);
+    const hasReadMetadata = useCallback(() => metadataReadRef.current, []);
+    const getMetadata = useCallback(() => {
+      metadataReadRef.current = true;
+      return context.componentModel.metadata;
+    }, [context.componentModel]);
+
     // Prevent DataModel subscription leaks on unmount
     useEffect(() => {
       return () => binding.dispose();
     }, [binding]);
 
     return (
-      <MemoizedRender props={props || ({} as Props)} buildChild={buildChild} context={context} />
+      <MemoizedRender
+        props={props || ({} as Props)}
+        buildChild={buildChild}
+        context={context}
+        metadataSnapshot={metadataSnapshot}
+        hasReadMetadata={hasReadMetadata}
+        getMetadata={getMetadata}
+      />
     );
   };
 
   const NodeView: React.FC<NodeViewProps> = ({node, buildChild}) => {
-    const {viewProps, context, viewBuildChild} = useNodeView(node, buildChild);
+    const viewState = useNodeView(node, buildChild);
+    const refs = hostRefsOf(node);
     return (
-      <MemoizedRender props={viewProps as Props} buildChild={viewBuildChild} context={context} />
+      <MemoizedRender
+        props={viewState.viewProps as Props}
+        buildChild={viewState.viewBuildChild}
+        context={viewState.context}
+        accessibilityRef={refs.accessibilityRef}
+        validationErrorsRef={refs.validationErrorsRef}
+        metadataSnapshot={viewState.metadataSnapshot}
+        hasReadMetadata={viewState.hasReadMetadata}
+        getMetadata={() => viewState.metadata}
+      />
     );
   };
   NodeView.displayName = `${api.name}.view`;
 
   return {
-    name: api.name,
-    schema: api.schema,
+    ...componentApiFields(api),
     render: ReactWrapper,
     view: NodeView,
   };
@@ -116,14 +210,23 @@ export function createBinderlessComponentImplementation(
     // The conversion's only role here is filling the child index; the
     // component binds its own values from the context, so its child ids are
     // raw component ids, not view tokens.
-    const {context, rawBuildChild} = useNodeView(node, buildChild);
-    return <RenderComponent context={context} buildChild={rawBuildChild} />;
+    const viewState = useNodeView(node, buildChild);
+    const renderProps = {
+      context: viewState.context,
+      buildChild: viewState.rawBuildChild,
+      accessibilityRef: hostRefsOf(node).accessibilityRef,
+      validationErrorsRef: hostRefsOf(node).validationErrorsRef,
+    } as ReactRenderProps;
+    Object.defineProperty(renderProps, 'metadata', {
+      enumerable: true,
+      get: () => viewState.metadata,
+    });
+    return RenderComponent(renderProps);
   };
   NodeView.displayName = `${api.name}.view`;
 
   return {
-    name: api.name,
-    schema: api.schema,
+    ...componentApiFields(api),
     render: RenderComponent,
     view: NodeView,
   };

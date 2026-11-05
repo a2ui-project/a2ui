@@ -25,34 +25,40 @@ import 'test_infra/login_form.dart';
 void main() {
   for (final A2uiProtocolVersion version in turnVersions) {
     // Follows the steps of `a2ui_agent/example/a2ui_agent_example.dart`.
-    test('${version.jsonValue}: an Express agent turn produces a surface the '
-        'renderer accepts', () async {
-      final CatalogApi catalog = loadBasicCatalog(version);
+    modelTest(
+      '${version.jsonValue}: an Express agent turn produces a surface the '
+      'renderer accepts',
+      () async {
+        final CatalogApi catalog = loadBasicCatalog(version);
 
-      // 1. At agent startup: register the catalogs the agent supports.
-      // Express is the default format, so the generator names none.
-      final generator = A2uiGenerator(catalogs: [CatalogConfig(catalog)]);
+        // 1. At agent startup: register the catalogs the agent supports.
+        // Express is the default format, so the generator names none.
+        final generator = A2uiGenerator(catalogs: [CatalogConfig(catalog)]);
 
-      // 2. Per request: negotiate with the renderer's capabilities.
-      final A2uiRequestProcessor processor = generator.createProcessor(
-        A2uiRendererCapabilities.forCatalogIds([catalog.id], version: version),
-      );
+        // 2. Per request: negotiate with the renderer's capabilities.
+        final A2uiRequestProcessor processor = generator.createProcessor(
+          A2uiRendererCapabilities.forCatalogIds([
+            catalog.id,
+          ], version: version),
+        );
 
-      // 3. Call the LLM with the prompt snippet.
-      final String llmOutput = await AiClient().send(
-        processor.promptSnippet,
-        loginFormRequest,
-      );
+        // 3. Call the LLM with the prompt snippet.
+        final String llmOutput = await AiClient().send(
+          processor.promptSnippet,
+          loginFormRequest,
+        );
 
-      print('LLM output:\n$llmOutput');
+        print('LLM output:\n$llmOutput');
 
-      // 4. Parse the response.
-      final List<ResponsePart> parts = processor.parseResponse(llmOutput);
+        // 4. Parse the response.
+        final List<ResponsePart> parts = processor.parseResponse(llmOutput);
 
-      // 5. Deliver the A2UI messages to the renderer.
-      expectLoginForm(catalog, [
-        for (final A2uiPart part in parts.whereType<A2uiPart>()) ...part.a2ui,
-      ], llmOutput: llmOutput);
-    }, timeout: const Timeout(Duration(minutes: 2)));
+        // 5. Deliver the A2UI messages to the renderer.
+        expectLoginForm(catalog, [
+          for (final A2uiPart part in parts.whereType<A2uiPart>()) ...part.a2ui,
+        ], llmOutput: llmOutput);
+      },
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
   }
 }

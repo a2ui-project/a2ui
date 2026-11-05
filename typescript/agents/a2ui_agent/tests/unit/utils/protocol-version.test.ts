@@ -20,19 +20,19 @@ import {toWireProtocolVersion} from '../../../src/utils/protocol-version.js';
 
 describe('toWireProtocolVersion', () => {
   it('passes through an already wire-formatted version', () => {
-    expect(toWireProtocolVersion('v1.0')).toBe('v1.0');
+    expect(toWireProtocolVersion('1.0')).toBe('1.0');
     expect(toWireProtocolVersion('v0.9')).toBe('v0.9');
     expect(toWireProtocolVersion('v0.9.1')).toBe('v0.9.1');
   });
 
-  it('adds the v prefix to the bare version the catalog JSON carries', () => {
-    expect(toWireProtocolVersion('1.0')).toBe('v1.0');
+  it('normalizes v1.0 and 0.9 to their wire versions', () => {
+    expect(toWireProtocolVersion('v1.0')).toBe('1.0');
     expect(toWireProtocolVersion('0.9')).toBe('v0.9');
   });
 
   it('converts the underscore spelling used by directory names', () => {
     expect(toWireProtocolVersion('v0_9_1')).toBe('v0.9.1');
-    expect(toWireProtocolVersion('1_0')).toBe('v1.0');
+    expect(toWireProtocolVersion('1_0')).toBe('1.0');
   });
 
   it('throws rather than assuming a version when none is given', () => {

@@ -270,11 +270,7 @@ describe('SkillGenerator', () => {
 
   it('accepts explicit catalog arguments overriding format defaults', () => {
     const testingCatalogPath = path.join(SPEC_DIR, 'test', 'testing_catalog.json');
-    const testingCatalog = CatalogConfig.fromPath(
-      testingCatalogPath,
-      [],
-      'v1.0',
-    ).transformedCatalog;
+    const testingCatalog = CatalogConfig.fromPath(testingCatalogPath, [], '1.0').transformedCatalog;
 
     // 1. generateCatalogSkill with explicit catalog generates for that catalog
     const catSkill = generator.generateCatalogSkill({catalog: testingCatalog});
@@ -298,7 +294,6 @@ describe('SkillGenerator', () => {
       promptGenerator: {
         generateBaseRules: () => undefined as unknown as string,
       } as unknown as PromptGenerator,
-      supportsStreaming: false,
       createParser: () => ({}) as unknown as Parser,
     } satisfies InferenceFormat;
     const gen = new SkillGenerator(mockFmt);
@@ -313,7 +308,6 @@ describe('SkillGenerator', () => {
         generateCatalogInstructions: () => undefined as unknown as string,
         generateExamples: () => undefined as unknown as string,
       } as unknown as PromptGenerator,
-      supportsStreaming: false,
       createParser: () => ({}) as unknown as Parser,
     } satisfies InferenceFormat;
     const gen = new SkillGenerator(mockFmt);
@@ -325,11 +319,11 @@ describe('SkillGenerator', () => {
     const other = new InMemoryCatalogProvider(
       {
         catalogId: 'https://a2ui.org/other',
-        protocolVersion: 'v1.0',
+        protocolVersion: '1.0',
         components: {},
         functions: {},
       },
-      'v1.0',
+      '1.0',
       'https://a2ui.org/other',
     ).load();
 
@@ -341,7 +335,6 @@ describe('SkillGenerator', () => {
         generateCatalogInstructions: () => 'INST',
         generateExamples: generateExamplesMock,
       } as unknown as PromptGenerator,
-      supportsStreaming: false,
       createParser: () => ({}) as unknown as Parser,
     } satisfies InferenceFormat;
     const gen = new SkillGenerator(mockFmt);
@@ -367,16 +360,16 @@ describe('SkillGenerator', () => {
       metadata: {version: '1.0', tags: ['ui', 'express']},
     });
     expect(skill.filename).toBe('a2ui-test/SKILL.md');
-    expect(skill.toString()).toBe(skill.toMarkdown());
+    expect(Object.hasOwn(Skill.prototype, 'toString')).toBe(false);
     expect(skill.toMarkdown()).toContain(
       'metadata:\n  version: "1.0"\n  tags:\n  - ui\n  - express',
     );
 
     const skillSet = new SkillSet({[skill.filename]: skill});
-    expect([...skillSet]).toEqual([skill.filename]);
+    expect([...skillSet]).toEqual([[skill.filename, skill]]);
+    expect([...new SkillSet(skillSet)]).toEqual([[skill.filename, skill]]);
     expect([...skillSet.keys()]).toEqual([skill.filename]);
     expect([...skillSet.values()]).toEqual([skill]);
-    expect([...skillSet.entries()]).toEqual([[skill.filename, skill]]);
     expect([...skillSet.entries()]).toEqual([[skill.filename, skill]]);
     expect(skillSet.size).toBe(1);
     expect(skillSet.toDict()).toEqual({[skill.filename]: skill.toMarkdown()});

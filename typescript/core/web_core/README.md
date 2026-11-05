@@ -76,6 +76,17 @@ const schema = catalog.validationSchema; // bundled JSON Schema
 
 The `Catalog` constructor takes a `CatalogOptions` object as its fifth argument, with the `themeSchema`, the document-level fields (`instructions`, `schemaUri`, `schemaId`, `title`, `description`, `declaredProtocolVersion`, `declaresCatalogId`, `declaresComponents`, `functionsLayout`, `unions`, `defs`, `extensionFields`) that `toJson` emits, and, for a catalog defined in code, `commonTypesUri`, `themeLocation` and `defModels`. `catalog.withEntries(components, functions)` returns a catalog with the same fields and other entries, as catalog transformers need.
 
+`catalog.derive(options)` returns a new catalog under its own id, built from entries of `catalog` and new ones. In `components` and `functions`, a name keeps the entry of that name and an object adds an entry. The new catalog does not keep the source's `$id`, title, description or instructions, since the instructions of the basic catalog, for example, name its id in their examples:
+
+```ts
+const chatCatalog = basicCatalog.derive({
+  catalogId: 'https://example.com/catalogs/chat.json',
+  components: ['Text', 'Image', 'Row', 'Column', 'Button', carousel],
+  functions: ['openUrl'],
+  instructions,
+});
+```
+
 ### Specification annotations
 
 `spec(schema, annotation)` returns a copy of a Zod schema that records what a catalog document writes about it beyond the schema itself, without changing validation: `mixins` (the common types, such as `'ComponentCommon'`, and the `specDef()` models a component's definition composes with `allOf`), `closure` (`additionalProperties` or `unevaluatedProperties`), `required` (the order of the `required` list), `allOf` (schemas that follow the schema's own, such as a format rule) and `keywords` (such as `format`). `specDef(name, schema)` names a model that the document declares under `$defs`. The descriptions come from `.describe()`, and common types references from `REF:#/$defs/<Name>` description markers.

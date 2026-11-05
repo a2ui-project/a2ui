@@ -46,7 +46,7 @@
 # and `contents: write` exclusively to trusted staging, tagging, and publishing
 # steps.
 #
-# See docs/contributing/release.md for the operator-facing description.
+# See docs/contributing/release/release.md for the operator-facing description.
 
 name: Release Python SDKs
 

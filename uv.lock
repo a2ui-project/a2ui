@@ -108,7 +108,6 @@ source = { editable = "python/a2ui_agent" }
 dependencies = [
     { name = "a2ui-core" },
     { name = "antlr4-python3-runtime" },
-    { name = "httpx" },
     { name = "jsonschema" },
     { name = "pydantic" },
     { name = "pyyaml" },
@@ -125,7 +124,6 @@ dev = [
 requires-dist = [
     { name = "a2ui-core", editable = "python/a2ui_core" },
     { name = "antlr4-python3-runtime", specifier = ">=4.13.0,<4.14.0" },
-    { name = "httpx", specifier = ">=0.27.0" },
     { name = "jsonschema", specifier = ">=4.0.0" },
     { name = "pydantic", specifier = ">=2.11.0" },
     { name = "pyyaml", specifier = ">=6.0" },
@@ -221,6 +219,7 @@ source = { editable = "samples/agent/adk/custom-components-example" }
 dependencies = [
     { name = "a2a-sdk", extra = ["http-server"] },
     { name = "a2ui-a2a" },
+    { name = "a2ui-adk" },
     { name = "a2ui-agent-sdk" },
     { name = "click" },
     { name = "fastapi" },
@@ -238,6 +237,7 @@ dependencies = [
 requires-dist = [
     { name = "a2a-sdk", extras = ["http-server"], specifier = ">=0.3.0" },
     { name = "a2ui-a2a", editable = "python/a2ui_a2a" },
+    { name = "a2ui-adk", editable = "python/a2ui_adk" },
     { name = "a2ui-agent-sdk", editable = "python/a2ui_agent" },
     { name = "click", specifier = ">=8.1.8" },
     { name = "fastapi", specifier = ">=0.123.10" },
@@ -414,6 +414,7 @@ source = { editable = "samples/agent/adk/restaurant_finder" }
 dependencies = [
     { name = "a2a-sdk", extra = ["http-server"] },
     { name = "a2ui-a2a" },
+    { name = "a2ui-adk" },
     { name = "a2ui-agent-sdk" },
     { name = "click" },
     { name = "google-adk" },
@@ -428,6 +429,7 @@ dependencies = [
 requires-dist = [
     { name = "a2a-sdk", extras = ["http-server"], specifier = ">=0.3.0" },
     { name = "a2ui-a2a", editable = "python/a2ui_a2a" },
+    { name = "a2ui-adk", editable = "python/a2ui_adk" },
     { name = "a2ui-agent-sdk", editable = "python/a2ui_agent" },
     { name = "click", specifier = ">=8.1.8" },
     { name = "google-adk", specifier = ">=1.28.1" },

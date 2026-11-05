@@ -34,7 +34,7 @@ export function checkParserCatalogs(catalogs: CatalogApi[]): string {
       throw new A2uiCatalogError(`Duplicate catalog ID '${catalog.id}' provided.`);
     }
     seenCatalogIds.add(catalog.id);
-    const wireVersion = toWireProtocolVersion(catalog.protocolVersion || 'v1.0');
+    const wireVersion = toWireProtocolVersion(catalog.protocolVersion || '1.0');
     let releaseLine = wireVersion;
     if (wireVersion === 'v0.9.1' || wireVersion === 'v0.9') {
       releaseLine = 'v0.9';
@@ -48,5 +48,5 @@ export function checkParserCatalogs(catalogs: CatalogApi[]): string {
     );
   }
 
-  return toWireProtocolVersion(catalogs[0].protocolVersion || 'v1.0');
+  return toWireProtocolVersion(catalogs[0].protocolVersion || '1.0');
 }

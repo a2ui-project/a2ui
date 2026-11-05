@@ -17,8 +17,8 @@
 import {InferenceFormat, InferenceFormatFactory} from '../inference-format.js';
 import {ExpressFormatFactory} from '../inference-formats/express/format.js';
 import {A2uiCatalogError, AgentToRendererMessage, CatalogApi} from '../internal/web-core.js';
-import {ParseOptions, Parser} from '../parser/parser.js';
-import {ResponsePart} from '../parser/response-part.js';
+import {ContinuingStreamOptions, ParseOptions, Parser, StreamOptions} from '../parser/parser.js';
+import {ResponsePart, StreamPart} from '../parser/response-part.js';
 import {ResponseStream} from '../parser/response-stream.js';
 import {toReleaseLine, toWireProtocolVersion} from '../utils/protocol-version.js';
 import {RendererState} from '../utils/renderer-state.js';
@@ -36,6 +36,7 @@ export interface A2uiRequestProcessorOptions {
 
 /** Request-scoped facade over the negotiated catalogs, prompt, parser, and validation. */
 export class A2uiRequestProcessor {
+  private readonly _catalogs: CatalogApi[];
   private readonly _format: InferenceFormat;
   private _parser?: Parser;
   private readonly _state?: RendererState;
@@ -48,20 +49,21 @@ export class A2uiRequestProcessor {
    * @throws {A2uiCatalogError} If `options.state` holds other catalogs than `catalogs`.
    */
   constructor(
-    private readonly catalogs: CatalogApi[],
+    catalogs: CatalogApi[],
     private readonly _examples?: Record<string, AgentToRendererMessage[] | string>,
     formatFactory?: InferenceFormatFactory,
     options: A2uiRequestProcessorOptions = {},
   ) {
+    this._catalogs = [...catalogs];
     const factory = formatFactory || new ExpressFormatFactory();
-    this._format = factory.createFormat(catalogs, _examples);
+    this._format = factory.createFormat([...this._catalogs], _examples);
     this.checkState(options.state);
     this._state = options.state;
   }
 
   /** The negotiated catalogs active for this request. */
-  get activeCatalogs(): CatalogApi[] {
-    return this.catalogs;
+  get catalogs(): CatalogApi[] {
+    return [...this._catalogs];
   }
 
   get examples(): Record<string, AgentToRendererMessage[] | string> | undefined {
@@ -100,7 +102,7 @@ export class A2uiRequestProcessor {
    * `parseResponse` or `openStream` on every turn, or binds it to the processor.
    */
   createState(): RendererState {
-    return new RendererState(this.catalogs);
+    return new RendererState(this._catalogs);
   }
 
   /**
@@ -120,12 +122,15 @@ export class A2uiRequestProcessor {
   /**
    * Opens a stream that reads one model response chunk by chunk.
    *
-   * @param options Whether the response is wrapped in tags, and the renderer state to check
-   *     the response against and apply it to, as for `parseResponse`.
+   * @param options Whether the response is wrapped in tags, the renderer state to check the
+   *     response against and apply it to, as for `parseResponse`, and whether to read past a
+   *     rejected block.
    * @throws {A2uiCatalogError} If the state holds other catalogs than the processor.
    * @throws {Error} If the format cannot be read incrementally.
    */
-  openStream(options: ParseOptions = {}): ResponseStream {
+  openStream(options: ContinuingStreamOptions): ResponseStream<StreamPart>;
+  openStream(options?: StreamOptions): ResponseStream;
+  openStream(options: StreamOptions = {}): ResponseStream<StreamPart> {
     return this.parser.openStream({...options, state: this.resolveState(options)});
   }
 
@@ -145,13 +150,13 @@ export class A2uiRequestProcessor {
    * doesn't.
    */
   acceptsState(state: RendererState): boolean {
-    return catalogsKey(state.catalogs) === catalogsKey(this.catalogs);
+    return catalogsKey(state.catalogs) === catalogsKey(this._catalogs);
   }
 
   private checkState(state: RendererState | undefined): void {
     if (state === undefined || this.acceptsState(state)) return;
     throw new A2uiCatalogError(
-      `The renderer state holds catalogs [${describeCatalogs(state.catalogs)}], but the processor's active catalogs are [${describeCatalogs(this.catalogs)}].`,
+      `The renderer state holds catalogs [${describeCatalogs(state.catalogs)}], but the processor's active catalogs are [${describeCatalogs(this._catalogs)}].`,
     );
   }
 }

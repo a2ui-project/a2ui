@@ -21,8 +21,9 @@ v0.9.1 or v1.0).
 The grammar for A2UI Express is defined in Express.g4.
 """
 
-from collections.abc import Sequence
+from collections.abc import Container, Iterable, Sequence
 from dataclasses import dataclass, field, replace
+import json
 import re
 from typing import Any, Literal
 
@@ -37,6 +38,7 @@ from a2ui.inference_formats._shared import (
     catalogs_defining,
     catalogs_protocol_version,
     check_mixed_catalogs,
+    is_action_slot,
     surface_catalog_id,
     to_message_models,
 )
@@ -69,6 +71,86 @@ _ID_KEY = "id"
 _FUNCTION_CALL_ID_KEY = "functionCallId"
 _SEND_DATA_MODEL_KEY = "sendDataModel"
 _UPDATE_KEY = "update"
+_EXTENSIONS_KEY = "extensions"
+
+
+def _validate_extensions(
+    extensions: Any, target: str, ctx: "_CompileContext"
+) -> dict[str, Any]:
+    """Validates an `extensions=` keyword argument on a surface or component."""
+    if not ctx.at_least_v10:
+        raise ExpressValidationError(
+            f"{target} sets extensions, which needs A2UI v1.0 or later"
+            f" (target version is {ctx.version})."
+        )
+    if not isinstance(extensions, dict):
+        raise ExpressValidationError(
+            f"{target} extensions must be a map, got: {extensions!r}"
+        )
+    for key in extensions:
+        if not isinstance(key, str) or not is_valid_uax31_identifier(key):
+            raise ExpressValidationError(
+                f"{target} extension key {key!r} is not a valid UAX 31 identifier."
+            )
+    return extensions
+
+
+# Keyword arguments accepted by the reserved `Event(...)` signature.
+_EVENT_KEYWORDS = ("userMessage", "context")
+
+
+@dataclass(frozen=True)
+class _ValueSlot:
+    """The catalog schema declared at a value's position, with the helper that owns it."""
+
+    schema: dict[str, Any]
+    helper: CatalogSchemaHelper
+
+
+def _item_slot(slot: _ValueSlot | None) -> _ValueSlot | None:
+    """Descends a value slot into the items of an array.
+
+    Returns:
+        The item slot, or None when the schema is unknown at that position.
+    """
+    if slot is None:
+        return None
+    schema = slot.helper.resolve_item_schema(slot.schema)
+    return _ValueSlot(schema, slot.helper) if schema else None
+
+
+def _property_slot(slot: _ValueSlot | None, name: str) -> _ValueSlot | None:
+    """Descends a value slot into a property of an object, whatever its name.
+
+    Returns:
+        The property's slot, or None when the schema is unknown at that position.
+    """
+    if slot is None:
+        return None
+    schema = slot.helper.resolve_property_schema(slot.schema, name)
+    return _ValueSlot(schema, slot.helper) if schema else None
+
+
+def _schema_ref_type(schema: Any) -> str | None:
+    """Returns 'ChildList', 'Child', or 'Action' if `schema` references one."""
+    if not isinstance(schema, dict):
+        return None
+    ref = schema.get("$ref")
+    if isinstance(ref, str):
+        if "ChildList" in ref:
+            return "ChildList"
+        if "Child" in ref or "ComponentId" in ref:
+            return "Child"
+        if "Action" in ref:
+            return "Action"
+    for key in ("oneOf", "anyOf", "allOf"):
+        subs = schema.get(key)
+        if isinstance(subs, list):
+            for sub in subs:
+                res = _schema_ref_type(sub)
+                if res:
+                    return res
+    return None
 
 
 def _component_id(var_name: str, ast: Any, *, at_least_v10: bool = False) -> str:
@@ -113,25 +195,90 @@ def _to_json_pointer(path_str: str) -> str:
     return "/" + _strip_path_prefix(path_str)
 
 
+_ARRAY_INDEX_RE = re.compile(r"^(?:0|[1-9][0-9]*)$")
+_MAX_ARRAY_INDEX = 10_000
+
+
+def _parse_array_index(segment: str, path_str: str) -> int:
+    """Parses a canonical non-negative array index segment within bounds."""
+    if not _ARRAY_INDEX_RE.match(segment):
+        raise ExpressValidationError(
+            f"Cannot use non-numeric segment {segment!r} on an array in path"
+            f" {path_str!r}."
+        )
+    idx = int(segment)
+    if idx > _MAX_ARRAY_INDEX:
+        raise ExpressValidationError(
+            f"Cannot set path {path_str!r}: array index {segment!r} exceeds"
+            f" maximum supported index ({_MAX_ARRAY_INDEX})."
+        )
+    return idx
+
+
+def _step_path_container(
+    current: dict[str, Any] | list[Any],
+    segment: str,
+    next_segment: str,
+    path_str: str,
+) -> dict[str, Any] | list[Any]:
+    """Advances one path segment through a dict or list, auto-vivifying if needed."""
+    is_next_index = bool(_ARRAY_INDEX_RE.match(next_segment))
+    if isinstance(current, dict):
+        existing = current.get(segment)
+        if existing is None:
+            child: dict[str, Any] | list[Any] = [] if is_next_index else {}
+            current[segment] = child
+            return child
+        if isinstance(existing, (dict, list)):
+            return existing
+        raise ExpressValidationError(
+            f"Cannot set path {path_str!r}: segment {segment!r} is a primitive value."
+        )
+    idx = _parse_array_index(segment, path_str)
+    while len(current) <= idx:
+        current.append(None)
+    existing = current[idx]
+    if existing is None:
+        child = [] if is_next_index else {}
+        current[idx] = child
+        return child
+    if isinstance(existing, (dict, list)):
+        return existing
+    raise ExpressValidationError(
+        f"Cannot set path {path_str!r}: segment {segment!r} is a primitive value."
+    )
+
+
 def _set_nested_path(d: dict[str, Any], path_str: str, val: Any) -> None:
-    """Populates a nested dictionary path from a JSON pointer-like string.
+    """Populates a nested dictionary or list path from an Express data path.
 
     Args:
         d: The target dictionary to mutate.
-        path_str: The data path string (e.g. "$/user/name").
+        path_str: The data path string (e.g. "$/user/name" or "$/items/0/state").
         val: The value to set at the specified path.
     """
     clean_path = _strip_path_prefix(path_str)
     if not clean_path:
+        if not isinstance(val, dict):
+            raise ExpressValidationError(
+                f"Cannot set root data model {path_str!r} to a non-map value."
+            )
+        d.clear()
+        d.update(val)
         return
 
     keys = clean_path.split("/")
-    current = d
-    for key in keys[:-1]:
-        if key not in current or not isinstance(current[key], dict):
-            current[key] = {}
-        current = current[key]
-    current[keys[-1]] = val
+    current: dict[str, Any] | list[Any] = d
+    for i, key in enumerate(keys[:-1]):
+        current = _step_path_container(current, key, keys[i + 1], path_str)
+    last_key = keys[-1]
+    if isinstance(current, dict):
+        current[last_key] = val
+        return
+    idx = _parse_array_index(last_key, path_str)
+    while len(current) <= idx:
+        current.append(None)
+    current[idx] = val
 
 
 def _schema_allows_databinding(schema: Any) -> bool:
@@ -163,6 +310,38 @@ def _schema_allows_databinding(schema: Any) -> bool:
                 if _schema_allows_databinding(sub):
                     return True
     return False
+
+
+def _describe_express_value(val: Any) -> str:
+    """Names a parsed value for an error message in the terms the model wrote it in.
+
+    Returns:
+        A short phrase such as `a map literal` or `the number 42`, rather than
+        the node's repr.
+    """
+    if isinstance(val, CallNode):
+        return f"a call to {val.name}(...)"
+    if isinstance(val, CheckNode):
+        return f"a check (?{val.name})"
+    if isinstance(val, VariableNode):
+        return f"the variable {val.name}"
+    if isinstance(val, PathNode):
+        return f"the data binding ${val.path}"
+    if isinstance(val, SkippedNode):
+        return "'_'"
+    if isinstance(val, dict):
+        return "a map literal"
+    if isinstance(val, list):
+        return "a list"
+    if val is None:
+        return "null"
+    if isinstance(val, bool):
+        return f"the boolean {str(val).lower()}"
+    if isinstance(val, (int, float)):
+        return f"the number {json.dumps(val)}"
+    if isinstance(val, str):
+        return f"the string {json.dumps(val)}"
+    return f"a {type(val).__name__}"
 
 
 def _binding_path(v: Any, path_key: str) -> str | None:
@@ -422,10 +601,14 @@ def _string_call_arg(
     return val
 
 
+class _PendingVariableError(Exception):
+    """Raised during streaming when an expression references an undefined value variable."""
+
+
 class _CompileContext:
     """Holds mutable state for a single compiler execution thread."""
 
-    def __init__(self, version: str):
+    def __init__(self, version: str, *, allow_pending: bool = False):
         self.version = version
         self.at_least_v10 = is_at_least_version(version, ProtocolVersion.V1_0)
         # v1.0 spells data bindings and function calls with reserved `@` keys.
@@ -438,6 +621,9 @@ class _CompileContext:
         # The variables whose values are being compiled, to catch a variable
         # whose value refers back to it.
         self.resolving: set[str] = set()
+        self.allow_pending: bool = allow_pending
+        self.referenced_vars: set[str] = set()
+        self.used_ids: set[str] = set()
 
     def check_catalog_override(self, target: str) -> None:
         """Rejects a per-component or per-function catalogId below v1.0.
@@ -469,6 +655,7 @@ class _SurfaceScope:
     has_surface_directive: bool = False
     send_data_model: bool | None = None
     is_update: bool = False
+    extensions: Any = None
     raw_symbols: dict[str, Any] = field(default_factory=dict)
     data_path_assignments: dict[str, Any] = field(default_factory=dict)
 
@@ -482,6 +669,588 @@ class _DeleteSurface:
 class _StandaloneCall:
     node: CallNode
     scope: _SurfaceScope | None
+
+
+@dataclass
+class _ScopeStreamState:
+    """Incremental emission state for a single surface scope in an open block."""
+
+    surface_id: str = ""
+    surface_created: bool = False
+    emitted_components: dict[str, dict[str, Any]] = field(default_factory=dict)
+    emitted_data_paths: dict[str, Any] = field(default_factory=dict)
+    var_ids: dict[str, str] = field(default_factory=dict)
+    compiled_cache: dict[
+        str,
+        tuple[
+            Any,
+            list[dict[str, Any]],
+            dict[str, tuple[Any, str | None]],
+            int,
+            int,
+            list[str],
+        ],
+    ] = field(default_factory=dict)
+    data_cache: dict[str, tuple[Any, Any, dict[str, tuple[Any, str | None]]]] = field(
+        default_factory=dict
+    )
+
+    def clone(self) -> "_ScopeStreamState":
+        return _ScopeStreamState(
+            surface_id=self.surface_id,
+            surface_created=self.surface_created,
+            emitted_components=dict(self.emitted_components),
+            emitted_data_paths=dict(self.emitted_data_paths),
+            var_ids=dict(self.var_ids),
+            compiled_cache=dict(self.compiled_cache),
+            data_cache=dict(self.data_cache),
+        )
+
+
+_OPEN_SENTINEL_RE = re.compile(r"<a2ui(?:\s[^>]*)?>", re.IGNORECASE)
+_CLOSE_SENTINEL_RE = re.compile(r"</a2ui\s*>", re.IGNORECASE)
+_SENTINEL_TOKEN_RE = re.compile(
+    r'[rR]"""[\s\S]*?(?:"""|\Z)|[rR]"[^\r\n"]*(?:"|\Z)|"""(?:\\[\s\S]|[^\\])*?(?:"""|\Z)|"(?:\\[\s\S]|[^\\"\r\n])*(?:"|\Z)|(?:#|//|--)'
+    r"[^\r\n]*|/\*[\s\S]*?(?:\*/|\Z)"
+)
+
+
+def _strip_sentinel_tags(source: str) -> str:
+    """Strips outer <a2ui> and </a2ui> tags outside string literals and comments."""
+    segments: list[tuple[bool, str]] = []
+    pos = 0
+    for m in _SENTINEL_TOKEN_RE.finditer(source):
+        if m.start() > pos:
+            segments.append((False, source[pos : m.start()]))
+        tok = m.group(0)
+        if not tok.startswith(('"', "r", "R", "/*")):
+            close_m = _CLOSE_SENTINEL_RE.search(tok)
+            if close_m:
+                if close_m.start() > 0:
+                    segments.append((True, tok[: close_m.start()]))
+                segments.append((False, tok[close_m.start() :]))
+                pos = m.end()
+                continue
+        segments.append((True, tok))
+        pos = m.end()
+    if pos < len(source):
+        segments.append((False, source[pos:]))
+
+    has_open = any(
+        not is_tok and _OPEN_SENTINEL_RE.search(seg) is not None
+        for is_tok, seg in segments
+    )
+    out: list[str] = []
+    inside = not has_open
+    for is_tok, seg in segments:
+        if is_tok:
+            if inside:
+                out.append(seg)
+            continue
+        cursor = 0
+        while cursor < len(seg):
+            if not inside:
+                open_m = _OPEN_SENTINEL_RE.search(seg, cursor)
+                if open_m is None:
+                    break
+                inside = True
+                cursor = open_m.end()
+                continue
+            close_m = _CLOSE_SENTINEL_RE.search(seg, cursor)
+            open_m = _OPEN_SENTINEL_RE.search(seg, cursor)
+            if open_m is not None and (
+                close_m is None or open_m.start() < close_m.start()
+            ):
+                out.append(seg[cursor : open_m.start()])
+                cursor = open_m.end()
+                continue
+            if close_m is not None:
+                out.append(seg[cursor : close_m.start()])
+                inside = False
+                cursor = close_m.end()
+                if not has_open:
+                    return "".join(out)
+                continue
+            out.append(seg[cursor:])
+            break
+    return "".join(out)
+
+
+def _is_valid_prefix_boundary(dsl_text: str, prefix_len: int) -> bool:
+    """Checks that `dsl_text[:prefix_len]` does not split a token."""
+    if len(dsl_text) == prefix_len:
+        return True
+    if dsl_text[prefix_len - 1] in ("\n", ";"):
+        return True
+    return dsl_text[prefix_len] in (" ", "\t", "\r", "\n", ";")
+
+
+class ExpressScopeSession:
+    """Tracks incremental statement compilation across chunks of an `<a2ui>` block."""
+
+    def __init__(
+        self,
+        compiler: "ExpressCompiler",
+        *,
+        surface_id: str = "default_surface",
+        version: str | None = None,
+    ) -> None:
+        self.compiler = compiler
+        self.surface_id = surface_id
+        self.version = version or compiler.version
+        self._scope_states: dict[int, _ScopeStreamState] = {}
+        self._emitted_units: set[int] = set()
+        self.has_emitted: bool = False
+        self._cached_prefix: str = ""
+        self._cached_statements: list[tuple[str | None, Any]] = []
+        self.superseded_components: list[tuple[str, str]] = []
+
+    def snapshot(
+        self,
+    ) -> tuple[
+        dict[int, _ScopeStreamState],
+        set[int],
+        bool,
+        str,
+        list[tuple[str | None, Any]],
+        list[tuple[str, str]],
+    ]:
+        """Returns a lightweight snapshot of the session state for rollback."""
+        return (
+            {k: v.clone() for k, v in self._scope_states.items()},
+            set(self._emitted_units),
+            self.has_emitted,
+            self._cached_prefix,
+            list(self._cached_statements),
+            list(self.superseded_components),
+        )
+
+    def restore(
+        self,
+        snap: tuple[
+            dict[int, _ScopeStreamState],
+            set[int],
+            bool,
+            str,
+            list[tuple[str | None, Any]],
+            list[tuple[str, str]],
+        ],
+    ) -> None:
+        """Restores session state from a prior `snapshot()`."""
+        (
+            self._scope_states,
+            self._emitted_units,
+            self.has_emitted,
+            self._cached_prefix,
+            self._cached_statements,
+            self.superseded_components,
+        ) = snap
+
+    def _parse_incremental_statements(
+        self, dsl_text: str, *, is_final: bool, cache_prefix: bool
+    ) -> list[tuple[str | None, Any]]:
+        del is_final
+        if (
+            self._cached_prefix
+            and dsl_text.startswith(self._cached_prefix)
+            and _is_valid_prefix_boundary(dsl_text, len(self._cached_prefix))
+        ):
+            delta = dsl_text[len(self._cached_prefix) :]
+            if not delta.strip():
+                statements = list(self._cached_statements)
+            else:
+                delta_stmts = self.compiler._parse_statements(
+                    delta, True, strip_sentinels=False
+                )
+                statements = [*self._cached_statements, *delta_stmts]
+        else:
+            statements = self.compiler._parse_statements(
+                dsl_text, True, strip_sentinels=False
+            )
+        if cache_prefix:
+            self._cached_prefix = dsl_text
+            self._cached_statements = list(statements)
+        return statements
+
+    def compile_step(
+        self,
+        dsl_text: str,
+        *,
+        is_final: bool,
+        existing_surfaces: Iterable[str],
+        cache_prefix: bool = True,
+    ) -> list[dict[str, Any]]:
+        """Compiles any newly ready statements from `dsl_text` into delta messages."""
+        self.superseded_components = []
+        ctx = _CompileContext(self.version, allow_pending=not is_final)
+        if self.compiler._is_multi_catalog and not ctx.at_least_v10:
+            raise A2uiCatalogError(
+                "Several catalogs need A2UI v1.0 or later, but the target version is"
+                f" {self.version}."
+            )
+        statements = self._parse_incremental_statements(
+            dsl_text, is_final=is_final, cache_prefix=cache_prefix
+        )
+        units = self.compiler._build_units(statements, self.surface_id, ctx)
+        if not units:
+            if is_final:
+                raise ExpressUndefinedRootError("root")
+            return []
+
+        active_surfaces = set(existing_surfaces)
+        result_messages: list[dict[str, Any]] = []
+        for idx, unit in enumerate(units):
+            result_messages.extend(
+                self._compile_unit(
+                    idx,
+                    unit,
+                    ctx,
+                    is_final=is_final,
+                    active_surfaces=active_surfaces,
+                )
+            )
+        return result_messages
+
+    def _compile_unit(
+        self,
+        idx: int,
+        unit: _SurfaceScope | _DeleteSurface | _StandaloneCall,
+        ctx: _CompileContext,
+        *,
+        is_final: bool,
+        active_surfaces: set[str],
+    ) -> list[dict[str, Any]]:
+        if isinstance(unit, _DeleteSurface):
+            active_surfaces.discard(unit.surface_id)
+            if idx in self._emitted_units:
+                return []
+            self._emitted_units.add(idx)
+            self.has_emitted = True
+            return [{
+                "version": self.version,
+                SurfaceOperation.DELETE: {"surfaceId": unit.surface_id},
+            }]
+        if isinstance(unit, _StandaloneCall):
+            if idx in self._emitted_units:
+                return []
+            try:
+                msg = self.compiler._compile_standalone_call(unit, ctx)
+            except _PendingVariableError:
+                return []
+            self._emitted_units.add(idx)
+            self.has_emitted = True
+            return [msg]
+        state = self._scope_states.setdefault(
+            idx, _ScopeStreamState(surface_id=unit.surface_id)
+        )
+        state.surface_id = unit.surface_id
+        surface_exists = unit.surface_id in active_surfaces
+        messages = self._compile_scope_delta(
+            unit,
+            state,
+            ctx,
+            is_final=is_final,
+            surface_exists=surface_exists,
+        )
+        if state.surface_created or surface_exists:
+            active_surfaces.add(unit.surface_id)
+        return messages
+
+    def _compile_scope_delta(
+        self,
+        scope: _SurfaceScope,
+        state: _ScopeStreamState,
+        ctx: _CompileContext,
+        *,
+        is_final: bool,
+        surface_exists: bool,
+    ) -> list[dict[str, Any]]:
+        """Compiles ready components and data paths for a single scope."""
+        compiled_components, has_pending = self._collect_ready_components(
+            scope, state, ctx
+        )
+        compiled_data = self._collect_ready_data(scope, state, ctx)
+        has_root = any(c.get("id") == "root" for c in compiled_components)
+        needs_create = (
+            not scope.is_update
+            and not state.surface_created
+            and (not surface_exists or has_root or scope.extensions is not None)
+        )
+        if needs_create:
+            return self._compile_initial_create(
+                scope, state, compiled_components, compiled_data, ctx, is_final=is_final
+            )
+        return self._compile_incremental_updates(
+            scope,
+            state,
+            compiled_components,
+            compiled_data,
+            ctx,
+            is_final=is_final,
+            has_pending=has_pending,
+            surface_exists=surface_exists,
+        )
+
+    def _compile_initial_create(
+        self,
+        scope: _SurfaceScope,
+        state: _ScopeStreamState,
+        compiled_components: list[dict[str, Any]],
+        compiled_data: dict[str, Any],
+        ctx: _CompileContext,
+        *,
+        is_final: bool,
+    ) -> list[dict[str, Any]]:
+        has_root = any(c.get("id") == "root" for c in compiled_components)
+        if not has_root:
+            if not is_final:
+                return []
+            if scope.extensions is not None:
+                raise ExpressValidationError(
+                    "surface() extensions require a surface-creating scope with a"
+                    " root component."
+                )
+            if compiled_data and not compiled_components:
+                return self._compile_incremental_updates(
+                    scope,
+                    state,
+                    compiled_components,
+                    compiled_data,
+                    ctx,
+                    is_final=True,
+                    has_pending=False,
+                    surface_exists=False,
+                )
+            raise ExpressUndefinedRootError("root")
+        data_model: dict[str, Any] = {}
+        for path_name, val in compiled_data.items():
+            _set_nested_path(data_model, path_name, val)
+        try:
+            messages = self.compiler._build_create_messages(
+                scope, compiled_components, data_model, ctx
+            )
+        except _PendingVariableError:
+            if not is_final:
+                return []
+            raise
+        for path_name, val in compiled_data.items():
+            state.emitted_data_paths[path_name] = val
+        for comp in compiled_components:
+            state.emitted_components[comp["id"]] = comp
+        state.surface_created = True
+        self.has_emitted = True
+        return messages
+
+    def _compile_incremental_updates(
+        self,
+        scope: _SurfaceScope,
+        state: _ScopeStreamState,
+        compiled_components: list[dict[str, Any]],
+        compiled_data: dict[str, Any],
+        ctx: _CompileContext,
+        *,
+        is_final: bool,
+        has_pending: bool,
+        surface_exists: bool = False,
+    ) -> list[dict[str, Any]]:
+        delta_components = [
+            c for c in compiled_components if state.emitted_components.get(c["id"]) != c
+        ]
+        for comp in delta_components:
+            state.emitted_components[comp["id"]] = comp
+
+        data_updates = self._build_data_updates(scope, state, compiled_data, ctx)
+        if (
+            is_final
+            and not state.emitted_components
+            and not state.emitted_data_paths
+            and not has_pending
+        ):
+            raise ExpressUndefinedRootError("root")
+
+        messages: list[dict[str, Any]] = []
+        if delta_components:
+            if (
+                not scope.has_surface_directive
+                and not state.surface_created
+                and not surface_exists
+            ):
+                raise ExpressUndefinedRootError("root")
+            messages.append({
+                "version": ctx.version,
+                SurfaceOperation.UPDATE_COMPONENTS: {
+                    "surfaceId": scope.surface_id,
+                    "components": delta_components,
+                },
+            })
+        messages.extend(data_updates)
+        if messages:
+            self.has_emitted = True
+        return messages
+
+    def _dep_snapshot(
+        self, scope: _SurfaceScope, dep: str, ctx: _CompileContext
+    ) -> tuple[Any, str | None]:
+        dep_ast = scope.raw_symbols.get(dep)
+        if isinstance(dep_ast, CallNode) and self.compiler._defines_component(
+            dep_ast.name, dep_ast.kwargs.get("catalogId")
+        ):
+            return (
+                dep_ast,
+                _component_id(dep, dep_ast, at_least_v10=ctx.at_least_v10),
+            )
+        return (dep_ast, None)
+
+    def _earlier_scope_component(
+        self, current_state: _ScopeStreamState, surface_id: str, comp_id: str
+    ) -> dict[str, Any] | None:
+        found: dict[str, Any] | None = None
+        for st in self._scope_states.values():
+            if st is current_state:
+                break
+            if st.surface_id == surface_id and comp_id in st.emitted_components:
+                found = st.emitted_components[comp_id]
+        return found
+
+    def _collect_ready_components(
+        self,
+        scope: _SurfaceScope,
+        state: _ScopeStreamState,
+        ctx: _CompileContext,
+    ) -> tuple[list[dict[str, Any]], bool]:
+        self.compiler._seed_scope_component_ids(scope, ctx)
+        compiled: list[dict[str, Any]] = []
+        has_pending = False
+        superseded: list[str] = []
+        for var_name, ast in scope.raw_symbols.items():
+            cached = state.compiled_cache.get(var_name)
+            if (
+                cached is not None
+                and cached[0] is ast
+                and (cached[4] == 0 or cached[3] == ctx.inline_counter)
+                and all(gid not in ctx.used_ids for gid in cached[5])
+                and all(
+                    self._dep_snapshot(scope, dep, ctx) == dep_snap
+                    for dep, dep_snap in cached[2].items()
+                )
+            ):
+                var_comps = cached[1]
+                ctx.inline_counter += cached[4]
+                ctx.used_ids.update(cached[5])
+            else:
+                prev_inline = ctx.inline_counter
+                prev_used_ids = set(ctx.used_ids)
+                ctx.referenced_vars.clear()
+                try:
+                    comp_dict = self.compiler._compile_ast_node(
+                        var_name, ast, scope.raw_symbols, ctx
+                    )
+                except _PendingVariableError:
+                    ctx.extra_components = []
+                    ctx.inline_counter = prev_inline
+                    ctx.used_ids = prev_used_ids
+                    has_pending = True
+                    continue
+                var_comps = [comp_dict, *ctx.extra_components] if comp_dict else []
+                ctx.extra_components = []
+                deps = {
+                    dep: self._dep_snapshot(scope, dep, ctx)
+                    for dep in ctx.referenced_vars
+                }
+                new_generated_ids = [
+                    gid for gid in ctx.used_ids if gid not in prev_used_ids
+                ]
+                state.compiled_cache[var_name] = (
+                    ast,
+                    var_comps,
+                    deps,
+                    prev_inline,
+                    ctx.inline_counter - prev_inline,
+                    new_generated_ids,
+                )
+            if var_comps:
+                new_id = var_comps[0]["id"]
+                old_id = state.var_ids.get(var_name)
+                state.var_ids[var_name] = new_id
+                if old_id is not None and old_id != new_id:
+                    superseded.append(old_id)
+                compiled.extend(var_comps)
+        if superseded:
+            active_ids = {c["id"] for c in compiled}
+            for old_id in superseded:
+                if old_id not in active_ids:
+                    state.emitted_components.pop(old_id, None)
+                    earlier_comp = self._earlier_scope_component(
+                        state, scope.surface_id, old_id
+                    )
+                    if earlier_comp is not None:
+                        compiled.append(earlier_comp)
+                    else:
+                        self.superseded_components.append((scope.surface_id, old_id))
+        return compiled, has_pending
+
+    def _collect_ready_data(
+        self,
+        scope: _SurfaceScope,
+        state: _ScopeStreamState,
+        ctx: _CompileContext,
+    ) -> dict[str, Any]:
+        compiled: dict[str, Any] = {}
+        for path_name, ast_val in scope.data_path_assignments.items():
+            cached = state.data_cache.get(path_name)
+            if (
+                cached is not None
+                and cached[0] is ast_val
+                and all(
+                    self._dep_snapshot(scope, dep, ctx) == dep_snap
+                    for dep, dep_snap in cached[2].items()
+                )
+            ):
+                compiled[path_name] = cached[1]
+                continue
+            ctx.referenced_vars.clear()
+            try:
+                val = self.compiler._compile_data_value(scope, ast_val, ctx)
+            except _PendingVariableError:
+                continue
+            deps = {
+                dep: self._dep_snapshot(scope, dep, ctx) for dep in ctx.referenced_vars
+            }
+            state.data_cache[path_name] = (ast_val, val, deps)
+            compiled[path_name] = val
+        return compiled
+
+    def _build_data_updates(
+        self,
+        scope: _SurfaceScope,
+        state: _ScopeStreamState,
+        compiled_data: dict[str, Any],
+        ctx: _CompileContext,
+    ) -> list[dict[str, Any]]:
+        updates: list[dict[str, Any]] = []
+        for path_name, val in compiled_data.items():
+            if (
+                path_name in state.emitted_data_paths
+                and type(state.emitted_data_paths[path_name]) is type(val)
+                and state.emitted_data_paths[path_name] == val
+            ):
+                continue
+            pointer = _to_json_pointer(path_name)
+            if pointer == "/" and not isinstance(val, dict):
+                raise ExpressValidationError(
+                    "Cannot assign a non-map value to the root data path"
+                    f" '$/' (got {type(val).__name__})."
+                )
+            state.emitted_data_paths[path_name] = val
+            updates.append({
+                "version": ctx.version,
+                SurfaceOperation.UPDATE_DATA: {
+                    "surfaceId": scope.surface_id,
+                    "path": pointer,
+                    "value": val,
+                },
+            })
+        return updates
 
 
 class ExpressCompiler:
@@ -648,27 +1417,12 @@ class ExpressCompiler:
             resolved_id if self._is_multi_catalog else None,
         )
 
-    def _parse_statements(self, dsl_text: str, is_final: bool) -> list[Any]:
+    def _parse_statements(
+        self, dsl_text: str, is_final: bool, *, strip_sentinels: bool = True
+    ) -> list[Any]:
         """Strips sentinel tags and parses the DSL body into statements."""
-        has_sentinels = "<a2ui>" in dsl_text
-        lines = []
-        inside_a2ui = not has_sentinels
-        for line in dsl_text.splitlines():
-            trimmed = line.strip()
-            if "<a2ui>" in trimmed:
-                inside_a2ui = True
-                line = line.replace("<a2ui>", "")
-                trimmed = line.strip()
-            if "</a2ui>" in trimmed:
-                inside_a2ui = False
-                line = line.split("</a2ui>")[0]
-                if line.strip():
-                    lines.append(line)
-                continue
-            if inside_a2ui:
-                lines.append(line)
-
-        dsl_body = _normalize_express_source("\n".join(lines))
+        raw_body = _strip_sentinel_tags(dsl_text) if strip_sentinels else dsl_text
+        dsl_body = _normalize_express_source(raw_body)
 
         input_stream = InputStream(dsl_body)
         lexer = ExpressLexer(input_stream)
@@ -741,7 +1495,28 @@ class ExpressCompiler:
                 f" {target_version}."
             )
         statements = self._parse_statements(dsl_text, is_final)
+        units = self._build_units(statements, surface_id, ctx)
+        if not units:
+            raise ExpressUndefinedRootError("root")
 
+        result_messages: list[dict[str, Any]] = []
+        for unit in units:
+            if isinstance(unit, _DeleteSurface):
+                result_messages.append({
+                    "version": target_version,
+                    SurfaceOperation.DELETE: {"surfaceId": unit.surface_id},
+                })
+            elif isinstance(unit, _StandaloneCall):
+                result_messages.append(self._compile_standalone_call(unit, ctx))
+            else:
+                result_messages.extend(self._compile_create_scope(unit, ctx))
+
+        return to_message_models(result_messages)
+
+    def _build_units(
+        self, statements: list[Any], surface_id: str, ctx: _CompileContext
+    ) -> list[_SurfaceScope | _DeleteSurface | _StandaloneCall]:
+        """Groups parsed AST statements into surface scopes, deletes, and standalone calls."""
         units: list[_SurfaceScope | _DeleteSurface | _StandaloneCall] = []
         current_scope: _SurfaceScope | None = None
 
@@ -756,6 +1531,7 @@ class ExpressCompiler:
                     current_scope = self._open_scope(
                         parsed_val,
                         default_surface_id=surface_id,
+                        ctx=ctx,
                     )
                     units.append(current_scope)
                 elif name == _DELETE_SURFACE_STATEMENT:
@@ -773,26 +1549,11 @@ class ExpressCompiler:
                     current_scope = _SurfaceScope(surface_id=surface_id)
                     units.append(current_scope)
                 if var_name.startswith("$"):
+                    current_scope.data_path_assignments.pop(var_name, None)
                     current_scope.data_path_assignments[var_name] = parsed_val
                 else:
                     current_scope.raw_symbols[var_name] = parsed_val
-
-        if not units:
-            raise ExpressUndefinedRootError("root")
-
-        result_messages: list[dict[str, Any]] = []
-        for unit in units:
-            if isinstance(unit, _DeleteSurface):
-                result_messages.append({
-                    "version": target_version,
-                    SurfaceOperation.DELETE: {"surfaceId": unit.surface_id},
-                })
-            elif isinstance(unit, _StandaloneCall):
-                result_messages.append(self._compile_standalone_call(unit, ctx))
-            else:
-                result_messages.extend(self._compile_create_scope(unit, ctx))
-
-        return to_message_models(result_messages)
+        return units
 
     def _check_header_catalog(self, statement: str, catalog_id: str) -> None:
         """Checks the catalog that a `surface` line names.
@@ -818,6 +1579,7 @@ class ExpressCompiler:
         node: CallNode,
         *,
         default_surface_id: str,
+        ctx: _CompileContext,
     ) -> _SurfaceScope:
         """Opens the scope of a `surface(...)` statement.
 
@@ -843,16 +1605,44 @@ class ExpressCompiler:
                 f"{_UPDATE_KEY} must be true or false, got:"
                 f" {statement}({_UPDATE_KEY}={is_update!r})"
             )
+        extensions = None
+        if _EXTENSIONS_KEY in node.kwargs:
+            if not ctx.at_least_v10:
+                raise ExpressValidationError(
+                    f"{statement}() sets extensions, which needs A2UI v1.0 or later"
+                    f" (target version is {ctx.version})."
+                )
+            if is_update:
+                raise ExpressValidationError(
+                    f"{statement}() with update=true does not accept extensions."
+                )
+            extensions = node.kwargs[_EXTENSIONS_KEY]
         return _SurfaceScope(
             surface_id=target_surf,
             has_surface_directive=True,
             send_data_model=send_data_model,
             is_update=bool(is_update),
+            extensions=extensions,
         )
+
+    def _seed_scope_component_ids(
+        self, scope: _SurfaceScope, ctx: _CompileContext
+    ) -> None:
+        ctx.used_ids.clear()
+        for var_name, ast in scope.raw_symbols.items():
+            if not isinstance(ast, CallNode):
+                continue
+            comp_cat_id = ast.kwargs.get("catalogId")
+            if self._defines_component(ast.name, comp_cat_id):
+                comp_id = _component_id(var_name, ast, at_least_v10=ctx.at_least_v10)
+                if comp_id in ctx.used_ids:
+                    raise ExpressValidationError(f"Duplicate component ID '{comp_id}'.")
+                ctx.used_ids.add(comp_id)
 
     def _compile_components(
         self, scope: _SurfaceScope, ctx: _CompileContext
     ) -> list[dict[str, Any]]:
+        self._seed_scope_component_ids(scope, ctx)
         compiled_components = []
         for var_name, ast in scope.raw_symbols.items():
             comp_dict = self._compile_ast_node(var_name, ast, scope.raw_symbols, ctx)
@@ -871,73 +1661,162 @@ class ExpressCompiler:
         self, scope: _SurfaceScope, ctx: _CompileContext
     ) -> list[dict[str, Any]]:
         """Compiles a `surface(...)` scope, or the implicit default scope."""
-        data_model: dict[str, Any] = {}
-        for path_name, ast_val in scope.data_path_assignments.items():
-            compiled_val = self._compile_data_value(scope, ast_val, ctx)
-            if not _strip_path_prefix(path_name) and isinstance(compiled_val, dict):
-                data_model.update(compiled_val)
-            else:
-                _set_nested_path(data_model, path_name, compiled_val)
-
         compiled_components = self._compile_components(scope, ctx)
         surf_id = scope.surface_id
-        if len(scope.data_path_assignments) == 1:
-            only_path, only_ast = next(iter(scope.data_path_assignments.items()))
-            pointer = _to_json_pointer(only_path)
-            if pointer.count("/") > 1 or pointer == "/":
-                data_update = {
+        is_create = not scope.is_update and any(
+            c.get("id") == "root" for c in compiled_components
+        )
+
+        if not is_create:
+            if scope.extensions is not None:
+                raise ExpressValidationError(
+                    "surface() extensions require a surface-creating scope with a"
+                    " root component."
+                )
+            data_updates = []
+            for path_name, ast_val in scope.data_path_assignments.items():
+                pointer = _to_json_pointer(path_name)
+                compiled_val = self._compile_data_value(scope, ast_val, ctx)
+                if pointer == "/" and not isinstance(compiled_val, dict):
+                    raise ExpressValidationError(
+                        "Cannot assign a non-map value to the root data path"
+                        f" '$/' (got {type(compiled_val).__name__})."
+                    )
+                data_updates.append({
                     "version": ctx.version,
                     SurfaceOperation.UPDATE_DATA: {
                         "surfaceId": surf_id,
                         "path": pointer,
-                        "value": self._compile_data_value(scope, only_ast, ctx),
+                        "value": compiled_val,
                     },
-                }
-            else:
-                data_update = {
-                    "version": ctx.version,
-                    SurfaceOperation.UPDATE_DATA: {
-                        "surfaceId": surf_id,
-                        "path": "/",
-                        "value": data_model,
-                    },
-                }
-        else:
-            data_update = {
-                "version": ctx.version,
-                SurfaceOperation.UPDATE_DATA: {
-                    "surfaceId": surf_id,
-                    "path": "/",
-                    "value": data_model,
-                },
-            }
-
-        if scope.is_update or not any(
-            c.get("id") == "root" for c in compiled_components
-        ):
+                })
             if not compiled_components:
-                if scope.data_path_assignments:
-                    return [data_update]
+                if data_updates:
+                    return data_updates
                 raise ExpressUndefinedRootError("root")
             if not scope.has_surface_directive:
                 raise ExpressUndefinedRootError("root")
-            messages = [{
-                "version": ctx.version,
-                SurfaceOperation.UPDATE_COMPONENTS: {
-                    "surfaceId": surf_id,
-                    "components": compiled_components,
+            return [
+                {
+                    "version": ctx.version,
+                    SurfaceOperation.UPDATE_COMPONENTS: {
+                        "surfaceId": surf_id,
+                        "components": compiled_components,
+                    },
                 },
-            }]
-            if data_model:
-                messages.append(data_update)
-            return messages
+                *data_updates,
+            ]
 
+        data_model: dict[str, Any] = {}
+        for path_name, ast_val in scope.data_path_assignments.items():
+            compiled_val = self._compile_data_value(scope, ast_val, ctx)
+            _set_nested_path(data_model, path_name, compiled_val)
+
+        return self._build_create_messages(scope, compiled_components, data_model, ctx)
+
+    def _resolve_ast_var(
+        self,
+        node: Any,
+        raw_symbols: dict[str, Any],
+        ctx: _CompileContext,
+        seen: set[str],
+    ) -> Any:
+        cur = node
+        while isinstance(cur, VariableNode):
+            name = cur.name
+            ctx.referenced_vars.add(name)
+            if name in seen:
+                raise ExpressValidationError(f"Variable '{name}' refers to itself.")
+            if name not in raw_symbols:
+                if ctx.allow_pending:
+                    raise _PendingVariableError(name)
+                raise ExpressValidationError(
+                    f"Undefined variable '{name}' in {ctx.version} expression."
+                )
+            seen.add(name)
+            cur = raw_symbols[name]
+        return cur
+
+    def _check_extensions_ast(
+        self,
+        node: Any,
+        raw_symbols: dict[str, Any],
+        target: str,
+        ctx: _CompileContext,
+        seen: set[str],
+    ) -> None:
+        resolved = self._resolve_ast_var(node, raw_symbols, ctx, set(seen))
+        if isinstance(resolved, dict):
+            for v in resolved.values():
+                self._check_extensions_ast(v, raw_symbols, target, ctx, seen)
+        elif isinstance(resolved, list):
+            for item in resolved:
+                self._check_extensions_ast(item, raw_symbols, target, ctx, seen)
+        elif isinstance(resolved, CallNode):
+            cat_id = resolved.kwargs.get("catalogId")
+            if self._defines_component(resolved.name, cat_id):
+                raise ExpressValidationError(
+                    f"{target} extensions cannot contain component '{resolved.name}'."
+                )
+            if (
+                resolved.name
+                in (
+                    "Event",
+                    "_template",
+                    _SURFACE_STATEMENT,
+                    _DELETE_SURFACE_STATEMENT,
+                )
+                and cat_id is None
+            ):
+                raise ExpressValidationError(
+                    f"{target} extensions cannot contain '{resolved.name}()'."
+                )
+            for arg in resolved.args:
+                self._check_extensions_ast(arg, raw_symbols, target, ctx, seen)
+            for kw_val in resolved.kwargs.values():
+                self._check_extensions_ast(kw_val, raw_symbols, target, ctx, seen)
+
+    def _compile_extensions(
+        self,
+        raw_ext: Any,
+        raw_symbols: dict[str, Any],
+        target: str,
+        ctx: _CompileContext,
+    ) -> dict[str, Any]:
+        if not ctx.at_least_v10:
+            raise ExpressValidationError(
+                f"{target} sets extensions, which needs A2UI v1.0 or later"
+                f" (target version is {ctx.version})."
+            )
+        top = self._resolve_ast_var(raw_ext, raw_symbols, ctx, set())
+        if not isinstance(top, dict):
+            raise ExpressValidationError(
+                f"{target} extensions must be a map, got: {top!r}"
+            )
+        self._check_extensions_ast(top, raw_symbols, target, ctx, set())
+        compiled_ext = self._compile_value(raw_ext, raw_symbols, ctx)
+        return _validate_extensions(compiled_ext, target, ctx)
+
+    def _build_create_messages(
+        self,
+        scope: _SurfaceScope,
+        compiled_components: list[dict[str, Any]],
+        data_model: dict[str, Any],
+        ctx: _CompileContext,
+    ) -> list[dict[str, Any]]:
+        """Builds the createSurface message(s) for a surface creation scope."""
+        surf_id = scope.surface_id
         create: dict[str, Any] = {"surfaceId": surf_id}
         cat_id = surface_catalog_id(self._catalogs)
         if cat_id is not None:
             create["catalogId"] = cat_id
         if scope.send_data_model is not None:
             create[_SEND_DATA_MODEL_KEY] = scope.send_data_model
+        if scope.extensions is not None:
+            compiled_ext = self._compile_extensions(
+                scope.extensions, scope.raw_symbols, "surface()", ctx
+            )
+            create["metadata"] = {"extensions": compiled_ext}
         if ctx.at_least_v10:
             create["components"] = compiled_components
             if data_model:
@@ -955,7 +1834,14 @@ class ExpressCompiler:
             },
         ]
         if data_model:
-            messages.append(data_update)
+            messages.append({
+                "version": ctx.version,
+                SurfaceOperation.UPDATE_DATA: {
+                    "surfaceId": surf_id,
+                    "path": "/",
+                    "value": data_model,
+                },
+            })
         return messages
 
     def _compile_standalone_call(
@@ -1062,9 +1948,19 @@ class ExpressCompiler:
         properties = comp_helper.get_component_properties(comp_name)
         comp_id = _component_id(var_name, ast, at_least_v10=ctx.at_least_v10)
         kwargs.pop(_ID_KEY, None)
+        raw_extensions = (
+            kwargs.pop(_EXTENSIONS_KEY, None)
+            if _EXTENSIONS_KEY not in properties
+            else None
+        )
         comp_dict: dict[str, Any] = {"id": comp_id, "component": comp_name}
         if write_cat_id is not None:
             comp_dict["catalogId"] = write_cat_id
+        if raw_extensions is not None:
+            compiled_ext = self._compile_extensions(
+                raw_extensions, raw_symbols, f"Component '{comp_name}'", ctx
+            )
+            comp_dict["metadata"] = {"extensions": compiled_ext}
 
         sibling_value_path = None
         non_check_properties = [p for p in properties if p != "checks"]
@@ -1158,15 +2054,27 @@ class ExpressCompiler:
                 comp_dict[prop_name] = None
                 continue
 
+            prop_schema = comp_helper.get_property_schema(comp_name, prop_name)
+            prop_type = comp_helper.get_property_type(comp_name, prop_name)
+            if prop_type is None and not comp_helper.common_types_loaded:
+                if prop_name == "child":
+                    prop_type = "Child"
+                elif prop_name == "children":
+                    prop_type = "ChildList"
+
             mapped_val = self._compile_value(
                 arg,
                 raw_symbols,
                 ctx,
-                is_action=(prop_name in ["action", "submitAction"]),
+                is_action=is_action_slot(prop_schema),
                 parent_id=comp_id,
                 parent_prop=prop_name,
+                allow_component_ref=(prop_type == "Child"),
+                allow_list_component_refs=(
+                    prop_type == "ChildList" and isinstance(arg, list)
+                ),
+                slot=_ValueSlot(prop_schema, comp_helper) if prop_schema else None,
             )
-            prop_schema = comp_helper.get_property_schema(comp_name, prop_name)
             if prop_schema and not _schema_allows_databinding(prop_schema):
                 if _has_databinding(arg, raw_symbols):
                     raise ExpressForbiddenDatabindingError(comp_name, prop_name)
@@ -1310,6 +2218,91 @@ class ExpressCompiler:
         condition["args"] = compiled_args
         return condition, message_val
 
+    def _compile_event_call(
+        self,
+        val: CallNode,
+        raw_symbols: dict[str, Any],
+        ctx: _CompileContext,
+    ) -> dict[str, Any]:
+        """Compiles the reserved `Event(name, context?, userMessage=?, context=?)` signature.
+
+        `userMessage` is a v1.0 Action field. It is rejected when targeting an
+        earlier protocol version, and so is any other keyword the signature does
+        not define, rather than being dropped from the compiled action.
+
+        The event's name, message and context entries are `DynamicValue`s, not
+        actions, so a function call among them stays a plain call whatever slot
+        the event itself sits in.
+
+        Raises:
+            ExpressValidationError: If there are more than two positional
+                arguments, `userMessage` is used before v1.0, or `userMessage`
+                is neither a string nor a `$path` data binding.
+            ExpressInvalidParamError: If a keyword other than `userMessage` or
+                `context` is given.
+            ExpressDuplicateParamError: If the context is given both
+                positionally and by keyword.
+        """
+        fn_args = val.args
+        fn_kwargs = val.kwargs
+
+        if len(fn_args) > 2:
+            raise ExpressValidationError(
+                "Event accepts at most 2 positional arguments (name, context),"
+                f" got {len(fn_args)}."
+            )
+        for key in fn_kwargs:
+            if key not in _EVENT_KEYWORDS:
+                raise ExpressInvalidParamError("Event", key, list(_EVENT_KEYWORDS))
+        if len(fn_args) == 2 and "context" in fn_kwargs:
+            raise ExpressDuplicateParamError("Event", "context")
+
+        compiled_event_name = (
+            self._compile_value(fn_args[0], raw_symbols, ctx) if fn_args else ""
+        )
+        event_dict: dict[str, Any] = {"name": compiled_event_name}
+
+        if "userMessage" in fn_kwargs:
+            if not ctx.at_least_v10:
+                raise ExpressValidationError(
+                    "Event userMessage requires protocol v1.0 or later; the"
+                    f" target version {ctx.version} has no userMessage field."
+                )
+            # `userMessage` is a DynamicString: a string, a data binding or a
+            # function call.
+            user_message = self._compile_value(
+                fn_kwargs["userMessage"], raw_symbols, ctx
+            )
+            is_binding_or_call = isinstance(user_message, dict) and (
+                ctx.path_key in user_message or ctx.call_key in user_message
+            )
+            if not isinstance(user_message, str) and not is_binding_or_call:
+                raise ExpressValidationError(
+                    "Event userMessage must be a string, a $path data binding or"
+                    " a function call, got"
+                    f" {_describe_express_value(fn_kwargs['userMessage'])}."
+                )
+            event_dict["userMessage"] = user_message
+
+        if len(fn_args) == 2:
+            context_node = fn_args[1]
+        elif "context" in fn_kwargs:
+            context_node = fn_kwargs["context"]
+        else:
+            return {"event": event_dict}
+
+        raw_context = self._compile_value(context_node, raw_symbols, ctx)
+        # A context written in the DSL is kept even when it is empty.
+        compiled_context: dict[str, Any] = {}
+        if isinstance(raw_context, dict):
+            compiled_context.update(raw_context)
+        elif isinstance(raw_context, list):
+            for item in raw_context:
+                if isinstance(item, dict):
+                    compiled_context.update(item)
+        event_dict["context"] = compiled_context
+        return {"event": event_dict}
+
     def _compile_value(
         self,
         val: Any,
@@ -1319,6 +2312,9 @@ class ExpressCompiler:
         parent_id: str | None = None,
         parent_prop: str | None = None,
         list_index: int | None = None,
+        allow_component_ref: bool = False,
+        allow_list_component_refs: bool = False,
+        slot: _ValueSlot | None = None,
     ) -> Any:
         """Compiles an individual AST node value into valid A2UI equivalents.
 
@@ -1330,6 +2326,14 @@ class ExpressCompiler:
             parent_id: The parent component ID if compiling a component property.
             parent_prop: The parent component property name.
             list_index: The index within an array property if applicable.
+            allow_component_ref: Whether an undefined variable in this slot is a
+                forward component ID reference.
+            allow_list_component_refs: Whether elements of a list in this slot are
+                forward component ID references.
+            slot: The catalog schema declared at this position, when known.
+                Array items and map entries resolve their own sub-schema from
+                it, so an `Action` slot nested inside a list item (e.g.
+                `items: [{label, action}]`) is compiled as an action too.
 
         Returns:
             The semantically correct A2UI JSON structure.
@@ -1342,7 +2346,14 @@ class ExpressCompiler:
             return {ctx.path_key: val.path}
         if isinstance(val, VariableNode):
             ref_name = val.name
+            ctx.referenced_vars.add(ref_name)
             if ref_name not in raw_symbols:
+                if not allow_component_ref:
+                    if ctx.allow_pending:
+                        raise _PendingVariableError(ref_name)
+                    raise ExpressValidationError(
+                        f"Variable '{ref_name}' is not assigned in surface."
+                    )
                 return ref_name
             symbol_val = raw_symbols[ref_name]
             if isinstance(symbol_val, CallNode):
@@ -1362,6 +2373,9 @@ class ExpressCompiler:
                     raw_symbols,
                     ctx,
                     is_action,
+                    allow_component_ref=allow_component_ref,
+                    allow_list_component_refs=allow_list_component_refs,
+                    slot=slot,
                 )
             finally:
                 ctx.resolving.discard(ref_name)
@@ -1383,21 +2397,61 @@ class ExpressCompiler:
 
         # A dict is always a map literal, whatever its keys are.
         if isinstance(val, dict):
-            return {
-                k: self._compile_value(v, raw_symbols, ctx, is_action)
-                for k, v in val.items()
-            }
+            dict_res: dict[str, Any] = {}
+            for k, v in val.items():
+                entry_slot = _property_slot(slot, k)
+                entry_ref_type = (
+                    _schema_ref_type(entry_slot.schema)
+                    if entry_slot is not None
+                    else None
+                )
+                if (
+                    entry_ref_type is None
+                    and entry_slot is not None
+                    and not entry_slot.helper.common_types_loaded
+                ):
+                    if k == "child":
+                        entry_ref_type = "Child"
+                    elif k == "children":
+                        entry_ref_type = "ChildList"
+                entry_is_action = is_action or (
+                    entry_slot is not None and is_action_slot(entry_slot.schema)
+                )
+                dict_res[k] = self._compile_value(
+                    v,
+                    raw_symbols,
+                    ctx,
+                    entry_is_action,
+                    allow_component_ref=(entry_ref_type == "Child"),
+                    allow_list_component_refs=(
+                        entry_ref_type == "ChildList" and isinstance(v, list)
+                    ),
+                    slot=entry_slot,
+                )
+            return dict_res
 
         if isinstance(val, list):
+            # Resolved once for the list, since every item shares the schema.
+            item_slot = _item_slot(slot)
+            item_ref_type = (
+                _schema_ref_type(item_slot.schema) if item_slot is not None else None
+            )
+            item_is_action = is_action or (
+                item_slot is not None and is_action_slot(item_slot.schema)
+            )
             return [
                 self._compile_value(
                     item,
                     raw_symbols,
                     ctx,
-                    is_action,
+                    item_is_action,
                     parent_id=parent_id,
                     parent_prop=parent_prop,
                     list_index=idx,
+                    allow_component_ref=(
+                        allow_list_component_refs or item_ref_type == "Child"
+                    ),
+                    slot=item_slot,
                 )
                 for idx, item in enumerate(val)
             ]
@@ -1432,43 +2486,14 @@ class ExpressCompiler:
                     "The first argument to _template must be a dynamic data"
                     f" binding path (prefixed by $), got: {fn_args[0]}"
                 )
-            comp_id_val = self._compile_value(fn_args[1], raw_symbols, ctx, is_action)
+            comp_id_val = self._compile_value(
+                fn_args[1], raw_symbols, ctx, is_action, allow_component_ref=True
+            )
             # A child list template keeps the plain `path` key in every version.
             return {"path": template_path, "componentId": comp_id_val}
 
         if fn_name == "Event":
-            compiled_event_name = (
-                self._compile_value(
-                    fn_args[0],
-                    raw_symbols,
-                    ctx,
-                    is_action,
-                )
-                if len(fn_args) > 0
-                else ""
-            )
-            raw_context = (
-                self._compile_value(
-                    fn_args[1],
-                    raw_symbols,
-                    ctx,
-                    is_action,
-                )
-                if len(fn_args) > 1
-                else {}
-            )
-            compiled_context = {}
-            if isinstance(raw_context, dict):
-                compiled_context.update(raw_context)
-            elif isinstance(raw_context, list):
-                for item in raw_context:
-                    if isinstance(item, dict):
-                        compiled_context.update(item)
-            event_dict: dict[str, Any] = {"name": compiled_event_name}
-            # A context written in the DSL is kept even when it is empty.
-            if compiled_context or len(fn_args) > 1:
-                event_dict["context"] = compiled_context
-            return {"event": event_dict}
+            return self._compile_event_call(val, raw_symbols, ctx)
 
         call_cat_id = raw_kwargs.pop("catalogId", None)
         if self._defines_component(fn_name, call_cat_id):
@@ -1480,6 +2505,11 @@ class ExpressCompiler:
             else:
                 ctx.inline_counter += 1
                 inline_id = f"_inline_{ctx.inline_counter}"
+
+            actual_id = _component_id(inline_id, val, at_least_v10=ctx.at_least_v10)
+            if actual_id in ctx.used_ids:
+                raise ExpressValidationError(f"Duplicate component ID '{actual_id}'.")
+            ctx.used_ids.add(actual_id)
 
             prev_extras = ctx.extra_components
             ctx.extra_components = []

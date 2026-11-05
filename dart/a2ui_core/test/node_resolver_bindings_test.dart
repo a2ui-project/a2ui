@@ -450,7 +450,7 @@ void main() {
       surface = SurfaceModel<ComponentApi>(
         'scope',
         defaultCatalog: catalog,
-        protocolVersion: 'v1.0',
+        protocolVersion: '1.0',
       );
       errors = [];
       surface.onError.subscribe(errors.add);

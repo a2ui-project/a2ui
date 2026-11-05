@@ -179,7 +179,9 @@ def _walk_mapping(node: Mapping[str, Any], facts: _PayloadFacts) -> None:
         _walk_payload(child, facts)
 
 
-def collect_payload_facts(messages: Iterable[Mapping[str, Any]]) -> PayloadFacts:
+def collect_payload_facts(
+    messages: Iterable[Mapping[str, Any]],
+) -> PayloadFacts:
     """Collects component types, bindings, actions, message types and catalogs.
 
     The top-level keys of each message other than `version` are its message
@@ -267,7 +269,10 @@ def evaluate_stage2_assertions(
     facts = _collect_payload_facts(messages)
     results = [
         _check_assertion_set(
-            "components", checks.required_components, facts.component_types, "required"
+            "components",
+            checks.required_components,
+            facts.component_types,
+            "required",
         ),
         _check_assertion_set(
             "components",
@@ -379,11 +384,24 @@ def _solver_failure_score(state: TaskState) -> Score | None:
         )
     answer_text = state.output.completion or ""
     if answer_text.strip().startswith("Compilation/validation failed:"):
+        # Keep the full (possibly multi-line) error, but drop the raw model
+        # output and any traceback appended by the solver.
+        head = (
+            answer_text.strip()
+            .split("\nRaw output:", 1)[0]
+            .split("\nTraceback (most recent call last):", 1)[0]
+        )
+        detail = head.removeprefix("Compilation/validation failed:").strip()
+        explanation = (
+            f"Compilation/validation failed: {detail}"
+            if detail
+            else "Compilation/validation failed:"
+        )
         return _stage12_score(
             state,
             0.0,
             answer=answer_text,
-            explanation="Format compilation/validation failed during solver step.",
+            explanation=explanation,
         )
     return None
 

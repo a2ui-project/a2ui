@@ -14,29 +14,49 @@
  * limitations under the License.
  */
 
-import {describe, expect, test} from 'vitest';
-import {
-  A2uiCompilationParseError,
-  A2uiCompilationValidationError,
-  A2uiValidationError,
-  ParseError,
-} from '../../src/errors.js';
-import {DirectJsonParser} from '../../src/inference-formats/direct-json/parser.js';
-import {FileSystemCatalogProvider} from '../../src/processor/catalog-providers.js';
-import {ResponsePart} from '../../src/parser/response-part.js';
-import {LoadedCase, loadCases} from './loader.js';
-import {conformancePath, registerCase} from './suite-helpers.js';
+import {expect} from 'vitest';
 
-/**
- * Cases that run but do not pass yet, with the reason for each.
- *
- * An expected failure still runs, and the suite asserts that it fails, so fixing the gap
- * turns the test red and prompts removing the entry.
- */
-const KNOWN_FAILURES = new Map<string, string>();
+import {DirectJsonParser} from '../../src/inference-formats/direct-json/parser.js';
+import {StreamPart} from '../../src/parser/response-part.js';
+import {ResponseStream} from '../../src/parser/response-stream.js';
+import {FileSystemCatalogProvider} from '../../src/processor/catalog-providers.js';
+import {LoadedCase, loadCases} from './loader.js';
+import {
+  assertKnownKeys,
+  CASE_METADATA_KEYS,
+  categoryOf,
+  conformancePath,
+  describeSuite,
+  EXPECT_ERROR_KEYS,
+  KNOWN_FAILURES,
+} from './suite-helpers.js';
 
 /** Protocol versions this SDK does not implement, with the reason for skipping. */
 const UNSUPPORTED_VERSIONS = new Map<string, string>([['0.8', 'this SDK does not implement v0.8']]);
+
+const PARSE_CHUNK_CASE_KEYS = new Set([
+  ...CASE_METADATA_KEYS,
+  'args',
+  'steps',
+  'expect_close',
+  'expect_error',
+  'expect_matches_single_shot',
+]);
+const PARSE_CHUNK_ARGS_KEYS = new Set([
+  'format',
+  'catalog',
+  'catalogs',
+  'progressive_keys',
+  'wrapped',
+  'after_rejected_block',
+]);
+const PARSE_CHUNK_STEP_KEYS = new Set([
+  'input',
+  'expect',
+  'expect_error',
+  'expect_partial_results',
+  'expect_in_block',
+]);
 
 interface StreamingArgs {
   format: string;
@@ -44,12 +64,20 @@ interface StreamingArgs {
   catalogs?: string[];
   progressive_keys?: string[];
   wrapped?: boolean;
+  after_rejected_block?: 'end' | 'continue';
+}
+
+interface ExpectedError {
+  category: string;
+  message?: string;
 }
 
 interface Step {
   input: string;
   expect?: Array<Record<string, unknown>>;
-  expect_error?: {category: string; message?: string};
+  expect_error?: ExpectedError;
+  expect_partial_results?: Array<Record<string, unknown>>;
+  expect_in_block?: boolean;
 }
 
 function catalogPaths(args: StreamingArgs): string[] {
@@ -82,12 +110,20 @@ function makeParser(args: StreamingArgs): DirectJsonParser {
   });
 }
 
-/** A part in the suite's shape: text or messages, never both. */
-function partToDict(part: ResponsePart): Record<string, unknown> {
-  return part.type === 'text' ? {text: part.text} : {a2ui: part.a2ui};
+/** A part in the suite's shape: text, messages or an error, one per part. */
+function partToDict(part: StreamPart): Record<string, unknown> {
+  if (part.type === 'text') return {text: part.text};
+  if (part.type === 'error') return {error: {category: categoryOf(part.error)}};
+  return {a2ui: part.a2ui};
 }
 
-function expectError(fn: () => unknown, expected: NonNullable<Step['expect_error']>): void {
+/** Runs `fn`, expects it to throw `expected`, and returns the error. */
+function expectError(fn: () => unknown, expected: ExpectedError): unknown {
+  assertKnownKeys(
+    expected as unknown as Record<string, unknown>,
+    EXPECT_ERROR_KEYS,
+    'expect_error',
+  );
   let thrown: unknown;
   try {
     fn();
@@ -95,18 +131,11 @@ function expectError(fn: () => unknown, expected: NonNullable<Step['expect_error
     thrown = e;
   }
   expect(thrown, 'the step should raise').toBeDefined();
-  if (expected.category === 'ParseError') {
-    expect(thrown instanceof ParseError || thrown instanceof A2uiCompilationParseError).toBe(true);
-  } else if (expected.category === 'ValidationError') {
-    expect(
-      thrown instanceof A2uiValidationError || thrown instanceof A2uiCompilationValidationError,
-    ).toBe(true);
-  } else {
-    throw new Error(`Unknown error category '${expected.category}'`);
-  }
+  expect(categoryOf(thrown)).toBe(expected.category);
   if (expected.message) {
-    expect((thrown as Error).message).toMatch(new RegExp(expected.message));
+    expect((thrown as Error).message).toMatch(new RegExp(expected.message, 'i'));
   }
+  return thrown;
 }
 
 function mergeAdjacentText(parts: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
@@ -124,25 +153,59 @@ function mergeAdjacentText(parts: Array<Record<string, unknown>>): Array<Record<
 }
 
 function runCase(testCase: LoadedCase): void {
+  assertKnownKeys(testCase, PARSE_CHUNK_CASE_KEYS, 'parse_chunk case');
   const args = testCase.args as unknown as StreamingArgs;
+  assertKnownKeys(
+    args as unknown as Record<string, unknown>,
+    PARSE_CHUNK_ARGS_KEYS,
+    'parse_chunk args',
+  );
   const wrapped = args.wrapped ?? true;
   const parser = makeParser(args);
-  const stream = parser.openStream({wrapped});
+  const stream: ResponseStream<StreamPart> = parser.openStream({
+    wrapped,
+    afterRejectedBlock: args.after_rejected_block ?? 'end',
+  });
   const chunks: string[] = [];
   const yielded: Array<Record<string, unknown>> = [];
 
   for (const [index, step] of (testCase.steps as Step[]).entries()) {
+    assertKnownKeys(
+      step as unknown as Record<string, unknown>,
+      PARSE_CHUNK_STEP_KEYS,
+      'parse_chunk step',
+    );
     chunks.push(step.input);
     if (step.expect_error) {
-      expectError(() => stream.feed(step.input), step.expect_error);
+      const error = expectError(() => stream.feed(step.input), step.expect_error);
+      if (step.expect_partial_results) {
+        const partial = (error as {partialResults?: StreamPart[]}).partialResults ?? [];
+        expect(partial.map(partToDict), `step ${index}: partial results`).toEqual(
+          step.expect_partial_results,
+        );
+      }
+      if (step.expect_in_block !== undefined) {
+        expect(stream.isInBlock, `step ${index}: in block`).toBe(step.expect_in_block);
+      }
       return;
     }
     const parts = stream.feed(step.input).map(partToDict);
     expect(parts, `step ${index}: ${step.input}`).toEqual(step.expect);
+    if (step.expect_in_block !== undefined) {
+      expect(stream.isInBlock, `step ${index}: in block`).toBe(step.expect_in_block);
+    }
     yielded.push(...parts);
   }
 
+  if (testCase.expect_error) {
+    expectError(() => stream.close(), testCase.expect_error as ExpectedError);
+    return;
+  }
+
   const closed = stream.close().map(partToDict);
+  if (testCase.expect_close) {
+    expect(closed, 'close').toEqual(testCase.expect_close);
+  }
   yielded.push(...closed);
 
   if (testCase.expect_matches_single_shot) {
@@ -151,16 +214,15 @@ function runCase(testCase: LoadedCase): void {
   }
 }
 
-describe('Conformance: direct_json/response_streaming.yaml', () => {
-  for (const testCase of loadCases([
-    conformancePath('agent/direct_json/response_streaming.yaml'),
-  ])) {
-    const version = declaredVersion(testCase.args as unknown as StreamingArgs);
-    const unsupported = version ? UNSUPPORTED_VERSIONS.get(version) : undefined;
-    if (unsupported) {
-      test.skip(`${testCase.action} · ${testCase.name} (${unsupported})`, () => {});
-      continue;
-    }
-    registerCase(testCase, KNOWN_FAILURES, () => runCase(testCase));
-  }
-});
+describeSuite(
+  'Conformance: direct_json/response_streaming.yaml',
+  loadCases([conformancePath('agent/direct_json/response_streaming.yaml')]),
+  testCase => runCase(testCase),
+  {
+    knownFailures: KNOWN_FAILURES,
+    skipReason: testCase => {
+      const version = declaredVersion(testCase.args as unknown as StreamingArgs);
+      return version ? UNSUPPORTED_VERSIONS.get(version) : undefined;
+    },
+  },
+);

@@ -1,0 +1,252 @@
+{
+  "$defs": {
+    "AccessibilityAttributes": {
+      "additionalProperties": false,
+      "description": "Attributes to enhance accessibility when using assistive technologies like screen readers or model understanding.",
+      "properties": {
+        "description": {
+          "$ref": "#/$defs/DynamicString",
+          "description": "Additional information provided by assistive technologies about an element such as instructions, format requirements, or result of an action. For example, a mute button might have a label of 'Mute' and a description of 'Silences notifications about this conversation'."
+        },
+        "hidden": {
+          "$ref": "#/$defs/DynamicBoolean",
+          "description": "Hides the element and its children from assistive technologies when true. Default is false."
+        },
+        "label": {
+          "$ref": "#/$defs/DynamicString",
+          "description": "A short string, typically 1 to 3 words, used by assistive technologies to convey the purpose or intent of an element. For example, an input field might have an accessible label of 'User ID' or a button might be labeled 'Submit'."
+        },
+        "live": {
+          "default": "off",
+          "description": "Controls screen reader announcements for dynamic updates (WAI-ARIA aria-live). 'polite' waits for user pause; 'assertive' interrupts immediately for alerts.",
+          "enum": [
+            "off",
+            "polite",
+            "assertive"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ColorToken": {
+      "enum": [
+        "primary",
+        "secondary",
+        "accent"
+      ],
+      "type": "string"
+    },
+    "ColorValue": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ColorToken"
+        },
+        {
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "type": "string"
+        }
+      ]
+    },
+    "ComponentId": {
+      "description": "The unique identifier for a component, used for both definitions and references within the same surface.",
+      "type": "string"
+    },
+    "DataBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "@path": {
+          "description": "A JSON Pointer path to a value in the data model.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "@path"
+      ],
+      "type": "object"
+    },
+    "DynamicBoolean": {
+      "description": "A boolean value that can be a literal, a path, or a function call returning a boolean or a validation result object (coerced to its 'valid' boolean).",
+      "oneOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "$ref": "#/$defs/DataBinding"
+        },
+        {
+          "$ref": "#/$defs/FunctionCall"
+        }
+      ]
+    },
+    "DynamicNumber": {
+      "description": "Represents a value that can be either a literal number, a path to a number in the data model, or a function call returning a number.",
+      "oneOf": [
+        {
+          "type": "number"
+        },
+        {
+          "$ref": "#/$defs/DataBinding"
+        },
+        {
+          "$ref": "#/$defs/FunctionCall"
+        }
+      ]
+    },
+    "DynamicString": {
+      "description": "Represents a string",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "$ref": "#/$defs/DataBinding"
+        },
+        {
+          "$ref": "#/$defs/FunctionCall"
+        }
+      ]
+    },
+    "Extensions": {
+      "additionalProperties": false,
+      "description": "Optional extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions.",
+      "patternProperties": {
+        "^[\\p{XID_Start}_][\\p{XID_Continue}]*$": {}
+      },
+      "type": "object"
+    },
+    "FunctionCall": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/FunctionCommon"
+        },
+        {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/anyFunction"
+            },
+            {
+              "$ref": "#/$defs/IndexSystemFunction"
+            }
+          ]
+        }
+      ],
+      "description": "Invokes a named function, combining common function properties with the catalog function definition.",
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "FunctionCommon": {
+      "description": "Baseline envelope properties common to all function calls. Function-specific argument schemas ('args') are defined individually by each function in the active catalog.",
+      "properties": {
+        "@call": {
+          "description": "The name of the function to call.",
+          "type": "string"
+        },
+        "catalogId": {
+          "description": "The catalog ID for this function, overriding any surface-level default catalogId.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "@call"
+      ],
+      "type": "object"
+    },
+    "IndexSystemFunction": {
+      "description": "Returns the 0-based index of the current item when rendering a dynamic list from a template. This function MUST ONLY be available when evaluating template items within a list context.",
+      "properties": {
+        "@call": {
+          "const": "@index"
+        },
+        "args": {
+          "properties": {
+            "offset": {
+              "$ref": "#/$defs/DynamicNumber",
+              "default": 0,
+              "description": "Optional. An offset to add to the 0-based index (e.g., 1 for 1-based indexing). Defaults to 0."
+            }
+          },
+          "type": "object",
+          "unevaluatedProperties": false
+        }
+      },
+      "required": [
+        "@call"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "Weight": {
+      "description": "Relative flex weight.",
+      "minimum": 1,
+      "type": "number"
+    },
+    "anyComponent": {
+      "discriminator": {
+        "propertyName": "component"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/components/SelectBox"
+        }
+      ]
+    },
+    "anyFunction": {
+      "not": {}
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "catalogId": "https://a2ui.org/catalogs/v10/leaf_defs_validation_schema",
+  "components": {
+    "SelectBox": {
+      "description": "A selector with reusable leaf definitions.",
+      "properties": {
+        "accessibility": {
+          "$ref": "#/$defs/AccessibilityAttributes",
+          "description": "Attributes to enhance accessibility when using assistive technologies like screen readers or model understanding."
+        },
+        "color": {
+          "$ref": "#/$defs/ColorValue"
+        },
+        "component": {
+          "const": "SelectBox"
+        },
+        "customWeight": {
+          "$ref": "#/$defs/Weight",
+          "default": 2,
+          "description": "Custom flex weight override."
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "label": {
+          "$ref": "#/$defs/DynamicString",
+          "description": "Represents a string"
+        },
+        "metadata": {
+          "additionalProperties": false,
+          "description": "Optional component-level metadata for vendor extensions.",
+          "properties": {
+            "extensions": {
+              "$ref": "#/$defs/Extensions",
+              "description": "Optional extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions."
+            }
+          },
+          "type": "object"
+        },
+        "weight": {
+          "$ref": "#/$defs/Weight"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "component"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    }
+  },
+  "protocolVersion": "1.0"
+}

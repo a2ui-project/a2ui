@@ -32,11 +32,17 @@ extension BasicCatalogImplementation {
 /// SwiftUI component view for the A2UI Basic Catalog `Button` component.
 public struct A2UIButton: View {
   @Environment(\.a2uiTheme) private var theme
+  @Environment(\.a2uiModalTriggerAction) private var modalTriggerAction
 
   public let node: Node
 
   public init(node: Node) {
     self.node = node
+  }
+
+  /// Whether the button is disabled due to a blocking validation error (`!node.isValid`) or explicit `disabled` property.
+  public var isDisabled: Bool {
+    !node.isValid || node.bool(for: "disabled") == true
   }
 
   private var childNode: Node? {
@@ -52,7 +58,10 @@ public struct A2UIButton: View {
   }
 
   public var body: some View {
-    Button(action: { action?() }) {
+    Button(action: {
+      action?()
+      modalTriggerAction?()
+    }) {
       Group {
         if let childNode {
           ComponentNodeView(node: childNode)
@@ -71,8 +80,9 @@ public struct A2UIButton: View {
       .opacity(node.isValid ? 1.0 : 0.5)
     }
     .buttonStyle(.plain)
-    .disabled(!node.isValid)
+    .disabled(isDisabled)
     .accessibilityIdentifier("A2UIButton_\(node.id)")
+    .preference(key: A2UIModalTriggerHandledKey.self, value: modalTriggerAction != nil)
   }
 
   @ViewBuilder

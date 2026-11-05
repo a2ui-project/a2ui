@@ -147,4 +147,66 @@ describe('Tabs Component', () => {
       (el as unknown as A2uiLitElement).requestUpdate();
     });
   });
+
+  it('wires WAI-ARIA tablist, tab, and tabpanel roles and attributes across tab switches', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'tabs_a11y',
+              component: 'Tabs',
+              tabs: [
+                {title: 'Menu', child: 'txt1'},
+                {title: 'Reviews', child: 'txt2'},
+              ],
+              accessibility: {
+                label: 'Restaurant sections',
+                description: 'Switch between menu and reviews',
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-tabs') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'tabs_a11y');
+    });
+
+    assert.strictEqual(el.hasAttribute('aria-label'), false);
+    const tabList = el.querySelector('.a2ui-tab-bar');
+    assert.strictEqual(tabList?.getAttribute('role'), 'tablist');
+    assert.strictEqual(tabList?.getAttribute('aria-label'), 'Restaurant sections');
+    assert.strictEqual(
+      tabList?.getAttribute('aria-description'),
+      'Switch between menu and reviews',
+    );
+
+    const tabs = el.querySelectorAll('button.a2ui-tab-button') as NodeListOf<HTMLButtonElement>;
+    const panel = el.querySelector('.a2ui-tab-content');
+    assert.strictEqual(panel?.getAttribute('role'), 'tabpanel');
+    assert.ok(panel?.id);
+
+    assert.strictEqual(tabs[0].getAttribute('role'), 'tab');
+    assert.strictEqual(tabs[1].getAttribute('role'), 'tab');
+    assert.strictEqual(tabs[0].getAttribute('aria-selected'), 'true');
+    assert.strictEqual(tabs[1].getAttribute('aria-selected'), 'false');
+    assert.strictEqual(tabs[0].getAttribute('aria-controls'), panel?.id);
+    assert.strictEqual(tabs[1].getAttribute('aria-controls'), panel?.id);
+    assert.strictEqual(panel?.getAttribute('aria-labelledby'), tabs[0].id);
+
+    tabs[1].click();
+    await asyncUpdate(el, () => {});
+
+    assert.strictEqual(tabs[0].getAttribute('aria-selected'), 'false');
+    assert.strictEqual(tabs[1].getAttribute('aria-selected'), 'true');
+    assert.strictEqual(panel?.getAttribute('aria-labelledby'), tabs[1].id);
+  });
 });
