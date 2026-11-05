@@ -87,7 +87,7 @@
               "@path": "/user/email"
   expect_contains:
     - "<Text"
-    - '$/user/email'
+    - "$/user/email"
   expect_round_trip: true
 
 - name: test_decompile_xml_button_with_action
