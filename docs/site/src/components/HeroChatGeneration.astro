@@ -338,9 +338,9 @@ sequenceDiagram
 
 <style>
   .hc-shell {
-    /* Mobile App Fonts: Editorial Serif Headline + Clean Consumer Sans (Zero Monospace) */
-    --hc-app-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    --hc-app-serif: 'Newsreader', Georgia, 'Times New Roman', serif;
+    /* Mobile App Fonts: A2UI Design System Heading + Body Sans */
+    --hc-app-sans: 'Google Sans Text', 'Google Sans', Inter, system-ui, sans-serif;
+    --hc-app-serif: 'Google Sans', Inter, sans-serif;
 
     /* Mobile App Palette: A2UI Paper, Ink & Blue Design System */
     --hc-app-bg: #f3f4f6;
@@ -754,11 +754,9 @@ sequenceDiagram
   }
 
   :global(:root[data-theme='dark']) .hc-phone {
-    background: linear-gradient(155deg, #263040 0%, #1c2532 55%, #111720 100%);
-    border-color: #374151;
-    box-shadow:
-      0 8px 24px rgba(0, 0, 0, 0.4),
-      inset 0 1px 1px rgba(255, 255, 255, 0.08);
+    background: linear-gradient(155deg, #1a1d23 0%, #191c22 55%, #14161b 100%);
+    border-color: #2a2e37;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
   }
 
   .hc-phone__screen {
