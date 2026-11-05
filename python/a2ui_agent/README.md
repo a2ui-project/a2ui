@@ -30,6 +30,20 @@ The following directories contain the base protocol logic, parsing, and schema o
   allowed components or functions. Pass them to `CatalogConfig` as
   `transformers`.
 
+### Builders (`src/a2ui/builder`)
+
+- **`v0_9/`**, **`v1_0/`**, and **`core/`**: Typesafe Pydantic component,
+  binding, action, and function builders for A2UI v0.9 and v1.0, plus
+  `flatten_component_tree` for converting nested Python component trees into
+  flat wire component lists. See [`src/a2ui/builder/README.md`](src/a2ui/builder/README.md).
+
+### Macro transformers (`src/a2ui/transformers/macros`)
+
+- **`macro.py`**, **`expander.py`**, and **`processor.py`**: `@macro` and
+  `MacroExpander` synthesize catalog component schemas from typed Python builder
+  functions and lower macro components into primitive component subtrees on
+  outbound messages. See [`src/a2ui/transformers/macros/README.md`](src/a2ui/transformers/macros/README.md).
+
 ### Utilities (`src/a2ui/utils`)
 
 - **`catalog_resolver.py`**: `resolve_catalogs` returns the catalogs that are
