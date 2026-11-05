@@ -85,3 +85,25 @@ export function resolveSignalKeepingPending(ctx: DataContext, value: unknown): S
 export function withoutAgentRouting(ctx: DataContext): DataContext {
   return ctx['withFlags']({noAgentRouting: true});
 }
+
+/**
+ * Returns the catalog ID of the catalog function currently executing in `ctx`,
+ * if any.
+ *
+ * @param ctx The context to inspect.
+ * @returns The active catalog ID, or `undefined`.
+ */
+export function activeCallCatalogId(ctx: DataContext): string | undefined {
+  return ctx['activeCatalogId'];
+}
+
+/**
+ * Returns a view of `ctx` scoped to `catalogId` as the active function catalog.
+ *
+ * @param ctx The context to evaluate in.
+ * @param catalogId The catalog ID of the executing function.
+ * @returns The view.
+ */
+export function withActiveCallCatalogId(ctx: DataContext, catalogId: string): DataContext {
+  return ctx['withFlags']({activeCatalogId: catalogId});
+}

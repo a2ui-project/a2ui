@@ -408,6 +408,8 @@ export class DataContext {
   private _isActionExecution = false;
   /** Whether calls the renderer does not implement must fail instead of going to the agent. */
   private _noAgentRouting = false;
+  /** Catalog ID of the currently executing catalog function, if any. */
+  private _activeCatalogId?: string;
 
   readonly surface?: SurfaceModel<any>;
 
@@ -736,8 +738,14 @@ export class DataContext {
     // The evaluation flags are fixed on a scoped view of this context, so
     // the function and the error handling that run after pending arguments
     // settle see the same flags as a synchronous call.
+    const activeCatalogId = !callName.startsWith('@') ? targetCatalog.id : undefined;
     const scope =
-      userActivated && !this.isUserActivated ? this.withFlags({userActivated: true}) : this;
+      (userActivated && !this.isUserActivated) || activeCatalogId !== undefined
+        ? this.withFlags({
+            userActivated: userActivated && !this.isUserActivated,
+            activeCatalogId,
+          })
+        : this;
     const result = scope.evaluateFunctionReactive<V>(
       callName,
       args,
@@ -956,7 +964,8 @@ export class DataContext {
       // A binding evaluates passively. The flag is fixed on a scoped view of
       // this context, so the function and the error handling that run after
       // pending arguments settle see it too.
-      const scope = this.withFlags({passive: true});
+      const activeCatalogId = !callName.startsWith('@') ? targetCatalog.id : undefined;
+      const scope = this.withFlags({passive: true, activeCatalogId});
       const argSignals: Record<string, Signal<unknown>> = {};
 
       for (const [key, argVal] of Object.entries(call.args ?? {})) {
@@ -1426,13 +1435,23 @@ export class DataContext {
     passive?: boolean;
     action?: boolean;
     noAgentRouting?: boolean;
+    activeCatalogId?: string;
   }): this {
     const view = Object.create(this) as this;
     view._isUserActivated = this._isUserActivated || Boolean(flags.userActivated);
     view._isPassiveEvaluation = this._isPassiveEvaluation || Boolean(flags.passive);
     view._isActionExecution = this._isActionExecution || Boolean(flags.action);
     view._noAgentRouting = this._noAgentRouting || Boolean(flags.noAgentRouting);
+    view._activeCatalogId = flags.activeCatalogId ?? this._activeCatalogId;
     return view;
+  }
+
+  /**
+   * The catalog ID of the catalog function currently executing in this context
+   * or an ancestor context, if any.
+   */
+  private get activeCatalogId(): string | undefined {
+    return this._activeCatalogId ?? this.parent?.activeCatalogId;
   }
 
   /**
