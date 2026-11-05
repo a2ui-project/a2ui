@@ -17,7 +17,6 @@
 import '../styles/tokens.css';
 import StarlightHeader from '../components/StarlightHeader.astro';
 import HeroChatGeneration from '../components/HeroChatGeneration.astro';
-import ExpressiveUiStudio from '../components/ExpressiveUiStudio.astro';
 import DesignSystemMorph from '../components/DesignSystemMorph.astro';
 import RendererLogo from '../components/RendererLogo.astro';
 
@@ -29,16 +28,16 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>A2UI — Compose the screen around customer intent</title>
+    <title>A2UI — Give agents a way to build the screen each customer actually needs</title>
     <meta
       name="description"
-      content="The open declarative UI protocol for AI agents. Capture what a customer wants and answer with native, personalized UI composed from components you already approved — in React, Flutter, SwiftUI, and Compose."
+      content="The open declarative UI protocol for AI agents. Agents compose native, per-customer screens from components you already approved — rendered in React, Lit, Angular, Flutter, SwiftUI, and Jetpack Compose."
     />
     <link rel="icon" type="image/svg+xml" href={`${base}/assets/favicon.svg`} />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&family=JetBrains+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Playfair+Display:ital,wght@0,400..700;1,400..700&display=swap"
       rel="stylesheet"
     />
     <script is:inline>
@@ -74,24 +73,16 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
         <div class="a2-wrap">
           <div class="a2-masthead">
-            <div class="a2-edition-line">
-              <span>SPECIFICATION v1.0</span>
-              <span class="a2-slash" aria-hidden="true">/</span>
-              <span>AGENT-TO-UI PROTOCOL</span>
-              <span class="a2-slash" aria-hidden="true">/</span>
-              <a href={`${base}/specification/v1.0-a2ui/`}>APACHE 2.0 STANDARD →</a>
-            </div>
-
             <div class="a2-masthead__split">
-              <h1 class="a2-h1">
-                Every customer gets the screen <span class="a2-serif-accent">they&nbsp;meant to&nbsp;ask&nbsp;for.</span>
+              <h1 class="a2-h1 a2-h1--long">
+                Give agents a way to build the screen <span class="a2-h-accent">each customer actually&nbsp;needs.</span>
               </h1>
 
               <div class="a2-masthead__right">
                 <p class="a2-lead">
-                  Agents capture what a customer is trying to do and answer with a native screen —
-                  composed live from components your team already approved. Same app, same screen.
-                  A different composition for every intent.
+                  Agents read what someone is trying to do and compose a native screen for it — from
+                  components your team already approved. Same app, same screen. A different
+                  composition for every person and every intent.
                 </p>
 
                 <div class="a2-hero__actions">
@@ -129,6 +120,19 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
               <a href={`${base}/ecosystem/renderers/`} class="a2-renderers__more">+ Vue, Svelte, React Native &amp; more from the community →</a>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- =================================================================
+           THE IDEA — SCROLL STAGE (own section, alternate tone)
+           ================================================================= -->
+      <section class="a2-section a2-section--alt a2-section--stage" id="custom-ui">
+        <div class="a2-wrap">
+          <div class="a2-chapter a2-chapter--stage">
+            <div class="a2-chapter__split">
+              <h2 class="a2-h2">Custom UI for <span class="a2-h-accent">each user’s intent.</span></h2>
+            </div>
+          </div>
 
           <!-- Intent → Composed Screen Stage -->
           <div class="a2-hero__stage">
@@ -138,40 +142,13 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       </section>
 
       <!-- =================================================================
-           § 01 — CORE CAPABILITIES (#use-cases)
+           § 01 — RENDERERS & DESIGN SYSTEMS (#native-rendering)
            ================================================================= -->
-      <section class="a2-section" id="use-cases">
+      <section class="a2-section" id="native-rendering">
         <div class="a2-wrap">
           <div class="a2-chapter">
-            <div class="a2-chapter__rule">
-              <span>§ 01 — CORE CAPABILITIES</span>
-              <span>PROTOCOL PRIMITIVES</span>
-            </div>
             <div class="a2-chapter__split">
-              <h2 class="a2-h2">Four primitives behind every <span class="a2-serif-accent">live surface.</span></h2>
-              <p class="a2-sec-sub">
-                Stream progressively, bind state locally in 0ms, cut token payloads by 77%, and
-                patch live views across turns.
-              </p>
-            </div>
-          </div>
-
-          <ExpressiveUiStudio />
-        </div>
-      </section>
-
-      <!-- =================================================================
-           § 02 — RENDERERS & DESIGN SYSTEMS (#native-rendering)
-           ================================================================= -->
-      <section class="a2-section a2-section--alt" id="native-rendering">
-        <div class="a2-wrap">
-          <div class="a2-chapter">
-            <div class="a2-chapter__rule">
-              <span>§ 02 — RENDERERS &amp; DESIGN SYSTEMS</span>
-              <span>ONE STREAM · EVERY PLATFORM</span>
-            </div>
-            <div class="a2-chapter__split">
-              <h2 class="a2-h2">Works with your stack <span class="a2-serif-accent">and your design system.</span></h2>
+              <h2 class="a2-h2">Works with your stack <span class="a2-h-accent">and your design system.</span></h2>
               <p class="a2-sec-sub">
                 The agent sends one semantic stream. Official renderers for React, Lit, Angular,
                 Flutter, SwiftUI, and Jetpack Compose map it to the components you already ship —
@@ -185,17 +162,13 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       </section>
 
       <!-- =================================================================
-           § 03 — SIGNAL FIREWALL SCHEMATIC & AUTONOMY RULER (#architecture)
+           § 02 — SIGNAL FIREWALL SCHEMATIC & AUTONOMY RULER (#architecture)
            ================================================================= -->
-      <section class="a2-section" id="architecture">
+      <section class="a2-section a2-section--alt" id="architecture">
         <div class="a2-wrap">
           <div class="a2-chapter">
-            <div class="a2-chapter__rule">
-              <span>§ 03 — TRUST &amp; AUTONOMY</span>
-              <span>SAFE BY CONSTRUCTION</span>
-            </div>
             <div class="a2-chapter__split">
-              <h2 class="a2-h2">Agents propose intent. <span class="a2-serif-accent">You own the gate.</span></h2>
+              <h2 class="a2-h2">Agents propose intent. <span class="a2-h-accent">You own the gate.</span></h2>
               <p class="a2-sec-sub">
                 Remote agents never send executable code or raw DOM — every descriptor passes your
                 registered host catalog first.
@@ -332,34 +305,13 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       </section>
 
       <!-- =================================================================
-           § 04 — SWISS METRIC LEDGER & INTEGRATION FRAME (#why-a2ui)
+           § 03 — SWISS METRIC LEDGER & INTEGRATION FRAME (#why-a2ui)
            ================================================================= -->
-      <section class="a2-section a2-section--alt" id="why-a2ui">
+      <section class="a2-section" id="why-a2ui">
         <div class="a2-wrap">
-          <!-- Hairline-Divided Swiss Typographic Figures (Zero Card Boxes!) -->
-          <div class="a2-figures">
-            <div class="a2-fig">
-              <div class="a2-fig__num">0</div>
-              <div class="a2-fig__cap">Arbitrary scripts or raw HTML injected by the model</div>
-            </div>
-            <div class="a2-fig">
-              <div class="a2-fig__num">77%</div>
-              <div class="a2-fig__cap">Smaller LLM token stream with A2UI Express shorthand</div>
-            </div>
-            <div class="a2-fig">
-              <div class="a2-fig__num">0ms</div>
-              <div class="a2-fig__cap">Client data-model bindings &amp; synchronous check rules</div>
-            </div>
-            <div class="a2-fig">
-              <div class="a2-fig__num">6</div>
-              <div class="a2-fig__cap">Native SDKs across React, Flutter, SwiftUI, Compose, Angular &amp; Lit</div>
-            </div>
-          </div>
-
           <div class="a2-dev-split">
             <div class="a2-dev-copy">
-              <span class="a2-sch-kicker">§ 04 — DEVELOPER INTEGRATION</span>
-              <h2 class="a2-h2">Wire up a catalog <span class="a2-serif-accent">in minutes.</span></h2>
+              <h2 class="a2-h2">Wire up a catalog <span class="a2-h-accent">in minutes.</span></h2>
               <p class="a2-sec-sub">
                 Register the components already in your codebase, mount a surface, and stream
                 A2UI Express or server <code>@macros</code>.
@@ -434,9 +386,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         <div class="a2-wrap">
           <div class="a2-closing__inner">
             <div>
-              <span class="a2-sch-kicker">GET STARTED</span>
               <h2 class="a2-closing__title">
-                Stop answering customer intent with <span class="a2-serif-accent">a paragraph.</span>
+                Stop answering customer intent with <span class="a2-h-accent">a paragraph.</span>
               </h2>
             </div>
 
@@ -636,8 +587,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
      ======================================================================= */
   .a2-hero {
     position: relative;
-    padding: 72px 0 148px;
-    overflow: clip; /* clip (not hidden) so the sticky stage inside the hero keeps working */
+    padding: 72px 0 72px;
+    overflow: clip;
   }
 
   .a2-hero__grid-bg {
@@ -655,36 +606,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   .a2-masthead {
     position: relative;
     max-width: 100%;
-    margin: 0 auto 92px;
-  }
-
-  .a2-edition-line {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 16px;
-    padding-bottom: 24px;
-    margin-bottom: 44px;
-    border-bottom: 1px solid var(--a2-border);
-    font-family: var(--a2-font-mono);
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 0.09em;
-    color: var(--a2-text-muted);
-  }
-
-  .a2-edition-line a {
-    color: var(--a2-accent-strong);
-    text-decoration: none;
-    font-weight: 600;
-  }
-
-  .a2-edition-line a:hover {
-    text-decoration: underline;
-  }
-
-  .a2-slash {
-    opacity: 0.4;
+    margin: 0 auto;
+    padding-top: 24px;
   }
 
   .a2-masthead__split {
@@ -704,19 +627,29 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   .a2-h1 {
     margin: 0;
     font-family: var(--a2-font-display);
-    font-variation-settings: 'opsz' 32;
     font-size: clamp(2.85rem, 5.4vw, 4.55rem);
-    font-weight: 660;
-    line-height: 0.99;
+    font-weight: 700;
+    line-height: 1.04;
     letter-spacing: var(--a2-tracking-display);
     color: var(--a2-text);
   }
 
-  .a2-serif-accent {
-    font-family: var(--a2-font-serif);
-    font-style: italic;
-    font-weight: 450;
-    letter-spacing: -0.02em;
+  /* Headline emphasis: same face and weight, carried by colour only (no italics) */
+  .a2-h-accent {
+    color: var(--a2-heading-accent);
+  }
+
+  /* Longer headline: step the scale down so it holds in 3–4 lines at desktop widths */
+  .a2-h1--long {
+    font-size: clamp(2.5rem, 4.35vw, 3.7rem);
+    line-height: 1.06;
+    max-width: 13ch;
+  }
+
+  @media (max-width: 920px) {
+    .a2-h1--long {
+      max-width: none;
+    }
   }
 
   .a2-masthead__right {
@@ -905,6 +838,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   @media (max-width: 920px) {
     .a2-renderers__more {
       margin-left: 0;
+      white-space: normal;
+      line-height: 1.6;
     }
   }
 
@@ -912,14 +847,24 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
      EDITORIAL CHAPTER HEADERS (TWO-COLUMN SWISS SPLIT)
      ======================================================================= */
   .a2-section {
-    padding: 152px 0;
+    position: relative;
+    padding: 128px 0 152px;
+    border-top: 1px solid var(--a2-border-strong);
     scroll-margin-top: 72px;
   }
 
   .a2-section--alt {
     background: var(--a2-bg-alt);
-    border-top: 1px solid var(--a2-border);
-    border-bottom: 1px solid var(--a2-border);
+  }
+
+  .a2-section--alt + .a2-section,
+  .a2-section--alt + .a2-closing {
+    border-top-color: var(--a2-border-strong);
+  }
+
+  /* The scroll stage keeps its own rhythm (sticky needs no overflow clipping here) */
+  .a2-section--stage {
+    padding: 112px 0 136px;
   }
 
   @media (max-width: 720px) {
@@ -932,21 +877,10 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     margin-bottom: 88px;
   }
 
-  .a2-chapter__rule {
-    display: flex;
-    justify-content: space-between;
-    padding-bottom: 16px;
-    margin-bottom: 36px;
-    border-bottom: 1px solid var(--a2-border-strong);
-    font-family: var(--a2-font-mono);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    color: var(--a2-text-muted);
-  }
-
-  .a2-chapter__rule span:first-child {
-    color: var(--a2-accent);
+  /* Header for the scroll stage — tighter than a full chapter (no rule row above any chapter now) */
+  .a2-chapter--stage {
+    margin-bottom: 40px;
+    scroll-margin-top: 84px;
   }
 
   .a2-chapter__split {
@@ -966,10 +900,9 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   .a2-h2 {
     margin: 0;
     font-family: var(--a2-font-display);
-    font-variation-settings: 'opsz' 32;
     font-size: clamp(2.05rem, 3.6vw, 3rem);
-    font-weight: 640;
-    line-height: 1.06;
+    font-weight: 700;
+    line-height: 1.1;
     letter-spacing: var(--a2-tracking-h2);
     color: var(--a2-text);
   }
@@ -1024,7 +957,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   }
 
   /* =======================================================================
-     § 03 — SIGNAL FIREWALL SCHEMATIC + HORIZONTAL AUTONOMY RULER
+     § 02 — SIGNAL FIREWALL SCHEMATIC + HORIZONTAL AUTONOMY RULER
      ======================================================================= */
   .a2-schematic {
     display: grid;
@@ -1235,64 +1168,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   .a2-bar-fill--free { background: var(--a2-blue); }
 
   /* =======================================================================
-     § 04 — SWISS TYPOGRAPHIC FIGURES + SHARP CODE FRAME
+     § 03 — SHARP CODE FRAME (DEVELOPER INTEGRATION)
      ======================================================================= */
-  .a2-figures {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    border-top: 1px solid var(--a2-border-strong);
-    border-bottom: 1px solid var(--a2-border-strong);
-    margin-bottom: 132px;
-  }
-
-  @media (max-width: 860px) {
-    .a2-figures {
-      grid-template-columns: repeat(2, 1fr);
-    }
-  }
-
-  @media (max-width: 520px) {
-    .a2-figures {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  .a2-fig {
-    padding: 46px 36px 46px 0;
-    border-right: 1px solid var(--a2-border);
-  }
-
-  .a2-fig:not(:first-child) {
-    padding-left: 36px;
-  }
-
-  .a2-fig:last-child {
-    border-right: none;
-  }
-
-  @media (max-width: 860px) {
-    .a2-fig {
-      padding: 22px 16px !important;
-      border-bottom: 1px solid var(--a2-border);
-    }
-  }
-
-  .a2-fig__num {
-    font-family: var(--a2-font-display);
-    font-size: 54px;
-    font-weight: 660;
-    letter-spacing: -0.045em;
-    line-height: 1;
-    color: var(--a2-text);
-    margin-bottom: 14px;
-  }
-
-  .a2-fig__cap {
-    font-size: 13.5px;
-    line-height: 1.48;
-    color: var(--a2-text-secondary);
-  }
-
   .a2-dev-split {
     display: grid;
     grid-template-columns: minmax(280px, 0.85fr) minmax(320px, 1.25fr);
@@ -1302,7 +1179,9 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
   @media (max-width: 920px) {
     .a2-dev-split {
-      grid-template-columns: 1fr;
+      /* minmax(0, …) so the code block's long lines scroll instead of widening the page */
+      grid-template-columns: minmax(0, 1fr);
+      gap: 48px;
     }
   }
 
@@ -1391,8 +1270,11 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   /* =======================================================================
      CLOSING BANNER & MINIMAL FOOTER
      ======================================================================= */
+  /* Closing sits on the alt band so it reads as its own band after § 03 (base) */
   .a2-closing {
     padding: 140px 0;
+    border-top: 1px solid var(--a2-border-strong);
+    background: var(--a2-bg-alt);
   }
 
   .a2-closing__inner {
@@ -1420,7 +1302,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   }
 
   .a2-footer {
-    border-top: 1px solid var(--a2-border);
+    border-top: 1px solid var(--a2-border-strong);
     padding: 40px 0 56px;
   }
 

@@ -29,7 +29,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 
 <div class="a2-sl-header">
   <div class="a2-sl-header__left">
-    <a href={`${base}/`} class="a2-sl-brand" aria-label="A2UI Home">
+    <a href={`${base}/`} class="a2-sl-brand" aria-label="A2UI Home" aria-current={isOverview ? 'page' : undefined}>
       <svg class="a2-sl-logo" width="26" height="26" viewBox="12 11 48 47" fill="none" aria-hidden="true">
         <path
           d="M52 44C55.866 44 59 47.134 59 51C59 54.866 55.866 58 52 58H44C40.134 58 37 54.866 37 51C37 47.134 40.134 44 44 44H52ZM52 47C49.7909 47 48 48.7909 48 51C48 53.2091 49.7909 55 52 55C54.2091 55 56 53.2091 56 51C56 48.7909 54.2091 47 52 47Z"
@@ -62,12 +62,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
     <span class="a2-sl-header__slash" aria-hidden="true">/</span>
     <nav class="a2-sl-header__tabs" aria-label="Primary section navigation">
       <a
-        href={`${base}/`}
-        class:list={['a2-sl-tab', { 'is-active': isOverview }]}
-        aria-current={isOverview ? 'page' : undefined}>Overview</a
-      >
-      <a
-        href={`${base}/#use-cases`}
+        href={`${base}/#custom-ui`}
         class="a2-sl-tab a2-sl-tab--desk-only">Examples</a
       >
       <a
@@ -78,7 +73,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
       <a
         href={`${base}/specification/v1.0-a2ui/`}
         class:list={['a2-sl-tab', { 'is-active': isSpec }]}
-        aria-current={isSpec ? 'page' : undefined}>Specification</a
+        aria-current={isSpec ? 'page' : undefined}>Spec<span class="a2-sl-tab__long">ification</span></a
       >
     </nav>
   </div>
@@ -497,7 +492,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
     align-items: center;
     gap: 9px;
     text-decoration: none;
-    font-family: var(--a2-font-display, 'Inter', sans-serif);
+    font-family: var(--a2-font-display, 'Manrope', sans-serif);
     font-weight: 600;
     font-size: 16.5px;
     line-height: 1;
@@ -804,6 +799,18 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 
     .a2-sl-dialog-frame {
       padding: 1.5rem;
+    }
+  }
+
+  /* Phones: compact header — no shortcut hint, short section label so the tabs are never clipped
+     (declared last so it wins over the base .a2-sl-search-kbd rule above) */
+  @media (max-width: 600px) {
+    .a2-sl-search-kbd {
+      display: none;
+    }
+
+    .a2-sl-tab__long {
+      display: none;
     }
   }
 </style>

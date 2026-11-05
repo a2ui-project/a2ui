@@ -22,15 +22,16 @@
 :root,
 :root[data-theme='dark'] {
   /* --- Font Topology ---
-     1. Display: Optical-sized Neo-Grotesque (Inter opsz 32, tight tracking, 550-600 weight)
-     2. Editorial Accent: Newsreader optical serif for human/brand showcase moments
-     3. Body: Readable UI/Prose Sans (Inter 400-500, calm measure & leading)
-     4. Technical: Tabular Monospace (JetBrains Mono for micro-labels & metrics) */
-  --a2-font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --a2-font-serif: 'Newsreader', Georgia, Cambria, 'Times New Roman', serif;
-  --a2-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+     1. Display: Manrope (geometric grotesque, 600-800 weight, tight tracking)
+     2. Serif: Playfair Display — only inside the "Editorial Luxury" brand mock (§ 02 morph);
+        headline emphasis is carried by colour (--a2-heading-accent), never italics
+     3. Body: Manrope 400-500 (calm measure & leading)
+     4. Technical: IBM Plex Mono for micro-labels, metrics & code */
+  --a2-font-display: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --a2-font-serif: 'Playfair Display', Georgia, Cambria, 'Times New Roman', serif;
+  --a2-font-sans: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --a2-font-mono:
-    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
   /* --- Typographic Scale & Tracking --- */
   --a2-tracking-display: -0.044em;
@@ -41,7 +42,7 @@
 
   /* --- Dark Theme: Sleek Obsidian Studio --- */
   --a2-bg: #08090d;
-  --a2-bg-alt: #0d0f15;
+  --a2-bg-alt: #0f121a;
   --a2-bg-nav: rgba(8, 9, 13, 0.82);
   --a2-shell: #11141c;
   --a2-surface: #141821;
@@ -69,6 +70,8 @@
   /* --- Semantic Accents (Zero Purple on Dark) --- */
   --a2-accent: #14b8a6;
   --a2-accent-strong: #2dd4bf;
+  /* Headline emphasis word(s): the accent itself on dark, the deeper ink-leaning teal on light */
+  --a2-heading-accent: #14b8a6;
   --a2-accent-soft: rgba(20, 184, 166, 0.12);
   --a2-accent-border: rgba(45, 212, 191, 0.28);
 
@@ -144,7 +147,7 @@
 
 :root[data-theme='light'] {
   --a2-bg: #fafaf9;
-  --a2-bg-alt: #f3f4f6;
+  --a2-bg-alt: #f0f1f3;
   --a2-bg-nav: rgba(250, 250, 249, 0.84);
   --a2-shell: #f1f2f4;
   --a2-surface: #ffffff;
@@ -168,6 +171,7 @@
 
   --a2-accent: #0d9488;
   --a2-accent-strong: #0f766e;
+  --a2-heading-accent: #0f766e;
   --a2-accent-soft: rgba(13, 148, 136, 0.08);
   --a2-accent-border: rgba(13, 148, 136, 0.24);
 
