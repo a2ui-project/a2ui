@@ -224,7 +224,7 @@ _(Where `<ver>` is `v1.0`, `v0.9.1`, or `v0.8`.)_
 - **Canonical Owner & Framing Rules**:
     - Single source of truth for official Core SDKs, Agent SDKs, and Renderer SDKs.
     - Lead with the three-tiered SDK architecture (Core SDK, Agent SDK, and Renderer SDK), noting that split client-server deployments use two layers per side while single-language codebases handling both inference and rendering (e.g. TypeScript and Dart) can use all three layers together.
-    - Walk through `Core SDK`, `Agent SDK`, and `Renderer SDK` in sequence, each with `Key responsibilities`, a clean 4-column `Packages` table (omitting package manager prefixes and avoiding noisy backticks), and unheaded follow-up links underneath.
+    - Walk through `Core SDK`, `Agent SDK`, and `Renderer SDK` in sequence, each with `Primary functions`, a clean 4-column `Packages` table (omitting package manager prefixes and avoiding noisy backticks), and unheaded follow-up links underneath.
     - Do **not** mention `60fps`, refer to **incremental updates** on the renderer rather than "streaming", and explain that framework adapters include a **built-in implementation of the Basic Catalog** and support **custom catalogs** via per-component rendering logic.
 
 <a id="swappable-inference-formats"></a>

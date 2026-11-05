@@ -9,7 +9,7 @@ export const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 An **[MCP App](https://modelcontextprotocol.io/extensions/apps/overview)** can bundle an embedded A2UI web renderer inside its `ui://` HTML resource (`text/html;profile=mcp-app`) so existing [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) hosts display interactive A2UI surfaces without adding A2UI renderer code to the host application.
 
-Instead of requiring every MCP client (such as Claude Desktop, the MCP Inspector, or an IDE) to install an A2UI SDK, your MCP server ships a self-contained HTML bundle that mounts `<a2ui-surface>` inside the host's isolated iframe. When tools on the server return `application/a2ui+json` payloads, the embedded app feeds those messages into its own [`MessageProcessor`](../../concepts/renderer-sdks/) and forwards user actions back through the MCP Apps `tools/call` channel.
+Instead of requiring every MCP client (such as Claude Desktop, the MCP Inspector, or an IDE) to install an A2UI SDK, your MCP server ships a self-contained HTML bundle that mounts `<a2ui-surface>` inside the host's isolated iframe. When tools on the server return `application/a2ui+json` payloads, the embedded app feeds those messages into its own [`MessageProcessor`](/concepts/sdks/#core-sdk) and forwards user actions back through the MCP Apps `tools/call` channel.
 
 <Aside type="tip" title="Choosing an MCP integration pattern">
   See the [MCP Integration Overview](../mcp-overview/) to compare all four MCP patterns. Use this
