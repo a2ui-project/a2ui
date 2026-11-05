@@ -180,7 +180,7 @@
     padding: 0.18rem 0.5rem;
     border-radius: 999px;
     background: var(--blue-50, #eaf2fb);
-    color: var(--blue-700, #24599a);
+    color: var(--sl-color-text-accent, #24599a);
     border: 1px solid var(--blue-200, #c3d8ee);
   }
 
@@ -192,7 +192,7 @@
   .cs-title code {
     font-family: var(--sl-font-mono);
     font-size: 0.78rem;
-    color: var(--blue-700, #24599a);
+    color: var(--sl-color-text-accent, #24599a);
   }
 
   .cs-expr {
@@ -244,7 +244,7 @@
   .cs-card__head code {
     font-family: var(--sl-font-mono);
     font-size: 0.68rem;
-    color: var(--blue-700, #24599a);
+    color: var(--sl-color-text-accent, #24599a);
   }
 
   .cs-code {
@@ -266,7 +266,7 @@
   }
 
   .cs-p {
-    color: var(--blue-700, #24599a);
+    color: var(--sl-color-text-accent, #24599a);
     font-weight: 600;
   }
 
@@ -340,11 +340,11 @@
   }
 
   .cs-window-screen {
-    background: #ffffff;
-    color: #111827;
+    background: var(--surface, #ffffff);
+    color: var(--ink, #111827);
     border-radius: 11px;
     padding: 0.8rem;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border, #e5e7eb);
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
@@ -355,7 +355,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: #6b7280;
+    color: var(--text-subtle, #6b7280);
   }
 
   .cs-ui-row {
@@ -366,8 +366,8 @@
     flex-wrap: wrap;
     padding: 0.48rem 0.6rem;
     border-radius: 8px;
-    background: #f8f9fa;
-    border: 1px solid #e5e7eb;
+    background: var(--surface-sunken, #f8f9fa);
+    border: 1px solid var(--border, #e5e7eb);
   }
 
   .cs-ui-row__left {
@@ -383,8 +383,8 @@
     width: 1.45rem;
     height: 1.45rem;
     border-radius: 50%;
-    background: #eaf2fb;
-    color: #24599a;
+    background: var(--blue-50, #eaf2fb);
+    color: var(--sl-color-text-accent, #24599a);
     font-size: 0.62rem;
     font-weight: 800;
   }
@@ -392,7 +392,7 @@
   .cs-ui-name {
     font-size: 0.78rem;
     font-weight: 700;
-    color: #111827;
+    color: var(--ink, #111827);
   }
 
   .cs-ui-scope-tag {
@@ -400,9 +400,9 @@
     font-size: 0.6rem;
     padding: 0.1rem 0.38rem;
     border-radius: 4px;
-    background: #eaf2fb;
-    color: #24599a;
-    border: 1px solid #c3d8ee;
+    background: var(--blue-50, #eaf2fb);
+    color: var(--sl-color-text-accent, #24599a);
+    border: 1px solid var(--blue-200, #c3d8ee);
   }
 
   @media (max-width: 900px) {

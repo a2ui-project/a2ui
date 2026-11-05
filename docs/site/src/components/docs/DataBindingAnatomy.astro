@@ -311,7 +311,7 @@
     padding: 0.1rem 0.4rem;
     border-radius: 4px;
     background: var(--surface, #ffffff);
-    color: var(--blue-700, #24599a);
+    color: var(--sl-color-text-accent, #24599a);
     border: 1px solid var(--border, #e5e7eb);
   }
 
@@ -372,7 +372,7 @@
   }
 
   .db-binding-item--blue {
-    border-left: 3px solid var(--blue-600, #3a78bd);
+    border-left: 3px solid var(--sl-color-accent, #3a78bd);
   }
 
   .db-binding-item__top {
@@ -412,7 +412,7 @@
 
   .db-mini-badge--blue {
     background: var(--blue-50, #eaf2fb);
-    color: var(--blue-700, #24599a);
+    color: var(--sl-color-text-accent, #24599a);
   }
 
   .db-binding-expr {
@@ -490,13 +490,13 @@
     color: var(--text-subtle, #6b7280);
   }
 
-  /* Crisp Light App Screen Inside the Phone Frame */
+  /* Simulated App Screen Inside the Phone Frame */
   .db-phone-screen {
-    background: #ffffff;
-    color: #111827;
+    background: var(--surface, #ffffff);
+    color: var(--ink, #111827);
     border-radius: 14px;
     padding: 0.9rem 0.85rem;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border, #e5e7eb);
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
@@ -507,7 +507,7 @@
     flex-direction: column;
     gap: 0.15rem;
     padding-bottom: 0.55rem;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--border, #e5e7eb);
   }
 
   .db-ui-eyebrow {
@@ -515,7 +515,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: #5f6672;
+    color: var(--text-eyebrow, #5f6672);
   }
 
   .db-ui-heading-row {
@@ -529,7 +529,7 @@
   .db-ui-heading {
     font-size: 1rem;
     font-weight: 800;
-    color: #111827;
+    color: var(--ink, #111827);
   }
 
   .db-ui-ptr {
@@ -541,15 +541,15 @@
   }
 
   .db-ui-ptr--teal {
-    background: #ffffff;
-    color: #047857;
-    border: 1px solid #10b981;
+    background: var(--surface, #ffffff);
+    color: var(--success, #047857);
+    border: 1px solid var(--success-border, #10b981);
   }
 
   .db-ui-ptr--amber {
-    background: #fffbeb;
-    color: #92400e;
-    border: 1px solid #f59e0b;
+    background: var(--warning-surface, #fffbeb);
+    color: var(--warning-text, #92400e);
+    border: 1px solid var(--warning-border, #f59e0b);
   }
 
   .db-ui-field-block {
@@ -569,7 +569,7 @@
   .db-ui-label {
     font-size: 0.7rem;
     font-weight: 700;
-    color: #374151;
+    color: var(--text-strong, #374151);
   }
 
   .db-ui-input {
@@ -577,18 +577,18 @@
     align-items: center;
     padding: 0.42rem 0.55rem;
     border-radius: 7px;
-    background: #f8f9fa;
-    border: 1.5px solid #f59e0b;
+    background: var(--surface-sunken, #f8f9fa);
+    border: 1.5px solid var(--warning-border, #f59e0b);
     font-family: var(--sl-font-mono);
     font-size: 0.72rem;
-    color: #111827;
+    color: var(--ink, #111827);
   }
 
   .db-ui-caret {
     display: inline-block;
     width: 2px;
     height: 0.85rem;
-    background: #92400e;
+    background: var(--warning-text, #92400e);
     margin-left: 2px;
   }
 
@@ -603,8 +603,8 @@
     text-align: center;
     padding: 0.48rem 0.75rem;
     border-radius: 8px;
-    background: #111827;
-    color: #ffffff;
+    background: var(--ink, #111827);
+    color: var(--on-ink, #ffffff);
     font-weight: 700;
     font-size: 0.76rem;
   }
@@ -612,13 +612,13 @@
   .db-ui-action-hint {
     text-align: center;
     font-size: 0.62rem;
-    color: #6b7280;
+    color: var(--text-subtle, #6b7280);
   }
 
   .db-ui-action-hint code {
     font-family: var(--sl-font-mono);
     font-size: 0.6rem;
-    color: #24599a;
+    color: var(--sl-color-text-accent, #24599a);
   }
 
   .db-phone-footer {
@@ -631,7 +631,7 @@
     width: 72px;
     height: 4px;
     border-radius: 999px;
-    background: #9ca3af;
+    background: var(--border-strong, #9ca3af);
   }
 
   @media (max-width: 900px) {
