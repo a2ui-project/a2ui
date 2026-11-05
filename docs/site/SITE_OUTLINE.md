@@ -26,7 +26,7 @@ Every agent authoring or editing pages under `docs/site/` must follow these glob
         - **Module blueprints & YAML conformance suites**: Owned by [`SDK Development`](#sdk-development) (`/guides/sdk-development/`).
 5. **Specification JSON Schema Permalink Contract**:
     - Whenever any page links to a protocol or catalog JSON Schema definition, link to the human-browsable **JSON Schemas Explorer** route rather than raw `.json` files (where browsers ignore `#` fragments):
-        - **Explorer Routes**: `/specification/v1.0/schemas/`, `/specification/v0.9.1/schemas/`, `/specification/v0.8/schemas/` (prefixed with `import.meta.env.BASE_URL` when constructing links in Astro components).
+        - **Explorer Routes**: `/specification/v1.0/schemas/`, `/specification/v0.9.1/schemas/` (prefixed with `import.meta.env.BASE_URL` when constructing links in Astro components).
         - **Whole Schema File**: `/specification/<version>/schemas/#<schema-file>`
             - Examples: `/specification/v1.0/schemas/#agent_to_renderer.json`, `/specification/v0.9.1/schemas/#server_to_client.json`.
             - The reference Basic Catalog schema is presented at the end of the versioned Basic Catalog Guide: `/specification/<version>-basic-catalog-implementation-guide/#basic_catalog.json`.
@@ -78,10 +78,10 @@ All cross-page links must target these exact Starlight routes (with `docs/site/s
 | **Specification** | `<ver>` SDKs Specification                       | **P1**   | `content/docs/specification/<ver>-sdks.md`                                                       | `/specification/<ver>-sdks/`                                                                    |
 | **Specification** | `<ver>` JSON Schemas Explorer                    | **P1**   | `content/docs/specification/<ver>-schemas.mdx`                                                   | `/specification/<ver>/schemas/`                                                                 |
 | **Specification** | `<ver>` A2A Extension                            | **P1**   | `content/docs/specification/<ver>-a2ui-extension-specification.md` (and `v0.8-a2a-extension.md`) | `/specification/<ver>-a2ui-extension-specification/` (and `/specification/v0.8-a2a-extension/`) |
-| **Specification** | `<ver>` Evolution Guide / Custom Catalog Changes | **P1**   | `content/docs/specification/<ver>-evolution-guide.md` (and `v0.8-custom-catalog-changes.md`)     | `/specification/<ver>-evolution-guide/` (and `/specification/v0.8-custom-catalog-changes/`)     |
+| **Specification** | `<ver>` Evolution Guide / Custom Catalog Changes | **P1**   | `content/docs/specification/<ver>-evolution-guide.md`                                            | `/specification/<ver>-evolution-guide/`                                                         |
 | **Specification** | `<ver>` Basic Catalog Guide                      | **P1**   | `content/docs/specification/<ver>-basic-catalog-implementation-guide.mdx`                        | `/specification/<ver>-basic-catalog-implementation-guide/`                                      |
 
-_(Where `<ver>` is `v1.0`, `v0.9.1`, or `v0.8`.)_
+_(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 - **Starlight `slug:` & Redirect Requirements**:
     - Every specification page whose filename contains dots or maps to a nested route (e.g. `v1.0-a2ui.md` $\rightarrow$ `slug: specification/v1.0-a2ui`, `v1.0-schemas.mdx` $\rightarrow$ `slug: specification/v1.0/schemas`) must declare an explicit `slug:` in YAML frontmatter, and [`remark-a2ui-includes.mjs`](src/plugins/remark-a2ui-includes.mjs) `mapSpecFilename` must be extended to cover `-custom-functions`, `-sdks`, and `v0.8-custom-catalog-changes`.
@@ -456,11 +456,6 @@ Single-source specification markdown files directly from `specification/` and `c
     - `v0.9.1 A2A Extension`: [`specification/v0_9_1/docs/a2ui_extension_specification.md`](../../specification/v0_9_1/docs/a2ui_extension_specification.md)
     - `v0.9.1 Evolution Guide`: [`specification/v0_9_1/docs/evolution_guide.md`](../../specification/v0_9_1/docs/evolution_guide.md)
     - `v0.9.1 Basic Catalog Guide`: [`specification/v0_9_1/docs/basic_catalog_implementation_guide.md`](../../specification/v0_9_1/docs/basic_catalog_implementation_guide.md)
-- **v0.8 (Deprecated)** `[Badge: Deprecated]`
-    - `v0.8 Protocol Specification`: [`specification/v0_8/docs/a2ui_protocol.md`](../../specification/v0_8/docs/a2ui_protocol.md)
-    - `v0.8 JSON Schemas Explorer`: `/specification/v0.8/schemas/`
-    - `v0.8 A2A Extension`: [`specification/v0_8/docs/a2ui_extension_specification.md`](../../specification/v0_8/docs/a2ui_extension_specification.md)
-    - `v0.8 Custom Catalog Changes`: [`specification/v0_8/docs/custom_catalog_changes.md`](../../specification/v0_8/docs/custom_catalog_changes.md)
 
 ---
 
@@ -486,9 +481,6 @@ Each version's **JSON Schemas Explorer** (`/specification/<ver>/schemas/`, imple
         - _Capabilities_: `server_capabilities.json`, `client_capabilities.json`
         - _Batching & Wrappers_: `server_to_client_list.json`, `client_to_server_list.json`, `server_to_client_list_wrapper.json`, `client_to_server_list_wrapper.json`
         - _Basic Catalog Schema_: Rendered at the end of the [`v0.9.1` Basic Catalog Guide](src/content/docs/specification/v0.9.1-basic-catalog-implementation-guide.mdx) (`/specification/v0.9.1-basic-catalog-implementation-guide/#basic_catalog.json`, sourced from [`specification/v0_9_1/catalogs/basic/catalog.json`](../../specification/v0_9_1/catalogs/basic/catalog.json)).
-    - **v0.8**:
-        - _Wire Messages_: `server_to_client.json`, `client_to_server.json`, `server_to_client_with_standard_catalog.json`
-        - _Catalogs & Capabilities_: `standard_catalog_definition.json`, `catalog_description_schema.json`, `a2ui_client_capabilities_schema.json`, `minimal_catalog.json` (`specification/v0_8/json/catalogs/minimal/minimal_catalog.json`)
 2. **Utility Bar per Schema**:
     - Displays the canonical `$id` URI with a 1-click **Copy `$id`** button when `$id` is present (omitted on schemas without `$id`, such as v0.9.1 `client_to_server.json` and v0.8 schemas), a **Raw JSON** link pointing to the exact versioned static file staged in `public/specification/<version_dir>/` by [`prepare-spec-assets.mjs`](scripts/prepare-spec-assets.mjs), and a **Jump to Definition / Copy Permalink** dropdown.
 3. **Permalink Contract Implementation**:

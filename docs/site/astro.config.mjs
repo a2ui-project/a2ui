@@ -56,6 +56,10 @@ export default defineConfig({
     '/guides/defining-your-own-catalog': '/guides/defining-a-catalog/',
     '/guides/client-setup': '/guides/client-integration/',
     '/guides/agent-development': '/guides/agent-integration/',
+    '/specification/v0.8-a2ui': '/specification/v1.0-a2ui/',
+    '/specification/v0.8-a2a-extension': '/specification/v1.0-a2ui-extension-specification/',
+    '/specification/v0.8-custom-catalog-changes': '/specification/v1.0-a2ui/',
+    '/specification/v0.8/schemas': '/specification/v1.0/schemas/',
   },
   markdown: {
     remarkPlugins: [remarkA2uiIncludes],
@@ -291,29 +295,6 @@ export default defineConfig({
                 {
                   label: 'Evolution Guide',
                   slug: 'specification/v0.9.1-evolution-guide',
-                },
-              ],
-            },
-            {
-              label: 'v0.8',
-              badge: {text: 'Deprecated', variant: 'caution'},
-              collapsed: true,
-              items: [
-                {
-                  label: 'Protocol Specification',
-                  slug: 'specification/v0.8-a2ui',
-                },
-                {
-                  label: 'JSON Schemas',
-                  slug: 'specification/v0.8/schemas',
-                },
-                {
-                  label: 'A2A Extension',
-                  slug: 'specification/v0.8-a2a-extension',
-                },
-                {
-                  label: 'Custom Catalog Changes',
-                  slug: 'specification/v0.8-custom-catalog-changes',
                 },
               ],
             },
