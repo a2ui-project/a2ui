@@ -388,15 +388,15 @@ Numeric range input.
 
 === "v0.9"
 
-    **Properties:** `value` (DataBinding), `minValue`, `maxValue`
+    **Properties:** `value` (DataBinding), `min`, `max`
 
     ```json
     {
       "id": "volume",
       "component": "Slider",
       "value": { "path": "/settings/volume" },
-      "minValue": 0,
-      "maxValue": 100
+      "min": 0,
+      "max": 100
     }
     ```
 
@@ -458,7 +458,7 @@ Select one or more options from a list.
 
 === "v0.9"
 
-    **Properties:** `options` (array), `selections` (DataBinding), `maxAllowedSelections`
+    **Properties:** `options` (array), `value` (DataBinding), `variant`
 
     ```json
     {
@@ -468,8 +468,8 @@ Select one or more options from a list.
         { "label": "USA", "value": "us" },
         { "label": "Canada", "value": "ca" }
       ],
-      "selections": { "path": "/form/country" },
-      "maxAllowedSelections": 1
+      "value": { "path": "/form/country" },
+      "variant": "mutuallyExclusive"
     }
     ```
 
