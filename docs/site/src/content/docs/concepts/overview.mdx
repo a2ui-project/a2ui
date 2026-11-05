@@ -108,7 +108,8 @@ description: Generates interactive user interface components for user requests.
 # A2UI Express DSL Output Contract
 
 You must output the user interface using A2UI Express.
-...
+
+IMPORTANT: You MUST always surround the entire A2UI Express block with the literal sentinel tags `<a2ui>` and `</a2ui>`...
 
 ## Grammar Rules
 
@@ -144,6 +145,7 @@ Your agent then:
 The model streams its answer. Instead of writing wire JSON directly, it can use a compact inference format such as Express:
 
 ```text
+<a2ui>
 $/outbound/pax = 1
 $/outbound/price = 455
 $/return/pax = 2
@@ -154,6 +156,7 @@ root = Card(Column([
   FlightCard(flightNumber="UA 901", origin="SFO", destination="BER", price=$/return/price, passengers=$/return/pax),
   Button(Text("Confirm booking"), variant="primary", action=Event("confirm_booking", {outboundPax: $/outbound/pax, returnPax: $/return/pax}))
 ]))
+</a2ui>
 ```
 
 The Agent SDK compiler processes the stream as it arrives:
@@ -164,12 +167,12 @@ The Agent SDK compiler processes the stream as it arrives:
 
 #### Messages on the wire
 
-The tabs below show the `createSurface`, `updateComponents`, and `updateDataModel` messages the compiler emits for this example. Component IDs are chosen by the compiler; the ones here are for readability.
+The tabs below show the `createSurface`, `updateComponents`, and `updateDataModel` messages for this example. Component IDs are chosen by the compiler; the ones here are for readability.
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0 (Candidate)">
 
-Surface creation message, defined by [`CreateSurfaceMessage`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage):
+Surface creation message, defined by [`CreateSurfaceMessage`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage) (shown separately from `updateComponents` and `updateDataModel` below to illustrate each message type; in v1.0, the compiler can also inline initial `components` and `dataModel` inside `createSurface`):
 
 ```json
 {
