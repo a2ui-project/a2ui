@@ -2,6 +2,8 @@
 
 The [triage.mts](../flagging/triage.mts) script runs via the [`Flag/Unflag issues and PRs`](https://github.com/a2ui-project/a2ui/blob/main/.github/workflows/triage.yml) GitHub Actions workflow. It checks every open issue and PR, adds `status: needs-triage` to the ones that match the conditions below, and removes the label from the rest.
 
+A stale item, one that a team member owns but has gone quiet (see [thresholds.blueprint.md](thresholds.blueprint.md)), is not flagged right away. The bot first pings its assignees (see [ping.blueprint.md](ping.blueprint.md)), and flags the item only if it is still stale when the grace period after the ping ends.
+
 An **external contributor** is anyone without the `OWNER`, `MEMBER` or `COLLABORATOR` association on the repository. Bots are external contributors too, so an issue filed by a workflow or a PR opened by dependabot needs triage like any other. A bot comment does not count as a reply, though: it does not change the latest human contribution, and it does not clear `status: waiting-for-author-response`.
 
 The script uses the following rules to decide if a PR or issue should get **the label `status: needs-triage`**:
@@ -11,20 +13,23 @@ The script uses the following rules to decide if a PR or issue should get **the 
    - If yes: **NO LABEL**.
    - If no: continue processing.
 
-2. Does the item have `status: assigned-for-triage`?
+2. Is the item stale, with a ping older than the grace period for its case (see [thresholds.blueprint.md](thresholds.blueprint.md) and [ping.blueprint.md](ping.blueprint.md))?
+
+   - If yes: **LABEL**.
+   - If no: continue processing.
+
+3. Does the item have `status: assigned-for-triage`?
 
    - If yes:
-     - **LABEL** when it has no assignee or got the label more than 14 days ago.
+     - **LABEL** when it has no assignee.
      - **NO LABEL** otherwise.
    - If no: continue processing.
 
-3. Is the item **an issue**?
+4. Is the item **an issue**?
 
    - If yes, is it assigned?
      - If assigned:
-       - **LABEL** when one of the following is true:
-         - It is `P0` with no human activity for more than 1 day, or `P1` with no human activity for more than 30 days.
-         - It has no priority label (`P0`–`P3`), and it was opened or commented by an external contributor.
+       - **LABEL** when it has no priority label (`P0`–`P3`), and it was opened or commented by an external contributor.
        - **NO LABEL** otherwise.
      - If not assigned:
        - **LABEL** when one of the following is true:
@@ -34,13 +39,11 @@ The script uses the following rules to decide if a PR or issue should get **the 
        - **NO LABEL** otherwise.
    - If no: continue processing.
 
-4. Is the item **a PR**?
+5. Is the item **a PR**?
 
    - If yes:
      - **LABEL** when it was opened by an external contributor and the latest human contribution is from an external contributor, meaning no team member has responded yet.
      - **NO LABEL** otherwise.
-
-Staleness is calculated from the last human contribution (comment, review, or issue/PR creation) rather than `updated_at` to avoid bot edits resetting the timer.
 
 The bot prints to the console which items it flags or unflags and why. You can use this to track triage progress.
 
