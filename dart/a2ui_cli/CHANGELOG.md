@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.2.0
+
+- **Breaking:** Bump `a2ui_core` dependency to `^0.5.0` (`a2ui_cli` exposes
+  `CatalogApi`, `ComponentApi`, `FunctionApi`, and `A2uiReturnType` in its
+  public API, and `CodegenCatalog.fromJson` inherits `a2ui_core` `0.5.0` catalog
+  validation rules).
+
 - Add standalone curl and PowerShell installer scripts (`scripts/public/install_cli.sh`, `scripts/public/install_cli.ps1`) for pre-built CLI binary releases ([#3738](https://github.com/a2ui-project/a2ui/pull/3738)).
 
 ## 0.1.0
