@@ -1,6 +1,8 @@
 ---
 name: a2ui-blueprint-compliance
 description: Verification of platform codebase blueprint compliance against the latest module blueprints.
+metadata:
+  internal: true
 ---
 
 # A2UI Blueprint Compliance Check Skill

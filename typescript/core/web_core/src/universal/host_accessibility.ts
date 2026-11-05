@@ -124,11 +124,20 @@ export function bindHostAccessibility(
   };
 }
 
-/** What a host reads from its node's props. */
-interface HostAccessibilityState {
-  accessibility?: ResolvedAccessibilityAttributes;
+/** Props that the binder adds to components with validation checks. */
+export interface CheckableResolvedProps {
   isValid?: boolean;
   validationErrors?: string[];
+}
+
+/** Whether `props` carries a failed validation check and at least one error message. */
+export function hasValidationErrors(props?: CheckableResolvedProps): boolean {
+  return props?.isValid === false && Boolean(props.validationErrors?.length);
+}
+
+/** What a host reads from its node's props. */
+export interface HostAccessibilityState extends CheckableResolvedProps {
+  accessibility?: ResolvedAccessibilityAttributes;
 }
 
 function unwrap(value: unknown): unknown {
@@ -176,7 +185,7 @@ interface WrittenAttribute {
 }
 
 /** The ARIA attributes of one host and of the elements its component marks. */
-class HostAccessibility {
+export class HostAccessibility {
   /** Where the label and description went last: the target, or the host. */
   private labelled?: Element;
   /**

@@ -81,6 +81,8 @@ export interface A2uiErrorPayload {
   message: string;
   /** Identifier of the surface where the error occurred, if applicable. */
   surfaceId?: string;
+  /** Identifier of the failed RPC function invocation, if applicable. */
+  functionCallId?: string;
   /** Expression string or function name that caused the error, if applicable. */
   expression?: string;
   /** Additional diagnostic details or validation issues. */
@@ -742,7 +744,7 @@ export class SurfaceModel<
   async dispatchError(error: A2uiErrorPayload): Promise<void> {
     await this._onError.emit({
       ...error,
-      surfaceId: this.id,
+      ...(error.functionCallId !== undefined ? {} : {surfaceId: this.id}),
     });
   }
 
