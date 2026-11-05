@@ -22,7 +22,6 @@ import {
   A2uiCatalogError,
   A2uiRpcError,
   AgentFunction,
-  DEFAULT_RENDERER_CALL_TIMEOUT,
   DEFAULT_RENDERER_CALL_TIMEOUT_MS,
   Catalog,
   type CatalogApi,
@@ -36,9 +35,10 @@ describe('RendererFunctionCalls', () => {
     vi.useRealTimers();
   });
 
-  test('exports DEFAULT_RENDERER_CALL_TIMEOUT_MS (30000) and DEFAULT_RENDERER_CALL_TIMEOUT (30.0)', () => {
+  test('exports DEFAULT_RENDERER_CALL_TIMEOUT_MS (30000) and no seconds-based constant', async () => {
     expect(DEFAULT_RENDERER_CALL_TIMEOUT_MS).toBe(30_000);
-    expect(DEFAULT_RENDERER_CALL_TIMEOUT).toBe(30.0);
+    const api: Record<string, unknown> = await import('../../src/index.js');
+    expect(api['DEFAULT_RENDERER_CALL_TIMEOUT']).toBeUndefined();
   });
 
   test('validates constructor options (defaultTimeoutMs and maxPending)', () => {

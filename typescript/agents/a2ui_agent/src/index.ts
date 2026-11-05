@@ -197,7 +197,6 @@ export {
 export {
   type CallRendererFunctionOptions,
   type CancellablePromise,
-  DEFAULT_RENDERER_CALL_TIMEOUT,
   DEFAULT_RENDERER_CALL_TIMEOUT_MS,
   type PendingRendererCall,
   RendererFunctionCalls,

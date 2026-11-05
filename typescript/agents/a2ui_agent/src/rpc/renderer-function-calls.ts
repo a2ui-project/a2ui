@@ -33,11 +33,6 @@ import {
  */
 export const DEFAULT_RENDERER_CALL_TIMEOUT_MS = 30_000;
 
-/**
- * Default timeout in seconds (`30.0`) for `callRendererFunction` requests.
- */
-export const DEFAULT_RENDERER_CALL_TIMEOUT = 30.0;
-
 const ALLOWED_TOP_LEVEL_KEYS = new Set(['version', 'rendererFunctionResponse']);
 const ALLOWED_BODY_KEYS = new Set(['functionCallId', 'value', 'error']);
 const ALLOWED_ERROR_KEYS = new Set(['code', 'message']);
