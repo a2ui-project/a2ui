@@ -134,6 +134,84 @@ struct AgentOnlyFunctionTests {
     #expect(handler.capturedErrors.isEmpty)
   }
 
+  /// A catalog whose `Button` takes any properties, so validation judges only its calls.
+  private func makePermissiveCatalog(
+    protocolVersion: A2UIProtocolVersion = .v10
+  ) throws -> AnyCatalog {
+    Catalog(
+      id: "a",
+      protocolVersion: protocolVersion,
+      components: [
+        AnyComponentAPI(name: "Button", schema: try Schema(instance: "{\"type\": \"object\"}"))
+      ],
+      functions: [
+        RecordingFunction(name: "agentOnly", allowedCallers: .agentOnly),
+        RecordingFunction(name: "rendererOrAgent", allowedCallers: .rendererOrAgent),
+      ]
+    ).eraseToAnyCatalog()
+  }
+
+  /// A `Button` whose `property` calls `function`: a binding, a check's condition or an
+  /// action's `functionCall`.
+  private func button(
+    calling function: String,
+    in property: String,
+    callKey: String = "@call"
+  ) -> [String: JSONValue] {
+    let call: JSONValue = .object([callKey: .string(function)])
+    let value: JSONValue
+    switch property {
+    case "checks":
+      value = .array([.object(["condition": call, "message": .string("Blocked")])])
+    case "onClick":
+      value = .object(["functionCall": call])
+    default:
+      value = call
+    }
+    return ["id": .string("root"), "component": .string("Button"), property: value]
+  }
+
+  /// A call held in a component is a renderer call, so validation rejects one to an
+  /// `agentOnly` function at the call's location, before any binding is evaluated.
+  @Test(arguments: [
+    ("label", "label"), ("checks", "checks/0/condition"), ("onClick", "onClick/functionCall"),
+  ])
+  func validationRejectsAgentOnlyFunctionInComponent(property: String, path: String) throws {
+    let validator = PayloadValidator(
+      catalog: try makePermissiveCatalog(),
+      config: ValidationConfig(protocolVersion: .v10)
+    )
+    do {
+      try validator.validateComponent(button(calling: "agentOnly", in: property))
+      Issue.record("Expected an A2UIValidationError")
+    } catch let error as A2UIValidationError {
+      #expect(
+        error.message
+          == "Function 'agentOnly' cannot be called by renderer (allowedCallers is agentOnly)."
+      )
+      #expect(error.details.first?.path == path)
+      #expect(error.details.first?.code == "invalid_function_call")
+    }
+  }
+
+  @Test(arguments: ["label", "checks", "onClick"])
+  func validationAcceptsRendererOrAgentFunctionInComponent(property: String) throws {
+    let validator = PayloadValidator(
+      catalog: try makePermissiveCatalog(),
+      config: ValidationConfig(protocolVersion: .v10)
+    )
+    try validator.validateComponent(button(calling: "rendererOrAgent", in: property))
+  }
+
+  /// allowedCallers is a v1.0 feature, so v0.9 validation does not restrict a renderer call.
+  @Test func v09ValidationIgnoresAllowedCallers() throws {
+    let validator = PayloadValidator(
+      catalog: try makePermissiveCatalog(protocolVersion: .v091),
+      config: ValidationConfig(protocolVersion: .v091)
+    )
+    try validator.validateComponent(button(calling: "agentOnly", in: "label", callKey: "call"))
+  }
+
   @Test func agentInitiatedCallRunsAgentOnlyFunction() async throws {
     let catalog = try makeCatalog()
     let response = await RPCHandler().handleIncomingCall(
