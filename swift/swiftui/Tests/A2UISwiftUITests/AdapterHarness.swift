@@ -109,6 +109,10 @@ struct AdapterViewNode {
   let node: A2UICore.Node?
   let children: [AdapterViewNode]
 
+  /// The object identity of the resolved node backing this view, which stays the same while the
+  /// resolver updates the node in place and changes when the node is recreated.
+  var identity: ObjectIdentifier? { node?.identity }
+
   init(
     id: String,
     instanceID: String,
@@ -126,10 +130,14 @@ struct AdapterViewNode {
   }
 }
 
-/// Holds a mounted `A2UISwiftUI.Surface` and tracks its Combine subscriptions.
+/// Holds a mounted `A2UISwiftUI.Surface`, its `HostedViewDriver` when the surface is hosted in a
+/// platform window, and its Combine subscriptions.
 @MainActor
 final class MountedSurfaceHarness {
   let surface: Surface
+  /// The driver of the hosted view hierarchy, or `nil` when the harness drives the resolved
+  /// nodes without hosting the surface.
+  let driver: HostedViewDriver?
   private var subscriptions: [AnyCancellable] = []
   private(set) var isMounted = true
   private(set) var emissionCount = 0
@@ -138,8 +146,9 @@ final class MountedSurfaceHarness {
     isMounted ? subscriptions.count : 0
   }
 
-  init(surface: Surface) {
+  init(surface: Surface, hostsViews: Bool) {
     self.surface = surface
+    self.driver = hostsViews ? HostedViewDriver(surface: surface) : nil
     surface.viewModel.objectWillChange
       .sink { [weak self] _ in self?.emissionCount += 1 }
       .store(in: &subscriptions)
@@ -151,6 +160,7 @@ final class MountedSurfaceHarness {
   func unmount() {
     isMounted = false
     subscriptions.removeAll()
+    driver?.tearDown()
     surface.viewModel.dispose()
   }
 }
@@ -162,6 +172,8 @@ final class AdapterSession {
   let handler: AdapterTestActionHandler
   let processor: MessageProcessor
   let uiCatalogs: [Catalog<ComponentImplementation>]
+  /// Whether the surface is hosted in a platform window and driven through its native views.
+  let hostsViews: Bool
   var mountedHarness: MountedSurfaceHarness?
   var currentTree: AdapterViewNode?
   var previousTree: AdapterViewNode?
@@ -170,12 +182,14 @@ final class AdapterSession {
     caseName: String,
     handler: AdapterTestActionHandler,
     processor: MessageProcessor,
-    uiCatalogs: [Catalog<ComponentImplementation>]
+    uiCatalogs: [Catalog<ComponentImplementation>],
+    hostsViews: Bool
   ) {
     self.caseName = caseName
     self.handler = handler
     self.processor = processor
     self.uiCatalogs = uiCatalogs
+    self.hostsViews = hostsViews
   }
 }
 
@@ -577,20 +591,28 @@ enum AdapterHarness {
   }
 
   /// Creates an `AdapterSession` configured for `caseSpec`.
-  static func mountSurface(_ caseSpec: [String: Any]) throws -> AdapterSession {
+  ///
+  /// - Parameter hostsViews: Whether to host the surface in a platform window and drive it
+  ///   through its native views, rather than through its resolved nodes.
+  static func mountSurface(_ caseSpec: [String: Any], hostsViews: Bool) throws -> AdapterSession {
     let caseName = caseSpec["name"] as? String ?? "<unnamed>"
     let handler = AdapterTestActionHandler()
     let (coreCatalogs, uiCatalogs) = try buildCatalogs(for: caseSpec)
+    // A rendered surface shows a cycle as a `cyclic` placeholder rather than rejecting the
+    // message, as the adapters of the other SDKs do.
+    var validationConfig = ValidationConfig.relaxed
+    validationConfig.allowCyclicReferences = true
     let processor = MessageProcessor(
       catalogs: coreCatalogs,
       actionHandler: handler,
-      validationConfig: .relaxed
+      validationConfig: validationConfig
     )
     return AdapterSession(
       caseName: caseName,
       handler: handler,
       processor: processor,
-      uiCatalogs: uiCatalogs
+      uiCatalogs: uiCatalogs,
+      hostsViews: hostsViews
     )
   }
 
@@ -616,15 +638,18 @@ enum AdapterHarness {
       try processAdapterMessages(messages, session: session)
       session.currentTree = try extractViewTree(session)
     case "user_input":
-      applyUserInput(step, surface: session.mountedHarness?.surface)
+      try applyUserInput(step, session: session)
       session.currentTree = try extractViewTree(session)
-    case "user_gesture", "programmatic_invoke":
-      let userActivation = (step["userActivation"] as? Bool) ?? (op == "user_gesture")
+    case "user_gesture":
+      try invokeUserGesture(step, session: session)
+      session.currentTree = try extractViewTree(session)
+    case "programmatic_invoke":
       invokeStepAction(
         step,
         surface: session.mountedHarness?.surface,
-        userActivation: userActivation
+        userActivation: (step["userActivation"] as? Bool) ?? false
       )
+      session.mountedHarness?.driver?.flush()
       session.currentTree = try extractViewTree(session)
     case "unmount_surface":
       let activeCount = session.mountedHarness?.activeSubscriptionCount ?? 0
@@ -768,23 +793,76 @@ enum AdapterHarness {
         catalogs: session.uiCatalogs,
         defaultCatalogID: BasicCatalog.catalogURI(version: .v10)
       )
-      session.mountedHarness = MountedSurfaceHarness(surface: surface)
+      session.mountedHarness = MountedSurfaceHarness(
+        surface: surface,
+        hostsViews: session.hostsViews
+      )
+    } else {
+      session.mountedHarness?.driver?.flush()
     }
   }
 
-  private static func applyUserInput(_ step: [String: Any], surface: Surface?) {
-    guard let surface,
-      let targetID = step["targetNode"] as? String,
-      let inputValue = step["inputValue"] as? String,
-      let rootNode = surface.viewModel.rootNode
+  private static func applyUserInput(_ step: [String: Any], session: AdapterSession) throws {
+    guard let harness = session.mountedHarness,
+      let targetID = step["targetNode"] as? String
     else {
       return
     }
+    guard let driver = harness.driver else {
+      try writeUserInputToNode(step["inputValue"], componentID: targetID, surface: harness.surface)
+      return
+    }
+    if let boolValue = step["inputValue"] as? Bool {
+      try driver.setToggle(boolValue, componentID: targetID)
+    } else if let strValue = step["inputValue"] as? String {
+      try driver.enterText(strValue, componentID: targetID)
+    }
+  }
+
+  /// Writes a user input value through the binding of the resolved node's component view, for
+  /// the harness that does not host the surface.
+  private static func writeUserInputToNode(
+    _ inputValue: Any?,
+    componentID: String,
+    surface: Surface
+  ) throws {
+    guard let targetNode = findNode(componentID: componentID, in: surface) else {
+      throw AdapterConformanceError("Component '\(componentID)' not found in surface")
+    }
+    if let boolValue = inputValue as? Bool {
+      A2UICheckBox(node: targetNode).isOn.wrappedValue = boolValue
+    } else if let strValue = inputValue as? String {
+      A2UITextField(node: targetNode).valueBinding.wrappedValue = strValue
+    }
+  }
+
+  private static func invokeUserGesture(_ step: [String: Any], session: AdapterSession) throws {
+    guard let harness = session.mountedHarness,
+      let targetID = step["targetNode"] as? String
+    else {
+      return
+    }
+    guard let driver = harness.driver else {
+      // Without a hosted view, the gesture runs the resolved node's action as a press would.
+      guard let targetNode = findNode(componentID: targetID, in: harness.surface) else {
+        throw AdapterConformanceError("Component '\(targetID)' not found in surface")
+      }
+      if targetNode.type == "Button" {
+        guard !A2UIButton(node: targetNode).isDisabled else { return }
+      } else {
+        guard targetNode.isValid else { return }
+      }
+      targetNode.action(for: "action", userActivation: true)?()
+      return
+    }
+    try driver.press(componentID: targetID)
+  }
+
+  private static func findNode(componentID: String, in surface: Surface) -> A2UICore.Node? {
+    guard let rootNode = surface.viewModel.rootNode else { return nil }
     var nodes: [String: A2UICore.Node] = [:]
     collectNodes(from: rootNode, into: &nodes)
-    guard let targetNode = nodes[targetID] else { return }
-    let textField = A2UITextField(node: targetNode)
-    textField.valueBinding.wrappedValue = inputValue
+    return nodes[componentID]
   }
 
   private static func invokeStepAction(
@@ -832,9 +910,13 @@ enum AdapterHarness {
       using: surface.catalogs,
       defaultCatalogID: surface.defaultCatalogID
     )
-    #expect(rendered != nil, "Expected Surface.render builder for '\(node.type)'")
-    if rendered == nil {
-      throw AdapterConformanceError("Expected Surface.render builder for '\(node.type)'")
+    if node.state == .resolved {
+      #expect(rendered != nil, "Expected Surface.render builder for '\(node.type)'")
+      if rendered == nil {
+        throw AdapterConformanceError("Expected Surface.render builder for '\(node.type)'")
+      }
+    } else {
+      #expect(rendered == nil, "Expected no Surface.render view for a \(node.state) placeholder")
     }
     let children = try resolveChildViewNodes(in: surface, node: node)
     let baseID = baseComponentID(for: node, in: surface)
@@ -842,7 +924,7 @@ enum AdapterHarness {
       id: baseID,
       instanceID: node.id,
       type: node.type,
-      state: "resolved",
+      state: node.state.rawValue,
       node: node,
       children: children
     )
@@ -873,6 +955,7 @@ enum AdapterHarness {
     in surface: Surface,
     node: A2UICore.Node
   ) throws -> [AdapterViewNode] {
+    guard node.state == .resolved else { return [] }
     if let singleChild = node.child(for: "child") {
       return [try buildViewNode(in: surface, node: singleChild)]
     }
@@ -921,7 +1004,12 @@ enum AdapterHarness {
         Issue.record(Comment(rawValue: msg))
         throw AdapterConformanceError(msg)
       }
-      try assertAccessibilityTreeMatches(currentTree, expected: expA11y, context: context)
+      try assertAccessibilityTreeMatches(
+        currentTree,
+        driver: session.mountedHarness?.driver,
+        expected: expA11y,
+        context: context
+      )
     }
     if let expSubs = step["expectActiveSubscriptions"] as? Int {
       guard let harness = session.mountedHarness else {
@@ -1056,11 +1144,15 @@ enum AdapterHarness {
       let prevNode = findViewNode(atPath: path, in: previousTree)
       let currNode = findViewNode(atPath: path, in: currentTree)
       #expect(prevNode != nil && currNode != nil, "\(context): missing node at \(path)")
+      // Compare object identity: the instance IDs are deterministic strings that match even
+      // when the resolver recreates the node and the view remounts.
+      let prevIdentity = prevNode?.identity
+      let currIdentity = currNode?.identity
       #expect(
-        prevNode?.instanceID == currNode?.instanceID,
+        prevIdentity != nil && prevIdentity == currIdentity,
         "\(context): identity changed at \(path)"
       )
-      if prevNode == nil || currNode == nil || prevNode?.instanceID != currNode?.instanceID {
+      if prevIdentity == nil || prevIdentity != currIdentity {
         throw AdapterConformanceError("\(context): identity mismatch at \(path)")
       }
     }
@@ -1172,6 +1264,7 @@ enum AdapterHarness {
 
   static func assertAccessibilityTreeMatches(
     _ root: AdapterViewNode,
+    driver: HostedViewDriver? = nil,
     expected: [String: [String: Any]],
     context: String
   ) throws {
@@ -1184,10 +1277,12 @@ enum AdapterHarness {
         Issue.record("\(context): missing accessibility node '\(componentID)'")
         throw AdapterConformanceError("\(context): missing accessibility node '\(componentID)'")
       }
+      let hostedElement = driver?.accessibilityNode(componentID: componentID)
       let modifier = A2UIAccessibilityModifier(node: node)
       try assertModifierMatches(
         modifier,
         node: node,
+        hostedElement: hostedElement,
         expected: expectedProps,
         context: "\(context) [\(componentID)]"
       )
@@ -1197,44 +1292,47 @@ enum AdapterHarness {
   static func assertModifierMatches(
     _ modifier: A2UIAccessibilityModifier,
     node: A2UICore.Node,
+    hostedElement: HostedViewDriver.AccessibilityElement? = nil,
     expected: [String: Any],
     context: String
   ) throws {
     if let expLabel = expected["label"] as? String {
-      let actual = effectiveLabel(for: node, modifier: modifier)
+      let actual = hostedElement?.label ?? effectiveLabel(for: node, modifier: modifier)
       #expect(actual == expLabel, "\(context): label")
       if actual != expLabel {
         throw AdapterConformanceError("\(context): label mismatch")
       }
     }
     if let expDesc = expected["description"] as? String {
-      #expect(modifier.hint == expDesc, "\(context): description mismatch")
-      if modifier.hint != expDesc {
+      let actual = hostedElement?.help ?? modifier.hint
+      #expect(actual == expDesc, "\(context): description mismatch")
+      if actual != expDesc {
         throw AdapterConformanceError("\(context): description mismatch")
       }
     }
     if let expLive = expected["live"] as? String {
-      let actual = node.explicitAccessibilityAttributes?.live
+      let actual = hostedElement?.live ?? node.explicitAccessibilityAttributes?.live
       #expect(actual == expLive, "\(context): live mismatch")
       if actual != expLive {
         throw AdapterConformanceError("\(context): live mismatch")
       }
     }
     if let expHidden = expected["hidden"] as? Bool {
-      #expect(modifier.isHidden == expHidden, "\(context): hidden mismatch")
-      if modifier.isHidden != expHidden {
+      let actual = hostedElement?.isHidden ?? modifier.isHidden
+      #expect(actual == expHidden, "\(context): hidden mismatch")
+      if actual != expHidden {
         throw AdapterConformanceError("\(context): hidden mismatch")
       }
     }
     if let expRole = expected["role"] as? String {
-      let actual = semanticRole(for: node)
+      let actual = hostedElement?.role ?? semanticRole(for: node)
       #expect(actual == expRole, "\(context): role mismatch")
       if actual != expRole {
         throw AdapterConformanceError("\(context): role mismatch")
       }
     }
     if let expChecked = expected["checked"] as? Bool {
-      let actual = checkedState(for: node)
+      let actual = hostedElement?.isChecked ?? checkedState(for: node)
       #expect(actual == expChecked, "\(context): checked mismatch")
       if actual != expChecked {
         throw AdapterConformanceError("\(context): checked mismatch")
@@ -1288,7 +1386,7 @@ enum AdapterHarness {
     }
   }
 
-  static func toJSONValue(_ value: Any) -> JSONValue {
+  nonisolated static func toJSONValue(_ value: Any) -> JSONValue {
     if value is NSNull { return .null }
     if let boolVal = value as? Bool { return .boolean(boolVal) }
     if let intVal = value as? Int { return .integer(intVal) }
@@ -1304,12 +1402,13 @@ enum AdapterHarness {
     }
     return .null
   }
+
 }
 
 /// Top-level helper creating an `AdapterSession` for a conformance test case.
 @MainActor
-func mountSurface(_ caseSpec: [String: Any]) throws -> AdapterSession {
-  try AdapterHarness.mountSurface(caseSpec)
+func mountSurface(_ caseSpec: [String: Any], hostsViews: Bool) throws -> AdapterSession {
+  try AdapterHarness.mountSurface(caseSpec, hostsViews: hostsViews)
 }
 
 /// Top-level helper executing a single adapter conformance step.
