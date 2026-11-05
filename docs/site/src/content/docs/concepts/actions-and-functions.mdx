@@ -5,25 +5,26 @@ description: 'How component actions send events to the agent or trigger function
 
 import {Aside, Tabs, TabItem} from '@astrojs/starlight/components';
 
-An action defines what happens when a user interacts with a component by triggering either an [event](#events) or a [function](#functions). Events are typically used when you want to prompt the agent to do something and respond with UI updates, while functions are typically used when you want to trigger specific logic on the renderer or agent. Functions can also run outside user actions, such as in property bindings, validation checks, and agent requests.
+An action defines what happens when a user interacts with a component by triggering either an [event](#events) or a [function](#functions). Events prompt the agent to respond with UI updates, while functions execute specific logic on the renderer or agent. Functions can also run outside user actions, such as in property bindings, validation checks, and agent requests.
 
 ## Actions
 
-An **action** is an interaction handler property on an interactive UI component, such as `Button.action` on [`Button`](/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json/components/Button), that runs when a user interacts with that component (for example, clicking or tapping a button). It lets a user gesture trigger either an [event](#events) or a [function](#functions).
+An **action** is an interaction handler property on an interactive UI component, such as `Button.action` on [`Button`](/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json/components/Button), that runs when a user interacts with that component (for example, clicking or tapping a button).
 
-Defined by [`Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action) in `common_types.json`, an `action` object is a `oneOf` union with two mutually exclusive branches:
+An action determines how user interaction is handled:
 
-1. `event` prompts the agent to do something by sending an outbound [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message so the agent can process the interaction and stream UI updates back.
-2. `functionCall` invokes a named catalog [`FunctionCall`](/specification/v1.0/schemas/#common_types.json/$defs/FunctionCall) (`{"@call": "...", "args": {...}}`) directly on the renderer or routes it to the agent via [`callAgentFunction`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/callAgentFunction) without starting an agent turn.
+- An **event** notifies the agent of user intent by sending an outbound [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message. Use an event when the agent needs to decide what happens next and stream UI or data updates back to the client (such as confirming an order or booking a reservation).
+- A **function** invokes a registered catalog operation directly without starting a new agent conversation turn. The function can execute locally on the renderer (such as opening a link with [`openUrl`](/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json/functions/openUrl)) or run remotely on the agent via [`callAgentFunction`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/callAgentFunction) to perform a discrete backend check (such as verifying inventory).
 
-| Aspect       | Event (`action.event`)                      | Function (`action.functionCall`)                        |
-| :----------- | :------------------------------------------ | :------------------------------------------------------ |
-| Purpose      | Prompts the agent to do something           | Triggers specific logic on the renderer or agent        |
-| Triggered by | A user gesture on a component action        | Actions, property bindings, validation checks, or agent |
-| Runs on      | The agent, after an `action` message        | The renderer, or the agent via `callAgentFunction`      |
-| Result       | The agent decides next steps and updates UI | A typed return value, or nothing for local side effects |
+See [`Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action) in the protocol schema for the action structure.
 
-Events are typically used when you want to prompt the agent to do something in response to user input, such as confirming an order or booking a flight, so the agent can decide what happens next and update the UI. Functions are typically used when you want to trigger specific logic on the renderer or agent, such as opening a link with [`openUrl`](/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json/functions/openUrl) or running a backend calculation without starting a full agent turn.
+| Aspect       | Event (`action.event`)                            | Function (`action.functionCall`)                        |
+| :----------- | :------------------------------------------------ | :------------------------------------------------------ |
+| Purpose      | Prompts the agent to process intent and update UI | Triggers specific logic on the renderer or agent        |
+| Triggered by | A user gesture on a component action              | Actions, property bindings, validation checks, or agent |
+| Runs on      | The agent, after an `action` message              | The renderer, or the agent via `callAgentFunction`      |
+| Agent turn   | Starts a new agent conversation turn              | Runs without starting an agent turn                     |
+| Result       | The agent decides next steps and updates UI       | A typed return value, or a local side effect            |
 
 <Aside type="note" title="Differences in v0.9.1">
 
@@ -36,21 +37,6 @@ In v0.9.1 ([`Action`](/specification/v0.9.1/schemas/#common_types.json/$defs/Act
 ## Events
 
 Events prompt the agent to do something when a user interacts with a component. When a user triggers a component whose [`action`](/specification/v1.0/schemas/#common_types.json/$defs/Action) specifies `event`, the renderer resolves any dynamic bindings in the event configuration and sends an outbound [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message to the agent.
-
-The following sequence diagram shows what happens when a user clicks a button configured with `action.event`. The renderer resolves any data bindings in `context` and `userMessage` against the surface data model, sends the `action` message to the agent, and the agent responds with `updateDataModel` or `updateComponents` messages to update the surface.
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant Renderer
-    participant Agent
-
-    User->>Renderer: Click Button (action.event)
-    Renderer->>Renderer: Resolve context and userMessage bindings
-    Renderer->>Agent: action message
-    Agent-->>Renderer: updateDataModel / updateComponents
-    Renderer-->>User: Updated surface
-```
 
 When the renderer sends an event:
 
@@ -169,14 +155,14 @@ When the renderer evaluates a `FunctionCall`, it resolves the target catalog (fr
 
 #### Renderer functions
 
-Renderer functions are implemented by the client renderer and registered with its catalog. They commonly fall into four categories:
+Renderer functions are implemented locally by the client renderer and registered with its catalog. Some types of renderer functions are:
 
-1. Validation functions check input values or form readiness, returning a boolean or [`ValidationResult`](/specification/v1.0/schemas/#catalog_definition.json/$defs/ValidationResult). The Basic Catalog includes validation functions such as `required` and `email`, for example `{"@call": "email", "args": {"value": {"@path": "/formData/email"}}}`.
-2. Data transformation functions format values or combine conditions before display. The Basic Catalog includes formatting functions such as `formatCurrency`, `formatDate`, and `formatString` alongside boolean helpers like `and`, for example `{"@call": "formatCurrency", "args": {"value": {"@path": "/order/subtotal"}, "currency": "USD"}}`.
-3. Local data functions access client-side state or rendering context that is not stored in the surface data model. Across all catalogs, the built-in system function [`@index`](/specification/v1.0-basic-catalog-implementation-guide/#index) reads the current item's position inside a list template (`{"@call": "@index", "args": {"offset": 1}}`), and custom catalogs can expose device or environment queries such as `getScreenResolution` (`{"@call": "getScreenResolution", "catalogId": "https://example.com/catalogs/device.json", "args": {"screenIndex": 0}}`).
-4. Local action functions trigger an immediate client-side effect rather than returning a display value. For example, the Basic Catalog defines [`openUrl`](/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json/functions/openUrl) (`{"@call": "openUrl", "args": {"url": "https://support.example.com/billing"}}`) to open a URL in the user's browser.
+- **Validation**: Checks input values or form readiness against constraints, such as required fields or email formatting.
+- **Data transformation**: Formats values, dates, currency, or strings, or computes boolean logic before displaying them on screen.
+- **Local data access**: Reads client-side state, device attributes, or template context not stored in the surface data model, such as the current item's position inside a list template or device screen dimensions.
+- **Local actions**: Performs client-side operations in response to user gestures, such as opening a URL in the browser.
 
-Functions such as `email`, `formatCurrency`, `required`, and `openUrl` are just examples from the Basic Catalog. See the [Basic Catalog specification](/specification/v1.0-basic-catalog-implementation-guide/#2-renderer-side-functions) and its [`functions` schema](/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json/functions) for the complete set of standard renderer functions, or define additional functions in your own catalog.
+These examples illustrate common functions available in the [Basic Catalog](/specification/v1.0-basic-catalog-implementation-guide/#2-renderer-side-functions). See the [Basic Catalog functions specification](/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json/functions) for the full set of standard renderer functions, or define custom functions in your own catalog.
 
 #### Agent functions
 
@@ -217,7 +203,7 @@ Any function name not implemented locally on the renderer is routed to the agent
 
 ### Calling functions
 
-Functions can be called from four places. Only the first involves a user gesture:
+Functions can be called from four places:
 
 1. A component action, through `action.functionCall`.
 2. A property binding, where a dynamic property such as `Text.text` evaluates a function call.
