@@ -17,39 +17,62 @@
 import {ComponentFixture, TestBed, fakeAsync, tick} from '@angular/core/testing';
 import {signal} from '@angular/core';
 import {A2uiRendererService} from '@a2ui/angular/v0_9';
-import {SurfaceModel, SurfaceGroupModel} from '@a2ui/web_core/v0_9';
+import {DataModel, SurfaceModel, SurfaceGroupModel} from '@a2ui/web_core/v0_9';
 import {
   FileUploadComponent,
   FILE_UPLOAD_CONFIG,
   DEFAULT_MAX_FILE_SIZE,
   FileUploadConfig,
+  INLINE_URI_PREFIX,
+  UploadState,
 } from './file-upload';
+
+/** Builds a bound property the way the renderer hands them to catalog components. */
+function bound<T>(value: T, onUpdate = jasmine.createSpy('onUpdate')) {
+  return {value: signal(value), raw: value, onUpdate};
+}
+
+function mockFileReader(dataUri: string) {
+  const reader = {
+    readAsDataURL: jasmine.createSpy('readAsDataURL').and.callFake(function (this: any) {
+      this.result = dataUri;
+      this.onload();
+    }),
+  };
+  spyOn(window as any, 'FileReader').and.returnValue(reader);
+  return reader;
+}
+
+function fileOfSize(name: string, size: number, type = 'text/plain'): File {
+  const file = new File(['x'], name, {type});
+  Object.defineProperty(file, 'size', {value: size});
+  return file;
+}
 
 describe('FileUploadComponent', () => {
   let component: FileUploadComponent;
   let fixture: ComponentFixture<FileUploadComponent>;
-  let mockRendererService: jasmine.SpyObj<A2uiRendererService>;
-  let mockSurfaceGroup: jasmine.SpyObj<SurfaceGroupModel<any>>;
   let mockSurface: jasmine.SpyObj<SurfaceModel<any>>;
   let mockConfig: FileUploadConfig;
+  let onValueUpdate: jasmine.Spy;
 
   beforeEach(async () => {
     mockSurface = jasmine.createSpyObj<SurfaceModel<any>>('SurfaceModel', ['dispatchAction'], {
-      dataModel: jasmine.createSpyObj('DataModel', ['set']) as any,
+      dataModel: new DataModel(),
     });
 
-    mockSurfaceGroup = jasmine.createSpyObj<SurfaceGroupModel<any>>('SurfaceGroupModel', [
+    const mockSurfaceGroup = jasmine.createSpyObj<SurfaceGroupModel<any>>('SurfaceGroupModel', [
       'getSurface',
     ]);
     mockSurfaceGroup.getSurface.and.returnValue(mockSurface);
 
-    mockRendererService = jasmine.createSpyObj<A2uiRendererService>('A2uiRendererService', [], {
-      surfaceGroup: mockSurfaceGroup,
-    });
+    const mockRendererService = jasmine.createSpyObj<A2uiRendererService>(
+      'A2uiRendererService',
+      [],
+      {surfaceGroup: mockSurfaceGroup},
+    );
 
-    mockConfig = {
-      maxInlineSize: 500_000,
-    };
+    mockConfig = {maxInlineSize: 500_000};
 
     await TestBed.configureTestingModule({
       imports: [FileUploadComponent],
@@ -62,8 +85,8 @@ describe('FileUploadComponent', () => {
     fixture = TestBed.createComponent(FileUploadComponent);
     component = fixture.componentInstance;
 
-    // Set required inputs from CatalogComponent
-    fixture.componentRef.setInput('props', {});
+    onValueUpdate = jasmine.createSpy('onUpdate');
+    fixture.componentRef.setInput('props', {value: bound(undefined, onValueUpdate)});
     fixture.componentRef.setInput('surfaceId', 'test-surface');
     fixture.componentRef.setInput('componentId', 'test-component');
 
@@ -83,10 +106,11 @@ describe('FileUploadComponent', () => {
 
   it('should read values from props', () => {
     fixture.componentRef.setInput('props', {
-      multiple: signal(true),
-      label: signal('Upload here'),
-      accept: signal('image/*'),
-      maxSize: signal(1024),
+      value: bound(undefined, onValueUpdate),
+      multiple: bound(true),
+      label: bound('Upload here'),
+      accept: bound('image/*'),
+      maxSize: bound(1024),
     });
     fixture.detectChanges();
 
@@ -96,110 +120,97 @@ describe('FileUploadComponent', () => {
     expect(component.maxSize()).toBe(1024);
   });
 
-  it('should show error if file exceeds max size', fakeAsync(() => {
+  it('should show error and not touch the value if a file exceeds max size', fakeAsync(() => {
     fixture.componentRef.setInput('props', {
-      maxSize: signal(100),
+      value: bound(undefined, onValueUpdate),
+      maxSize: bound(100),
     });
     fixture.detectChanges();
 
-    const file = new File([''], 'test.txt');
-    Object.defineProperty(file, 'size', {value: 1024});
-
-    component.onFileSelected({
-      target: {files: [file]},
-    } as any);
-
+    component.onFileSelected({target: {files: [fileOfSize('test.txt', 1024)]}} as any);
     tick();
 
     expect(component.uploadState()).toBe('error');
     expect(component.errorMessage()).toContain('exceeds limit');
+    expect(onValueUpdate).not.toHaveBeenCalled();
   }));
 
-  it('should process file and call dispatchAction on success (inline)', fakeAsync(() => {
-    const file = new File(['hello'], 'test.txt', {type: 'text/plain'});
-    Object.defineProperty(file, 'size', {value: 5});
+  it('should write an inline FileReference to the bound value when no upload handler is configured', fakeAsync(() => {
+    mockFileReader('data:text/plain;base64,aGVsbG8=');
 
-    // Mock FileReader
-    const mockFileReader = {
-      readAsDataURL: jasmine.createSpy('readAsDataURL').and.callFake(function (this: any) {
-        this.result = 'data:text/plain;base64,aGVsbG8=';
-        this.onload();
-      }),
-    };
-    spyOn(window as any, 'FileReader').and.returnValue(mockFileReader);
-
-    component.onFileSelected({
-      target: {files: [file]},
-    } as any);
-
+    component.onFileSelected({target: {files: [fileOfSize('test.txt', 5)]}} as any);
     tick();
 
     expect(component.uploadState()).toBe('success');
     expect(component.progress()).toBe(100);
-    expect(component.uploadedFiles().length).toBe(1);
-    expect(component.uploadedFiles()[0].fileId).toBe('data:text/plain;base64,aGVsbG8=');
 
-    expect(mockSurface.dataModel.set).toHaveBeenCalledWith('/uploaded_files', undefined);
-    expect(mockSurface.dispatchAction).toHaveBeenCalled();
+    const [reference] = component.uploadedFiles();
+    expect(reference.fileId.startsWith(INLINE_URI_PREFIX)).toBeTrue();
+    expect(reference.inlineData).toBe('data:text/plain;base64,aGVsbG8=');
+    expect(reference.fileName).toBe('test.txt');
+    expect(reference.fileSize).toBe(5);
+    expect(reference.mimeType).toBe('text/plain');
+
+    // Cleared when the batch starts, then written when it completes.
+    expect(onValueUpdate.calls.allArgs()).toEqual([[[]], [[reference]]]);
+    // No `action` declared, so nothing is dispatched to the agent.
+    expect(mockSurface.dispatchAction).not.toHaveBeenCalled();
+  }));
+
+  it('should dispatch the action when the agent declares one', fakeAsync(() => {
+    const action = {event: {name: 'files_uploaded', context: {}}};
+    fixture.componentRef.setInput('props', {
+      value: bound(undefined, onValueUpdate),
+      action: bound(action),
+    });
+    fixture.detectChanges();
+    mockFileReader('data:text/plain;base64,aGVsbG8=');
+
+    component.onFileSelected({target: {files: [fileOfSize('test.txt', 5)]}} as any);
+    tick();
+
+    expect(mockSurface.dispatchAction).toHaveBeenCalledTimes(1);
+    const [dispatched, componentId] = mockSurface.dispatchAction.calls.mostRecent().args;
+    expect((dispatched as any).event.name).toBe('files_uploaded');
+    expect(componentId).toBe('test-component');
   }));
 
   it('should enforce single file if multiple is false', fakeAsync(() => {
-    const file1 = new File(['a'], 'a.txt');
-    const file2 = new File(['b'], 'b.txt');
-
-    // Mock FileReader
-    const mockFileReader = {
-      readAsDataURL: jasmine.createSpy('readAsDataURL').and.callFake(function (this: any) {
-        this.result = 'data:text/plain;base64,YXNkZg==';
-        this.onload();
-      }),
-    };
-    spyOn(window as any, 'FileReader').and.returnValue(mockFileReader);
+    mockFileReader('data:text/plain;base64,YXNkZg==');
 
     component.onFileSelected({
-      target: {files: [file1, file2]},
+      target: {files: [fileOfSize('a.txt', 1), fileOfSize('b.txt', 1)]},
     } as any);
-
     tick();
 
     expect(component.uploadedFiles().length).toBe(1);
-    expect(component.uploadedFiles()[0].metadata.fileName).toBe('a.txt');
+    expect(component.uploadedFiles()[0].fileName).toBe('a.txt');
   }));
 
-  it('should remove file and call onRemoveFile if provided', () => {
+  it('should remove a file, call onRemoveFile and write the remaining files to the value', fakeAsync(() => {
     mockConfig.onRemoveFile = jasmine.createSpy('onRemoveFile');
 
     component.uploadedFiles.set([
-      {fileId: 'test-uri', metadata: {fileName: 'test.txt', fileSize: 10, mimeType: 'text/plain'}},
+      {fileId: 'test-uri', fileName: 'test.txt', fileSize: 10, mimeType: 'text/plain'},
     ]);
-    component.uploadState.set('success');
+    component.uploadState.set(UploadState.SUCCESS);
 
     component.removeFile(0);
+    tick();
 
     expect(component.uploadedFiles().length).toBe(0);
     expect(mockConfig.onRemoveFile).toHaveBeenCalledWith('test-uri');
     expect(component.uploadState()).toBe('idle');
-    expect(mockSurface.dispatchAction).toHaveBeenCalled();
-  });
+    expect(onValueUpdate).toHaveBeenCalledWith([]);
+  }));
 
   it('should process files on drop', fakeAsync(() => {
-    const file = new File(['drop'], 'drop.txt', {type: 'text/plain'});
-    Object.defineProperty(file, 'size', {value: 4});
-
-    const mockFileReader = {
-      readAsDataURL: jasmine.createSpy('readAsDataURL').and.callFake(function (this: any) {
-        this.result = 'data:text/plain;base64,ZHJvcA==';
-        this.onload();
-      }),
-    };
-    spyOn(window as any, 'FileReader').and.returnValue(mockFileReader);
+    mockFileReader('data:text/plain;base64,ZHJvcA==');
 
     const mockEvent = {
       preventDefault: jasmine.createSpy('preventDefault'),
       stopPropagation: jasmine.createSpy('stopPropagation'),
-      dataTransfer: {
-        files: [file],
-      },
+      dataTransfer: {files: [fileOfSize('drop.txt', 4)]},
     };
 
     component.onDrop(mockEvent as any);
@@ -208,11 +219,10 @@ describe('FileUploadComponent', () => {
     expect(mockEvent.preventDefault).toHaveBeenCalled();
     expect(mockEvent.stopPropagation).toHaveBeenCalled();
     expect(component.uploadedFiles().length).toBe(1);
-    expect(component.uploadedFiles()[0].metadata.fileName).toBe('drop.txt');
+    expect(component.uploadedFiles()[0].fileName).toBe('drop.txt');
   }));
 
-  it('should use onUploadFile callback (IoC) if provided in config', fakeAsync(() => {
-    // Provide the IoC callback
+  it('should use the host upload handler when configured and write its pointer to the value', fakeAsync(() => {
     mockConfig.onUploadFile = jasmine
       .createSpy('onUploadFile')
       .and.callFake(async (file: File, progressCallback: (percent: number) => void) => {
@@ -221,36 +231,24 @@ describe('FileUploadComponent', () => {
         return 'mock-remote-uri://' + file.name;
       });
 
-    const file = new File(['mock content'], 'remote.txt', {type: 'text/plain'});
-    Object.defineProperty(file, 'size', {value: 1024});
-
-    component.onFileSelected({
-      target: {files: [file]},
-    } as any);
-
+    component.onFileSelected({target: {files: [fileOfSize('remote.txt', 1024)]}} as any);
     tick();
 
     expect(mockConfig.onUploadFile).toHaveBeenCalled();
     expect(component.uploadState()).toBe('success');
     expect(component.progress()).toBe(100);
-    expect(component.uploadedFiles().length).toBe(1);
-    expect(component.uploadedFiles()[0].fileId).toBe('mock-remote-uri://remote.txt');
 
-    expect(mockSurface.dispatchAction).toHaveBeenCalled();
+    const [reference] = component.uploadedFiles();
+    expect(reference.fileId).toBe('mock-remote-uri://remote.txt');
+    expect(reference.inlineData).toBeUndefined();
+    expect(onValueUpdate).toHaveBeenCalledWith([reference]);
   }));
 
-  it('should throw error if file exceeds inline limit and onUploadFile is not provided', fakeAsync(() => {
-    // Config does not have onUploadFile and file exceeds maxInlineSize
+  it('should show an error if a file exceeds the inline limit and no upload handler is configured', fakeAsync(() => {
     mockConfig.onUploadFile = undefined;
     mockConfig.maxInlineSize = 10;
 
-    const file = new File(['very large file content'], 'large.txt', {type: 'text/plain'});
-    Object.defineProperty(file, 'size', {value: 1024}); // > 10
-
-    component.onFileSelected({
-      target: {files: [file]},
-    } as any);
-
+    component.onFileSelected({target: {files: [fileOfSize('large.txt', 1024)]}} as any);
     tick();
 
     expect(component.uploadState()).toBe('error');

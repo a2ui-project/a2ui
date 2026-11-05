@@ -1,5 +1,12 @@
 # A2UI FileUpload UI Component - Architecture Design Proposal
 
+> This is the original proposal. The component contract it led to (the `FileUpload` properties,
+> the `value` data binding, and the `FileReference` shape with a flat `fileId`, `fileName`,
+> `fileSize`, `mimeType`) is now specified in the
+> [A2UI File Upload catalog](../../../../../../catalogs/file_upload/README.md), which this sample
+> implements for protocol v0.9. Where the two differ (for example the `upload_complete` event and
+> the nested `metadata` object sketched below), the catalog is authoritative.
+
 Upload delegation and file handling without context bloat
 
 ## 1. Executive summary

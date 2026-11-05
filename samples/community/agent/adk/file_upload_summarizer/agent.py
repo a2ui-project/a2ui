@@ -33,7 +33,7 @@ from google.adk.planners.built_in_planner import BuiltInPlanner
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
-from tools import show_file_uploader_tool, summarize_file_tool, update_upload_context_tool
+from tools import show_file_uploader_tool, summarize_file_tool
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ When the user greets you or asks for the file uploader, you MUST call the `show_
 
 IMPORTANT: Do NOT attempt to construct the A2UI JSON manually. The tools handle it automatically.
 
-When you receive an `"upload_complete"` action event, extract the `files` array from the event payload and pass it directly as `files` to the `update_upload_context_tool`. You MUST pass the objects exactly as they appear in the event payload, do NOT strip any properties. Do NOT proactively call `summarize_file_tool` after this step; you must wait for the user to explicitly trigger the summarize action.
+The renderer writes the uploaded file references straight into the surface data model, so there is nothing to do when an upload finishes; wait for the user to trigger the summarize action.
 
 When you receive a `"summarize_file"` action event OR when the user explicitly asks to summarize the uploaded files, call `summarize_file_tool` with the `files` array. Do NOT call `summarize_file_tool` automatically just because uploaded file context is present in the prompt; wait for an explicit user command or action event.
 
@@ -54,7 +54,6 @@ CRITICAL: Once `summarize_file_tool` completes and returns its JSON result conta
 WORKFLOW_DESCRIPTION = """
 1. **Analyze Request**: 
    - If user asks to show the file uploader: Call `show_file_uploader_tool`.
-   - If you receive an `"upload_complete"` action event (handshake after file upload): Extract the `files` array and the `surfaceId` from the event payload and pass them to `update_upload_context_tool`. IMPORTANT: Do NOT call `summarize_file_tool` automatically here.
    - If you receive a `"summarize_file"` action event OR the user explicitly asks to summarize the uploaded files: Call `summarize_file_tool` with the `files` array. After the `summarize_file_tool` returns, you MUST generate a final Markdown text response using the returned `summary_title` and `summary_text` to show the user. Never return only the tool call response.
 """
 
@@ -275,7 +274,6 @@ class FileUploadSummarizerAgent:
             tools=[
                 show_file_uploader_tool,
                 summarize_file_tool,
-                update_upload_context_tool,
             ],
             planner=BuiltInPlanner(
                 thinking_config=types.ThinkingConfig(

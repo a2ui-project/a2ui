@@ -70,28 +70,27 @@ export class A2aServiceImpl implements A2aService {
           if (parsed.action) {
             const action = parsed.action;
 
-            // When an upload completes, we extract the large inline base64 data and append
-            // them as dedicated A2A FileParts. This prevents bloating the text action payload
-            // while preserving the fileId for pointer resolution.
-            if (action.name === 'upload_complete' && Array.isArray(action.context?.files)) {
-              let hasExtractedFiles = false;
-
-              for (const uploadedFile of action.context.files) {
-                if (!uploadedFile.inlineData || !uploadedFile.fileId) {
+            // File references bound into an action context may carry inline base64
+            // content (the renderer's fallback when no upload handler is configured).
+            // Move it into dedicated A2A FileParts keyed by fileId so the text action
+            // payload stays small while the agent can still resolve the pointer.
+            let hasExtractedFiles = false;
+            for (const value of Object.values(action.context ?? {})) {
+              if (!Array.isArray(value)) {
+                continue;
+              }
+              for (const uploadedFile of value) {
+                if (!uploadedFile?.inlineData || !uploadedFile.fileId) {
                   continue;
                 }
 
-                const mimeType =
-                  uploadedFile.mimeType ||
-                  uploadedFile.metadata?.mimeType ||
-                  'application/octet-stream';
+                const mimeType = uploadedFile.mimeType || 'application/octet-stream';
 
                 // Strip the data URL prefix if present (e.g., "data:image/png;base64,...")
                 const base64Data = uploadedFile.inlineData.includes(',')
                   ? uploadedFile.inlineData.split(',')[1]
                   : uploadedFile.inlineData;
 
-                // Append as a dedicated file part
                 // @ts-ignore
                 newParts.push({
                   kind: 'file',
@@ -99,16 +98,15 @@ export class A2aServiceImpl implements A2aService {
                   metadata: {fileId: uploadedFile.fileId},
                 });
 
-                // Remove inlineData from the JSON payload to reduce size
                 delete uploadedFile.inlineData;
                 hasExtractedFiles = true;
               }
+            }
 
-              // Replace the text part with the modified JSON payload to omit inlineData,
-              // while preserving the fileId for pointer resolution.
-              if (hasExtractedFiles) {
-                p.text = JSON.stringify(parsed);
-              }
+            // Replace the text part with the modified JSON payload to omit inlineData,
+            // while preserving the fileId for pointer resolution.
+            if (hasExtractedFiles) {
+              p.text = JSON.stringify(parsed);
             }
 
             this.telemetry.log({
