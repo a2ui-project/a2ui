@@ -135,5 +135,40 @@ void main() {
         );
       },
     );
+
+    test(
+      'inherits formatString catalogId for v1.0 template calls '
+      'while keeping @index catalogless',
+      () {
+        final Catalog<ComponentApi, FunctionImplementation> basic =
+            BasicCatalogV1_0.create();
+        final surface = SurfaceModel<ComponentApi>(
+          id: 's-no-default',
+          protocolVersion: '1.0',
+          availableCatalogs: {basic.id: basic},
+        );
+        final errors = <A2uiError>[];
+        surface.errors.listen(errors.add);
+        final rootCtx = ComponentContext(
+          surface: surface,
+          componentId: 'root',
+          basePath: '/items/2',
+          index: 2,
+        ).dataContext;
+
+        final Map<String, Object?> callExpr = {
+          '@call': 'formatString',
+          'catalogId': basic.id,
+          'args': {
+            'value':
+                r'Row ${@index()}: '
+                r"${pluralize(value: 2, one: 'drop', other: 'drops')}",
+          },
+        };
+        expect(rootCtx.resolveDynamicValue(callExpr), 'Row 2: drops');
+        expect(rootCtx.resolveSignal(callExpr).value, 'Row 2: drops');
+        expect(errors, isEmpty);
+      },
+    );
   });
 }
