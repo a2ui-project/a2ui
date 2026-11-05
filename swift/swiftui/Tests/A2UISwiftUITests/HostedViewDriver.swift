@@ -209,24 +209,32 @@ final class HostedViewDriver {
     RunLoop.main.run(until: Date())
   }
 
+  // SwiftUI does not vend its accessibility tree to an `NSHostingView` in a `swift test` process
+  // (no assistive client is attached), so buttons, text, and their accessibility attributes have
+  // no native element to find or press: the hosting view's accessibility children are only focus
+  // rings. Controls that SwiftUI backs with an AppKit or UIKit view, such as text fields, are in
+  // the hierarchy, and text entry goes through them. Presses and accessibility reads go through
+  // the mounted surface's resolved nodes and `A2UIAccessibilityModifier` instead.
+
   /// Simulates a user-initiated press on the hosted component identified by `componentID`.
+  ///
+  /// Runs the mounted node's action with user activation, as a press of the rendered control
+  /// would; a disabled button or an invalid component is not pressed.
   func press(componentID: String) throws {
     flush()
     guard let targetNode = findNode(componentID: componentID) else {
       throw AdapterConformanceError("Component '\(componentID)' not found in hosted surface")
     }
-    _ = locateNativeTarget(componentID: componentID)
     if targetNode.type == "Button" {
-      let button = A2UIButton(node: targetNode)
-      guard !button.isDisabled else { return }
-      targetNode.action(for: "action", userActivation: true)?()
+      guard !A2UIButton(node: targetNode).isDisabled else { return }
     } else if targetNode.type == "CheckBox" {
-      let checkBox = A2UICheckBox(node: targetNode)
-      checkBox.isOn.wrappedValue.toggle()
+      A2UICheckBox(node: targetNode).isOn.wrappedValue.toggle()
+      flush()
+      return
     } else {
       guard targetNode.isValid else { return }
-      targetNode.action(for: "action", userActivation: true)?()
     }
+    targetNode.action(for: "action", userActivation: true)?()
     if targetNode.type == "Modal" {
       openModalIDs.insert(targetNode.id)
     }
@@ -248,7 +256,6 @@ final class HostedViewDriver {
     guard findNode(componentID: componentID) != nil else {
       throw AdapterConformanceError("Component '\(componentID)' not found in hosted surface")
     }
-    _ = locateNativeTarget(componentID: componentID)
     selectedTabIndices[componentID] = index
     flush()
   }
@@ -264,39 +271,49 @@ final class HostedViewDriver {
   }
 
   /// Enters `text` into the hosted text input component identified by `componentID`.
+  ///
+  /// The text is typed into the mounted native text field and delivered through the field's
+  /// change notifications, then checked to have reached the component's bound value.
   func enterText(_ text: String, componentID: String) throws {
     flush()
     guard let targetNode = findNode(componentID: componentID) else {
       throw AdapterConformanceError("Component '\(componentID)' not found in hosted surface")
     }
     #if canImport(AppKit)
-      if let textFieldView = findNativeView(
-        in: hostingView,
-        componentID: componentID
-      ) as? NSTextField {
-        textFieldView.stringValue = text
-        NotificationCenter.default.post(
-          name: NSControl.textDidChangeNotification,
-          object: textFieldView
+      guard let field = locateNativeTextField(for: targetNode) else {
+        throw AdapterConformanceError(
+          "No native text field for '\(componentID)' in the hosted view hierarchy"
         )
-        flush()
       }
+      field.stringValue = text
+      let notification = Notification(name: NSControl.textDidChangeNotification, object: field)
+      field.delegate?.controlTextDidChange?(notification)
+      NotificationCenter.default.post(notification)
+    #elseif canImport(UIKit)
+      guard let field = locateNativeTextField(for: targetNode) else {
+        throw AdapterConformanceError(
+          "No native text field for '\(componentID)' in the hosted view hierarchy"
+        )
+      }
+      field.text = text
+      field.sendActions(for: .editingChanged)
     #endif
-    if findNode(componentID: componentID)?.string(for: "value") != text {
-      let textField = A2UITextField(node: targetNode)
-      textField.valueBinding.wrappedValue = text
-      flush()
+    flush()
+    let value = findNode(componentID: componentID)?.string(for: "value")
+    guard value == text else {
+      throw AdapterConformanceError(
+        "Text typed into '\(componentID)' did not reach its value (got \(String(describing: value)))"
+      )
     }
   }
 
   /// Sets the boolean state `on` on the hosted toggle/checkbox component identified by
-  /// `componentID`.
+  /// `componentID`, through the mounted node's binding.
   func setToggle(_ on: Bool, componentID: String) throws {
     flush()
     guard let targetNode = findNode(componentID: componentID) else {
       throw AdapterConformanceError("Component '\(componentID)' not found in hosted surface")
     }
-    _ = locateNativeTarget(componentID: componentID)
     let checkBox = A2UICheckBox(node: targetNode)
     if checkBox.isOn.wrappedValue != on {
       checkBox.isOn.wrappedValue = on
@@ -310,7 +327,6 @@ final class HostedViewDriver {
     guard let targetNode = findNode(componentID: componentID) else {
       throw AdapterConformanceError("Component '\(componentID)' not found in hosted surface")
     }
-    _ = locateNativeTarget(componentID: componentID)
     let picker = A2UIChoicePicker(node: targetNode)
     for value in values {
       picker.selectionBinding(forOptionValue: value).wrappedValue = true
@@ -324,7 +340,6 @@ final class HostedViewDriver {
     guard let targetNode = findNode(componentID: componentID) else {
       throw AdapterConformanceError("Component '\(componentID)' not found in hosted surface")
     }
-    _ = locateNativeTarget(componentID: componentID)
     targetNode.binding(for: "value", default: 0.0).wrappedValue = value
     flush()
   }
@@ -336,7 +351,6 @@ final class HostedViewDriver {
     guard let targetNode = findNode(componentID: componentID) else {
       throw AdapterConformanceError("Component '\(componentID)' not found in hosted surface")
     }
-    _ = locateNativeTarget(componentID: componentID)
     if let parsed = DateTimeInputValue(parsing: value) {
       let enableDate = targetNode.bool(for: "enableDate") ?? false
       let enableTime = targetNode.bool(for: "enableTime") ?? false
@@ -353,26 +367,24 @@ final class HostedViewDriver {
     flush()
   }
 
-  /// Returns the hosted accessibility element for `componentID`, or `nil` if the component is
-  /// not present in the mounted surface.
+  /// Returns the accessibility element for `componentID` in the mounted surface, or `nil` if the
+  /// component is not present.
+  ///
+  /// A native element with the component's `a2ui-<id>` identifier is used when the hierarchy has
+  /// one; otherwise the values come from the mounted node and `A2UIAccessibilityModifier`.
   func accessibilityNode(componentID: String) -> AccessibilityElement? {
     flush()
     guard let node = findNode(componentID: componentID) else { return nil }
-    let nativeTarget = locateNativeTarget(componentID: componentID)
     let modifier = A2UIAccessibilityModifier(node: node)
-    let label = effectiveLabel(for: node, modifier: modifier, nativeElement: nativeTarget)
-    let help = modifier.hint ?? nativeAccessibilityHelp(from: nativeTarget)
-    let role = semanticRole(for: node)
-    let live = node.explicitAccessibilityAttributes?.live
-    let checked = checkedState(for: node)
+    let nativeTarget = locateNativeTarget(componentID: componentID)
     return AccessibilityElement(
       identifier: modifier.identifier,
-      label: label,
-      help: help,
-      role: role,
-      live: live,
+      label: nativeAccessibilityLabel(from: nativeTarget) ?? effectiveLabel(for: node, modifier),
+      help: nativeAccessibilityHelp(from: nativeTarget) ?? modifier.hint,
+      role: semanticRole(for: node),
+      live: node.explicitAccessibilityAttributes?.live,
       isHidden: modifier.isHidden,
-      isChecked: checked,
+      isChecked: checkedState(for: node),
       nativeElement: nativeTarget
     )
   }
@@ -386,15 +398,11 @@ final class HostedViewDriver {
     return nodes[componentID]
   }
 
+  /// Whether `candidate` is the accessibility identifier (`a2ui-<componentID>`) of the
+  /// component itself, rather than of one of its auxiliary subviews or of a sibling whose ID
+  /// ends in `componentID`.
   private func matchesIdentifier(_ candidate: String?, componentID: String) -> Bool {
-    guard let candidate, !candidate.isEmpty else { return false }
-    if candidate == "a2ui-\(componentID)" || candidate.hasPrefix("a2ui-\(componentID):") {
-      return true
-    }
-    if candidate.hasSuffix("_\(componentID)") || candidate.contains("_\(componentID):") {
-      return true
-    }
-    return false
+    candidate == "a2ui-\(componentID)"
   }
 
   private func locateNativeTarget(componentID: String) -> AnyObject? {
@@ -434,7 +442,7 @@ final class HostedViewDriver {
       visited: inout Set<ObjectIdentifier>
     ) -> AnyObject? {
       let objectID = ObjectIdentifier(element)
-      guard visited.insert(objectID).inserted else { return nil }
+      guard visited.count < 2000, visited.insert(objectID).inserted else { return nil }
 
       if let axElement = element as? any NSAccessibilityProtocol,
         matchesIdentifier(axElement.accessibilityIdentifier(), componentID: componentID)
@@ -447,16 +455,10 @@ final class HostedViewDriver {
       {
         return element
       }
-
-      let children: [Any]
-      if let axElement = element as? any NSAccessibilityProtocol,
-        let axChildren = axElement.accessibilityChildren()
-      {
-        children = axChildren
-      } else if let view = element as? NSView {
-        children = view.subviews
-      } else {
-        children = []
+      var children: [Any] =
+        (element as? any NSAccessibilityProtocol)?.accessibilityChildren() ?? []
+      if let view = element as? NSView {
+        children += view.subviews
       }
 
       for child in children {
@@ -484,27 +486,6 @@ final class HostedViewDriver {
       return nil
     }
   #endif
-
-  private func effectiveLabel(
-    for node: A2UICore.Node,
-    modifier: A2UIAccessibilityModifier,
-    nativeElement: AnyObject?
-  ) -> String? {
-    if let explicit = modifier.label {
-      return explicit
-    }
-    if let inferred = node.accessibilityAttributes?.label, !inferred.isEmpty {
-      return inferred
-    }
-    if let child = node.child(for: "child") {
-      if let childLabel = child.accessibilityAttributes?.label ?? child.string(for: "text"),
-        !childLabel.isEmpty
-      {
-        return childLabel
-      }
-    }
-    return nativeAccessibilityLabel(from: nativeElement)
-  }
 
   private func nativeAccessibilityLabel(from element: AnyObject?) -> String? {
     #if canImport(AppKit)
@@ -556,8 +537,91 @@ final class HostedViewDriver {
     }
   }
 
+  private func effectiveLabel(
+    for node: A2UICore.Node,
+    _ modifier: A2UIAccessibilityModifier
+  ) -> String? {
+    if let explicit = modifier.label {
+      return explicit
+    }
+    if let inferred = node.accessibilityAttributes?.label, !inferred.isEmpty {
+      return inferred
+    }
+    if let child = node.child(for: "child") {
+      return child.accessibilityAttributes?.label ?? child.string(for: "text")
+    }
+    return nil
+  }
+
   private func checkedState(for node: A2UICore.Node) -> Bool? {
     guard node.type == "CheckBox" else { return nil }
     return node.bool(for: "value") ?? false
   }
+
+  /// The texts a text field component shows as its label or placeholder, which SwiftUI passes on
+  /// to the backing native field.
+  private func fieldTexts(for node: A2UICore.Node) -> Set<String> {
+    let texts = [
+      node.string(for: "label"),
+      node.string(for: "placeholder"),
+      A2UIAccessibilityModifier(node: node).label,
+    ]
+    return Set(texts.compactMap { $0 }.filter { !$0.isEmpty })
+  }
+
+  #if canImport(AppKit)
+    /// The editable native text field backing a text field component: the one whose
+    /// placeholder or accessibility label is the component's label or placeholder, or the only
+    /// editable field in the hosted view.
+    private func locateNativeTextField(for node: A2UICore.Node) -> NSTextField? {
+      let fields = allTextFields(in: hostingView)
+      let texts = fieldTexts(for: node)
+      if let match = fields.first(where: { field in
+        [field.placeholderString, field.accessibilityLabel()].contains { text in
+          text.map(texts.contains) ?? false
+        }
+      }) {
+        return match
+      }
+      return fields.count == 1 ? fields.first : nil
+    }
+
+    private func allTextFields(in view: NSView) -> [NSTextField] {
+      var result: [NSTextField] = []
+      if let field = view as? NSTextField, field.isEditable {
+        result.append(field)
+      }
+      for subview in view.subviews {
+        result += allTextFields(in: subview)
+      }
+      return result
+    }
+  #elseif canImport(UIKit)
+    /// The native text field backing a text field component: the one whose placeholder or
+    /// accessibility label is the component's label or placeholder, or the only text field in
+    /// the hosted view.
+    private func locateNativeTextField(for node: A2UICore.Node) -> UITextField? {
+      let fields = allTextFields(in: hostingController.view)
+      let texts = fieldTexts(for: node)
+      if let match = fields.first(where: { field in
+        [field.placeholder, field.accessibilityLabel].contains { text in
+          text.map(texts.contains) ?? false
+        }
+      }) {
+        return match
+      }
+      return fields.count == 1 ? fields.first : nil
+    }
+
+    private func allTextFields(in view: UIView) -> [UITextField] {
+      var result: [UITextField] = []
+      if let field = view as? UITextField {
+        result.append(field)
+      }
+      for subview in view.subviews {
+        result += allTextFields(in: subview)
+      }
+      return result
+    }
+  #endif
 }

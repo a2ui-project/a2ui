@@ -41,10 +41,6 @@ public struct A2UIAccessibilityModifier: ViewModifier {
   /// the component applied them to its own control.
   let appliesLabelAndHint: Bool
 
-  private static let layoutContainerTypes: Set<String> = [
-    "Card", "Column", "List", "Modal", "Row", "Tabs",
-  ]
-
   public init(node: Node) {
     self.init(node: node, appliesLabelAndHint: true)
   }
@@ -60,12 +56,11 @@ public struct A2UIAccessibilityModifier: ViewModifier {
     "a2ui-\(node.id)"
   }
 
+  /// Whether the identifier is set here. A component that applied its label and hint to its own
+  /// control set the identifier on that control too. A container whose children stay separate
+  /// elements clears it with ``SwiftUI/View/a2uiAccessibilityElement(for:children:)``.
   private var appliesAccessibilityIdentifier: Bool {
-    guard appliesLabelAndHint else { return false }
-    if Self.layoutContainerTypes.contains(node.type) {
-      return label != nil || hint != nil
-    }
-    return true
+    appliesLabelAndHint
   }
 
   /// The explicit accessibility label, if the agent set a non-empty one.
