@@ -47,7 +47,10 @@ public final class FormatStringFunction: FunctionImplementation, Sendable {
     var result = ""
 
     for part in parts {
-      let dynamicPart = context.atLeastV10 ? Self.adaptedForV10(part) : part
+      let dynamicPart =
+        context.atLeastV10
+        ? Self.adaptedForV10(part, catalogID: context.activeFunctionCatalogID)
+        : part
       let resolved = context.resolveDynamicValue(dynamicPart)
 
       switch resolved {
@@ -80,30 +83,42 @@ public final class FormatStringFunction: FunctionImplementation, Sendable {
   ///
   /// `ExpressionParser` emits v0.9 directive keys, which a v1.0 `DataContext` reads as plain
   /// object keys. On a v1.0 surface each part, including nested call arguments, is adapted
-  /// before it is resolved.
-  private static func adaptedForV10(_ part: JSONValue) -> JSONValue {
-    guard case .object(let dict) = part else {
+  /// before it is resolved. Non-system calls inherit `catalogID` from the enclosing
+  /// `formatString` call when present.
+  private static func adaptedForV10(_ part: JSONValue, catalogID: String? = nil) -> JSONValue {
+    switch part {
+    case .array(let items):
+      return .array(items.map { adaptedForV10($0, catalogID: catalogID) })
+    case .object(let dict):
+      if let path = dict["path"]?.stringValue, dict["@path"] == nil {
+        return .object(["@path": .string(path)])
+      }
+      if let call = dict["call"]?.stringValue, dict["@call"] == nil {
+        var args: OrderedDictionary<String, JSONValue> = [:]
+        if case .object(let rawArgs)? = dict["args"] {
+          for (key, value) in rawArgs {
+            args[key] = adaptedForV10(value, catalogID: catalogID)
+          }
+        }
+        var adapted: OrderedDictionary<String, JSONValue> = [
+          "@call": .string(call),
+          "args": .object(args),
+        ]
+        if let catalogID, !call.hasPrefix("@") {
+          adapted["catalogId"] = .string(catalogID)
+        }
+        if let returnType = dict["returnType"] {
+          adapted["returnType"] = returnType
+        }
+        return .object(adapted)
+      }
+      var adaptedDict: OrderedDictionary<String, JSONValue> = [:]
+      for (key, value) in dict {
+        adaptedDict[key] = adaptedForV10(value, catalogID: catalogID)
+      }
+      return .object(adaptedDict)
+    default:
       return part
     }
-    if let path = dict["path"]?.stringValue, dict["@path"] == nil {
-      return .object(["@path": .string(path)])
-    }
-    if let call = dict["call"]?.stringValue, dict["@call"] == nil {
-      var args: OrderedDictionary<String, JSONValue> = [:]
-      if case .object(let rawArgs)? = dict["args"] {
-        for (key, value) in rawArgs {
-          args[key] = adaptedForV10(value)
-        }
-      }
-      var adapted: OrderedDictionary<String, JSONValue> = [
-        "@call": .string(call),
-        "args": .object(args),
-      ]
-      if let returnType = dict["returnType"] {
-        adapted["returnType"] = returnType
-      }
-      return .object(adapted)
-    }
-    return part
   }
 }

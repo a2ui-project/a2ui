@@ -201,4 +201,35 @@ struct FormatStringFunctionTests {
     )
     #expect(result == .string("{\"path\":\"/user/name\"}"))
   }
+
+  @Test func inheritsCatalogIDForTemplateCallsWhileKeepingIndexCataloglessOnDefaultlessV10Surface()
+    throws
+  {
+    let basicCatalog = BasicCatalog.makeCatalog(version: .v10).eraseToAnyCatalog()
+    let resolver = NodeResolver(
+      surfaceID: "s-no-default",
+      catalogs: [basicCatalog],
+      defaultCatalogID: nil,
+      protocolVersion: .v10
+    )
+    let itemContext = DataContext(
+      dataModel: resolver.dataModel,
+      path: "/items/2",
+      functionHandler: resolver,
+      protocolVersion: .v10,
+      index: 2
+    )
+    let resolved = itemContext.resolveDynamicValue(
+      .object([
+        "@call": .string("formatString"),
+        "catalogId": .string(basicCatalog.id),
+        "args": .object([
+          "value": .string(
+            "Row ${@index()}: ${pluralize(value: 2, one: 'drop', other: 'drops')}"
+          )
+        ]),
+      ])
+    )
+    #expect(resolved == .string("Row 2: drops"))
+  }
 }
