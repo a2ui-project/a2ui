@@ -24,15 +24,23 @@ import {
   FunctionPruningTransformer,
 } from '../../src/index.js';
 import {loadCases} from './loader.js';
-import {conformancePath, describeSuite, expectCatalogContents} from './suite-helpers.js';
+import {
+  assertKnownKeys,
+  CASE_METADATA_KEYS,
+  conformancePath,
+  describeSuite,
+  expectCatalogContents,
+  KNOWN_FAILURES,
+} from './suite-helpers.js';
 
-/** Cases that run but do not pass yet, with the reason for each. */
-const KNOWN_FAILURES = new Map<string, string>([]);
+const TRANSFORM_CATALOG_CASE_KEYS = new Set([...CASE_METADATA_KEYS, 'args', 'expect']);
+const TRANSFORM_CATALOG_ARGS_KEYS = new Set(['catalog', 'transformers']);
 
 describeSuite(
   'Conformance: catalog_transformer.yaml',
   loadCases([conformancePath('agent/catalog_transformer.yaml')]),
   async testCase => {
+    assertKnownKeys(testCase, TRANSFORM_CATALOG_CASE_KEYS, 'transform_catalog case');
     const args = (testCase.args ?? {}) as {
       catalog: string;
       transformers?: Array<{
@@ -40,6 +48,11 @@ describeSuite(
         function_pruning?: string[] | null;
       }>;
     };
+    assertKnownKeys(
+      args as Record<string, unknown>,
+      TRANSFORM_CATALOG_ARGS_KEYS,
+      'transform_catalog args',
+    );
 
     const filePath = conformancePath(args.catalog);
     const doc = JSON.parse(readFileSync(filePath, 'utf8')) as Record<string, unknown>;
@@ -70,12 +83,6 @@ describeSuite(
       serialized_defs_omit?: string[];
     };
 
-    if (expected.catalog_id !== undefined) {
-      expect(transformed.id).toBe(expected.catalog_id);
-    }
-    if (expected.protocol_version !== undefined) {
-      expect(transformed.protocolVersion).toBe(expected.protocol_version);
-    }
     expectCatalogContents(transformed, expected);
 
     if (expected.serialized_defs_contain || expected.serialized_defs_omit) {

@@ -14,30 +14,48 @@
  * limitations under the License.
  */
 
-import {expect} from 'vitest';
-
 import {FileSystemCatalogProvider, ProtocolVersion} from '../../src/index.js';
 import {loadCases} from './loader.js';
 import {
+  assertExpectedError,
+  assertKnownKeys,
+  CASE_METADATA_KEYS,
   conformancePath,
   describeSuite,
-  errorClassFor,
   expectCatalogContents,
+  KNOWN_FAILURES,
 } from './suite-helpers.js';
 
-/** Cases that run but do not pass yet, with the reason for each. */
-const KNOWN_FAILURES = new Map<string, string>([]);
+const PROVIDE_CATALOG_CASE_KEYS = new Set([
+  ...CASE_METADATA_KEYS,
+  'args',
+  'expect',
+  'expect_error',
+]);
+const PROVIDE_CATALOG_ARGS_KEYS = new Set([
+  'provider',
+  'path',
+  'catalog',
+  'catalog_id',
+  'protocol_version',
+]);
 
 describeSuite(
   'Conformance: catalog_provider.yaml',
   loadCases([conformancePath('agent/catalog_provider.yaml')]),
   async testCase => {
+    assertKnownKeys(testCase, PROVIDE_CATALOG_CASE_KEYS, 'provide_catalog case');
     const args = testCase.args as {
       provider: string;
       path: string;
       catalog_id?: string;
       protocol_version?: ProtocolVersion;
     };
+    assertKnownKeys(
+      args as Record<string, unknown>,
+      PROVIDE_CATALOG_ARGS_KEYS,
+      'provide_catalog args',
+    );
     if (args.provider !== 'file_system') {
       throw new Error(`Unknown provider '${args.provider}'`);
     }
@@ -48,7 +66,7 @@ describeSuite(
     );
 
     if (testCase.expect_error) {
-      expect(() => provider.load()).toThrow(errorClassFor(testCase));
+      assertExpectedError(() => provider.load(), testCase);
       return;
     }
 
@@ -59,12 +77,6 @@ describeSuite(
       functions?: string[];
     };
     const catalog = provider.load();
-    if (expected.catalog_id !== undefined) {
-      expect(catalog.id).toBe(expected.catalog_id);
-    }
-    if (expected.protocol_version !== undefined) {
-      expect(catalog.protocolVersion).toBe(expected.protocol_version);
-    }
     expectCatalogContents(catalog, expected);
   },
   {knownFailures: KNOWN_FAILURES},

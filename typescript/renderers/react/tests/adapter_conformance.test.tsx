@@ -62,13 +62,14 @@ afterEach(() => {
   }
 });
 
+const accessibilityCases = loadYamlCases<AccessibilityTestCase>('accessibility.yaml');
+const adapterCases = loadYamlCases<AdapterTestCase>('adapter_conformance.yaml');
+
 afterAll(() => {
-  assertAllUnsupportedMatched();
+  assertAllUnsupportedMatched(accessibilityCases, adapterCases);
 });
 
 describe('@a2ui/react Accessibility Conformance (conformance/core/accessibility.yaml)', () => {
-  const accessibilityCases = loadYamlCases<AccessibilityTestCase>('accessibility.yaml');
-
   for (const testCase of accessibilityCases) {
     const testTitle = `${testCase.name}: ${testCase.description ?? ''}`;
     it(testTitle, async ctx => {
@@ -81,7 +82,6 @@ describe('@a2ui/react Accessibility Conformance (conformance/core/accessibility.
       pendingManifestByTestName.set(testTitle, record);
       let rendered: RenderResult | undefined;
       try {
-        assertKnownAccessibilityCase(testCase);
         const steps: AccessibilityStep[] = testCase.steps ?? [
           {
             messages: testCase.messages ?? [],
@@ -98,6 +98,7 @@ describe('@a2ui/react Accessibility Conformance (conformance/core/accessibility.
           ctx.skip(skipReason);
           return;
         }
+        assertKnownAccessibilityCase(testCase);
 
         const processor = new MessageProcessor<ReactCatalogComponent>([
           createDefaultAdapterCatalog(),
@@ -137,7 +138,6 @@ describe('@a2ui/react Accessibility Conformance (conformance/core/accessibility.
 });
 
 describe('@a2ui/react Adapter Conformance (conformance/core/adapter_conformance.yaml)', () => {
-  const adapterCases = loadYamlCases<AdapterTestCase>('adapter_conformance.yaml');
   const adapterV09Cases = yaml.load(
     fs.readFileSync(
       path.resolve(CONFORMANCE_DIR, '../adapter/adapter_conformance_v0_9.yaml'),
@@ -165,7 +165,6 @@ describe('@a2ui/react Adapter Conformance (conformance/core/adapter_conformance.
       pendingManifestByTestName.set(testTitle, record);
       let state: ReturnType<typeof mountSurface> | undefined;
       try {
-        assertKnownAdapterCase(testCase);
         const skipReason = findUnsupportedReason(
           testCase.name,
           testCase.steps as unknown as Array<Record<string, unknown>>,
@@ -176,6 +175,7 @@ describe('@a2ui/react Adapter Conformance (conformance/core/adapter_conformance.
           ctx.skip(skipReason);
           return;
         }
+        assertKnownAdapterCase(testCase);
 
         state = mountSurface(testCase);
         for (const step of testCase.steps) {

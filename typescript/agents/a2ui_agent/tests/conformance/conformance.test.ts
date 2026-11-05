@@ -33,7 +33,33 @@ import {toWireProtocolVersion} from '../../src/utils/protocol-version.js';
 import {loadBasicCatalog} from '../helpers/basic-catalogs.js';
 import {createCatalogConfig, createFileCatalogConfig} from './fixtures.js';
 import {classify, KNOWN_FAILURES, loadCases, LoadedCase} from './loader.js';
-import {conformancePath, describeSuite} from './suite-helpers.js';
+import {
+  assertKnownKeys,
+  CASE_METADATA_KEYS,
+  conformancePath,
+  describeSuite,
+  EXPECT_ERROR_KEYS,
+} from './suite-helpers.js';
+
+const LEGACY_CASE_KEYS: Record<string, ReadonlySet<string>> = {
+  parse_full: new Set([
+    ...CASE_METADATA_KEYS,
+    'catalog',
+    'expect',
+    'expectError',
+    'format',
+    'input',
+  ]),
+  has_parts: new Set([...CASE_METADATA_KEYS, 'expect', 'format', 'input']),
+  load_catalog: new Set([...CASE_METADATA_KEYS, 'catalogConfigs', 'expect']),
+  select_catalog: new Set([
+    ...CASE_METADATA_KEYS,
+    'args',
+    'expect',
+    'expectError',
+    'expectSelected',
+  ]),
+};
 
 // Cases that name no catalog run against the v1.0 basic catalog.
 const basicCatalogV10 = loadBasicCatalog('1.0');
@@ -51,6 +77,7 @@ function assertThrows(fn: () => void, expectError: Record<string, unknown> | str
   if (typeof expectError === 'string') {
     expect(fn).toThrowError(expectError);
   } else {
+    assertKnownKeys(expectError, EXPECT_ERROR_KEYS, 'expectError');
     const category = expectError.category as string;
     let thrownError: unknown;
     try {
@@ -266,6 +293,10 @@ describeSuite(
     const handler = LEGACY_ACTION_HANDLERS[testCase.action];
     if (!handler) {
       throw new Error(`Unhandled conformance action: ${testCase.action}`);
+    }
+    const allowedKeys = LEGACY_CASE_KEYS[testCase.action];
+    if (allowedKeys) {
+      assertKnownKeys(testCase, allowedKeys, `${testCase.action} case`);
     }
     await handler(testCase);
   },

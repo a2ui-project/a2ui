@@ -21,26 +21,43 @@ import {expect} from 'vitest';
 import {AgentToRendererMessage, DirectJsonPromptGenerator} from '../../src/index.js';
 import {loadCases} from './loader.js';
 import {
+  assertExpectedError,
+  assertKnownKeys,
+  CASE_METADATA_KEYS,
   CatalogRegistration,
   conformancePath,
   describeSuite,
-  errorClassFor,
+  KNOWN_FAILURES,
   loadRegistrations,
 } from './suite-helpers.js';
 
-/** Cases that run but do not pass yet, with the reason for each. */
-const KNOWN_FAILURES = new Map<string, string>([]);
+const PROMPT_GENERATOR_CASE_KEYS = new Set([
+  ...CASE_METADATA_KEYS,
+  'args',
+  'expect_file',
+  'expect_contains',
+  'expect_absent',
+  'expect_deterministic',
+  'expect_error',
+]);
+const PROMPT_GENERATOR_ARGS_KEYS = new Set(['format', 'catalogs', 'examples', 'allowed_messages']);
 
 describeSuite(
   'Conformance: direct_json/prompt_generator.yaml',
   loadCases([conformancePath('agent/direct_json/prompt_generator.yaml')]),
   async testCase => {
+    assertKnownKeys(testCase, PROMPT_GENERATOR_CASE_KEYS, 'generate_prompt_snippet case');
     const args = testCase.args as {
       format: string;
       catalogs: CatalogRegistration[];
       examples?: string[];
       allowed_messages?: string[];
     };
+    assertKnownKeys(
+      args as Record<string, unknown>,
+      PROMPT_GENERATOR_ARGS_KEYS,
+      'generate_prompt_snippet args',
+    );
     if (args.format !== 'direct_json') {
       throw new Error(`Unexpected format '${args.format}'`);
     }
@@ -54,7 +71,7 @@ describeSuite(
       new DirectJsonPromptGenerator(catalogs, examples, args.allowed_messages).generate();
 
     if (testCase.expect_error) {
-      expect(generate).toThrow(errorClassFor(testCase));
+      assertExpectedError(generate, testCase);
       return;
     }
 
