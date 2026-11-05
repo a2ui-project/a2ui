@@ -291,7 +291,7 @@ An `agentFunctionResponse` must carry `value` even when it is `null`. Serialize 
 
 ## **Test Cases & Conformance**
 
-- `conformance/agent/agent_functions.yaml` (49 cases):
+- `conformance/agent/agent_functions.yaml` (55 cases):
   - `declare_agent_functions`: agent functions are listed with the catalog's functions; the name collisions (the same name twice, a name the catalog declares, `from_api` with an entry the catalog doesn't declare), `from_api` with an `agentOnly` entry or with `requiresUserActivation` on a `rendererOrAgent` entry, and a parameter name that isn't a UAX #31 identifier on a v1.0 catalog are catalog errors.
   - `handle_agent_function`: every row of the error mapping table, including an empty function name, a `returnType` field on the wire `callFunction` (which belongs only on catalog definitions in v1.0, so the call gets `INVALID_FUNCTION_CALL`), and a handler that raises a validation error (`raises` with `validation: true`), defaults and the handler context, driven through `RendererToAgentMessageProcessor.processMessage`, which must report `handled` with exactly one reply.
   - `process_renderer_message`: each of `action`, `error` and `rendererFunctionResponse` with and without its callback (the callback receives the validated message), a callback that declines, a malformed `action` with its callback set, an unknown message key, a raw message without `version` or with `version: "v1.0"` (validation errors), two catalogs with the same ID (a catalog error), and `callAgentFunction` with an empty `functionCallId` (a validation error) or an empty `surfaceId` (an `INVALID_FUNCTION_CALL` reply).
@@ -308,7 +308,7 @@ An `agentFunctionResponse` must carry `value` even when it is `null`. Serialize 
 - `conformance/core/message_processor_v1_0.yaml`, case `test_v10_strict_function_call_to_schema_only_function_of_surface_catalog`: under strict validation, a function the surface catalog declares schema-only passes.
 - `conformance/core/agent_function_routing.yaml`: the renderer side of routing, which this feature relies on.
 
-Every agent conformance runner that implements this feature runs every case of both suites, with no skips. An SDK without an agent function implementation lists `agent_functions.yaml` (and `renderer_function_calls.yaml`) as a known gap in its agent conformance runner, naming this blueprint.
+Every agent conformance runner that implements this feature runs every case of both suites, with no skips. An SDK that does not implement this feature yet registers every case of `agent_functions.yaml` (and `renderer_function_calls.yaml`) as skipped in its agent conformance runner, giving that reason, as `conformance/README.md` describes.
 
 ---
 
