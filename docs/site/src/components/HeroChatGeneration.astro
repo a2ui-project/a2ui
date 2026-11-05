@@ -16,46 +16,39 @@
  */
 ---
 
-<div class="ic-root" id="hero-chat-visual" role="region" aria-label="One app screen whose surface is composed uniquely for each intent as you scroll">
+<div class="ic-root" id="hero-chat-visual" role="region" aria-label="One app screen whose surface is composed differently for each customer intent">
   <div class="ic-split">
-    <!-- Live wire: the active intent flows into the phone's composer -->
-    <svg class="ic-wire-svg" id="ic-wire-svg" aria-hidden="true">
-      <path id="ic-wire-path" d="" />
-      <circle id="ic-wire-a" r="3.5" />
-      <circle id="ic-wire-b" r="3.5" />
-    </svg>
-
     <!-- =================================================================
-         LEFT: SCROLL STEPS — EACH INTENT IS SENT TO THE SAME SCREEN
+         INTENTS — four requests, one screen. Auto-plays; click/swipe to pick.
          ================================================================= -->
     <div class="ic-picker">
-      <div class="ic-steps">
+      <div class="ic-steps" id="ic-steps">
         <button type="button" class="ic-step is-active" data-ic="dinner" aria-pressed="true">
           <span class="ic-step__idx">01 <em>PLAN</em></span>
           <span class="ic-step__q">“Dinner for four tonight, one vegetarian, under $40.”</span>
           <span class="ic-step__desc">A recipe that fits the diet and the budget, a basket built from it, pantry items skipped, and the 5:30 slot booked — as one screen.</span>
-          <span class="ic-step__state"><span class="ic-step__state-off">↓ SCROLL TO SEND</span><span class="ic-step__state-on">SENT ●</span></span>
+          <span class="ic-step__bar" aria-hidden="true"></span>
         </button>
 
         <button type="button" class="ic-step" data-ic="bill" aria-pressed="false">
           <span class="ic-step__idx">02 <em>EXPLAIN</em></span>
           <span class="ic-step__q">“Why was last week’s order $23 more than usual?”</span>
           <span class="ic-step__desc">Same screen, different shape: a comparison, the three lines that moved, and a switch that stops it happening again.</span>
-          <span class="ic-step__state"><span class="ic-step__state-off">↓ SCROLL TO SEND</span><span class="ic-step__state-on">SENT ●</span></span>
+          <span class="ic-step__bar" aria-hidden="true"></span>
         </button>
 
         <button type="button" class="ic-step" data-ic="party" aria-pressed="false">
           <span class="ic-step__idx">03 <em>HOST</em></span>
           <span class="ic-step__q">“Hosting twelve kids Saturday afternoon — help me not forget anything.”</span>
           <span class="ic-step__desc">Now it’s a plan: a timeline to the party, a checklist seeded from the RSVPs, and the two nut allergies already flagged.</span>
-          <span class="ic-step__state"><span class="ic-step__state-off">↓ SCROLL TO SEND</span><span class="ic-step__state-on">SENT ●</span></span>
+          <span class="ic-step__bar" aria-hidden="true"></span>
         </button>
 
         <button type="button" class="ic-step" data-ic="eggs" aria-pressed="false">
           <span class="ic-step__idx">04 <em>FIX</em></span>
           <span class="ic-step__q">“Half the eggs arrived cracked.”</span>
           <span class="ic-step__desc">No form, no ticket. The item is already found, you say how many, pick refund or replace, done.</span>
-          <span class="ic-step__state"><span class="ic-step__state-off">↓ SCROLL TO SEND</span><span class="ic-step__state-on">SENT ●</span></span>
+          <span class="ic-step__bar" aria-hidden="true"></span>
         </button>
       </div>
     </div>
@@ -766,57 +759,24 @@
   }
 
   /* =======================================================================
-     SPLIT: SCROLLING STEPS | STICKY STAGE
+     SPLIT: INTENT LIST | STAGE  (auto-plays; no scroll-jacking, no sticky)
      ======================================================================= */
   .ic-split {
-    position: relative;
     display: grid;
-    grid-template-columns: minmax(300px, 0.88fr) minmax(0, 1.12fr);
-    gap: 64px;
+    grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.1fr);
+    gap: 56px;
     align-items: start;
   }
 
-  @media (max-width: 920px) {
-    /* flex column (not grid): a sticky grid item can only travel within its own cell,
-       a sticky flex item travels the whole column — which is what pins the phone */
-    .ic-split {
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      gap: 0;
-    }
-  }
-
-  /* --- Steps --- */
+  /* --- Intents: a vertical list beside the phone; the live one expands and runs a progress line --- */
   .ic-picker {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 0 0 22vh;
-  }
-
-  /* Narrow: the steps scroll underneath the pinned phone */
-  @media (max-width: 920px) {
-    .ic-picker {
-      order: 2;
-      padding: 24px 0 26vh;
-    }
+    padding-top: 6px;
   }
 
   .ic-steps {
-    position: relative;
     display: flex;
     flex-direction: column;
-  }
-
-  .ic-steps::before {
-    content: '';
-    position: absolute;
-    left: 7px;
-    top: 0;
-    bottom: 0;
-    width: 1px;
-    background: var(--a2-border-strong);
+    border-top: 1px solid var(--a2-border-strong);
   }
 
   .ic-step {
@@ -824,59 +784,29 @@
     position: relative;
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    gap: 12px;
-    min-height: 56vh;
-    padding: 24px 0 24px 40px;
+    gap: 8px;
+    padding: 22px 0 24px;
     border: none;
+    border-bottom: 1px solid var(--a2-border);
     background: transparent;
     color: var(--a2-text);
     font-family: inherit;
     text-align: left;
     cursor: pointer;
-    opacity: 0.38;
-    transition: opacity 0.35s ease;
+    transition: opacity 0.3s ease;
   }
 
-  @media (max-width: 920px) {
-    .ic-step {
-      min-height: min(400px, 50vh);
-      padding: 16px 0 16px 28px;
-      gap: 10px;
-    }
+  .ic-step:not(.is-active) {
+    opacity: 0.5;
   }
 
-  .ic-step:hover {
-    opacity: 0.7;
-  }
-
-  .ic-step.is-active {
-    opacity: 1;
-  }
-
-  .ic-step::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 50%;
-    width: 15px;
-    height: 15px;
-    margin-top: -8px;
-    border-radius: 50%;
-    border: 1px solid var(--a2-border-strong);
-    background: var(--a2-bg);
-    transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  .ic-step.is-active::before {
-    background: var(--a2-accent);
-    border-color: var(--a2-accent);
-    box-shadow: 0 0 0 5px var(--a2-accent-soft);
+  .ic-step:not(.is-active):hover {
+    opacity: 0.8;
   }
 
   .ic-step__idx {
     font-family: var(--a2-font-mono);
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 700;
     letter-spacing: 0.1em;
     color: var(--a2-text-muted);
@@ -890,70 +820,131 @@
 
   .ic-step__q {
     font-family: var(--a2-font-display);
-    font-style: normal;
     font-weight: 600;
-    font-size: clamp(21px, 2vw, 27px);
-    line-height: 1.24;
+    font-size: clamp(18px, 1.5vw, 21px);
+    line-height: 1.3;
     letter-spacing: var(--a2-tracking-h3);
     color: var(--a2-text);
-    max-width: 20ch;
   }
 
+  /* description unfolds for the live intent only */
   .ic-step__desc {
-    font-size: 14.5px;
+    display: block;
+    font-size: 14px;
     line-height: 1.58;
     color: var(--a2-text-secondary);
-    max-width: 42ch;
+    max-width: 44ch;
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.4s ease, opacity 0.3s ease 0.08s;
   }
 
-  .ic-step__state {
-    font-family: var(--a2-font-mono);
-    font-size: 9.5px;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    color: var(--a2-text-muted);
-    margin-top: 4px;
+  .ic-step.is-active .ic-step__desc {
+    max-height: 120px;
+    opacity: 1;
   }
 
-  .ic-step__state-on {
-    display: none;
-    color: var(--a2-accent-strong);
-  }
-
-  .ic-step.is-active .ic-step__state-off { display: none; }
-  .ic-step.is-active .ic-step__state-on { display: inline; }
-
-  /* --- Live intent wire --- */
-  .ic-wire-svg {
+  /* progress line: fills while the intent is live */
+  .ic-step__bar {
     position: absolute;
     left: 0;
-    top: 0;
-    display: none;
-    overflow: visible;
-    pointer-events: none;
-    z-index: 3;
+    right: 0;
+    bottom: -1px;
+    height: 1px;
+    overflow: hidden;
   }
 
-  .ic-wire-svg path {
-    fill: none;
-    stroke: var(--a2-accent);
-    stroke-width: 1.6;
-    stroke-dasharray: 5 6;
-    animation: icFlow 1.1s linear infinite;
+  .ic-step__bar::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--a2-accent);
+    transform: scaleX(0);
+    transform-origin: left;
   }
 
-  .ic-wire-svg circle {
-    fill: var(--a2-accent);
+  .ic-step.is-active .ic-step__bar::after {
+    animation: icHold var(--ic-hold, 6s) linear forwards;
   }
 
-  @keyframes icFlow {
-    to { stroke-dashoffset: -22; }
+  @keyframes icHold {
+    to { transform: scaleX(1); }
   }
 
-  /* --- Stage (sticky, deep teal field) --- */
+  /* --- Narrow: the intents become swipeable cards above a full-size phone --- */
+  @media (max-width: 920px) {
+    .ic-split {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 22px;
+    }
+
+    .ic-picker {
+      padding: 0;
+      margin: 0 -36px;
+    }
+
+    .ic-steps {
+      flex-direction: row;
+      gap: 12px;
+      padding: 0 36px 4px;
+      border-top: none;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .ic-steps::-webkit-scrollbar {
+      display: none;
+    }
+
+    .ic-step {
+      flex: 0 0 min(84%, 400px);
+      scroll-snap-align: center;
+      padding: 18px 18px 22px;
+      border: 1px solid var(--a2-border-strong);
+      border-radius: 3px;
+      background: var(--a2-bg);
+    }
+
+    .ic-step:not(.is-active) {
+      opacity: 0.62;
+    }
+
+    .ic-step__q {
+      font-size: 19px;
+    }
+
+    .ic-step__desc {
+      max-height: none;
+      opacity: 1;
+      transition: none;
+    }
+
+    .ic-step__bar {
+      left: 18px;
+      right: 18px;
+      bottom: 0;
+      height: 2px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .ic-picker {
+      margin: 0 -20px;
+    }
+
+    .ic-steps {
+      padding: 0 20px 4px;
+    }
+  }
+
+  /* --- Stage (deep teal field) --- */
   .ic-stage {
-    position: sticky;
-    top: 84px;
+    position: relative;
     display: flex;
     flex-direction: column;
     border: 1px solid rgba(45, 212, 191, 0.22);
@@ -966,40 +957,15 @@
   }
 
   @media (max-width: 920px) {
-    /* Pinned under the site header, full-bleed (negative margins mirror .a2-wrap's padding),
-       with the phone scaled by --ic-s (set from the viewport height in JS) so the steps have
-       room to pass underneath */
+    /* Full-bleed field, full-size phone (negative margins mirror .a2-wrap's padding) */
     .ic-stage {
-      --ic-s: 0.78;
-      position: sticky;
-      top: 64px;
-      z-index: 5;
-      order: 1;
       margin: 0 -36px;
       border-left: none;
       border-right: none;
     }
 
-    /* (qualified with .ic-stage so these beat the base rules declared further down) */
-    .ic-stage .ic-stage__bar,
     .ic-stage .ic-brace {
       display: none;
-    }
-
-    .ic-lens-view.is-active {
-      padding: 12px 12px 12px;
-    }
-
-    .ic-device {
-      zoom: var(--ic-s);
-    }
-
-    @supports not (zoom: 0.5) {
-      .ic-device {
-        transform: scale(var(--ic-s));
-        transform-origin: top center;
-        margin-bottom: calc(var(--ic-dh, 620px) * (var(--ic-s) - 1));
-      }
     }
   }
 
@@ -2240,7 +2206,6 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .ic-wire-svg path,
     .ic-caret,
     .ic-zone__skel i,
     .ic-sent,

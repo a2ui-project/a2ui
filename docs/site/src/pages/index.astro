@@ -105,7 +105,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
             <!-- Renderer strip: the same stream renders natively in each of these -->
             <div class="a2-renderers">
               <span class="a2-renderers__lbl">RENDERS NATIVELY IN</span>
-              <ul class="a2-renderers__list" aria-label="Official A2UI renderers">
+              <ul class="a2-renderers__list" aria-label="A2UI renderers">
                 <li>
                   <a href={`${base}/concepts/renderer-sdks/`}
                     ><RendererLogo name="react" size={20} /><span>React</span></a
@@ -136,10 +136,12 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
                     ><RendererLogo name="compose" size={20} /><span>Jetpack Compose</span></a
                   >
                 </li>
+                <li class="a2-renderers__more">
+                  <a href={`${base}/ecosystem/renderers/`} title="Vue, Svelte, React Native and other community renderers"
+                    ><span>and more community renderers</span><span aria-hidden="true">→</span></a
+                  >
+                </li>
               </ul>
-              <a href={`${base}/ecosystem/renderers/`} class="a2-renderers__more"
-                >+ Vue, Svelte, React Native &amp; more from the community →</a
-              >
             </div>
           </div>
         </div>
@@ -161,277 +163,6 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
           <!-- Intent → Composed Screen Stage -->
           <div class="a2-hero__stage">
             <HeroChatGeneration />
-          </div>
-        </div>
-      </section>
-
-      <!-- =================================================================
-           TRUST & AUTONOMY — SIGNAL FIREWALL SCHEMATIC & AUTONOMY RULER (#architecture)
-           ================================================================= -->
-      <section class="a2-section" id="architecture">
-        <div class="a2-wrap">
-          <div class="a2-chapter">
-            <div class="a2-chapter__split">
-              <h2 class="a2-h2">
-                Agents propose intent. <span class="a2-h-accent">You own the gate.</span>
-              </h2>
-              <p class="a2-sec-sub">
-                Remote agents never send executable code or raw DOM — every descriptor passes your
-                registered host catalog first.
-              </p>
-            </div>
-          </div>
-
-          <!-- Architectural Signal Firewall Schematic (Zero Card Boxes, Zero Pills!) -->
-          <div
-            class="a2-schematic"
-            role="img"
-            aria-label="A2UI catalog firewall schematic showing allowlisted components mounting natively while scripts and inline styles are blocked at the host gate"
-          >
-            <div class="a2-schematic__col">
-              <span class="a2-sch-kicker">UNTRUSTED STREAM</span>
-              <strong>Remote / Multi-Hop Agent</strong>
-              <p>Flat JSON descriptors streamed over SSE, A2A, or MCP.</p>
-            </div>
-
-            <div class="a2-schematic__svg-wrap" aria-hidden="true">
-              <svg viewBox="0 0 560 236" class="a2-sch-svg" fill="none">
-                <!-- Center Catalog Gate -->
-                <line x1="280" y1="12" x2="280" y2="224" stroke="var(--a2-accent)" stroke-width="2"
-                ></line>
-                <rect
-                  x="226"
-                  y="4"
-                  width="108"
-                  height="22"
-                  fill="var(--a2-bg)"
-                  stroke="var(--a2-accent)"
-                  stroke-width="1"></rect>
-                <text
-                  x="280"
-                  y="18.5"
-                  text-anchor="middle"
-                  fill="var(--a2-accent)"
-                  font-family="var(--a2-font-mono)"
-                  font-size="9.5"
-                  font-weight="700"
-                  letter-spacing="1.2">CATALOG GATE</text
-                >
-
-                <!-- Allowed Signal 1 -->
-                <line x1="12" y1="64" x2="548" y2="64" stroke="var(--a2-accent)" stroke-width="1.5"
-                ></line>
-                <circle cx="280" cy="64" r="4" fill="var(--a2-accent)"></circle>
-                <text
-                  x="16"
-                  y="54"
-                  fill="var(--a2-text)"
-                  font-family="var(--a2-font-mono)"
-                  font-size="11">"ChoiceGroup"</text
-                >
-                <text
-                  x="544"
-                  y="54"
-                  text-anchor="end"
-                  fill="var(--a2-accent-strong)"
-                  font-family="var(--a2-font-mono)"
-                  font-size="11">✓ &lt;ChoiceGroup /&gt;</text
-                >
-
-                <!-- Allowed Signal 2 -->
-                <line
-                  x1="12"
-                  y1="116"
-                  x2="548"
-                  y2="116"
-                  stroke="var(--a2-accent)"
-                  stroke-width="1.5"></line>
-                <circle cx="280" cy="116" r="4" fill="var(--a2-accent)"></circle>
-                <text
-                  x="16"
-                  y="106"
-                  fill="var(--a2-text)"
-                  font-family="var(--a2-font-mono)"
-                  font-size="11">"AreaSeries"</text
-                >
-                <text
-                  x="544"
-                  y="106"
-                  text-anchor="end"
-                  fill="var(--a2-accent-strong)"
-                  font-family="var(--a2-font-mono)"
-                  font-size="11">✓ &lt;AreaSeries /&gt;</text
-                >
-
-                <!-- Blocked Signal 3 -->
-                <line
-                  x1="12"
-                  y1="168"
-                  x2="274"
-                  y2="168"
-                  stroke="var(--a2-danger)"
-                  stroke-width="1.5"
-                  stroke-dasharray="4 3"></line>
-                <line x1="274" y1="162" x2="286" y2="174" stroke="var(--a2-danger)" stroke-width="2"
-                ></line>
-                <line x1="286" y1="162" x2="274" y2="174" stroke="var(--a2-danger)" stroke-width="2"
-                ></line>
-                <text
-                  x="16"
-                  y="158"
-                  fill="var(--a2-text-muted)"
-                  font-family="var(--a2-font-mono)"
-                  font-size="11">&lt;script&gt;eval(...)&lt;/script&gt;</text
-                >
-                <text
-                  x="296"
-                  y="172"
-                  fill="var(--a2-danger)"
-                  font-family="var(--a2-font-mono)"
-                  font-size="10.5"
-                  font-weight="600">DROPPED · NOT IN SCHEMA</text
-                >
-
-                <!-- Blocked Signal 4 -->
-                <line
-                  x1="12"
-                  y1="214"
-                  x2="274"
-                  y2="214"
-                  stroke="var(--a2-danger)"
-                  stroke-width="1.5"
-                  stroke-dasharray="4 3"></line>
-                <line x1="274" y1="208" x2="286" y2="220" stroke="var(--a2-danger)" stroke-width="2"
-                ></line>
-                <line x1="286" y1="208" x2="274" y2="220" stroke="var(--a2-danger)" stroke-width="2"
-                ></line>
-                <text
-                  x="16"
-                  y="204"
-                  fill="var(--a2-text-muted)"
-                  font-family="var(--a2-font-mono)"
-                  font-size="11">style="position:fixed"</text
-                >
-                <text
-                  x="296"
-                  y="218"
-                  fill="var(--a2-danger)"
-                  font-family="var(--a2-font-mono)"
-                  font-size="10.5"
-                  font-weight="600">DROPPED · NO RAW CSS</text
-                >
-              </svg>
-            </div>
-
-            <div class="a2-schematic__col a2-schematic__col--right">
-              <span class="a2-sch-kicker">HOST RUNTIME</span>
-              <strong>Native Accessible Tree</strong>
-              <p>Audited views with VoiceOver, keyboard focus, and local checks.</p>
-            </div>
-          </div>
-
-          <!-- Open Horizontal Autonomy Ruler (#spectrum) -->
-          <div class="a2-ruler-sec" id="spectrum">
-            <div class="a2-ruler-sec__head">
-              <div>
-                <span class="a2-sch-kicker">PROGRESSIVE AUTONOMY DIAL</span>
-                <h3 class="a2-h3">Choose how much creative latitude each workflow gets.</h3>
-              </div>
-              <a href={`${base}/concepts/catalogs/`} class="a2-mono-link">CATALOG ARCHITECTURE →</a>
-            </div>
-
-            <!-- Continuous 4-Stop Architectural Rail -->
-            <div class="a2-rail" role="tablist" aria-label="Autonomy spectrum stops">
-              <div class="a2-rail__line" aria-hidden="true"></div>
-
-              <button
-                type="button"
-                role="tab"
-                aria-selected="false"
-                class="a2-stop"
-                data-sp-idx="0"
-              >
-                <span class="a2-stop__tick"></span>
-                <span class="a2-stop__num">01</span>
-                <strong>Locked Templates</strong>
-              </button>
-
-              <button
-                type="button"
-                role="tab"
-                aria-selected="true"
-                class="a2-stop is-active"
-                data-sp-idx="1"
-              >
-                <span class="a2-stop__tick"></span>
-                <span class="a2-stop__num">02</span>
-                <strong>Server @macros</strong>
-              </button>
-
-              <button
-                type="button"
-                role="tab"
-                aria-selected="false"
-                class="a2-stop"
-                data-sp-idx="2"
-              >
-                <span class="a2-stop__tick"></span>
-                <span class="a2-stop__num">03</span>
-                <strong>Composable Catalog</strong>
-              </button>
-
-              <button
-                type="button"
-                role="tab"
-                aria-selected="false"
-                class="a2-stop"
-                data-sp-idx="3"
-              >
-                <span class="a2-stop__tick"></span>
-                <span class="a2-stop__num">04</span>
-                <strong>MCP Sandboxes</strong>
-              </button>
-            </div>
-
-            <div class="a2-ruler-readout">
-              <div>
-                <h4 class="a2-ruler-title" id="sp-title">
-                  High-leverage domain cards with minimal token cost
-                </h4>
-                <p class="a2-ruler-desc" id="sp-desc">
-                  The agent invokes a compact <code>@flightCard</code> or <code
-                    >@checkoutSummary</code
-                  > macro with 3–4 arguments. Your server expands it into a validated component tree in
-                  0ms.
-                </p>
-                <div class="a2-ruler-uses" id="sp-examples">
-                  BEST FOR: Boarding passes · Order summaries · Production approval gates
-                </div>
-              </div>
-
-              <div class="a2-ruler-bars">
-                <div class="a2-bar-item">
-                  <div class="a2-bar-lbl">
-                    <span>LAYOUT DETERMINISM</span>
-                    <strong id="sp-det-val">90%</strong>
-                  </div>
-                  <div class="a2-bar-track">
-                    <div class="a2-bar-fill a2-bar-fill--det" id="sp-det-bar" style="width: 90%">
-                    </div>
-                  </div>
-                </div>
-                <div class="a2-bar-item">
-                  <div class="a2-bar-lbl">
-                    <span>GENERATIVE LATITUDE</span>
-                    <strong id="sp-free-val">40%</strong>
-                  </div>
-                  <div class="a2-bar-track">
-                    <div class="a2-bar-fill a2-bar-fill--free" id="sp-free-bar" style="width: 40%">
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </section>
@@ -500,66 +231,6 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
             } catch (e) {}
           });
         }
-
-        /* Autonomy Ruler Stops */
-        const bands = [
-          {
-            title: 'Zero layout surprises for regulated workflows',
-            desc: 'Bind live agent data into pre-authored, pixel-locked UI templates. The agent populates values; the component hierarchy never mutates.',
-            uses: 'BEST FOR: Wire transfers · Clinical orders · Identity verification',
-            det: 100,
-            free: 15,
-          },
-          {
-            title: 'High-leverage domain cards with minimal token cost',
-            desc: 'The agent invokes a compact @flightCard or @checkoutSummary macro with 3–4 arguments. Your server expands it into a validated component tree in 0ms.',
-            uses: 'BEST FOR: Boarding passes · Order summaries · Production approval gates',
-            det: 90,
-            free: 40,
-          },
-          {
-            title: 'Dynamic multi-component views assembled per prompt',
-            desc: 'Let the model compose bespoke layouts from your allowlisted primitives — tabs, scrubbers, charts, choice grids, and validated forms.',
-            uses: 'BEST FOR: Trip planners · Scenario simulators · Guided triage',
-            det: 72,
-            free: 82,
-          },
-          {
-            title: 'Isolated interactive canvases alongside native views',
-            desc: 'Mount sandboxed ui:// MCP Apps inside A2UI surfaces when a workflow calls for 3D WebGL configurators, vector maps, or custom shaders.',
-            uses: 'BEST FOR: 3D CAD viewers · Geospatial maps · Live shader & data canvases',
-            det: 55,
-            free: 100,
-          },
-        ];
-
-        const spTitle = document.getElementById('sp-title');
-        const spDesc = document.getElementById('sp-desc');
-        const spExamples = document.getElementById('sp-examples');
-        const spDetVal = document.getElementById('sp-det-val');
-        const spDetBar = document.getElementById('sp-det-bar');
-        const spFreeVal = document.getElementById('sp-free-val');
-        const spFreeBar = document.getElementById('sp-free-bar');
-
-        document.querySelectorAll('[data-sp-idx]').forEach(btn => {
-          btn.addEventListener('click', () => {
-            const idx = Number(btn.getAttribute('data-sp-idx') || 1);
-            const b = bands[idx];
-            if (!b) return;
-            document.querySelectorAll('[data-sp-idx]').forEach(el => {
-              const active = el === btn;
-              el.classList.toggle('is-active', active);
-              el.setAttribute('aria-selected', String(active));
-            });
-            if (spTitle) spTitle.textContent = b.title;
-            if (spDesc) spDesc.textContent = b.desc;
-            if (spExamples) spExamples.textContent = b.uses;
-            if (spDetVal) spDetVal.textContent = `${b.det}%`;
-            if (spDetBar) spDetBar.style.width = `${b.det}%`;
-            if (spFreeVal) spFreeVal.textContent = `${b.free}%`;
-            if (spFreeBar) spFreeBar.style.width = `${b.free}%`;
-          });
-        });
       })();
     </script>
 
@@ -856,27 +527,17 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         color: var(--brand);
       }
 
-      .a2-renderers__more {
-        margin-left: auto;
-        font-family: var(--a2-font-mono);
-        font-size: 11px;
-        font-weight: 600;
-        letter-spacing: 0.04em;
+      /* "and more…" rides in the same row as the official renderers (same divider, same type) */
+      .a2-renderers__more a {
+        gap: 7px;
         color: var(--a2-accent-strong);
-        text-decoration: none;
-        white-space: nowrap;
+        font-weight: 600;
       }
 
-      .a2-renderers__more:hover {
+      .a2-renderers__more a:hover {
+        color: var(--a2-accent);
         text-decoration: underline;
-      }
-
-      @media (max-width: 920px) {
-        .a2-renderers__more {
-          margin-left: 0;
-          white-space: normal;
-          line-height: 1.6;
-        }
+        text-underline-offset: 3px;
       }
 
       /* =======================================================================
@@ -891,10 +552,6 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
       .a2-section--alt {
         background: var(--a2-bg-alt);
-      }
-
-      .a2-section--alt + .a2-section {
-        border-top-color: var(--a2-border-strong);
       }
 
       /* The scroll stage keeps its own rhythm (sticky needs no overflow clipping here) */
@@ -942,15 +599,6 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         color: var(--a2-text);
       }
 
-      .a2-h3 {
-        margin: 4px 0 0;
-        font-family: var(--a2-font-display);
-        font-size: clamp(1.35rem, 2.2vw, 1.75rem);
-        font-weight: 620;
-        line-height: 1.2;
-        letter-spacing: var(--a2-tracking-h3);
-      }
-
       .a2-sec-sub {
         margin: 0;
         font-size: 16px;
@@ -962,250 +610,6 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         font-family: var(--a2-font-mono);
         font-size: 13px;
         color: var(--a2-accent-strong);
-      }
-
-      .a2-sch-kicker {
-        display: block;
-        font-family: var(--a2-font-mono);
-        font-size: 10.5px;
-        font-weight: 600;
-        letter-spacing: 0.1em;
-        color: var(--a2-accent);
-        margin-bottom: 6px;
-      }
-
-      .a2-mono-link {
-        font-family: var(--a2-font-mono);
-        font-size: 11.5px;
-        font-weight: 600;
-        letter-spacing: 0.06em;
-        color: var(--a2-text);
-        text-decoration: none;
-        border-bottom: 1px solid var(--a2-border-strong);
-        padding-bottom: 3px;
-        transition:
-          border-color 0.15s ease,
-          color 0.15s ease;
-      }
-
-      .a2-mono-link:hover {
-        color: var(--a2-accent-strong);
-        border-bottom-color: var(--a2-accent-strong);
-      }
-
-      /* =======================================================================
-     TRUST & AUTONOMY — SIGNAL FIREWALL SCHEMATIC + HORIZONTAL AUTONOMY RULER
-     ======================================================================= */
-      .a2-schematic {
-        display: grid;
-        grid-template-columns: 230px 1fr 230px;
-        gap: 52px;
-        align-items: center;
-        padding: 64px 0;
-        border-top: 1px solid var(--a2-border);
-        border-bottom: 1px solid var(--a2-border);
-        margin-bottom: 128px;
-      }
-
-      @media (max-width: 960px) {
-        .a2-schematic {
-          grid-template-columns: 1fr;
-        }
-        .a2-schematic__col--right {
-          text-align: left !important;
-        }
-      }
-
-      .a2-schematic__col strong {
-        display: block;
-        font-size: 16px;
-        margin-bottom: 6px;
-      }
-
-      .a2-schematic__col p {
-        margin: 0;
-        font-size: 13.5px;
-        line-height: 1.55;
-        color: var(--a2-text-secondary);
-      }
-
-      .a2-schematic__col--right {
-        text-align: right;
-      }
-
-      .a2-sch-svg {
-        width: 100%;
-        height: auto;
-        display: block;
-      }
-
-      /* Autonomy Ruler */
-      .a2-ruler-sec {
-        scroll-margin-top: 84px;
-      }
-
-      .a2-ruler-sec__head {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-end;
-        flex-wrap: wrap;
-        gap: 24px;
-        margin-bottom: 52px;
-      }
-
-      .a2-rail {
-        position: relative;
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        margin-bottom: 52px;
-      }
-
-      .a2-rail__line {
-        position: absolute;
-        top: 7px;
-        left: 0;
-        right: 0;
-        height: 1px;
-        background: var(--a2-border-strong);
-      }
-
-      @media (max-width: 760px) {
-        .a2-rail {
-          grid-template-columns: repeat(2, 1fr);
-          gap: 16px;
-        }
-        .a2-rail__line {
-          display: none;
-        }
-      }
-
-      .a2-stop {
-        appearance: none;
-        position: relative;
-        border: none;
-        background: transparent;
-        padding: 0 12px 0 0;
-        text-align: left;
-        color: var(--a2-text-muted);
-        font-family: inherit;
-        cursor: pointer;
-        transition: color 0.16s ease;
-      }
-
-      .a2-stop:hover {
-        color: var(--a2-text);
-      }
-
-      .a2-stop__tick {
-        display: block;
-        width: 14px;
-        height: 14px;
-        background: var(--a2-bg);
-        border: 2px solid var(--a2-border-strong);
-        margin-bottom: 12px;
-        transition: all 0.18s ease;
-      }
-
-      .a2-stop.is-active {
-        color: var(--a2-text);
-      }
-
-      .a2-stop.is-active .a2-stop__tick {
-        background: var(--a2-accent);
-        border-color: var(--a2-accent);
-        transform: scale(1.15);
-      }
-
-      .a2-stop__num {
-        display: block;
-        font-family: var(--a2-font-mono);
-        font-size: 10.5px;
-        color: var(--a2-accent);
-        margin-bottom: 3px;
-      }
-
-      .a2-stop strong {
-        font-size: 14.5px;
-        font-weight: 600;
-      }
-
-      .a2-ruler-readout {
-        display: grid;
-        grid-template-columns: 1.2fr 0.8fr;
-        gap: 72px;
-        align-items: center;
-        padding-top: 40px;
-        border-top: 1px solid var(--a2-border);
-      }
-
-      @media (max-width: 820px) {
-        .a2-ruler-readout {
-          grid-template-columns: 1fr;
-          gap: 24px;
-        }
-      }
-
-      .a2-ruler-title {
-        margin: 0 0 8px;
-        font-size: 19px;
-        font-weight: 620;
-        letter-spacing: -0.02em;
-      }
-
-      .a2-ruler-desc {
-        margin: 0 0 14px;
-        font-size: 14.5px;
-        line-height: 1.6;
-        color: var(--a2-text-secondary);
-      }
-
-      .a2-ruler-desc code {
-        font-family: var(--a2-font-mono);
-        font-size: 12.5px;
-        color: var(--a2-accent-strong);
-      }
-
-      .a2-ruler-uses {
-        font-family: var(--a2-font-mono);
-        font-size: 11px;
-        letter-spacing: 0.04em;
-        color: var(--a2-text-muted);
-      }
-
-      .a2-ruler-bars {
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-      }
-
-      .a2-bar-lbl {
-        display: flex;
-        justify-content: space-between;
-        font-family: var(--a2-font-mono);
-        font-size: 10.5px;
-        letter-spacing: 0.06em;
-        color: var(--a2-text-muted);
-        margin-bottom: 6px;
-      }
-
-      .a2-bar-lbl strong {
-        color: var(--a2-text);
-      }
-
-      .a2-bar-track {
-        height: 6px;
-        background: var(--a2-border-strong);
-      }
-
-      .a2-bar-fill {
-        height: 100%;
-        transition: width 0.28s cubic-bezier(0.2, 0.9, 0.3, 1);
-      }
-      .a2-bar-fill--det {
-        background: var(--a2-accent);
-      }
-      .a2-bar-fill--free {
-        background: var(--a2-blue);
       }
 
       /* =======================================================================
