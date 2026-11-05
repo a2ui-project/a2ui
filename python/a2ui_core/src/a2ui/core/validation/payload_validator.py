@@ -239,7 +239,10 @@ def check_renderer_may_call(catalog: CatalogApi, name: str) -> None:
             Its detail is at `functions.<name>`, which
             `rebase_function_error_details` moves to the call's location.
     """
-    fn = catalog.get_function(name) if hasattr(catalog, "get_function") else None
+    if hasattr(catalog, "get_function"):
+        fn = catalog.get_function(name)
+    else:
+        fn = getattr(catalog, "functions", {}).get(name)
     if getattr(fn, "allowed_callers", None) != "agentOnly":
         return
     message = (
