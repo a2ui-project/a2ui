@@ -171,10 +171,16 @@ Widget? buildChildOrNull(
   ChildWidgetBuilder buildChild,
 ) {
   final Widget built = buildChild(child);
-  if (built is NodeView &&
-      identical(built.node, child) &&
+  // A builder that wraps each child puts a KeyedSubtree outermost, so look
+  // through those to the child's NodeView.
+  var inner = built;
+  while (inner is KeyedSubtree) {
+    inner = inner.child;
+  }
+  if (inner is NodeView &&
+      identical(inner.node, child) &&
       child.isPlaceholder &&
-      built.buildFallback(context) == null) {
+      inner.buildFallback(context) == null) {
     return null;
   }
   return built;

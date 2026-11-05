@@ -314,9 +314,44 @@ void main() {
                 return Column(children: built.nonNulls.toList());
               },
             ),
+            // Wraps each child in a KeyedSubtree, as the README asks of a
+            // builder that wraps its children.
+            ComponentImplementation(
+              name: 'KeyedSpy',
+              schema: Schema.object(
+                properties: {'children': CommonSchemas.childList},
+              ),
+              builder: (context, node, props, buildChild) {
+                Widget keyed(ComponentNode<ComponentImplementation> child) =>
+                    KeyedSubtree(
+                      key: NodeKey(child.instanceId),
+                      child: buildChild(child),
+                    );
+                built = [
+                  for (final child in props.children('children'))
+                    buildChildOrNull(context, child, keyed),
+                ];
+                return Column(children: built.nonNulls.toList());
+              },
+            ),
           ],
         ),
       );
+    });
+
+    testWidgets('looks through a KeyedSubtree the builder wraps a child in', (
+      tester,
+    ) async {
+      add('root', 'KeyedSpy', {
+        'children': ['text', 'late'],
+      });
+      add('text', 'Text', {'text': 'Text'});
+
+      await pumpRoot(tester, A2uiFallbacks(pending: (context, info) => null));
+      expect(built, [isA<KeyedSubtree>(), isNull]);
+
+      await pumpRoot(tester, recording);
+      expect(built, [isA<KeyedSubtree>(), isA<KeyedSubtree>()]);
     });
 
     testWidgets('returns null for a child that shows nothing', (tester) async {
