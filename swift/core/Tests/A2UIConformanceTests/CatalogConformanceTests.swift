@@ -377,6 +377,18 @@ struct CatalogConformanceTests {
       allowedNames: allowedFuncNames,
       context: context
     )
+    if A2UIProtocolVersion(rawValue: protocolVersion)?.isAtLeastV10 == true {
+      // The v1.0 caller rule covers every declared function, including one that
+      // `$defs.anyFunction` leaves out, as `fromJson` checks it in the other SDKs.
+      let declaredFunctions = buildCatalogFunctions(
+        rawSchema: rawSchema,
+        allowedNames: nil,
+        context: context
+      )
+      for function in declaredFunctions {
+        try function.api.validateCallerConstraints()
+      }
+    }
     return Catalog(
       id: catalogID,
       protocolVersion: protocolVersion,

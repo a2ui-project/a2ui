@@ -38,7 +38,16 @@
  */
 
 import type React from 'react';
-import {memo, useCallback, useEffect, useMemo, useRef, useSyncExternalStore} from 'react';
+import {
+  createContext,
+  memo,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from 'react';
 import {createPortal} from 'react-dom';
 import {
   type A2uiMetadata,
@@ -64,7 +73,36 @@ import {WebComponentNode} from './web_component_node';
 import {HostOwner, HostRegistry} from './host_registry';
 import {HostedMarkdown} from './markdown_hosts';
 
-/** The context of a node a host renders. */
+export const SurfaceContext = createContext<SurfaceModel<ReactCatalogComponent> | undefined>(
+  undefined,
+);
+
+/**
+ * Returns the enclosing {@link SurfaceModel} when called inside an
+ * {@link A2uiSurface} tree, or `undefined` outside one.
+ */
+export function useA2uiSurface(): SurfaceModel<ReactCatalogComponent> | undefined {
+  return useContext(SurfaceContext);
+}
+
+/**
+ * Returns the enclosing {@link SurfaceModel} from {@link SurfaceContext},
+ * falling back to `node.context` when rendered outside an `A2uiSurface`.
+ */
+export function useSurface(
+  node?: ComponentNode<ReactCatalogComponent>,
+): SurfaceModel<ReactCatalogComponent> {
+  const surface = useContext(SurfaceContext);
+  if (surface) {
+    return surface;
+  }
+  if (node) {
+    return contextOf(node).dataContext.surface as SurfaceModel<ReactCatalogComponent>;
+  }
+  throw new Error('A2UI node views must be rendered inside an <A2uiSurface>.');
+}
+
+/** The context of a node, for the deprecated `render` and `context` prop paths. */
 function contextOf(node: ComponentNode): ComponentContext {
   if (!node.context) {
     throw new Error(`A2UI views render only resolved nodes; '${node.componentId}' has no context.`);
@@ -215,7 +253,7 @@ export function useNodeView(
   rawBuildChild: (id: string, basePath?: string) => React.ReactNode;
 } {
   const baseContext = contextOf(node);
-  const surface = baseContext.dataContext.surface as SurfaceModel<ReactCatalogComponent>;
+  const surface = useSurface(node as ComponentNode<ReactCatalogComponent>);
   const resolved = useSignalValue(node.props);
   const metadataReadRef = useRef(false);
   const subscribeMetadata = useCallback(
@@ -361,10 +399,14 @@ const RenderFallback: React.FC<{
  * replaced in place when its component arrives.
  */
 export const ChildElement = memo(({node}: {node: ComponentNode<ReactCatalogComponent>}) => {
+  const ambientSurface = useContext(SurfaceContext);
   const owner = useMemo(() => new HostOwner(), []);
-  if (node.isPlaceholder || !node.impl || !node.context) {
+  if (node.isPlaceholder || !node.impl) {
     return null;
   }
+  const surface =
+    ambientSurface ?? (contextOf(node).dataContext.surface as SurfaceModel<ReactCatalogComponent>);
+  owner.surface = surface;
   if ('render' in node.impl) {
     // A React implementation: its host is React's own element, so its content
     // is simply the element's children.
@@ -381,7 +423,6 @@ export const ChildElement = memo(({node}: {node: ComponentNode<ReactCatalogCompo
   // React did not create. They register under this element, and their
   // content is portaled from here, inside whatever the parent view wraps
   // this element in.
-  const surface = node.context.dataContext.surface as SurfaceModel<ReactCatalogComponent>;
   return (
     <>
       <WebComponentNode node={node} owner={owner} />
@@ -420,7 +461,7 @@ export const HostedChildren: React.FC<{
  * leaves existing portals alone.
  */
 export const NodeContent = memo(({node}: {node: ComponentNode<ReactCatalogComponent>}) => {
-  const surface = contextOf(node).dataContext.surface as SurfaceModel<ReactCatalogComponent>;
+  const surface = useSurface(node);
 
   const buildChild = useCallback<NodeBuildChild>(
     (child, basePath) => {
