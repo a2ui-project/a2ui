@@ -167,7 +167,7 @@ Use the AG-UI CLI with your framework or harness of choice (Google Chat, ADK, La
 
 ### Other renderers
 
-For Flutter, check out the [GenUI SDK](https://github.com/flutter/genui), which uses A2UI under the hood. See [docs/public/reference/renderers.md](docs/public/reference/renderers.md) for the full list of client implementations.
+For Flutter, use [`a2ui_flutter`](dart/a2ui_flutter/). See [docs/public/reference/renderers.md](docs/public/reference/renderers.md) for the full list of client implementations.
 
 ## Packages
 
@@ -195,12 +195,12 @@ These packages are developed in this repository. Packages marked "Not published 
 
 ### Dart and Flutter
 
-| Package                            | Description                                                                           | Version                                                                                    |
-| ---------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| [a2ui_core](dart/a2ui_core/)       | Protocol messages, data model, data binding and expressions for renderers and agents. | [![pub](https://img.shields.io/pub/v/a2ui_core.svg)](https://pub.dev/packages/a2ui_core)   |
-| [a2ui_agent](dart/a2ui_agent/)     | Agent SDK: teaches the LLM a catalog and parses its response into A2UI messages.      | [![pub](https://img.shields.io/pub/v/a2ui_agent.svg)](https://pub.dev/packages/a2ui_agent) |
-| [a2ui_flutter](dart/a2ui_flutter/) | Flutter renderer.                                                                     | Not published yet                                                                          |
-| [a2ui_cli](dart/a2ui_cli/)         | Developer tool that generates typesafe component code from a catalog.                 | Not published yet                                                                          |
+| Package                            | Description                                                                           | Version                                                                                        |
+| ---------------------------------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| [a2ui_core](dart/a2ui_core/)       | Protocol messages, data model, data binding and expressions for renderers and agents. | [![pub](https://img.shields.io/pub/v/a2ui_core.svg)](https://pub.dev/packages/a2ui_core)       |
+| [a2ui_agent](dart/a2ui_agent/)     | Agent SDK: teaches the LLM a catalog and parses its response into A2UI messages.      | [![pub](https://img.shields.io/pub/v/a2ui_agent.svg)](https://pub.dev/packages/a2ui_agent)     |
+| [a2ui_flutter](dart/a2ui_flutter/) | Flutter renderer.                                                                     | [![pub](https://img.shields.io/pub/v/a2ui_flutter.svg)](https://pub.dev/packages/a2ui_flutter) |
+| [a2ui_cli](dart/a2ui_cli/)         | Developer tool that generates typesafe component code from a catalog.                 | Not published yet                                                                              |
 
 ### Swift
 

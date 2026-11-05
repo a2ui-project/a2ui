@@ -11,7 +11,7 @@ Integrate A2UI rendering into your existing app or build a new agent-powered fro
 **Choose a renderer:**
 
 - **Web:** Lit, Angular, React.
-- **Mobile/Desktop:** Flutter GenUI SDK.
+- **Mobile/Desktop:** Flutter (`a2ui_flutter`).
 
 **Quick setup:**
 
@@ -25,6 +25,12 @@ For React:
 
 ```bash
 npm install @a2ui/react @a2ui/web_core
+```
+
+For Flutter:
+
+```bash
+flutter pub add a2ui_flutter a2ui_core
 ```
 
 Connect to agent messages (SSE, WebSockets, or A2A) and customize styling to match your brand.
@@ -53,6 +59,5 @@ Include the A2UI schema in your LLM prompts, generate JSONL messages, and stream
 Use A2UI through frameworks with built-in support:
 
 - **[AG-UI / CopilotKit](https://ag-ui.com/)** - Full-stack agentic app framework with A2UI rendering.
-- **[Flutter GenUI SDK](https://docs.flutter.dev/ai/genui)** - Cross-platform generative UI (uses A2UI internally).
 
 **Next:** [Agent UI Ecosystem](agent-ui-ecosystem.md) | [Where is A2UI Used?](../ecosystem/a2ui-in-the-world.md)

@@ -1773,14 +1773,19 @@ fun AgentSurfaceScreen(processor: A2uiMessageProcessor) {
           },
           flutter: {
             chrome: 'Flutter Impeller · iOS, Android, Desktop & Web',
-            pkg: 'package:genui / a2ui_flutter',
-            title: 'Flutter GenUI SDK (Multi-Platform)',
-            badge: 'Material 3 & Cupertino',
-            code: `class AgentSurfacePanel extends StatelessWidget {
-  final GenUiSurfaceController controller;
+            pkg: 'a2ui_flutter · a2ui_core',
+            title: 'Flutter Renderer (a2ui_flutter)',
+            badge: 'Material 3',
+            code: `${'import'} 'package:a2ui_core/a2ui_core.dart';
+${'import'} 'package:a2ui_flutter/a2ui_flutter.dart';
+${'import'} 'package:flutter/material.dart';
+
+class AgentSurfacePanel extends StatelessWidget {
+  const AgentSurfacePanel({super.key, required this.surface});
+  final SurfaceModel<ComponentImplementation> surface;
   @override
   Widget build(BuildContext context) {
-    return GenUiSurface(surfaceId: 'travel-booking', controller: controller);
+    return A2uiSurface(surface: surface);
   }
 }`,
           },
