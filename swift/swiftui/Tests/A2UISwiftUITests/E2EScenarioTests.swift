@@ -453,7 +453,7 @@ struct E2EScenarioTests {
     if let existing = mountedBySurfaceID[surfaceID], existing.surface.viewModel === vm {
       session.mountedHarness = existing
       existing.driver.flush()
-      session.currentTree = extractViewTree(session)
+      session.currentTree = try extractViewTree(session)
       return
     }
     let isV09 =
@@ -467,7 +467,7 @@ struct E2EScenarioTests {
     let harness = MountedSurfaceHarness(surface: surface)
     mountedBySurfaceID[surfaceID] = harness
     session.mountedHarness = harness
-    session.currentTree = extractViewTree(session)
+    session.currentTree = try extractViewTree(session)
   }
 
   private func runScenario(_ scenario: [String: Any], name: String) throws {
@@ -533,7 +533,7 @@ struct E2EScenarioTests {
               mountedBySurfaceID: &mountedBySurfaceID,
               context: turnCtx
             )
-            let actualTree = extractViewTree(session)
+            let actualTree = try extractViewTree(session)
             try AdapterHarness.assertViewTree(
               actualTree,
               Self.stripExtendedViewNodeKeys(expectedTree),
