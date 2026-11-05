@@ -39,21 +39,60 @@ import {
 import {Catalog, CatalogApi} from '../../src/internal/web-core.js';
 import {createFileCatalogConfig} from './fixtures.js';
 import {CONFORMANCE_ROOT, loadCases} from './loader.js';
-import {compileChecked, describeSuite} from './suite-helpers.js';
+import {
+  assertKnownKeys,
+  CASE_METADATA_KEYS,
+  compileChecked,
+  describeSuite,
+  EXPECT_ERROR_KEYS,
+  KNOWN_FAILURES,
+  UNSUPPORTED,
+} from './suite-helpers.js';
 
 const CONFORMANCE_SURFACE_ID = 'default_surface';
 const DEFAULT_CATALOG = 'test_data/catalogs/simplified_catalog_v1_0.json';
 
-/**
- * Conformance cases that fail because TS follows Python's behavior.
- * Registered with test.fails and Python's reason.
- */
-const KNOWN_FAILURES = new Map<string, string>();
-
-/**
- * Cases Python skips as UNSUPPORTED.
- */
-const UNSUPPORTED = new Map<string, string>();
+const EXPRESS_CASE_KEYS: Record<string, ReadonlySet<string>> = {
+  compile: new Set([
+    ...CASE_METADATA_KEYS,
+    'args',
+    'input',
+    'expect',
+    'expect_error',
+    'expect_present',
+  ]),
+  decompile: new Set([
+    ...CASE_METADATA_KEYS,
+    'args',
+    'messages',
+    'expect_contains',
+    'expect_absent',
+    'expect_error',
+    'expect_recompiled',
+    'expect_round_trip',
+  ]),
+  unwrap: new Set([...CASE_METADATA_KEYS, 'args', 'input', 'expect']),
+  has_format_content: new Set([...CASE_METADATA_KEYS, 'args', 'input', 'expect']),
+  wrap: new Set([
+    ...CASE_METADATA_KEYS,
+    'args',
+    'parts',
+    'expect_output',
+    'expect_contains',
+    'expect_round_trip',
+  ]),
+  parse_response: new Set([...CASE_METADATA_KEYS, 'args', 'input', 'expect', 'expect_error']),
+  generate_prompt_snippet: new Set([
+    ...CASE_METADATA_KEYS,
+    'args',
+    'expect_file',
+    'expect_callable_functions',
+    'expect_contains',
+    'expect_absent',
+    'expect_deterministic',
+    'expect_error',
+  ]),
+};
 
 function assertThrows(fn: () => void, expectError: Record<string, unknown> | string): void {
   if (typeof expectError === 'string') {
@@ -61,6 +100,7 @@ function assertThrows(fn: () => void, expectError: Record<string, unknown> | str
     return;
   }
 
+  assertKnownKeys(expectError, EXPECT_ERROR_KEYS, 'expect_error');
   const category = expectError.category as string;
   let thrownError: unknown;
   try {
@@ -188,6 +228,10 @@ describeSuite(
   ]),
   async testCase => {
     const {action} = testCase;
+    const allowedKeys = EXPRESS_CASE_KEYS[action];
+    if (allowedKeys) {
+      assertKnownKeys(testCase, allowedKeys, `${action} case`);
+    }
     const args = (testCase.args as Record<string, unknown>) || {};
 
     if (action === 'compile') {
@@ -312,16 +356,6 @@ describeSuite(
           transformers?: Array<Record<string, string[]>>;
         }>) || [];
 
-      if (testCase.expect_error) {
-        assertThrows(
-          () => {
-            new ExpressFormat([]);
-          },
-          testCase.expect_error as Record<string, unknown>,
-        );
-        return;
-      }
-
       const loadedCatalogs: CatalogApi[] = [];
       for (const entry of catEntries) {
         const fullPath = resolve(CONFORMANCE_ROOT, entry.catalog);
@@ -364,13 +398,30 @@ describeSuite(
         }
       }
 
-      const generator = new ExpressPromptGenerator(
-        loadedCatalogs,
-        examples,
-        args.allowed_messages as string[] | undefined,
-      );
+      const buildFormat = () =>
+        new ExpressFormat(loadedCatalogs, {
+          surfaceId: CONFORMANCE_SURFACE_ID,
+          examples,
+          allowedMessages: args.allowed_messages as string[] | undefined,
+        });
+
+      if (testCase.expect_error) {
+        assertThrows(
+          () => {
+            buildFormat().promptGenerator.generate();
+          },
+          testCase.expect_error as Record<string, unknown>,
+        );
+        return;
+      }
+
+      const generator: ExpressPromptGenerator = buildFormat().promptGenerator;
       const output = generator.generate();
 
+      if (typeof testCase.expect_file === 'string') {
+        const expectedText = readFileSync(resolve(CONFORMANCE_ROOT, testCase.expect_file), 'utf8');
+        expect(output).toBe(expectedText);
+      }
       if (testCase.expect_callable_functions !== undefined) {
         const expectedCallable = testCase.expect_callable_functions as string[];
         expect(agentCallableFunctions(loadedCatalogs)).toEqual(expectedCallable);

@@ -31,9 +31,37 @@ import {
 import {CatalogApi} from '../../src/internal/web-core.js';
 import {loadBasicCatalog, REPO_ROOT} from '../helpers/basic-catalogs.js';
 import {classify, KNOWN_FAILURES, loadCases, LoadedCase} from './loader.js';
-import {conformancePath, describeSuite, errorClassFor} from './suite-helpers.js';
+import {
+  assertExpectedError,
+  assertKnownKeys,
+  CASE_METADATA_KEYS,
+  conformancePath,
+  describeSuite,
+} from './suite-helpers.js';
 
 const basicCatalogV10 = loadBasicCatalog('1.0');
+
+const SINGLE_FILE_CASE_KEYS = new Set([...CASE_METADATA_KEYS, 'args', 'expected_file']);
+const SKILL_SET_CASE_KEYS = new Set([
+  ...CASE_METADATA_KEYS,
+  'args',
+  'expected_skills',
+  'expected_skill_files',
+]);
+const EXPORT_CASE_KEYS = new Set([
+  ...CASE_METADATA_KEYS,
+  'args',
+  'expect_error',
+  'expected_files',
+  'expected_absent_files',
+]);
+const SKILL_CASE_KEYS: Record<string, ReadonlySet<string>> = {
+  from_format: SINGLE_FILE_CASE_KEYS,
+  core_syntax: SINGLE_FILE_CASE_KEYS,
+  from_catalog: SINGLE_FILE_CASE_KEYS,
+  skill_set: SKILL_SET_CASE_KEYS,
+  export_to_directory: EXPORT_CASE_KEYS,
+};
 
 interface SkillCaseContext {
   args: Record<string, unknown>;
@@ -126,7 +154,7 @@ function runExportToDirectoryCase(testCase: LoadedCase): void {
       skillSet.exportToDirectory(tempDir);
     };
     if (testCase.expect_error) {
-      expect(run).toThrow(errorClassFor(testCase));
+      assertExpectedError(run, testCase);
     } else {
       run();
     }
@@ -157,6 +185,10 @@ describeSuite(
   loadCases([conformancePath('agent/skill.yaml')]),
   async testCase => {
     const {action} = testCase;
+    const allowedKeys = SKILL_CASE_KEYS[action];
+    if (allowedKeys) {
+      assertKnownKeys(testCase, allowedKeys, `${action} case`);
+    }
     if (action === 'export_to_directory') {
       runExportToDirectoryCase(testCase);
       return;

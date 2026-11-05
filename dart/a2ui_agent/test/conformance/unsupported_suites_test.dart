@@ -43,18 +43,19 @@ const Set<String> activeAgentSuites = {
   'agent/streamed_answer.yaml',
 };
 
-/// `agent/**/*.yaml` suites not executed in the default `dart-agent` test run,
+/// Timing suites tagged `performance` and executed in the performance CI job
+/// via `dart test -P performance` (`scaling_conformance_test.dart`).
+const Set<String> performanceAgentSuites = {
+  'agent/direct_json/scaling.yaml',
+  'agent/express/scaling.yaml',
+};
+
+/// `agent/**/*.yaml` suites not implemented by `a2ui_agent` for Dart,
 /// paired with the reason recorded in the executed-case manifest.
 const Map<String, String> unsupportedAgentSuites = {
   'agent/builder/builder.yaml':
       'The fluent builder AST suite targets the Python builder API, which '
       'a2ui_agent for Dart does not implement.',
-  'agent/direct_json/scaling.yaml':
-      'Timing suite tagged performance; runs in the performance job with '
-      'dart test -P performance.',
-  'agent/express/scaling.yaml':
-      'Timing suite tagged performance; runs in the performance job with '
-      'dart test -P performance.',
   'agent/legacy/inference_format.yaml':
       'Pre-blueprint legacy suite retained only for backward compatibility; '
       'superseded by the current agent suites.',
@@ -98,11 +99,26 @@ void main() {
             'unsupportedAgentSuites.',
       );
       expect(
-        activeAgentSuites.union(unsupported),
+        activeAgentSuites.intersection(performanceAgentSuites),
+        isEmpty,
+        reason:
+            'A suite cannot be in both activeAgentSuites and '
+            'performanceAgentSuites.',
+      );
+      expect(
+        performanceAgentSuites.intersection(unsupported),
+        isEmpty,
+        reason:
+            'A suite cannot be in both performanceAgentSuites and '
+            'unsupportedAgentSuites.',
+      );
+      expect(
+        activeAgentSuites.union(performanceAgentSuites).union(unsupported),
         equals(onDisk),
         reason:
             'Every conformance/agent/**/*.yaml file must be in '
-            'activeAgentSuites or unsupportedAgentSuites.',
+            'activeAgentSuites, performanceAgentSuites, or '
+            'unsupportedAgentSuites.',
       );
     });
 

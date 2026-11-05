@@ -96,6 +96,10 @@ _KNOWN_KEYS: dict[str, frozenset[str]] = {
 _CURRENT_CASE_KEY: str = ""
 
 
+class UnknownConformanceKeyError(Exception):
+    """Raised when a conformance YAML case contains an unrecognized key."""
+
+
 def _assert_known_keys(
     obj: Mapping[str, Any],
     allowed: frozenset[str],
@@ -105,7 +109,7 @@ def _assert_known_keys(
     target = case_key or _CURRENT_CASE_KEY or str(obj.get("name", "<unknown>"))
     for key in obj:
         if key not in allowed:
-            pytest.fail(f"Unknown {where} '{key}' in {target}")
+            raise UnknownConformanceKeyError(f"Unknown {where} '{key}' in {target}")
 
 
 def _has_nested_key_path(obj: Mapping[str, Any], dotted_path: str) -> bool:
@@ -389,6 +393,8 @@ def test_adk_extensions_conformance(name: str, test_case: dict[str, Any]) -> Non
     if case_key in EXPECTED_FAILURES:
         try:
             runner(test_case)
+        except UnknownConformanceKeyError:
+            raise
         except (Exception, pytest.fail.Exception):
             pytest.xfail(EXPECTED_FAILURES[case_key])
         pytest.fail(f"Expected failure '{case_key}' passed unexpectedly.")
