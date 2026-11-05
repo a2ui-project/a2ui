@@ -39,12 +39,14 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     <script is:inline>
       // Default to the A2UI design system light theme unless user explicitly chose dark mode
       (function () {
-        const stored = typeof localStorage !== 'undefined' && localStorage.getItem('a2ui-theme');
-        const theme = stored === 'dark' || stored === 'light' ? stored : 'light';
-        document.documentElement.setAttribute('data-theme', theme);
         try {
+          const stored = localStorage.getItem('a2ui-theme');
+          const theme = stored === 'dark' || stored === 'light' ? stored : 'light';
+          document.documentElement.setAttribute('data-theme', theme);
           localStorage.setItem('starlight-theme', theme);
-        } catch (_) {}
+        } catch (_) {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
       })();
     </script>
     <style is:global>
@@ -64,7 +66,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         --on-ink: #ffffff;
         --hairline-on-ink: rgba(255, 255, 255, 0.1);
         --text-strong: #374151;
-        --text-muted-ds: #4b5563;
+        --text-muted: #4b5563;
         --text-subtle: #6b7280;
         --text-eyebrow: #5f6672;
         --code: #1e293b;
@@ -105,8 +107,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         --code-bg: var(--surface-sunken);
         --code-header: var(--surface-page);
         --text: var(--ink);
-        --text-secondary: var(--text-muted-ds);
-        --text-muted: var(--text-subtle);
+        --text-secondary: var(--text-muted);
         --accent: var(--blue-700);
         --accent-strong: var(--ink);
         --accent-soft: var(--blue-50);
@@ -143,7 +144,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         --on-blue: #ffffff;
         --ink-on-blue: #111827;
         --text-strong: #c4c9d2;
-        --text-muted-ds: #a3a9b5;
+        --text-muted: #a3a9b5;
         --text-subtle: #8d94a1;
         --text-eyebrow: #8d94a1;
         --code: #d3d7de;
@@ -181,8 +182,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         --code-bg: var(--surface-sunken);
         --code-header: var(--surface-page);
         --text: var(--ink);
-        --text-secondary: var(--text-muted-ds);
-        --text-muted: var(--text-subtle);
+        --text-secondary: var(--text-muted);
         --accent: #7aa7de;
         --accent-strong: var(--ink);
         --accent-soft: var(--blue-100);
@@ -455,7 +455,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         font-weight: 500;
         letter-spacing: 0.04em;
         text-transform: uppercase;
-        color: var(--text-muted);
+        color: var(--text-subtle);
         margin-bottom: 14px;
       }
 
@@ -638,7 +638,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         font-family: var(--font-mono);
         font-size: 11px;
         letter-spacing: 0.02em;
-        color: var(--text-muted);
+        color: var(--text-subtle);
       }
 
       .a2-usecase-stage {
@@ -683,7 +683,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
       .a2-screenshot-chrome {
         background: var(--code-header);
-        color: var(--text-muted);
+        color: var(--text-subtle);
         border-bottom: 1px solid var(--border);
         padding: 10px 16px;
         display: flex;
@@ -925,7 +925,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         font-size: 10.5px;
         font-weight: 700;
         letter-spacing: 0.06em;
-        color: var(--text-muted);
+        color: var(--text-subtle);
         background: var(--surface-subtle);
         margin-bottom: 4px;
       }
@@ -1184,7 +1184,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
                     <p class="a2-meta-kv__val" id="band-bestfor">High-traffic, brand-critical surfaces (flight tickets, checkout cards, approval widgets) where predictability and zero layout drift are mandatory.</p>
                   </div>
                 </div>
-                <div style="padding-top: 12px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-muted);">
+                <div style="padding-top: 12px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-subtle);">
                   ✓ Mix all 4 bands in a single conversation using the same A2UI wire protocol &amp; client renderers.
                 </div>
               </div>
@@ -1271,7 +1271,7 @@ def flight_ticket(flight: str, origin: str, dest: str, price_eur: int) -&gt; Car
                   <div>✓ <strong>Key Capability:</strong> Two-way <code>updateDataModel</code> bindings for live controls</div>
                 </div>
               </div>
-              <div style="margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-muted);" id="uc-footer">
+              <div style="margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-subtle);" id="uc-footer">
                 Placeholder slot — replace with approved partner logo and product surface screenshot.
               </div>
             </div>
@@ -1307,7 +1307,7 @@ def flight_ticket(flight: str, origin: str, dest: str, price_eur: int) -&gt; Car
                         </div>
                       </div>
                     </div>
-                    <div style="font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); text-align: center;">
+                    <div style="font-family: var(--font-mono); font-size: 11.5px; color: var(--text-subtle); text-align: center;">
                       Drop screenshot asset into <code>docs/site/public/assets/use-cases/app-01.png</code>
                     </div>
                   </div>
@@ -1412,7 +1412,7 @@ no_btn = <span class="a2-tok-comp">Button</span>(no_btn_text, _, <span class="a2
                 <div class="a2-code-window">
                   <div class="a2-code-window__header">
                     <span class="a2-code-window__title">What the SDK sends on the wire · Standard A2UI v1.0 JSON</span>
-                    <span class="a2-code-window__badge" style="background: var(--surface); color: var(--text-muted); border-color: var(--border);">104 lines · 1,780 chars</span>
+                    <span class="a2-code-window__badge" style="background: var(--surface); color: var(--text-subtle); border-color: var(--border);">104 lines · 1,780 chars</span>
                   </div>
                   <pre class="a2-code-pre"><code>&#123;
   <span class="a2-tok-path">"version"</span>: <span class="a2-tok-str">"1.0"</span>,
@@ -1444,7 +1444,7 @@ no_btn = <span class="a2-tok-comp">Button</span>(no_btn_text, _, <span class="a2
                 <div>
                   <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 600;">
                     <span>Raw JSON Inference Baseline</span>
-                    <span style="color: var(--text-muted); font-family: var(--font-mono);">1,780 chars · 1.0x baseline</span>
+                    <span style="color: var(--text-subtle); font-family: var(--font-mono);">1,780 chars · 1.0x baseline</span>
                   </div>
                   <div class="a2-bench-track">
                     <div class="a2-bench-fill" style="width: 100%; background: var(--blue-600); color: #ffffff;">1,780 chars (100% wire JSON)</div>
@@ -1467,7 +1467,7 @@ no_btn = <span class="a2-tok-comp">Button</span>(no_btn_text, _, <span class="a2
                 <div class="a2-macro-stage">
                   <div class="a2-macro-stage__head">
                     <span>1. MODEL WRITES MACRO</span>
-                    <span style="color: var(--text-muted);">Inference Catalog</span>
+                    <span style="color: var(--text-subtle);">Inference Catalog</span>
                   </div>
                   <div class="a2-macro-stage__body">
                     <div class="a2-code-window" style="margin-bottom: 12px;">
@@ -1491,7 +1491,7 @@ root = <span class="a2-tok-comp">FlightCard</span>(
                 <div class="a2-macro-stage">
                   <div class="a2-macro-stage__head">
                     <span>2. SERVER EXPANDS</span>
-                    <span style="color: var(--text-muted);">@macro Decorator</span>
+                    <span style="color: var(--text-subtle);">@macro Decorator</span>
                   </div>
                   <div class="a2-macro-stage__body">
                     <div class="a2-code-window" style="margin-bottom: 12px;">
@@ -1517,13 +1517,13 @@ root = <span class="a2-tok-comp">FlightCard</span>(
                 <div class="a2-macro-stage">
                   <div class="a2-macro-stage__head">
                     <span>3. EXPANDED PRIMITIVES</span>
-                    <span style="color: var(--text-muted);">Rendering Catalog</span>
+                    <span style="color: var(--text-subtle);">Rendering Catalog</span>
                   </div>
                   <div class="a2-macro-stage__body">
                     <div style="background: var(--surface-subtle); border: 1px solid var(--border-strong); border-radius: 8px; padding: 14px; margin-bottom: 12px;">
                       <div style="display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 700; margin-bottom: 8px;">
                         <span style="color: var(--accent);">✈️ OS 87</span>
-                        <span style="color: var(--text-muted);">Mon, Dec 15</span>
+                        <span style="color: var(--text-subtle);">Mon, Dec 15</span>
                       </div>
                       <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: 800; padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 8px;">
                         <span>Vienna</span>
@@ -1590,21 +1590,21 @@ root = <span class="a2-tok-comp">FlightCard</span>(
                       </p>
                       <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 12px;">
                         <div style="padding: 8px; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 6px;">
-                          <span style="color: var(--text-muted); display: block;">Region</span>
+                          <span style="color: var(--text-subtle); display: block;">Region</span>
                           <strong>us-central1</strong>
                         </div>
                         <div style="padding: 8px; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 6px;">
-                          <span style="color: var(--text-muted); display: block;">Nodes</span>
+                          <span style="color: var(--text-subtle); display: block;">Nodes</span>
                           <strong>12 → 18 replicas</strong>
                         </div>
                         <div style="padding: 8px; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 6px;">
-                          <span style="color: var(--text-muted); display: block;">Est. Delta</span>
+                          <span style="color: var(--text-subtle); display: block;">Est. Delta</span>
                           <strong>+$140/mo</strong>
                         </div>
                       </div>
                     </div>
                   </div>
-                  <div style="margin-top: 14px; display: flex; justify-content: space-between; font-size: 12.5px; color: var(--text-muted);">
+                  <div style="margin-top: 14px; display: flex; justify-content: space-between; font-size: 12.5px; color: var(--text-subtle);">
                     <span>All renderers pass the shared A2UI Conformance Suite</span>
                     <a href={`${base}/quickstart/`} style="color: var(--accent-strong); font-weight: 600; text-decoration: none;">Explore Quickstart →</a>
                   </div>
@@ -1806,7 +1806,7 @@ root = Card(Column([
                 </div>
               </div>
             </div>
-            <div style="font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); text-align: center;">
+            <div style="font-family: var(--font-mono); font-size: 11.5px; color: var(--text-subtle); text-align: center;">
               Drop screenshot asset into <code>docs/site/public/assets/use-cases/${assetFile}</code>
             </div>
           </div>`;
