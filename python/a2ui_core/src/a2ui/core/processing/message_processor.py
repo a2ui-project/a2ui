@@ -42,6 +42,7 @@ from ..validation import (
     STRICT_VALIDATION,
 )
 from ..validation.payload_validator import (
+    check_renderer_may_call,
     nested_call_runs_in_catalog,
     rebase_function_error_details,
 )
@@ -1137,7 +1138,10 @@ class MessageProcessor:
         errors: list[A2uiErrorDetail],
         summaries: list[str],
     ) -> None:
-        """Resolves one nested call's catalog and checks its arguments.
+        """Resolves one nested call's catalog and checks the call.
+
+        The call is a renderer call, so it may not call an `agentOnly`
+        function, and its arguments must match the function's definition.
 
         Appends errors to `errors`, with paths rooted at the call's location
         in the component, and a line describing them to `summaries`. An empty
@@ -1190,6 +1194,7 @@ class MessageProcessor:
             # catalog.
             return
         try:
+            check_renderer_may_call(catalog, name)
             PayloadValidator(catalog, config=self.validation_config).validate_function(
                 name, call.get("args")
             )

@@ -221,6 +221,42 @@ def _non_object_args_error(name: str) -> A2uiValidationError:
     )
 
 
+def check_renderer_may_call(catalog: CatalogApi, name: str) -> None:
+    """Raises if the renderer may not call a catalog function itself.
+
+    A call held in a component (a property binding, a check or an action) is
+    made by the renderer. A function whose `allowedCallers` is `agentOnly`
+    runs only for an agent's `callRendererFunction`, so it can't be bound
+    into a component. `DataContext` refuses such a call when it is evaluated,
+    with the same message.
+
+    Args:
+        catalog: The catalog the call runs in.
+        name: The called function.
+
+    Raises:
+        A2uiValidationError: If the catalog declares the function `agentOnly`.
+            Its detail is at `functions.<name>`, which
+            `rebase_function_error_details` moves to the call's location.
+    """
+    fn = catalog.get_function(name) if hasattr(catalog, "get_function") else None
+    if getattr(fn, "allowed_callers", None) != "agentOnly":
+        return
+    message = (
+        f"Function '{name}' cannot be called by renderer (allowedCallers is agentOnly)."
+    )
+    raise A2uiValidationError(
+        message,
+        details=[
+            A2uiErrorDetail(
+                path=f"functions.{name}",
+                code="invalid_function_call",
+                message=message,
+            )
+        ],
+    )
+
+
 def nested_call_runs_in_catalog(
     call_catalog_id: Any, catalog_id: str | None, *, catalog_is_default: bool
 ) -> bool:
@@ -694,7 +730,9 @@ class PayloadValidator:
         validator can't see, so only its function and argument identifiers are
         checked; `MessageProcessor` resolves such a call's catalog and checks
         it there. An empty `catalogId` names a catalog too, and a non-string
-        `catalogId` is a type error.
+        `catalogId` is a type error. A call held in a component is a renderer
+        call, so a fully checked call may not call an `agentOnly` function
+        (see `check_renderer_may_call`).
 
         Before v1.0, a call's `catalogId` is ignored, as it is at runtime, and
         every call is checked against this catalog.
@@ -803,6 +841,7 @@ class PayloadValidator:
 
         try:
             if full_check:
+                check_renderer_may_call(self.catalog, fn_name)
                 self.validate_function(fn_name, fn_args)
             else:
                 self.validate_function_identifiers(fn_name, fn_args)

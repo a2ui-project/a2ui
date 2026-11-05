@@ -185,6 +185,22 @@ const KNOWN_DIVERGENCES = new Map([
       ],
     ]),
   ],
+  [
+    'core/validator_v1_0.yaml',
+    new Map([
+      [
+        'test_v10_agent_only_function_in_binding_error',
+        'web_core validation does not reject an agentOnly function bound into a component ' +
+          'property; it is refused only when the binding is evaluated ' +
+          '(https://github.com/a2ui-project/a2ui/issues/3534)',
+      ],
+      [
+        'test_v10_agent_only_function_in_action_error',
+        'web_core validation does not reject an agentOnly function in an action functionCall ' +
+          '(https://github.com/a2ui-project/a2ui/issues/3534)',
+      ],
+    ]),
+  ],
 ]);
 
 /**

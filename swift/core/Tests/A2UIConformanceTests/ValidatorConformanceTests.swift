@@ -72,9 +72,23 @@ struct ValidatorConformanceTests {
     }
   }
 
+  /// Cases in `core/validator_v1_0.yaml` this core may not satisfy yet, with the reason. They
+  /// run as known issues, which pass whether or not the case fails.
+  private static let v10KnownIssues: [String: String] = [
+    "test_v10_agent_only_function_in_binding_error":
+      "Validation may not reject an agentOnly function bound into a component property"
+      + " (https://github.com/a2ui-project/a2ui/issues/3534)",
+    "test_v10_agent_only_function_in_action_error":
+      "Validation may not reject an agentOnly function in an action functionCall"
+      + " (https://github.com/a2ui-project/a2ui/issues/3534)",
+  ]
+
   @Test(arguments: ConformanceTestHelper.cases("core/validator_v1_0.yaml"))
   func validatorV10Conformance(_ conformanceCase: ConformanceCase) throws {
-    try ConformanceManifest.run(conformanceCase) {
+    try ConformanceManifest.run(
+      conformanceCase,
+      knownIssueReason: Self.v10KnownIssues[conformanceCase.name]
+    ) {
       try runSingleValidatorCase(conformanceCase, versionPrefix: "1.0")
     }
   }
