@@ -31,11 +31,7 @@ For each issue that is [not first-line-handled][not-first-line-handled]:
 2. Go through [status: needs-team-input][needs-team-input] with other team members. For each item:
 
     - If you can triage it in a couple of minutes, [triage it](#triage-an-item) and remove `status: needs-team-input`.
-    - Otherwise, assign it to an expert in the area, add [status: assigned-for-triage][assigned-for-triage], and remove `status: needs-team-input`. The expert [finishes the triage](#by-owners-of-status-assigned-for-triage).
-
-## By owners of `status: assigned-for-triage`
-
-If you are assigned to a PR or an issue with the label `status: assigned-for-triage`, you are treated as an expert in its area, and your job is to [triage the item](#triage-an-item) within two weeks of the assignment. Then you can remove the label and unassign yourself.
+    - Otherwise, assign it to an expert in the area, add [status: assigned-for-triage][assigned-for-triage], and remove `status: needs-team-input`.
 
 ## Triage an item
 
