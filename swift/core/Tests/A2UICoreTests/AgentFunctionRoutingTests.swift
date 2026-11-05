@@ -231,11 +231,11 @@ struct AgentFunctionRoutingTests {
     }
   }
 
-  private func makeCatalog(protocolVersion: A2UIProtocolVersion = .v10) throws -> AnyCatalog {
+  private static let textSchema: Schema = {
     let dynamicString = A2UICommonSchema.v10URI(for: "DynamicString")
     let checkRule = A2UICommonSchema.v10URI(for: "CheckRule")
     let action = A2UICommonSchema.v10URI(for: "Action")
-    let schema = try Schema(
+    return try! Schema(
       instance: """
         {
           "type": "object",
@@ -249,16 +249,25 @@ struct AgentFunctionRoutingTests {
         """,
       remoteSchemas: A2UICommonSchema.allSchemas
     )
-    return Catalog(
-      id: Self.finCatalogID,
+  }()
+
+  private static let v10Catalog = buildCatalog(protocolVersion: .v10)
+  private static let v09Catalog = buildCatalog(protocolVersion: .v09)
+
+  private static func buildCatalog(protocolVersion: A2UIProtocolVersion) -> AnyCatalog {
+    Catalog(
+      id: finCatalogID,
       protocolVersion: protocolVersion,
-      components: [AnyComponentAPI(name: "Text", schema: schema)],
+      components: [AnyComponentAPI(name: "Text", schema: textSchema)],
       functions: [
         UpperFunction(), JoinFunction(), NotANumberFunction(), BracketGreetingFunction(),
-        SilentFailureFunction(), ExplodeFunction(), Self.quote, Self.estimate, Self.confirmOrder,
-        Self.auditLog,
+        SilentFailureFunction(), ExplodeFunction(), quote, estimate, confirmOrder, auditLog,
       ]
     ).eraseToAnyCatalog()
+  }
+
+  private func makeCatalog(protocolVersion: A2UIProtocolVersion = .v10) -> AnyCatalog {
+    protocolVersion == .v10 ? Self.v10Catalog : Self.v09Catalog
   }
 
   /// Creates a processor with a surface `s1`, listening to outbound messages unless
@@ -269,9 +278,13 @@ struct AgentFunctionRoutingTests {
   ) throws -> (MessageProcessor, SurfaceViewModel) {
     let protocolVersion: A2UIProtocolVersion = version == "1.0" ? .v10 : .v09
     let processor = MessageProcessor(
-      catalog: try makeCatalog(protocolVersion: protocolVersion),
+      catalog: makeCatalog(protocolVersion: protocolVersion),
       actionHandler: handler
     )
+    // Tests settle every call explicitly (except `reportsTimeoutAsExpressionError`, which sets
+    // its own short timeout). Disable the 30-second wall-clock timeout so a heavily loaded test
+    // run sharing the main actor cannot time a call out between two steps.
+    processor.agentFunctionTimeoutSeconds = 0
     outbound.processor = processor
     if listening {
       let outbound = self.outbound
@@ -314,10 +327,23 @@ struct AgentFunctionRoutingTests {
     )
   }
 
+  /// Returns the outbound `callAgentFunction` at `index`, failing the test if absent.
+  private func agentCall(
+    _ index: Int,
+    sourceLocation: SourceLocation = #_sourceLocation
+  ) throws -> CallAgentFunctionMessage {
+    try #require(
+      outbound.agentCalls.indices.contains(index),
+      "Expected callAgentFunction at index \(index), got \(outbound.agentCalls.count)",
+      sourceLocation: sourceLocation
+    )
+    return outbound.agentCalls[index]
+  }
+
   /// Answers the outbound `callAgentFunction` at `index` with `response`, the JSON members of
   /// the `agentFunctionResponse` besides its `functionCallId`.
   private func respond(_ processor: MessageProcessor, _ index: Int, _ response: String) throws {
-    let callID = outbound.agentCalls[index].functionCallID
+    let callID = try agentCall(index).functionCallID
     try process(
       processor,
       """
@@ -447,9 +473,10 @@ struct AgentFunctionRoutingTests {
 
     try respond(processor, 0, #""value": 1.08"#)
     await waitUntil { outbound.agentCalls.count == 2 }
-    #expect(outbound.agentCalls[1].callFunction.call == "convert")
-    #expect(outbound.agentCalls[1].callFunction.catalogID == Self.finCatalogID)
-    #expect(outbound.agentCalls[1].callFunction.args == ["rate": 1.08])
+    let secondCall = try agentCall(1)
+    #expect(secondCall.callFunction.call == "convert")
+    #expect(secondCall.callFunction.catalogID == Self.finCatalogID)
+    #expect(secondCall.callFunction.args == ["rate": 1.08])
 
     try respond(processor, 1, #""value": "108.00""#)
     await waitUntil { text(surface) != nil }
@@ -662,8 +689,9 @@ struct AgentFunctionRoutingTests {
     // Triggering the action again sends a fresh call instead of reading the surface cache.
     action()
     await waitUntil { outbound.agentCalls.count == 2 }
-    #expect(outbound.agentCalls[1].callFunction.call == "submitOrder")
-    #expect(outbound.agentCalls[1].callFunction.args == ["id": "o-1"])
+    let secondCall = try agentCall(1)
+    #expect(secondCall.callFunction.call == "submitOrder")
+    #expect(secondCall.callFunction.args == ["id": "o-1"])
   }
 
   @Test func concurrentActionInvocationsNeverShareInFlightCall() async throws {
@@ -749,8 +777,9 @@ struct AgentFunctionRoutingTests {
 
     try respond(processor, 0, #""value": "t-1""#)
     await waitUntil { outbound.agentCalls.count == 2 }
-    #expect(outbound.agentCalls[1].callFunction.call == "submitOrder")
-    #expect(outbound.agentCalls[1].callFunction.args == ["token": "t-1"])
+    let secondCall = try agentCall(1)
+    #expect(secondCall.callFunction.call == "submitOrder")
+    #expect(secondCall.callFunction.args == ["token": "t-1"])
     #expect(handler.capturedErrors.isEmpty)
   }
 
@@ -778,7 +807,7 @@ struct AgentFunctionRoutingTests {
     // Running the action again retries the failed call.
     action()
     await waitUntil { outbound.agentCalls.count == 2 }
-    #expect(outbound.agentCalls[1].callFunction.call == "mintToken")
+    #expect(try agentCall(1).callFunction.call == "mintToken")
   }
 
   @Test func stopsActionFunctionCallWhenNestedArgumentFailsSynchronously() async throws {
@@ -976,7 +1005,7 @@ struct AgentFunctionRoutingTests {
 
   /// An agent-initiated call is unaffected: the renderer can't run a schema-only function.
   @Test func agentCannotCallSchemaOnlyFunctionOnRenderer() async throws {
-    let catalog = try makeCatalog()
+    let catalog = makeCatalog()
     let response = await RPCHandler().handleIncomingCall(
       CallRendererFunctionMessage(
         functionCallID: "c1",
@@ -1110,8 +1139,9 @@ struct AgentFunctionRoutingTests {
     await waitUntil { outbound.agentCalls.count == 1 }
     try respond(processor, 0, #""value": "t-1""#)
     await waitUntil { outbound.agentCalls.count == 2 }
-    #expect(outbound.agentCalls[1].callFunction.call == "confirmOrder")
-    #expect(outbound.agentCalls[1].callFunction.args == ["token": "t-1"])
+    let secondCall = try agentCall(1)
+    #expect(secondCall.callFunction.call == "confirmOrder")
+    #expect(secondCall.callFunction.args == ["token": "t-1"])
     #expect(handler.capturedErrors.isEmpty)
   }
 
@@ -1141,12 +1171,12 @@ struct AgentFunctionRoutingTests {
     #expect(outbound.agentCalls.count == 2)
     let names = Set(outbound.agentCalls.map(\.callFunction.call))
     #expect(names == ["mintToken", "lookupUser"])
-    let secondName = outbound.agentCalls[1].callFunction.call
+    let secondName = try agentCall(1).callFunction.call
     try respond(processor, 1, try #require(answers[secondName]))
 
     // `userMessage` is resolved after every `context` entry.
     await waitUntil { outbound.agentCalls.count == 3 }
-    #expect(outbound.agentCalls[2].callFunction.call == "describeOrder")
+    #expect(try agentCall(2).callFunction.call == "describeOrder")
     #expect(handler.capturedActions.isEmpty)
 
     try respond(processor, 2, #""value": "Buy it""#)
@@ -1446,7 +1476,7 @@ struct AgentFunctionRoutingTests {
 
     try process(processor, Self.setSymbol(#""USD""#))
     await waitUntil { outbound.agentCalls.count == 3 }
-    #expect(outbound.agentCalls[2].callFunction.args == ["base": "USD"])
+    #expect(try agentCall(2).callFunction.args == ["base": "USD"])
   }
 
   @Test func localFunctionFedByAgentKeepsUpdating() async throws {
@@ -1609,7 +1639,7 @@ struct AgentFunctionRoutingTests {
 
   @Test func agentInitiatedCallArgumentsNeverRoute() async throws {
     let (_, surface) = try makeProcessor()
-    let catalog = try makeCatalog()
+    let catalog = makeCatalog()
     for nested in ["fetchGreeting", "quote"] {
       let response = await RPCHandler().handleIncomingCall(
         CallRendererFunctionMessage(
@@ -1764,7 +1794,7 @@ struct AgentFunctionRoutingTests {
     immediate()
     await waitUntil { errors.count == 2 }
     await settle()
-    #expect(errors.count == 2)
+    try #require(errors.count == 2)
     #expect(errors.map(\.code) == ["EXECUTION_ERROR", "EXECUTION_ERROR"])
     #expect(errors.map(\.surfaceID) == ["s1", "s1"])
     #expect(errors[0].message == errors[1].message)
@@ -1913,7 +1943,7 @@ struct AgentFunctionRoutingTests {
         ),
         version: .v10
       ),
-      catalogs: [Self.finCatalogID: try makeCatalog()],
+      catalogs: [Self.finCatalogID: makeCatalog()],
       defaultCatalogID: Self.finCatalogID,
       dataContext: context(surface)
     )
@@ -2002,7 +2032,7 @@ struct AgentFunctionRoutingTests {
         ),
         version: .v10
       ),
-      catalogs: [Self.finCatalogID: try makeCatalog()],
+      catalogs: [Self.finCatalogID: makeCatalog()],
       defaultCatalogID: Self.finCatalogID,
       dataContext: context(surface)
     )
