@@ -25,6 +25,7 @@ import json
 import re
 from typing import Any, Literal
 
+from a2ui.constants import EXAMPLES_HEADING
 from a2ui.core import CatalogApi
 from a2ui.core.common import is_at_least_version
 from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
@@ -765,7 +766,7 @@ class ExpressPromptGenerator(PromptGenerator):
 
         rules = self.generate_base_rules()
         if rules:
-            parts.append(f"## Workflow Description:\n{rules}")
+            parts.append(rules)
 
         catalog_inst = self.generate_catalog_instructions(include_schema=True)
         if catalog_inst:
@@ -773,6 +774,6 @@ class ExpressPromptGenerator(PromptGenerator):
 
         examples = self.generate_examples()
         if examples:
-            parts.append(f"### Examples:\n{examples}")
+            parts.append(f"{EXAMPLES_HEADING}{examples}")
 
         return "\n\n".join(parts)
