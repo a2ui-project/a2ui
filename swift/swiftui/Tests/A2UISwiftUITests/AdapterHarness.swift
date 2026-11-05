@@ -1790,14 +1790,10 @@ enum AdapterHarness {
     _ err: RendererError
   ) -> (code: String, surfaceID: String?, message: String) {
     switch err {
-    case .validationFailed(let surfaceId, let message):
-      return ("VALIDATION_FAILED", surfaceId, message)
-    case .expressionError(_, let message, let code):
-      return (code ?? "EXPRESSION_ERROR", nil, message)
-    case .actionFailed(let message):
-      return ("ACTION_FAILED", nil, message)
-    case .uiFailure(let code, let surfaceId, let message):
-      return (code, surfaceId, message)
+    case .validationFailed(let validation):
+      return (validation.code.rawValue, validation.surfaceID, validation.message)
+    case .generic(let generic):
+      return (generic.code, generic.surfaceID, generic.message)
     }
   }
 
