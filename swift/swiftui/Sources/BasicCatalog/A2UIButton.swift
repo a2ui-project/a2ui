@@ -54,7 +54,7 @@ public struct A2UIButton: View {
   }
 
   private var action: ResolvedAction? {
-    node.action(for: "action")
+    node.action(for: "action", userActivation: true)
   }
 
   public var body: some View {
@@ -81,7 +81,7 @@ public struct A2UIButton: View {
     }
     .buttonStyle(.plain)
     .disabled(isDisabled)
-    .accessibilityIdentifier("A2UIButton_\(node.id)")
+    .accessibilityIdentifier("a2ui-\(node.id)")
     .preference(key: A2UIModalTriggerHandledKey.self, value: modalTriggerAction != nil)
   }
 
