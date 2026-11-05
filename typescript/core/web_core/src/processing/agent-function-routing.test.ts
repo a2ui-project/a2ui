@@ -254,16 +254,20 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
     await flush();
     respond(0, {error: {code: 'UNKNOWN_FUNCTION', message: 'No such function: fetchGreeting'}});
     await flush();
-    assert.strictEqual(sub.value, undefined);
+    assert.strictEqual(sub.value, null);
     assert.strictEqual(errors.length, 1);
     assert.strictEqual(errors[0].code, 'EXPRESSION_ERROR');
     assert.strictEqual(errors[0].expression, 'fetchGreeting');
+    assert.strictEqual(
+      (errors[0] as {functionCallId?: string}).functionCallId,
+      outbound[0].callAgentFunction.functionCallId,
+    );
     assert.match(errors[0].message, /No such function: fetchGreeting/);
 
     // Updating a sibling reactive argument does not re-dispatch the inner failure.
     surface.dataModel.set('/b', 'second');
     await flush();
-    assert.strictEqual(sub.value, undefined);
+    assert.strictEqual(sub.value, null);
     assert.strictEqual(errors.length, 1);
     sub.unsubscribe();
   });
@@ -305,7 +309,7 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
     });
     await flush();
     assert.strictEqual(res, undefined);
-    assert.strictEqual(getValue(sig), undefined);
+    assert.strictEqual(getValue(sig), null);
     assert.strictEqual(outbound.length, 0);
     assert.strictEqual(errors.length, 2);
     assert.strictEqual(errors[0].expression, 'quote');
@@ -413,9 +417,14 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
 
     respond(0, {error: {code: 'UNKNOWN_FUNCTION', message: 'No such function: fetchFxRate'}});
     await flush();
-    assert.strictEqual(getValue(sig), undefined);
+    assert.strictEqual(getValue(sig), null);
     assert.strictEqual(errors.length, 1);
     assert.strictEqual(errors[0].code, 'EXPRESSION_ERROR');
+    assert.strictEqual(
+      (errors[0] as {functionCallId?: string}).functionCallId,
+      outbound[0].callAgentFunction.functionCallId,
+    );
+    assert.strictEqual((errors[0] as {surfaceId?: string}).surfaceId, undefined);
     assert.match(errors[0].message, /No such function: fetchFxRate/);
   });
 
@@ -424,9 +433,13 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
     const sig = ctx.resolveSignal({'@call': 'fetchFxRate', 'args': {'base': 'EUR'}});
     await new Promise(resolve => setTimeout(resolve, 30));
 
-    assert.strictEqual(getValue(sig), undefined);
+    assert.strictEqual(getValue(sig), null);
     assert.strictEqual(errors.length, 1);
     assert.strictEqual(errors[0].code, 'EXPRESSION_ERROR');
+    assert.strictEqual(
+      (errors[0] as {functionCallId?: string}).functionCallId,
+      outbound[0].callAgentFunction.functionCallId,
+    );
     assert.match(errors[0].message, /timed out/);
   });
 
