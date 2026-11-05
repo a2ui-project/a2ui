@@ -186,12 +186,12 @@
 <style>
   .db-root {
     margin: 1.5rem 0 2rem;
-    font-family: var(--sl-font);
-    color: #e2e8f0;
-    border-radius: 12px;
-    background: linear-gradient(180deg, #0c1322 0%, #090d16 100%);
-    border: 1px solid #1e293b;
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
+    font-family: var(--a2-font-sans, var(--sl-font));
+    color: var(--a2-text, #f8fafc);
+    border-radius: 14px;
+    background: var(--a2-shell, #11151f);
+    border: 1px solid var(--a2-border, #1e2533);
+    box-shadow: var(--a2-shadow-md);
     overflow: hidden;
   }
 
@@ -209,8 +209,8 @@
     justify-content: space-between;
     gap: 0.65rem;
     padding: 0.75rem 1.15rem;
-    background: rgba(15, 23, 42, 0.85);
-    border-bottom: 1px solid #1e293b;
+    background: var(--a2-surface, #141923);
+    border-bottom: 1px solid var(--a2-border, #1e2533);
   }
 
   :root[data-theme='light'] .db-banner {

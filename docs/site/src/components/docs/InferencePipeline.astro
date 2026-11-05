@@ -204,11 +204,11 @@
 <style>
   .ip-root {
     margin: 1.5rem 0 2rem;
-    font-family: var(--sl-font);
-    color: #e2e8f0;
-    border-radius: 12px;
-    background: linear-gradient(180deg, #0c1322 0%, #090d16 100%);
-    border: 1px solid #1e293b;
+    font-family: var(--a2-font-sans, var(--sl-font));
+    color: var(--a2-text, #f8fafc);
+    border-radius: 14px;
+    background: var(--a2-shell, #11151f);
+    border: 1px solid var(--a2-border, #1e2533);
     overflow: hidden;
   }
 
@@ -225,8 +225,8 @@
     justify-content: space-between;
     gap: 0.75rem;
     padding: 0.8rem 1.15rem;
-    background: rgba(15, 23, 42, 0.85);
-    border-bottom: 1px solid #1e293b;
+    background: var(--a2-surface, #141923);
+    border-bottom: 1px solid var(--a2-border, #1e2533);
   }
 
   :root[data-theme='light'] .ip-banner {
@@ -326,10 +326,10 @@
     display: flex;
     flex-direction: column;
     gap: 0.6rem;
-    padding: 0.8rem;
+    padding: 0.85rem;
     border-radius: 10px;
-    background: rgba(15, 23, 42, 0.65);
-    border: 1px solid #1e293b;
+    background: var(--a2-surface, #141923);
+    border: 1px solid var(--a2-border, #1e2533);
     min-width: 0;
   }
 
@@ -339,15 +339,15 @@
   }
 
   .ip-stage--purple {
-    border-top: 3px solid #a855f7;
+    border-top: 2px solid var(--a2-blue, #38bdf8);
   }
 
   .ip-stage--teal {
-    border-top: 3px solid #14b8a6;
+    border-top: 2px solid var(--a2-accent, #14b8a6);
   }
 
   .ip-stage--amber {
-    border-top: 3px solid #f59e0b;
+    border-top: 2px solid var(--a2-amber, #fbbf24);
   }
 
   .ip-stage__head {
@@ -365,20 +365,20 @@
     border-radius: 6px;
     font-family: var(--sl-font-mono);
     font-size: 0.74rem;
-    font-weight: 800;
+    font-weight: 600;
     flex-shrink: 0;
   }
 
   .ip-step-num--purple {
-    background: rgba(168, 85, 247, 0.2);
-    color: #d8b4fe;
-    border: 1px solid rgba(168, 85, 247, 0.4);
+    background: var(--a2-blue-soft, rgba(56, 189, 248, 0.14));
+    color: var(--a2-blue, #38bdf8);
+    border: 1px solid var(--a2-blue-border, rgba(56, 189, 248, 0.3));
   }
 
   :root[data-theme='light'] .ip-step-num--purple {
-    background: #f3e8ff;
-    color: #6b21a8;
-    border-color: #d8b4fe;
+    background: #e0f2fe;
+    color: #0369a1;
+    border-color: #7dd3fc;
   }
 
   .ip-step-num--teal {
@@ -465,15 +465,15 @@
     font-size: 0.62rem;
     padding: 0.1rem 0.38rem;
     border-radius: 4px;
-    background: rgba(168, 85, 247, 0.14);
-    color: #d8b4fe;
-    border: 1px solid rgba(168, 85, 247, 0.3);
+    background: var(--a2-blue-soft, rgba(56, 189, 248, 0.12));
+    color: var(--a2-blue, #38bdf8);
+    border: 1px solid var(--a2-blue-border, rgba(56, 189, 248, 0.28));
   }
 
   :root[data-theme='light'] .ip-chip {
-    background: #f3e8ff;
-    color: #6b21a8;
-    border-color: #d8b4fe;
+    background: #e0f2fe;
+    color: #0369a1;
+    border-color: #bae6fd;
   }
 
   .ip-arrow-down {
@@ -587,11 +587,11 @@
   }
 
   .ip-p {
-    color: #c084fc;
+    color: var(--a2-accent-strong, #2dd4bf);
   }
 
   :root[data-theme='light'] .ip-p {
-    color: #7e22ce;
+    color: #0f766e;
   }
 
   .ip-k {

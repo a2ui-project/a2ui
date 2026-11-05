@@ -57,6 +57,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
         />
       </svg>
       <span>A2UI</span>
+      <span class="a2-sl-brand__ver">v1.0</span>
     </a>
     <span class="a2-sl-header__slash" aria-hidden="true">/</span>
     <nav class="a2-sl-header__tabs" aria-label="Primary section navigation">
@@ -64,6 +65,10 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
         href={`${base}/`}
         class:list={['a2-sl-tab', { 'is-active': isOverview }]}
         aria-current={isOverview ? 'page' : undefined}>Overview</a
+      >
+      <a
+        href={`${base}/#use-cases`}
+        class="a2-sl-tab a2-sl-tab--desk-only">Examples</a
       >
       <a
         href={`${base}/quickstart/`}
@@ -448,16 +453,16 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 
 <style>
   .a2-sl-header {
-    --a2-hdr-text: var(--sl-color-white, #f8fafc);
-    --a2-hdr-text-secondary: var(--sl-color-gray-2, #cbd5e1);
-    --a2-hdr-text-muted: var(--sl-color-gray-3, #94a3b8);
-    --a2-hdr-surface: var(--sl-color-bg-sidebar, #111c33);
-    --a2-hdr-hover-bg: var(--sl-color-gray-6, #162440);
-    --a2-hdr-border: var(--sl-color-hairline, #1e293b);
-    --a2-hdr-border-strong: var(--sl-color-gray-5, #334155);
-    --a2-hdr-accent: var(--sl-color-accent, #14b8a6);
-    --a2-hdr-accent-text: var(--sl-color-text-accent, #2dd4bf);
-    --a2-hdr-accent-soft: rgba(20, 184, 166, 0.12);
+    --a2-hdr-text: var(--a2-text, #f8fafc);
+    --a2-hdr-text-secondary: var(--a2-text-secondary, #94a3b8);
+    --a2-hdr-text-muted: var(--a2-text-muted, #64748b);
+    --a2-hdr-surface: var(--a2-surface, #141923);
+    --a2-hdr-hover-bg: var(--a2-surface-raised, #1a202d);
+    --a2-hdr-border: var(--a2-border, #1e2533);
+    --a2-hdr-border-strong: var(--a2-border-strong, #2c364a);
+    --a2-hdr-accent: var(--a2-accent, #14b8a6);
+    --a2-hdr-accent-text: var(--a2-accent-strong, #2dd4bf);
+    --a2-hdr-accent-soft: var(--a2-accent-soft, rgba(20, 184, 166, 0.12));
 
     display: flex;
     justify-content: space-between;
@@ -469,15 +474,15 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 
   :global(:root[data-theme='light']) .a2-sl-header {
     --a2-hdr-text: #0f172a;
-    --a2-hdr-text-secondary: #334155;
+    --a2-hdr-text-secondary: #475569;
     --a2-hdr-text-muted: #64748b;
     --a2-hdr-surface: #ffffff;
-    --a2-hdr-hover-bg: #e2e8f0;
+    --a2-hdr-hover-bg: #f1f5f9;
     --a2-hdr-border: #e2e8f0;
     --a2-hdr-border-strong: #cbd5e1;
     --a2-hdr-accent: #0d9488;
-    --a2-hdr-accent-text: #0d9488;
-    --a2-hdr-accent-soft: rgba(13, 148, 136, 0.1);
+    --a2-hdr-accent-text: #0f766e;
+    --a2-hdr-accent-soft: rgba(13, 148, 136, 0.09);
   }
 
   .a2-sl-header__left {
@@ -490,15 +495,28 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
   .a2-sl-brand {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    gap: 9px;
     text-decoration: none;
-    font-weight: 800;
-    font-size: 18px;
+    font-family: var(--a2-font-display, 'Inter', sans-serif);
+    font-weight: 600;
+    font-size: 16.5px;
     line-height: 1;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.028em;
     color: var(--a2-hdr-text);
     white-space: nowrap;
     flex-shrink: 0;
+  }
+
+  .a2-sl-brand__ver {
+    font-family: var(--a2-font-mono, monospace);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    padding: 2px 5px;
+    border-radius: 2px;
+    background: var(--a2-hdr-surface);
+    border: 1px solid var(--a2-hdr-border);
+    color: var(--a2-hdr-text-muted);
   }
 
   .a2-sl-brand:hover {
@@ -532,13 +550,13 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
   }
 
   .a2-sl-tab {
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 13.5px;
+    font-weight: 500;
     line-height: 20px;
     color: var(--a2-hdr-text-secondary);
     text-decoration: none;
-    padding: 6px 12px;
-    border-radius: 6px;
+    padding: 5px 11px;
+    border-radius: 7px;
     white-space: nowrap;
     transition: color 0.15s ease, background-color 0.15s ease;
   }
@@ -549,9 +567,16 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
   }
 
   .a2-sl-tab.is-active {
-    color: var(--a2-hdr-accent-text);
-    background: var(--a2-hdr-accent-soft);
-    font-weight: 600;
+    color: var(--a2-hdr-text);
+    background: var(--a2-hdr-hover-bg);
+    font-weight: 500;
+  }
+
+  @media (max-width: 720px) {
+    .a2-sl-tab--desk-only,
+    .a2-sl-brand__ver {
+      display: none;
+    }
   }
 
   .a2-sl-header__right {
@@ -710,19 +735,19 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
   /* --- Search Modal Dialog --- */
   .a2-sl-search-dialog {
     margin: 0;
-    background-color: var(--sl-color-gray-6, #0d1527);
+    background-color: var(--a2-surface, #141923);
     border: 1px solid var(--a2-hdr-border-strong);
     width: 100%;
     max-width: 100%;
     height: 100%;
     max-height: 100%;
-    box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.65);
+    box-shadow: var(--a2-shadow-lg);
     padding: 0;
     color: var(--a2-hdr-text);
   }
 
   :global(:root[data-theme='light']) .a2-sl-search-dialog {
-    background-color: #f8fafc;
+    background-color: #ffffff;
     box-shadow: 0 20px 40px -12px rgba(15, 23, 42, 0.18);
   }
 
@@ -789,13 +814,13 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
   }
 
   #starlight__search {
-    --pagefind-ui-primary: var(--sl-color-text, #cbd5e1);
-    --pagefind-ui-text: var(--sl-color-gray-2, #cbd5e1);
-    --pagefind-ui-font: var(--sl-font, var(--font-sans, sans-serif));
-    --pagefind-ui-background: var(--sl-color-black, #080d1a);
-    --pagefind-ui-border: var(--sl-color-gray-5, #334155);
+    --pagefind-ui-primary: var(--a2-text, #f8fafc);
+    --pagefind-ui-text: var(--a2-text-secondary, #94a3b8);
+    --pagefind-ui-font: var(--a2-font-sans, sans-serif);
+    --pagefind-ui-background: var(--a2-surface-subtle, #0e121a);
+    --pagefind-ui-border: var(--a2-border-strong, #2c364a);
     --pagefind-ui-border-width: 1px;
-    --pagefind-ui-tag: var(--sl-color-gray-5, #334155);
+    --pagefind-ui-tag: var(--a2-border-strong, #2c364a);
     --sl-search-cancel-space: 5rem;
     --sl-search-result-spacing: calc(1.25rem * var(--pagefind-ui-scale, 0.8));
     --sl-search-result-pad-inline-start: calc(3.75rem * var(--pagefind-ui-scale, 0.8));

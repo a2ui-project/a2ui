@@ -1,0 +1,205 @@
+/*
+ * Copyright 2026 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/* ==========================================================================
+   A2UI Unified Design System Tokens & Font Topology
+   Shared across the Overview experience, Starlight docs, and diagrams.
+   ========================================================================== */
+
+:root,
+:root[data-theme='dark'] {
+  /* --- Font Topology ---
+     1. Display: Optical-sized Neo-Grotesque (Inter opsz 32, tight tracking, 550-600 weight)
+     2. Editorial Accent: Newsreader optical serif for human/brand showcase moments
+     3. Body: Readable UI/Prose Sans (Inter 400-500, calm measure & leading)
+     4. Technical: Tabular Monospace (JetBrains Mono for micro-labels & metrics) */
+  --a2-font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --a2-font-serif: 'Newsreader', Georgia, Cambria, 'Times New Roman', serif;
+  --a2-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --a2-font-mono:
+    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* --- Typographic Scale & Tracking --- */
+  --a2-tracking-display: -0.044em;
+  --a2-tracking-h2: -0.034em;
+  --a2-tracking-h3: -0.022em;
+  --a2-tracking-body: -0.008em;
+  --a2-tracking-mono-wide: 0.09em;
+
+  /* --- Dark Theme: Sleek Obsidian Studio --- */
+  --a2-bg: #08090d;
+  --a2-bg-alt: #0d0f15;
+  --a2-bg-nav: rgba(8, 9, 13, 0.82);
+  --a2-shell: #11141c;
+  --a2-surface: #141821;
+  --a2-surface-raised: #1a1f2b;
+  --a2-surface-subtle: #0f1219;
+  --a2-code-bg: #0b0d13;
+  --a2-code-header: #11151f;
+  --a2-dot-grid: rgba(255, 255, 255, 0.05);
+
+  /* --- Ink Hierarchy --- */
+  --a2-text: #f8fafc;
+  --a2-text-secondary: #94a3b8;
+  --a2-text-muted: #64748b;
+
+  /* --- Hairlines & Borders --- */
+  --a2-border: rgba(255, 255, 255, 0.08);
+  --a2-border-subtle: rgba(255, 255, 255, 0.05);
+  --a2-border-strong: rgba(255, 255, 255, 0.14);
+
+  /* --- Primary High-Contrast Action --- */
+  --a2-cta-bg: #f8fafc;
+  --a2-cta-fg: #090b10;
+  --a2-cta-hover: #e2e8f0;
+
+  /* --- Semantic Accents (Zero Purple on Dark) --- */
+  --a2-accent: #14b8a6;
+  --a2-accent-strong: #2dd4bf;
+  --a2-accent-soft: rgba(20, 184, 166, 0.12);
+  --a2-accent-border: rgba(45, 212, 191, 0.28);
+
+  --a2-blue: #38bdf8;
+  --a2-blue-soft: rgba(56, 189, 248, 0.12);
+  --a2-blue-border: rgba(56, 189, 248, 0.26);
+
+  --a2-amber: #fbbf24;
+  --a2-amber-soft: rgba(251, 191, 36, 0.12);
+  --a2-amber-border: rgba(251, 191, 36, 0.28);
+
+  --a2-coral: #fb7185;
+  --a2-coral-soft: rgba(251, 113, 133, 0.12);
+
+  --a2-success: #34d399;
+  --a2-success-soft: rgba(52, 211, 153, 0.12);
+  --a2-success-border: rgba(52, 211, 153, 0.28);
+
+  --a2-danger: #f87171;
+  --a2-danger-soft: rgba(248, 113, 113, 0.12);
+  --a2-danger-border: rgba(248, 113, 113, 0.28);
+
+  /* --- Syntax Highlighting Tokens --- */
+  --a2-syn-base: #cbd5e1;
+  --a2-syn-key: #94a3b8;
+  --a2-syn-comp: #2dd4bf;
+  --a2-syn-fn: #38bdf8;
+  --a2-syn-str: #34d399;
+  --a2-syn-num: #fbbf24;
+  --a2-syn-kw: #7dd3fc;
+  --a2-syn-comment: #64748b;
+
+  /* --- Radii & Sculpted Elevation --- */
+  --a2-radius-xs: 6px;
+  --a2-radius-sm: 10px;
+  --a2-radius-md: 14px;
+  --a2-radius-lg: 20px;
+  --a2-radius-xl: 26px;
+
+  --a2-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --a2-shadow-md: 0 16px 36px -10px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --a2-shadow-lg: 0 30px 70px -18px rgba(0, 0, 0, 0.72), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  /* --- Compatibility Aliases --- */
+  --bg: var(--a2-bg);
+  --bg-alt: var(--a2-bg-alt);
+  --surface: var(--a2-surface);
+  --surface-raised: var(--a2-surface-raised);
+  --surface-subtle: var(--a2-surface-subtle);
+  --code-bg: var(--a2-code-bg);
+  --code-header: var(--a2-code-header);
+  --text: var(--a2-text);
+  --text-secondary: var(--a2-text-secondary);
+  --text-muted: var(--a2-text-muted);
+  --border: var(--a2-border);
+  --border-strong: var(--a2-border-strong);
+  --accent: var(--a2-accent);
+  --accent-strong: var(--a2-accent-strong);
+  --accent-soft: var(--a2-accent-soft);
+  --accent-border: var(--a2-accent-border);
+  --blue: var(--a2-blue);
+  --blue-soft: var(--a2-blue-soft);
+  --amber: var(--a2-amber);
+  --amber-soft: var(--a2-amber-soft);
+  --success: var(--a2-success);
+  --success-soft: var(--a2-success-soft);
+  --shadow-sm: var(--a2-shadow-sm);
+  --shadow-md: var(--a2-shadow-md);
+  --shadow-lg: var(--a2-shadow-lg);
+  --font-sans: var(--a2-font-sans);
+  --font-mono: var(--a2-font-mono);
+}
+
+:root[data-theme='light'] {
+  --a2-bg: #fafaf9;
+  --a2-bg-alt: #f3f4f6;
+  --a2-bg-nav: rgba(250, 250, 249, 0.84);
+  --a2-shell: #f1f2f4;
+  --a2-surface: #ffffff;
+  --a2-surface-raised: #ffffff;
+  --a2-surface-subtle: #f7f7f6;
+  --a2-code-bg: #f6f7f9;
+  --a2-code-header: #eef0f4;
+  --a2-dot-grid: rgba(15, 23, 42, 0.055);
+
+  --a2-text: #090d16;
+  --a2-text-secondary: #4b5563;
+  --a2-text-muted: #6b7280;
+
+  --a2-border: rgba(15, 23, 42, 0.08);
+  --a2-border-subtle: rgba(15, 23, 42, 0.05);
+  --a2-border-strong: rgba(15, 23, 42, 0.13);
+
+  --a2-cta-bg: #090d16;
+  --a2-cta-fg: #ffffff;
+  --a2-cta-hover: #1e2536;
+
+  --a2-accent: #0d9488;
+  --a2-accent-strong: #0f766e;
+  --a2-accent-soft: rgba(13, 148, 136, 0.08);
+  --a2-accent-border: rgba(13, 148, 136, 0.24);
+
+  --a2-blue: #0284c7;
+  --a2-blue-soft: rgba(2, 132, 199, 0.08);
+  --a2-blue-border: rgba(2, 132, 199, 0.22);
+
+  --a2-amber: #d97706;
+  --a2-amber-soft: rgba(217, 119, 6, 0.09);
+  --a2-amber-border: rgba(217, 119, 6, 0.24);
+
+  --a2-coral: #e11d48;
+  --a2-coral-soft: rgba(225, 29, 72, 0.08);
+
+  --a2-success: #059669;
+  --a2-success-soft: #ecfdf5;
+  --a2-success-border: #6ee7b7;
+
+  --a2-danger: #dc2626;
+  --a2-danger-soft: #fef2f2;
+  --a2-danger-border: #fca5a5;
+
+  --a2-syn-base: #1e293b;
+  --a2-syn-key: #475569;
+  --a2-syn-comp: #0f766e;
+  --a2-syn-fn: #0369a1;
+  --a2-syn-str: #047857;
+  --a2-syn-num: #b45309;
+  --a2-syn-kw: #0284c7;
+  --a2-syn-comment: #94a3b8;
+
+  --a2-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --a2-shadow-md: 0 14px 34px -8px rgba(15, 23, 42, 0.07), 0 2px 6px rgba(15, 23, 42, 0.03);
+  --a2-shadow-lg: 0 28px 64px -16px rgba(15, 23, 42, 0.1), 0 1px 3px rgba(15, 23, 42, 0.04);
+}
