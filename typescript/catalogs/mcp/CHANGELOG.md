@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: `regexCapture` now validates patterns with `analyzeRegex` from `@a2ui/web_core` and compiles them in Unicode mode (`new RegExp(pattern, 'u')`), converging on the A2UI regex dialect and static safety guard (allowing lookahead assertions while rejecting lookbehind, backreferences, named groups, `\p{...}`, inline flags, and patterns that risk catastrophic backtracking) and removing the `redos-detector` dependency. Recommended migration: rewrite `regexCapture` patterns that use constructs outside the A2UI portable regex subset or exceed 256 code points. [#3854](https://github.com/a2ui-project/a2ui/pull/3854)
+
 ## 0.0.3
 
 - Remove the experimental status markers from the package metadata and README. [#3873](https://github.com/a2ui-project/a2ui/pull/3873)

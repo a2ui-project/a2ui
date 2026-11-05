@@ -366,7 +366,7 @@ struct NodeResolutionConformanceTests {
       let nodePath = step["node"] as? String,
       let propKey = step["property"] as? String,
       let node = findNodeByPath(nodePath, from: surface.rootNode, surface: surface),
-      let action = node.action(for: propKey)
+      let action = node.action(for: propKey, userActivation: true)
     else {
       Issue.record("[\(caseName)] invoke step could not locate action")
       return
@@ -657,7 +657,8 @@ struct NodeResolutionConformanceTests {
         propSpec["action"] as? Bool == true
       {
         #expect(
-          node.action(for: propKey) != nil, "[\(caseName)] \(nodePath).\(propKey) expected action")
+          node.action(for: propKey, userActivation: true) != nil,
+          "[\(caseName)] \(nodePath).\(propKey) expected action")
       } else if let childSpecs = rawExpectedProp as? [[String: Any]],
         childSpecs.first?["node"] != nil
       {

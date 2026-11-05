@@ -1344,6 +1344,8 @@ class DataContext:
             "message": str(error),
             "expression": name,
         }
+        if isinstance(error, A2uiRpcError) and error.function_call_id:
+            error_payload["functionCallId"] = error.function_call_id
         if hasattr(error, "details") and getattr(error, "details"):
             error_payload["details"] = getattr(error, "details")
         self.surface.dispatch_error(error_payload)
