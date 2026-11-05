@@ -152,37 +152,50 @@ function buildCatalogWithAgentFunctions(spec: CatalogWithAgentFunctionsSpec): Ca
   return base.copyWith({agentFunctions});
 }
 
+/** The categories an `AgentFunctionExpectError` may name. */
+const AGENT_FUNCTION_ERROR_CATEGORIES = new Set(['CatalogError', 'ValidationError']);
+
+/**
+ * Checks a caught error against the case's `AgentFunctionExpectError`.
+ *
+ * `category` is required, so a case can't pass on an unrelated error, and `message` is a
+ * literal substring of the error's text.
+ */
+function expectCaseError(caught: unknown, testCase: LoadedCase): void {
+  const expectError = testCase.expect_error as Record<string, unknown>;
+  expect(typeof expectError).toBe('object');
+  const unknownKeys = Object.keys(expectError).filter(
+    key => key !== 'category' && key !== 'message',
+  );
+  expect(unknownKeys, 'Unhandled expect_error keys').toEqual([]);
+  expect(AGENT_FUNCTION_ERROR_CATEGORIES.has(expectError['category'] as string)).toBe(true);
+  expect(caught).toBeInstanceOf(errorClassFor(testCase));
+  if (expectError['message'] !== undefined) {
+    expect((caught as Error).message).toContain(expectError['message'] as string);
+  }
+}
+
 function expectThrowsCaseError(fn: () => void, testCase: LoadedCase): void {
-  const expectedClass = errorClassFor(testCase);
-  const expectError = testCase.expect_error as {message?: string} | undefined;
   let caught: unknown;
   try {
     fn();
   } catch (err: unknown) {
     caught = err;
   }
-  expect(caught).toBeInstanceOf(expectedClass);
-  if (expectError?.message !== undefined) {
-    expect((caught as Error).message).toContain(expectError.message);
-  }
+  expectCaseError(caught, testCase);
 }
 
 async function expectRejectsCaseError(
   fn: () => Promise<unknown>,
   testCase: LoadedCase,
 ): Promise<void> {
-  const expectedClass = errorClassFor(testCase);
-  const expectError = testCase.expect_error as {message?: string} | undefined;
   let caught: unknown;
   try {
     await fn();
   } catch (err: unknown) {
     caught = err;
   }
-  expect(caught).toBeInstanceOf(expectedClass);
-  if (expectError?.message !== undefined) {
-    expect((caught as Error).message).toContain(expectError.message);
-  }
+  expectCaseError(caught, testCase);
 }
 
 function runDeclareAgentFunctions(testCase: LoadedCase): void {
@@ -342,7 +355,29 @@ async function runProcessRendererMessage(testCase: LoadedCase): Promise<void> {
   };
   expect(result.handled).toBe(expected.handled);
   expectReplies(result.replies, expected.replies ?? []);
-  expect(received).toEqual(expected.callback ? [expected.callback] : []);
+  expect(normalizeTimestamps(received)).toEqual(
+    normalizeTimestamps(expected.callback ? [expected.callback] : []),
+  );
+}
+
+/**
+ * Writes every `timestamp` that is an ISO 8601 instant in one spelling, so
+ * `2026-01-01T00:00:00Z` and `2026-01-01T00:00:00.000Z` compare equal.
+ */
+function normalizeTimestamps(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(normalizeTimestamps);
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => {
+        if (key === 'timestamp' && typeof item === 'string') {
+          const instant = new Date(item);
+          return [key, Number.isNaN(instant.getTime()) ? item : instant.toISOString()];
+        }
+        return [key, normalizeTimestamps(item)];
+      }),
+    );
+  }
+  return value;
 }
 
 describe('Conformance: agent_functions.yaml', () => {
