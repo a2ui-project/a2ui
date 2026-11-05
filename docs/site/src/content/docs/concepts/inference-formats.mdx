@@ -402,14 +402,18 @@ final jsonProcessor = generator.createProcessor(
 
 ## Token and latency benchmarks
 
-The A2UI evaluation suite (`eval/`) benchmarks each format on the 54-sample `core_v1_0` suite and 4-flow `multi_turn_conversation_dataset` using `gemini-3.8-flash` (`thinking_budget=0`, `temperature=0.0`). For earlier benchmark background, see [Fast, reliable A2UI, with swappable inference formats](https://developers.googleblog.com/fast-reliable-a2ui/). Express cuts both prompt tokens and output code tokens while matching Direct JSON on `Pass@1`, `Pass@2`, and judge quality:
+The A2UI evaluation suite (`eval/`) benchmarks each format on the 54-sample `core_v1_0` suite and 4-flow `multi_turn_conversation_dataset` using `gemini-3.8-flash` (`temperature=0.0`). For earlier benchmark background, see [Fast, reliable A2UI, with swappable inference formats](https://developers.googleblog.com/fast-reliable-a2ui/). Whether thinking is disabled (`thinking_budget=0`) or left unbounded (default), Express cuts the prompt tokens and generated code tokens while matching Direct JSON on accuracy:
 
-| Format                                    | Median Input Tokens (`core_v1_0`) | Median Output Code Tokens (`core_v1_0`) | Pass@1 / Pass@2 (`core_v1_0`) | Judge Quality (`core_v1_0`) | Latency vs. Direct JSON |
-| :---------------------------------------- | :-------------------------------- | :-------------------------------------- | :---------------------------- | :-------------------------- | :---------------------- |
-| Direct JSON (`DirectJsonFormatFactory`)   | 10,973                            | 807                                     | 98.1% / 98.1% (53/54)         | 97.2%                       | 1.0x baseline           |
-| Express (`ExpressFormatFactory`, default) | 6,001 (~1.8x smaller, -45.3%)     | 297 (~2.7x smaller, -63.3%)             | 98.1% / 98.1% (53/54)         | 97.2%                       | ~1.3x to 2.6x faster    |
+| Format and Thinking Mode                | Median Input Tokens | Median Code Tokens | Median Thinking Tokens | Median Total Output (`Code + Thinking`) | Pass@1 / Pass@2 (`core_v1_0`) | Judge Quality (`core_v1_0`) |
+| :-------------------------------------- | :------------------ | :----------------- | :--------------------- | :-------------------------------------- | :---------------------------- | :-------------------------- |
+| Direct JSON (`thinking_budget=0`)       | 10,980              | 807                | 0                      | 811                                     | 98.1% / 98.1% (53/54)         | 97.2%                       |
+| Express (`thinking_budget=0`, default)  | 6,000 (-45.4%)      | 297 (-63.2%, 2.7x) | 0                      | 299 (-63.1%)                            | 98.1% / 98.1% (53/54)         | 97.2%                       |
+| Direct JSON (`unbounded` thinking)      | 10,980              | 794                | 1,413                  | 2,320                                   | 98.1% / 98.1% (53/54)         | 98.1%                       |
+| Express (`unbounded` thinking, default) | 6,000 (-45.4%)      | 260 (-67.3%, 3.1x) | 1,447                  | 1,789 (-22.9%)                          | 98.1% / 98.1% (53/54)         | 98.1%                       |
 
-On the 4 workflows in `multi_turn_conversation_dataset`, both Express and Direct JSON reach 100.0% (4/4) on `Pass@1`, `Pass@2`, and judge quality. Express cuts the median input tokens by 42.2% (`6,818` vs. `11,797`) and the median output tokens by 66.5% (`350` vs. `1,044`, ~3.0x smaller).
+On the 4 workflows in `multi_turn_conversation_dataset`, both Express and Direct JSON score 4/4 (100%) on `Pass@1`, `Pass@2`, and judge quality. Express cuts the median input tokens by 42% (`6,818` vs `11,797`).
+
+With `thinking_budget=0` on the multi-turn suite, Express reduces the median output tokens by 66% (`350` vs `1,044`, 3x smaller). With `unbounded` thinking, Express cuts the median code tokens by 65% (`306` vs `876`) and thinking tokens by 15% (`912` vs `1,070`). Total billed output tokens drop by 37% (`1,250` vs `1,996`).
 
 ## Creating a custom inference format
 
