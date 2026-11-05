@@ -39,11 +39,33 @@ Key capabilities:
 
 The repository supports multiple versions of the A2UI protocol:
 
-- **v0.8**: Stable specification; not supported by the latest SDKs.
-- **v0.9**: Stable specification; implemented in SDKs; very minor differences from v0.9.1.
-- **v0.9.1**: **Latest published and active protocol version** implemented by our multi-language SDKs, renderers, and sample clients.
-- **v1.0**: Candidate specification for stable release (previously v0.10).
-- **Authority Rule:** Default to version **v0.9.1** as the primary authority when working on SDKs or adapters, unless the user specifies otherwise or a different version is requested.
+- **v1.0**: **Current protocol version**, implemented by our multi-language SDKs, renderers, and sample clients (previously known as v0.10).
+- **v0.9.1**: Previous specification; a patch release of v0.9.
+- **v0.9**: Previous specification; very minor differences from v0.9.1.
+- **v0.8**: Deprecated legacy specification; not supported by the latest SDKs.
+- **Authority Rule:** Default to version **v1.0** as the primary authority when working on SDKs or adapters, unless the user specifies otherwise or a different version is requested.
+
+### Version Labels
+
+Use these rules when you mention a protocol version in documentation, READMEs, specification files, or code comments.
+
+[`specification/versions.json`](specification/versions.json) is the machine-readable source of truth for version status. Its `status` values are `current` (v1.0), `previous` (v0.9.1 and v0.9), and `deprecated` (v0.8), listed newest first. Every label below must agree with it.
+
+| Version | Status label | Label when a table needs a value |
+| :------ | :----------- | :------------------------------- |
+| v1.0    | Current      | Current                          |
+| v0.9.1  | none         | Previous                         |
+| v0.9    | none         | Previous                         |
+| v0.8    | Deprecated   | Deprecated                       |
+
+1. Name a version's status only where readers choose between versions: version tables (the root `README.md`, `docs/public/index.md`, the roadmap), spec page titles, badges, and the callout at the top of a spec page, the `**Status:**` field in a spec, sidebar and nav labels, the root `README.md` version note, "use this version" pointers, and this section.
+2. Everywhere else (running prose, code comments, test names, tab labels), use plain version numbers. To contrast versions, use ranges such as "v1.0 and later", "before v1.0", "pre-1.0", or "v0.9 and v0.9.1".
+3. Outside the places in rule 1, never attach these words to a specific version: current, latest, newest, active, stable, production, candidate, release candidate, draft, or preview. They become wrong when the next version ships.
+4. You may call v0.8 "legacy" or "deprecated" anywhere. Never call v0.9 or v0.9.1 legacy, stable, current, or active.
+5. Version tabs (`<Tabs syncKey="protocol-version">` on the Astro site and `=== "..."` blocks in MkDocs) use plain labels such as `v1.0`, `v0.9.1`, and `v0.8`, and list the newest version first.
+6. Pointers that tell readers which version to use (for example, "For new projects, see ...") always point to v1.0.
+7. Where a spec has a `**Status:**` field, it records the lifecycle: `Current` for v1.0, `Closed` for v0.9.1 and v0.9, and `Deprecated` for v0.8. Don't add the field to specs that lack it.
+8. These rules don't cover code identifiers, `@deprecated` tags on library APIs, runtime defaults, `CHANGELOG.md` entries, or package release versions (for example, "the latest release of a2ui-agent-sdk").
 
 ---
 
