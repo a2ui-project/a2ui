@@ -59,8 +59,22 @@ describe('Common Basic Functions', () => {
     it('validateRegex', () => {
       assert.strictEqual(validateRegex('abc', '^[a-z]+$').valid, true);
       assert.strictEqual(validateRegex('123', '^[a-z]+$').valid, false);
+      assert.strictEqual(validateRegex('😀', '^.$').valid, true);
+      assert.strictEqual(validateRegex('a'.repeat(4096), '^a+$').valid, true);
+      const overCap = validateRegex('a'.repeat(4097), '^a+$');
+      assert.strictEqual(overCap.valid, false);
+      assert.strictEqual(overCap.message, 'Value exceeds the maximum length for pattern matching.');
       assert.throws(() => validateRegex('aaaaaaaaaaaa!', '(a+)+b'), {
         name: 'A2uiExpressionError',
+        message: /NESTED_QUANTIFIER/,
+      });
+      assert.throws(() => validateRegex('ab', '(a)\\1'), {
+        name: 'A2uiExpressionError',
+        message: /UNSUPPORTED_SYNTAX/,
+      });
+      assert.throws(() => validateRegex('a', 'a'.repeat(257)), {
+        name: 'A2uiExpressionError',
+        message: /PATTERN_TOO_LONG/,
       });
     });
 

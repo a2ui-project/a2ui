@@ -1,37 +1,28 @@
-# A2UI Macros (`MacroExpander`)
+# A2UI macros (`MacroExpander`)
 
-Macros allow developers to expose high-level, domain-specific composite UI components to Large Language Models while compiling them into standard A2UI primitive components on the server.
+Macros let developers expose high-level, domain-specific UI components to language models while lowering them to standard A2UI primitive components on the server before sending messages to the renderer.
 
-Rather than being tied to a specific syntax or inference format, macros operate as an **asymmetric catalog and message transformer** via `MacroExpander`.
+Rather than binding to one syntax or inference format, macros work as a catalog and message transformer through [`MacroExpander`](expander.py).
 
----
+## Overview
 
-## 1. Overview
+When models author raw A2UI component trees directly, recurring UI patterns can take many lines of nested components, bindings, and actions. With [`@macro`](macro.py), a Python function defines a reusable composite component once:
 
-When models generate raw A2UI component trees, complex or recurring UI patterns require verbose syntax. For example, rendering a product card with images, badges, pricing, and buy buttons requires authoring dozens of lines of nested JSON or DSL tokens.
+1. At prompt time, `MacroExpander` exposes JSON Schema definitions for registered macros so inference formats (`ExpressFormat`, `DirectJsonFormat`, `ElementalFormat`) can include them in prompts and validate model output.
+2. At transport time, `MacroExpander.transform_to_transport` expands macro invocations in outbound messages (`createSurface`, `updateComponents`, `surfaceUpdate`) into flat primitive component lists closed over the registered transport catalogs. The client renderer only needs to know the underlying primitive catalogs.
 
-Macros solve this by allowing agents to output concise, high-level tags:
+## Defining macros with `@macro`
 
-```xml
-<ProductCard productId="sku_482" title="Trail Runner Shoes" price="$120" onBuy="checkout" />
-```
-
-Before transmitting messages to the client renderer, `MacroExpander` expands `<ProductCard ...>` into standard A2UI primitives (`Card`, `Column`, `Row`, `Text`, `Button`, `Action`) using a Python function registered with the `@macro` decorator. The client renderer receives standard protocol messages without needing custom client-side widget code.
-
----
-
-## 2. Defining Macros with `@macro`
-
-The `@macro` decorator inspects a Python function's type annotations and docstring to synthesize a catalog component JSON schema and an execution wrapper.
+The `@macro` decorator inspects a function's type annotations and docstring to synthesize a catalog component schema and coerce incoming wire arguments into typed builder objects. Every macro must return a single root `ComponentBuilderNode` tree.
 
 ```python
+from a2ui.builder.v1_0 import Action, Button, Card, Column, DynamicString, Text
 from a2ui.transformers.macros import macro
-from a2ui.builder.v0_9 import Action
-from a2ui.builder.v0_9.catalogs.basic import Button, Card, Column, Text
+
 
 @macro
-def product_card(
-    title: str,
+def ProductCard(
+    title: DynamicString,
     price: str,
     on_buy: Action,
     in_stock: bool = True,
@@ -47,8 +38,8 @@ def product_card(
     return Card(
         child=Column(
             children=[
-                Text(text=title, variant="h3"),
-                Text(text=price, variant="body"),
+                Text(text=title, variant="body"),
+                Text(text=price, variant="caption"),
                 Button(
                     child=Text(text="Buy Now" if in_stock else "Out of Stock"),
                     action=on_buy,
@@ -59,98 +50,194 @@ def product_card(
     )
 ```
 
-### Parameter Type Mapping
+Both `a2ui.builder.v1_0` and `a2ui.builder.v0_9` are supported. Each macro and `MacroExpander` targets one protocol family (`1.0` or `0.9`); mixing v0.9 and v1.0 types, catalogs, or returned builder nodes raises `A2uiValidationError`. In v1.0, macro names must be valid UAX #31 identifiers and cannot use the reserved name `Surface`.
 
-The decorator maps Python type hints to canonical A2UI JSON schema definitions:
+When a standalone v1.0 macro uses only version-neutral annotations (such as `str`, `int`, or `Child`) and no `base_catalogs` are registered yet, pass `protocol_version="1.0"` to `MacroExpander(...)`. Without v1.0 builder types or a registered v1.0 catalog, `to_catalog()` defaults to `"0.9.1"`.
 
-- **Primitives**: `str`, `int`, `float`, and `bool` map to standard JSON schema types.
-- **Enums**: `Enum` subclasses or `Literal["a", "b"]` map to enum string schemas.
-- **Slots (Single Child)**: Parameters typed as `ComponentBuilderNode`, `Child`, or concrete component classes (like `Text`) map to `#/$defs/ComponentId`. When the model passes a component ID, `MacroProcessor` coerces the input into a `ComponentRef(id=...)`.
-- **Slot Lists (Children)**: Parameters typed as `Sequence[ComponentBuilderNode]` or `ChildList` map to `#/$defs/ChildList`. Incoming ID arrays are coerced to lists of `ComponentRef`.
-- **Actions**: Parameters typed as `Action` map to `#/$defs/Action`. In Python, build one as `Action(event=ActionEvent(name="name", context=...))`; `MacroProcessor` coerces standard shorthands emitted by models (`"name"`, `{"event": "name"}`, `{"name": ..., "context": ...}`).
-- **Data Bindings**: Values passed as `{"path": "/..."}` are coerced into `DataBinding` objects.
+### Parameter type mapping
 
-### Docstring Contract
+`@macro` maps Python type annotations to A2UI JSON Schema definitions and coerces incoming model arguments before calling the Python function:
 
-`@macro` supports both Google-style (`Args:`) and Sphinx-style (`:param name: description`) docstrings:
+| Python annotation                                                                                      | Synthesized JSON Schema                                                        | Runtime coercion                                                                                                                                                                                |
+| :----------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `str`, `int`, `float`, `bool`                                                                          | `string`, `integer`, `number`, `boolean`                                       | Passed through as primitives (dict bindings rejected).                                                                                                                                          |
+| `Literal[...]` or `Enum`                                                                               | `enum` schema                                                                  | Passed through.                                                                                                                                                                                 |
+| `Child`, `ComponentBuilderNode`, or component subclass                                                 | `common_types.json#/$defs/Child` (v1.0) or `ComponentId` (v0.9)                | Component ID string coerced to `ComponentRef(id=...)`.                                                                                                                                          |
+| `ChildList`, `DynamicChildList`, or `Sequence[Child]`                                                  | `common_types.json#/$defs/ChildList`                                           | ID lists coerced to `list[ComponentRef]`; `{"path": ..., "componentId": ...}` coerced to `DynamicChildList` when typed as `ChildList` or `DynamicChildList`.                                    |
+| `Action`                                                                                               | `common_types.json#/$defs/Action`                                              | Coerces `"event_name"`, `{"event": "name", ...}`, `{"name": ..., "userMessage": ..., "context": ...}`, `{"@call": ...}` (v1.0) / `{"call": ...}` (v0.9), and full `Action` dicts into `Action`. |
+| `DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList`, `DataBinding`, `FunctionCall` | Corresponding `common_types.json#/$defs/...` ref                               | Coerces `{"@path": "/..."}` and `{"@call": "...", "args": ...}` in v1.0 (`{"path": "/..."}` and `{"call": "...", "args": ...}` in v0.9) into `DataBinding` and `FunctionCall`.                  |
+| `DynamicValue`                                                                                         | `common_types.json#/$defs/DynamicValue`                                        | Coerces `@path` / `@call` in v1.0 (`path` / `call` in v0.9); in v1.0, plain `{"path": ...}` and `{"call": ...}` maps remain untouched as `LiteralObject` values.                                |
+| `CheckRule` or `Sequence[CheckRule]`                                                                   | `common_types.json#/$defs/CheckRule` (or array)                                | Coerced to `CheckRule` instances.                                                                                                                                                               |
+| `AccessibilityAttributes`                                                                              | `common_types.json#/$defs/AccessibilityAttributes`                             | Coerced to `AccessibilityAttributes` when declared on the macro signature; otherwise merged onto the expanded root component.                                                                   |
+| `Extensions` (v1.0)                                                                                    | `common_types.json#/$defs/Extensions`                                          | Passed through as an extension map without directive coercion.                                                                                                                                  |
+| `dict[str, V]` or `Mapping[str, V]`                                                                    | `object` (with `additionalProperties` schema when `V` is not `Any`)            | Recursively coerces dictionary values against `V` when `V` is not `Any`.                                                                                                                        |
+| Catalog sub-models (`TabItem`, `ChoicePickerOption`, `IconNameSvgPath`, `ActionEvent`, `BaseModel`)    | Object schema from `model_fields` (or `array` when wrapped in `Sequence[...]`) | Nested wire fields (`Child` IDs, `@path`, `@call`, and aliases) are coerced before validating the Pydantic model.                                                                               |
+| Non-canonical unions (`Literal[...] \| DataBinding`, `IconName \| IconNameSvgPath`)                    | `oneOf` across member schemas                                                  | Coerced against matching union branches.                                                                                                                                                        |
 
-- The top-level summary becomes the `description` of the generated component in the catalog schema.
-- Per-parameter descriptions are parsed and assigned as `description` attributes on each property schema.
-- Plain docstrings without structured sections are also supported gracefully without errors.
+### Docstring and `Annotated` parameter descriptions
 
----
+`@macro` reads Google-style (`Args:`), Sphinx-style (`:param name: description`), and `typing.Annotated` descriptions (`Annotated[str, Field(description="...")]` or `Annotated[str, "..."]`). An `Annotated` description takes precedence over docstring text, and undocumented parameters omit `description` from the generated schema.
 
-## 3. The `MacroExpander` Transformer Interface
+## Integrating with inference formats
 
-`MacroExpander` implements the three canonical transformer methods:
+### Mixable catalogs in v1.0 (`transform_catalogs` and sidecar catalogs)
 
-1. **`transform_to_inference_catalog(base_catalog: Catalog) -> Catalog`**:
-   Derives an authoring catalog by augmenting the base catalog with the synthesized macro component schemas. Fails fast with `A2uiCatalogError` if any macro name collides with an existing primitive in the base catalog.
-2. **`transform_to_transport(messages: Sequence[AgentToRendererMessage]) -> list[AgentToRendererMessage]`**:
-   Lowers outbound envelopes (`createSurface`, `updateComponents`, `surfaceUpdate`) emitted by the LLM by recursively expanding all macro components into primitive subtrees.
-3. **`transform_to_inference(messages: Sequence[AgentToRendererMessage]) -> list[AgentToRendererMessage]`**:
-   Safe identity pass-through (`return list(messages)`) for replaying traces or inspecting state without unexpansion.
+In A2UI v1.0, a surface can mix components from multiple catalogs by tagging each component with its `catalogId`. Pass your transport catalogs through `expander.transform_catalogs([...])` (or construct `MacroExpander(..., base_catalogs=[...])` and append `expander.to_catalog()`). In v1.0, `transform_catalogs` registers the base catalogs on the expander and appends the standalone macro sidecar catalog; in v0.9, it augments the single catalog in place.
 
----
+For custom catalogs, pass `catalog_id=...` when subclassing `ComponentBuilderNode` to stamp that catalog ID across a family of builder classes. Standard `BasicCatalog("1.0")` widgets (`Card`, `Text`, `Button`) or other primitives whose names belong to a single registered base catalog do not need per-node `catalog_id=` boilerplate: `transform_to_transport` stamps their owning `catalogId` when lowering onto a multi-catalog surface, and rewrites a pure macro-sidecar `createSurface.catalogId` to the transport catalog (or omits it when multiple base catalogs are registered).
 
-## 4. Manual Wiring (Current Usage Pattern)
+```python
+from typing import Literal
 
-Until the full `TransformerPipeline` and `CatalogConfig` abstractions land in the shared core SDK, developers wire `MacroExpander` manually in two simple steps:
+from a2ui.builder.v1_0 import (
+    Action,
+    Card,
+    ChildList,
+    ComponentBuilderNode,
+    DynamicString,
+    Text,
+)
+from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.inference_formats.express import ExpressFormat
+from a2ui.parser import A2uiPart
+from a2ui.transformers.macros import MacroExpander, macro
+
+FOO_CID = "https://example.com/catalogs/foo/v1/catalog.json"
+BAR_CID = "https://example.com/catalogs/bar/v1/catalog.json"
+
+
+class FooCatalogNode(ComponentBuilderNode, catalog_id=FOO_CID):
+    pass
+
+
+class BarCatalogNode(ComponentBuilderNode, catalog_id=BAR_CID):
+    pass
+
+
+class FooPanel(FooCatalogNode):
+    component: Literal["FooPanel"] = "FooPanel"
+    children: ChildList
+
+
+class FooHeader(FooCatalogNode):
+    component: Literal["FooHeader"] = "FooHeader"
+    title: DynamicString
+
+
+class BarAction(BarCatalogNode):
+    component: Literal["BarAction"] = "BarAction"
+    label: str
+    action: Action
+
+
+@macro
+def BazMacro(
+    title: DynamicString,
+    subtitle: str,
+    cta_label: str,
+    on_cta: Action,
+) -> Card:
+    """Combines BasicCatalog, FooCatalog, and BarCatalog components."""
+    return Card(
+        child=FooPanel(
+            children=[
+                FooHeader(title=title),
+                Text(text=subtitle, variant="caption"),
+                BarAction(label=cta_label, action=on_cta),
+            ]
+        )
+    )
+
+
+# 1. Transform transport catalogs into inference catalogs (appends macro sidecar)
+basic_catalog = BasicCatalog("1.0")
+expander = MacroExpander([BazMacro])
+inference_catalogs = expander.transform_catalogs(
+    [basic_catalog, foo_catalog, bar_catalog]
+)
+
+# 2. Build the inference format with the resulting catalogs
+fmt = ExpressFormat(catalogs=inference_catalogs, surface_id="main")
+system_prompt = fmt.prompt_generator.generate()
+
+# 3. Parse and validate model output against the inference catalogs
+parts = fmt.create_parser().parse_response(llm_output)
+
+# 4. Lower macro components into Basic, Foo, and Bar primitives for the renderer
+transport_messages = [
+    msg
+    for part in parts
+    if isinstance(part, A2uiPart)
+    for msg in expander.transform_to_transport(part.a2ui)
+]
+```
+
+When `fmt` receives multiple v1.0 catalogs, unique component names (`FooHeader`, `BarAction`, `BazMacro`) resolve to their owning `catalogId` without `catalogId=` at every call site in the DSL. After `transform_to_transport`, `BazMacro` is replaced by `Card` and `Text` (stamped with `basic_catalog.catalog_id`), `FooPanel` and `FooHeader` (`FOO_CID`), and `BarAction` (`BAR_CID`), so the client renderer only needs `basic_catalog`, `foo_catalog`, and `bar_catalog`. If an unannotated lowered component exists in multiple registered base catalogs (or in none of them) on a defaultless surface, `transform_to_transport` raises `A2uiCatalogError`.
+
+When chaining multiple sidecar `MacroExpander` instances across the same message stream, pass a distinct `catalog_id="https://..."` URI to each expander so their sidecar catalogs do not share the default `https://a2ui.org/catalogs/macros` identifier.
+
+### Single-catalog surfaces (`transform_to_inference_catalog`)
+
+When a surface binds a single base catalog (including all v0.9 surfaces), you can also augment that catalog directly in place with `transform_to_inference_catalog`:
 
 ```python
 from a2ui.inference_formats.express import ExpressFormat
-from a2ui.transformers.macros import MacroExpander, macro
+from a2ui.parser import A2uiPart
+from a2ui.transformers.macros import MacroExpander
 
-# 1. Initialize the expander with your macros
-expander = MacroExpander([product_card])
-
-# 2. Derive the authoring/inference catalog from your base catalog
+expander = MacroExpander([ProductCard])
 inference_catalog = expander.transform_to_inference_catalog(base_catalog)
 
-# 3. Configure any standard inference format with the inference catalog
-# (ExpressFormat, DirectJsonFormat, ElementalFormat, etc.)
-format_strategy = ExpressFormat([inference_catalog], surface_id="main")
-system_prompt = format_strategy.prompt_generator.generate()
+fmt = ExpressFormat([inference_catalog], surface_id="main")
+system_prompt = fmt.prompt_generator.generate()
 
-# 4. Invoke your LLM with system_prompt...
-# When the model outputs Express DSL, compile it with the format's parser. It
-# returns typed AgentToRendererMessage models. `compile` only translates the
-# notation; use `parse_response` to also check the messages against the
-# catalogs and a renderer state:
-typed_messages = format_strategy.create_parser().compile(llm_output)
-
-# 5. Lower the typed messages to transport primitives using the expander:
-transport_messages = expander.transform_to_transport(typed_messages)
-
-# 6. Deliver transport_messages (containing primitive Card, Column, Text) to the client renderer!
+parts = fmt.create_parser().parse_response(llm_output)
+transport_messages = [
+    msg
+    for part in parts
+    if isinstance(part, A2uiPart)
+    for msg in expander.transform_to_transport(part.a2ui)
+]
 ```
 
-### Filtering Base Primitives (`passthrough_components`)
+### Component-to-catalog resolution
 
-By default, all components from the base catalog pass through to the inference catalog alongside the macros. To restrict which base components the model is allowed to use, specify `passthrough_components`:
+During `transform_to_transport`, `MacroExpander` determines whether a component invokes a registered macro in four steps:
+
+1. An explicit non-empty `catalogId` string on the component takes precedence (`catalogId: null` behaves like omitting `catalogId`, while an empty string or non-string logs a warning and leaves the component unexpanded).
+2. Inside an outer macro expansion (`depth > 0`), an unannotated component inherits the enclosing macro's `catalogId`, unless the surface uses an unregistered foreign catalog or the component name belongs to a registered base catalog on that surface (or any registered base catalog on a defaultless surface).
+3. Otherwise, the component inherits the surface's default `catalogId` from `createSurface` or `surface_catalogs` (`None` on a defaultless v1.0 surface).
+4. A scoped `MacroExpander(catalog_id=...)` expands only when the effective `catalogId` matches `expander.catalog_id`. An unscoped expander with registered `base_catalogs` skips components whose effective `catalogId` names a registered base catalog that defines a primitive of the same name (unless that primitive was pruned out via `passthrough_components`).
+
+### Filtering base primitives (`passthrough_components`)
+
+When transforming catalogs via `transform_catalogs` or `transform_to_inference_catalog`, all base catalog components remain available by default. Pass `passthrough_components` to restrict which base primitives stay in the inference catalogs alongside your macros:
 
 ```python
-# Expose macros + Button to the model (all other base primitives are pruned from prompt):
-expander = MacroExpander([product_card], passthrough_components=["Button"])
+# Expose macros plus Button only:
+expander = MacroExpander([ProductCard], passthrough_components=["Button"])
 
-# Pure Macro Mode: expose ONLY the macros with zero base primitives:
-expander = MacroExpander([product_card], passthrough_components=[])
+# Expose only the macros with zero base primitives:
+expander = MacroExpander([ProductCard], passthrough_components=[])
 ```
 
----
+### Error handling (`on_error`)
 
-## 5. Future State: `CatalogConfig` & `TransformerPipeline`
-
-In the upcoming agent SDK modernization (tracked in RFC issue), manual wiring will be replaced by a declarative pipeline:
+By default (`on_error="passthrough"`), if a macro fails argument coercion or raises a runtime exception during `transform_to_transport`, `MacroExpander` logs the error and retains the unexpanded component so valid sibling components in the message still expand. Pass `on_error="raise"` when running inside an agent retry or validation loop so invalid macro invocations raise `A2uiValidationError` immediately:
 
 ```python
-catalog_config = CatalogConfig(
-    catalog=base_catalog,
-    transformer=TransformerPipeline([
-        MacroExpander([product_card]),
-        ComponentPruningTransformer(allowed_components=["product_card", "Button"]),
-    ]),
+expander = MacroExpander([ProductCard], on_error="raise")
+```
+
+Structural errors (`A2uiRecursionError`, `A2uiCatalogError`, and protocol-version or reserved-name `A2uiValidationError`) always raise regardless of `on_error`.
+
+### Sharing a `MacroExpander` across sessions (`surface_catalogs`)
+
+By default, a `MacroExpander` instance records `createSurface` and `deleteSurface` messages (up to 256 active surfaces, evicting the oldest entry with a warning log) so subsequent `updateComponents` calls on the same surface know its default `catalogId`. Construct one `MacroExpander` per session, or pass `surface_catalogs` on each `transform_to_transport` call in multi-tenant servers to avoid mutating instance state:
+
+```python
+transport_messages = expander.transform_to_transport(
+    messages,
+    surface_catalogs={"main": None},  # None indicates a defaultless v1.0 surface
 )
 ```
-
-The request processor will automatically handle catalog synthesis ahead of prompt generation and message lowering during response parsing.

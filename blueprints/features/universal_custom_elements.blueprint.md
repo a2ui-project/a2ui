@@ -65,7 +65,7 @@ A web adapter whose implementations are not custom elements (React function comp
 ### **7. Shared basic catalog**
 
 - The basic catalog ships once, as universal elements in the shared web layer, with one `WebComponentImplementation` per element per supported protocol version. Web framework packages register these entries; they do not reimplement the basic catalog.
-- Custom elements are responsible for mapping `accessibility` attributes and rendering validation messages on their own semantic DOM elements. In the shared basic catalog, the base element applies only the host-level `aria-live` and `aria-hidden` attributes, while each component binds `accessibility.label`, `accessibility.description`, and validation messages onto its inner control (or `role="group"` container host).
+- The base element sets `aria-live`, `aria-hidden`, and `inert` on the host, applies `accessibility.label`, `accessibility.description`, and validation error wiring (`aria-invalid`, `aria-describedby`, and `renderValidationErrors`) to `accessibilityTarget()` when provided, and falls back to `role="group"` (when no `role` attribute is already set) plus `aria-label` and `aria-description` on the host when `accessibilityTarget()` returns `null`. In the shared basic catalog, each component binds `accessibility.label`, `accessibility.description`, and validation messages onto its inner semantic control (or `role="group"` container host).
 
 ### **8. Lifecycle**
 
@@ -89,7 +89,7 @@ flowchart TD
         WCI["WebComponentImplementation<br/>(name, schema, tagName, element)"]
         REG["registerUniversalElement<br/>(lazy, idempotent)"]
         RN["renderA2uiNode(node)"]
-        BASE["Base element<br/>(node binding, styles)"]
+        BASE["Base element<br/>(node binding, styles, accessibility)"]
         BASIC["Basic catalog elements<br/>(v0.9 + v1.0 entries)"]
         BASIC --> BASE
     end
@@ -205,8 +205,8 @@ These cases run in each web adapter that implements the feature. They are framew
 
 ## **Implementation Steps**
 
-1. **Shared layer.** Define `WebComponentImplementation`, `toWebComponentImplementation`, `isWebComponentImplementation`, `registerUniversalElement`, and `renderA2uiNode`. Define the base element with `node` binding and light DOM styling.
-2. **Basic catalog.** Implement the basic catalog elements on the base element (each mapping its own accessibility attributes and validation messages, with shared helpers for host-level `aria-live`/`aria-hidden` and error rendering) and publish one entry set per supported protocol version.
+1. **Shared layer.** Define `WebComponentImplementation`, `toWebComponentImplementation`, `isWebComponentImplementation`, `registerUniversalElement`, and `renderA2uiNode`. Define the base element with `node` binding, light DOM styling, host-level `aria-live`/`aria-hidden`/`inert`, `accessibilityTarget()`, and `renderValidationErrors()`.
+2. **Basic catalog.** Implement the basic catalog elements on the base element (each binding its accessibility attributes and validation messages onto its inner semantic control or `role="group"` container host) and publish one entry set per supported protocol version.
 3. **Adapter hosting.** In each web framework adapter, implement `toWebComponent`, the host element, the per-surface host registry, and the preparation pass over `defaultCatalog` and `availableCatalogs`.
 4. **Dispatcher.** Branch the node dispatcher on the implementation kind and route universal nodes through `renderA2uiNode`.
 5. **Tests.** Cover the cases above in each web adapter, and record the feature in the adapter's codebase blueprint under `implemented_features`.
