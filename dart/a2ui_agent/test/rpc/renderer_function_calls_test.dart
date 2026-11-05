@@ -345,6 +345,7 @@ void main() {
           'body-extra',
           'top-extra',
           'v-prefixed',
+          'v0.9',
           'typed',
         ];
         for (final id in ids) {
@@ -380,6 +381,10 @@ void main() {
         calls.resolve({
           ..._response('v-prefixed', {'value': 1}),
           'version': 'v1.0',
+        });
+        calls.resolve({
+          ..._response('v0.9', {'value': 1}),
+          'version': '0.9',
         });
         calls.resolve(
           RendererFunctionResponseMessage(

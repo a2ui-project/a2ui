@@ -44,29 +44,46 @@ void main() {
   });
 }
 
-/// The keys an `expect_error` may hold on a whole case, which expects
-/// building the helper to fail.
-const Set<String> _caseErrorKeys = {'category', 'code', 'message'};
+/// The `RendererCallsBuildError` shape of a case's `expect_error`, which
+/// expects building the helper to fail: a required `category` and an optional
+/// `message`.
+const ({Set<String> required, Set<String> optional}) _caseError = (
+  required: {'category'},
+  optional: {'message'},
+);
 
-/// The keys an `expect_error` may hold on a step, which expects a `call` to
-/// be refused.
-const Set<String> _stepErrorKeys = {'code', 'message'};
+/// The `RendererCallError` shape of a step's `expect_error`, which expects a
+/// `call` to be refused: a required `code` and an optional `message`.
+const ({Set<String> required, Set<String> optional}) _stepError = (
+  required: {'code'},
+  optional: {'message'},
+);
 
-/// Checks that [expected], an `expect_error`, is a non-empty map of [allowed]
-/// keys, and returns it.
+/// Checks that [expected], an `expect_error`, has exactly the [shape]'s keys
+/// (all its required ones, and string values), and returns it.
 Map<String, Object?> _expectedError(
   Object? expected,
-  Set<String> allowed,
+  ({Set<String> required, Set<String> optional}) shape,
   String where,
 ) {
-  if (expected is! Map<String, Object?> || expected.isEmpty) {
-    fail('$where: expect_error must be a non-empty map, got $expected');
+  if (expected is! Map<String, Object?>) {
+    fail('$where: expect_error must be a map, got $expected');
   }
-  final Set<String> unknown = expected.keys.toSet().difference(allowed);
+  final Set<String> missing = shape.required.difference(expected.keys.toSet());
+  if (missing.isNotEmpty) {
+    fail('$where: expect_error lacks $missing: $expected');
+  }
+  final Set<String> unknown = expected.keys.toSet().difference({
+    ...shape.required,
+    ...shape.optional,
+  });
   if (unknown.isNotEmpty) {
-    fail(
-      '$where: expect_error has unknown keys $unknown; allowed are $allowed',
-    );
+    fail('$where: expect_error has unknown keys $unknown: $expected');
+  }
+  for (final MapEntry<String, Object?> entry in expected.entries) {
+    if (entry.value is! String) {
+      fail('$where: expect_error.${entry.key} must be a string: $expected');
+    }
   }
   return expected;
 }
@@ -76,8 +93,6 @@ void _assertErrorMatches(Object error, Map<String, Object?> expected) {
     switch (expected['category']) {
       case 'CatalogError':
         expect(error, isA<A2uiCatalogError>());
-      case 'ValidationError':
-        expect(error, isA<A2uiValidationError>());
       case final Object? category:
         fail('Unknown error category: $category');
     }
@@ -86,9 +101,7 @@ void _assertErrorMatches(Object error, Map<String, Object?> expected) {
     expect(error, isA<A2uiError>());
     expect((error as A2uiError).code, expected['code']);
   }
-  if (expected.containsKey('message')) {
-    final Object? msg = expected['message'];
-    if (msg is! String) fail('expect_error.message must be a string: $msg');
+  if (expected['message'] case final String msg) {
     // A literal substring, not a pattern.
     expect(error.toString().contains(msg), isTrue, reason: '$error');
   }
@@ -176,7 +189,7 @@ void _runCalls(Map<String, Object?> testCase) {
     if (testCase.containsKey('expect_error')) {
       final Map<String, Object?> expected = _expectedError(
         testCase['expect_error'],
-        _caseErrorKeys,
+        _caseError,
         'case',
       );
       expect(testCase, isNot(contains('steps')));
@@ -222,7 +235,7 @@ void _runCalls(Map<String, Object?> testCase) {
           // TypeError) rather than by the INVALID_FUNCTION_CALL code that
           // dynamically typed SDKs return; nothing is sent or registered.
           expect(step, contains('expect_error'), reason: where);
-          _expectedError(step['expect_error'], _stepErrorKeys, where);
+          _expectedError(step['expect_error'], _stepError, where);
           final int pendingBefore = calls.pendingCount;
           expect(
             () => calls.call(
@@ -240,7 +253,7 @@ void _runCalls(Map<String, Object?> testCase) {
         } else if (step.containsKey('expect_error')) {
           final Map<String, Object?> expectedErr = _expectedError(
             step['expect_error'],
-            _stepErrorKeys,
+            _stepError,
             where,
           );
           Object? caught;
