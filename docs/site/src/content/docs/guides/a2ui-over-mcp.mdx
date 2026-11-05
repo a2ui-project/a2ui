@@ -507,7 +507,7 @@ async def handle_call_tool(
 
 ### Step 3: Connect the client and hydrate the surface
 
-On web clients, [`callMcpTool`](../../specification/v1.0/schemas/#mcp_catalog.json/functions/callMcpTool) in `@a2ui/catalog-mcp` handles template discovery, URI caching, and message forwarding automatically once you pass your `MessageProcessor` to `configureMcpCatalog`. In `v1.0`, register `mcpCatalog` alongside `basicCatalog`; in `v0.9.1` (where each surface binds to a single catalog), compose `CallMcpToolImplementation` into a `'0.9'` `Catalog` and pass `defaultVersion: 'v0.9'`:
+On web clients, [`callMcpTool`](../mcp-catalog/#mcp_catalog.json/functions/callMcpTool) in `@a2ui/catalog-mcp` handles template discovery, URI caching, and message forwarding automatically once you pass your `MessageProcessor` to `configureMcpCatalog`. In `v1.0`, register `mcpCatalog` alongside `basicCatalog`; in `v0.9.1` (where each surface binds to a single catalog), compose `CallMcpToolImplementation` into a `'0.9'` `Catalog` and pass `defaultVersion: 'v0.9'`:
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0 (Candidate)">

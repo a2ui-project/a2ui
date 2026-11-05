@@ -27,7 +27,7 @@ Standard A2UI components cover forms, cards, and lists, while MCP Apps let an MC
 
 ## Set up McpApp in your web app
 
-After registering `mcpCatalog` and `configureMcpCatalog` in your Lit, React, or Angular app (see [Call MCP Tools from A2UI](../mcp-catalog/#quick-setup)), serve the sandbox relay files and add [`McpApp`](../../specification/v1.0/schemas/#mcp_catalog.json/components/McpApp) to your surface.
+After registering `mcpCatalog` and `configureMcpCatalog` in your Lit, React, or Angular app (see [Call MCP Tools from A2UI](../mcp-catalog/#quick-setup)), serve the sandbox relay files and add [`McpApp`](../mcp-catalog/#mcp_catalog.json/components/McpApp) to your surface.
 
 ### Serve the sandbox files
 
@@ -347,7 +347,7 @@ If you are authoring an MCP App to run inside this sandbox, keep three browser r
 2. `window.parent.document` and `window.top` are blocked. Request iframe height updates with `ui/notifications/size-changed`, and open external `http:` or `https:` links in a new tab with `ui/open-link`.
 3. External network requests, images, fonts, and subframes inside `srcdoc` are blocked unless the MCP resource lists their domains under `_meta.ui.csp` (`connectDomains`, `resourceDomains`, `frameDomains`, `baseUriDomains`).
 
-To serve `/a2ui-sandbox/` in your bundler and configure [`McpApp`](../../specification/v1.0/schemas/#mcp_catalog.json/components/McpApp) properties, see [Set up McpApp in your web app](#set-up-mcpapp-in-your-web-app). For the startup handshake (`ui/notifications/sandbox-proxy-ready`, `ui/notifications/sandbox-resource-ready`, and `ui/initialize`), see the [MCP App component specification](https://github.com/a2ui-project/a2ui/blob/main/catalogs/mcp/v1/mcp_app_specification.md).
+To serve `/a2ui-sandbox/` in your bundler and configure [`McpApp`](../mcp-catalog/#mcp_catalog.json/components/McpApp) properties, see [Set up McpApp in your web app](#set-up-mcpapp-in-your-web-app). For the startup handshake (`ui/notifications/sandbox-proxy-ready`, `ui/notifications/sandbox-resource-ready`, and `ui/initialize`), see the [MCP App component specification](https://github.com/a2ui-project/a2ui/blob/main/catalogs/mcp/v1/mcp_app_specification.md).
 
 </details>
 
