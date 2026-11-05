@@ -1,6 +1,8 @@
 ---
 name: a2ui-remediate-problem
 description: Remediates a specific recommendation from an A2UI compliance report issue, or resolves any general GitHub issue, by inspecting context, implementing minimal targeted fixes, verifying tests, creating a branch, and opening a developer-signed Pull Request. Use when asked to fix or remediate an A2UI compliance audit finding, recommendation, or repository issue.
+metadata:
+  internal: true
 ---
 
 # A2UI Issue & Compliance Remediation Skill

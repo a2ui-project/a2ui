@@ -38,7 +38,47 @@ import {
   lowerMessages,
   lowerText,
 } from './lowering.js';
-import {compileChecked, forEachSuiteVersion} from './suite-helpers.js';
+import {
+  assertKnownKeys,
+  CASE_METADATA_KEYS,
+  compileChecked,
+  EXPECT_ERROR_KEYS,
+  forEachSuiteVersion,
+  KNOWN_FAILURES,
+  UNSUPPORTED,
+} from './suite-helpers.js';
+
+const DIRECT_JSON_CASE_KEYS: Record<string, ReadonlySet<string>> = {
+  compile: new Set([
+    ...CASE_METADATA_KEYS,
+    'args',
+    'input',
+    'expect',
+    'expect_error',
+    'expect_present',
+  ]),
+  decompile: new Set([
+    ...CASE_METADATA_KEYS,
+    'args',
+    'messages',
+    'expect_contains',
+    'expect_absent',
+    'expect_error',
+    'expect_recompiled',
+    'expect_round_trip',
+  ]),
+  unwrap: new Set([...CASE_METADATA_KEYS, 'args', 'input', 'expect']),
+  has_format_content: new Set([...CASE_METADATA_KEYS, 'args', 'input', 'expect']),
+  wrap: new Set([
+    ...CASE_METADATA_KEYS,
+    'args',
+    'parts',
+    'expect_output',
+    'expect_contains',
+    'expect_round_trip',
+  ]),
+  parse_response: new Set([...CASE_METADATA_KEYS, 'args', 'input', 'expect', 'expect_error']),
+};
 
 /** The error classes that count as each category the suites name. */
 const ERRORS_BY_CATEGORY: Record<string, Array<new (...args: never[]) => Error>> = {
@@ -59,6 +99,7 @@ function assertThrows(fn: () => void, expectError: Record<string, unknown> | str
     expect(message).toContain(expectError);
     return;
   }
+  assertKnownKeys(expectError, EXPECT_ERROR_KEYS, 'expect_error');
   if (expectError.message) {
     if (expectError.message_is_regex) {
       expect(message).toMatch(new RegExp(expectError.message as string));
@@ -136,9 +177,6 @@ function assertPartsMatch(
   }
 }
 
-const UNSUPPORTED = new Map<string, string>([]);
-const KNOWN_FAILURES = new Map<string, string>([]);
-
 forEachSuiteVersion(
   'Direct JSON Conformance Suite',
   loadCases([
@@ -149,6 +187,10 @@ forEachSuiteVersion(
   async (testCase, version) => {
     const isLowered = version === 'v0.9-lowered';
     const {action} = testCase;
+    const allowedKeys = DIRECT_JSON_CASE_KEYS[action];
+    if (allowedKeys) {
+      assertKnownKeys(testCase, allowedKeys, `${action} case`);
+    }
     const args = (testCase.args as Record<string, unknown>) || {};
     const catalogPaths: string[] = [];
     if (Array.isArray(args.catalogs)) {

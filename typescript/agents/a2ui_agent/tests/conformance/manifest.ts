@@ -25,13 +25,24 @@ export interface ActiveCase {
   suite: string;
   name: string;
   knownFailure?: string;
+  skipReason?: string;
+  unexpectedError?: Error;
+  recorded?: boolean;
   version?: string;
 }
 
-let activeCase: ActiveCase | undefined;
+const activeCases = new WeakMap<object, ActiveCase>();
 
-export function setActiveCase(current: ActiveCase | undefined): void {
-  activeCase = current;
+export function setActiveCase(task: object, current: ActiveCase | undefined): void {
+  if (current === undefined) {
+    activeCases.delete(task);
+  } else {
+    activeCases.set(task, current);
+  }
+}
+
+export function getActiveCase(task: object): ActiveCase | undefined {
+  return activeCases.get(task);
 }
 
 interface Outcome {
@@ -39,10 +50,14 @@ interface Outcome {
   reason?: string;
 }
 
-const manifestRecords = new Map<
-  string,
-  {suite: string; name: string; outcomes: Map<string, Outcome>}
->();
+interface ManifestEntry {
+  suite: string;
+  name: string;
+  outcomes: Map<string, Outcome>;
+}
+
+/** Records per manifest directory, so a test that redirects the directory starts empty. */
+const manifestRecordsByDir = new Map<string, Map<string, ManifestEntry>>();
 
 function combineOutcomes(outcomes: ReadonlyMap<string, Outcome>): Outcome {
   for (const target of ['failed', 'xfailed'] as const) {
@@ -81,13 +96,18 @@ export function recordCase(
     return;
   }
   mkdirSync(manifestDir, {recursive: true});
+  let manifestRecords = manifestRecordsByDir.get(manifestDir);
+  if (!manifestRecords) {
+    manifestRecords = new Map();
+    manifestRecordsByDir.set(manifestDir, manifestRecords);
+  }
   const key = `${suite}::${testCase}`;
   let entry = manifestRecords.get(key);
   if (!entry) {
     entry = {suite, name: testCase, outcomes: new Map()};
     manifestRecords.set(key, entry);
   }
-  entry.outcomes.set(versionKey, {status, reason});
+  entry.outcomes.set(versionKey, {status, reason: reason?.trim() || undefined});
 
   const lines: string[] = [];
   for (const item of manifestRecords.values()) {
@@ -114,13 +134,40 @@ export function recordCase(
  */
 export function registerAfterEachManifestRecorder(): void {
   afterEach(ctx => {
-    const current = activeCase;
-    activeCase = undefined;
-    if (!current) {
+    const current = activeCases.get(ctx.task);
+    activeCases.delete(ctx.task);
+    if (!current || current.recorded) {
       return;
     }
+    current.recorded = true;
     const state = ctx.task.result?.state;
+    if (state === 'skip') {
+      const reason = current.skipReason?.trim() || ctx.task.result?.note?.trim() || 'skipped';
+      recordCase(current.suite, current.name, 'skipped', reason, current.version);
+      return;
+    }
     if (ctx.task.fails) {
+      if (current.unexpectedError) {
+        recordCase(
+          current.suite,
+          current.name,
+          'failed',
+          current.unexpectedError.message.trim() || 'test failed',
+          current.version,
+        );
+        return;
+      }
+      const firstError = ctx.task.result?.errors?.[0];
+      if (firstError?.name === 'UnknownConformanceKeyError') {
+        recordCase(
+          current.suite,
+          current.name,
+          'failed',
+          firstError.message?.trim() || 'test failed',
+          current.version,
+        );
+        return;
+      }
       // Vitest flips `task.result.state` for `test.fails` after `afterEach` completes, so
       // `state === 'fail'` inside `afterEach` means the expected failure threw as expected.
       if (state === 'fail') {
@@ -128,7 +175,7 @@ export function registerAfterEachManifestRecorder(): void {
           current.suite,
           current.name,
           'xfailed',
-          current.knownFailure ?? 'known failure',
+          current.knownFailure?.trim() || 'known failure',
           current.version,
         );
       } else {
@@ -139,7 +186,7 @@ export function registerAfterEachManifestRecorder(): void {
     if (state === 'pass') {
       recordCase(current.suite, current.name, 'passed', undefined, current.version);
     } else {
-      const message = ctx.task.result?.errors?.[0]?.message ?? 'test failed';
+      const message = ctx.task.result?.errors?.[0]?.message?.trim() || 'test failed';
       recordCase(current.suite, current.name, 'failed', message, current.version);
     }
   });
