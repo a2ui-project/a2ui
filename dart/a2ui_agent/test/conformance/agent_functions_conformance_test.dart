@@ -154,20 +154,23 @@ CatalogApi _catalog(Map<String, Object?> entry) {
   );
 }
 
+/// Checks [error] against a case's `AgentFunctionExpectError`.
+///
+/// `category` is required, so a case can't pass on an unrelated error, and
+/// `message` is a literal substring of the error's text.
 void _assertErrorMatches(Object error, Map<String, Object?> expected) {
-  if (expected['category'] case final String category) {
-    switch (category) {
-      case 'CatalogError':
-        expect(error, isA<A2uiCatalogError>());
-      case 'ValidationError':
-        expect(error, isA<A2uiValidationError>());
-      default:
-        fail('Unknown error category: $category');
-    }
-  }
-  if (expected['code'] case final String code) {
-    expect(error, isA<A2uiError>());
-    expect((error as A2uiError).code, code);
+  final Set<String> unknownKeys = expected.keys.toSet().difference({
+    'category',
+    'message',
+  });
+  expect(unknownKeys, isEmpty, reason: 'Unhandled expect_error keys');
+  switch (expected['category']) {
+    case 'CatalogError':
+      expect(error, isA<A2uiCatalogError>());
+    case 'ValidationError':
+      expect(error, isA<A2uiValidationError>());
+    case final Object? category:
+      fail('Unknown error category: $category');
   }
   if (expected['message'] case final String msg) {
     expect(error.toString(), contains(msg));
