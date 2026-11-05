@@ -16,6 +16,8 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from a2ui.core import (
@@ -23,9 +25,10 @@ from a2ui.core import (
     A2uiRecursionError,
     A2uiValidationError,
 )
+from a2ui.core.schema.v1_0 import CatalogDefinition as CatalogDefinitionV10
 
 from .conformance_helpers import assert_known_keys, case_params
-from .macro_suite import Case, load_cases, run_case, validate_payload
+from .macro_suite import Case, GOLDEN_DIR, load_cases, run_case, validate_payload
 
 SUITE = "agent/macros/macros.yaml"
 CASES = load_cases()
@@ -42,11 +45,19 @@ CATEGORY_TO_EXCEPTION = {
 
 _EXPECT_ERROR_KEYS = frozenset({"category", "message"})
 _MACRO_EXPECT_KEYS = frozenset({
-    "augmented_components",
-    "absent_components",
-    "any_component_references",
     "absent_any_component_references",
+    "absent_components",
+    "absent_property_on_all_components",
+    "any_component_references",
+    "augmented_components",
+    "catalog_id",
+    "component_count",
     "component_properties",
+    "component_types",
+    "components",
+    "create_surface_catalog_id",
+    "has_any_component_discriminator",
+    "has_any_function",
     "protocol_version",
 })
 
@@ -73,17 +84,66 @@ def test_expect_error(suite: str, case: Case) -> None:
     expected_exc = CATEGORY_TO_EXCEPTION[str(case.expect_error.get("category"))]
     with pytest.raises(expected_exc, match=case.expect_error.get("message")):
         payload = run_case(case)
-        if payload:
+        if isinstance(payload, list) and payload:
             validate_payload(payload, case)
 
 
 @pytest.mark.parametrize("suite, case", case_params(SUITE, EXPECT_CASES))
 def test_expect_assertion(suite: str, case: Case) -> None:
-    """Evaluates expect assertions for catalog synthesis and metadata preservation."""
+    """Evaluates expect assertions for catalog synthesis, sidecar export, and transport fallbacks."""
     del suite
     result = run_case(case)
     expect = case.expect or {}
     assert_known_keys(expect, _MACRO_EXPECT_KEYS, "macros expect")
+
+    if isinstance(result, list):
+        all_comps = [
+            comp
+            for msg in result
+            if isinstance(msg, dict) and "updateComponents" in msg
+            for comp in msg["updateComponents"].get("components", [])
+        ]
+        if "create_surface_catalog_id" in expect:
+            create_msgs = [
+                msg["createSurface"]
+                for msg in result
+                if isinstance(msg, dict) and "createSurface" in msg
+            ]
+            assert len(create_msgs) == 1
+            assert (
+                create_msgs[0].get("catalogId") == expect["create_surface_catalog_id"]
+            )
+        if "components" in expect:
+            assert all_comps == expect["components"]
+        if "component_types" in expect:
+            assert [c["component"] for c in all_comps] == expect["component_types"]
+        if "absent_property_on_all_components" in expect:
+            prop = expect["absent_property_on_all_components"]
+            assert all(prop not in c for c in all_comps)
+        validate_payload(result, case)
+        return
+
+    catalog_json = result.to_json()
+
+    if "catalog_id" in expect:
+        assert result.catalog_id == expect["catalog_id"]
+        assert catalog_json.get("catalogId") == expect["catalog_id"]
+
+    if "component_count" in expect:
+        assert len(catalog_json.get("components", {})) == expect["component_count"]
+
+    if "has_any_component_discriminator" in expect:
+        discriminator = (
+            catalog_json.get("$defs", {}).get("anyComponent", {}).get("discriminator")
+        )
+        if expect["has_any_component_discriminator"]:
+            assert discriminator == {"propertyName": "component"}
+        else:
+            assert discriminator is None
+
+    if "has_any_function" in expect:
+        defs = catalog_json.get("$defs", {})
+        assert ("anyFunction" in defs) is bool(expect["has_any_function"])
 
     if "augmented_components" in expect:
         catalog_schema = result.validation_schema
@@ -138,6 +198,8 @@ def test_expect_assertion(suite: str, case: Case) -> None:
 
     if "protocol_version" in expect:
         assert result.protocol_version == expect["protocol_version"]
+        if expect["protocol_version"] == "1.0" and case.action == "to_catalog":
+            CatalogDefinitionV10.model_validate(result.to_json())
 
 
 @pytest.mark.parametrize("suite, case", case_params(SUITE, PASSTHROUGH_CASES))
@@ -149,17 +211,20 @@ def test_reverse_passthrough(suite: str, case: Case) -> None:
     assert result[0]["updateComponents"]["components"] == [case.input]
 
 
-def test_suite_covers_every_golden() -> None:
-    """No golden file is orphaned by a case being renamed or removed."""
-    import os
-
-    from .macro_suite import GOLDEN_DIR
-
-    on_disk: set[str] = set()
-    for dirpath, _dirnames, filenames in os.walk(GOLDEN_DIR):
-        for fname in filenames:
-            if fname.endswith(".json"):
-                rel = os.path.relpath(os.path.join(dirpath, fname), GOLDEN_DIR)
-                on_disk.add(rel.replace(os.sep, "/"))
-    declared = {case.golden for case in GOLDEN_CASES if case.golden is not None}
+def test_suite_covers_every_golden_and_case() -> None:
+    """Every golden file is referenced and every case runs in at least one test."""
+    on_disk = {
+        os.path.relpath(os.path.join(root, f), GOLDEN_DIR).replace("\\", "/")
+        for root, _, files in os.walk(GOLDEN_DIR)
+        for f in files
+        if f.endswith(".json")
+    }
+    declared = {case.golden for case in GOLDEN_CASES}
     assert on_disk == declared
+
+    all_ids = [c.id for c in CASES]
+    assert len(all_ids) == len(set(all_ids)), "Duplicate case IDs in macros.yaml"
+    covered_ids = {
+        c.id for c in (*GOLDEN_CASES, *ERROR_CASES, *EXPECT_CASES, *PASSTHROUGH_CASES)
+    }
+    assert covered_ids == set(all_ids)

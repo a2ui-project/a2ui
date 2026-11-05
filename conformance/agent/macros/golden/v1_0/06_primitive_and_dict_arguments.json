@@ -19,13 +19,17 @@
         {
           "component": "Text",
           "id": "cfg_1__text_3",
-          "text": "Active: True",
+          "text": "Active: true",
           "variant": "body"
         },
         {
           "component": "Column",
           "id": "cfg_1__column_1",
-          "children": ["cfg_1__text_1", "cfg_1__text_2", "cfg_1__text_3"],
+          "children": [
+            "cfg_1__text_1",
+            "cfg_1__text_2",
+            "cfg_1__text_3"
+          ],
           "justify": "start",
           "align": "stretch"
         },
