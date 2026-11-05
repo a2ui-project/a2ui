@@ -375,14 +375,11 @@ final class HostedViewDriver {
       {
         return element
       }
-      if !(element is any NSAccessibilityProtocol),
-        matchesIdentifier(
-          Self.informalAttribute(.identifier, of: element), componentID: componentID)
-      {
-        return element
+      var children: [Any] =
+        (element as? any NSAccessibilityProtocol)?.accessibilityChildren() ?? []
+      if let view = element as? NSView {
+        children += view.subviews
       }
-
-      let children = Self.accessibilityChildren(of: element)
 
       for child in children {
         let childObject = child as AnyObject
