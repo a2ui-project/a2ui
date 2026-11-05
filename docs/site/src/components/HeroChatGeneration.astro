@@ -17,21 +17,6 @@
 ---
 
 <div class="ic-root" id="hero-chat-visual" role="region" aria-label="One app screen whose surface is composed uniquely for each intent as you scroll">
-  <!-- =================================================================
-       NARROW VIEWPORTS: the scroll column becomes a sticky intent strip
-       (tap to send) with the active request shown above the phone.
-       ================================================================= -->
-  <div class="ic-tabs" role="tablist" aria-label="Pick an intent to send">
-    <button type="button" class="ic-tab is-active" role="tab" aria-selected="true" data-ic-tab="dinner">01 <em>PLAN</em></button>
-    <button type="button" class="ic-tab" role="tab" aria-selected="false" tabindex="-1" data-ic-tab="bill">02 <em>EXPLAIN</em></button>
-    <button type="button" class="ic-tab" role="tab" aria-selected="false" tabindex="-1" data-ic-tab="party">03 <em>HOST</em></button>
-    <button type="button" class="ic-tab" role="tab" aria-selected="false" tabindex="-1" data-ic-tab="eggs">04 <em>FIX</em></button>
-  </div>
-  <div class="ic-now" aria-live="polite">
-    <p class="ic-now__q" id="ic-now-q">“Dinner for four tonight, one vegetarian, under $40.”</p>
-    <p class="ic-now__d" id="ic-now-d">A recipe that fits the diet and the budget, a basket built from it, pantry items skipped, and the 5:30 slot booked — as one screen.</p>
-  </div>
-
   <div class="ic-split">
     <!-- Live wire: the active intent flows into the phone's composer -->
     <svg class="ic-wire-svg" id="ic-wire-svg" aria-hidden="true">
@@ -80,7 +65,7 @@
          ================================================================= -->
     <div class="ic-stage">
       <div class="ic-stage__bar">
-        <span class="ic-stage__tag">✦ MARIGOLD MARKET<span class="ic-stage__tag-x"> · ASSIST SCREEN</span></span>
+        <span class="ic-stage__tag">✦ MARIGOLD MARKET · ASSIST SCREEN</span>
         <div class="ic-lens" role="group" aria-label="Switch between the rendered screen and the wire payload">
           <button type="button" class="ic-lens__btn is-active" data-ic-lens="screen">SCREEN</button>
           <button type="button" class="ic-lens__btn" data-ic-lens="wire">WIRE JSON</button>
@@ -346,27 +331,36 @@
         <p>Your design system, locked. Agents place only components you registered.</p>
       </div>
 
-      <!-- 03 · Live context: orbits of signals around the moment -->
+      <!-- 03 · Swappable formats: Express, direct JSON or your own DSL all compile to one wire message -->
       <div class="ic-source">
         <svg class="ic-art" viewBox="0 0 320 160" preserveAspectRatio="xMinYMid meet" aria-hidden="true">
-          <path class="ln dash" d="M40 92H280" />
-          <circle class="ln" cx="40" cy="92" r="3" />
-          <path class="ln" d="M277 89l6 6M283 89l-6 6" />
-          <circle class="ln" cx="160" cy="92" r="20" />
-          <circle class="ln" cx="160" cy="92" r="42" />
-          <circle class="ln dash" cx="160" cy="92" r="64" />
-          <path class="ln" d="M160 24v6M160 154v6M92 92h-6M234 92h-6" />
-          <path class="soft-fill" d="M160 92 L201 44 A64 64 0 0 1 220 70 Z" />
-          <line class="acc ic-art__hand" x1="160" y1="92" x2="220" y2="70" />
-          <circle class="acc-fill" cx="160" cy="92" r="2.5" />
-          <rect class="acc-fill ic-art__blink" x="184" y="57" width="6" height="6" />
-          <rect class="node" x="97" y="111" width="6" height="6" />
-          <rect class="node" x="150" y="70" width="5" height="5" />
-          <path class="ln mark" d="M20 26h8M24 22v8" />
+          <path class="ln mark" d="M20 26h8M24 22v8M286 136h8M290 132v8" />
+          <!-- three ways the model can write the UI -->
+          <rect class="plane" x="24" y="30" width="92" height="26" rx="3" />
+          <rect class="plane" x="24" y="67" width="92" height="26" rx="3" />
+          <rect class="plane" x="24" y="104" width="92" height="26" rx="3" />
+          <text class="lbl" x="34" y="47">&#123; "json" &#125;</text>
+          <text class="lbl" x="34" y="84">&lt;a2ui&gt; express</text>
+          <text class="lbl" x="34" y="121">your format</text>
+          <!-- all of them meet at the compiler -->
+          <path class="ln dash" d="M116 43 C146 43 150 80 176 80" />
+          <path class="ln dash" d="M116 80 H176" />
+          <path class="ln dash" d="M116 117 C146 117 150 80 176 80" />
+          <rect class="node" x="170" y="74" width="12" height="12" transform="rotate(45 176 80)" />
+          <rect class="acc-fill ic-art__blink" x="173.5" y="77.5" width="5" height="5" transform="rotate(45 176 80)" />
+          <!-- one wire message out -->
+          <line class="acc ic-art__flow" x1="183" y1="80" x2="226" y2="80" />
+          <path class="acc" d="M222 76l4 4-4 4" />
+          <text class="lbl lbl--tiny" x="184" y="98">ONE WIRE</text>
+          <!-- the same component, whichever way it was written -->
+          <rect class="plane" x="232" y="50" width="68" height="60" rx="3" />
+          <path class="ln-strong ln" d="M242 63h36" />
+          <path class="ln" d="M242 72h26M242 80h30" />
+          <rect class="acc-fill" x="242" y="92" width="48" height="9" rx="1" />
         </svg>
 
-        <h3>Live context</h3>
-        <p>What’s true right now, bound into the data model — pantry, prices, orders, time.</p>
+        <h3>Swappable formats</h3>
+        <p>Let the model write A2UI Express, direct JSON, or a format of your own — every one compiles to the same wire messages.</p>
       </div>
     </div>
   </div>
@@ -455,15 +449,6 @@
     const wireEl = document.getElementById('ic-wire');
     const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const narrow = window.matchMedia ? window.matchMedia('(max-width: 920px)') : { matches: false };
-
-    /* Narrow-viewport intent strip + "now sending" block (mirrors the scroll steps) */
-    const tabs = root.querySelectorAll('[data-ic-tab]');
-    const nowQ = document.getElementById('ic-now-q');
-    const nowD = document.getElementById('ic-now-d');
-    const descOf = (key) => {
-      const el = root.querySelector(`.ic-step[data-ic="${key}"] .ic-step__desc`);
-      return el ? el.textContent : '';
-    };
 
     /* --- Live wire from the active step into the phone's composer --- */
     const split = root.querySelector('.ic-split');
@@ -576,14 +561,6 @@
         s.classList.toggle('is-active', on);
         s.setAttribute('aria-pressed', on ? 'true' : 'false');
       });
-      tabs.forEach((t) => {
-        const on = t.getAttribute('data-ic-tab') === key;
-        t.classList.toggle('is-active', on);
-        t.setAttribute('aria-selected', on ? 'true' : 'false');
-        t.tabIndex = on ? 0 : -1;
-      });
-      if (nowQ) nowQ.textContent = `“${d.quote}”`;
-      if (nowD) nowD.textContent = descOf(key);
       if (zoneWho) zoneWho.textContent = d.idx;
       if (wireEl) wireEl.textContent = d.wire;
       scheduleWire();
@@ -600,71 +577,87 @@
       });
     };
 
-    /* Scrolling sends each intent: a step activates when it crosses the middle band of the viewport */
-    if ('IntersectionObserver' in window) {
-      const io = new IntersectionObserver(
+    /* Scrolling sends each intent. Wide: a step activates when it crosses the middle band of the
+       viewport (steps beside a sticky phone). Narrow: the phone is pinned under the header and the
+       steps scroll beneath it, so the band is the strip of viewport below the pinned phone. */
+    const stage = root.querySelector('.ic-stage');
+    const device = root.querySelector('.ic-device');
+    const HEADER = 64;
+    let io = null;
+    let bandTop = 0;      // px from viewport top where the activation band starts (narrow)
+    let bandBottom = 0;   // px from viewport top where it ends
+
+    const fitNarrowStage = () => {
+      if (!stage || !device) return;
+      if (!narrow.matches) {
+        stage.style.removeProperty('--ic-s');
+        return;
+      }
+      // natural (unscaled) device height, measured once
+      if (!device.dataset.h) {
+        stage.style.setProperty('--ic-s', '1');
+        device.dataset.h = String(Math.round(device.getBoundingClientRect().height) || 620);
+      }
+      const natural = Number(device.dataset.h);
+      // keep ~260px of viewport for the step passing underneath (32 = stage padding)
+      const room = window.innerHeight - HEADER - 260 - 32;
+      const s = Math.max(0.6, Math.min(0.86, room / natural));
+      stage.style.setProperty('--ic-s', s.toFixed(3));
+      stage.style.setProperty('--ic-dh', `${natural}px`);
+    };
+
+    const observeSteps = () => {
+      if (!('IntersectionObserver' in window)) return;
+      if (io) io.disconnect();
+      let margin = '-42% 0px -42% 0px';
+      if (narrow.matches && stage) {
+        const vh = window.innerHeight;
+        const stageBottom = HEADER + stage.getBoundingClientRect().height;
+        bandTop = stageBottom;
+        bandBottom = vh - 24;
+        const topPct = Math.min(80, Math.max(0, (bandTop / vh) * 100));
+        const botPct = Math.max(0, 100 - (bandBottom / vh) * 100);
+        // activate when a step's quote line enters the strip below the pinned phone
+        margin = `-${topPct.toFixed(1)}% 0px -${botPct.toFixed(1)}% 0px`;
+      }
+      io = new IntersectionObserver(
         (entries) => {
           entries.forEach((e) => {
             if (e.isIntersecting) setIntent(e.target.getAttribute('data-ic') || 'dinner', true);
           });
         },
-        { rootMargin: '-42% 0px -42% 0px', threshold: 0 }
+        { rootMargin: margin, threshold: narrow.matches ? 0.35 : 0 }
       );
-      steps.forEach((s) => io.observe(s));
-    }
-
-    steps.forEach((s) => {
-      s.addEventListener('click', () => {
-        const key = s.getAttribute('data-ic') || 'dinner';
-        setIntent(key, true);
-        s.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
-      });
-    });
-
-    /* Narrow viewports: the intent strip sends on tap (re-tapping sends the same request again) */
-    const stage = root.querySelector('.ic-stage');
-    const tabsEl = root.querySelector('.ic-tabs');
-    const keepStageInView = () => {
-      if (!stage) return;
-      const r = stage.getBoundingClientRect();
-      const limit = 64 + (tabsEl ? tabsEl.getBoundingClientRect().height : 0);
-      if (r.top < limit - 8 || r.top > limit + 120) {
-        window.scrollTo({ top: window.scrollY + r.top - limit - 12, behavior: reduceMotion ? 'auto' : 'smooth' });
-      }
+      steps.forEach((st) => io.observe(st));
     };
-    tabs.forEach((t) => {
-      t.addEventListener('click', () => {
-        setIntent(t.getAttribute('data-ic-tab') || 'dinner', true, true);
-        keepStageInView();
+
+    const applyMode = () => {
+      fitNarrowStage();
+      // the stage height depends on --ic-s, so measure on the next frame
+      requestAnimationFrame(observeSteps);
+    };
+    applyMode();
+    let modeRaf = 0;
+    window.addEventListener('resize', () => {
+      if (modeRaf) return;
+      modeRaf = requestAnimationFrame(() => { modeRaf = 0; applyMode(); });
+    });
+    if (narrow.addEventListener) narrow.addEventListener('change', applyMode);
+
+    steps.forEach((st) => {
+      st.addEventListener('click', () => {
+        const key = st.getAttribute('data-ic') || 'dinner';
+        setIntent(key, true);
+        if (narrow.matches && bandBottom > bandTop) {
+          // centre the step in the strip under the pinned phone
+          const r = st.getBoundingClientRect();
+          const target = window.scrollY + r.top + r.height / 2 - (bandTop + bandBottom) / 2;
+          window.scrollTo({ top: target, behavior: reduceMotion ? 'auto' : 'smooth' });
+        } else {
+          st.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+        }
       });
     });
-    if (tabsEl) {
-      tabsEl.addEventListener('keydown', (e) => {
-        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-        const list = Array.from(tabs);
-        const i = list.findIndex((t) => t.classList.contains('is-active'));
-        const next = list[(i + (e.key === 'ArrowRight' ? 1 : list.length - 1)) % list.length];
-        if (next) { next.focus(); next.click(); }
-        e.preventDefault();
-      });
-    }
-
-    /* When the steps column is collapsed, play the first request as soon as the phone scrolls in */
-    if (stage && 'IntersectionObserver' in window) {
-      let played = false;
-      const stageIo = new IntersectionObserver(
-        (entries) => {
-          entries.forEach((e) => {
-            if (played || !e.isIntersecting || !narrow.matches) return;
-            played = true;
-            setIntent(current, true, true);
-            stageIo.disconnect();
-          });
-        },
-        { threshold: 0.35 }
-      );
-      stageIo.observe(stage);
-    }
     scheduleWire();
 
     /* --- In-surface interactions (bound locally, no round trips) --- */
@@ -784,100 +777,13 @@
   }
 
   @media (max-width: 920px) {
+    /* flex column (not grid): a sticky grid item can only travel within its own cell,
+       a sticky flex item travels the whole column — which is what pins the phone */
     .ic-split {
-      grid-template-columns: 1fr;
-      gap: 0;
-    }
-  }
-
-  /* =======================================================================
-     NARROW VIEWPORTS: sticky intent strip + active request above the phone
-     (the scroll column is collapsed; tapping an intent sends it)
-     ======================================================================= */
-  .ic-tabs,
-  .ic-now {
-    display: none;
-  }
-
-  @media (max-width: 920px) {
-    .ic-tabs {
-      position: sticky;
-      top: 64px;
-      z-index: 6;
       display: flex;
-      gap: 24px;
-      margin: 0 -36px;
-      padding: 0 36px;
-      border-bottom: 1px solid var(--a2-border-strong);
-      background: var(--a2-bg-alt);
-      overflow-x: auto;
-      scrollbar-width: none;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    @media (max-width: 640px) {
-      .ic-tabs {
-        margin: 0 -20px;
-        padding: 0 20px;
-      }
-    }
-
-    .ic-tabs::-webkit-scrollbar {
-      display: none;
-    }
-
-    .ic-tab {
-      appearance: none;
-      flex: 0 0 auto;
-      margin-bottom: -1px;
-      padding: 15px 0 12px;
-      border: none;
-      border-bottom: 2px solid transparent;
-      background: transparent;
-      font-family: var(--a2-font-mono);
-      font-size: 10.5px;
-      font-weight: 600;
-      letter-spacing: 0.1em;
-      color: var(--a2-text-muted);
-      white-space: nowrap;
-      cursor: pointer;
-      transition: color 0.15s ease, border-color 0.15s ease;
-    }
-
-    .ic-tab em {
-      font-style: normal;
-      margin-left: 6px;
-    }
-
-    .ic-tab.is-active {
-      color: var(--a2-text);
-      border-bottom-color: var(--a2-accent);
-    }
-
-    .ic-tab.is-active em {
-      color: var(--a2-accent);
-    }
-
-    .ic-now {
-      display: block;
-      padding: 24px 0 20px;
-    }
-
-    .ic-now__q {
-      margin: 0;
-      font-family: var(--a2-font-display);
-      font-size: clamp(19px, 5.2vw, 24px);
-      font-weight: 600;
-      line-height: 1.25;
-      letter-spacing: var(--a2-tracking-h3);
-      color: var(--a2-text);
-    }
-
-    .ic-now__d {
-      margin: 8px 0 0;
-      font-size: 14px;
-      line-height: 1.55;
-      color: var(--a2-text-secondary);
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0;
     }
   }
 
@@ -889,9 +795,11 @@
     padding: 0 0 22vh;
   }
 
+  /* Narrow: the steps scroll underneath the pinned phone */
   @media (max-width: 920px) {
     .ic-picker {
-      display: none;
+      order: 2;
+      padding: 24px 0 26vh;
     }
   }
 
@@ -932,8 +840,9 @@
 
   @media (max-width: 920px) {
     .ic-step {
-      min-height: 0;
-      padding: 28px 0 28px 40px;
+      min-height: min(400px, 50vh);
+      padding: 16px 0 16px 28px;
+      gap: 10px;
     }
   }
 
@@ -1057,36 +966,46 @@
   }
 
   @media (max-width: 920px) {
-    /* Full-bleed field so the phone keeps its full width on small screens
-       (negative margins mirror .a2-wrap's padding: 36px, then 20px under 640px) */
+    /* Pinned under the site header, full-bleed (negative margins mirror .a2-wrap's padding),
+       with the phone scaled by --ic-s (set from the viewport height in JS) so the steps have
+       room to pass underneath */
     .ic-stage {
-      position: relative;
-      top: auto;
+      --ic-s: 0.78;
+      position: sticky;
+      top: 64px;
+      z-index: 5;
       order: 1;
       margin: 0 -36px;
       border-left: none;
       border-right: none;
     }
 
-    .ic-stage__bar {
-      flex-wrap: wrap;
-      row-gap: 10px;
-      padding: 14px 16px 0;
+    /* (qualified with .ic-stage so these beat the base rules declared further down) */
+    .ic-stage .ic-stage__bar,
+    .ic-stage .ic-brace {
+      display: none;
     }
 
-    .ic-stage__tag {
-      font-size: 9.5px;
-      white-space: nowrap;
+    .ic-lens-view.is-active {
+      padding: 12px 12px 12px;
+    }
+
+    .ic-device {
+      zoom: var(--ic-s);
+    }
+
+    @supports not (zoom: 0.5) {
+      .ic-device {
+        transform: scale(var(--ic-s));
+        transform-origin: top center;
+        margin-bottom: calc(var(--ic-dh, 620px) * (var(--ic-s) - 1));
+      }
     }
   }
 
   @media (max-width: 640px) {
     .ic-stage {
       margin: 0 -20px;
-    }
-
-    .ic-stage__tag-x {
-      display: none;
     }
   }
 
@@ -2209,7 +2128,7 @@
     max-width: 38ch;
   }
 
-  /* --- Technical line illustrations (equal height so the three titles align) --- */
+  /* --- Technical line illustrations (equal height so the three titles align; labels in mono) --- */
   .ic-art {
     width: 100%;
     height: 150px;
@@ -2291,6 +2210,30 @@
     animation: icBlink 2.4s ease-in-out infinite;
   }
 
+  .ic-art .lbl {
+    font-family: var(--a2-font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.02em;
+    fill: var(--a2-text-secondary);
+  }
+
+  .ic-art .lbl--tiny {
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    fill: var(--a2-text-muted);
+  }
+
+  .ic-art__flow {
+    stroke-width: 1.6;
+    stroke-dasharray: 5 7;
+    animation: icFlowDash 1.1s linear infinite;
+  }
+
+  @keyframes icFlowDash {
+    to { stroke-dashoffset: -24; }
+  }
+
   @keyframes icBlink {
     0%, 100% { opacity: 0.35; }
     50% { opacity: 1; }
@@ -2303,6 +2246,7 @@
     .ic-sent,
     .ic-art__caret,
     .ic-art__hand,
+    .ic-art__flow,
     .ic-art__blink {
       animation: none;
     }

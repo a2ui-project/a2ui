@@ -17,8 +17,8 @@
 import '../styles/tokens.css';
 import StarlightHeader from '../components/StarlightHeader.astro';
 import HeroChatGeneration from '../components/HeroChatGeneration.astro';
-import DesignSystemMorph from '../components/DesignSystemMorph.astro';
 import RendererLogo from '../components/RendererLogo.astro';
+import HeroFormFactors from '../components/HeroFormFactors.astro';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
@@ -43,7 +43,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     <script is:inline>
       (() => {
         try {
-          const saved = localStorage.getItem('starlight-theme') || localStorage.getItem('a2ui-theme');
+          const saved =
+            localStorage.getItem('starlight-theme') || localStorage.getItem('a2ui-theme');
           if (saved === 'dark' || saved === 'light') {
             document.documentElement.setAttribute('data-theme', saved);
           } else {
@@ -74,15 +75,17 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         <div class="a2-wrap">
           <div class="a2-masthead">
             <div class="a2-masthead__split">
-              <h1 class="a2-h1 a2-h1--long">
-                Give agents a way to build the screen <span class="a2-h-accent">each customer actually&nbsp;needs.</span>
-              </h1>
+              <div class="a2-masthead__copy">
+                <h1 class="a2-h1 a2-h1--long">
+                  Give agents a way to build the screen <span class="a2-h-accent"
+                    >each customer actually&nbsp;needs.</span
+                  >
+                </h1>
 
-              <div class="a2-masthead__right">
                 <p class="a2-lead">
-                  Agents read what someone is trying to do and compose a native screen for it — from
-                  components your team already approved. Same app, same screen. A different
-                  composition for every person and every intent.
+                  Empower your agents to compose native, per-customer screens from components your
+                  team already approved. Same app, a different composition for every person and
+                  every intent.
                 </p>
 
                 <div class="a2-hero__actions">
@@ -90,19 +93,12 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
                     <span>Run in 5 Minutes</span>
                     <span aria-hidden="true">→</span>
                   </a>
-
-                  <button
-                    type="button"
-                    class="a2-cmd-bar"
-                    id="hero-copy-clone"
-                    data-copy="git clone https://github.com/a2ui-project/a2ui.git"
-                    aria-label="Copy git clone command"
-                  >
-                    <span class="a2-cmd-bar__sig">$</span>
-                    <span class="a2-cmd-bar__code" id="hero-copy-txt">git clone a2ui-project/a2ui</span>
-                    <span class="a2-cmd-bar__act" id="hero-copy-act">COPY</span>
-                  </button>
                 </div>
+              </div>
+
+              <!-- One message, every form factor -->
+              <div class="a2-masthead__visual">
+                <HeroFormFactors />
               </div>
             </div>
 
@@ -110,14 +106,40 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
             <div class="a2-renderers">
               <span class="a2-renderers__lbl">RENDERS NATIVELY IN</span>
               <ul class="a2-renderers__list" aria-label="Official A2UI renderers">
-                <li><a href={`${base}/concepts/renderer-sdks/`}><RendererLogo name="react" size={20} /><span>React</span></a></li>
-                <li><a href={`${base}/concepts/renderer-sdks/`}><RendererLogo name="lit" size={20} /><span>Lit</span></a></li>
-                <li><a href={`${base}/concepts/renderer-sdks/`}><RendererLogo name="angular" size={20} /><span>Angular</span></a></li>
-                <li><a href={`${base}/concepts/renderer-sdks/`}><RendererLogo name="flutter" size={20} /><span>Flutter</span></a></li>
-                <li><a href={`${base}/concepts/renderer-sdks/`}><RendererLogo name="swiftui" size={20} /><span>SwiftUI</span></a></li>
-                <li><a href={`${base}/concepts/renderer-sdks/`}><RendererLogo name="compose" size={20} /><span>Jetpack Compose</span></a></li>
+                <li>
+                  <a href={`${base}/concepts/renderer-sdks/`}
+                    ><RendererLogo name="react" size={20} /><span>React</span></a
+                  >
+                </li>
+                <li>
+                  <a href={`${base}/concepts/renderer-sdks/`}
+                    ><RendererLogo name="lit" size={20} /><span>Lit</span></a
+                  >
+                </li>
+                <li>
+                  <a href={`${base}/concepts/renderer-sdks/`}
+                    ><RendererLogo name="angular" size={20} /><span>Angular</span></a
+                  >
+                </li>
+                <li>
+                  <a href={`${base}/concepts/renderer-sdks/`}
+                    ><RendererLogo name="flutter" size={20} /><span>Flutter</span></a
+                  >
+                </li>
+                <li>
+                  <a href={`${base}/concepts/renderer-sdks/`}
+                    ><RendererLogo name="swiftui" size={20} /><span>SwiftUI</span></a
+                  >
+                </li>
+                <li>
+                  <a href={`${base}/concepts/renderer-sdks/`}
+                    ><RendererLogo name="compose" size={20} /><span>Jetpack Compose</span></a
+                  >
+                </li>
               </ul>
-              <a href={`${base}/ecosystem/renderers/`} class="a2-renderers__more">+ Vue, Svelte, React Native &amp; more from the community →</a>
+              <a href={`${base}/ecosystem/renderers/`} class="a2-renderers__more"
+                >+ Vue, Svelte, React Native &amp; more from the community →</a
+              >
             </div>
           </div>
         </div>
@@ -130,7 +152,9 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         <div class="a2-wrap">
           <div class="a2-chapter a2-chapter--stage">
             <div class="a2-chapter__split">
-              <h2 class="a2-h2">Custom UI for <span class="a2-h-accent">each user’s intent.</span></h2>
+              <h2 class="a2-h2">
+                Custom UI for <span class="a2-h-accent">each user’s intent.</span>
+              </h2>
             </div>
           </div>
 
@@ -142,43 +166,28 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       </section>
 
       <!-- =================================================================
-           § 01 — RENDERERS & DESIGN SYSTEMS (#native-rendering)
+           TRUST & AUTONOMY — SIGNAL FIREWALL SCHEMATIC & AUTONOMY RULER (#architecture)
            ================================================================= -->
-      <section class="a2-section" id="native-rendering">
+      <section class="a2-section" id="architecture">
         <div class="a2-wrap">
           <div class="a2-chapter">
             <div class="a2-chapter__split">
-              <h2 class="a2-h2">Works with your stack <span class="a2-h-accent">and your design system.</span></h2>
-              <p class="a2-sec-sub">
-                The agent sends one semantic stream. Official renderers for React, Lit, Angular,
-                Flutter, SwiftUI, and Jetpack Compose map it to the components you already ship —
-                in your tokens, your type, your corners.
-              </p>
-            </div>
-          </div>
-
-          <DesignSystemMorph />
-        </div>
-      </section>
-
-      <!-- =================================================================
-           § 02 — SIGNAL FIREWALL SCHEMATIC & AUTONOMY RULER (#architecture)
-           ================================================================= -->
-      <section class="a2-section a2-section--alt" id="architecture">
-        <div class="a2-wrap">
-          <div class="a2-chapter">
-            <div class="a2-chapter__split">
-              <h2 class="a2-h2">Agents propose intent. <span class="a2-h-accent">You own the gate.</span></h2>
+              <h2 class="a2-h2">
+                Agents propose intent. <span class="a2-h-accent">You own the gate.</span>
+              </h2>
               <p class="a2-sec-sub">
                 Remote agents never send executable code or raw DOM — every descriptor passes your
                 registered host catalog first.
               </p>
             </div>
-
           </div>
 
           <!-- Architectural Signal Firewall Schematic (Zero Card Boxes, Zero Pills!) -->
-          <div class="a2-schematic" role="img" aria-label="A2UI catalog firewall schematic showing allowlisted components mounting natively while scripts and inline styles are blocked at the host gate">
+          <div
+            class="a2-schematic"
+            role="img"
+            aria-label="A2UI catalog firewall schematic showing allowlisted components mounting natively while scripts and inline styles are blocked at the host gate"
+          >
             <div class="a2-schematic__col">
               <span class="a2-sch-kicker">UNTRUSTED STREAM</span>
               <strong>Remote / Multi-Hop Agent</strong>
@@ -188,35 +197,129 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
             <div class="a2-schematic__svg-wrap" aria-hidden="true">
               <svg viewBox="0 0 560 236" class="a2-sch-svg" fill="none">
                 <!-- Center Catalog Gate -->
-                <line x1="280" y1="12" x2="280" y2="224" stroke="var(--a2-accent)" stroke-width="2" />
-                <rect x="226" y="4" width="108" height="22" fill="var(--a2-bg)" stroke="var(--a2-accent)" stroke-width="1" />
-                <text x="280" y="18.5" text-anchor="middle" fill="var(--a2-accent)" font-family="var(--a2-font-mono)" font-size="9.5" font-weight="700" letter-spacing="1.2">CATALOG GATE</text>
+                <line x1="280" y1="12" x2="280" y2="224" stroke="var(--a2-accent)" stroke-width="2"
+                ></line>
+                <rect
+                  x="226"
+                  y="4"
+                  width="108"
+                  height="22"
+                  fill="var(--a2-bg)"
+                  stroke="var(--a2-accent)"
+                  stroke-width="1"></rect>
+                <text
+                  x="280"
+                  y="18.5"
+                  text-anchor="middle"
+                  fill="var(--a2-accent)"
+                  font-family="var(--a2-font-mono)"
+                  font-size="9.5"
+                  font-weight="700"
+                  letter-spacing="1.2">CATALOG GATE</text
+                >
 
                 <!-- Allowed Signal 1 -->
-                <line x1="12" y1="64" x2="548" y2="64" stroke="var(--a2-accent)" stroke-width="1.5" />
-                <circle cx="280" cy="64" r="4" fill="var(--a2-accent)" />
-                <text x="16" y="54" fill="var(--a2-text)" font-family="var(--a2-font-mono)" font-size="11">"ChoiceGroup"</text>
-                <text x="544" y="54" text-anchor="end" fill="var(--a2-accent-strong)" font-family="var(--a2-font-mono)" font-size="11">✓ &lt;ChoiceGroup /&gt;</text>
+                <line x1="12" y1="64" x2="548" y2="64" stroke="var(--a2-accent)" stroke-width="1.5"
+                ></line>
+                <circle cx="280" cy="64" r="4" fill="var(--a2-accent)"></circle>
+                <text
+                  x="16"
+                  y="54"
+                  fill="var(--a2-text)"
+                  font-family="var(--a2-font-mono)"
+                  font-size="11">"ChoiceGroup"</text
+                >
+                <text
+                  x="544"
+                  y="54"
+                  text-anchor="end"
+                  fill="var(--a2-accent-strong)"
+                  font-family="var(--a2-font-mono)"
+                  font-size="11">✓ &lt;ChoiceGroup /&gt;</text
+                >
 
                 <!-- Allowed Signal 2 -->
-                <line x1="12" y1="116" x2="548" y2="116" stroke="var(--a2-accent)" stroke-width="1.5" />
-                <circle cx="280" cy="116" r="4" fill="var(--a2-accent)" />
-                <text x="16" y="106" fill="var(--a2-text)" font-family="var(--a2-font-mono)" font-size="11">"AreaSeries"</text>
-                <text x="544" y="106" text-anchor="end" fill="var(--a2-accent-strong)" font-family="var(--a2-font-mono)" font-size="11">✓ &lt;AreaSeries /&gt;</text>
+                <line
+                  x1="12"
+                  y1="116"
+                  x2="548"
+                  y2="116"
+                  stroke="var(--a2-accent)"
+                  stroke-width="1.5"></line>
+                <circle cx="280" cy="116" r="4" fill="var(--a2-accent)"></circle>
+                <text
+                  x="16"
+                  y="106"
+                  fill="var(--a2-text)"
+                  font-family="var(--a2-font-mono)"
+                  font-size="11">"AreaSeries"</text
+                >
+                <text
+                  x="544"
+                  y="106"
+                  text-anchor="end"
+                  fill="var(--a2-accent-strong)"
+                  font-family="var(--a2-font-mono)"
+                  font-size="11">✓ &lt;AreaSeries /&gt;</text
+                >
 
                 <!-- Blocked Signal 3 -->
-                <line x1="12" y1="168" x2="274" y2="168" stroke="var(--a2-danger)" stroke-width="1.5" stroke-dasharray="4 3" />
-                <line x1="274" y1="162" x2="286" y2="174" stroke="var(--a2-danger)" stroke-width="2" />
-                <line x1="286" y1="162" x2="274" y2="174" stroke="var(--a2-danger)" stroke-width="2" />
-                <text x="16" y="158" fill="var(--a2-text-muted)" font-family="var(--a2-font-mono)" font-size="11">&lt;script&gt;eval(...)&lt;/script&gt;</text>
-                <text x="296" y="172" fill="var(--a2-danger)" font-family="var(--a2-font-mono)" font-size="10.5" font-weight="600">DROPPED · NOT IN SCHEMA</text>
+                <line
+                  x1="12"
+                  y1="168"
+                  x2="274"
+                  y2="168"
+                  stroke="var(--a2-danger)"
+                  stroke-width="1.5"
+                  stroke-dasharray="4 3"></line>
+                <line x1="274" y1="162" x2="286" y2="174" stroke="var(--a2-danger)" stroke-width="2"
+                ></line>
+                <line x1="286" y1="162" x2="274" y2="174" stroke="var(--a2-danger)" stroke-width="2"
+                ></line>
+                <text
+                  x="16"
+                  y="158"
+                  fill="var(--a2-text-muted)"
+                  font-family="var(--a2-font-mono)"
+                  font-size="11">&lt;script&gt;eval(...)&lt;/script&gt;</text
+                >
+                <text
+                  x="296"
+                  y="172"
+                  fill="var(--a2-danger)"
+                  font-family="var(--a2-font-mono)"
+                  font-size="10.5"
+                  font-weight="600">DROPPED · NOT IN SCHEMA</text
+                >
 
                 <!-- Blocked Signal 4 -->
-                <line x1="12" y1="214" x2="274" y2="214" stroke="var(--a2-danger)" stroke-width="1.5" stroke-dasharray="4 3" />
-                <line x1="274" y1="208" x2="286" y2="220" stroke="var(--a2-danger)" stroke-width="2" />
-                <line x1="286" y1="208" x2="274" y2="220" stroke="var(--a2-danger)" stroke-width="2" />
-                <text x="16" y="204" fill="var(--a2-text-muted)" font-family="var(--a2-font-mono)" font-size="11">style="position:fixed"</text>
-                <text x="296" y="218" fill="var(--a2-danger)" font-family="var(--a2-font-mono)" font-size="10.5" font-weight="600">DROPPED · NO RAW CSS</text>
+                <line
+                  x1="12"
+                  y1="214"
+                  x2="274"
+                  y2="214"
+                  stroke="var(--a2-danger)"
+                  stroke-width="1.5"
+                  stroke-dasharray="4 3"></line>
+                <line x1="274" y1="208" x2="286" y2="220" stroke="var(--a2-danger)" stroke-width="2"
+                ></line>
+                <line x1="286" y1="208" x2="274" y2="220" stroke="var(--a2-danger)" stroke-width="2"
+                ></line>
+                <text
+                  x="16"
+                  y="204"
+                  fill="var(--a2-text-muted)"
+                  font-family="var(--a2-font-mono)"
+                  font-size="11">style="position:fixed"</text
+                >
+                <text
+                  x="296"
+                  y="218"
+                  fill="var(--a2-danger)"
+                  font-family="var(--a2-font-mono)"
+                  font-size="10.5"
+                  font-weight="600">DROPPED · NO RAW CSS</text
+                >
               </svg>
             </div>
 
@@ -241,25 +344,49 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
             <div class="a2-rail" role="tablist" aria-label="Autonomy spectrum stops">
               <div class="a2-rail__line" aria-hidden="true"></div>
 
-              <button type="button" role="tab" aria-selected="false" class="a2-stop" data-sp-idx="0">
+              <button
+                type="button"
+                role="tab"
+                aria-selected="false"
+                class="a2-stop"
+                data-sp-idx="0"
+              >
                 <span class="a2-stop__tick"></span>
                 <span class="a2-stop__num">01</span>
                 <strong>Locked Templates</strong>
               </button>
 
-              <button type="button" role="tab" aria-selected="true" class="a2-stop is-active" data-sp-idx="1">
+              <button
+                type="button"
+                role="tab"
+                aria-selected="true"
+                class="a2-stop is-active"
+                data-sp-idx="1"
+              >
                 <span class="a2-stop__tick"></span>
                 <span class="a2-stop__num">02</span>
                 <strong>Server @macros</strong>
               </button>
 
-              <button type="button" role="tab" aria-selected="false" class="a2-stop" data-sp-idx="2">
+              <button
+                type="button"
+                role="tab"
+                aria-selected="false"
+                class="a2-stop"
+                data-sp-idx="2"
+              >
                 <span class="a2-stop__tick"></span>
                 <span class="a2-stop__num">03</span>
                 <strong>Composable Catalog</strong>
               </button>
 
-              <button type="button" role="tab" aria-selected="false" class="a2-stop" data-sp-idx="3">
+              <button
+                type="button"
+                role="tab"
+                aria-selected="false"
+                class="a2-stop"
+                data-sp-idx="3"
+              >
                 <span class="a2-stop__tick"></span>
                 <span class="a2-stop__num">04</span>
                 <strong>MCP Sandboxes</strong>
@@ -272,7 +399,10 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
                   High-leverage domain cards with minimal token cost
                 </h4>
                 <p class="a2-ruler-desc" id="sp-desc">
-                  The agent invokes a compact <code>@flightCard</code> or <code>@checkoutSummary</code> macro with 3–4 arguments. Your server expands it into a validated component tree in 0ms.
+                  The agent invokes a compact <code>@flightCard</code> or <code
+                    >@checkoutSummary</code
+                  > macro with 3–4 arguments. Your server expands it into a validated component tree in
+                  0ms.
                 </p>
                 <div class="a2-ruler-uses" id="sp-examples">
                   BEST FOR: Boarding passes · Order summaries · Production approval gates
@@ -286,7 +416,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
                     <strong id="sp-det-val">90%</strong>
                   </div>
                   <div class="a2-bar-track">
-                    <div class="a2-bar-fill a2-bar-fill--det" id="sp-det-bar" style="width: 90%"></div>
+                    <div class="a2-bar-fill a2-bar-fill--det" id="sp-det-bar" style="width: 90%">
+                    </div>
                   </div>
                 </div>
                 <div class="a2-bar-item">
@@ -295,84 +426,10 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
                     <strong id="sp-free-val">40%</strong>
                   </div>
                   <div class="a2-bar-track">
-                    <div class="a2-bar-fill a2-bar-fill--free" id="sp-free-bar" style="width: 40%"></div>
+                    <div class="a2-bar-fill a2-bar-fill--free" id="sp-free-bar" style="width: 40%">
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- =================================================================
-           § 03 — SWISS METRIC LEDGER & INTEGRATION FRAME (#why-a2ui)
-           ================================================================= -->
-      <section class="a2-section" id="why-a2ui">
-        <div class="a2-wrap">
-          <div class="a2-dev-split">
-            <div class="a2-dev-copy">
-              <h2 class="a2-h2">Wire up a catalog <span class="a2-h-accent">in minutes.</span></h2>
-              <p class="a2-sec-sub">
-                Register the components already in your codebase, mount a surface, and stream
-                A2UI Express or server <code>@macros</code>.
-              </p>
-              <div class="a2-dev-links">
-                <a href={`${base}/guides/client-integration/`} class="a2-mono-link">CLIENT INTEGRATION →</a>
-                <a href={`${base}/guides/agent-integration/`} class="a2-mono-link">AGENT GUIDE →</a>
-              </div>
-            </div>
-
-            <div class="a2-code-frame">
-              <span id="express" class="a2-anchor-pin" aria-hidden="true"></span>
-              <span id="macros" class="a2-anchor-pin" aria-hidden="true"></span>
-
-              <div class="a2-code-frame__tabs" role="tablist" aria-label="Integration code snippets">
-                <button type="button" role="tab" aria-selected="true" class="a2-cf-tab is-active" data-cj-tab="mount">
-                  01 / MOUNT
-                </button>
-                <button type="button" role="tab" aria-selected="false" class="a2-cf-tab" data-cj-tab="express">
-                  02 / EXPRESS
-                </button>
-                <button type="button" role="tab" aria-selected="false" class="a2-cf-tab" data-cj-tab="macros">
-                  03 / @MACROS
-                </button>
-              </div>
-
-              <div class="a2-code-panel is-active" data-cj-panel="mount">
-                <pre><code><span class="ck">import</span> &#123; A2UISurface, defineCatalog &#125; <span class="ck">from</span> <span class="cs">'@a2ui/react'</span>;
-
-<span class="ck">const</span> catalog = <span class="cf">defineCatalog</span>(&#123;
-  <span class="cc">BoardingPass</span>, <span class="cc">SeatPicker</span>, <span class="cc">RolloutGate</span>,
-&#125;);
-
-<span class="ck">export const</span> ChatTurn = (&#123; stream &#125;) =&gt; (
-  &lt;<span class="cc">A2UISurface</span>
-    catalog=&#123;catalog&#125;
-    stream=&#123;stream&#125;
-    onAction=&#123;sendToAgent&#125;
-  /&gt;
-);</code></pre>
-              </div>
-
-              <div class="a2-code-panel" data-cj-panel="express">
-                <pre><code><span class="cm">// Compact shorthand — 77% fewer LLM tokens</span>
-<span class="cf">surface</span>(<span class="cs">"rebook"</span>,
-  <span class="cc">Card</span>(
-    <span class="cc">FlightHeader</span>(&#123; flight: <span class="cs">"UA 428"</span>, route: <span class="cs">"SFO → JFK"</span> &#125;),
-    <span class="cc">SeatPicker</span>(&#123; value: <span class="cf">path</span>(<span class="cs">"/seat"</span>) &#125;),
-    <span class="cc">Button</span>(<span class="cs">"Confirm Change"</span>, &#123; action: <span class="cs">"rebook"</span> &#125;)
-  )
-)</code></pre>
-              </div>
-
-              <div class="a2-code-panel" data-cj-panel="macros">
-                <pre><code><span class="cm">// Agent emits 4 lines; server expands in 0ms</span>
-&#123;
-  <span class="ck">"surfaceId"</span>: <span class="cs">"checkout"</span>,
-  <span class="ck">"root"</span>: &#123;
-    <span class="cc">"@orderCard"</span>: &#123; <span class="ck">"sku"</span>: <span class="cs">"M1-STUDIO"</span>, <span class="ck">"price"</span>: <span class="cn">349</span> &#125;
-  &#125;
-&#125;</code></pre>
               </div>
             </div>
           </div>
@@ -385,20 +442,21 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       <section class="a2-closing">
         <div class="a2-wrap">
           <div class="a2-closing__inner">
-            <div>
+            <div class="a2-closing__copy">
               <h2 class="a2-closing__title">
-                Stop answering customer intent with <span class="a2-h-accent">a paragraph.</span>
+                Stop building chatbots that render <span class="a2-closing__hi">walls of text.</span
+                >
               </h2>
-            </div>
 
-            <div class="a2-closing__btns">
-              <a href={`${base}/quickstart/`} class="a2-btn a2-btn--primary">
-                <span>Run the 5-Min Quickstart</span>
-                <span aria-hidden="true">→</span>
-              </a>
-              <a href={`${base}/specification/v1.0-a2ui/`} class="a2-btn a2-btn--outline">
-                Read v1.0 Specification
-              </a>
+              <div class="a2-closing__btns">
+                <a href={`${base}/quickstart/`} class="a2-btn a2-closing__primary">
+                  <span>Run the 5-Min Quickstart</span>
+                  <span aria-hidden="true">→</span>
+                </a>
+                <a href={`${base}/specification/v1.0-a2ui/`} class="a2-btn a2-closing__ghost">
+                  Read v1.0 Specification
+                </a>
+              </div>
             </div>
           </div>
         </div>
@@ -483,12 +541,12 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         const spFreeVal = document.getElementById('sp-free-val');
         const spFreeBar = document.getElementById('sp-free-bar');
 
-        document.querySelectorAll('[data-sp-idx]').forEach((btn) => {
+        document.querySelectorAll('[data-sp-idx]').forEach(btn => {
           btn.addEventListener('click', () => {
             const idx = Number(btn.getAttribute('data-sp-idx') || 1);
             const b = bands[idx];
             if (!b) return;
-            document.querySelectorAll('[data-sp-idx]').forEach((el) => {
+            document.querySelectorAll('[data-sp-idx]').forEach(el => {
               const active = el === btn;
               el.classList.toggle('is-active', active);
               el.setAttribute('aria-selected', String(active));
@@ -502,846 +560,779 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
             if (spFreeBar) spFreeBar.style.width = `${b.free}%`;
           });
         });
-
-        /* Integration Code Tabs */
-        const selectCodeTab = (key) => {
-          document.querySelectorAll('[data-cj-tab]').forEach((t) => {
-            const active = t.getAttribute('data-cj-tab') === key;
-            t.classList.toggle('is-active', active);
-            t.setAttribute('aria-selected', String(active));
-          });
-          document.querySelectorAll('[data-cj-panel]').forEach((p) => {
-            p.classList.toggle('is-active', p.getAttribute('data-cj-panel') === key);
-          });
-        };
-
-        document.querySelectorAll('[data-cj-tab]').forEach((tab) => {
-          tab.addEventListener('click', () => {
-            selectCodeTab(tab.getAttribute('data-cj-tab') || 'mount');
-          });
-        });
-
-        if (window.location.hash === '#express') selectCodeTab('express');
-        if (window.location.hash === '#macros') selectCodeTab('macros');
       })();
     </script>
 
     <style>
-  /* =======================================================================
+      /* =======================================================================
      GLOBAL ARCHITECTURAL TOPOLOGY
      ======================================================================= */
-  :global(*, *::before, *::after) {
-    box-sizing: border-box;
-  }
+      :global(*, *::before, *::after) {
+        box-sizing: border-box;
+      }
 
-  :global(html) {
-    scroll-behavior: smooth;
-    background: var(--a2-bg);
-    color: var(--a2-text);
-    font-family: var(--a2-font-sans);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
+      :global(html) {
+        scroll-behavior: smooth;
+        background: var(--a2-bg);
+        color: var(--a2-text);
+        font-family: var(--a2-font-sans);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
 
-  .a2-page {
-    margin: 0;
-    background: var(--a2-bg);
-    color: var(--a2-text);
-    overflow-x: clip;
-  }
+      .a2-page {
+        margin: 0;
+        background: var(--a2-bg);
+        color: var(--a2-text);
+        overflow-x: clip;
+      }
 
-  .a2-wrap {
-    width: 100%;
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 36px;
-  }
+      .a2-wrap {
+        width: 100%;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 36px;
+      }
 
-  @media (max-width: 640px) {
-    .a2-wrap {
-      padding: 0 20px;
-    }
-  }
+      @media (max-width: 640px) {
+        .a2-wrap {
+          padding: 0 20px;
+        }
+      }
 
-  /* Sticky Header */
-  .a2-topbar {
-    position: sticky;
-    top: 0;
-    z-index: 60;
-    height: 64px;
-    background: var(--a2-bg-nav);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border-bottom: 1px solid var(--a2-border);
-  }
+      /* Sticky Header */
+      .a2-topbar {
+        position: sticky;
+        top: 0;
+        z-index: 60;
+        height: 64px;
+        background: var(--a2-bg-nav);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-bottom: 1px solid var(--a2-border);
+      }
 
-  .a2-topbar__inner {
-    max-width: 1280px;
-    height: 100%;
-    margin: 0 auto;
-    padding: 0 24px;
-  }
+      .a2-topbar__inner {
+        max-width: 1280px;
+        height: 100%;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
 
-  /* =======================================================================
+      /* =======================================================================
      HERO: ASYMMETRIC EDITORIAL MASTHEAD (ZERO PILLS!)
      ======================================================================= */
-  .a2-hero {
-    position: relative;
-    padding: 72px 0 72px;
-    overflow: clip;
-  }
+      .a2-hero {
+        position: relative;
+        padding: 72px 0 72px;
+        overflow: clip;
+      }
 
-  .a2-hero__grid-bg {
-    position: absolute;
-    inset: 0;
-    background-image:
-      linear-gradient(to right, var(--a2-border-subtle) 1px, transparent 1px),
-      linear-gradient(to bottom, var(--a2-border-subtle) 1px, transparent 1px);
-    background-size: 64px 64px;
-    mask-image: radial-gradient(ellipse 90% 60% at 50% 18%, #000 15%, transparent 75%);
-    -webkit-mask-image: radial-gradient(ellipse 90% 60% at 50% 18%, #000 15%, transparent 75%);
-    pointer-events: none;
-  }
+      .a2-hero__grid-bg {
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(to right, var(--a2-border-subtle) 1px, transparent 1px),
+          linear-gradient(to bottom, var(--a2-border-subtle) 1px, transparent 1px);
+        background-size: 64px 64px;
+        mask-image: radial-gradient(ellipse 90% 60% at 50% 18%, #000 15%, transparent 75%);
+        -webkit-mask-image: radial-gradient(ellipse 90% 60% at 50% 18%, #000 15%, transparent 75%);
+        pointer-events: none;
+      }
 
-  .a2-masthead {
-    position: relative;
-    max-width: 100%;
-    margin: 0 auto;
-    padding-top: 24px;
-  }
+      .a2-masthead {
+        position: relative;
+        max-width: 100%;
+        margin: 0 auto;
+        padding-top: 24px;
+      }
 
-  .a2-masthead__split {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 64px;
-    align-items: end;
-  }
+      .a2-masthead__split {
+        display: grid;
+        grid-template-columns: minmax(0, 0.84fr) minmax(0, 1.16fr);
+        gap: 48px;
+        align-items: center;
+      }
 
-  @media (max-width: 920px) {
-    .a2-masthead__split {
-      grid-template-columns: 1fr;
-      gap: 28px;
-    }
-  }
+      @media (max-width: 920px) {
+        .a2-masthead__split {
+          grid-template-columns: 1fr;
+          gap: 48px;
+        }
+      }
 
-  .a2-h1 {
-    margin: 0;
-    font-family: var(--a2-font-display);
-    font-size: clamp(2.85rem, 5.4vw, 4.55rem);
-    font-weight: 700;
-    line-height: 1.04;
-    letter-spacing: var(--a2-tracking-display);
-    color: var(--a2-text);
-  }
+      .a2-masthead__copy {
+        display: flex;
+        flex-direction: column;
+        gap: 28px;
+      }
 
-  /* Headline emphasis: same face and weight, carried by colour only (no italics) */
-  .a2-h-accent {
-    color: var(--a2-heading-accent);
-  }
+      .a2-masthead__visual {
+        min-width: 0;
+      }
 
-  /* Longer headline: step the scale down so it holds in 3–4 lines at desktop widths */
-  .a2-h1--long {
-    font-size: clamp(2.5rem, 4.35vw, 3.7rem);
-    line-height: 1.06;
-    max-width: 13ch;
-  }
+      .a2-h1 {
+        margin: 0;
+        font-family: var(--a2-font-display);
+        font-size: clamp(2.85rem, 5.4vw, 4.55rem);
+        font-weight: 700;
+        line-height: 1.04;
+        letter-spacing: var(--a2-tracking-display);
+        color: var(--a2-text);
+      }
 
-  @media (max-width: 920px) {
-    .a2-h1--long {
-      max-width: none;
-    }
-  }
+      /* Headline emphasis: same face and weight, carried by colour only (no italics) */
+      .a2-h-accent {
+        color: var(--a2-heading-accent);
+      }
 
-  .a2-masthead__right {
-    display: flex;
-    flex-direction: column;
-    gap: 32px;
-  }
+      /* Longer headline beside the form-factor visual: the column sets the measure, so it holds 4 lines */
+      .a2-h1--long {
+        font-size: clamp(2.5rem, 3.9vw, 3.4rem);
+        line-height: 1.06;
+        max-width: none;
+      }
 
-  .a2-lead {
-    margin: 0;
-    font-size: 17px;
-    line-height: 1.65;
-    letter-spacing: var(--a2-tracking-body);
-    color: var(--a2-text-secondary);
-  }
+      .a2-lead {
+        margin: 0;
+        max-width: 52ch;
+        font-size: 17px;
+        line-height: 1.65;
+        letter-spacing: var(--a2-tracking-body);
+        color: var(--a2-text-secondary);
+      }
 
-  .a2-hero__actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: stretch;
-    gap: 14px;
-  }
+      .a2-hero__actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: stretch;
+        gap: 14px;
+      }
 
-  /* Sharp Architectural Buttons (Zero Pill Rounding!) */
-  .a2-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    height: 44px;
-    padding: 0 20px;
-    border-radius: 3px;
-    font-family: var(--a2-font-sans);
-    font-size: 13.5px;
-    font-weight: 600;
-    text-decoration: none;
-    cursor: pointer;
-    transition: all 0.15s ease;
-  }
+      /* Sharp Architectural Buttons (Zero Pill Rounding!) */
+      .a2-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        height: 44px;
+        padding: 0 20px;
+        border-radius: 3px;
+        font-family: var(--a2-font-sans);
+        font-size: 13.5px;
+        font-weight: 600;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
 
-  .a2-btn--primary {
-    background: var(--a2-cta-bg);
-    color: var(--a2-cta-fg);
-    border: 1px solid var(--a2-cta-bg);
-  }
+      .a2-btn--primary {
+        background: var(--a2-cta-bg);
+        color: var(--a2-cta-fg);
+        border: 1px solid var(--a2-cta-bg);
+      }
 
-  .a2-btn--primary:hover {
-    background: var(--a2-cta-hover);
-    transform: translateY(-1px);
-  }
+      .a2-btn--primary:hover {
+        background: var(--a2-cta-hover);
+        transform: translateY(-1px);
+      }
 
-  .a2-btn--outline {
-    background: transparent;
-    color: var(--a2-text);
-    border: 1px solid var(--a2-border-strong);
-  }
+      .a2-btn--outline {
+        background: transparent;
+        color: var(--a2-text);
+        border: 1px solid var(--a2-border-strong);
+      }
 
-  .a2-btn--outline:hover {
-    border-color: var(--a2-text);
-  }
+      .a2-btn--outline:hover {
+        border-color: var(--a2-text);
+      }
 
-  .a2-cmd-bar {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    height: 44px;
-    padding: 0 14px;
-    border-radius: 3px;
-    border: 1px solid var(--a2-border-strong);
-    background: var(--a2-surface);
-    color: var(--a2-text);
-    font-family: var(--a2-font-mono);
-    font-size: 12.5px;
-    cursor: pointer;
-    transition: border-color 0.15s ease;
-  }
+      .a2-cmd-bar {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        height: 44px;
+        padding: 0 14px;
+        border-radius: 3px;
+        border: 1px solid var(--a2-border-strong);
+        background: var(--a2-surface);
+        color: var(--a2-text);
+        font-family: var(--a2-font-mono);
+        font-size: 12.5px;
+        cursor: pointer;
+        transition: border-color 0.15s ease;
+      }
 
-  .a2-cmd-bar:hover {
-    border-color: var(--a2-text);
-  }
+      .a2-cmd-bar:hover {
+        border-color: var(--a2-text);
+      }
 
-  .a2-cmd-bar.is-copied {
-    border-color: var(--a2-success);
-  }
+      .a2-cmd-bar.is-copied {
+        border-color: var(--a2-success);
+      }
 
-  .a2-cmd-bar__sig {
-    color: var(--a2-accent);
-    user-select: none;
-  }
+      .a2-cmd-bar__sig {
+        color: var(--a2-accent);
+        user-select: none;
+      }
 
-  .a2-cmd-bar__act {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    padding-left: 10px;
-    border-left: 1px solid var(--a2-border);
-    color: var(--a2-text-muted);
-  }
+      .a2-cmd-bar__act {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        padding-left: 10px;
+        border-left: 1px solid var(--a2-border);
+        color: var(--a2-text-muted);
+      }
 
-  .a2-cmd-bar.is-copied .a2-cmd-bar__act {
-    color: var(--a2-success);
-  }
+      .a2-cmd-bar.is-copied .a2-cmd-bar__act {
+        color: var(--a2-success);
+      }
 
-  .a2-hero__stage {
-    position: relative;
-  }
+      .a2-hero__stage {
+        position: relative;
+      }
 
-  /* Renderer strip under the masthead (official targets) */
-  .a2-renderers {
-    display: flex;
-    align-items: center;
-    gap: 22px;
-    flex-wrap: wrap;
-    margin-top: 44px;
-    padding-top: 20px;
-    border-top: 1px solid var(--a2-border);
-  }
+      /* Renderer strip under the masthead (official targets) */
+      .a2-renderers {
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        flex-wrap: wrap;
+        margin-top: 44px;
+        padding-top: 20px;
+        border-top: 1px solid var(--a2-border);
+      }
 
-  .a2-renderers__lbl {
-    font-family: var(--a2-font-mono);
-    font-size: 10.5px;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    color: var(--a2-text-muted);
-    white-space: nowrap;
-  }
+      .a2-renderers__lbl {
+        font-family: var(--a2-font-mono);
+        font-size: 10.5px;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        color: var(--a2-text-muted);
+        white-space: nowrap;
+      }
 
-  .a2-renderers__list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px 0;
-  }
+      .a2-renderers__list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px 0;
+      }
 
-  .a2-renderers__list li {
-    display: flex;
-    align-items: center;
-  }
+      .a2-renderers__list li {
+        display: flex;
+        align-items: center;
+      }
 
-  .a2-renderers__list li + li::before {
-    content: '';
-    width: 1px;
-    height: 16px;
-    margin: 0 16px;
-    background: var(--a2-border-strong);
-  }
+      .a2-renderers__list li + li::before {
+        content: '';
+        width: 1px;
+        height: 16px;
+        margin: 0 16px;
+        background: var(--a2-border-strong);
+      }
 
-  .a2-renderers__list a {
-    display: inline-flex;
-    align-items: center;
-    gap: 9px;
-    color: var(--a2-text-secondary);
-    text-decoration: none;
-    font-size: 13.5px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-    transition: color 0.16s ease;
-  }
+      .a2-renderers__list a {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        color: var(--a2-text-secondary);
+        text-decoration: none;
+        font-size: 13.5px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        transition: color 0.16s ease;
+      }
 
-  .a2-renderers__list a:hover {
-    color: var(--a2-text);
-  }
+      .a2-renderers__list a:hover {
+        color: var(--a2-text);
+      }
 
-  .a2-renderers__list a:hover :global(.rmark) {
-    color: var(--brand);
-  }
+      .a2-renderers__list a:hover :global(.rmark) {
+        color: var(--brand);
+      }
 
-  .a2-renderers__more {
-    margin-left: auto;
-    font-family: var(--a2-font-mono);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    color: var(--a2-accent-strong);
-    text-decoration: none;
-    white-space: nowrap;
-  }
+      .a2-renderers__more {
+        margin-left: auto;
+        font-family: var(--a2-font-mono);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        color: var(--a2-accent-strong);
+        text-decoration: none;
+        white-space: nowrap;
+      }
 
-  .a2-renderers__more:hover {
-    text-decoration: underline;
-  }
+      .a2-renderers__more:hover {
+        text-decoration: underline;
+      }
 
-  @media (max-width: 920px) {
-    .a2-renderers__more {
-      margin-left: 0;
-      white-space: normal;
-      line-height: 1.6;
-    }
-  }
+      @media (max-width: 920px) {
+        .a2-renderers__more {
+          margin-left: 0;
+          white-space: normal;
+          line-height: 1.6;
+        }
+      }
 
-  /* =======================================================================
+      /* =======================================================================
      EDITORIAL CHAPTER HEADERS (TWO-COLUMN SWISS SPLIT)
      ======================================================================= */
-  .a2-section {
-    position: relative;
-    padding: 128px 0 152px;
-    border-top: 1px solid var(--a2-border-strong);
-    scroll-margin-top: 72px;
-  }
+      .a2-section {
+        position: relative;
+        padding: 128px 0 152px;
+        border-top: 1px solid var(--a2-border-strong);
+        scroll-margin-top: 72px;
+      }
 
-  .a2-section--alt {
-    background: var(--a2-bg-alt);
-  }
+      .a2-section--alt {
+        background: var(--a2-bg-alt);
+      }
 
-  .a2-section--alt + .a2-section,
-  .a2-section--alt + .a2-closing {
-    border-top-color: var(--a2-border-strong);
-  }
+      .a2-section--alt + .a2-section {
+        border-top-color: var(--a2-border-strong);
+      }
 
-  /* The scroll stage keeps its own rhythm (sticky needs no overflow clipping here) */
-  .a2-section--stage {
-    padding: 112px 0 136px;
-  }
+      /* The scroll stage keeps its own rhythm (sticky needs no overflow clipping here) */
+      .a2-section--stage {
+        padding: 112px 0 136px;
+      }
 
-  @media (max-width: 720px) {
-    .a2-section {
-      padding: 96px 0;
-    }
-  }
+      @media (max-width: 720px) {
+        .a2-section {
+          padding: 96px 0;
+        }
+      }
 
-  .a2-chapter {
-    margin-bottom: 88px;
-  }
+      .a2-chapter {
+        margin-bottom: 88px;
+      }
 
-  /* Header for the scroll stage — tighter than a full chapter (no rule row above any chapter now) */
-  .a2-chapter--stage {
-    margin-bottom: 40px;
-    scroll-margin-top: 84px;
-  }
+      /* Header for the scroll stage — tighter than a full chapter (no rule row above any chapter now) */
+      .a2-chapter--stage {
+        margin-bottom: 40px;
+        scroll-margin-top: 84px;
+      }
 
-  .a2-chapter__split {
-    display: grid;
-    grid-template-columns: 1.05fr 0.95fr;
-    gap: 76px;
-    align-items: end;
-  }
+      .a2-chapter__split {
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        gap: 76px;
+        align-items: end;
+      }
 
-  @media (max-width: 860px) {
-    .a2-chapter__split {
-      grid-template-columns: 1fr;
-      gap: 14px;
-    }
-  }
+      @media (max-width: 860px) {
+        .a2-chapter__split {
+          grid-template-columns: 1fr;
+          gap: 14px;
+        }
+      }
 
-  .a2-h2 {
-    margin: 0;
-    font-family: var(--a2-font-display);
-    font-size: clamp(2.05rem, 3.6vw, 3rem);
-    font-weight: 700;
-    line-height: 1.1;
-    letter-spacing: var(--a2-tracking-h2);
-    color: var(--a2-text);
-  }
+      .a2-h2 {
+        margin: 0;
+        font-family: var(--a2-font-display);
+        font-size: clamp(2.05rem, 3.6vw, 3rem);
+        font-weight: 700;
+        line-height: 1.1;
+        letter-spacing: var(--a2-tracking-h2);
+        color: var(--a2-text);
+      }
 
-  .a2-h3 {
-    margin: 4px 0 0;
-    font-family: var(--a2-font-display);
-    font-size: clamp(1.35rem, 2.2vw, 1.75rem);
-    font-weight: 620;
-    line-height: 1.2;
-    letter-spacing: var(--a2-tracking-h3);
-  }
+      .a2-h3 {
+        margin: 4px 0 0;
+        font-family: var(--a2-font-display);
+        font-size: clamp(1.35rem, 2.2vw, 1.75rem);
+        font-weight: 620;
+        line-height: 1.2;
+        letter-spacing: var(--a2-tracking-h3);
+      }
 
-  .a2-sec-sub {
-    margin: 0;
-    font-size: 16px;
-    line-height: 1.62;
-    color: var(--a2-text-secondary);
-  }
+      .a2-sec-sub {
+        margin: 0;
+        font-size: 16px;
+        line-height: 1.62;
+        color: var(--a2-text-secondary);
+      }
 
-  .a2-sec-sub code {
-    font-family: var(--a2-font-mono);
-    font-size: 13px;
-    color: var(--a2-accent-strong);
-  }
+      .a2-sec-sub code {
+        font-family: var(--a2-font-mono);
+        font-size: 13px;
+        color: var(--a2-accent-strong);
+      }
 
-  .a2-sch-kicker {
-    display: block;
-    font-family: var(--a2-font-mono);
-    font-size: 10.5px;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    color: var(--a2-accent);
-    margin-bottom: 6px;
-  }
+      .a2-sch-kicker {
+        display: block;
+        font-family: var(--a2-font-mono);
+        font-size: 10.5px;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        color: var(--a2-accent);
+        margin-bottom: 6px;
+      }
 
-  .a2-mono-link {
-    font-family: var(--a2-font-mono);
-    font-size: 11.5px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    color: var(--a2-text);
-    text-decoration: none;
-    border-bottom: 1px solid var(--a2-border-strong);
-    padding-bottom: 3px;
-    transition: border-color 0.15s ease, color 0.15s ease;
-  }
+      .a2-mono-link {
+        font-family: var(--a2-font-mono);
+        font-size: 11.5px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        color: var(--a2-text);
+        text-decoration: none;
+        border-bottom: 1px solid var(--a2-border-strong);
+        padding-bottom: 3px;
+        transition:
+          border-color 0.15s ease,
+          color 0.15s ease;
+      }
 
-  .a2-mono-link:hover {
-    color: var(--a2-accent-strong);
-    border-bottom-color: var(--a2-accent-strong);
-  }
+      .a2-mono-link:hover {
+        color: var(--a2-accent-strong);
+        border-bottom-color: var(--a2-accent-strong);
+      }
 
-  /* =======================================================================
-     § 02 — SIGNAL FIREWALL SCHEMATIC + HORIZONTAL AUTONOMY RULER
+      /* =======================================================================
+     TRUST & AUTONOMY — SIGNAL FIREWALL SCHEMATIC + HORIZONTAL AUTONOMY RULER
      ======================================================================= */
-  .a2-schematic {
-    display: grid;
-    grid-template-columns: 230px 1fr 230px;
-    gap: 52px;
-    align-items: center;
-    padding: 64px 0;
-    border-top: 1px solid var(--a2-border);
-    border-bottom: 1px solid var(--a2-border);
-    margin-bottom: 128px;
-  }
+      .a2-schematic {
+        display: grid;
+        grid-template-columns: 230px 1fr 230px;
+        gap: 52px;
+        align-items: center;
+        padding: 64px 0;
+        border-top: 1px solid var(--a2-border);
+        border-bottom: 1px solid var(--a2-border);
+        margin-bottom: 128px;
+      }
 
-  @media (max-width: 960px) {
-    .a2-schematic {
-      grid-template-columns: 1fr;
-    }
-    .a2-schematic__col--right {
-      text-align: left !important;
-    }
-  }
+      @media (max-width: 960px) {
+        .a2-schematic {
+          grid-template-columns: 1fr;
+        }
+        .a2-schematic__col--right {
+          text-align: left !important;
+        }
+      }
 
-  .a2-schematic__col strong {
-    display: block;
-    font-size: 16px;
-    margin-bottom: 6px;
-  }
+      .a2-schematic__col strong {
+        display: block;
+        font-size: 16px;
+        margin-bottom: 6px;
+      }
 
-  .a2-schematic__col p {
-    margin: 0;
-    font-size: 13.5px;
-    line-height: 1.55;
-    color: var(--a2-text-secondary);
-  }
+      .a2-schematic__col p {
+        margin: 0;
+        font-size: 13.5px;
+        line-height: 1.55;
+        color: var(--a2-text-secondary);
+      }
 
-  .a2-schematic__col--right {
-    text-align: right;
-  }
+      .a2-schematic__col--right {
+        text-align: right;
+      }
 
-  .a2-sch-svg {
-    width: 100%;
-    height: auto;
-    display: block;
-  }
+      .a2-sch-svg {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
 
-  /* Autonomy Ruler */
-  .a2-ruler-sec {
-    scroll-margin-top: 84px;
-  }
+      /* Autonomy Ruler */
+      .a2-ruler-sec {
+        scroll-margin-top: 84px;
+      }
 
-  .a2-ruler-sec__head {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    flex-wrap: wrap;
-    gap: 24px;
-    margin-bottom: 52px;
-  }
+      .a2-ruler-sec__head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        gap: 24px;
+        margin-bottom: 52px;
+      }
 
-  .a2-rail {
-    position: relative;
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    margin-bottom: 52px;
-  }
+      .a2-rail {
+        position: relative;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        margin-bottom: 52px;
+      }
 
-  .a2-rail__line {
-    position: absolute;
-    top: 7px;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: var(--a2-border-strong);
-  }
+      .a2-rail__line {
+        position: absolute;
+        top: 7px;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: var(--a2-border-strong);
+      }
 
-  @media (max-width: 760px) {
-    .a2-rail {
-      grid-template-columns: repeat(2, 1fr);
-      gap: 16px;
-    }
-    .a2-rail__line {
-      display: none;
-    }
-  }
+      @media (max-width: 760px) {
+        .a2-rail {
+          grid-template-columns: repeat(2, 1fr);
+          gap: 16px;
+        }
+        .a2-rail__line {
+          display: none;
+        }
+      }
 
-  .a2-stop {
-    appearance: none;
-    position: relative;
-    border: none;
-    background: transparent;
-    padding: 0 12px 0 0;
-    text-align: left;
-    color: var(--a2-text-muted);
-    font-family: inherit;
-    cursor: pointer;
-    transition: color 0.16s ease;
-  }
+      .a2-stop {
+        appearance: none;
+        position: relative;
+        border: none;
+        background: transparent;
+        padding: 0 12px 0 0;
+        text-align: left;
+        color: var(--a2-text-muted);
+        font-family: inherit;
+        cursor: pointer;
+        transition: color 0.16s ease;
+      }
 
-  .a2-stop:hover {
-    color: var(--a2-text);
-  }
+      .a2-stop:hover {
+        color: var(--a2-text);
+      }
 
-  .a2-stop__tick {
-    display: block;
-    width: 14px;
-    height: 14px;
-    background: var(--a2-bg);
-    border: 2px solid var(--a2-border-strong);
-    margin-bottom: 12px;
-    transition: all 0.18s ease;
-  }
+      .a2-stop__tick {
+        display: block;
+        width: 14px;
+        height: 14px;
+        background: var(--a2-bg);
+        border: 2px solid var(--a2-border-strong);
+        margin-bottom: 12px;
+        transition: all 0.18s ease;
+      }
 
-  .a2-stop.is-active {
-    color: var(--a2-text);
-  }
+      .a2-stop.is-active {
+        color: var(--a2-text);
+      }
 
-  .a2-stop.is-active .a2-stop__tick {
-    background: var(--a2-accent);
-    border-color: var(--a2-accent);
-    transform: scale(1.15);
-  }
+      .a2-stop.is-active .a2-stop__tick {
+        background: var(--a2-accent);
+        border-color: var(--a2-accent);
+        transform: scale(1.15);
+      }
 
-  .a2-stop__num {
-    display: block;
-    font-family: var(--a2-font-mono);
-    font-size: 10.5px;
-    color: var(--a2-accent);
-    margin-bottom: 3px;
-  }
+      .a2-stop__num {
+        display: block;
+        font-family: var(--a2-font-mono);
+        font-size: 10.5px;
+        color: var(--a2-accent);
+        margin-bottom: 3px;
+      }
 
-  .a2-stop strong {
-    font-size: 14.5px;
-    font-weight: 600;
-  }
+      .a2-stop strong {
+        font-size: 14.5px;
+        font-weight: 600;
+      }
 
-  .a2-ruler-readout {
-    display: grid;
-    grid-template-columns: 1.2fr 0.8fr;
-    gap: 72px;
-    align-items: center;
-    padding-top: 40px;
-    border-top: 1px solid var(--a2-border);
-  }
+      .a2-ruler-readout {
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 72px;
+        align-items: center;
+        padding-top: 40px;
+        border-top: 1px solid var(--a2-border);
+      }
 
-  @media (max-width: 820px) {
-    .a2-ruler-readout {
-      grid-template-columns: 1fr;
-      gap: 24px;
-    }
-  }
+      @media (max-width: 820px) {
+        .a2-ruler-readout {
+          grid-template-columns: 1fr;
+          gap: 24px;
+        }
+      }
 
-  .a2-ruler-title {
-    margin: 0 0 8px;
-    font-size: 19px;
-    font-weight: 620;
-    letter-spacing: -0.02em;
-  }
+      .a2-ruler-title {
+        margin: 0 0 8px;
+        font-size: 19px;
+        font-weight: 620;
+        letter-spacing: -0.02em;
+      }
 
-  .a2-ruler-desc {
-    margin: 0 0 14px;
-    font-size: 14.5px;
-    line-height: 1.6;
-    color: var(--a2-text-secondary);
-  }
+      .a2-ruler-desc {
+        margin: 0 0 14px;
+        font-size: 14.5px;
+        line-height: 1.6;
+        color: var(--a2-text-secondary);
+      }
 
-  .a2-ruler-desc code {
-    font-family: var(--a2-font-mono);
-    font-size: 12.5px;
-    color: var(--a2-accent-strong);
-  }
+      .a2-ruler-desc code {
+        font-family: var(--a2-font-mono);
+        font-size: 12.5px;
+        color: var(--a2-accent-strong);
+      }
 
-  .a2-ruler-uses {
-    font-family: var(--a2-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.04em;
-    color: var(--a2-text-muted);
-  }
+      .a2-ruler-uses {
+        font-family: var(--a2-font-mono);
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        color: var(--a2-text-muted);
+      }
 
-  .a2-ruler-bars {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
+      .a2-ruler-bars {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
 
-  .a2-bar-lbl {
-    display: flex;
-    justify-content: space-between;
-    font-family: var(--a2-font-mono);
-    font-size: 10.5px;
-    letter-spacing: 0.06em;
-    color: var(--a2-text-muted);
-    margin-bottom: 6px;
-  }
+      .a2-bar-lbl {
+        display: flex;
+        justify-content: space-between;
+        font-family: var(--a2-font-mono);
+        font-size: 10.5px;
+        letter-spacing: 0.06em;
+        color: var(--a2-text-muted);
+        margin-bottom: 6px;
+      }
 
-  .a2-bar-lbl strong {
-    color: var(--a2-text);
-  }
+      .a2-bar-lbl strong {
+        color: var(--a2-text);
+      }
 
-  .a2-bar-track {
-    height: 6px;
-    background: var(--a2-border-strong);
-  }
+      .a2-bar-track {
+        height: 6px;
+        background: var(--a2-border-strong);
+      }
 
-  .a2-bar-fill {
-    height: 100%;
-    transition: width 0.28s cubic-bezier(0.2, 0.9, 0.3, 1);
-  }
-  .a2-bar-fill--det { background: var(--a2-accent); }
-  .a2-bar-fill--free { background: var(--a2-blue); }
+      .a2-bar-fill {
+        height: 100%;
+        transition: width 0.28s cubic-bezier(0.2, 0.9, 0.3, 1);
+      }
+      .a2-bar-fill--det {
+        background: var(--a2-accent);
+      }
+      .a2-bar-fill--free {
+        background: var(--a2-blue);
+      }
 
-  /* =======================================================================
-     § 03 — SHARP CODE FRAME (DEVELOPER INTEGRATION)
-     ======================================================================= */
-  .a2-dev-split {
-    display: grid;
-    grid-template-columns: minmax(280px, 0.85fr) minmax(320px, 1.25fr);
-    gap: 84px;
-    align-items: center;
-  }
-
-  @media (max-width: 920px) {
-    .a2-dev-split {
-      /* minmax(0, …) so the code block's long lines scroll instead of widening the page */
-      grid-template-columns: minmax(0, 1fr);
-      gap: 48px;
-    }
-  }
-
-  .a2-dev-copy .a2-h2 {
-    margin-bottom: 16px;
-  }
-
-  .a2-dev-links {
-    display: flex;
-    gap: 24px;
-    margin-top: 26px;
-  }
-
-  .a2-code-frame {
-    position: relative;
-    background: #0b0e14;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 3px;
-    box-shadow: var(--a2-shadow-md);
-  }
-
-  .a2-anchor-pin {
-    position: absolute;
-    top: -88px;
-    pointer-events: none;
-  }
-
-  .a2-code-frame__tabs {
-    display: flex;
-    gap: 20px;
-    padding: 0 20px;
-    background: #11151e;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.09);
-  }
-
-  .a2-cf-tab {
-    appearance: none;
-    border: none;
-    background: none;
-    padding: 12px 0;
-    font-family: var(--a2-font-mono);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    color: #64748b;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-    cursor: pointer;
-    transition: color 0.15s ease;
-  }
-
-  .a2-cf-tab:hover {
-    color: #e2e8f0;
-  }
-
-  .a2-cf-tab.is-active {
-    color: #2dd4bf;
-    border-bottom-color: #2dd4bf;
-  }
-
-  .a2-code-panel {
-    display: none;
-    padding: 32px 36px;
-  }
-
-  .a2-code-panel.is-active {
-    display: block;
-  }
-
-  .a2-code-panel pre {
-    margin: 0;
-    overflow-x: auto;
-    font-family: var(--a2-font-mono);
-    font-size: 13px;
-    line-height: 1.78;
-    color: #e2e8f0;
-  }
-
-  .ck { color: #7dd3fc; }
-  .cc { color: #2dd4bf; }
-  .cf { color: #38bdf8; }
-  .cs { color: #6ee7b7; }
-  .cn { color: #fbbf24; }
-  .cm { color: #64748b; }
-
-  /* =======================================================================
+      /* =======================================================================
      CLOSING BANNER & MINIMAL FOOTER
      ======================================================================= */
-  /* Closing sits on the alt band so it reads as its own band after § 03 (base) */
-  .a2-closing {
-    padding: 140px 0;
-    border-top: 1px solid var(--a2-border-strong);
-    background: var(--a2-bg-alt);
-  }
+      /* The closing is a full-bleed field in the same deep-teal material as the demo stage —
+     a bookend for the page in both themes */
+      .a2-closing {
+        position: relative;
+        padding: 128px 0 136px;
+        color: #f8fafc;
+        background-color: #0a2c2a;
+        background-image:
+          linear-gradient(135deg, rgba(20, 184, 166, 0.22), transparent 58%),
+          radial-gradient(rgba(45, 212, 191, 0.26) 1px, transparent 1px);
+        background-size:
+          100% 100%,
+          16px 16px;
+        border-top: 1px solid rgba(45, 212, 191, 0.3);
+      }
 
-  .a2-closing__inner {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    flex-wrap: wrap;
-    gap: 28px;
-  }
+      .a2-closing__inner {
+        display: flex;
+        justify-content: center;
+      }
 
-  .a2-closing__title {
-    margin: 4px 0 0;
-    font-family: var(--a2-font-display);
-    font-size: clamp(2rem, 3.6vw, 2.9rem);
-    font-weight: 650;
-    line-height: 1.06;
-    letter-spacing: var(--a2-tracking-h2);
-    max-width: 18ch;
-  }
+      @media (max-width: 920px) {
+        .a2-closing {
+          padding: 96px 0 104px;
+        }
+      }
 
-  .a2-closing__btns {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
+      /* Centred finale: headline on top, actions beneath, everything on one axis */
+      .a2-closing__copy {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 40px;
+      }
 
-  .a2-footer {
-    border-top: 1px solid var(--a2-border-strong);
-    padding: 40px 0 56px;
-  }
+      .a2-closing__title {
+        margin: 0;
+        font-family: var(--a2-font-display);
+        font-size: clamp(2.2rem, 4.4vw, 3.6rem);
+        font-weight: 700;
+        line-height: 1.06;
+        letter-spacing: var(--a2-tracking-h2);
+        max-width: 20ch;
+        text-wrap: balance;
+        color: #f8fafc;
+      }
 
-  .a2-footer__inner {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 16px;
-  }
+      .a2-closing__hi {
+        color: #2dd4bf;
+        white-space: nowrap;
+      }
 
-  .a2-footer__brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 13px;
-    color: var(--a2-text-muted);
-  }
+      .a2-closing__btns {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 12px;
+      }
 
-  .a2-footer__brand strong {
-    color: var(--a2-text);
-    font-weight: 650;
-  }
+      .a2-closing__primary {
+        background: #f8fafc;
+        color: #071a19;
+        border: 1px solid #f8fafc;
+      }
 
-  .a2-footer__links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20px;
-  }
+      .a2-closing__primary:hover {
+        background: #ffffff;
+        transform: translateY(-1px);
+      }
 
-  .a2-footer__links a {
-    font-size: 13px;
-    color: var(--a2-text-secondary);
-    text-decoration: none;
-  }
+      .a2-closing__ghost {
+        background: transparent;
+        color: #f8fafc;
+        border: 1px solid rgba(248, 250, 252, 0.38);
+      }
 
-  .a2-footer__links a:hover {
-    color: var(--a2-text);
-  }
-</style>
+      .a2-closing__ghost:hover {
+        border-color: #f8fafc;
+      }
+
+      .a2-footer {
+        border-top: 1px solid var(--a2-border-strong);
+        padding: 40px 0 56px;
+      }
+
+      .a2-footer__inner {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+      }
+
+      .a2-footer__brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        color: var(--a2-text-muted);
+      }
+
+      .a2-footer__brand strong {
+        color: var(--a2-text);
+        font-weight: 650;
+      }
+
+      .a2-footer__links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+      }
+
+      .a2-footer__links a {
+        font-size: 13px;
+        color: var(--a2-text-secondary);
+        text-decoration: none;
+      }
+
+      .a2-footer__links a:hover {
+        color: var(--a2-text);
+      }
+    </style>
   </body>
 </html>
