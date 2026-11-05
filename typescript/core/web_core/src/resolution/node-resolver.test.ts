@@ -1914,4 +1914,78 @@ describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
 
     resolver.dispose();
   });
+
+  it('expands { componentId, path } templates into ComponentNode[] on unmarked, open, empty, and wrapped schemas', () => {
+    const UnmarkedUnionListApi: ComponentApi = {
+      name: 'UnmarkedUnionList',
+      schema: z.object({
+        children: z
+          .union([z.array(z.string()), z.object({componentId: z.string(), path: z.string()})])
+          .optional(),
+      }),
+    };
+    const WrappedListApi: ComponentApi = {
+      name: 'WrappedList',
+      schema: z.object({
+        children: ChildListSchema.catch([]).pipe(z.any()).optional(),
+      }),
+    };
+    const EmptyListApi: ComponentApi = {
+      name: 'EmptyList',
+      schema: z.object({}),
+    };
+    const RecordListApi: ComponentApi = {
+      name: 'RecordList',
+      schema: z.record(z.unknown()),
+    };
+
+    const catalog = new Catalog<ComponentApi>('template-catalog', '0.9', [
+      UnmarkedUnionListApi,
+      WrappedListApi,
+      EmptyListApi,
+      RecordListApi,
+      TextApi,
+    ]);
+    const surface = new SurfaceModel('surf-tmpl', catalog);
+    surface.dataModel.set('/items', [{label: 'First'}, {label: 'Second'}]);
+    const resolver = new NodeResolver(surface, catalog);
+
+    add(surface, 'root', 'UnmarkedUnionList', {
+      children: ['wrapped', 'empty', 'record'],
+    });
+    add(surface, 'wrapped', 'WrappedList', {
+      children: {componentId: 'item-tpl', path: '/items'},
+    });
+    add(surface, 'empty', 'EmptyList', {
+      children: {componentId: 'item-tpl', path: '/items'},
+    });
+    add(surface, 'record', 'RecordList', {
+      children: {componentId: 'item-tpl', path: '/items'},
+    });
+    add(surface, 'item-tpl', 'Text', {text: {path: 'label'}});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const containers = props(root).children as ComponentNode[];
+    assert.strictEqual(containers.length, 3);
+
+    for (const container of containers) {
+      const resolvedItems = props(container).children as ComponentNode[];
+      assert.ok(Array.isArray(resolvedItems), `${container.type}: expected children array`);
+      assert.strictEqual(resolvedItems.length, 2, `${container.type}: expected 2 expanded items`);
+      assert.ok(resolvedItems.every(isComponentNode));
+      assert.strictEqual(bound(resolvedItems[0], 'text'), 'First');
+      assert.strictEqual(bound(resolvedItems[1], 'text'), 'Second');
+    }
+
+    // Verify unmarked union itself also expands a { componentId, path } template.
+    const rootModel = surface.componentsModel.get('root')!;
+    rootModel.properties = {children: {componentId: 'item-tpl', path: '/items'}};
+    const expandedRootChildren = props(root).children as ComponentNode[];
+    assert.strictEqual(expandedRootChildren.length, 2);
+    assert.strictEqual(bound(expandedRootChildren[0], 'text'), 'First');
+    assert.strictEqual(bound(expandedRootChildren[1], 'text'), 'Second');
+
+    resolver.dispose();
+  });
 });

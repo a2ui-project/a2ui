@@ -24,13 +24,13 @@ import {
   DataBinding,
   FunctionCall,
 } from '../types/common-types.js';
-import {childRefKindOf} from '../types/child-ref-helpers.js';
+import {type ChildRefKind, childRefKindOf} from '../types/child-ref-helpers.js';
 import type {Action as V1Action, CheckRule as V1CheckRule} from '../v1_0/schema/common-types.js';
-import {extractRefDefName} from '../catalog/reference-map.js';
 import {
   coerceDynamicBoolean,
   isDynamicBooleanSchema,
 } from '../catalog/validation_result_coercion.js';
+import {extractRefDefName, extractRefFields} from './ref-fields.js';
 import {ActionDispatchOptions} from '../common/metadata.js';
 import {MAX_DYNAMIC_VALUE_DEPTH} from './data-context.js';
 import {resolveSignalKeepingPending} from './data-context-internal.js';
@@ -94,42 +94,51 @@ export function scrapeSchemaBehavior(schema: z.ZodTypeAny): BehaviorNode {
     return cached;
   }
   const behavior = getFieldBehavior(schema);
-  const result: BehaviorNode =
-    behavior.type === 'OBJECT' && behavior.shape && !('accessibility' in behavior.shape)
-      ? {
-          ...behavior,
-          shape: {
-            ...behavior.shape,
-            accessibility: getFieldBehavior(AccessibilityAttributesSchema),
-          },
-        }
-      : behavior;
+  let result: BehaviorNode = behavior;
+  if (behavior.type === 'OBJECT' && behavior.shape) {
+    const nextShape: Record<string, BehaviorNode> = {...behavior.shape};
+    for (const [key, refKind] of extractRefFields(schema)) {
+      if (refKind.kind === 'list' && nextShape[key]?.type !== 'STRUCTURAL') {
+        nextShape[key] = {type: 'STRUCTURAL'};
+      }
+    }
+    if (!Object.hasOwn(nextShape, 'accessibility')) {
+      nextShape.accessibility = getFieldBehavior(AccessibilityAttributesSchema);
+    }
+    result = {...behavior, shape: nextShape};
+  }
   behaviorCache.set(schema, result);
   return result;
 }
 
 /**
  * Unwraps Zod wrapper schemas (ZodOptional, ZodNullable, ZodDefault,
- * ZodReadonly, ZodEffects, ZodBranded, ZodLazy) to retrieve the underlying inner schema type.
+ * ZodReadonly, ZodCatch, ZodEffects, ZodBranded, ZodPipeline, ZodLazy)
+ * to retrieve the underlying inner schema type.
  *
  * @param type Zod schema to unwrap.
  * @returns The inner Zod schema.
  */
 function unwrapZodSchema(type: z.ZodTypeAny): z.ZodTypeAny {
+  const visited = new Set<any>();
   let current: any = type;
-  while (current) {
+  while (current && !visited.has(current)) {
+    visited.add(current);
     const typeName = current._def?.typeName;
     if (
       typeName === 'ZodOptional' ||
       typeName === 'ZodNullable' ||
       typeName === 'ZodDefault' ||
-      typeName === 'ZodReadonly'
+      typeName === 'ZodReadonly' ||
+      typeName === 'ZodCatch'
     ) {
       current = current._def.innerType;
     } else if (typeName === 'ZodEffects') {
       current = current._def.schema;
     } else if (typeName === 'ZodBranded') {
       current = current._def.type;
+    } else if (typeName === 'ZodPipeline') {
+      current = current._def['out'];
     } else if (typeName === 'ZodLazy') {
       current = current._def.getter();
     } else {
@@ -147,9 +156,11 @@ function unwrapZodSchema(type: z.ZodTypeAny): z.ZodTypeAny {
  * @returns Target definition name, or an empty string.
  */
 function getRefDefName(type: z.ZodTypeAny): string {
+  const visited = new Set<any>();
   let current: any = type;
   let desc = '';
-  while (current) {
+  while (current && !visited.has(current)) {
+    visited.add(current);
     desc = current.description ?? current._def?.description ?? '';
     if (desc) break;
     const typeName = current._def?.typeName;
@@ -157,13 +168,16 @@ function getRefDefName(type: z.ZodTypeAny): string {
       typeName === 'ZodOptional' ||
       typeName === 'ZodNullable' ||
       typeName === 'ZodDefault' ||
-      typeName === 'ZodReadonly'
+      typeName === 'ZodReadonly' ||
+      typeName === 'ZodCatch'
     ) {
       current = current._def.innerType;
     } else if (typeName === 'ZodEffects') {
       current = current._def.schema;
     } else if (typeName === 'ZodBranded') {
       current = current._def.type;
+    } else if (typeName === 'ZodPipeline') {
+      current = current._def['out'];
     } else if (typeName === 'ZodLazy') {
       current = current._def.getter();
     } else {
@@ -173,6 +187,53 @@ function getRefDefName(type: z.ZodTypeAny): string {
   if (!desc || !desc.startsWith('REF:')) return '';
   const cleanDesc = desc.slice(4);
   return extractRefDefName(cleanDesc.split('|')[0]);
+}
+
+function hasChildRefKind(type: z.ZodTypeAny, kind: ChildRefKind): boolean {
+  const visited = new Set<any>();
+  let current: any = type;
+  while (current && !visited.has(current)) {
+    visited.add(current);
+    if (childRefKindOf(current) === kind) {
+      return true;
+    }
+    const typeName = current._def?.typeName;
+    if (
+      typeName === 'ZodOptional' ||
+      typeName === 'ZodNullable' ||
+      typeName === 'ZodDefault' ||
+      typeName === 'ZodReadonly' ||
+      typeName === 'ZodCatch'
+    ) {
+      current = current._def.innerType;
+    } else if (typeName === 'ZodEffects') {
+      current = current._def.schema;
+    } else if (typeName === 'ZodBranded') {
+      current = current._def.type;
+    } else if (typeName === 'ZodPipeline') {
+      current = current._def['out'];
+    } else if (typeName === 'ZodLazy') {
+      current = current._def.getter();
+    } else {
+      break;
+    }
+  }
+  return false;
+}
+
+function isSingleChildField(prop: z.ZodTypeAny): boolean {
+  if (hasChildRefKind(prop, 'component-id')) return true;
+  const refDef = getRefDefName(prop);
+  return refDef === 'ComponentId' || refDef === 'Child';
+}
+
+function isTemplateChildListShape(shape: Record<string, unknown>): boolean {
+  return (
+    Object.hasOwn(shape, 'componentId') &&
+    (Object.hasOwn(shape, 'path') ||
+      Object.hasOwn(shape, '@path') ||
+      Object.hasOwn(shape, 'dataBinding'))
+  );
 }
 
 /**
@@ -215,9 +276,9 @@ function isDynamicOption(option: z.ZodTypeAny): boolean {
   const def = (current as any)._def;
   if (def?.typeName !== 'ZodObject') return false;
   const shape = def.shape?.() || {};
-  const hasComponentId = Object.values(shape).some(
-    prop => getRefDefName(prop as z.ZodTypeAny) === 'ComponentId',
-  );
+  const hasComponentId =
+    isTemplateChildListShape(shape) ||
+    Object.values(shape).some(prop => isSingleChildField(prop as z.ZodTypeAny));
   return (
     (Boolean(shape['@path']) ||
       Boolean(shape.path) ||
@@ -228,14 +289,17 @@ function isDynamicOption(option: z.ZodTypeAny): boolean {
 }
 
 function isChildListOption(option: z.ZodTypeAny): boolean {
-  if (childRefKindOf(option) === 'child-list' || getRefDefName(option) === 'ChildList') {
+  if (hasChildRefKind(option, 'child-list') || getRefDefName(option) === 'ChildList') {
     return true;
   }
   const current = unwrapZodSchema(option);
   const def = (current as any)._def;
   if (def?.typeName !== 'ZodObject') return false;
   const shape = def.shape?.() || {};
-  return Object.values(shape).some(prop => getRefDefName(prop as z.ZodTypeAny) === 'ComponentId');
+  return (
+    isTemplateChildListShape(shape) ||
+    Object.values(shape).some(prop => isSingleChildField(prop as z.ZodTypeAny))
+  );
 }
 
 function isDynamicDef(defName: string, typeName?: string): boolean {
@@ -262,10 +326,13 @@ function matchUnionBehavior(options: z.ZodTypeAny[]): BehaviorNode | undefined {
   return undefined;
 }
 
-function scrapeObjectShape(objShape: Record<string, z.ZodTypeAny>): Record<string, BehaviorNode> {
+function scrapeObjectShape(
+  objShape: Record<string, z.ZodTypeAny>,
+  visited: Set<z.ZodTypeAny>,
+): Record<string, BehaviorNode> {
   const shape: Record<string, BehaviorNode> = {};
   for (const [key, value] of Object.entries(objShape)) {
-    shape[key] = getFieldBehavior(value);
+    shape[key] = getFieldBehavior(value, new Set(visited));
   }
   return shape;
 }
@@ -274,9 +341,15 @@ function scrapeObjectShape(objShape: Record<string, z.ZodTypeAny>): Record<strin
  * Recursively maps a Zod schema to its corresponding BehaviorNode.
  *
  * @param type Zod schema to inspect.
+ * @param visited Set of already visited schemas for cycle detection.
  * @returns Behavior node representing runtime handling for the schema.
  */
-function getFieldBehavior(type: z.ZodTypeAny): BehaviorNode {
+function getFieldBehavior(type: z.ZodTypeAny, visited = new Set<z.ZodTypeAny>()): BehaviorNode {
+  if (!type || visited.has(type)) {
+    return {type: 'STATIC'};
+  }
+  visited.add(type);
+
   const defName = getRefDefName(type);
 
   if (isCheckableField(type)) {
@@ -288,8 +361,17 @@ function getFieldBehavior(type: z.ZodTypeAny): BehaviorNode {
   }
 
   const current: any = unwrapZodSchema(type);
+  if (!current?._def) {
+    return {type: 'STATIC'};
+  }
+  if (current !== type) {
+    if (visited.has(current)) {
+      return {type: 'STATIC'};
+    }
+    visited.add(current);
+  }
 
-  if (childRefKindOf(current) === 'child-list' || defName === 'ChildList') {
+  if (hasChildRefKind(type, 'child-list') || defName === 'ChildList') {
     return {type: 'STRUCTURAL'};
   }
 
@@ -313,15 +395,19 @@ function getFieldBehavior(type: z.ZodTypeAny): BehaviorNode {
   if (current._def.typeName === 'ZodArray') {
     return {
       type: 'ARRAY',
-      element: getFieldBehavior(current._def.type),
+      element: getFieldBehavior(current._def.type, new Set(visited)),
     };
   }
 
   // Recursive object scraping
   if (current._def.typeName === 'ZodObject') {
+    const rawShape = current._def.shape();
+    if (isTemplateChildListShape(rawShape)) {
+      return {type: 'STRUCTURAL'};
+    }
     return {
       type: 'OBJECT',
-      shape: scrapeObjectShape(current._def.shape()),
+      shape: scrapeObjectShape(rawShape, visited),
     };
   }
 
@@ -533,7 +619,13 @@ export class GenericBinder<T> {
     this.behaviorTree = scrapeSchemaBehavior(schema);
 
     if (this.behaviorTree.type !== 'OBJECT') {
-      this.behaviorTree = {type: 'OBJECT', shape: {}};
+      const shape: Record<string, BehaviorNode> = {};
+      for (const [key, refKind] of extractRefFields(schema)) {
+        if (refKind.kind === 'list') {
+          shape[key] = {type: 'STRUCTURAL'};
+        }
+      }
+      this.behaviorTree = {type: 'OBJECT', shape};
     }
 
     this.resolveInitialProps();
@@ -689,7 +781,12 @@ export class GenericBinder<T> {
     }
 
     const templateObj = value as Record<string, unknown>;
-    const templatePath = typeof templateObj.path === 'string' ? templateObj.path : undefined;
+    const templatePath =
+      typeof templateObj.path === 'string'
+        ? templateObj.path
+        : typeof templateObj['@path'] === 'string'
+          ? templateObj['@path']
+          : undefined;
     const templateComponentId =
       typeof templateObj.componentId === 'string' ? templateObj.componentId : undefined;
 

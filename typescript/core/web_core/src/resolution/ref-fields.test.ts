@@ -84,6 +84,21 @@ describe('extractRefFields', () => {
 
     const PathologicalLazy: z.ZodTypeAny = z.lazy(() => PathologicalLazy);
     assert.strictEqual(extractRefFields(PathologicalLazy).size, 0);
+
+    const RecursiveArray: z.ZodTypeAny = z.lazy(() => z.array(RecursiveArray));
+    assert.strictEqual(extractRefFields(z.object({children: RecursiveArray})).size, 0);
+
+    const RecursiveIncompatibleUnion: z.ZodTypeAny = z.lazy(() =>
+      z.union([z.number(), RecursiveIncompatibleUnion]),
+    );
+    assert.strictEqual(extractRefFields(z.object({child: RecursiveIncompatibleUnion})).size, 0);
+
+    const RecursiveStringUnion: z.ZodTypeAny = z.lazy(() =>
+      z.union([RecursiveStringUnion, z.string()]),
+    );
+    assert.deepStrictEqual(extractRefFields(z.object({child: RecursiveStringUnion})).get('child'), {
+      kind: 'single',
+    });
   });
 
   it('extracts child and children fallbacks for z.record, z.any, and z.unknown schemas', () => {
@@ -141,12 +156,29 @@ describe('extractRefFields', () => {
           }),
         )
         .optional(),
+      unionItems: z.array(
+        z.discriminatedUnion('kind', [
+          z.object({kind: z.literal('a'), child: z.string()}),
+          z.object({kind: z.literal('b'), panel: ComponentIdSchema}),
+        ]),
+      ),
+      intersectionItems: z.array(
+        z.object({title: z.string()}).and(z.object({slot: ComponentIdSchema})),
+      ),
     });
 
     const refs = extractRefFields(schema);
     assert.deepStrictEqual(refs.get('child'), {kind: 'single'});
     assert.deepStrictEqual(refs.get('children'), {kind: 'list'});
     assert.deepStrictEqual(refs.get('tabItems'), {kind: 'nested', keys: new Set(['child'])});
+    assert.deepStrictEqual(refs.get('unionItems'), {
+      kind: 'nested',
+      keys: new Set(['child', 'panel']),
+    });
+    assert.deepStrictEqual(refs.get('intersectionItems'), {
+      kind: 'nested',
+      keys: new Set(['slot']),
+    });
     assert.strictEqual(refs.has('title'), false);
   });
 
@@ -242,5 +274,34 @@ describe('extractRefFields', () => {
     assert.deepStrictEqual(unionRefs.get('child'), {kind: 'single'});
     assert.deepStrictEqual(unionRefs.get('children'), {kind: 'list'});
     assert.strictEqual(extractRefFields(unionSchema), unionRefs);
+
+    // Union branch ordering: a property that is `single` in one branch and `list` in another
+    // must resolve to `list` regardless of branch order.
+    const singleBranch = z.object({slot: ComponentIdSchema});
+    const listBranch = z.object({slot: ChildListSchema});
+    assert.deepStrictEqual(extractRefFields(z.union([singleBranch, listBranch])).get('slot'), {
+      kind: 'list',
+    });
+    assert.deepStrictEqual(extractRefFields(z.union([listBranch, singleBranch])).get('slot'), {
+      kind: 'list',
+    });
+
+    // Intersection compatibility: narrowing an explicit ref field with `z.string()` keeps it,
+    // while narrowing with `z.number()` or an incompatible `ZodRecord` drops it.
+    const narrowedValid = z.object({header: ComponentIdSchema}).and(z.object({header: z.string()}));
+    assert.deepStrictEqual(extractRefFields(narrowedValid).get('header'), {kind: 'single'});
+
+    const narrowedInvalid = z
+      .object({header: ComponentIdSchema})
+      .and(z.object({header: z.number()}));
+    assert.strictEqual(extractRefFields(narrowedInvalid).has('header'), false);
+
+    const recordInvalid = z.object({child: z.string()}).and(z.record(z.number()));
+    assert.strictEqual(extractRefFields(recordInvalid).size, 0);
+
+    const emptyAndStringRecord = z.object({}).and(z.record(z.string()));
+    const emptyRecordRefs = extractRefFields(emptyAndStringRecord);
+    assert.deepStrictEqual(emptyRecordRefs.get('child'), {kind: 'single'});
+    assert.strictEqual(emptyRecordRefs.has('children'), false);
   });
 });

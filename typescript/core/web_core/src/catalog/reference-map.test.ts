@@ -425,4 +425,54 @@ describe('reference-map schema introspection', () => {
     assert.deepStrictEqual(Array.from(refMap.Tabs.listRefs), ['tabItems']);
     assert.ok(refMap.Tabs.nestedRefs?.tabItems.has('child'));
   });
+
+  it('aligns buildComponentRefMap with extractRefFields for open, empty, composite, wrapped, and unmarked schemas', () => {
+    const emptyApi: ComponentApi = {
+      name: 'EmptyBox',
+      schema: z.object({}),
+    };
+    const openApi: ComponentApi = {
+      name: 'OpenBox',
+      schema: z.object({title: z.string().optional()}).passthrough(),
+    };
+    const recordApi: ComponentApi = {
+      name: 'RecordBox',
+      schema: z.record(z.unknown()),
+    };
+    const unmarkedAndWrappedApi: ComponentApi = {
+      name: 'UnmarkedAndWrapped',
+      schema: z
+        .object({
+          child: z.string().optional(),
+          children: z
+            .union([z.array(z.string()), z.object({componentId: z.string(), path: z.string()})])
+            .catch([])
+            .pipe(z.any()),
+        })
+        .and(
+          z.object({
+            extraSlot: z.string().describe('REF:#/$defs/Child').catch('fallback'),
+          }),
+        ),
+    };
+
+    const catalog = new Catalog('aligned-cat', '1.0', [
+      emptyApi,
+      openApi,
+      recordApi,
+      unmarkedAndWrappedApi,
+    ]);
+    const refMap = catalog.componentRefMap;
+
+    for (const name of ['EmptyBox', 'OpenBox', 'RecordBox']) {
+      assert.deepStrictEqual(Array.from(refMap[name].singleRefs), ['child'], `${name}.singleRefs`);
+      assert.deepStrictEqual(Array.from(refMap[name].listRefs), ['children'], `${name}.listRefs`);
+    }
+
+    assert.deepStrictEqual(Array.from(refMap.UnmarkedAndWrapped.singleRefs).sort(), [
+      'child',
+      'extraSlot',
+    ]);
+    assert.deepStrictEqual(Array.from(refMap.UnmarkedAndWrapped.listRefs), ['children']);
+  });
 });

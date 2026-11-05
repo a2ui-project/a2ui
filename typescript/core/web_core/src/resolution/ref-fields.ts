@@ -16,15 +16,49 @@
 
 import {z} from 'zod';
 
-import {extractRefDefName} from '../catalog/reference-map.js';
 import {type ChildRefKind, childRefKindOf} from '../types/child-ref-helpers.js';
 
 /**
- * Definition names in `REF:` schema descriptions that denote single-child
+ * Options for configuring child reference analysis.
+ */
+export interface ChildRefAnalysisOptions {
+  /** Set of definition names recognized as single child references. */
+  childRefNames: ReadonlySet<string>;
+  /** Set of definition names recognized as child list references. */
+  childListRefNames: ReadonlySet<string>;
+  /** Optional set of string property names recognized as single child references (e.g. in v0.8 schemas without $ref). */
+  childPropertyNames?: ReadonlySet<string>;
+}
+
+/**
+ * Extracts the target definition name from a JSON Schema `$ref` pointer or URI.
+ *
+ * @param ref The JSON Schema reference string or URI.
+ * @returns Target definition name.
+ */
+export function extractRefDefName(ref: string): string {
+  if (!ref) return '';
+  const hashIdx = ref.lastIndexOf('#');
+  const target = hashIdx !== -1 ? ref.slice(hashIdx + 1) : ref;
+  const segments = target.split('/').filter(Boolean);
+  return segments.pop() ?? '';
+}
+
+/**
+ * Default definition names in `REF:` schema descriptions that denote single-child
  * component IDs or child lists.
  */
-const SINGLE_CHILD_DEF_NAMES = new Set(['ComponentId', 'Child']);
-const CHILD_LIST_DEF_NAMES = new Set(['ChildList']);
+const DEFAULT_SINGLE_CHILD_DEF_NAMES: ReadonlySet<string> = new Set([
+  'ComponentId',
+  'Child',
+  'ChildComponentId',
+]);
+const DEFAULT_CHILD_LIST_DEF_NAMES: ReadonlySet<string> = new Set([
+  'ChildList',
+  'TemplateChildList',
+  'ChildrenItem',
+  'TemplateItem',
+]);
 
 /**
  * Describes how a component schema property references child components.
@@ -64,15 +98,21 @@ const refFieldsCache = new WeakMap<z.ZodTypeAny, RefFields>();
  * `z.record(...)`, `z.any()`, `z.unknown()`).
  *
  * @param schema Component Zod schema to inspect.
+ * @param options Optional custom child reference analysis options.
  * @returns Map of child-referencing property names to their reference kinds.
  */
-export function extractRefFields(schema: z.ZodTypeAny): RefFields {
-  const cached = refFieldsCache.get(schema);
-  if (cached) {
-    return cached;
+export function extractRefFields(
+  schema: z.ZodTypeAny,
+  options?: ChildRefAnalysisOptions,
+): RefFields {
+  if (!options) {
+    const cached = refFieldsCache.get(schema);
+    if (cached) {
+      return cached;
+    }
   }
 
-  const analysis = analyzeSchema(schema, new Set());
+  const analysis = analyzeSchema(schema, new Set(), options);
   const fields = analysis.fields;
 
   if (analysis.isEmptyObject || analysis.openSingle) {
@@ -87,30 +127,52 @@ export function extractRefFields(schema: z.ZodTypeAny): RefFields {
   }
 
   const result: RefFields = fields.size === 0 ? EMPTY_REF_FIELDS : fields;
-  refFieldsCache.set(schema, result);
+  if (!options) {
+    refFieldsCache.set(schema, result);
+  }
   return result;
 }
 
 interface SchemaRefAnalysis {
   fields: Map<string, RefKind>;
   declaredKeys: Set<string>;
+  compatibleSingleKeys: Set<string>;
+  compatibleListKeys: Set<string>;
+  compatibleNestedKeys: Set<string>;
+  constrainsUnknownKeys: boolean;
   isEmptyObject: boolean;
   openSingle: boolean;
   openList: boolean;
 }
 
-function analyzeSchema(schema: z.ZodTypeAny, visited: Set<z.ZodTypeAny>): SchemaRefAnalysis {
+function emptyAnalysis(): SchemaRefAnalysis {
+  return {
+    fields: new Map(),
+    declaredKeys: new Set(),
+    compatibleSingleKeys: new Set(),
+    compatibleListKeys: new Set(),
+    compatibleNestedKeys: new Set(),
+    constrainsUnknownKeys: false,
+    isEmptyObject: false,
+    openSingle: false,
+    openList: false,
+  };
+}
+
+function analyzeSchema(
+  schema: z.ZodTypeAny,
+  visited: Set<z.ZodTypeAny>,
+  options?: ChildRefAnalysisOptions,
+): SchemaRefAnalysis {
   const unwrapped = unwrap(schema);
-  if (visited.has(unwrapped.schema)) {
-    return {
-      fields: new Map(),
-      declaredKeys: new Set(),
-      isEmptyObject: false,
-      openSingle: false,
-      openList: false,
-    };
+  for (const s of unwrapped.traversed) {
+    if (visited.has(s)) {
+      return emptyAnalysis();
+    }
   }
-  visited.add(unwrapped.schema);
+  for (const s of unwrapped.traversed) {
+    visited.add(s);
+  }
 
   const typeName = unwrapped.schema._def.typeName as string;
   switch (typeName) {
@@ -119,11 +181,24 @@ function analyzeSchema(schema: z.ZodTypeAny, visited: Set<z.ZodTypeAny>): Schema
       const shape = objSchema.shape as Record<string, z.ZodTypeAny>;
       const fields = new Map<string, RefKind>();
       const declaredKeys = new Set<string>(Object.keys(shape));
+      const compatibleSingleKeys = new Set<string>();
+      const compatibleListKeys = new Set<string>();
+      const compatibleNestedKeys = new Set<string>();
 
       for (const [key, value] of Object.entries(shape)) {
-        const kind = classifyProperty(key, value);
+        const kind = classifyProperty(key, value, visited, options);
         if (kind) {
           fields.set(key, kind);
+        }
+        const propField = unwrap(value);
+        if (canHoldSingleRef(propField, new Set(visited), options)) {
+          compatibleSingleKeys.add(key);
+        }
+        if (canHoldListRef(propField, new Set(visited), options)) {
+          compatibleListKeys.add(key);
+        }
+        if (canHoldNestedRef(propField, new Set(visited))) {
+          compatibleNestedKeys.add(key);
         }
       }
 
@@ -131,20 +206,30 @@ function analyzeSchema(schema: z.ZodTypeAny, visited: Set<z.ZodTypeAny>): Schema
         unknownKeys?: string;
         catchall?: z.ZodTypeAny;
       };
+      const unknownKeys = def['unknownKeys'];
+      const catchall = def['catchall'];
       let openSingle = false;
       let openList = false;
-      if (def.unknownKeys === 'passthrough') {
+      let constrainsUnknownKeys = false;
+      if (unknownKeys === 'passthrough') {
         openSingle = true;
         openList = true;
-      } else if (def.catchall && def.catchall._def.typeName !== 'ZodNever') {
-        const catchallField = unwrap(def.catchall);
-        openSingle = canHoldSingleRef(catchallField);
-        openList = canHoldListRef(catchallField);
+      } else if (catchall && catchall._def.typeName !== 'ZodNever') {
+        const catchallField = unwrap(catchall);
+        openSingle = canHoldSingleRef(catchallField, new Set(visited), options);
+        openList = canHoldListRef(catchallField, new Set(visited), options);
+        constrainsUnknownKeys = true;
+      } else if (unknownKeys === 'strict') {
+        constrainsUnknownKeys = true;
       }
 
       return {
         fields,
         declaredKeys,
+        compatibleSingleKeys,
+        compatibleListKeys,
+        compatibleNestedKeys,
+        constrainsUnknownKeys,
         isEmptyObject: declaredKeys.size === 0 && !openSingle && !openList,
         openSingle,
         openList,
@@ -152,17 +237,21 @@ function analyzeSchema(schema: z.ZodTypeAny, visited: Set<z.ZodTypeAny>): Schema
     }
 
     case 'ZodRecord': {
-      const valueType = (unwrapped.schema._def as {valueType?: z.ZodTypeAny}).valueType;
+      const valueType = (unwrapped.schema._def as {valueType?: z.ZodTypeAny})['valueType'];
       let openSingle = true;
       let openList = true;
       if (valueType) {
         const valueField = unwrap(valueType);
-        openSingle = canHoldSingleRef(valueField);
-        openList = canHoldListRef(valueField);
+        openSingle = canHoldSingleRef(valueField, new Set(visited), options);
+        openList = canHoldListRef(valueField, new Set(visited), options);
       }
       return {
         fields: new Map(),
         declaredKeys: new Set(),
+        compatibleSingleKeys: new Set(),
+        compatibleListKeys: new Set(),
+        compatibleNestedKeys: new Set(),
+        constrainsUnknownKeys: true,
         isEmptyObject: false,
         openSingle,
         openList,
@@ -174,6 +263,10 @@ function analyzeSchema(schema: z.ZodTypeAny, visited: Set<z.ZodTypeAny>): Schema
       return {
         fields: new Map(),
         declaredKeys: new Set(),
+        compatibleSingleKeys: new Set(),
+        compatibleListKeys: new Set(),
+        compatibleNestedKeys: new Set(),
+        constrainsUnknownKeys: false,
         isEmptyObject: false,
         openSingle: true,
         openList: true,
@@ -181,25 +274,65 @@ function analyzeSchema(schema: z.ZodTypeAny, visited: Set<z.ZodTypeAny>): Schema
 
     case 'ZodIntersection': {
       const def = unwrapped.schema._def as {left: z.ZodTypeAny; right: z.ZodTypeAny};
-      const left = analyzeSchema(def.left, new Set(visited));
-      const right = analyzeSchema(def.right, new Set(visited));
+      const left = analyzeSchema(def.left, new Set(visited), options);
+      const right = analyzeSchema(def.right, new Set(visited), options);
       const fields = new Map<string, RefKind>();
       for (const [key, kind] of left.fields) {
-        if (!right.declaredKeys.has(key) || right.fields.has(key)) {
+        if (isRefCompatibleWithSide(key, kind, right)) {
           mergeRefKind(fields, key, kind);
         }
       }
       for (const [key, kind] of right.fields) {
-        if (!left.declaredKeys.has(key) || left.fields.has(key)) {
+        if (isRefCompatibleWithSide(key, kind, left)) {
           mergeRefKind(fields, key, kind);
         }
       }
+
+      const declaredKeys = new Set([...left.declaredKeys, ...right.declaredKeys]);
+      const compatibleSingleKeys = new Set<string>();
+      const compatibleListKeys = new Set<string>();
+      const compatibleNestedKeys = new Set<string>();
+      for (const key of declaredKeys) {
+        if (
+          isRefCompatibleWithSide(key, {kind: 'single'}, left) &&
+          isRefCompatibleWithSide(key, {kind: 'single'}, right)
+        ) {
+          compatibleSingleKeys.add(key);
+        }
+        if (
+          isRefCompatibleWithSide(key, {kind: 'list'}, left) &&
+          isRefCompatibleWithSide(key, {kind: 'list'}, right)
+        ) {
+          compatibleListKeys.add(key);
+        }
+        if (
+          isRefCompatibleWithSide(key, {kind: 'nested', keys: new Set()}, left) &&
+          isRefCompatibleWithSide(key, {kind: 'nested', keys: new Set()}, right)
+        ) {
+          compatibleNestedKeys.add(key);
+        }
+      }
+
+      const isEmptyObject = left.isEmptyObject && right.isEmptyObject;
+      const openSingle =
+        !isEmptyObject &&
+        (left.openSingle || left.isEmptyObject) &&
+        (right.openSingle || right.isEmptyObject);
+      const openList =
+        !isEmptyObject &&
+        (left.openList || left.isEmptyObject) &&
+        (right.openList || right.isEmptyObject);
+
       return {
         fields,
-        declaredKeys: new Set([...left.declaredKeys, ...right.declaredKeys]),
-        isEmptyObject: left.isEmptyObject && right.isEmptyObject,
-        openSingle: left.openSingle && right.openSingle,
-        openList: left.openList && right.openList,
+        declaredKeys,
+        compatibleSingleKeys,
+        compatibleListKeys,
+        compatibleNestedKeys,
+        constrainsUnknownKeys: left.constrainsUnknownKeys || right.constrainsUnknownKeys,
+        isEmptyObject,
+        openSingle,
+        openList,
       };
     }
 
@@ -208,22 +341,36 @@ function analyzeSchema(schema: z.ZodTypeAny, visited: Set<z.ZodTypeAny>): Schema
       const rawOptions = (
         unwrapped.schema._def as {options: z.ZodTypeAny[] | Map<unknown, z.ZodTypeAny>}
       ).options;
-      const options = Array.isArray(rawOptions) ? rawOptions : Array.from(rawOptions.values());
+      const unionOptions = Array.isArray(rawOptions) ? rawOptions : Array.from(rawOptions.values());
       const fields = new Map<string, RefKind>();
       const declaredKeys = new Set<string>();
-      let allEmpty = options.length > 0;
+      const compatibleSingleKeys = new Set<string>();
+      const compatibleListKeys = new Set<string>();
+      const compatibleNestedKeys = new Set<string>();
+      let allEmpty = unionOptions.length > 0;
+      let allConstrainUnknown = unionOptions.length > 0;
       let openSingle = false;
       let openList = false;
 
-      for (const option of options) {
-        const sub = analyzeSchema(option, new Set(visited));
+      for (const option of unionOptions) {
+        const sub = analyzeSchema(option, new Set(visited), options);
         for (const [key, kind] of sub.fields) {
           mergeRefKind(fields, key, kind);
         }
         for (const key of sub.declaredKeys) {
           declaredKeys.add(key);
         }
+        for (const key of sub.compatibleSingleKeys) {
+          compatibleSingleKeys.add(key);
+        }
+        for (const key of sub.compatibleListKeys) {
+          compatibleListKeys.add(key);
+        }
+        for (const key of sub.compatibleNestedKeys) {
+          compatibleNestedKeys.add(key);
+        }
         allEmpty = allEmpty && sub.isEmptyObject;
+        allConstrainUnknown = allConstrainUnknown && sub.constrainsUnknownKeys;
         openSingle = openSingle || sub.openSingle;
         openList = openList || sub.openList;
       }
@@ -231,6 +378,10 @@ function analyzeSchema(schema: z.ZodTypeAny, visited: Set<z.ZodTypeAny>): Schema
       return {
         fields,
         declaredKeys,
+        compatibleSingleKeys,
+        compatibleListKeys,
+        compatibleNestedKeys,
+        constrainsUnknownKeys: allConstrainUnknown,
         isEmptyObject: allEmpty,
         openSingle,
         openList,
@@ -238,19 +389,42 @@ function analyzeSchema(schema: z.ZodTypeAny, visited: Set<z.ZodTypeAny>): Schema
     }
 
     default:
-      return {
-        fields: new Map(),
-        declaredKeys: new Set(),
-        isEmptyObject: false,
-        openSingle: false,
-        openList: false,
-      };
+      return emptyAnalysis();
   }
+}
+
+function isRefCompatibleWithSide(key: string, kind: RefKind, other: SchemaRefAnalysis): boolean {
+  if (other.fields.has(key)) {
+    return true;
+  }
+  if (other.declaredKeys.has(key)) {
+    if (kind.kind === 'single') {
+      return other.compatibleSingleKeys.has(key);
+    }
+    if (kind.kind === 'list') {
+      return other.compatibleListKeys.has(key);
+    }
+    return other.compatibleNestedKeys.has(key);
+  }
+  if (other.constrainsUnknownKeys) {
+    if (kind.kind === 'single') {
+      return other.openSingle;
+    }
+    if (kind.kind === 'list') {
+      return other.openList;
+    }
+    return other.openList;
+  }
+  return true;
 }
 
 function mergeRefKind(target: Map<string, RefKind>, key: string, incoming: RefKind): void {
   const existing = target.get(key);
   if (!existing) {
+    target.set(key, incoming);
+    return;
+  }
+  if (existing.kind === 'single' && incoming.kind === 'list') {
     target.set(key, incoming);
     return;
   }
@@ -262,72 +436,81 @@ function mergeRefKind(target: Map<string, RefKind>, key: string, incoming: RefKi
   }
 }
 
-function classifyProperty(key: string, value: z.ZodTypeAny): RefKind | undefined {
+function classifyProperty(
+  key: string,
+  value: z.ZodTypeAny,
+  visited: Set<z.ZodTypeAny>,
+  options?: ChildRefAnalysisOptions,
+): RefKind | undefined {
   const field = unwrap(value);
-  if (marksChildList(field) || isChildListUnion(field.schema)) {
+  if (marksChildList(field, options) || isChildListUnion(field.schema)) {
     return {kind: 'list'};
   }
-  if (marksComponentId(field)) {
+  if (marksComponentId(field, options)) {
     return {kind: 'single'};
   }
   if (field.schema._def.typeName === 'ZodArray') {
-    const element = unwrap(field.schema._def.type as z.ZodTypeAny);
+    const rawElement = field.schema._def.type as z.ZodTypeAny;
+    const element = unwrap(rawElement);
     // A plain array of component ids: the marker sits on the element
     // rather than the property (z.array(ComponentIdSchema)).
-    if (marksComponentId(element)) {
+    if (marksComponentId(element, options) || marksChildList(element, options)) {
       return {kind: 'list'};
     }
-    if (element.schema._def.typeName === 'ZodObject') {
-      const subKeys = new Set<string>();
-      const elementShape = (element.schema as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
-      for (const [subKey, subValue] of Object.entries(elementShape)) {
-        const unwrappedSub = unwrap(subValue);
-        if (
-          marksComponentId(unwrappedSub) ||
-          (subKey === 'child' && canHoldSingleRef(unwrappedSub))
-        ) {
-          subKeys.add(subKey);
-        }
+    const arrayVisited = new Set(visited);
+    for (const s of field.traversed) {
+      arrayVisited.add(s);
+    }
+    const elementAnalysis = analyzeSchema(rawElement, arrayVisited, options);
+    const subKeys = new Set<string>();
+    for (const [subKey, subKind] of elementAnalysis.fields) {
+      if (subKind.kind === 'single' || subKind.kind === 'list') {
+        subKeys.add(subKey);
       }
-      if (subKeys.size > 0) {
-        return {kind: 'nested', keys: subKeys};
-      }
+    }
+    if (subKeys.size > 0) {
+      return {kind: 'nested', keys: subKeys};
     }
   }
   if (field.schema._def.typeName === 'ZodUnion') {
     const explicitUnionKind = classifyExplicitUnionOptions(
       field.schema._def.options as z.ZodTypeAny[],
+      options,
     );
     if (explicitUnionKind) {
       return explicitUnionKind;
     }
   }
 
-  // Fallback for unannotated `child` / `children` properties whose types can
-  // hold component references.
-  if (key === 'child' && canHoldSingleRef(field)) {
+  // Fallback for unannotated `child` / `children` (and version-specific child property names)
+  // whose types can hold component references.
+  const isSingleChildKey = key === 'child' || Boolean(options?.childPropertyNames?.has(key));
+  if (isSingleChildKey && canHoldSingleRef(field, new Set(visited), options)) {
     return {kind: 'single'};
   }
-  if (key === 'children' && canHoldListRef(field)) {
+  if (key === 'children' && canHoldListRef(field, new Set(visited), options)) {
     return {kind: 'list'};
   }
   return undefined;
 }
 
-function classifyExplicitUnionOptions(options: readonly z.ZodTypeAny[]): RefKind | undefined {
+function classifyExplicitUnionOptions(
+  unionOptions: readonly z.ZodTypeAny[],
+  options?: ChildRefAnalysisOptions,
+): RefKind | undefined {
   let hasSingle = false;
-  for (const option of options) {
+  for (const option of unionOptions) {
     const unwrappedOption = unwrap(option);
-    if (marksChildList(unwrappedOption) || isChildListUnion(unwrappedOption.schema)) {
+    if (marksChildList(unwrappedOption, options) || isChildListUnion(unwrappedOption.schema)) {
       return {kind: 'list'};
     }
     if (
       unwrappedOption.schema._def.typeName === 'ZodArray' &&
-      marksComponentId(unwrap(unwrappedOption.schema._def.type as z.ZodTypeAny))
+      marksComponentId(unwrap(unwrappedOption.schema._def.type as z.ZodTypeAny), options)
     ) {
       return {kind: 'list'};
     }
-    if (marksComponentId(unwrappedOption)) {
+    if (marksComponentId(unwrappedOption, options)) {
       hasSingle = true;
     }
   }
@@ -341,25 +524,28 @@ function classifyExplicitUnionOptions(options: readonly z.ZodTypeAny[]): RefKind
 interface UnwrappedField {
   schema: z.ZodTypeAny;
   refDefNames: Set<string>;
+  bareDefNames: Set<string>;
   refs: Set<ChildRefKind>;
+  traversed: Set<z.ZodTypeAny>;
 }
 
 function unwrap(schema: z.ZodTypeAny): UnwrappedField {
   const refDefNames = new Set<string>();
+  const bareDefNames = new Set<string>();
   const refs = new Set<ChildRefKind>();
-  const visited = new Set<z.ZodTypeAny>();
+  const traversed = new Set<z.ZodTypeAny>();
   let current = schema;
 
   for (;;) {
-    if (visited.has(current)) {
-      return {schema: current, refDefNames, refs};
+    if (traversed.has(current)) {
+      return {schema: current, refDefNames, bareDefNames, refs, traversed};
     }
-    visited.add(current);
+    traversed.add(current);
 
-    collectRefDefName(current.description, refDefNames);
+    collectRefDefName(current.description, refDefNames, bareDefNames);
     const defDescription = (current._def as {description?: string}).description;
     if (defDescription !== current.description) {
-      collectRefDefName(defDescription, refDefNames);
+      collectRefDefName(defDescription, refDefNames, bareDefNames);
     }
 
     const ref = childRefKindOf(current);
@@ -381,66 +567,91 @@ function unwrap(schema: z.ZodTypeAny): UnwrappedField {
     } else if (typeName === 'ZodBranded') {
       current = current._def.type as z.ZodTypeAny;
     } else if (typeName === 'ZodPipeline') {
-      current = current._def.out as z.ZodTypeAny;
+      current = (current._def as {out: z.ZodTypeAny})['out'];
     } else if (typeName === 'ZodLazy') {
       current = (current._def.getter as () => z.ZodTypeAny)();
     } else {
-      return {schema: current, refDefNames, refs};
+      return {schema: current, refDefNames, bareDefNames, refs, traversed};
     }
   }
 }
 
-function collectRefDefName(description: string | undefined, refDefNames: Set<string>): void {
-  if (!description?.startsWith('REF:')) {
+function collectRefDefName(
+  description: string | undefined,
+  refDefNames: Set<string>,
+  bareDefNames: Set<string>,
+): void {
+  if (!description) {
     return;
   }
-  const defName = extractRefDefName(description.slice(4).split('|')[0]);
-  if (defName) {
-    refDefNames.add(defName);
+  if (description.startsWith('REF:')) {
+    const defName = extractRefDefName(description.slice(4).split('|')[0]);
+    if (defName) {
+      refDefNames.add(defName);
+    }
+    return;
+  }
+  const refTarget = extractRefDefName(description.split('|')[0]);
+  if (refTarget) {
+    bareDefNames.add(refTarget);
+  }
+  const trimmed = description.trim();
+  if (trimmed) {
+    bareDefNames.add(trimmed);
   }
 }
 
-function marksComponentId(field: UnwrappedField): boolean {
+function marksComponentId(field: UnwrappedField, options?: ChildRefAnalysisOptions): boolean {
   if (field.refs.has('component-id')) {
     return true;
   }
-  for (const name of SINGLE_CHILD_DEF_NAMES) {
-    if (field.refDefNames.has(name)) {
+  const singleNames = options?.childRefNames ?? DEFAULT_SINGLE_CHILD_DEF_NAMES;
+  for (const name of singleNames) {
+    if (field.refDefNames.has(name) || field.bareDefNames.has(name)) {
       return true;
     }
   }
   return false;
 }
 
-function marksChildList(field: UnwrappedField): boolean {
+function marksChildList(field: UnwrappedField, options?: ChildRefAnalysisOptions): boolean {
   if (field.refs.has('child-list')) {
     return true;
   }
-  for (const name of CHILD_LIST_DEF_NAMES) {
-    if (field.refDefNames.has(name)) {
+  const listNames = options?.childListRefNames ?? DEFAULT_CHILD_LIST_DEF_NAMES;
+  for (const name of listNames) {
+    if (field.refDefNames.has(name) || field.bareDefNames.has(name)) {
       return true;
     }
   }
   return false;
 }
 
-function hasNonChildRefMarker(field: UnwrappedField): boolean {
+function hasNonChildRefMarker(field: UnwrappedField, options?: ChildRefAnalysisOptions): boolean {
   if (field.refDefNames.size === 0) {
     return false;
   }
-  return !marksComponentId(field) && !marksChildList(field);
+  return !marksComponentId(field, options) && !marksChildList(field, options);
 }
 
-function canHoldSingleRef(field: UnwrappedField, visited = new Set<z.ZodTypeAny>()): boolean {
-  if (visited.has(field.schema)) {
-    return false;
+function canHoldSingleRef(
+  field: UnwrappedField,
+  visited = new Set<z.ZodTypeAny>(),
+  options?: ChildRefAnalysisOptions,
+): boolean {
+  for (const s of field.traversed) {
+    if (visited.has(s)) {
+      return false;
+    }
   }
-  visited.add(field.schema);
+  for (const s of field.traversed) {
+    visited.add(s);
+  }
 
-  if (marksComponentId(field)) {
+  if (marksComponentId(field, options)) {
     return true;
   }
-  if (marksChildList(field) || hasNonChildRefMarker(field)) {
+  if (marksChildList(field, options) || hasNonChildRefMarker(field, options)) {
     return false;
   }
 
@@ -451,14 +662,16 @@ function canHoldSingleRef(field: UnwrappedField, visited = new Set<z.ZodTypeAny>
     case 'ZodUnknown':
       return true;
     case 'ZodUnion': {
-      const options = field.schema._def.options as z.ZodTypeAny[];
-      return options.some(option => canHoldSingleRef(unwrap(option), new Set(visited)));
+      const unionOptions = field.schema._def.options as z.ZodTypeAny[];
+      return unionOptions.some(option =>
+        canHoldSingleRef(unwrap(option), new Set(visited), options),
+      );
     }
     case 'ZodIntersection': {
       const def = field.schema._def as {left: z.ZodTypeAny; right: z.ZodTypeAny};
       return (
-        canHoldSingleRef(unwrap(def.left), new Set(visited)) &&
-        canHoldSingleRef(unwrap(def.right), new Set(visited))
+        canHoldSingleRef(unwrap(def.left), new Set(visited), options) &&
+        canHoldSingleRef(unwrap(def.right), new Set(visited), options)
       );
     }
     default:
@@ -466,16 +679,24 @@ function canHoldSingleRef(field: UnwrappedField, visited = new Set<z.ZodTypeAny>
   }
 }
 
-function canHoldListRef(field: UnwrappedField, visited = new Set<z.ZodTypeAny>()): boolean {
-  if (visited.has(field.schema)) {
-    return false;
+function canHoldListRef(
+  field: UnwrappedField,
+  visited = new Set<z.ZodTypeAny>(),
+  options?: ChildRefAnalysisOptions,
+): boolean {
+  for (const s of field.traversed) {
+    if (visited.has(s)) {
+      return false;
+    }
   }
-  visited.add(field.schema);
+  for (const s of field.traversed) {
+    visited.add(s);
+  }
 
-  if (marksChildList(field) || isChildListUnion(field.schema)) {
+  if (marksChildList(field, options) || isChildListUnion(field.schema)) {
     return true;
   }
-  if (marksComponentId(field) || hasNonChildRefMarker(field)) {
+  if (marksComponentId(field, options) || hasNonChildRefMarker(field, options)) {
     return false;
   }
 
@@ -486,19 +707,53 @@ function canHoldListRef(field: UnwrappedField, visited = new Set<z.ZodTypeAny>()
       return true;
     case 'ZodArray': {
       const element = unwrap(field.schema._def.type as z.ZodTypeAny);
-      return canHoldSingleRef(element, new Set(visited)) || isTemplateRefObject(element.schema);
+      return (
+        canHoldSingleRef(element, new Set(visited), options) || isTemplateRefObject(element.schema)
+      );
     }
     case 'ZodObject':
       return isTemplateRefObject(field.schema);
     case 'ZodUnion': {
-      const options = field.schema._def.options as z.ZodTypeAny[];
-      return options.some(option => canHoldListRef(unwrap(option), new Set(visited)));
+      const unionOptions = field.schema._def.options as z.ZodTypeAny[];
+      return unionOptions.some(option => canHoldListRef(unwrap(option), new Set(visited), options));
     }
     case 'ZodIntersection': {
       const def = field.schema._def as {left: z.ZodTypeAny; right: z.ZodTypeAny};
       return (
-        canHoldListRef(unwrap(def.left), new Set(visited)) &&
-        canHoldListRef(unwrap(def.right), new Set(visited))
+        canHoldListRef(unwrap(def.left), new Set(visited), options) &&
+        canHoldListRef(unwrap(def.right), new Set(visited), options)
+      );
+    }
+    default:
+      return false;
+  }
+}
+
+function canHoldNestedRef(field: UnwrappedField, visited = new Set<z.ZodTypeAny>()): boolean {
+  for (const s of field.traversed) {
+    if (visited.has(s)) {
+      return false;
+    }
+  }
+  for (const s of field.traversed) {
+    visited.add(s);
+  }
+
+  const typeName = field.schema._def.typeName as string;
+  switch (typeName) {
+    case 'ZodAny':
+    case 'ZodUnknown':
+    case 'ZodArray':
+      return true;
+    case 'ZodUnion': {
+      const unionOptions = field.schema._def.options as z.ZodTypeAny[];
+      return unionOptions.some(option => canHoldNestedRef(unwrap(option), new Set(visited)));
+    }
+    case 'ZodIntersection': {
+      const def = field.schema._def as {left: z.ZodTypeAny; right: z.ZodTypeAny};
+      return (
+        canHoldNestedRef(unwrap(def.left), new Set(visited)) &&
+        canHoldNestedRef(unwrap(def.right), new Set(visited))
       );
     }
     default:
@@ -511,9 +766,13 @@ function isTemplateRefObject(schema: z.ZodTypeAny): boolean {
     return false;
   }
   const shape = (schema as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
-  return (
-    Object.hasOwn(shape, 'componentId') &&
-    (Object.hasOwn(shape, 'path') || Object.hasOwn(shape, '@path'))
+  return Boolean(
+    (Object.hasOwn(shape, 'componentId') &&
+      (Object.hasOwn(shape, 'path') ||
+        Object.hasOwn(shape, '@path') ||
+        Object.hasOwn(shape, 'dataBinding'))) ||
+    Object.hasOwn(shape, 'explicitList') ||
+    Object.hasOwn(shape, 'template'),
   );
 }
 

@@ -314,13 +314,17 @@ function ZodExterns() {}
 /** @type {?} */ ZodExterns.prototype.innerType;
 /** @type {?} */ ZodExterns.prototype.shape;
 // `_def` members that `@a2ui/web_core`'s `GenericBinder`, `NodeResolver`, and child-reference
-// analysis read through plain `_def` objects (`typeName`, `getter`, `unknownKeys`, `left`,
-// `right`) and the `markChildRef` stamp (`a2uiChildRef`). Zod creates those `_def` objects in
-// its own classes, so without externs ADVANCED mode renames each side differently and every
-// schema reads as `STATIC`: child references stay strings and bindings never resolve.
+// analysis read through plain `_def` objects (`typeName`, `getter`, `unknownKeys`, `catchall`,
+// `valueType`, `out`, `left`, `right`) and the `markChildRef` stamp (`a2uiChildRef`). Zod creates
+// those `_def` objects in its own classes, so without externs ADVANCED mode renames each side
+// differently and every schema reads as `STATIC`: child references stay strings and bindings never
+// resolve.
 /** @type {?} */ ZodExterns.prototype.typeName;
 /** @type {?} */ ZodExterns.prototype.getter;
 /** @type {?} */ ZodExterns.prototype.unknownKeys;
+/** @type {?} */ ZodExterns.prototype.catchall;
+/** @type {?} */ ZodExterns.prototype.valueType;
+/** @type {?} */ ZodExterns.prototype.out;
 /** @type {?} */ ZodExterns.prototype.left;
 /** @type {?} */ ZodExterns.prototype.right;
 /** @type {?} */ ZodExterns.prototype.a2uiChildRef;
