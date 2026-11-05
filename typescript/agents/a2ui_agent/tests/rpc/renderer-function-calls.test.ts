@@ -78,7 +78,8 @@ describe('RendererFunctionCalls', () => {
     await expect(result).resolves.toBe('en-US');
     expect(calls.pendingCount).toBe(0);
 
-    // Explicit null error alongside value resolves value.
+    // An explicit null error alongside a value is malformed, as the
+    // processor's schema has it, so the call fails instead of resolving.
     const [, nullErrResult] = calls.call<string>({
       catalogId: 'cat',
       name: 'getLocale',
@@ -92,7 +93,7 @@ describe('RendererFunctionCalls', () => {
         error: null,
       } as never,
     });
-    await expect(nullErrResult).resolves.toBe('fr-FR');
+    await expect(nullErrResult).rejects.toMatchObject({code: RpcErrorCode.UNKNOWN_ERROR});
   });
 
   test('validates call arguments, identifiers, duplicate IDs, and maxPending', () => {
@@ -250,6 +251,18 @@ describe('RendererFunctionCalls', () => {
           error: {code: '', message: 'm'},
         },
       },
+      {version: '1.0', rendererFunctionResponse: {functionCallId: 'c1', error: null}},
+      {
+        version: '1.0',
+        rendererFunctionResponse: {functionCallId: 'c1', value: 'en', error: null},
+      },
+      {
+        version: '1.0',
+        rendererFunctionResponse: {functionCallId: 'c1', value: 'en', extra: 1},
+      },
+      {version: '1.1', rendererFunctionResponse: {functionCallId: 'c1', value: 'en'}},
+      {version: 'v1.0', rendererFunctionResponse: {functionCallId: 'c1', value: 'en'}},
+      {rendererFunctionResponse: {functionCallId: 'c1', value: 'en'}},
     ];
 
     vi.useFakeTimers();
@@ -323,6 +336,50 @@ describe('RendererFunctionCalls', () => {
     expect(() => calls.call({catalogId: 'cat', name: 'fn'})).toThrowError(
       expect.objectContaining({code: RpcErrorCode.DISPOSED}),
     );
+  });
+
+  test('settles a call with a null value', async () => {
+    const calls = new RendererFunctionCalls();
+    const [, result] = calls.call({catalogId: 'cat', name: 'getLocale', functionCallId: 'c1'});
+
+    expect(
+      calls.resolve({
+        version: '1.0',
+        rendererFunctionResponse: {functionCallId: 'c1', value: null},
+      }),
+    ).toBe(true);
+
+    await expect(result).resolves.toBeNull();
+  });
+
+  test('a response after dispose settles nothing', async () => {
+    const calls = new RendererFunctionCalls();
+    const [, result] = calls.call({catalogId: 'cat', name: 'getLocale', functionCallId: 'c1'});
+    let settledWith: unknown = 'unsettled';
+    result.then(
+      value => {
+        settledWith = {value};
+      },
+      (err: unknown) => {
+        settledWith = err;
+      },
+    );
+
+    calls.dispose();
+    for (const late of [
+      {version: '1.0', rendererFunctionResponse: {functionCallId: 'c1', value: 'en'}},
+      {version: '1.0', rendererFunctionResponse: {functionCallId: 'c1', error: null}},
+    ]) {
+      expect(calls.resolve(late as never)).toBe(false);
+    }
+
+    expect(calls.isPending('c1')).toBe(false);
+    expect(calls.pendingCount).toBe(0);
+    await expect(result).rejects.toMatchObject({
+      code: RpcErrorCode.CANCELLED,
+      functionCallId: 'c1',
+    });
+    expect(settledWith).toBeInstanceOf(A2uiRpcError);
   });
 
   test('plugs into RendererToAgentMessageProcessor as onRendererFunctionResponse', async () => {

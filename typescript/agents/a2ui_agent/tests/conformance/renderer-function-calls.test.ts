@@ -67,7 +67,7 @@ interface CallStepSpec {
     version: string;
     callRendererFunction: Record<string, unknown>;
   };
-  expect_error?: {code: string; message?: string};
+  expect_error?: Record<string, unknown>;
   expect_pending_count?: number;
   expect_calls?: Record<
     string,
@@ -104,6 +104,41 @@ function buildCatalog(spec: CatalogSpec): CatalogApi {
   return new Catalog(spec.catalogId, '1.0', [], functions);
 }
 
+/**
+ * Checks that an `expect_error` names only `allowed` keys and gives each
+ * `required` one as a non-empty string, so a misspelled or empty expectation
+ * fails instead of passing on any error.
+ */
+function checkExpectErrorShape(
+  expectError: unknown,
+  allowed: ReadonlySet<string>,
+  required: string,
+): Record<string, unknown> {
+  expect(expectError, 'expect_error must be an object').toBeTypeOf('object');
+  expect(expectError).not.toBeNull();
+  expect(Array.isArray(expectError), 'expect_error must be an object').toBe(false);
+  const spec = expectError as Record<string, unknown>;
+  const unknownKeys = Object.keys(spec).filter(key => !allowed.has(key));
+  expect(unknownKeys, 'Unhandled expect_error keys').toEqual([]);
+  expect(typeof spec[required], `expect_error.${required} must be a string`).toBe('string');
+  expect((spec[required] as string).length).toBeGreaterThan(0);
+  for (const key of allowed) {
+    if (key !== required && spec[key] !== undefined) {
+      expect(typeof spec[key], `expect_error.${key} must be a string`).toBe('string');
+    }
+  }
+  return spec;
+}
+
+/** The keys of a case's `RendererCallsBuildError`. */
+const CASE_EXPECT_ERROR_KEYS = new Set(['category', 'message']);
+
+/** The categories a `RendererCallsBuildError` may name. */
+const CASE_EXPECT_ERROR_CATEGORIES = new Set(['CatalogError']);
+
+/** The keys of a `call` step's `RendererCallError`. */
+const STEP_EXPECT_ERROR_KEYS = new Set(['code', 'message']);
+
 async function runCallRendererFunction(testCase: LoadedCase): Promise<void> {
   vi.useFakeTimers();
   const args = (testCase.args ?? {}) as {
@@ -118,8 +153,24 @@ async function runCallRendererFunction(testCase: LoadedCase): Promise<void> {
       catalogs: args.catalogs?.map(buildCatalog),
     });
 
-  if (testCase.expect_error) {
-    expect(build).toThrow(errorClassFor(testCase));
+  if (testCase.expect_error !== undefined) {
+    const expectError = checkExpectErrorShape(
+      testCase.expect_error,
+      CASE_EXPECT_ERROR_KEYS,
+      'category',
+    );
+    expect(CASE_EXPECT_ERROR_CATEGORIES.has(expectError['category'] as string)).toBe(true);
+    let caught: unknown;
+    try {
+      build();
+    } catch (err: unknown) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(errorClassFor(testCase));
+    if (expectError['message'] !== undefined) {
+      // A literal substring, not a pattern.
+      expect((caught as Error).message).toContain(expectError['message'] as string);
+    }
     return;
   }
 
@@ -145,6 +196,11 @@ async function runCallRendererFunction(testCase: LoadedCase): Promise<void> {
         });
 
       if (step.expect_error !== undefined) {
+        const expectError = checkExpectErrorShape(
+          step.expect_error,
+          STEP_EXPECT_ERROR_KEYS,
+          'code',
+        );
         let caught: unknown;
         try {
           doCall();
@@ -152,9 +208,10 @@ async function runCallRendererFunction(testCase: LoadedCase): Promise<void> {
           caught = err;
         }
         expect(caught).toBeInstanceOf(A2uiRpcError);
-        expect((caught as A2uiRpcError).code).toBe(step.expect_error.code);
-        if (step.expect_error.message !== undefined) {
-          expect((caught as A2uiRpcError).message).toContain(step.expect_error.message);
+        expect((caught as A2uiRpcError).code).toBe(expectError['code']);
+        if (expectError['message'] !== undefined) {
+          // A literal substring, not a pattern.
+          expect((caught as A2uiRpcError).message).toContain(expectError['message'] as string);
         }
       } else {
         const [message, result] = doCall();

@@ -626,12 +626,13 @@ function parseRendererFunctionResponse(message: unknown): ParsedResponse | undef
     return undefined;
   }
 
-  const hasValueProp = Object.hasOwn(rawBody, 'value');
-  const hasErrorProp =
-    Object.hasOwn(rawBody, 'error') && rawBody['error'] !== undefined && rawBody['error'] !== null;
+  // A body has exactly one of `value` and `error`, as the processor's schema
+  // requires; `error: null` is a malformed error, not a missing one.
+  const hasValueProp = Object.hasOwn(rawBody, 'value') && rawBody['value'] !== undefined;
+  const hasErrorProp = Object.hasOwn(rawBody, 'error') && rawBody['error'] !== undefined;
 
   if (hasErrorProp) {
-    if (hasValueProp && rawBody['value'] !== undefined) {
+    if (hasValueProp) {
       return undefined;
     }
     const rawError = rawBody['error'];
