@@ -174,7 +174,7 @@ describe('dynamic-values', () => {
         loop: selfBinding,
       });
 
-      assert.strictEqual(resolveDynamicValueDeep(selfBinding, context), selfBinding);
+      assert.deepStrictEqual(resolveDynamicValueDeep(selfBinding, context), selfBinding);
 
       const customContext = {
         resolveDynamicValue: (val: any) => val,

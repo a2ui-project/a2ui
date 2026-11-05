@@ -1,0 +1,578 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import {Code} from '@astrojs/starlight/components';
+
+import {loadVersionSchemas} from '../../lib/spec-schemas.mjs';
+
+interface Props {
+  version: 'v1.0' | 'v0.9.1' | 'v0.8';
+  alias?: string;
+}
+
+const {version, alias} = Astro.props;
+const allSchemas = loadVersionSchemas(version);
+const schemas = alias
+  ? allSchemas.filter(s => s.alias === alias)
+  : allSchemas.filter(s => !s.guideRoute);
+
+if (alias && schemas.length === 0) {
+  throw new Error(`Unknown schema alias "${alias}" for specification version "${version}".`);
+}
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const githubBlobBase = 'https://github.com/a2ui-project/a2ui/blob/main';
+---
+
+{
+  schemas.map(schema => {
+    const totalDefs = schema.jumpGroups.reduce((acc, group) => acc + group.items.length, 0);
+    return (
+      <section
+        id={alias ? undefined : schema.alias}
+        class="a2-se-section not-content"
+        data-schema-panel={schema.alias}
+        data-version={version}
+      >
+        {!alias && (
+          <h2 class="a2-se-standalone-heading">
+            <code>{schema.alias}</code>
+          </h2>
+        )}
+
+        {(schema.title || schema.description) && (
+          <p class="a2-se-desc">
+            {schema.title && <strong>{schema.title}</strong>}
+            {schema.title && schema.description && ' — '}
+            {schema.description}
+          </p>
+        )}
+
+        <div class="a2-se-meta">
+          <span>
+            Source:{' '}
+            <a
+              href={`${githubBlobBase}/${schema.sourcePath}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <code>{schema.sourcePath}</code> ↗
+            </a>
+          </span>
+          <span class="a2-se-sep" aria-hidden="true">
+            ·
+          </span>
+          <a href={`${base}${schema.rawPublicPath}`} target="_blank" rel="noopener noreferrer">
+            Raw JSON ↗
+          </a>
+          <span class="a2-se-sep" aria-hidden="true">
+            ·
+          </span>
+          <a href={`#${schema.alias}`}>Permalink</a>
+          {schema.schemaId && (
+            <>
+              <span class="a2-se-sep" aria-hidden="true">
+                ·
+              </span>
+              <span class="a2-se-id">
+                <code>$id</code>: <code>{schema.schemaId}</code>
+                <button
+                  type="button"
+                  class="a2-se-copy-id-btn"
+                  data-copy-id={schema.schemaId}
+                  title="Copy $id URI to clipboard"
+                >
+                  <span class="copy-label">Copy $id</span>
+                  <span class="copied-label" hidden>Copied!</span>
+                </button>
+              </span>
+            </>
+          )}
+        </div>
+
+        {totalDefs > 0 && (
+          <details class="a2-se-defs">
+            <summary>Definitions &amp; properties ({totalDefs})</summary>
+            <div class="a2-se-defs__body">
+              {schema.jumpGroups.map(group => (
+                <div class="a2-se-defs__group">
+                  <span class="a2-se-defs__label">{group.label}:</span>{' '}
+                  {group.items.map((item, idx) => (
+                    <>
+                      {idx > 0 && ', '}
+                      <a
+                        href={`#${schema.alias}/${item.pointer}`}
+                        data-pointer-link={`${schema.alias}/${item.pointer}`}
+                      >
+                        <code>{item.name}</code>
+                      </a>
+                    </>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+
+        <div class="a2-se-pointer-bar" data-pointer-banner hidden>
+          <div class="a2-se-pointer-bar__text" data-pointer-banner-text />
+          <button type="button" class="a2-se-clear-btn" data-clear-pointer={schema.alias}>
+            Clear highlight
+          </button>
+        </div>
+
+        <div class="a2-schema-viewer" data-pointers={JSON.stringify(schema.pointers)}>
+          <Code code={schema.rawText} lang="json" title={schema.alias} />
+        </div>
+      </section>
+    );
+  })
+}
+
+<script>
+  function initSchemaSections() {
+    const panels = Array.from(document.querySelectorAll<HTMLElement>('[data-schema-panel]'));
+    if (!panels.length) return;
+
+    const panelByAlias = new Map<string, HTMLElement>();
+    const pointersByAlias = new Map<string, Record<string, [number, number]>>();
+
+    for (const panel of panels) {
+      const alias = panel.getAttribute('data-schema-panel');
+      if (!alias) continue;
+      panelByAlias.set(alias, panel);
+      const viewer = panel.querySelector('.a2-schema-viewer');
+      if (viewer) {
+        try {
+          pointersByAlias.set(alias, JSON.parse(viewer.getAttribute('data-pointers') || '{}'));
+        } catch {
+          pointersByAlias.set(alias, {});
+        }
+      }
+    }
+
+    function clearHighlights(panel: HTMLElement) {
+      const highlighted = panel.querySelectorAll('.ec-line.is-highlighted');
+      highlighted.forEach(el => {
+        el.classList.remove('is-highlighted', 'is-highlight-first', 'is-highlight-last');
+      });
+      const banner = panel.querySelector<HTMLElement>('[data-pointer-banner]');
+      if (banner) banner.hidden = true;
+    }
+
+    function clearAllHighlights() {
+      panelByAlias.forEach(clearHighlights);
+    }
+
+    function parseHash(rawHash: string) {
+      const trimmed = (rawHash || '').replace(/^#/, '').trim();
+      if (!trimmed) return null;
+      const normalized = trimmed.replace(/\.json#\/?/, '.json/');
+      const slashIdx = normalized.indexOf('/');
+      if (slashIdx === -1) {
+        return {alias: decodeURIComponent(normalized), pointer: ''};
+      }
+      const alias = decodeURIComponent(normalized.slice(0, slashIdx));
+      const pointer = normalized.slice(slashIdx + 1).replace(/^\/+/, '');
+      return {alias, pointer};
+    }
+
+    function applyHashTarget(options: {isInitial?: boolean} = {}) {
+      const {isInitial = false} = options;
+      const parsed = parseHash(window.location.hash);
+      if (!parsed || !panelByAlias.has(parsed.alias)) {
+        if (!isInitial) clearAllHighlights();
+        return;
+      }
+
+      clearAllHighlights();
+      const panel = panelByAlias.get(parsed.alias)!;
+      const headingEl = document.getElementById(parsed.alias);
+
+      if (!parsed.pointer) {
+        if (!isInitial) {
+          const target = headingEl || panel;
+          requestAnimationFrame(() => {
+            const top = Math.max(0, target.getBoundingClientRect().top + window.scrollY - 84);
+            window.scrollTo({top, behavior: 'smooth'});
+          });
+        }
+        return;
+      }
+
+      const pointerMap = pointersByAlias.get(parsed.alias) || {};
+      const range =
+        pointerMap[parsed.pointer] || pointerMap[decodeURIComponent(parsed.pointer)] || null;
+      const banner = panel.querySelector<HTMLElement>('[data-pointer-banner]');
+      const bannerText = panel.querySelector<HTMLElement>('[data-pointer-banner-text]');
+
+      let scrollTarget: Element = headingEl || panel;
+
+      if (range) {
+        const [startLine, endLine] = range;
+        const lines = panel.querySelectorAll('.a2-schema-viewer .ec-line');
+        for (let i = startLine - 1; i <= endLine - 1 && i < lines.length; i++) {
+          if (i < 0) continue;
+          lines[i].classList.add('is-highlighted');
+          if (i === startLine - 1) lines[i].classList.add('is-highlight-first');
+          if (i === endLine - 1) lines[i].classList.add('is-highlight-last');
+        }
+        scrollTarget = lines[startLine - 1] || scrollTarget;
+        if (banner && bannerText) {
+          banner.hidden = false;
+          banner.classList.remove('is-warning');
+          bannerText.textContent =
+            startLine === endLine
+              ? `Highlighting #${parsed.alias}/${parsed.pointer} (line ${startLine})`
+              : `Highlighting #${parsed.alias}/${parsed.pointer} (lines ${startLine}–${endLine})`;
+        }
+      } else if (banner && bannerText) {
+        banner.hidden = false;
+        banner.classList.add('is-warning');
+        bannerText.textContent = `Pointer "/${parsed.pointer}" was not found in ${parsed.alias}; showing full schema.`;
+      }
+
+      requestAnimationFrame(() => {
+        const rect = scrollTarget.getBoundingClientRect();
+        const headerOffset = range ? Math.max(96, Math.round(window.innerHeight * 0.25)) : 84;
+        const top = Math.max(0, rect.top + window.scrollY - headerOffset);
+        window.scrollTo({
+          top,
+          behavior: isInitial ? 'auto' : 'smooth',
+        });
+      });
+    }
+
+    document.querySelectorAll<HTMLButtonElement>('[data-clear-pointer]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const alias = btn.getAttribute('data-clear-pointer');
+        if (!alias) return;
+        const panel = panelByAlias.get(alias);
+        if (panel) clearHighlights(panel);
+        history.replaceState(null, '', `#${alias}`);
+      });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('[data-copy-id]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-copy-id');
+        if (!id) return;
+        try {
+          await navigator.clipboard.writeText(id);
+          const copyLabel = btn.querySelector<HTMLElement>('.copy-label');
+          const copiedLabel = btn.querySelector<HTMLElement>('.copied-label');
+          if (copyLabel && copiedLabel) {
+            copyLabel.hidden = true;
+            copiedLabel.hidden = false;
+            setTimeout(() => {
+              copyLabel.hidden = false;
+              copiedLabel.hidden = true;
+            }, 1800);
+          }
+        } catch (_) {}
+      });
+    });
+
+    document.querySelectorAll<HTMLAnchorElement>('[data-pointer-link]').forEach(link => {
+      link.addEventListener('click', () => {
+        const targetHash = link.getAttribute('href') || '';
+        if (window.location.hash === targetHash) {
+          applyHashTarget({isInitial: false});
+        }
+      });
+    });
+
+    window.addEventListener('hashchange', () => applyHashTarget({isInitial: false}));
+    applyHashTarget({isInitial: true});
+  }
+
+  initSchemaSections();
+</script>
+
+<style>
+  .a2-se-section {
+    margin: 0.75rem 0 2.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    min-width: 0;
+    max-width: 100%;
+    scroll-margin-top: 5rem;
+  }
+
+  .a2-se-standalone-heading {
+    margin: 1.5rem 0 0.25rem;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--sl-color-white);
+  }
+
+  .a2-se-desc {
+    margin: 0;
+    font-size: 0.92rem;
+    line-height: 1.6;
+    color: var(--sl-color-gray-2);
+  }
+
+  :root[data-theme='light'] .a2-se-desc {
+    color: #334155;
+  }
+
+  .a2-se-desc strong {
+    color: var(--sl-color-white);
+    font-weight: 600;
+  }
+
+  :root[data-theme='light'] .a2-se-desc strong {
+    color: #0f172a;
+  }
+
+  .a2-se-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem 0.5rem;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: var(--sl-color-gray-3);
+  }
+
+  :root[data-theme='light'] .a2-se-meta {
+    color: #475569;
+  }
+
+  .a2-se-meta a {
+    color: var(--sl-color-text-accent);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+  }
+
+  .a2-se-meta a:hover {
+    text-decoration: underline;
+  }
+
+  .a2-se-meta code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.78rem;
+  }
+
+  .a2-se-sep {
+    color: var(--sl-color-gray-4);
+    user-select: none;
+  }
+
+  .a2-se-id {
+    overflow-wrap: anywhere;
+  }
+
+  .a2-se-copy-id-btn {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1rem 0.4rem;
+    margin-inline-start: 0.4rem;
+    font-family: var(--sl-font);
+    font-size: 0.72rem;
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--sl-color-text-accent);
+    background: rgba(20, 184, 166, 0.08);
+    border: 1px solid rgba(20, 184, 166, 0.28);
+    border-radius: 4px;
+    cursor: pointer;
+    vertical-align: middle;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+
+  .a2-se-copy-id-btn:hover {
+    background: rgba(20, 184, 166, 0.18);
+    border-color: var(--sl-color-accent);
+  }
+
+  :root[data-theme='light'] .a2-se-copy-id-btn {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #0f766e;
+  }
+
+  :root[data-theme='light'] .a2-se-copy-id-btn:hover {
+    background: #e2e8f0;
+    border-color: #0d9488;
+  }
+
+  .a2-se-defs {
+    font-size: 0.83rem;
+    line-height: 1.55;
+    border-left: 2px solid var(--sl-color-hairline);
+    padding-left: 0.75rem;
+    color: var(--sl-color-gray-2);
+  }
+
+  :root[data-theme='light'] .a2-se-defs {
+    color: #334155;
+  }
+
+  .a2-se-defs summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--sl-color-gray-2);
+    user-select: none;
+  }
+
+  :root[data-theme='light'] .a2-se-defs summary {
+    color: #334155;
+  }
+
+  .a2-se-defs summary:hover {
+    color: var(--sl-color-text-accent);
+  }
+
+  .a2-se-defs__body {
+    margin-top: 0.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .a2-se-defs__group {
+    overflow-wrap: anywhere;
+  }
+
+  .a2-se-defs__label {
+    font-weight: 600;
+    color: var(--sl-color-white);
+  }
+
+  :root[data-theme='light'] .a2-se-defs__label {
+    color: #0f172a;
+  }
+
+  .a2-se-defs a {
+    color: var(--sl-color-text-accent);
+    text-decoration: none;
+  }
+
+  .a2-se-defs a:hover {
+    text-decoration: underline;
+  }
+
+  .a2-se-defs code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.78rem;
+  }
+
+  .a2-se-pointer-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.45rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid rgba(20, 184, 166, 0.35);
+    background: rgba(20, 184, 166, 0.1);
+    font-family: var(--sl-font-mono);
+    font-size: 0.78rem;
+    color: var(--sl-color-text-accent);
+  }
+
+  :root[data-theme='light'] .a2-se-pointer-bar {
+    color: #0f766e;
+  }
+
+  .a2-se-pointer-bar[hidden] {
+    display: none !important;
+  }
+
+  .a2-se-pointer-bar.is-warning {
+    border-color: rgba(245, 158, 11, 0.4);
+    background: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+  }
+
+  :root[data-theme='light'] .a2-se-pointer-bar.is-warning {
+    color: #b45309;
+  }
+
+  .a2-se-pointer-bar__text {
+    overflow-wrap: anywhere;
+  }
+
+  .a2-se-clear-btn {
+    appearance: none;
+    font-family: var(--sl-font);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.25rem 0.55rem;
+    border-radius: 5px;
+    border: 1px solid rgba(20, 184, 166, 0.45);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .a2-se-clear-btn:hover {
+    background: rgba(20, 184, 166, 0.16);
+  }
+
+  /* Expressive Code line numbering & permalink range highlighting */
+  .a2-schema-viewer {
+    min-width: 0;
+    max-width: 100%;
+    counter-reset: a2-schema-line;
+  }
+
+  .a2-schema-viewer :global(.expressive-code .ec-line) {
+    scroll-margin-top: 6.5rem;
+  }
+
+  .a2-schema-viewer :global(.expressive-code .ec-line::before) {
+    grid-area: gutter;
+    counter-increment: a2-schema-line;
+    content: counter(a2-schema-line);
+    display: inline-block;
+    min-width: 3.1rem;
+    padding: 0 0.65rem 0 0.75rem;
+    text-align: right;
+    color: rgba(148, 163, 184, 0.55);
+    user-select: none;
+    font-family: var(--sl-font-mono);
+    font-size: var(--ec-codeFontSize, 0.85rem);
+    line-height: var(--ec-codeLineHt, 1.65);
+    font-variant-numeric: tabular-nums;
+    border-inline-end: 1px solid rgba(148, 163, 184, 0.14);
+  }
+
+  :root[data-theme='light'] .a2-schema-viewer :global(.expressive-code .ec-line::before) {
+    color: rgba(100, 116, 139, 0.7);
+    border-inline-end-color: rgba(100, 116, 139, 0.18);
+  }
+
+  .a2-schema-viewer :global(.expressive-code .ec-line.is-highlighted) {
+    background: rgba(20, 184, 166, 0.16) !important;
+    box-shadow: inset 3px 0 0 var(--sl-color-accent);
+  }
+
+  :root[data-theme='light'] .a2-schema-viewer :global(.expressive-code .ec-line.is-highlighted) {
+    background: rgba(13, 148, 136, 0.13) !important;
+  }
+
+  .a2-schema-viewer :global(.expressive-code .ec-line.is-highlighted::before) {
+    color: var(--sl-color-text-accent);
+    font-weight: 700;
+  }
+</style>
