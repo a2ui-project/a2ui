@@ -1036,7 +1036,7 @@ class PayloadValidator:
         fn_schema: dict[str, Any],
         defs: dict[str, Any],
     ) -> dict[str, Any] | None:
-        """Derives the parameter sub-schema from standard or legacy function definitions."""
+        """Derives the parameter sub-schema from pre-1.0 (`parameters`) or document (`properties.args`) function definitions."""
         if "parameters" in fn_schema and isinstance(fn_schema["parameters"], dict):
             schema: dict[str, Any] = {
                 "$schema": JSON_SCHEMA_DRAFT_2020_12,

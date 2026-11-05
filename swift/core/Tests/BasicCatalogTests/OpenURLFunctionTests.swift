@@ -98,14 +98,14 @@ struct OpenURLFunctionTests {
     ]
     #expect(v10TextField.schema.validate(validTextField).isValid)
 
-    let legacyRegexTextField: OrderedJSON.JSONValue = [
+    let v09RegexTextField: OrderedJSON.JSONValue = [
       "id": "tf1",
       "component": "TextField",
       "label": "Name",
       "value": ["@path": "/name"],
       "validationRegexp": ".*",
     ]
-    #expect(!v10TextField.schema.validate(legacyRegexTextField).isValid)
+    #expect(!v10TextField.schema.validate(v09RegexTextField).isValid)
 
     // 3. Icon: v1.0 allows DynamicString (e.g. DataBinding) for `svgPath`, while v0.9 requires literal string
     let v09Icon = try #require(v09.components["Icon"])

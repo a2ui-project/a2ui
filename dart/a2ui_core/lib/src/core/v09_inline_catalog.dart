@@ -16,25 +16,25 @@ import 'dart:convert';
 
 import '../validation/common_types.g.dart';
 
-/// The envelope each legacy (below v1.0) inline component is wrapped in.
+/// The envelope each v0.9 (below v1.0) inline component is wrapped in.
 ///
 /// Below v1.0 a catalog component carries its own envelope, so every inline
 /// component is `allOf: [{$ref: <envelope>}, <body>]`. From v1.0 the message
 /// schema composes the envelope, and catalog components must not.
-const String _legacyComponentEnvelopeRef =
+const String _v09ComponentEnvelopeRef =
     r'common_types.json#/$defs/ComponentCommon';
 
-/// The legacy (below v1.0) inline catalog derived from the catalog
+/// The v0.9 (below v1.0) inline catalog derived from the catalog
 /// [document], a catalog's `validationSchema`.
-Map<String, Object?> legacyInlineCatalog(Map<String, Object?> document) {
-  final refs = _LegacyRefs(document);
+Map<String, Object?> v09InlineCatalog(Map<String, Object?> document) {
+  final refs = _V09Refs(document);
   final components = <String, Object?>{
     if (document['components'] case final Map<String, Object?> serialized)
       for (final MapEntry<String, Object?> entry in serialized.entries)
         entry.key: <String, Object?>{
           'allOf': <Object?>[
-            <String, Object?>{r'$ref': _legacyComponentEnvelopeRef},
-            _legacyComponentBody(
+            <String, Object?>{r'$ref': _v09ComponentEnvelopeRef},
+            _v09ComponentBody(
               entry.key,
               entry.value! as Map<String, Object?>,
               refs,
@@ -45,7 +45,7 @@ Map<String, Object?> legacyInlineCatalog(Map<String, Object?> document) {
   final functions = <Object?>[
     if (document['functions'] case final Map<String, Object?> serialized)
       for (final MapEntry<String, Object?> entry in serialized.entries)
-        _legacyFunction(entry.key, entry.value! as Map<String, Object?>, refs),
+        _v09Function(entry.key, entry.value! as Map<String, Object?>, refs),
   ];
   final Object? theme = switch (document[r'$defs']) {
     {'theme': {'properties': final Map<String, Object?> properties}} =>
@@ -60,18 +60,18 @@ Map<String, Object?> legacyInlineCatalog(Map<String, Object?> document) {
   };
 }
 
-/// The second `allOf` member of a legacy component: the serialized
+/// The second `allOf` member of a v0.9 component: the serialized
 /// [component]'s properties and required list, led by the `component`
 /// discriminator.
 ///
-/// The document form declares `id` and `component` itself; the legacy shape
+/// The document form declares `id` and `component` itself; the v0.9 shape
 /// leaves `id` to the envelope and keeps only the discriminator. `type` and
 /// the `unevaluatedProperties`/`additionalProperties` keywords are dropped,
-/// as the legacy shape never carried them.
-Map<String, Object?> _legacyComponentBody(
+/// as the v0.9 shape never carried them.
+Map<String, Object?> _v09ComponentBody(
   String name,
   Map<String, Object?> component,
-  _LegacyRefs refs,
+  _V09Refs refs,
 ) {
   final Map<String, Object?> properties =
       (component['properties'] as Map<String, Object?>?) ?? const {};
@@ -92,12 +92,12 @@ Map<String, Object?> _legacyComponentBody(
   };
 }
 
-/// A legacy function definition from the serialized [function], whose
+/// A v0.9 function definition from the serialized [function], whose
 /// `properties` hold the call key and `args`, and `returnType` below v1.0.
-Map<String, Object?> _legacyFunction(
+Map<String, Object?> _v09Function(
   String name,
   Map<String, Object?> function,
-  _LegacyRefs refs,
+  _V09Refs refs,
 ) {
   final Map<String, Object?> properties =
       (function['properties'] as Map<String, Object?>?) ?? const {};
@@ -115,7 +115,7 @@ Map<String, Object?> _legacyFunction(
   };
 }
 
-/// Rewrites the local `#/...` references of a catalog document for the legacy
+/// Rewrites the local `#/...` references of a catalog document for the v0.9
 /// inline shape, which has no `$defs` to point into.
 ///
 /// A reference to one of the bundled common types becomes the relative
@@ -123,8 +123,8 @@ Map<String, Object?> _legacyFunction(
 /// reference is inlined when it resolves within the document, and dropped
 /// (its annotations kept) when it does not, so the agent never receives a
 /// pointer it cannot follow.
-class _LegacyRefs {
-  _LegacyRefs(this.document);
+class _V09Refs {
+  _V09Refs(this.document);
 
   final Map<String, Object?> document;
 
