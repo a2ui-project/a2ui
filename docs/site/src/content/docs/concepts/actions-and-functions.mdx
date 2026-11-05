@@ -1,41 +1,43 @@
 ---
-title: 'Actions and Functions'
-description: 'How component actions send events to the agent or call functions, and where else A2UI functions run: property bindings, validation checks, and agent requests.'
+title: 'Actions, Events and Functions'
+description: 'How component actions send events to the agent or trigger functions, and how A2UI functions work across actions, property bindings, validation checks, and agent requests.'
 ---
 
-import {Tabs, TabItem, Aside} from '@astrojs/starlight/components';
-import ActionFunctionBranches from '@components/docs/actions/ActionFunctionBranches.astro';
+import {Aside, Tabs, TabItem} from '@astrojs/starlight/components';
 
-An action decides what happens when a user interacts with a component, and a function is a typed operation, defined in a [catalog](../catalogs/), that computes a value, validates input, or performs a client side effect. An action either sends an event to the agent or calls a function. Functions are also used outside actions: to compute component properties, to validate input, and (in v1.0) when the agent asks the renderer to run one.
+An action defines what happens when a user interacts with a component by triggering either an [event](#events) or a [function](#functions). Events are typically used when you want to prompt the agent to do something and respond with UI updates, while functions are typically used when you want to trigger specific logic on the renderer or agent. Functions can also run outside user actions, such as in property bindings, validation checks, and agent requests.
 
-## Actions, events, and functions
+## Actions
 
-The diagram below starts with a user gesture on a component's `action` property, such as a click on a `Button`. The action has exactly one of two branches. The event branch (`action.event`) resolves its `context` and `userMessage` values from the data model, sends an `action` message to the agent, and the agent responds by streaming UI updates. The function branch (`action.functionCall`) looks up the function name in the renderer's catalog: a registered function runs on the renderer, and in v1.0 an unregistered name is sent to the agent as a `callAgentFunction` request. The lower row shows the three places where functions run without a user gesture: property bindings, validation checks, and `callRendererFunction` requests from the agent.
+An **action** is an interaction handler property on an interactive UI component, such as `Button.action` on [`Button`](/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json/components/Button), that runs when a user interacts with that component (for example, clicking or tapping a button). It lets a user gesture trigger either an [event](#events) or a [function](#functions).
 
-<ActionFunctionBranches />
+Defined by [`Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action) in `common_types.json`, an `action` object is a `oneOf` union with two mutually exclusive branches:
 
-The three terms have distinct meanings:
+1. `event` prompts the agent to do something by sending an outbound [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message so the agent can process the interaction and stream UI updates back.
+2. `functionCall` invokes a named catalog [`FunctionCall`](/specification/v1.0/schemas/#common_types.json/$defs/FunctionCall) (`{"@call": "...", "args": {...}}`) directly on the renderer or routes it to the agent via [`callAgentFunction`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/callAgentFunction) without starting an agent turn.
 
-1. An **action** is a property on an interactive component, such as `Button.action`. It is configuration, not a message. Its schema is [`Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action).
-2. An **event** is what an action sends to the agent when it uses the `event` branch. It arrives as an `action` message and lets the agent take its next turn.
-3. A **function** is a named, typed operation with an `args` object. Components call functions from actions, property bindings, and validation checks.
+| Aspect       | Event (`action.event`)                      | Function (`action.functionCall`)                        |
+| :----------- | :------------------------------------------ | :------------------------------------------------------ |
+| Purpose      | Prompts the agent to do something           | Triggers specific logic on the renderer or agent        |
+| Triggered by | A user gesture on a component action        | Actions, property bindings, validation checks, or agent |
+| Runs on      | The agent, after an `action` message        | The renderer, or the agent via `callAgentFunction`      |
+| Result       | The agent decides next steps and updates UI | A typed return value, or nothing for local side effects |
 
-| Aspect       | Event (`action.event`)               | Function (`@call` in v1.0, `call` in v0.9.1)                    |
-| :----------- | :----------------------------------- | :-------------------------------------------------------------- |
-| Purpose      | Tells the agent what the user did    | Computes a value, validates input, or performs a side effect    |
-| Triggered by | A user gesture on a component action | Actions, property bindings, validation checks, or the agent     |
-| Runs on      | The agent, after an `action` message | The renderer, or the agent through `callAgentFunction` (v1.0)   |
-| Result       | The agent streams UI updates         | A typed return value, or nothing for side effects such as links |
+Events are typically used when you want to prompt the agent to do something in response to user input, such as confirming an order or booking a flight, so the agent can decide what happens next and update the UI. Functions are typically used when you want to trigger specific logic on the renderer or agent, such as opening a link with [`openUrl`](/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json/functions/openUrl) or running a backend calculation without starting a full agent turn.
 
-Use `action.event` when the interaction needs the agent to decide what happens next, for example "Book flight" or "Confirm order". Use `action.functionCall` when the renderer can handle the interaction without an agent turn, for example opening a help link with `openUrl`.
+<Aside type="note" title="Differences in v0.9.1">
+
+In v0.9.1 ([`Action`](/specification/v0.9.1/schemas/#common_types.json/$defs/Action)), `action.event` does not support `userMessage`, and `action.functionCall` uses `"call"` instead of `"@call"` and executes only locally on the renderer.
+
+</Aside>
 
 ---
 
 ## Events
 
-An event carries a user interaction back to the agent as an `action` message.
+Events prompt the agent to do something when a user interacts with a component. When a user triggers a component whose [`action`](/specification/v1.0/schemas/#common_types.json/$defs/Action) specifies `event`, the renderer resolves any dynamic bindings in the event configuration and sends an outbound [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message to the agent.
 
-The following sequence diagram shows what happens when a user clicks a button whose action uses the event branch. The renderer resolves any data bindings in the event's `context` and `userMessage` against the surface data model, sends the resulting `action` message to the agent, and the agent processes the turn and streams `updateDataModel` or `updateComponents` messages back. The renderer then re-renders the surface.
+The following sequence diagram shows what happens when a user clicks a button configured with `action.event`. The renderer resolves any data bindings in `context` and `userMessage` against the surface data model, sends the `action` message to the agent, and the agent responds with `updateDataModel` or `updateComponents` messages to update the surface.
 
 ```mermaid
 sequenceDiagram
@@ -52,96 +54,104 @@ sequenceDiagram
 
 When the renderer sends an event:
 
-1. It resolves each value in `event.context`. Data bindings such as `{"@path": "/selection/seat"}` (v1.0) or `{"path": "/selection/seat"}` (v0.9.1) are replaced with their current values, and literal values are sent unchanged.
-2. In v1.0, it also resolves `event.userMessage`, a `DynamicString` that gives the agent a human-readable description of what the user did, such as `"Confirmed flight reservation for ${/passenger/fullName}"`.
-3. It sends an [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message with the event name, the surface and component IDs, a timestamp, and the resolved values.
+1. It resolves each entry in `event.context` ([`DynamicValue`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicValue)). Data bindings such as `{"@path": "/selection/seat"}` are replaced with their current values from the surface data model, and literal values are sent unchanged.
+2. If `event.userMessage` ([`DynamicString`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicString)) is present, it resolves any bindings or string interpolation (such as `"Confirmed flight reservation for ${/passenger/fullName}"`) into a human-readable description of what the user did.
+3. It sends an [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message containing `name`, `surfaceId`, `sourceComponentId`, an ISO 8601 `timestamp`, the resolved `context`, and optional `userMessage`.
 
-A `Button` can declare validation `checks`. If any check fails, the renderer disables the button, so the event cannot be sent until the data is valid. See [Validation checks](#validation-checks).
+If the surface was created with `sendDataModel: true` in [`createSurface`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage), the transport layer also attaches the full surface data model to each outbound message under `a2uiRendererDataModel` ([`renderer_data_model.json`](/specification/v1.0/schemas/#renderer_data_model.json)). See [Data Model and Data Binding](/concepts/data-binding/) for details.
 
-If the surface was created with `sendDataModel: true`, the transport also attaches the full surface data model to each outbound message, under `a2uiRendererDataModel` in v1.0 or `a2uiClientDataModel` in v0.9.1. For details, see [Data Model and Data Binding](../data-binding/).
-
-The following example shows a confirmation button and the `action` message the renderer sends when the user clicks it.
+The following example shows a confirmation `Button` declaration and the outbound `action` message the renderer sends when the user clicks it.
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
-    ```json
-    // Button component:
-    {
-      "id": "confirm_button",
-      "component": "Button",
-      "child": "confirm_label",
-      "variant": "primary",
-      "action": {
-        "event": {
-          "name": "confirmReservation",
-          "userMessage": "Confirmed flight reservation for ${/passenger/fullName}",
-          "context": {
-            "flightNumber": "UA-402",
-            "seat": { "@path": "/selection/seatNumber" }
-          }
-        }
-      }
-    }
+  <TabItem label="v1.0">
 
-    // action message sent on click:
-    {
-      "version": "1.0",
-      "action": {
-        "name": "confirmReservation",
-        "surfaceId": "booking_surface",
-        "sourceComponentId": "confirm_button",
-        "timestamp": "2026-11-02T03:45:00Z",
-        "userMessage": "Confirmed flight reservation for Alex Rivera",
-        "context": {
-          "flightNumber": "UA-402",
-          "seat": "14B"
-        }
+`Button` component declaration:
+
+```json
+{
+  "id": "confirm_button",
+  "component": "Button",
+  "child": "confirm_label",
+  "variant": "primary",
+  "action": {
+    "event": {
+      "name": "confirmReservation",
+      "userMessage": "Confirmed flight reservation for ${/passenger/fullName}",
+      "context": {
+        "flightNumber": "UA-402",
+        "seat": {"@path": "/selection/seatNumber"}
       }
     }
-    ```
+  }
+}
+```
+
+Outbound [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message sent on click:
+
+```json
+{
+  "version": "1.0",
+  "action": {
+    "name": "confirmReservation",
+    "surfaceId": "booking_surface",
+    "sourceComponentId": "confirm_button",
+    "timestamp": "2026-11-02T03:45:00Z",
+    "userMessage": "Confirmed flight reservation for Alex Rivera",
+    "context": {
+      "flightNumber": "UA-402",
+      "seat": "14B"
+    }
+  }
+}
+```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
-    ```json
-    // Button component:
-    {
-      "id": "confirm_button",
-      "component": "Button",
-      "child": "confirm_label",
-      "variant": "primary",
-      "action": {
-        "event": {
-          "name": "confirmReservation",
-          "context": {
-            "flightNumber": "UA-402",
-            "seat": { "path": "/selection/seatNumber" }
-          }
-        }
-      }
-    }
+  <TabItem label="v0.9.1">
 
-    // action message sent on click:
-    {
-      "version": "v0.9",
-      "action": {
-        "name": "confirmReservation",
-        "surfaceId": "booking_surface",
-        "sourceComponentId": "confirm_button",
-        "timestamp": "2026-11-02T03:45:00Z",
-        "context": {
-          "flightNumber": "UA-402",
-          "seat": "14B"
-        }
+`Button` component declaration:
+
+```json
+{
+  "id": "confirm_button",
+  "component": "Button",
+  "child": "confirm_label",
+  "variant": "primary",
+  "action": {
+    "event": {
+      "name": "confirmReservation",
+      "context": {
+        "flightNumber": "UA-402",
+        "seat": {"path": "/selection/seatNumber"}
       }
     }
-    ```
+  }
+}
+```
+
+Outbound [`action`](/specification/v0.9.1/schemas/#client_to_server.json/properties/action) message sent on click:
+
+```json
+{
+  "version": "v0.9",
+  "action": {
+    "name": "confirmReservation",
+    "surfaceId": "booking_surface",
+    "sourceComponentId": "confirm_button",
+    "timestamp": "2026-11-02T03:45:00Z",
+    "context": {
+      "flightNumber": "UA-402",
+      "seat": "14B"
+    }
+  }
+}
+```
 
   </TabItem>
 </Tabs>
 
-<Aside type="note" title="Version differences">
+<Aside type="note" title="Differences in v0.9.1">
 
-v1.0 uses `@path` for data bindings and adds `userMessage` to events. v0.9.1 uses `path` and has no `userMessage`, so put everything the agent needs in `context`.
+In v0.9.1, data bindings use `path` instead of `@path`, `action.event` has no `userMessage` field (so include all needed details in `context`), `action` messages are defined in [`client_to_server.json`](/specification/v0.9.1/schemas/#client_to_server.json/properties/action), and `sendDataModel: true` attaches the data model under `a2uiClientDataModel` ([`client_data_model.json`](/specification/v0.9.1/schemas/#client_data_model.json)) instead of `a2uiRendererDataModel`.
 
 </Aside>
 
@@ -149,294 +159,253 @@ v1.0 uses `@path` for data bindings and adds `userMessage` to events. v0.9.1 use
 
 ## Functions
 
-Functions are typed operations declared in a catalog. Each call names the function and passes an `args` object. In v1.0 the name goes in `@call` and data bindings use `@path`; in v0.9.1 the same call uses `call` and `path`.
+Functions are typically used when you want to trigger specific logic on either the renderer or the agent side. Each function is a typed operation declared in a [catalog](/concepts/catalogs/) ([`FunctionDefinition`](/specification/v1.0/schemas/#catalog_definition.json/$defs/FunctionDefinition)), and each [`FunctionCall`](/specification/v1.0/schemas/#common_types.json/$defs/FunctionCall) names the function in `@call` ([`FunctionCommon`](/specification/v1.0/schemas/#common_types.json/$defs/FunctionCommon)) and passes an `args` object.
 
-### Where functions run
+### Function types
 
-A function runs either on the renderer or, in v1.0, on the agent.
+Functions run either locally on the renderer or remotely on the agent.
 
-The renderer decides where to run a call by looking up the function name in its local catalog. If the name is registered, the renderer runs the function itself, with no network request. In v1.0, if the name is not registered, the renderer sends a `callAgentFunction` message to the agent and waits for an `agentFunctionResponse`. The diagram in [Actions, events, and functions](#actions-events-and-functions) shows this lookup on the function branch.
+When the renderer evaluates a `FunctionCall`, it resolves the target catalog (from `catalogId` on the call or the surface default) and checks whether it has a local implementation of the function. If the function is registered locally, the renderer runs it with no network request. If the function is not implemented locally, the renderer routes the call to the agent with a [`callAgentFunction`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/callAgentFunction) message and waits for an [`agentFunctionResponse`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/AgentFunctionResponseMessage).
 
 #### Renderer functions
 
-Renderer functions are implemented by the renderer and registered with the catalog. The [Basic Catalog](../catalogs/) defines these functions in both v1.0 and v0.9.1:
+Renderer functions are implemented by the client renderer and registered with its catalog. They commonly fall into four categories:
 
-1. Formatting: `formatString`, `formatNumber`, `formatCurrency`, `formatDate`, `pluralize`.
-2. Validation: `required`, `regex`, `length`, `numeric`, `email`.
-3. Logic: `and`, `or`, `not`.
-4. Side effects: `openUrl`.
+1. Validation functions check input values or form readiness, returning a boolean or [`ValidationResult`](/specification/v1.0/schemas/#catalog_definition.json/$defs/ValidationResult). The Basic Catalog includes validation functions such as `required` and `email`, for example `{"@call": "email", "args": {"value": {"@path": "/formData/email"}}}`.
+2. Data transformation functions format values or combine conditions before display. The Basic Catalog includes formatting functions such as `formatCurrency`, `formatDate`, and `formatString` alongside boolean helpers like `and`, for example `{"@call": "formatCurrency", "args": {"value": {"@path": "/order/subtotal"}, "currency": "USD"}}`.
+3. Local data functions access client-side state or rendering context that is not stored in the surface data model. Across all catalogs, the built-in system function [`@index`](/specification/v1.0-basic-catalog-implementation-guide/#index) reads the current item's position inside a list template (`{"@call": "@index", "args": {"offset": 1}}`), and custom catalogs can expose device or environment queries such as `getScreenResolution` (`{"@call": "getScreenResolution", "catalogId": "https://example.com/catalogs/device.json", "args": {"screenIndex": 0}}`).
+4. Local action functions trigger an immediate client-side effect rather than returning a display value. For example, the Basic Catalog defines [`openUrl`](/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json/functions/openUrl) (`{"@call": "openUrl", "args": {"url": "https://support.example.com/billing"}}`) to open a URL in the user's browser.
 
-Catalogs are domain-specific, so your own catalog can define different functions.
+Functions such as `email`, `formatCurrency`, `required`, and `openUrl` are just examples from the Basic Catalog. See the [Basic Catalog specification](/specification/v1.0-basic-catalog-implementation-guide/#2-renderer-side-functions) and its [`functions` schema](/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json/functions) for the complete set of standard renderer functions, or define additional functions in your own catalog.
 
-#### Agent functions (v1.0)
+#### Agent functions
 
-In v1.0, a function can run on the agent. This lets a component use server-side logic, such as checking inventory, without starting a new agent turn.
+Agent functions run on the server, letting a component trigger backend logic such as checking live inventory without starting a new agent turn.
 
 When the renderer calls an agent function:
 
-1. It sends a [`callAgentFunction`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/callAgentFunction) message with a unique `functionCallId`, the `surfaceId`, and the `callFunction` payload.
-2. It shows a pending state for the affected binding while it waits, such as a loading indicator or the previous value.
-3. The agent replies with an [`agentFunctionResponse`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/AgentFunctionResponseMessage) that has the same `functionCallId` and either a `value` or an `error`.
-4. The renderer applies the value, or handles the error. A failed property binding resolves to `null`, and a failed validation check is treated as invalid.
+1. It sends a [`callAgentFunction`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/callAgentFunction) message with a unique `functionCallId`, the `surfaceId`, and the resolved `callFunction` payload ([`FunctionCall`](/specification/v1.0/schemas/#common_types.json/$defs/FunctionCall)).
+2. It maintains a pending state for the affected binding while waiting, such as a loading indicator or the previous value.
+3. The agent responds with an [`agentFunctionResponse`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/AgentFunctionResponseMessage) ([`FunctionResponse`](/specification/v1.0/schemas/#common_types.json/$defs/FunctionResponse)) containing the matching `functionCallId` and either a result (`value`) or an `error` (with `code` and `message`).
+4. The renderer applies the returned result or handles the error. A failed property binding resolves to `null`, and a failed validation check evaluates as invalid.
 
-<Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
-    ```json
-    // Renderer sends callAgentFunction:
-    {
-      "version": "1.0",
-      "callAgentFunction": {
-        "surfaceId": "checkout_surface",
-        "functionCallId": "call_inv_check_881",
-        "callFunction": {
-          "@call": "checkInventory",
-          "args": {
-            "sku": "SKU-99201",
-            "quantity": 2
-          }
-        }
+Example [`callAgentFunction`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/callAgentFunction) message sent by the renderer:
+
+```json
+{
+  "version": "1.0",
+  "callAgentFunction": {
+    "surfaceId": "checkout_surface",
+    "functionCallId": "call_inv_check_881",
+    "callFunction": {
+      "@call": "checkInventory",
+      "catalogId": "https://example.com/catalogs/store/v1/catalog.json",
+      "args": {
+        "sku": "SKU-99201",
+        "quantity": 2
       }
     }
-
-    // Agent replies with a value:
-    {
-      "version": "1.0",
-      "agentFunctionResponse": {
-        "functionCallId": "call_inv_check_881",
-        "value": {
-          "available": true,
-          "remainingStock": 14
-        }
-      }
-    }
-
-    // Or with an error:
-    {
-      "version": "1.0",
-      "agentFunctionResponse": {
-        "functionCallId": "call_inv_check_881",
-        "error": {
-          "code": "OUT_OF_STOCK",
-          "message": "Item SKU-99201 is temporarily unavailable."
-        }
-      }
-    }
-    ```
-
-  </TabItem>
-  <TabItem label="v0.9.1 (Active)">
-    v0.9.1 has no agent functions and no `callAgentFunction` message. Every function runs on the renderer. To run logic on the agent, send an event with `action.event` and let the agent respond in its next turn.
-  </TabItem>
-</Tabs>
+  }
+}
+```
 
 <Aside type="caution" title="Misspelled function names become network calls">
 
-In v1.0, any function name that is not registered on the renderer is sent to the agent. If you misspell a renderer function, for example `"@call": "formatCurrncy"` instead of `"formatCurrency"`, the renderer does not report a local error. It sends a `callAgentFunction` message, and the agent replies with an `UNKNOWN_FUNCTION` error. Check function names against your catalog.
+Any function name not implemented locally on the renderer is routed to the agent. If you misspell a renderer function, such as `"@call": "formatCurrncy"` instead of `"formatCurrency"`, the renderer sends a `callAgentFunction` message and the agent replies with an `UNKNOWN_FUNCTION` error. Check function names against your catalog.
 
 </Aside>
 
-### Where functions are called
+### Calling functions
 
-Functions are called from four places. Only the first one involves a user gesture:
+Functions can be called from four places. Only the first involves a user gesture:
 
 1. A component action, through `action.functionCall`.
-2. A property binding, where a component property such as `Text.text` is computed by a function call.
-3. A validation check, in a component's `checks` list.
-4. A `callRendererFunction` message from the agent (v1.0).
+2. A property binding, where a dynamic property such as `Text.text` evaluates a function call.
+3. A validation check, in a component's `checks` array.
+4. A `callRendererFunction` message from the agent.
 
 #### Component actions
 
-A component's action can call a function directly instead of sending an event. This example opens a help page when the user clicks the button.
+A component's [`action`](/specification/v1.0/schemas/#common_types.json/$defs/Action) can call a function directly instead of sending an event. This `Button` opens a help page when clicked.
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
-    ```json
-    {
-      "id": "help_link",
-      "component": "Button",
-      "child": "help_text",
-      "variant": "borderless",
-      "action": {
-        "functionCall": {
-          "@call": "openUrl",
-          "args": {
-            "url": "https://support.example.com/billing"
-          }
-        }
+  <TabItem label="v1.0">
+
+```json
+{
+  "id": "help_link",
+  "component": "Button",
+  "child": "help_text",
+  "variant": "borderless",
+  "action": {
+    "functionCall": {
+      "@call": "openUrl",
+      "args": {
+        "url": "https://support.example.com/billing"
       }
     }
-    ```
+  }
+}
+```
+
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
-    ```json
-    {
-      "id": "help_link",
-      "component": "Button",
-      "child": "help_text",
-      "variant": "borderless",
-      "action": {
-        "functionCall": {
-          "call": "openUrl",
-          "args": {
-            "url": "https://support.example.com/billing"
-          }
-        }
+  <TabItem label="v0.9.1">
+
+```json
+{
+  "id": "help_link",
+  "component": "Button",
+  "child": "help_text",
+  "variant": "borderless",
+  "action": {
+    "functionCall": {
+      "call": "openUrl",
+      "args": {
+        "url": "https://support.example.com/billing"
       }
     }
-    ```
+  }
+}
+```
+
   </TabItem>
 </Tabs>
 
 #### Property bindings
 
-Properties typed as `DynamicString`, `DynamicNumber`, `DynamicBoolean`, or `DynamicStringList` accept a function call in place of a literal value. The renderer calls the function again whenever a bound data path changes. This `Text` component shows the order subtotal as a formatted currency string.
+Properties typed as [`DynamicString`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicString), [`DynamicNumber`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicNumber), [`DynamicBoolean`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicBoolean), or [`DynamicStringList`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicStringList) accept a [`FunctionCall`](/specification/v1.0/schemas/#common_types.json/$defs/FunctionCall) in place of a literal value. The renderer re-evaluates the function whenever a bound data path changes. This `Text` component formats the order subtotal as currency.
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
-    ```json
-    {
-      "id": "order_total_text",
-      "component": "Text",
-      "text": {
-        "@call": "formatCurrency",
-        "args": {
-          "value": { "@path": "/order/subtotal" },
-          "currency": "USD"
-        }
-      }
+  <TabItem label="v1.0">
+
+```json
+{
+  "id": "order_total_text",
+  "component": "Text",
+  "text": {
+    "@call": "formatCurrency",
+    "args": {
+      "value": {"@path": "/order/subtotal"},
+      "currency": "USD"
     }
-    ```
+  }
+}
+```
+
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
-    ```json
-    {
-      "id": "order_total_text",
-      "component": "Text",
-      "text": {
-        "call": "formatCurrency",
-        "args": {
-          "value": { "path": "/order/subtotal" },
-          "currency": "USD"
-        }
-      }
+  <TabItem label="v0.9.1">
+
+```json
+{
+  "id": "order_total_text",
+  "component": "Text",
+  "text": {
+    "call": "formatCurrency",
+    "args": {
+      "value": {"path": "/order/subtotal"},
+      "currency": "USD"
     }
-    ```
+  }
+}
+```
+
   </TabItem>
 </Tabs>
 
 #### Validation checks
 
-Components that accept `checks`, such as `TextField`, `CheckBox`, and `Button`, list validation rules in that array. Each rule has a `condition`, usually a function call, and a `message` to show when the condition fails. In v1.0 a condition returns a boolean or a `ValidationResult` object, and `message` is optional. In v0.9.1 a condition returns a boolean, and `message` is required.
+Components that support [`Checkable`](/specification/v1.0/schemas/#common_types.json/$defs/Checkable), such as `TextField`, `CheckBox`, and `Button`, declare validation rules in their `checks` array. Each [`CheckRule`](/specification/v1.0/schemas/#common_types.json/$defs/CheckRule) has a `condition` (a [`FunctionCall`](/specification/v1.0/schemas/#common_types.json/$defs/FunctionCall) or [`DataBinding`](/specification/v1.0/schemas/#common_types.json/$defs/DataBinding) returning a boolean or structured [`ValidationResult`](/specification/v1.0/schemas/#catalog_definition.json/$defs/ValidationResult)) and an optional fallback `message`. For a `Button`, if any check fails, the renderer disables the button.
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
-    ```json
+  <TabItem label="v1.0">
+
+```json
+{
+  "id": "user_email_input",
+  "component": "TextField",
+  "label": "Email",
+  "value": {"@path": "/formData/email"},
+  "checks": [
     {
-      "id": "user_email_input",
-      "component": "TextField",
-      "label": "Email",
-      "value": { "@path": "/formData/email" },
-      "checks": [
-        {
-          "condition": {
-            "@call": "required",
-            "args": { "value": { "@path": "/formData/email" } }
-          },
-          "message": "Email address is required."
-        },
-        {
-          "condition": {
-            "@call": "email",
-            "args": { "value": { "@path": "/formData/email" } }
-          },
-          "message": "Enter a valid email address."
-        }
-      ]
+      "condition": {
+        "@call": "required",
+        "args": {"value": {"@path": "/formData/email"}}
+      },
+      "message": "Email address is required."
+    },
+    {
+      "condition": {
+        "@call": "email",
+        "args": {"value": {"@path": "/formData/email"}}
+      },
+      "message": "Enter a valid email address."
     }
-    ```
+  ]
+}
+```
+
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
-    ```json
+  <TabItem label="v0.9.1">
+
+```json
+{
+  "id": "user_email_input",
+  "component": "TextField",
+  "label": "Email",
+  "value": {"path": "/formData/email"},
+  "checks": [
     {
-      "id": "user_email_input",
-      "component": "TextField",
-      "label": "Email",
-      "value": { "path": "/formData/email" },
-      "checks": [
-        {
-          "condition": {
-            "call": "required",
-            "args": { "value": { "path": "/formData/email" } }
-          },
-          "message": "Email address is required."
-        },
-        {
-          "condition": {
-            "call": "email",
-            "args": { "value": { "path": "/formData/email" } }
-          },
-          "message": "Enter a valid email address."
-        }
-      ]
+      "condition": {
+        "call": "required",
+        "args": {"value": {"path": "/formData/email"}}
+      },
+      "message": "Email address is required."
+    },
+    {
+      "condition": {
+        "call": "email",
+        "args": {"value": {"path": "/formData/email"}}
+      },
+      "message": "Enter a valid email address."
     }
-    ```
+  ]
+}
+```
+
   </TabItem>
 </Tabs>
 
-#### Agent requests (v1.0)
+#### Agent requests
 
-In v1.0, the agent can ask the renderer to run a function by sending a [`callRendererFunction`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CallRendererFunctionMessage) message. The agent uses this to read client state, such as the screen size, or to run a local operation. The `callFunction` payload must include a `catalogId`. The renderer always answers with a `rendererFunctionResponse` that carries the same `functionCallId` and either a `value` or an `error`.
+The agent can ask the renderer to run a local function by sending a [`callRendererFunction`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CallRendererFunctionMessage) message, for example to read client state such as screen dimensions. The `callFunction` payload must include `catalogId`, and `surfaceId` is optional. After executing the function, the renderer responds with a [`rendererFunctionResponse`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/rendererFunctionResponse) ([`FunctionResponse`](/specification/v1.0/schemas/#common_types.json/$defs/FunctionResponse)) carrying the same `functionCallId` and either a result (`value`) or an `error`.
 
-<Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
-    ```json
-    // Agent sends callRendererFunction:
-    {
-      "version": "1.0",
-      "callRendererFunction": {
-        "functionCallId": "hw_screen_001",
-        "callFunction": {
-          "catalogId": "https://example.com/catalogs/device.json",
-          "@call": "getScreenResolution",
-          "args": {
-            "screenIndex": 0
-          }
-        }
+```json
+{
+  "version": "1.0",
+  "callRendererFunction": {
+    "functionCallId": "hw_screen_001",
+    "callFunction": {
+      "catalogId": "https://example.com/catalogs/device.json",
+      "@call": "getScreenResolution",
+      "args": {
+        "screenIndex": 0
       }
     }
+  }
+}
+```
 
-    // Renderer replies with rendererFunctionResponse:
-    {
-      "version": "1.0",
-      "rendererFunctionResponse": {
-        "functionCallId": "hw_screen_001",
-        "value": {
-          "width": 1920,
-          "height": 1080
-        }
-      }
-    }
-    ```
+### Who can call a function
 
-  </TabItem>
-  <TabItem label="v0.9.1 (Active)">
-    v0.9.1 has no `callRendererFunction` message, so the agent cannot ask the renderer to run a function. The client describes itself once, in the `a2uiClientCapabilities` transport metadata.
-  </TabItem>
-</Tabs>
-
----
-
-## Who can call a function (v1.0)
-
-Some functions open URLs or read client state, so a v1.0 [catalog definition](/specification/v1.0/schemas/#catalog_definition.json) declares who may call each function and whether it needs a user gesture.
+Because some functions open URLs or read client state, [`catalog_definition.json`](/specification/v1.0/schemas/#catalog_definition.json) lets each [`FunctionDefinition`](/specification/v1.0/schemas/#catalog_definition.json/$defs/FunctionDefinition) declare who may invoke the function and whether it requires a user gesture.
 
 `allowedCallers` takes one of three values:
 
-1. `"rendererOnly"` (the default): only the renderer can call the function, from actions, property bindings, or validation checks. If the agent sends a `callRendererFunction` for it, the renderer rejects the call with an `INVALID_FUNCTION_CALL` error.
-2. `"agentOnly"`: only the agent can call the function, through `callRendererFunction`. Components cannot bind to it.
-3. `"rendererOrAgent"`: both the renderer and the agent can call the function, for example `getScreenResolution`.
+1. `"rendererOnly"` (the default) lets only the renderer call the function, from actions, property bindings, or validation checks. If the agent sends `callRendererFunction` for it, the renderer rejects the call with an `INVALID_FUNCTION_CALL` error.
+2. `"agentOnly"` lets only the agent call the function, through `callRendererFunction`. Components cannot reference it in actions, bindings, or checks.
+3. `"rendererOrAgent"` lets both the renderer and the agent call the function, such as `getScreenResolution`.
 
-`requiresUserActivation: true` marks a function that must run in response to a user gesture, such as a tap or click. Browsers and mobile platforms require this for operations like opening a URL with `openUrl`. The renderer runs such a function only from a component action. In a property binding or a validation check, the renderer blocks the call and reports an `EXPRESSION_ERROR`.
+`requiresUserActivation: true` marks a function that must run in response to a user gesture, such as a tap or click (for example, `openUrl`). The renderer runs such a function only from a component `action` and blocks calls from property bindings or validation checks with an `EXPRESSION_ERROR`.
 
 The catalog schema requires every function with `requiresUserActivation: true` to set `allowedCallers` to `"rendererOnly"`:
 
@@ -456,13 +425,10 @@ The catalog schema requires every function with `requiresUserActivation: true` t
 }
 ```
 
-An agent message arrives over the network and cannot carry a user gesture, so this rule keeps the agent from triggering gesture-only operations. For more on trust between agents and renderers, see [Security and Trust Boundaries](../security/).
+An agent message arrives over the network and cannot carry a user gesture, so this rule prevents the agent from triggering gesture-only operations.
 
----
+<Aside type="note" title="Differences in v0.9.1">
 
-## Related topics
+In v0.9.1, [`FunctionCall`](/specification/v0.9.1/schemas/#common_types.json/$defs/FunctionCall) uses `"call"` instead of `"@call"`, data bindings use `"path"` instead of `"@path"`, and calls accept an optional `returnType` property (defaulting to `"boolean"`). Every function runs locally on the renderer: v0.9.1 has no agent functions (`callAgentFunction` / `agentFunctionResponse`), no agent-to-renderer function calls (`callRendererFunction` / `rendererFunctionResponse`), and no `allowedCallers` or `requiresUserActivation` catalog properties. In [`CheckRule`](/specification/v0.9.1/schemas/#common_types.json/$defs/CheckRule), `condition` must evaluate to a boolean and `message` is required.
 
-- [Messages](../messages/): the full message reference for `action`, `callAgentFunction`, and `callRendererFunction`.
-- [Data Model and Data Binding](../data-binding/): how `@path` bindings and `${...}` string interpolation resolve.
-- [Catalogs, Components and Functions](../catalogs/): how to declare functions in a catalog.
-- [Security and Trust Boundaries](../security/): security guidance for the boundary between agent and renderer.
+</Aside>

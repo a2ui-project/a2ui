@@ -154,7 +154,7 @@ export default defineConfig({
               badge: {text: 'P0', variant: 'danger'},
             },
             {
-              label: 'Actions and Functions',
+              label: 'Actions, Events and Functions',
               slug: 'concepts/actions-and-functions',
               badge: {text: 'P0', variant: 'danger'},
             },
