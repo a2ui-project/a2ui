@@ -95,11 +95,24 @@ export interface AgentFunctionInit<
  * so code outside this module can't set them.
  */
 const FROM_API = Symbol('AgentFunction.fromApi');
+const BOUND_DEFS = Symbol('AgentFunction.boundDefs');
 
 interface FromApiInit extends AgentFunctionInit<any, any> {
   readonly [FROM_API]: {
     readonly declaration: FunctionApi;
     readonly allowedCallers?: 'rendererOnly' | 'rendererOrAgent';
+  };
+}
+
+interface BoundDefsInit extends AgentFunctionInit<any, any> {
+  readonly [FROM_API]?: {
+    readonly declaration: FunctionApi;
+    readonly allowedCallers?: 'rendererOnly' | 'rendererOrAgent';
+  };
+  readonly [BOUND_DEFS]: {
+    readonly catalogDefs: Readonly<Record<string, unknown>> | undefined;
+    readonly resolvedSchema: z.ZodTypeAny;
+    readonly declaredParameterNames: ReadonlyArray<string>;
   };
 }
 
@@ -164,6 +177,11 @@ export class AgentFunction<
    * so `withHandler` and a catalog's `$defs` can read it as written.
    */
   readonly jsonSchema?: Readonly<Record<string, unknown>>;
+  /**
+   * @internal The catalog `$defs` that `schema` and `declaredParameterNames`
+   * were resolved against, when resolved against a catalog's `$defs`.
+   */
+  readonly boundCatalogDefs?: Readonly<Record<string, unknown>>;
 
   /**
    * Initializes a new `rendererOnly` agent function.
@@ -175,15 +193,19 @@ export class AgentFunction<
     if (typeof init?.handler !== 'function') {
       throw new TypeError(`Agent function '${init?.name ?? ''}' requires a callable handler.`);
     }
-    const fromApi = (init as Partial<FromApiInit>)[FROM_API];
+    const fromApi = (init as Partial<BoundDefsInit>)[FROM_API];
+    const bound = (init as Partial<BoundDefsInit>)[BOUND_DEFS];
     this.name = init.name;
     this.returnType = init.returnType ?? 'any';
-    this.schema = resolveAgentFunctionSchema(init.schema);
+    this.schema = bound ? bound.resolvedSchema : resolveAgentFunctionSchema(init.schema);
     if (init.schema !== undefined && !isZodSchema(init.schema)) {
       this.jsonSchema = init.schema;
       // `init.schema` is also the document its local `#/$defs/...` resolve in.
-      this.declaredParameterNames = functionParameterNames(init.schema, init.schema);
+      this.declaredParameterNames = bound
+        ? bound.declaredParameterNames
+        : functionParameterNames(init.schema, init.schema);
     }
+    this.boundCatalogDefs = bound?.catalogDefs;
     this.handler = init.handler;
     this.explicitAllowedCallers = fromApi?.allowedCallers;
     this.allowedCallers = fromApi?.allowedCallers ?? 'rendererOnly';
@@ -290,4 +312,98 @@ function resolveAgentFunctionSchema(
     return convertFunctionArgsJsonSchemaToZod(schema, schema);
   }
   return z.record(z.unknown());
+}
+
+function isPlainDefsMap(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function referencesCatalogDefs(
+  jsonSchema: Readonly<Record<string, unknown>>,
+  catalogDefs: Readonly<Record<string, unknown>>,
+): boolean {
+  const localDefs = isPlainDefsMap(jsonSchema.$defs) ? jsonSchema.$defs : undefined;
+  const visited = new Set<unknown>();
+  const scan = (node: unknown): boolean => {
+    if (typeof node !== 'object' || node === null || visited.has(node)) return false;
+    visited.add(node);
+    if (Array.isArray(node)) {
+      return node.some(scan);
+    }
+    const obj = node as Record<string, unknown>;
+    if (typeof obj.$ref === 'string' && obj.$ref.startsWith('#/$defs/')) {
+      const defName = obj.$ref
+        .slice('#/$defs/'.length)
+        .split('/')[0]
+        .replace(/~1/g, '/')
+        .replace(/~0/g, '~');
+      if (defName in catalogDefs && !(localDefs && defName in localDefs)) {
+        return true;
+      }
+    }
+    for (const value of Object.values(obj)) {
+      if (scan(value)) return true;
+    }
+    return false;
+  };
+  return scan(jsonSchema);
+}
+
+/**
+ * @internal Resolves a JSON Schema `AgentFunction` against a catalog's `$defs`
+ * without mutating the caller's instance. Returns `fn` unchanged when `fn` was
+ * built from a Zod schema, already binds `catalogDefs`, or does not reference
+ * any definition in `catalogDefs`.
+ */
+export function bindAgentFunctionDefs(
+  fn: AgentFunction,
+  catalogDefs: Readonly<Record<string, unknown>> | undefined,
+): AgentFunction {
+  const jsonSchema = fn.jsonSchema;
+  if (jsonSchema === undefined || fn.boundCatalogDefs === catalogDefs) {
+    return fn;
+  }
+  const hasCatalogRefs =
+    catalogDefs !== undefined &&
+    Object.keys(catalogDefs).length > 0 &&
+    referencesCatalogDefs(jsonSchema, catalogDefs);
+  if (!hasCatalogRefs && fn.boundCatalogDefs === undefined) {
+    return fn;
+  }
+  const localDefs = isPlainDefsMap(jsonSchema.$defs) ? jsonSchema.$defs : undefined;
+  const rootDoc: Record<string, unknown> = hasCatalogRefs
+    ? {
+        ...jsonSchema,
+        $defs: {...catalogDefs, ...localDefs},
+      }
+    : {...jsonSchema};
+  const resolvedSchema =
+    Object.keys(jsonSchema).length === 0
+      ? z.record(z.unknown())
+      : convertFunctionArgsJsonSchemaToZod(jsonSchema, rootDoc);
+  const declaredParameterNames = functionParameterNames(jsonSchema, rootDoc);
+  const init: BoundDefsInit = {
+    name: fn.name,
+    returnType: fn.returnType,
+    schema: jsonSchema,
+    handler: fn.handler,
+    requiresUserActivation: fn.explicitRequiresUserActivation,
+    description: fn.description,
+    ...(fn.declaration !== undefined
+      ? {
+          [FROM_API]: {
+            declaration: fn.declaration,
+            allowedCallers: fn.explicitAllowedCallers,
+          },
+        }
+      : {}),
+    [BOUND_DEFS]: {
+      catalogDefs: hasCatalogRefs ? catalogDefs : undefined,
+      resolvedSchema,
+      declaredParameterNames,
+    },
+  };
+  const bound = new AgentFunction<any, any>(init);
+  copyLoadedDefinition(fn, bound);
+  return bound;
 }

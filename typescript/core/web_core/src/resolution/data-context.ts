@@ -163,63 +163,6 @@ export function getKnownSchemaKeys(schema: z.ZodTypeAny): Set<string> | null {
 }
 
 /**
- * Collects every object property key a Zod schema declares.
- *
- * Unlike `getKnownSchemaKeys`, which answers which keys an object may have, it
- * also collects the keys of an open (`.passthrough()`) object, and of every
- * branch of a union. It traverses `ZodEffects`, `ZodOptional`, `ZodNullable`,
- * `ZodDefault`, `ZodCatch`, `ZodIntersection`, `ZodUnion`,
- * `ZodDiscriminatedUnion`, `ZodPipeline`, `ZodReadonly` and `ZodBranded`.
- *
- * @param schema Zod schema to inspect.
- * @returns The declared property names; empty when the schema declares none.
- */
-export function getDeclaredSchemaKeys(schema: z.ZodTypeAny): Set<string> {
-  const keys = new Set<string>();
-  const visit = (node: any): void => {
-    const def = node?._def;
-    switch (def?.typeName) {
-      case 'ZodObject': {
-        const shape = typeof node.shape === 'function' ? node.shape() : node.shape;
-        if (shape && typeof shape === 'object') {
-          for (const key of Object.keys(shape)) keys.add(key);
-        }
-        return;
-      }
-      case 'ZodEffects':
-        visit(def.schema);
-        return;
-      case 'ZodOptional':
-      case 'ZodNullable':
-      case 'ZodDefault':
-      case 'ZodCatch':
-      case 'ZodReadonly':
-        visit(def.innerType);
-        return;
-      case 'ZodBranded':
-        visit(def.type);
-        return;
-      case 'ZodPipeline':
-        visit(def.in);
-        visit(def.out);
-        return;
-      case 'ZodIntersection':
-        visit(def.left);
-        visit(def.right);
-        return;
-      case 'ZodUnion':
-      case 'ZodDiscriminatedUnion':
-        for (const option of def.options) visit(option);
-        return;
-      default:
-        return;
-    }
-  };
-  visit(schema);
-  return keys;
-}
-
-/**
  * Validates a function call's arguments against the catalog function schema and global limits.
  *
  * Functions have a strict contract: supplying unknown or excessive arguments breaks that contract

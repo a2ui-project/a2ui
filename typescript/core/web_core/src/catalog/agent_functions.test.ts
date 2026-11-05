@@ -34,6 +34,9 @@ import {
   type CatalogOptions,
   type FunctionApi,
 } from '../index.js';
+import * as rootApi from '../index.js';
+import * as resolutionApi from '../resolution/index.js';
+import * as v10Api from '../v1_0/index.js';
 
 const FX_RATE_SCHEMA = z
   .object({
@@ -593,6 +596,39 @@ describe('Catalog.agentFunctions', () => {
     assert.doesNotThrow(() => new Catalog('c', '1.0', [], []).copyWith({agentFunctions: [fn]}));
   });
 
+  it("merges the catalog's $defs with a JSON Schema's own $defs during UAX #31 checks", () => {
+    const withDefs = new Catalog('c', '1.0', [], [], {
+      defs: {CatalogBad: {type: 'object', properties: {'bad-amount': {type: 'number'}}}},
+    });
+    const fn = new AgentFunction({
+      name: 'pay',
+      schema: {
+        $defs: {LocalOk: {type: 'object', properties: {memo: {type: 'string'}}}},
+        allOf: [{$ref: '#/$defs/LocalOk'}, {$ref: '#/$defs/CatalogBad'}],
+      },
+      handler: () => 1,
+    });
+
+    assert.throws(
+      () => withDefs.copyWith({agentFunctions: [fn]}),
+      (err: unknown) => err instanceof A2uiCatalogError && err.message.includes("'bad-amount'"),
+    );
+    assert.throws(
+      () =>
+        new Catalog('c', '1.0', [], [fn], {
+          defs: {CatalogBad: {type: 'object', properties: {'bad-amount': {type: 'number'}}}},
+        }),
+      (err: unknown) => err instanceof A2uiCatalogError && err.message.includes("'bad-amount'"),
+    );
+  });
+
+  it('does not leak internal schema helpers onto public barrel exports', () => {
+    for (const barrel of [rootApi, v10Api, resolutionApi] as Array<Record<string, unknown>>) {
+      assert.strictEqual(barrel['getDeclaredSchemaKeys'], undefined);
+      assert.strictEqual(barrel['bindAgentFunctionDefs'], undefined);
+    }
+  });
+
   it('keeps the agent functions in functions when copyWith also gets agentFunctions', () => {
     const local: FunctionApi = {name: 'formatRate', returnType: 'string', schema: FX_RATE_SCHEMA};
     const kept = fetchFxRate();
@@ -813,5 +849,66 @@ describe('PayloadValidator with AgentFunction', () => {
       () => plainValidator.validateFunction('fetchFxRate', {base: 'EUR'}),
       (err: unknown) => err instanceof A2uiValidationError,
     );
+  });
+
+  it("validates, applies defaults, and retains catalog $defs referenced by an agent function's JSON Schema", () => {
+    const pay = new AgentFunction({
+      name: 'pay',
+      returnType: 'object',
+      schema: {
+        $defs: {
+          MemoArgs: {
+            type: 'object',
+            properties: {memo: {type: 'string', default: 'standard'}},
+          },
+        },
+        allOf: [{$ref: '#/$defs/MemoArgs'}, {$ref: '#/$defs/MoneyArgs'}],
+        unevaluatedProperties: false,
+      },
+      handler: args => args,
+    });
+    const baseCatalog = new Catalog(
+      'c',
+      '1.0',
+      [],
+      [
+        {
+          name: 'noop',
+          returnType: 'void',
+          schema: z.object({}).strict(),
+        },
+      ],
+      {
+        defs: {
+          MoneyArgs: {
+            type: 'object',
+            properties: {
+              amount: {type: 'number', exclusiveMinimum: 0},
+              currency: {type: 'string', default: 'USD'},
+            },
+            required: ['amount'],
+          },
+        },
+      },
+    );
+    const catalog = baseCatalog.copyWith({agentFunctions: [pay]});
+    // Pruning `noop` keeps `MoneyArgs` because `pay` still references it.
+    const derived = catalog.derive({catalogId: 'derived', functions: ['pay']});
+    const derivedValidator = new PayloadValidator(derived, STRICT_VALIDATION);
+
+    assert.deepStrictEqual(derivedValidator.validateFunction('pay', {amount: 25}), {
+      amount: 25,
+      currency: 'USD',
+      memo: 'standard',
+    });
+    assert.throws(
+      () => derivedValidator.validateFunction('pay', {amount: -5}),
+      (err: unknown) => err instanceof A2uiValidationError,
+    );
+    assert.throws(
+      () => derivedValidator.validateFunction('pay', {amount: 25, extra: true}),
+      (err: unknown) => err instanceof A2uiValidationError,
+    );
+    assert.ok('MoneyArgs' in ((derived.toJson()['$defs'] as Record<string, unknown>) ?? {}));
   });
 });

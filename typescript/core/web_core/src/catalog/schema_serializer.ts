@@ -202,7 +202,12 @@ export function retainedDefs(
 ): Readonly<JsonObject> | undefined {
   if (!defs) return defs;
   const definitions = (entries: ReadonlyArray<ComponentApi | FunctionApi>) =>
-    entries.map(entry => entryDefinition(entry, defs)).filter(d => d !== undefined);
+    entries
+      .map(
+        entry =>
+          entryDefinition(entry, defs) ?? (isAgentFunction(entry) ? entry.jsonSchema : undefined),
+      )
+      .filter(d => d !== undefined);
   const reachedBefore = reachableDefs(definitions(before), defs);
   const unconditional = Object.keys(defs).filter(name => !reachedBefore.has(name));
   const reachedAfter = reachableDefs(

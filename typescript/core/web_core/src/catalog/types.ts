@@ -16,7 +16,7 @@
 
 import {z} from 'zod';
 import type {ProtocolVersion} from '../processing/adapters/base.js';
-import {DataContext, getDeclaredSchemaKeys} from '../resolution/data-context.js';
+import {DataContext} from '../resolution/data-context.js';
 import {allowsAgentRouting} from '../resolution/data-context-internal.js';
 import type {SurfaceModel} from '../state/surface-model.js';
 import {Signal} from '../reactivity/signals.js';
@@ -26,8 +26,8 @@ import {isAtLeastVersion} from '../common/semver.js';
 import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.js';
 import {assertUax31Identifier} from '../common/uax31.js';
 import {SpecVersion} from '../spec_versions.js';
-import {AgentFunction, isAgentFunction} from './agent_function.js';
-import {functionParameterNames, isZodSchema, parseCatalogSchema} from './schema_loader.js';
+import {AgentFunction, bindAgentFunctionDefs, isAgentFunction} from './agent_function.js';
+import {getDeclaredSchemaKeys, isZodSchema, parseCatalogSchema} from './schema_loader.js';
 import type {JsonSchemaObject} from './spec_annotations.js';
 import {generateValidationSchema} from './schema_generator.js';
 import {
@@ -911,6 +911,10 @@ export class Catalog<
     const options: CatalogOptions = isZodSchema(themeSchemaOrOptions)
       ? {themeSchema: themeSchemaOrOptions}
       : (themeSchemaOrOptions ?? {});
+    // Frozen, so neither the caller nor a reader of the catalog can change the
+    // fields `toJson` assembles the document from. Values that are already
+    // frozen, such as those `fromJson` produced, are kept without copying.
+    const defs = frozenJson(options.defs);
 
     if (functions.some(isAgentFunction)) {
       assertUniqueFunctionNames(this.id, functions);
@@ -919,10 +923,12 @@ export class Catalog<
     const agentFuncMap = new Map<string, AgentFunction>();
     const rendererFuncMap = new Map<string, F>();
     for (const fn of functions) {
-      funcMap.set(fn.name, fn);
       if (isAgentFunction(fn)) {
-        agentFuncMap.set(fn.name, fn);
+        const boundFn = bindAgentFunctionDefs(fn, defs);
+        funcMap.set(fn.name, boundFn as unknown as F);
+        agentFuncMap.set(fn.name, boundFn);
       } else {
+        funcMap.set(fn.name, fn);
         rendererFuncMap.set(fn.name, fn);
       }
     }
@@ -935,17 +941,11 @@ export class Catalog<
       for (const [name, agentFn] of agentFuncMap) {
         assertUax31Identifier(name, `function identifier: '${name}'`);
         // The keys the Zod schema declares, on every branch and through
-        // wrappers, with the names a JSON Schema `schema` was written with.
+        // wrappers, with the names a JSON Schema `schema` was written with
+        // (including references resolved against local and catalog `$defs`).
         const argNames = new Set([
           ...getDeclaredSchemaKeys(agentFn.schema),
           ...(agentFn.declaredParameterNames ?? []),
-          // A JSON Schema `schema` may refer to the catalog's own `$defs`.
-          ...(agentFn.jsonSchema !== undefined && options.defs !== undefined
-            ? functionParameterNames(agentFn.jsonSchema, {
-                $defs: options.defs,
-                ...agentFn.jsonSchema,
-              })
-            : []),
         ]);
         for (const argName of argNames) {
           assertUax31Identifier(argName, `argument identifier: '${argName}' in function '${name}'`);
@@ -967,10 +967,7 @@ export class Catalog<
     this.declaresComponents = options.declaresComponents ?? true;
     this.functionsLayout = options.functionsLayout;
     this.unions = options.unions ? Object.freeze({...options.unions}) : undefined;
-    // Frozen, so neither the caller nor a reader of the catalog can change the
-    // fields `toJson` assembles the document from. Values that are already
-    // frozen, such as those `fromJson` produced, are kept without copying.
-    this.defs = frozenJson(options.defs);
+    this.defs = defs;
     this.extensionFields = frozenJson(options.extensionFields);
     this.commonTypesUri = options.commonTypesUri;
     this.themeLocation = options.themeLocation;
