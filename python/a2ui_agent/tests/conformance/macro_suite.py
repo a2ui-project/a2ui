@@ -16,18 +16,23 @@
 
 from __future__ import annotations
 
+import copy
+from dataclasses import dataclass, field
 import json
 import os
-from dataclasses import dataclass, field
 from typing import Any, Literal, Optional, Sequence
 
+from pydantic import TypeAdapter
 import yaml
 
-from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.builder import v1_0 as builder_v1_0
 from a2ui.builder.v0_9 import (
     AccessibilityAttributes,
     Action,
+    Button,
+    Card,
     CheckRule,
+    Column,
     ComponentBuilderNode,
     ComponentRef,
     DynamicBoolean,
@@ -35,23 +40,22 @@ from a2ui.builder.v0_9 import (
     DynamicString,
     DynamicStringList,
     DynamicValue,
-)
-from a2ui.builder.v0_9.catalogs.basic import (
-    Button,
-    Card,
-    Column,
     Row,
     Text,
 )
-from a2ui.core.validation import ValidationConfig
-from a2ui.transformers.macros import (
-    MacroExpander,
-    macro,
+from a2ui.core import (
+    A2uiValidationError,
+    Catalog,
+    CatalogApi,
+    MessageProcessor,
+    MessageProcessorOptions,
+    SurfaceModel,
+    ValidationConfig,
 )
-from a2ui.core import A2uiValidationError, Catalog, CatalogApi
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
+from a2ui.transformers.macros import MacroExpander, macro
 from a2ui.utils import to_version_number
-from pydantic import TypeAdapter
 
 _message_adapter: TypeAdapter[AgentToRendererMessage] = TypeAdapter(
     AgentToRendererMessage
@@ -106,6 +110,7 @@ class Case:
     expect: Optional[dict[str, Any]] = None
     envelope_version: Optional[str] = None
     passthrough_components: Optional[list[str]] = None
+    macro_catalog_id: str | None = None
 
     @property
     def golden_path(self) -> str:
@@ -137,6 +142,7 @@ def load_cases() -> list[Case]:
             expect=raw.get("expect"),
             envelope_version=raw.get("envelope_version"),
             passthrough_components=raw.get("passthrough_components"),
+            macro_catalog_id=raw.get("macro_catalog_id"),
         )
         for raw in suite["tests"]
     ]
@@ -266,6 +272,29 @@ def get_suite_macros() -> list[Any]:
 SUITE_MACROS = get_suite_macros()
 
 
+def get_scoped_suite_macros() -> dict[str, list[Any]]:
+    """Builds and returns catalog-scoped reference macros keyed by ``catalog_id``."""
+
+    @macro(name="Text")
+    def BrandText(
+        text: str, variant: builder_v1_0.TextVariant = "body"
+    ) -> builder_v1_0.Card:
+        """Custom brand Text macro wrapping a basic Text inside a Card."""
+        return builder_v1_0.Card(
+            child=builder_v1_0.Text(
+                text=f"[Brand] {text}",
+                variant=variant,
+            )
+        )
+
+    return {
+        "https://example.com/brand.json": [BrandText],
+    }
+
+
+SCOPED_SUITE_MACROS = get_scoped_suite_macros()
+
+
 # =============================================================================
 # Execution
 # =============================================================================
@@ -337,7 +366,15 @@ def run_case(case: Case) -> Any:
     except Exception as e:
         raise A2uiValidationError(f"Invalid message envelope: {e}") from e
 
-    expander = MacroExpander(SUITE_MACROS)
+    if case.macro_catalog_id:
+        scoped_macros = SCOPED_SUITE_MACROS.get(case.macro_catalog_id)
+        if scoped_macros is None:
+            raise KeyError(
+                f"No scoped macros registered for catalog_id={case.macro_catalog_id!r}."
+            )
+        expander = MacroExpander(scoped_macros, catalog_id=case.macro_catalog_id)
+    else:
+        expander = MacroExpander(SUITE_MACROS)
     expanded_msgs = expander.transform_to_transport(typed_raw_msgs)
     return [m.model_dump(by_alias=True, exclude_none=True) for m in expanded_msgs]
 
@@ -346,32 +383,33 @@ def run_case(case: Case) -> Any:
 # Validation
 # =============================================================================
 
-_catalog: Optional[CatalogApi] = None
+_catalogs_by_version: dict[str, CatalogApi] = {}
 
 
-def basic_catalog_schema() -> CatalogApi:
-    """Loads the basic catalog, memoized because schema loading is slow."""
-    global _catalog
-    if _catalog is None:
+def basic_catalog_schema(version: str = PROTOCOL_VERSION) -> CatalogApi:
+    """Loads the basic catalog for the requested protocol version, memoized."""
+    if version not in _catalogs_by_version:
         # BasicCatalog serves v0.9.1 with the v0.9 catalog, which reports v0.9,
         # so the catalog is parsed again for the version under test.
-        basic = BasicCatalog(PROTOCOL_VERSION)
-        _catalog = Catalog.from_json(
+        basic = BasicCatalog(version)
+        _catalogs_by_version[version] = Catalog.from_json(
             catalog_schema=basic.validation_schema,
-            protocol_version=PROTOCOL_VERSION,
+            protocol_version=version,
             catalog_id=basic.catalog_id,
         )
-    return _catalog
+    return _catalogs_by_version[version]
 
 
 def validate_payload(payload: list[dict[str, Any]], case: Case) -> None:
     """Validates ``payload`` against the bundled basic catalog schema and topology rules."""
-    import copy
-    from a2ui.core import MessageProcessor, MessageProcessorOptions
-
     config = case.validation.to_config()
     has_create = any(isinstance(m, dict) and "createSurface" in m for m in payload)
-    catalogs = [basic_catalog_schema()]
+    version = (
+        "1.0"
+        if case.envelope_version and to_version_number(case.envelope_version) == "1.0"
+        else PROTOCOL_VERSION
+    )
+    catalogs = [basic_catalog_schema(version)]
     if case.catalog_id and case.catalog_id != getattr(catalogs[0], "catalog_id", None):
         alias_cat = copy.copy(catalogs[0])
         alias_cat.catalog_id = case.catalog_id
@@ -382,8 +420,6 @@ def validate_payload(payload: list[dict[str, Any]], case: Case) -> None:
         options=MessageProcessorOptions(validation_config=config),
     )
     if not has_create:
-        from a2ui.core import SurfaceModel
-
         processor.model.add_surface(
             SurfaceModel(
                 surface_id=case.surface_id,
