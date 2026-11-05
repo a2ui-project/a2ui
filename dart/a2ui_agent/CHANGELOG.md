@@ -44,6 +44,10 @@
   `call` checks its arguments in the same order as the Python and TypeScript
   SDKs; `args` must have identifier keys and JSON values, and nested function
   calls in it are left for the renderer to check.
+  `resolve` holds a response to the v1.0 `FunctionResponse` schema: version
+  `'1.0'` and exactly one of `value` (`null` for a function that returns
+  nothing) and `error`. A response that breaks it fails its pending call with
+  `UNKNOWN_ERROR`.
 
 ## 0.1.0
 
