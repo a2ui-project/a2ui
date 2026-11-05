@@ -1,6 +1,8 @@
 ---
 name: inspect-ai
 description: Useful when working with the Inspect AI evaluation framework (e.g., in the eval/ directory). Provides instructions on how to access Inspect AI documentation.
+metadata:
+  internal: true
 ---
 
 # Inspect AI Framework Guidelines

@@ -25,10 +25,25 @@ import {
 } from '../../src/index.js';
 import {MessageProcessor} from '../../src/internal/web-core.js';
 import {loadCases} from './loader.js';
-import {categoryOf, conformancePath, describeSuite} from './suite-helpers.js';
+import {
+  assertKnownKeys,
+  CASE_METADATA_KEYS,
+  categoryOf,
+  conformancePath,
+  describeSuite,
+  EXPECT_ERROR_KEYS,
+  KNOWN_FAILURES,
+} from './suite-helpers.js';
 
-/** Cases that run but do not pass yet, with the reason for each. */
-const KNOWN_FAILURES = new Map<string, string>();
+const STREAM_ANSWER_CASE_KEYS = new Set([
+  ...CASE_METADATA_KEYS,
+  'args',
+  'steps',
+  'expect_close',
+  'expect_error',
+]);
+const STREAM_ANSWER_ARGS_KEYS = new Set(['format', 'catalog', 'renderer_catalogs']);
+const STREAM_ANSWER_STEP_KEYS = new Set(['input', 'expect_parts', 'expect_in_block']);
 
 interface AnswerArgs {
   format: string;
@@ -58,7 +73,13 @@ describeSuite(
   'Conformance: streamed_answer.yaml',
   loadCases([conformancePath('agent/streamed_answer.yaml')]),
   testCase => {
+    assertKnownKeys(testCase, STREAM_ANSWER_CASE_KEYS, 'stream_answer case');
     const args = testCase.args as unknown as AnswerArgs;
+    assertKnownKeys(
+      args as unknown as Record<string, unknown>,
+      STREAM_ANSWER_ARGS_KEYS,
+      'stream_answer args',
+    );
     if (args.format !== 'direct_json') {
       throw new Error(`Unexpected format '${args.format}'`);
     }
@@ -72,21 +93,31 @@ describeSuite(
     );
     const open = () => new StreamedAnswer(processor, {renderer});
 
-    const expectError = testCase.expect_error as {category: string} | undefined;
+    const expectError = testCase.expect_error as {category: string; message?: string} | undefined;
     if (expectError) {
+      assertKnownKeys(expectError as Record<string, unknown>, EXPECT_ERROR_KEYS, 'expect_error');
       let thrown: unknown;
       try {
         open();
       } catch (e) {
         thrown = e;
       }
+      expect(thrown, 'Expected open() to throw').toBeDefined();
       expect(categoryOf(thrown)).toBe(expectError.category);
+      if (expectError.message) {
+        expect((thrown as Error).message).toMatch(new RegExp(expectError.message, 'i'));
+      }
       return;
     }
 
     const answer = open();
     const parts = () => answer.parts.map(part => partToDict(part, renderer));
     for (const [index, step] of (testCase.steps as Step[]).entries()) {
+      assertKnownKeys(
+        step as unknown as Record<string, unknown>,
+        STREAM_ANSWER_STEP_KEYS,
+        'stream_answer step',
+      );
       answer.feed(step.input);
       expect(parts(), `step ${index}: ${step.input}`).toEqual(step.expect_parts);
       if (step.expect_in_block !== undefined) {

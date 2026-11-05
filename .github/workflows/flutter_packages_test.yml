@@ -172,7 +172,9 @@ jobs:
           uv run --project conformance python conformance/scripts/check_executed_cases.py \
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --corpus agent \
-            --harness dart-agent
+            --harness dart-agent \
+            --exclude "agent/direct_json/scaling.yaml=performance: runs with -P performance" \
+            --exclude "agent/express/scaling.yaml=performance: runs with -P performance"
           uv run --project conformance python conformance/scripts/check_executed_cases.py \
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --corpus e2e \

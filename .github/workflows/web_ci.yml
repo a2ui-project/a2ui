@@ -150,7 +150,9 @@ jobs:
           uv run --project conformance python conformance/scripts/check_executed_cases.py \
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --corpus agent \
-            --harness ts-agent
+            --harness ts-agent \
+            --exclude "agent/direct_json/scaling.yaml=performance: runs in ci-timing via test:timing" \
+            --exclude "agent/express/scaling.yaml=performance: runs in ci-timing via test:timing"
           uv run --project conformance python conformance/scripts/check_executed_cases.py \
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --corpus e2e \

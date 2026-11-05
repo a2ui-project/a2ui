@@ -63,20 +63,24 @@ def _append_manifest_record(
         handle.write(json.dumps(record) + "\n")
 
 
-def _extract_skip_reason(report: pytest.TestReport) -> str:
+def _extract_skip_reason(report: pytest.TestReport) -> str | None:
     """Extracts a human-readable skip or xfail reason from a pytest TestReport."""
     wasxfail = getattr(report, "wasxfail", None)
-    if isinstance(wasxfail, str) and wasxfail.strip():
-        return wasxfail.strip()
     if wasxfail is not None:
-        return "expected failure"
+        return (
+            wasxfail.strip() if isinstance(wasxfail, str) and wasxfail.strip() else None
+        )
     longrepr = getattr(report, "longrepr", None)
     if isinstance(longrepr, tuple) and len(longrepr) >= 3:
-        text = str(longrepr[2]).removeprefix("Skipped: ").strip()
-        return text or "skipped"
-    if longrepr:
-        return str(longrepr).removeprefix("Skipped: ").strip() or "skipped"
-    return "skipped"
+        raw = str(longrepr[2]).strip()
+    elif longrepr:
+        raw = str(longrepr).strip()
+    else:
+        return None
+    if raw == "Skipped":
+        return None
+    text = raw.removeprefix("Skipped:").strip()
+    return text or None
 
 
 def _report_status_and_reason(
