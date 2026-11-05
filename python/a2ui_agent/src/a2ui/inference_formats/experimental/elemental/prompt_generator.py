@@ -24,7 +24,6 @@ import json
 import re
 from typing import Any, Literal
 
-from a2ui.constants import EXAMPLES_HEADING
 from a2ui.core import CatalogApi
 from a2ui.core.common import is_at_least_version
 from a2ui.inference_formats._shared import (
@@ -641,23 +640,6 @@ class ElementalPromptGenerator(PromptGenerator):
             result,
             flags=re.DOTALL,
         )
-
-    def generate(self) -> str:
-        """Assembles the prompt snippet explaining A2UI Elemental and its catalog."""
-        parts: list[str] = []
-
-        rules = self.generate_base_rules()
-        if rules:
-            parts.append(rules)
-
-        if self.helpers:
-            parts.append(self.generate_catalog_instructions(include_schema=True))
-
-        formatted_examples = self.generate_examples()
-        if formatted_examples:
-            parts.append(f"{EXAMPLES_HEADING}{formatted_examples}")
-
-        return "\n\n".join(parts)
 
     def _catalog_instructions(self, helper: CatalogSchemaHelper) -> str:
         """Returns a catalog's instructions, with JSON examples as Elemental HTML.
