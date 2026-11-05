@@ -22,6 +22,7 @@ import pytest
 
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats import to_message_dicts, to_message_models
+from a2ui.inference_formats.experimental.a2ui_xml import A2uiXmlFormat
 from a2ui.inference_formats.experimental.atom import AtomFormat
 from a2ui.inference_formats.experimental.elemental import ElementalFormat
 from a2ui.inference_formats.express import ExpressFormat
@@ -149,6 +150,7 @@ class TestSpecificationRoundtripAllFormats:
         self.express_fmt = ExpressFormat([self.catalog])
         self.elemental_fmt = ElementalFormat([self.catalog])
         self.atom_fmt = AtomFormat([self.catalog])
+        self.a2ui_xml_fmt = A2uiXmlFormat([self.catalog])
 
     @pytest.mark.parametrize(
         "json_file", EXAMPLE_FILES, ids=lambda p: os.path.basename(p)
@@ -234,5 +236,17 @@ class TestSpecificationRoundtripAllFormats:
                 processed += 1
         except Exception as e:
             print(f"\n[Atom Error] {os.path.basename(json_file)}: {e}")
+
+        # 4. Test A2UI XML Format Roundtrip
+        try:
+            xml_doc = self.a2ui_xml_fmt.create_parser().decompile(surface_payload)
+            if xml_doc:
+                recompiled = self.a2ui_xml_fmt.create_parser().compile(xml_doc)
+                _assert_recompiled_matches_payload(
+                    recompiled, surface_id, all_components
+                )
+                processed += 1
+        except Exception as e:
+            print(f"\n[A2UI XML Error] {os.path.basename(json_file)}: {e}")
 
         assert processed > 0, f"No formats processed for {os.path.basename(json_file)}"

@@ -76,6 +76,12 @@ def test_generate_prompt_v10() -> None:
     assert "<a2ui>" in express_prompt
 
 
+def test_generate_prompt_a2ui_xml() -> None:
+    prompt = generate_prompt("a2ui_xml", "0.9.1", V091_CATALOG)
+    assert "<a2ui>" in prompt
+    assert "<Text" in prompt
+
+
 def test_generate_prompt_normalizes_and_validates_version() -> None:
     prompt = generate_prompt("direct_json", " v0.9.1 ", V091_CATALOG)
     assert V09_CATALOG_ID in prompt
