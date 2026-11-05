@@ -20,7 +20,7 @@ The agent sends **declarative JSON** (surfaces, components from a catalog, a dat
 model). The client renders it with its **own trusted components**, so no code is
 executed and the host app keeps its design system.
 
-- Docs: https://a2ui.org (LLM index: `https://a2ui.org/llms.txt`)
+- Docs: https://a2ui.org (LLM index: https://a2ui.org/llms.txt)
 - Repo: https://github.com/a2ui-project/a2ui
 - Current protocol: **v0.9.1** (v1.0 is a release candidate; v0.8 is legacy).
 
@@ -42,8 +42,12 @@ A2UI is young and has several protocol versions (v0.8 / v0.9 / v0.9.1 / v1.0) wi
 different message names. Your training data is likely outdated.
 
 1. Read the installed package's README and docs (e.g. `node_modules/@a2ui/react/README.md`).
-2. Otherwise read `https://a2ui.org/llms.txt` and the linked page for your framework.
-3. Import renderers and `MessageProcessor` from the package root (`@a2ui/react`, `@a2ui/web_core`). Only the basic catalog depends on the protocol version: `@a2ui/web_core/v0_9/basic_catalog` for v0.9, `@a2ui/web_core/catalogs/basic/v1` for v1.0. `v0_8` paths are for legacy v0.8 only.
+2. Otherwise read https://a2ui.org/llms.txt and the linked page for your framework.
+3. Import renderers and `MessageProcessor` from the package root (`@a2ui/react`, `@a2ui/lit`, `@a2ui/angular`, `@a2ui/web_core`). Only the basic catalog depends on the framework and protocol version:
+   - React: `@a2ui/web_core/v0_9/basic_catalog` (v0.9) or `@a2ui/web_core/catalogs/basic/v1` (v1.0).
+   - Angular: `BasicCatalog` from `@a2ui/angular/v0_9` (v0.9) or `@a2ui/angular` (v1.0); the `@a2ui/web_core` catalogs don't type-check with Angular.
+   - Lit: `basicCatalog` from `@a2ui/lit/v0_9`, as in the Lit README.
+   - `v0_8` paths are for legacy v0.8 only.
 4. If something isn't in the docs, say so. Don't guess message or field names.
 
 ## Install (current package names)
