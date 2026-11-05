@@ -20,7 +20,7 @@ import StarlightHeader from '../components/StarlightHeader.astro';
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -34,74 +34,142 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Inter+Tight:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
     />
     <script is:inline>
-      // Sync theme with Starlight's localStorage key ('starlight-theme')
+      // Default to the A2UI design system light theme unless user explicitly chose dark mode
       (function () {
-        const stored = typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme');
-        const theme = stored === 'light' || stored === 'dark' ? stored : 'dark';
+        const stored = typeof localStorage !== 'undefined' && localStorage.getItem('a2ui-theme');
+        const theme = stored === 'dark' || stored === 'light' ? stored : 'light';
         document.documentElement.setAttribute('data-theme', theme);
+        try {
+          localStorage.setItem('starlight-theme', theme);
+        } catch (_) {}
       })();
     </script>
     <style is:global>
       :root,
-      :root[data-theme='dark'] {
-        --bg: #080d1a;
-        --bg-alt: #0d1527;
-        --surface: #111c33;
-        --surface-raised: #162440;
-        --surface-subtle: #0c1425;
-        --code-bg: #060a14;
-        --code-header: #0f182d;
-        --text: #f8fafc;
-        --text-secondary: #cbd5e1;
-        --text-muted: #94a3b8;
-        --border: #1e293b;
-        --border-strong: #334155;
-        --accent: #14b8a6;
-        --accent-strong: #2dd4bf;
-        --accent-soft: rgba(20, 184, 166, 0.14);
-        --accent-border: rgba(45, 212, 191, 0.35);
-        --blue: #38bdf8;
-        --blue-soft: rgba(56, 189, 248, 0.14);
-        --amber: #fbbf24;
-        --amber-soft: rgba(251, 191, 36, 0.14);
-        --success: #34d399;
-        --success-soft: rgba(52, 211, 153, 0.14);
-        --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
-        --shadow-md: 0 12px 28px -6px rgba(0, 0, 0, 0.5), 0 4px 10px -2px rgba(0, 0, 0, 0.35);
-        --shadow-lg: 0 24px 48px -12px rgba(0, 0, 0, 0.65);
+      :root[data-theme='light'] {
+        /* Canonical A2UI Design System Color Tokens (from tokens.css) */
+        --surface-page: #f3f4f6;
+        --surface: #ffffff;
+        --surface-sunken: #f8f9fa;
+        --surface-tile: #eeeff1;
+        --surface-disabled: #eef0f2;
+        --nav-glass: rgba(243, 244, 246, 0.86);
+        --border: #e5e7eb;
+        --border-strong: #9ca3af;
+        --ink: #111827;
+        --ink-hover: #1f2937;
+        --on-ink: #ffffff;
+        --hairline-on-ink: rgba(255, 255, 255, 0.1);
+        --text-strong: #374151;
+        --text-muted-ds: #4b5563;
+        --text-subtle: #6b7280;
+        --text-eyebrow: #5f6672;
+        --code: #1e293b;
+        --success: #047857;
+        --success-border: #10b981;
+        --warning-surface: #fffbeb;
+        --warning-border: #f59e0b;
+        --warning-text: #92400e;
+        --blue-700: #24599a;
+        --blue-600: #3a78bd;
+        --blue-500: #3f7fc3;
+        --blue-450: #5c95d0;
+        --blue-400: #6c9fd4;
+        --blue-300: #96bee8;
+        --blue-200: #c3d8ee;
+        --blue-150: #c6daef;
+        --blue-100: #d9e6f4;
+        --blue-50: #eaf2fb;
+        --illus-fill-1: rgba(17, 24, 39, 0.02);
+        --illus-fill-2: rgba(17, 24, 39, 0.03);
+        --illus-fill-3: rgba(17, 24, 39, 0.05);
+        --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.03);
+
+        /* Mapped Page Semantic Aliases */
+        --bg: var(--surface-page);
+        --bg-alt: var(--surface-page);
+        --surface-raised: var(--surface);
+        --surface-subtle: var(--surface-sunken);
+        --code-bg: var(--surface-sunken);
+        --code-header: var(--surface-page);
+        --text: var(--ink);
+        --text-secondary: var(--text-muted-ds);
+        --text-muted: var(--text-subtle);
+        --accent: var(--blue-700);
+        --accent-strong: var(--ink);
+        --accent-soft: var(--blue-50);
+        --accent-border: var(--blue-300);
+        --blue: var(--blue-700);
+        --blue-soft: var(--blue-50);
+        --amber: var(--warning-text);
+        --amber-soft: var(--warning-surface);
+        --success-soft: rgba(16, 185, 129, 0.1);
+        --shadow-sm: var(--shadow-card);
+        --shadow-md: var(--shadow-card);
+        --shadow-lg: var(--shadow-card);
         --font-sans: "Plus Jakarta Sans", "Inter", "Google Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         --font-mono: "JetBrains Mono", "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       }
 
-      :root[data-theme='light'] {
-        --bg: #f8fafc;
-        --bg-alt: #f1f5f9;
-        --surface: #ffffff;
-        --surface-raised: #ffffff;
-        --surface-subtle: #f8fafc;
-        --code-bg: #0f172a;
-        --code-header: #1e293b;
-        --text: #0f172a;
-        --text-secondary: #334155;
-        --text-muted: #64748b;
-        --border: #e2e8f0;
-        --border-strong: #cbd5e1;
-        --accent: #0d9488;
-        --accent-strong: #0f766e;
-        --accent-soft: rgba(13, 148, 136, 0.1);
-        --accent-border: rgba(13, 148, 136, 0.32);
-        --blue: #0284c7;
-        --blue-soft: rgba(2, 132, 199, 0.1);
-        --amber: #d97706;
-        --amber-soft: rgba(217, 119, 6, 0.1);
-        --success: #059669;
-        --success-soft: rgba(5, 150, 105, 0.12);
-        --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
-        --shadow-md: 0 8px 24px -4px rgba(15, 23, 42, 0.07), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
-        --shadow-lg: 0 20px 40px -12px rgba(15, 23, 42, 0.1);
+      :root[data-theme='dark'] {
+        --surface-page: #0f141c;
+        --surface: #161d27;
+        --surface-sunken: #111720;
+        --surface-tile: #1b2430;
+        --surface-disabled: #1e2631;
+        --nav-glass: rgba(15, 20, 28, 0.86);
+        --border: #263040;
+        --border-strong: #4b5563;
+        --ink: #f3f4f6;
+        --ink-hover: #ffffff;
+        --on-ink: #111827;
+        --hairline-on-ink: rgba(17, 24, 39, 0.15);
+        --text-strong: #d1d5db;
+        --text-muted-ds: #9ca3af;
+        --text-subtle: #6b7280;
+        --text-eyebrow: #9ca3af;
+        --code: #e5e7eb;
+        --success: #34d399;
+        --success-border: #059669;
+        --warning-surface: rgba(245, 158, 11, 0.12);
+        --warning-border: #f59e0b;
+        --warning-text: #fbbf24;
+        --blue-700: #6c9fd4;
+        --blue-600: #5c95d0;
+        --blue-500: #3f7fc3;
+        --blue-450: #3a78bd;
+        --blue-400: #24599a;
+        --blue-300: #24599a;
+        --blue-200: #1e3a5f;
+        --blue-150: #1a3354;
+        --blue-100: #172b47;
+        --blue-50: rgba(63, 127, 195, 0.14);
+        --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.35);
+
+        --bg: var(--surface-page);
+        --bg-alt: var(--surface-page);
+        --surface-raised: #1c2532;
+        --surface-subtle: var(--surface-sunken);
+        --code-bg: var(--surface-sunken);
+        --code-header: #141b25;
+        --text: var(--ink);
+        --text-secondary: var(--text-muted-ds);
+        --text-muted: var(--text-subtle);
+        --accent: var(--blue-700);
+        --accent-strong: var(--ink);
+        --accent-soft: var(--blue-50);
+        --accent-border: rgba(108, 159, 212, 0.35);
+        --blue: var(--blue-700);
+        --blue-soft: var(--blue-50);
+        --amber: var(--warning-text);
+        --amber-soft: var(--warning-surface);
+        --success-soft: rgba(52, 211, 153, 0.14);
+        --shadow-sm: var(--shadow-card);
+        --shadow-md: var(--shadow-card);
+        --shadow-lg: var(--shadow-card);
       }
 
       *,
@@ -131,9 +199,10 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         z-index: 50;
         height: 60px;
         box-sizing: border-box;
-        background: var(--bg-alt);
+        background: var(--nav-glass);
         border-bottom: 1px solid var(--border);
         backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
       }
 
       .a2-nav__inner {
@@ -168,7 +237,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         font-weight: 600;
         letter-spacing: 0.08em;
         text-transform: uppercase;
-        color: var(--accent);
+        color: var(--text-eyebrow);
         margin-bottom: 12px;
       }
 
@@ -228,31 +297,35 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       }
 
       .a2-btn--primary {
-        background: var(--accent);
-        color: #ffffff;
-        box-shadow: 0 2px 8px rgba(13, 148, 136, 0.25);
+        background: var(--ink);
+        color: var(--on-ink);
+        border-color: var(--hairline-on-ink);
       }
 
       .a2-btn--primary:hover {
-        background: var(--accent-strong);
+        background: var(--ink-hover);
       }
 
       .a2-btn--secondary {
         background: var(--surface);
         color: var(--text);
-        border-color: var(--border-strong);
+        border-color: var(--border);
       }
 
       .a2-btn--secondary:hover {
-        border-color: var(--accent);
+        border-color: var(--border-strong);
       }
 
       .a2-btn--code {
-        background: var(--code-bg);
-        color: #e2e8f0;
-        border-color: #334155;
+        background: var(--surface);
+        color: var(--text);
+        border-color: var(--border);
         font-family: var(--font-mono);
         font-size: 13px;
+      }
+
+      .a2-btn--code:hover {
+        border-color: var(--border-strong);
       }
 
       /* --- Hero Section --- */
@@ -278,28 +351,30 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         font-size: 11px;
         font-weight: 600;
         padding: 2px 8px;
-        border-radius: 4px;
+        border-radius: 999px;
       }
 
       .a2-status-tag--good {
-        background: var(--success-soft);
+        background: var(--surface);
         color: var(--success);
+        border: 1px solid var(--success-border);
       }
 
       .a2-flight-badge {
         font-family: var(--font-mono);
         font-size: 11px;
         font-weight: 600;
-        padding: 2px 6px;
-        border-radius: 4px;
-        background: var(--blue-soft);
-        color: var(--blue);
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid var(--border);
       }
 
       /* --- Section 2: Generative UI Spectrum --- */
       .a2-spectrum-shell {
         background: var(--surface);
-        border: 1px solid var(--border-strong);
+        border: 1px solid var(--border);
         border-radius: 12px;
         padding: 26px;
         box-shadow: var(--shadow-md);
@@ -321,7 +396,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         flex: 1;
         height: 4px;
         border-radius: 2px;
-        background: linear-gradient(90deg, var(--blue), var(--accent), var(--amber));
+        background: linear-gradient(90deg, var(--ink), var(--blue-600), var(--blue-300));
         margin: 0 16px;
       }
 
@@ -351,12 +426,12 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       }
 
       .a2-band-card:hover {
-        border-color: var(--accent);
+        border-color: var(--border-strong);
       }
 
       .a2-band-card.is-active {
-        background: var(--accent-soft);
-        border-color: var(--accent);
+        background: var(--surface);
+        border-color: var(--ink);
         box-shadow: var(--shadow-sm);
       }
 
@@ -364,9 +439,13 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         font-family: var(--font-mono);
         font-size: 11px;
         font-weight: 700;
-        color: var(--accent);
+        color: var(--text-eyebrow);
         display: block;
         margin-bottom: 4px;
+      }
+
+      .a2-band-card.is-active .a2-band-card__tag {
+        color: var(--accent);
       }
 
       .a2-band-card__title {
@@ -415,7 +494,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         font-size: 11px;
         font-weight: 700;
         text-transform: uppercase;
-        color: var(--accent);
+        color: var(--text-eyebrow);
         display: block;
         margin-bottom: 3px;
       }
@@ -442,7 +521,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
       .a2-logo-tab {
         background: var(--surface);
-        border: 1px solid var(--border-strong);
+        border: 1px solid var(--border);
         border-radius: 10px;
         padding: 16px 14px;
         cursor: pointer;
@@ -457,13 +536,13 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       }
 
       .a2-logo-tab:hover {
-        border-color: var(--accent);
+        border-color: var(--border-strong);
         transform: translateY(-1px);
       }
 
       .a2-logo-tab.is-active {
         background: var(--accent-soft);
-        border-color: var(--accent);
+        border-color: var(--ink);
         box-shadow: var(--shadow-sm);
       }
 
@@ -488,7 +567,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
       .a2-usecase-stage {
         background: var(--surface);
-        border: 1px solid var(--border-strong);
+        border: 1px solid var(--border);
         border-radius: 12px;
         overflow: hidden;
         box-shadow: var(--shadow-lg);
@@ -520,7 +599,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
       .a2-screenshot-window {
         background: var(--surface);
-        border: 1px solid var(--border-strong);
+        border: 1px solid var(--border);
         border-radius: 10px;
         overflow: hidden;
         box-shadow: var(--shadow-md);
@@ -528,7 +607,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
       .a2-screenshot-chrome {
         background: var(--code-header);
-        color: #cbd5e1;
+        color: var(--text-muted);
+        border-bottom: 1px solid var(--border);
         padding: 10px 16px;
         display: flex;
         align-items: center;
@@ -546,7 +626,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         width: 9px;
         height: 9px;
         border-radius: 50%;
-        background: #475569;
+        background: var(--border-strong);
       }
 
       .a2-screenshot-body {
@@ -556,7 +636,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       /* --- Code Windows & Why A2UI Sections --- */
       .a2-code-window {
         background: var(--code-bg);
-        border: 1px solid var(--border-strong);
+        border: 1px solid var(--border);
         border-radius: 10px;
         overflow: hidden;
         box-shadow: var(--shadow-md);
@@ -570,14 +650,14 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         display: flex;
         align-items: center;
         justify-content: space-between;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        border-bottom: 1px solid var(--border);
       }
 
       .a2-code-window__title {
         font-family: var(--font-mono);
         font-size: 12px;
         font-weight: 600;
-        color: #e2e8f0;
+        color: var(--text);
       }
 
       .a2-code-window__badge {
@@ -585,9 +665,10 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         font-size: 11px;
         font-weight: 600;
         padding: 2px 8px;
-        border-radius: 4px;
-        background: rgba(20, 184, 166, 0.2);
-        color: #5eead4;
+        border-radius: 999px;
+        background: var(--surface);
+        color: var(--success);
+        border: 1px solid var(--success-border);
       }
 
       .a2-code-pre {
@@ -596,16 +677,16 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         font-family: var(--font-mono);
         font-size: 12px;
         line-height: 1.6;
-        color: #e2e8f0;
+        color: var(--code);
         overflow-x: auto;
         flex: 1;
       }
 
-      .a2-tok-path { color: #38bdf8; }
-      .a2-tok-comp { color: #2dd4bf; font-weight: 600; }
-      .a2-tok-str { color: #fcd34d; }
-      .a2-tok-kw { color: #f472b6; }
-      .a2-tok-comment { color: #64748b; }
+      .a2-tok-path { color: var(--text); font-weight: 500; }
+      .a2-tok-comp { color: var(--blue-700); font-weight: 600; }
+      .a2-tok-str { color: var(--success); }
+      .a2-tok-kw { color: var(--blue-600); font-weight: 600; }
+      .a2-tok-comment { color: var(--text-muted); }
 
       .a2-express-grid {
         display: grid;
@@ -646,7 +727,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         font-family: var(--font-mono);
         font-size: 11.5px;
         font-weight: 700;
-        color: #ffffff;
+        color: var(--on-ink);
       }
 
       /* --- Macros 3-Stage Grid --- */
@@ -664,7 +745,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
       .a2-macro-stage {
         background: var(--surface);
-        border: 1px solid var(--border-strong);
+        border: 1px solid var(--border);
         border-radius: 10px;
         overflow: hidden;
         display: flex;
@@ -682,7 +763,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         font-family: var(--font-mono);
         font-size: 11px;
         font-weight: 700;
-        color: var(--accent);
+        color: var(--text);
       }
 
       .a2-macro-stage__body {
@@ -715,20 +796,26 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       .a2-plat-tab {
         padding: 10px 12px;
         border-radius: 8px;
-        border: 1px solid var(--border-strong);
-        background: var(--surface);
+        border: 1px solid var(--border);
+        background: var(--surface-subtle);
         color: var(--text-secondary);
         font-family: var(--font-sans);
         font-size: 13px;
         font-weight: 600;
         cursor: pointer;
         text-align: center;
+        transition: all 0.15s ease;
+      }
+
+      .a2-plat-tab:hover {
+        border-color: var(--border-strong);
+        color: var(--text);
       }
 
       .a2-plat-tab.is-active {
-        background: var(--accent);
-        border-color: var(--accent);
-        color: #ffffff;
+        background: var(--ink);
+        border-color: var(--ink);
+        color: var(--on-ink);
       }
 
       .a2-platform-showcase {
@@ -764,7 +851,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       .a2-logo-tab.is-active .a2-logo-placeholder-box {
         border-color: var(--accent);
         color: var(--accent-strong);
-        background: var(--accent-soft);
+        background: var(--surface);
       }
 
       .a2-ui-placeholder-frame {
@@ -825,7 +912,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       .a2-why-card {
         text-align: left;
         background: var(--surface);
-        border: 1px solid var(--border-strong);
+        border: 1px solid var(--border);
         border-radius: 12px;
         padding: 22px;
         cursor: pointer;
@@ -839,14 +926,14 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       }
 
       .a2-why-card:hover {
-        border-color: var(--accent);
+        border-color: var(--border-strong);
         transform: translateY(-2px);
       }
 
       .a2-why-card.is-active {
-        border-color: var(--accent);
+        border-color: var(--ink);
         background: linear-gradient(180deg, var(--accent-soft), var(--surface));
-        box-shadow: 0 0 0 1px var(--accent);
+        box-shadow: 0 0 0 1px var(--ink);
       }
 
       .a2-why-card__num {
@@ -855,7 +942,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         font-weight: 700;
         letter-spacing: 0.07em;
         text-transform: uppercase;
-        color: var(--accent);
+        color: var(--text-eyebrow);
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -879,7 +966,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         font-family: var(--font-mono);
         font-size: 11.5px;
         font-weight: 600;
-        color: var(--accent-strong);
+        color: var(--accent);
         display: flex;
         align-items: center;
         gap: 6px;
@@ -887,7 +974,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
       .a2-why-deck {
         background: var(--surface);
-        border: 1px solid var(--border-strong);
+        border: 1px solid var(--border);
         border-radius: 14px;
         padding: 24px;
         box-shadow: var(--shadow-lg);
@@ -901,11 +988,15 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         display: block;
       }
 
-      /* --- Bottom Docs Transition Banner --- */
+      /* --- Bottom Docs Transition Banner (Design System Closing CTA Pale-Blue Band) --- */
       .a2-docs-bridge {
         margin-top: 56px;
-        background: linear-gradient(135deg, var(--surface), var(--bg-alt));
-        border: 1px solid var(--border-strong);
+        background:
+          radial-gradient(120% 70% at 15% 115%, rgba(255, 255, 255, 0.95), transparent 55%),
+          radial-gradient(90% 60% at 88% -15%, rgba(255, 255, 255, 0.9), transparent 60%),
+          radial-gradient(50% 35% at 55% 55%, rgba(255, 255, 255, 0.5), transparent 70%),
+          linear-gradient(160deg, var(--blue-200) 0%, var(--blue-100) 50%, var(--blue-150) 100%);
+        border: 1px solid var(--border);
         border-radius: 14px;
         padding: 32px;
         display: flex;
@@ -913,6 +1004,10 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         justify-content: space-between;
         gap: 24px;
         flex-wrap: wrap;
+      }
+
+      :root[data-theme='dark'] .a2-docs-bridge {
+        background: linear-gradient(160deg, var(--blue-200) 0%, var(--blue-100) 55%, var(--surface) 100%);
       }
     </style>
   </head>
@@ -1236,7 +1331,7 @@ no_btn = <span class="a2-tok-comp">Button</span>(no_btn_text, _, <span class="a2
                 <div class="a2-code-window">
                   <div class="a2-code-window__header">
                     <span class="a2-code-window__title">What the SDK sends on the wire · Standard A2UI v1.0 JSON</span>
-                    <span class="a2-code-window__badge" style="background: rgba(148,163,184,0.18); color: #cbd5e1;">104 lines · 1,780 chars</span>
+                    <span class="a2-code-window__badge" style="background: var(--surface); color: var(--text-muted); border-color: var(--border);">104 lines · 1,780 chars</span>
                   </div>
                   <pre class="a2-code-pre"><code>&#123;
   <span class="a2-tok-path">"version"</span>: <span class="a2-tok-str">"1.0"</span>,
@@ -1259,10 +1354,10 @@ no_btn = <span class="a2-tok-comp">Button</span>(no_btn_text, _, <span class="a2
                 <div style="margin-bottom: 12px;">
                   <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 600;">
                     <span>A2UI Express Inference Format (LLM Output)</span>
-                    <span style="color: var(--accent); font-family: var(--font-mono);">397 chars · ~3x faster generation · 55–70% fewer tokens across spec</span>
+                    <span style="color: var(--success); font-family: var(--font-mono);">397 chars · ~3x faster generation · 55–70% fewer tokens across spec</span>
                   </div>
                   <div class="a2-bench-track">
-                    <div class="a2-bench-fill" style="width: 22.3%; min-width: 155px; background: var(--accent);">397 chars (−77%)</div>
+                    <div class="a2-bench-fill" style="width: 22.3%; min-width: 155px; background: var(--ink); color: var(--on-ink);">397 chars (−77%)</div>
                   </div>
                 </div>
                 <div>
@@ -1271,7 +1366,7 @@ no_btn = <span class="a2-tok-comp">Button</span>(no_btn_text, _, <span class="a2
                     <span style="color: var(--text-muted); font-family: var(--font-mono);">1,780 chars · 1.0x baseline</span>
                   </div>
                   <div class="a2-bench-track">
-                    <div class="a2-bench-fill" style="width: 100%; background: #475569;">1,780 chars (100% wire JSON)</div>
+                    <div class="a2-bench-fill" style="width: 100%; background: var(--blue-600); color: #ffffff;">1,780 chars (100% wire JSON)</div>
                   </div>
                 </div>
               </div>

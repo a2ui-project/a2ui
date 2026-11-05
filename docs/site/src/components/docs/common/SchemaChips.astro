@@ -82,9 +82,9 @@ function resolveHref(href: string): string {
     max-width: 100%;
     padding: 0.2rem 0.55rem 0.2rem 0.3rem;
     border-radius: 999px;
-    border: 1px solid var(--sl-color-hairline);
-    background: var(--sl-color-bg-sidebar);
-    color: var(--sl-color-white);
+    border: 1px solid var(--border, #e5e7eb);
+    background: var(--surface, #ffffff);
+    color: var(--ink, #111827);
     font-family: var(--sl-font-mono);
     font-size: 0.78rem;
     line-height: 1.3;
@@ -96,8 +96,8 @@ function resolveHref(href: string): string {
 
   .schema-chip:hover,
   .schema-chip:focus-visible {
-    border-color: var(--sl-color-accent);
-    background: rgba(20, 184, 166, 0.1);
+    border-color: var(--border-strong, #9ca3af);
+    background: var(--surface-sunken, #f8f9fa);
   }
 
   .schema-chip__ver {
@@ -108,23 +108,13 @@ function resolveHref(href: string): string {
     font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.01em;
-    background: rgba(148, 163, 184, 0.16);
-    color: var(--sl-color-gray-2);
+    background: var(--surface-page, #f3f4f6);
+    color: var(--text-strong, #374151);
   }
 
   .schema-chip--v1 .schema-chip__ver {
-    background: rgba(20, 184, 166, 0.18);
-    color: var(--sl-color-text-accent);
-  }
-
-  :global(:root[data-theme='light']) .schema-chip--v1 .schema-chip__ver {
-    background: #ccfbf1;
-    color: #0f766e;
-  }
-
-  :global(:root[data-theme='light']) .schema-chip__ver {
-    background: #e2e8f0;
-    color: #334155;
+    background: var(--blue-50, #eaf2fb);
+    color: var(--blue-700, #24599a);
   }
 
   .schema-chip__label {

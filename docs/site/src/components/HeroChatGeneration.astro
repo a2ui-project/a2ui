@@ -192,29 +192,29 @@ sequenceDiagram
                     >
                       <defs>
                         <linearGradient id="hc-kyoto-sky" x1="0" y1="0" x2="1" y2="1">
-                          <stop offset="0%" stop-color="#1e1714" />
-                          <stop offset="52%" stop-color="#4e2d23" />
-                          <stop offset="100%" stop-color="#c86d51" />
+                          <stop offset="0%" stop-color="#24599a" />
+                          <stop offset="52%" stop-color="#3a78bd" />
+                          <stop offset="100%" stop-color="#6c9fd4" />
                         </linearGradient>
                         <linearGradient id="hc-sun-glow" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stop-color="#fed7aa" stop-opacity="0.78" />
-                          <stop offset="100%" stop-color="#ea580c" stop-opacity="0" />
+                          <stop offset="0%" stop-color="#eaf2fb" stop-opacity="0.85" />
+                          <stop offset="100%" stop-color="#96bee8" stop-opacity="0" />
                         </linearGradient>
                       </defs>
                       <rect width="400" height="94" fill="url(#hc-kyoto-sky)" />
                       <circle cx="318" cy="36" r="24" fill="url(#hc-sun-glow)" />
-                      <circle cx="318" cy="32" r="10" fill="#fef3c7" opacity="0.92" />
+                      <circle cx="318" cy="32" r="10" fill="#ffffff" opacity="0.92" />
                       <path
                         d="M0 70 Q65 42 135 58 T275 52 T400 60 L400 94 L0 94 Z"
-                        fill="#2d1f1a"
-                        opacity="0.88"
+                        fill="#1f2937"
+                        opacity="0.72"
                       />
                       <path
                         d="M0 78 Q100 58 195 72 T400 66 L400 94 L0 94 Z"
-                        fill="#1b1310"
+                        fill="#111827"
                       />
                       <!-- Pagoda silhouette -->
-                      <g fill="#120c0a" transform="translate(268, 22)">
+                      <g fill="#111827" transform="translate(268, 22)">
                         <rect x="11" y="0" width="2" height="9" />
                         <path d="M3 12 L12 7 L21 12 Z" />
                         <path d="M1 20 L12 14 L23 20 Z" />
@@ -223,10 +223,10 @@ sequenceDiagram
                       </g>
                       <!-- Torii gate -->
                       <g transform="translate(326, 38)">
-                        <path d="M2 8 Q18 4 34 8 L33 12 Q18 9 3 12 Z" fill="#d45b3e" />
-                        <rect x="6" y="15" width="24" height="3" rx="1" fill="#e06d4f" />
-                        <rect x="9" y="11" width="3.2" height="34" fill="#d45b3e" />
-                        <rect x="23.8" y="11" width="3.2" height="34" fill="#d45b3e" />
+                        <path d="M2 8 Q18 4 34 8 L33 12 Q18 9 3 12 Z" fill="#c3d8ee" />
+                        <rect x="6" y="15" width="24" height="3" rx="1" fill="#d9e6f4" />
+                        <rect x="9" y="11" width="3.2" height="34" fill="#c3d8ee" />
+                        <rect x="23.8" y="11" width="3.2" height="34" fill="#c3d8ee" />
                       </g>
                     </svg>
                   </div>
@@ -342,74 +342,74 @@ sequenceDiagram
     --hc-app-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     --hc-app-serif: 'Newsreader', Georgia, 'Times New Roman', serif;
 
-    /* Mobile App Palette: Warm Boutique Travel (Stone, Espresso, Alabaster & Kyoto Clay) */
-    --hc-app-bg: #181614;
-    --hc-app-bar: #1e1b18;
-    --hc-app-card: #24211e;
-    --hc-app-border: rgba(245, 240, 232, 0.08);
-    --hc-app-divider: rgba(245, 240, 232, 0.07);
-    --hc-app-shadow: 0 3px 12px rgba(0, 0, 0, 0.26);
-    --hc-app-text: #f5f2ed;
-    --hc-app-muted: #a69e94;
-    --hc-app-bubble: #2b2723;
-    --hc-app-bubble-text: #ede8e0;
-    --hc-app-chip-bg: #2f2b26;
-    --hc-app-chip-active-bg: #f5f2ed;
-    --hc-app-chip-active-text: #1c1917;
-    --hc-app-clay: #c86d51;
-    --hc-app-clay-hover: #b65d41;
-    --hc-app-clay-soft: rgba(200, 109, 81, 0.16);
-    --hc-app-clay-text: #fffaf5;
-    --hc-app-held: #4d7c5b;
+    /* Mobile App Palette: A2UI Paper, Ink & Blue Design System */
+    --hc-app-bg: #f3f4f6;
+    --hc-app-bar: #ffffff;
+    --hc-app-card: #ffffff;
+    --hc-app-border: #e5e7eb;
+    --hc-app-divider: #e5e7eb;
+    --hc-app-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    --hc-app-text: #111827;
+    --hc-app-muted: #4b5563;
+    --hc-app-bubble: #eaf2fb;
+    --hc-app-bubble-text: #111827;
+    --hc-app-chip-bg: #f3f4f6;
+    --hc-app-chip-active-bg: #111827;
+    --hc-app-chip-active-text: #ffffff;
+    --hc-app-clay: #111827;
+    --hc-app-clay-hover: #1f2937;
+    --hc-app-clay-soft: #eaf2fb;
+    --hc-app-clay-text: #ffffff;
+    --hc-app-held: #047857;
 
-    /* Left Panel: Calm, Muted Protocol Code Tokens (Aligned with Site Theme) */
-    --hc-code-bg: #080d19;
-    --hc-code-head: #0d1526;
-    --hc-syn-base: #94a3b8;
-    --hc-syn-comp: #cbd5e1;
-    --hc-syn-fn: #7dd3fc;
-    --hc-syn-kw: #5eead4;
-    --hc-syn-path: #94a3b8;
-    --hc-syn-str: #cbd5e1;
-    --hc-syn-num: #7dd3fc;
+    /* Left Panel: Recessed Sunken Code Well (Aligned with Design System tokens.css) */
+    --hc-code-bg: #f8f9fa;
+    --hc-code-head: #f3f4f6;
+    --hc-syn-base: #1e293b;
+    --hc-syn-comp: #111827;
+    --hc-syn-fn: #24599a;
+    --hc-syn-kw: #3a78bd;
+    --hc-syn-path: #111827;
+    --hc-syn-str: #047857;
+    --hc-syn-num: #24599a;
 
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 22px;
+    border-radius: 16px;
     box-shadow: var(--shadow-lg);
     overflow: hidden;
     text-align: left;
   }
 
-  :global(:root[data-theme='light']) .hc-shell {
-    --hc-app-bg: #f6f3ee;
-    --hc-app-bar: #fbf9f5;
-    --hc-app-card: #ffffff;
-    --hc-app-border: rgba(28, 25, 23, 0.08);
-    --hc-app-divider: rgba(28, 25, 23, 0.07);
-    --hc-app-shadow: 0 2px 10px rgba(28, 25, 23, 0.05);
-    --hc-app-text: #1c1917;
-    --hc-app-muted: #78716c;
-    --hc-app-bubble: #ebe5dc;
-    --hc-app-bubble-text: #292524;
-    --hc-app-chip-bg: #f2ede6;
-    --hc-app-chip-active-bg: #292524;
-    --hc-app-chip-active-text: #faf8f5;
-    --hc-app-clay: #bf6145;
-    --hc-app-clay-hover: #a85036;
-    --hc-app-clay-soft: rgba(191, 97, 69, 0.12);
-    --hc-app-clay-text: #fffaf5;
-    --hc-app-held: #3f6a4c;
+  :global(:root[data-theme='dark']) .hc-shell {
+    --hc-app-bg: #111720;
+    --hc-app-bar: #161d27;
+    --hc-app-card: #1c2532;
+    --hc-app-border: #263040;
+    --hc-app-divider: #263040;
+    --hc-app-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+    --hc-app-text: #f3f4f6;
+    --hc-app-muted: #9ca3af;
+    --hc-app-bubble: #1e3a5f;
+    --hc-app-bubble-text: #f3f4f6;
+    --hc-app-chip-bg: #161d27;
+    --hc-app-chip-active-bg: #f3f4f6;
+    --hc-app-chip-active-text: #111827;
+    --hc-app-clay: #3a78bd;
+    --hc-app-clay-hover: #5c95d0;
+    --hc-app-clay-soft: rgba(63, 127, 195, 0.18);
+    --hc-app-clay-text: #ffffff;
+    --hc-app-held: #047857;
 
-    --hc-code-bg: #f8fafc;
-    --hc-code-head: #f1f5f9;
-    --hc-syn-base: #64748b;
-    --hc-syn-comp: #334155;
-    --hc-syn-fn: #0284c7;
-    --hc-syn-kw: #0d9488;
-    --hc-syn-path: #64748b;
-    --hc-syn-str: #475569;
-    --hc-syn-num: #0284c7;
+    --hc-code-bg: #111720;
+    --hc-code-head: #141b25;
+    --hc-syn-base: #9ca3af;
+    --hc-syn-comp: #f3f4f6;
+    --hc-syn-fn: #6c9fd4;
+    --hc-syn-kw: #96bee8;
+    --hc-syn-path: #d1d5db;
+    --hc-syn-str: #34d399;
+    --hc-syn-num: #6c9fd4;
   }
 
   .hc-shell [hidden] {
@@ -725,17 +725,13 @@ sequenceDiagram
   }
 
   .hc-wire-pill--return.is-pulsing {
-    background: rgba(245, 158, 11, 0.18);
-    border-color: #f59e0b;
-    color: #f59e0b;
+    background: var(--warning-surface, #fffbeb);
+    border-color: var(--warning-border, #f59e0b);
+    color: var(--warning-text, #92400e);
     transform: translateX(-2px);
   }
 
-  :global(:root[data-theme='light']) .hc-wire-pill--return.is-pulsing {
-    color: #b45309;
-  }
-
-  /* --- Right Column: Neutral Brushed Titanium Frame + Warm Boutique Travel App --- */
+  /* --- Right Column: Technical Document Frame + Native App Preview --- */
   .hc-device-col {
     display: flex;
     justify-content: center;
@@ -748,21 +744,21 @@ sequenceDiagram
     max-width: 444px;
     border-radius: 38px;
     padding: 9px;
-    background: linear-gradient(155deg, #2d2b29 0%, #1c1b19 55%, #141312 100%);
-    border: 1.5px solid #3c3936;
+    background: linear-gradient(155deg, #f3f4f6 0%, #e5e7eb 55%, #d1d5db 100%);
+    border: 1px solid #d1d5db;
     box-shadow:
-      0 26px 52px -12px rgba(0, 0, 0, 0.6),
-      inset 0 1px 1px rgba(255, 255, 255, 0.14);
+      0 1px 2px rgba(0, 0, 0, 0.03),
+      inset 0 1px 1.5px rgba(255, 255, 255, 0.9);
     display: flex;
     flex-direction: column;
   }
 
-  :global(:root[data-theme='light']) .hc-phone {
-    background: linear-gradient(155deg, #e7e5e4 0%, #d6d3d1 55%, #c7c2bd 100%);
-    border-color: #bfb9b2;
+  :global(:root[data-theme='dark']) .hc-phone {
+    background: linear-gradient(155deg, #263040 0%, #1c2532 55%, #111720 100%);
+    border-color: #374151;
     box-shadow:
-      0 24px 48px -12px rgba(28, 25, 23, 0.18),
-      inset 0 1px 1.5px rgba(255, 255, 255, 0.9);
+      0 8px 24px rgba(0, 0, 0, 0.4),
+      inset 0 1px 1px rgba(255, 255, 255, 0.08);
   }
 
   .hc-phone__screen {
@@ -775,11 +771,7 @@ sequenceDiagram
     display: flex;
     flex-direction: column;
     height: 618px;
-    border: 1px solid rgba(0, 0, 0, 0.25);
-  }
-
-  :global(:root[data-theme='light']) .hc-phone__screen {
-    border-color: rgba(28, 25, 23, 0.08);
+    border: 1px solid var(--border);
   }
 
   /* Boutique Hospitality App Bar */
@@ -1186,18 +1178,12 @@ sequenceDiagram
     font-size: 11.2px;
     padding: 5px 10px;
     border-radius: 999px;
-    background: rgba(77, 124, 91, 0.16);
-    border: 1px solid rgba(77, 124, 91, 0.34);
-    color: #9dc5a8;
+    background: var(--surface, #ffffff);
+    border: 1px solid var(--success-border, #10b981);
+    color: var(--success, #047857);
     font-weight: 500;
     align-self: flex-start;
     flex-shrink: 0;
-  }
-
-  :global(:root[data-theme='light']) .hc-chat-confirm {
-    background: rgba(63, 106, 76, 0.1);
-    color: #2f543a;
-    border-color: rgba(63, 106, 76, 0.28);
   }
 
   .hc-chat-confirm code {

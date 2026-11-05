@@ -43,6 +43,10 @@ export default defineConfig({
       },
       head: [
         {
+          tag: 'script',
+          content: `(function(){try{var t=localStorage.getItem('a2ui-theme');var d=t==='dark'||t==='light'?t:'light';localStorage.setItem('starlight-theme',d);document.documentElement.setAttribute('data-theme',d);}catch(e){}})();`,
+        },
+        {
           tag: 'link',
           attrs: {
             rel: 'preconnect',
