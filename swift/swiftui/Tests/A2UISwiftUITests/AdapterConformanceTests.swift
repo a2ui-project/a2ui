@@ -376,7 +376,7 @@ struct AdapterConformanceTests {
         Issue.record("\(context): node '\(componentID)' not found")
         throw AdapterConformanceError("\(context): node '\(componentID)' not found")
       }
-      let hostedElement = try driver?.accessibilityNode(componentID: componentID)
+      let hostedElement = driver?.accessibilityNode(componentID: componentID)
       let modifier = A2UIAccessibilityModifier(node: node)
       try AdapterHarness.assertModifierMatches(
         modifier,

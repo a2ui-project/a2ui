@@ -1277,7 +1277,7 @@ enum AdapterHarness {
         Issue.record("\(context): missing accessibility node '\(componentID)'")
         throw AdapterConformanceError("\(context): missing accessibility node '\(componentID)'")
       }
-      let hostedElement = try driver?.accessibilityNode(componentID: componentID)
+      let hostedElement = driver?.accessibilityNode(componentID: componentID)
       let modifier = A2UIAccessibilityModifier(node: node)
       try assertModifierMatches(
         modifier,
