@@ -2540,6 +2540,16 @@
 <h3 id="audioplayer">AudioPlayer<a class="headerlink" href="#audioplayer" title="Permanent link">&para;</a></h3>
 <p>An audio player.</p>
 <p><strong>Rendering Guidelines:</strong> Render using a native audio player component with user controls enabled. Like video, its container should span the full width of its parent. Scrubbing (seeking) should be supported if provided by the native control.</p>
+<h3 id="media-urls-image-video-audioplayer">Media URLs (<code>Image</code>, <code>Video</code>, <code>AudioPlayer</code>)<a class="headerlink" href="#media-urls-image-video-audioplayer" title="Permanent link">&para;</a></h3>
+<p><strong>Security Constraints &amp; Implementation Requirements (Mandatory):</strong>
+<code>Image.url</code>, <code>Video.url</code> and <code>AudioPlayer.url</code> come from the agent. To keep them from running script (<code>javascript:</code> in a web renderer) or reading local and app-private resources (<code>file:</code>, <code>content:</code>, <code>blob:</code>, <code>ftp:</code>), every renderer validates them the same way, so a surface loads the same media on every platform:</p>
+<ol>
+<li><strong>Trim First:</strong> Remove leading and trailing whitespace and control characters before validating. An empty result is rejected.</li>
+<li><strong>Enforce Scheme Allowlist:</strong> Accept only <code>http:</code>, <code>https:</code> and <code>data:</code> URLs, and relative paths. Reject any other scheme by rendering nothing (or the platform's empty placeholder) for that media, rather than raising an error.</li>
+<li><strong>Require <code>scheme://</code> for HTTP:</strong> Accept an <code>http:</code> or <code>https:</code> URL only when it is written with <code>//</code> and a non-empty host (<code>https://host/...</code>). Reject forms such as <code>https:host</code>, which browsers resolve against the page.</li>
+<li><strong>Keep Relative Paths on the Same Host:</strong> Reject a relative path that starts with two slashes (<code>//host</code>), counting <code>\</code> as <code>/</code>, because it points at another host. Check the scheme and the leading slashes after dropping tab, newline and carriage-return characters, as browser URL parsers do, so <code>ht\ttps://host</code> and <code>/\t/host</code> are rejected too.</li>
+<li><strong>Validate Cheaply:</strong> Validation can run on every render, and a <code>data:</code> URL can be megabytes long, so inspect only the scheme prefix and the first characters instead of copying the whole string.</li>
+</ol>
 <h3 id="row">Row<a class="headerlink" href="#row" title="Permanent link">&para;</a></h3>
 <p>A horizontal layout container.</p>
 <p><strong>Rendering Guidelines:</strong> Implemented using a horizontal layout container (e.g., CSS Flexbox row, Compose <code>Row</code>, SwiftUI <code>HStack</code>). Ensure it fills the available width.
