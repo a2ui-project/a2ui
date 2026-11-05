@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import A2UICore
+import OrderedJSON
 import SwiftUI
 
 /// The root SwiftUI view for a single A2UI surface.
@@ -23,6 +24,9 @@ import SwiftUI
 /// the SwiftUI environment.
 public struct Surface: View {
   @ObservedObject public var viewModel: SurfaceViewModel
+  @Environment(\.a2uiCatalogs) private var environmentCatalogs
+  @Environment(\.a2uiDefaultCatalogID) private var environmentDefaultCatalogID
+  @Environment(\.a2uiTheme) private var environmentTheme
 
   public let catalogs: [String: Catalog<ComponentImplementation>]
   public let defaultCatalogID: String?
@@ -60,11 +64,16 @@ public struct Surface: View {
 
   public var body: some View {
     if let rootNode = viewModel.rootNode {
+      let mergedCatalogs = environmentCatalogs.merging(catalogs) { _, explicit in explicit }
+      let resolvedDefaultCatalogID =
+        defaultCatalogID ?? viewModel.defaultCatalogID ?? environmentDefaultCatalogID
+      let resolvedTheme = viewModel.theme ?? environmentTheme
+
       ComponentNodeView(node: rootNode)
-        .environment(\.a2uiTheme, viewModel.theme)
+        .environment(\.a2uiTheme, resolvedTheme)
         .environment(\.a2uiSurfaceMetadata, viewModel.metadata)
-        .environment(\.a2uiCatalogs, catalogs)
-        .environment(\.a2uiDefaultCatalogID, defaultCatalogID)
+        .environment(\.a2uiCatalogs, mergedCatalogs)
+        .environment(\.a2uiDefaultCatalogID, resolvedDefaultCatalogID)
     } else {
       // Nothing to show until the root component arrives.
       EmptyView()
