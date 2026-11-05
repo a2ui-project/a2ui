@@ -145,9 +145,6 @@ final class HostedViewDriver {
       )
       win.isReleasedWhenClosed = false
       win.contentView = hosting
-      // SwiftUI builds the accessibility tree of a hosting view only once its window is on
-      // screen.
-      win.orderFrontRegardless()
       self.hostingView = hosting
       self.window = win
     #elseif canImport(UIKit)
@@ -382,7 +379,9 @@ final class HostedViewDriver {
       visited: inout Set<ObjectIdentifier>
     ) -> AnyObject? {
       let objectID = ObjectIdentifier(element)
-      guard visited.insert(objectID).inserted else { return nil }
+      guard visited.count < Self.maxVisitedElements, visited.insert(objectID).inserted else {
+        return nil
+      }
 
       if let axElement = element as? any NSAccessibilityProtocol,
         matchesIdentifier(axElement.accessibilityIdentifier(), componentID: componentID)
@@ -416,6 +415,9 @@ final class HostedViewDriver {
       }
       return nil
     }
+    /// The most elements a search of the hosted accessibility tree visits.
+    private static let maxVisitedElements = 2000
+
     /// The accessibility children of `element`, read through the informal accessibility API
     /// for objects that do not adopt `NSAccessibilityProtocol`, plus the subviews of a view.
     private static func accessibilityChildren(of element: AnyObject) -> [Any] {
@@ -443,8 +445,9 @@ final class HostedViewDriver {
     private func accessibilityTreeDescription(maxLines: Int = 120) -> String {
       var lines: [String] = []
       var visited: Set<ObjectIdentifier> = []
+      let deadline = Date().addingTimeInterval(2)
       func visit(_ element: AnyObject, depth: Int) {
-        guard lines.count < maxLines, depth <= 16,
+        guard lines.count < maxLines, depth <= 16, Date() < deadline,
           visited.insert(ObjectIdentifier(element)).inserted
         else { return }
         let identifier: String?
@@ -465,7 +468,9 @@ final class HostedViewDriver {
         }
       }
       visit(hostingView, depth: 0)
-      return lines.joined(separator: "\n")
+      let description = lines.joined(separator: "\n")
+      print("[HostedViewDriver] accessibility tree:\n\(description)")
+      return description
     }
   #elseif canImport(UIKit)
     private func findNativeView(in view: UIView, componentID: String) -> UIView? {
