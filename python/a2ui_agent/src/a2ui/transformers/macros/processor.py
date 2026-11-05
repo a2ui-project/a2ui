@@ -14,6 +14,8 @@
 
 """Runtime expansion processor for A2UI macros."""
 
+from __future__ import annotations
+
 import types
 from collections.abc import Sequence as AbcSequence
 from typing import Any, Optional, Sequence, Union, get_args, get_origin
@@ -118,6 +120,10 @@ class _MacroProcessor:
     def has_macro(self, macro_name: str) -> bool:
         """Checks if a macro is registered by name."""
         return macro_name in self._macros
+
+    def get_macro(self, macro_name: str) -> _MacroMetadata | None:
+        """Returns the registered macro metadata for ``macro_name``, or None."""
+        return self._macros.get(macro_name)
 
     def expand(
         self,

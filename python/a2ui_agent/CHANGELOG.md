@@ -85,6 +85,18 @@
   standalone.
   [#3232](https://github.com/a2ui-project/a2ui/issues/3232),
   [#3575](https://github.com/a2ui-project/a2ui/pull/3575)
+- `MacroExpander.transform_to_transport` no longer passes component envelope
+  fields (`accessibility`, `catalogId`, `metadata`) to macro functions unless
+  declared as parameters, and merges undeclared `accessibility` and v1.0
+  `metadata` onto the expanded root component without copying the macro
+  invocation's `catalogId` onto emitted primitives
+  ([#3626](https://github.com/a2ui-project/a2ui/issues/3626),
+  [#3777](https://github.com/a2ui-project/a2ui/pull/3777)).
+- `MacroExpander` accepts optional `catalog_id` and `base_catalogs` parameters
+  (plus `register_catalog`) and tracks surface default catalogs across
+  `createSurface`/`deleteSurface` (or a per-call `surface_catalogs` mapping on
+  `transform_to_transport`) to scope macro expansion across mixed-catalog
+  surfaces ([#3777](https://github.com/a2ui-project/a2ui/pull/3777)).
 - The Express compiler accepts `userMessage=` and `context=` keyword arguments on `Event(...)`, compiling `userMessage` to the v1.0 `event.userMessage` field, and raises `ExpressValidationError` for `userMessage` before v1.0 and for any keyword `Event` does not define, where it used to drop them. A function call in an action slot nested inside a list item or object property (such as `items: [{label, action: openUrl(...)}]`) is now compiled as a `functionCall` action. `ExpressDecompiler` writes `userMessage=` back, and `ExpressPromptGenerator` teaches `Event(name, context?, userMessage=...)` in rule 8 for v1.0+ catalogs ([#3598](https://github.com/a2ui-project/a2ui/issues/3598), [#3690](https://github.com/a2ui-project/a2ui/issues/3690), [#3867](https://github.com/a2ui-project/a2ui/pull/3867)).
 - The Express compiler keeps a map literal as written, quoted keys or not, when
   one of its keys shares a name with an Express construct (`variable`, `path`,
