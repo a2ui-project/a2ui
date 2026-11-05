@@ -215,39 +215,40 @@ To test access and artifact staging without publishing anything, run the
 The Swift package is defined by [Package.swift](../../../Package.swift) at the
 repository root. Its four libraries, `A2UISwiftCore`, `A2UISwiftUI`,
 `BasicCatalog` and `BasicCatalogSwiftUI`, are released together under one
-version, following [Semver](https://semver.org/). Before 1.0.0, a breaking change bumps the minor
-version.
+version, following [Semver](https://semver.org/). Before 1.0.0, a breaking
+change bumps the minor version.
 
 Swift has no package registry. Swift Package Manager installs a package from
-its git repository and takes versions from its tags, but it only reads plain
-version tags such as `1.2.3` or `v1.2.3` and skips any tag with a prefix.
-Tags in this repository carry a per-package prefix, so a Swift release goes to
-two places:
+its git repository and takes versions from its tags, so users depend on this
+repository directly:
 
-1. This repository gets the tag `A2UISwiftCore-v<version>` on the released
-   commit. This is the `<package>-v<version>` form described in
-   [Dart automated publishing](https://dart.dev/tools/pub/automated-publishing),
-   with the package name from `Package.swift`.
-2. The mirror repository `a2ui-project/a2ui-swift` gets a copy of the package
-   files from that commit, tagged with the plain version `<version>`. Users
-   depend on the mirror:
+```swift
+.package(url: "https://github.com/a2ui-project/a2ui", from: "1.2.3")
+```
 
-    ```swift
-    .package(url: "https://github.com/a2ui-project/a2ui-swift", from: "0.1.0")
-    ```
+and name it `a2ui` in their product dependencies, for example
+`.product(name: "A2UISwiftUI", package: "a2ui")`.
 
-    and name it `a2ui-swift` in their product dependencies, for example
-    `.product(name: "A2UISwiftUI", package: "a2ui-swift")`.
+Each Swift release commit gets two tags:
 
-**One-time setup**
+- `swift/v<version>`, the prefixed form used by the other packages in this
+  repository, such as `python/a2ui-core/v<version>`. Swift Package Manager
+  ignores it.
+- `v<version>+swift`, which Swift Package Manager reads as `<version>`,
+  because it ignores Semver build metadata after the `+`. The `+swift` suffix
+  keeps it clear that the tag belongs to the Swift package and not to the whole
+  repository. Users still write the plain version, without `+swift`, in
+  `Package.swift`.
 
-Before the first release, a maintainer creates the public repository
-`a2ui-project/a2ui-swift` under the Apache 2.0 license and gives push access to
-the people who release.
+Swift Package Manager reads every tag of the form `v<major>.<minor>` or
+`v<major>.<minor>.<patch>`, with or without build metadata, as a version of
+the package. This has two consequences:
 
-Optionally, once the mirror has its first version tag, list it on
-[Swift Package Index](https://swiftpackageindex.com) through its
-[add a package](https://swiftpackageindex.com/add-a-package) page.
+- The existing protocol tags `v0.8` and `v0.9` are read as versions 0.8.0 and
+  0.9.0. Their commits have no `Package.swift`, so a user asking for
+  `from: "0.1.0"` would get 0.9.0 and fail to build. Swift release versions
+  must therefore be higher than 0.9.0.
+- No other release process in this repository may push tags of that form.
 
 **1. Choose the commit**
 
@@ -256,38 +257,22 @@ Pick a commit on `main` where the
 passed. Its `test` job runs `swift test`, and its `ios-build` job builds the
 libraries and the sample app for the iOS Simulator.
 
-**2. Tag this repository**
+**2. Tag the commit**
 
 ```bash
-git tag A2UISwiftCore-v<version> <commit>
-git push origin A2UISwiftCore-v<version>
+git tag swift/v<version> <commit>
+git tag v<version>+swift <commit>
+git push origin swift/v<version> v<version>+swift
 ```
 
-Create a GitHub release for the tag with the release notes and a link to the
-mirror tag.
+Create a GitHub release for `swift/v<version>` with the release notes.
 
-**3. Update the mirror**
+**3. Check the release**
 
-From a clone of the mirror next to a clone of this repository:
-
-```bash
-git rm -rq --ignore-unmatch .
-git -C ../a2ui archive A2UISwiftCore-v<version> \
-  Package.swift LICENSE .gitignore swift/core swift/swiftui specification catalogs conformance \
-  | tar -x
-swift build
-swift test --enable-swift-testing
-git add -A
-git commit -m "Release <version> from a2ui-project/a2ui@<commit>"
-git tag <version>
-git push origin HEAD:main <version>
-```
-
-The paths outside `swift/` are needed because the schema generator build
-plugin reads JSON schemas from `specification/` and `catalogs/`, and the test
-targets read the conformance suites from `conformance/`. If `swift build`
-fails in the mirror, a target has started reading a path that is missing from
-this list.
+In a scratch package that depends on
+`.package(url: "https://github.com/a2ui-project/a2ui", exact: "<version>")`,
+run `swift package resolve`. `Package.resolved` should show
+`<version>+swift` at the tagged commit.
 
 ### Documentation website
 
