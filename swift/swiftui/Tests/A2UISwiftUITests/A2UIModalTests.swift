@@ -160,10 +160,63 @@ struct A2UIModalTests {
   // MARK: - Activation
 
   #if canImport(AppKit)
-    @Test func voiceOverPressOnButtonTriggerPresentsSheet() throws {
-      try ModalHost.withHost(trigger: buttonTrigger()) { host in
+    @Test func voiceOverPressOnButtonTriggerRunsActionOnceAndPresentsSheet() throws {
+      let counter = ActionCounter()
+      try ModalHost.withHost(trigger: buttonTrigger(action: counter.action())) { host in
         #expect(!host.isSheetPresented)
 
+        let handled = try host.pressWithVoiceOver(label: "Open")
+        #expect(handled)
+
+        #expect(host.isSheetPresented)
+        #expect(counter.count == 1)
+      }
+    }
+
+    @Test func clickOnButtonTriggerRunsActionOnceAndPresentsSheet() throws {
+      let counter = ActionCounter()
+      try ModalHost.withHost(trigger: buttonTrigger(action: counter.action())) { host in
+        try host.click(label: "Open")
+
+        #expect(host.isSheetPresented)
+        #expect(counter.count == 1)
+      }
+    }
+
+    @Test func keyboardActivationOfButtonTriggerRunsActionOnceAndPresentsSheet() throws {
+      let counter = ActionCounter()
+      try ModalHost.withHost(trigger: buttonTrigger(action: counter.action())) { host in
+        try host.pressSpace(label: "Open")
+
+        #expect(host.isSheetPresented)
+        #expect(counter.count == 1)
+      }
+    }
+
+    @Test func clickOnButtonTriggerWithFailingCheckSkipsActionAndSheet() throws {
+      let counter = ActionCounter()
+      let trigger = buttonTrigger(checks: [failingCheck()], action: counter.action())
+      try ModalHost.withHost(trigger: trigger) { host in
+        try host.click(label: "Open")
+
+        #expect(!host.isSheetPresented)
+        #expect(counter.count == 0)
+      }
+    }
+
+    @Test func voiceOverPressOnButtonTriggerWithFailingCheckSkipsActionAndSheet() throws {
+      let counter = ActionCounter()
+      let trigger = buttonTrigger(checks: [failingCheck()], action: counter.action())
+      try ModalHost.withHost(trigger: trigger) { host in
+        try host.pressWithVoiceOver(label: "Open")
+
+        #expect(!host.isSheetPresented)
+        #expect(counter.count == 0)
+      }
+    }
+
+    @Test func voiceOverPressOnTextTriggerPresentsSheet() throws {
+      try ModalHost.withHost(trigger: textTrigger()) { host in
         let handled = try host.pressWithVoiceOver(label: "Open")
         #expect(handled)
 
@@ -171,54 +224,84 @@ struct A2UIModalTests {
       }
     }
 
-    @Test func clickOnButtonTriggerPresentsSheet() throws {
-      try ModalHost.withHost(trigger: buttonTrigger()) { host in
+    @Test func clickOnTextTriggerPresentsSheet() throws {
+      try ModalHost.withHost(trigger: textTrigger()) { host in
         try host.click(label: "Open")
 
         #expect(host.isSheetPresented)
       }
     }
 
-    @Test func keyboardActivationOfButtonTriggerPresentsSheet() throws {
-      try ModalHost.withHost(trigger: buttonTrigger()) { host in
-        try host.pressSpace(label: "Open")
-
-        #expect(host.isSheetPresented)
-      }
-    }
-
-    @Test func clickOnButtonTriggerWithFailingCheckDoesNotPresentSheet() throws {
-      try ModalHost.withHost(trigger: buttonTrigger(checks: [failingCheck()])) { host in
+    @Test func clickOnTextTriggerWithFailingCheckDoesNotPresentSheet() throws {
+      try ModalHost.withHost(trigger: textTrigger(checks: [failingCheck()])) { host in
         try host.click(label: "Open")
 
         #expect(!host.isSheetPresented)
       }
     }
 
-    @Test func voiceOverPressOnButtonTriggerWithFailingCheckDoesNotPresentSheet() throws {
-      try ModalHost.withHost(trigger: buttonTrigger(checks: [failingCheck()])) { host in
+    @Test func voiceOverPressOnTextTriggerWithFailingCheckDoesNotPresentSheet() throws {
+      try ModalHost.withHost(trigger: textTrigger(checks: [failingCheck()])) { host in
         try host.pressWithVoiceOver(label: "Open")
 
         #expect(!host.isSheetPresented)
       }
     }
 
-    @Test func voiceOverPressOnTextTriggerPresentsSheet() throws {
-      let trigger = Node(id: "trigger_text", type: "Text", properties: ["text": "Open"])
+    @Test func nestedModalButtonDoesNotDisableEnclosingTriggerTap() throws {
+      // The nested Modal's Button opens the nested sheet itself. That must not turn off the tap
+      // that opens the enclosing Modal from the rest of its trigger.
+      let nestedModal = Node(
+        id: "nested_modal",
+        type: "Modal",
+        properties: [
+          "trigger": buttonTrigger(label: "Open nested"),
+          "content": Node(id: "nested_body", type: "Text", properties: ["text": "Nested details"]),
+        ]
+      )
+      let outerLabel = Node(id: "outer_label", type: "Text", properties: ["text": "Open outer"])
+      let trigger = Node(
+        id: "trigger_row",
+        type: "Row",
+        properties: ["children": [nestedModal, outerLabel]]
+      )
       try ModalHost.withHost(trigger: trigger) { host in
-        let handled = try host.pressWithVoiceOver(label: "Open")
-        #expect(handled)
+        try host.click(label: "Open outer")
 
-        #expect(host.isSheetPresented)
+        #expect(host.sheetShows(text: "Details"))
+        #expect(!host.sheetShows(text: "Nested details"))
       }
     }
   #endif
 
-  private func buttonTrigger(checks: [ResolvedCheck] = []) -> Node {
-    let label = Node(id: "trigger_label", type: "Text", properties: ["text": "Open"])
+  /// Counts how many times the action it vends is triggered.
+  @MainActor
+  private final class ActionCounter {
+    private(set) var count = 0
+
+    func action() -> ResolvedAction {
+      ResolvedAction(identity: .event(name: "tapped", context: nil)) { [self] in
+        count += 1
+      }
+    }
+  }
+
+  private func buttonTrigger(
+    label text: String = "Open",
+    checks: [ResolvedCheck] = [],
+    action: ResolvedAction? = nil
+  ) -> Node {
+    let label = Node(id: "trigger_label", type: "Text", properties: ["text": text])
     var properties: [String: any Resolved] = ["child": label]
     if !checks.isEmpty { properties["checks"] = checks }
+    if let action { properties["action"] = action }
     return Node(id: "trigger_btn", type: "Button", properties: properties)
+  }
+
+  private func textTrigger(checks: [ResolvedCheck] = []) -> Node {
+    var properties: [String: any Resolved] = ["text": "Open"]
+    if !checks.isEmpty { properties["checks"] = checks }
+    return Node(id: "trigger_text", type: "Text", properties: properties)
   }
 
   private func failingCheck() -> ResolvedCheck {

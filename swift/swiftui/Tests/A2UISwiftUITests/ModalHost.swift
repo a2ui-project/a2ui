@@ -27,25 +27,27 @@
     let window: NSWindow
     let hostingView: NSView
 
-    private static let enhancedUserInterface = NSAccessibility.Attribute(
-      rawValue: "AXEnhancedUserInterface")
+    private static let enhancedUserInterfaceKey = "accessibilityEnhancedUserInterface"
 
-    /// Hosts a Modal with the given trigger, runs `body`, then closes the window and turns off the
-    /// accessibility tree again so other tests in the process are unaffected.
-    static func withHost(trigger: Node, _ body: (ModalHost) throws -> Void) throws {
+    /// Hosts a Modal with the given trigger and content, runs `body`, then closes the window and
+    /// restores the prior accessibility tree setting so other tests in the process are unaffected.
+    static func withHost(
+      trigger: Node,
+      content: Node = Node(id: "modal_body", type: "Text", properties: ["text": "Details"]),
+      _ body: (ModalHost) throws -> Void
+    ) throws {
       // SwiftUI builds its accessibility tree only once an assistive client asks for it.
-      NSApplication.shared.accessibilitySetValue(true, forAttribute: enhancedUserInterface)
-      defer {
-        NSApplication.shared.accessibilitySetValue(false, forAttribute: enhancedUserInterface)
-      }
-      let host = try ModalHost(trigger: trigger)
+      let app = NSApplication.shared
+      let wasEnhanced = (app.value(forKey: enhancedUserInterfaceKey) as? Bool) ?? false
+      app.setValue(true, forKey: enhancedUserInterfaceKey)
+      defer { app.setValue(wasEnhanced, forKey: enhancedUserInterfaceKey) }
+      let host = try ModalHost(trigger: trigger, content: content)
       defer { host.close() }
       try body(host)
     }
 
-    private init(trigger: Node) throws {
+    private init(trigger: Node, content: Node) throws {
       let catalog = BasicCatalogImplementation.makeCatalog(version: .v091)
-      let content = Node(id: "modal_body", type: "Text", properties: ["text": "Details"])
       let modal = Node(
         id: "modal",
         type: "Modal",
@@ -62,7 +64,7 @@
       hostingView = NSHostingView(rootView: rootView)
       window = NSWindow(
         contentRect: NSRect(x: 0, y: 0, width: 320, height: 240),
-        styleMask: [.titled],
+        styleMask: [.borderless],
         backing: .buffered,
         defer: false
       )
@@ -85,11 +87,20 @@
       window.attachedSheet != nil
     }
 
-    /// Runs the main run loop briefly so SwiftUI applies pending updates.
+    /// Whether the showing sheet has an element with the given text, as its label or as the
+    /// value a static text exposes.
+    func sheetShows(text: String) -> Bool {
+      guard let sheetView = window.attachedSheet?.contentView else { return false }
+      return firstElement(in: sheetView) { Self.element($0, hasText: text) } != nil
+    }
+
+    /// Flushes pending main-run-loop turns and layout passes synchronously.
     func settle() {
       for _ in 0..<5 {
-        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        RunLoop.main.run(until: Date())
+        hostingView.needsLayout = true
         hostingView.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
       }
     }
 
@@ -159,7 +170,20 @@
     }
 
     private func element(label: String) -> AnyObject? {
-      firstElement(in: hostingView) { $0.accessibilityLabel?() == label }
+      firstElement(in: hostingView) { Self.element($0, hasText: label) }
+    }
+
+    /// Whether the element shows the text as its label or, as a static text does, as its value.
+    private static func element(_ element: AnyObject, hasText text: String) -> Bool {
+      if element.accessibilityLabel?() == text {
+        return true
+      }
+      // SwiftUI's accessibility elements don't cast to `NSAccessibilityProtocol`, so this reads the
+      // value through its Objective-C accessor.
+      guard let object = element as? NSObject,
+        object.responds(to: NSSelectorFromString("accessibilityValue"))
+      else { return false }
+      return object.value(forKey: "accessibilityValue") as? String == text
     }
 
     private func firstElement(

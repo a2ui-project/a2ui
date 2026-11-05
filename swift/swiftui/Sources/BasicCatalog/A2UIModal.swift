@@ -111,6 +111,8 @@ private struct ModalTriggerFallback: ViewModifier {
   func body(content: Content) -> some View {
     if isEnabled {
       content
+        // Makes the whole trigger frame tappable, including empty space in a layout container.
+        .contentShape(Rectangle())
         .simultaneousGesture(TapGesture().onEnded(open))
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { open() }
