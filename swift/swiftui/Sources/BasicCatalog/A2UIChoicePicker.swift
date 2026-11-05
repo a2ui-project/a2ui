@@ -259,7 +259,6 @@ public struct A2UIChoicePicker: View {
 
       A2UICheckMessage(node: node, identifierPrefix: "A2UIChoicePicker")
     }
-    .accessibilityIdentifier("a2ui-\(node.id)")
     .a2uiAccessibilityElement(for: node, children: .contain)
   }
 

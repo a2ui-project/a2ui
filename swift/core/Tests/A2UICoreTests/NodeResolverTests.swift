@@ -576,10 +576,11 @@ struct NodeResolverTests {
       ]
     )
 
-    // `u2` resolves again for its new label and stays reported once.
+    // `u2` stays inert, so it reads no data and a data change neither labels nor reports it.
     dataModel.set("/label", value: .string("Two"))
     let u2Node = try #require(resolver.resolveTree()?.children(for: "children").last)
-    #expect(u2Node.explicitAccessibilityAttributes?.label == "Two")
+    #expect(u2Node.state == .unknownType)
+    #expect(u2Node.explicitAccessibilityAttributes?.label == nil)
     #expect(handler.capturedErrors.count == 2)
 
     // Re-rendering the root reuses `u1` and `u2`, so neither is reported again.

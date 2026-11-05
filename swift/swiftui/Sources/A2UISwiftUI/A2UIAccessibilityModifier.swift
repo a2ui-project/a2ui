@@ -41,20 +41,14 @@ public struct A2UIAccessibilityModifier: ViewModifier {
   /// the component applied them to its own control.
   let appliesLabelAndHint: Bool
 
-  /// Whether this modifier sets ``identifier``. ``ComponentNodeView`` turns this off when the
-  /// component's root is a container whose children stay separate accessibility elements, since
-  /// SwiftUI would pass the identifier on to each of them.
-  let appliesIdentifier: Bool
-
   public init(node: Node) {
-    self.init(node: node, appliesLabelAndHint: true, appliesIdentifier: true)
+    self.init(node: node, appliesLabelAndHint: true)
   }
 
-  init(node: Node, appliesLabelAndHint: Bool, appliesIdentifier: Bool) {
+  init(node: Node, appliesLabelAndHint: Bool) {
     self.node = node
     self.attributes = node.explicitAccessibilityAttributes
     self.appliesLabelAndHint = appliesLabelAndHint
-    self.appliesIdentifier = appliesIdentifier
   }
 
   /// The accessibility identifier (`a2ui-<componentId>`) assigned to the rendered view.
@@ -63,9 +57,10 @@ public struct A2UIAccessibilityModifier: ViewModifier {
   }
 
   /// Whether the identifier is set here. A component that applied its label and hint to its own
-  /// control set the identifier on that control too.
+  /// control set the identifier on that control too. A container whose children stay separate
+  /// elements clears it with ``SwiftUI/View/a2uiAccessibilityElement(for:children:)``.
   private var appliesAccessibilityIdentifier: Bool {
-    appliesLabelAndHint && appliesIdentifier
+    appliesLabelAndHint
   }
 
   /// The explicit accessibility label, if the agent set a non-empty one.

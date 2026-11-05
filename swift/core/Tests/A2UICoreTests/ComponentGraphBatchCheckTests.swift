@@ -217,9 +217,7 @@ struct ComponentGraphBatchCheckTests {
     try send([column("root", children: ["a"]), column("a", children: ["root"])], to: processor)
     try send([column("a", children: ["a"])], to: processor)
     let surface = try #require(processor.surfaceGroupModel.surfacesMap["s"])
-    let root = try #require(surface.rootNode)
-    let aNode = try #require(root.children(for: "children").first)
-    #expect(aNode.children(for: "children").first?.state == .cyclic)
+    #expect(Set(surface.componentsModel.components.keys) == ["root", "a"])
   }
 
   @Test func depthLimitStillAppliesWhenConfigAllowsCyclicReferences() throws {

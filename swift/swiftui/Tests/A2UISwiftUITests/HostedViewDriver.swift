@@ -145,6 +145,9 @@ final class HostedViewDriver {
       )
       win.isReleasedWhenClosed = false
       win.contentView = hosting
+      // SwiftUI builds the accessibility tree of a hosting view only once its window is on
+      // screen.
+      win.orderFrontRegardless()
       self.hostingView = hosting
       self.window = win
     #elseif canImport(UIKit)
@@ -246,7 +249,8 @@ final class HostedViewDriver {
     #if canImport(AppKit)
       guard let field = locateNativeTextField(componentID: componentID) else {
         throw AdapterConformanceError(
-          "No native text field for '\(componentID)' in the hosted view hierarchy"
+          "No native text field for '\(componentID)' in the hosted view hierarchy:\n"
+            + accessibilityTreeDescription()
         )
       }
       field.stringValue = text
@@ -297,7 +301,8 @@ final class HostedViewDriver {
     let nativeTarget = locateNativeTarget(componentID: componentID)
     if nativeTarget == nil, !modifier.isHidden {
       throw AdapterConformanceError(
-        "No native accessibility element for '\(componentID)' in the hosted view hierarchy"
+        "No native accessibility element for '\(componentID)' in the hosted view hierarchy:\n"
+          + accessibilityTreeDescription()
       )
     }
     return AccessibilityElement(
@@ -333,7 +338,8 @@ final class HostedViewDriver {
   private func requireNativeTarget(componentID: String) throws -> AnyObject {
     guard let target = locateNativeTarget(componentID: componentID) else {
       throw AdapterConformanceError(
-        "No native control for '\(componentID)' in the hosted view hierarchy"
+        "No native control for '\(componentID)' in the hosted view hierarchy:\n"
+          + accessibilityTreeDescription()
       )
     }
     return target
@@ -389,17 +395,14 @@ final class HostedViewDriver {
       {
         return element
       }
-
-      let children: [Any]
-      if let axElement = element as? any NSAccessibilityProtocol,
-        let axChildren = axElement.accessibilityChildren()
+      if !(element is any NSAccessibilityProtocol),
+        matchesIdentifier(
+          Self.informalAttribute(.identifier, of: element), componentID: componentID)
       {
-        children = axChildren
-      } else if let view = element as? NSView {
-        children = view.subviews
-      } else {
-        children = []
+        return element
       }
+
+      let children = Self.accessibilityChildren(of: element)
 
       for child in children {
         let childObject = child as AnyObject
@@ -412,6 +415,57 @@ final class HostedViewDriver {
         }
       }
       return nil
+    }
+    /// The accessibility children of `element`, read through the informal accessibility API
+    /// for objects that do not adopt `NSAccessibilityProtocol`, plus the subviews of a view.
+    private static func accessibilityChildren(of element: AnyObject) -> [Any] {
+      var children: [Any] = []
+      if let axElement = element as? any NSAccessibilityProtocol {
+        children = axElement.accessibilityChildren() ?? []
+      } else if let object = element as? NSObject {
+        children = object.accessibilityAttributeValue(.children) as? [Any] ?? []
+      }
+      if let view = element as? NSView {
+        children += view.subviews
+      }
+      return children
+    }
+
+    private static func informalAttribute(
+      _ attribute: NSAccessibility.Attribute,
+      of element: AnyObject
+    ) -> String? {
+      (element as? NSObject)?.accessibilityAttributeValue(attribute) as? String
+    }
+
+    /// Describes the hosted accessibility tree (type, identifier, and role of each element) to
+    /// diagnose a component that cannot be found in it.
+    private func accessibilityTreeDescription(maxLines: Int = 120) -> String {
+      var lines: [String] = []
+      var visited: Set<ObjectIdentifier> = []
+      func visit(_ element: AnyObject, depth: Int) {
+        guard lines.count < maxLines, depth <= 16,
+          visited.insert(ObjectIdentifier(element)).inserted
+        else { return }
+        let identifier: String?
+        let role: String?
+        if let axElement = element as? any NSAccessibilityProtocol {
+          identifier = axElement.accessibilityIdentifier()
+          role = axElement.accessibilityRole()?.rawValue
+        } else {
+          identifier = Self.informalAttribute(.identifier, of: element)
+          role = Self.informalAttribute(.role, of: element)
+        }
+        lines.append(
+          String(repeating: "  ", count: depth)
+            + "\(type(of: element)) id=\(identifier ?? "-") role=\(role ?? "-")"
+        )
+        for child in Self.accessibilityChildren(of: element) {
+          visit(child as AnyObject, depth: depth + 1)
+        }
+      }
+      visit(hostingView, depth: 0)
+      return lines.joined(separator: "\n")
     }
   #elseif canImport(UIKit)
     private func findNativeView(in view: UIView, componentID: String) -> UIView? {
