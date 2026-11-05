@@ -109,6 +109,10 @@ struct AdapterViewNode {
   let node: A2UICore.Node?
   let children: [AdapterViewNode]
 
+  /// The object identity of the resolved node backing this view, which stays the same while the
+  /// resolver updates the node in place and changes when the node is recreated.
+  var identity: ObjectIdentifier? { node?.identity }
+
   init(
     id: String,
     instanceID: String,
@@ -126,11 +130,14 @@ struct AdapterViewNode {
   }
 }
 
-/// Holds a mounted `A2UISwiftUI.Surface`, its `HostedViewDriver`, and its Combine subscriptions.
+/// Holds a mounted `A2UISwiftUI.Surface`, its `HostedViewDriver` when the surface is hosted in a
+/// platform window, and its Combine subscriptions.
 @MainActor
 final class MountedSurfaceHarness {
   let surface: Surface
-  let driver: HostedViewDriver
+  /// The driver of the hosted view hierarchy, or `nil` when the harness drives the resolved
+  /// nodes without hosting the surface.
+  let driver: HostedViewDriver?
   private var subscriptions: [AnyCancellable] = []
   private(set) var isMounted = true
   private(set) var emissionCount = 0
@@ -139,9 +146,9 @@ final class MountedSurfaceHarness {
     isMounted ? subscriptions.count : 0
   }
 
-  init(surface: Surface) {
+  init(surface: Surface, hostsViews: Bool) {
     self.surface = surface
-    self.driver = HostedViewDriver(surface: surface)
+    self.driver = hostsViews ? HostedViewDriver(surface: surface) : nil
     surface.viewModel.objectWillChange
       .sink { [weak self] _ in self?.emissionCount += 1 }
       .store(in: &subscriptions)
@@ -153,7 +160,7 @@ final class MountedSurfaceHarness {
   func unmount() {
     isMounted = false
     subscriptions.removeAll()
-    driver.tearDown()
+    driver?.tearDown()
     surface.viewModel.dispose()
   }
 }
@@ -165,6 +172,8 @@ final class AdapterSession {
   let handler: AdapterTestActionHandler
   let processor: MessageProcessor
   let uiCatalogs: [Catalog<ComponentImplementation>]
+  /// Whether the surface is hosted in a platform window and driven through its native views.
+  let hostsViews: Bool
   var mountedHarness: MountedSurfaceHarness?
   var currentTree: AdapterViewNode?
   var previousTree: AdapterViewNode?
@@ -173,12 +182,14 @@ final class AdapterSession {
     caseName: String,
     handler: AdapterTestActionHandler,
     processor: MessageProcessor,
-    uiCatalogs: [Catalog<ComponentImplementation>]
+    uiCatalogs: [Catalog<ComponentImplementation>],
+    hostsViews: Bool
   ) {
     self.caseName = caseName
     self.handler = handler
     self.processor = processor
     self.uiCatalogs = uiCatalogs
+    self.hostsViews = hostsViews
   }
 }
 
@@ -578,20 +589,28 @@ enum AdapterHarness {
   }
 
   /// Creates an `AdapterSession` configured for `caseSpec`.
-  static func mountSurface(_ caseSpec: [String: Any]) throws -> AdapterSession {
+  ///
+  /// - Parameter hostsViews: Whether to host the surface in a platform window and drive it
+  ///   through its native views, rather than through its resolved nodes.
+  static func mountSurface(_ caseSpec: [String: Any], hostsViews: Bool) throws -> AdapterSession {
     let caseName = caseSpec["name"] as? String ?? "<unnamed>"
     let handler = AdapterTestActionHandler()
     let (coreCatalogs, uiCatalogs) = try buildCatalogs(for: caseSpec)
+    // A rendered surface shows a cycle as a `cyclic` placeholder rather than rejecting the
+    // message, as the adapters of the other SDKs do.
+    var validationConfig = ValidationConfig.relaxed
+    validationConfig.allowCyclicReferences = true
     let processor = MessageProcessor(
       catalogs: coreCatalogs,
       actionHandler: handler,
-      validationConfig: .relaxed
+      validationConfig: validationConfig
     )
     return AdapterSession(
       caseName: caseName,
       handler: handler,
       processor: processor,
-      uiCatalogs: uiCatalogs
+      uiCatalogs: uiCatalogs,
+      hostsViews: hostsViews
     )
   }
 
@@ -624,7 +643,7 @@ enum AdapterHarness {
       session.currentTree = extractViewTree(session)
     case "programmatic_invoke":
       invokeProgrammaticAction(step, surface: session.mountedHarness?.surface)
-      session.mountedHarness?.driver.flush()
+      session.mountedHarness?.driver?.flush()
       session.currentTree = extractViewTree(session)
     case "unmount_surface":
       #expect(
@@ -767,16 +786,23 @@ enum AdapterHarness {
         catalogs: session.uiCatalogs,
         defaultCatalogID: BasicCatalog.catalogURI(version: .v10)
       )
-      session.mountedHarness = MountedSurfaceHarness(surface: surface)
+      session.mountedHarness = MountedSurfaceHarness(
+        surface: surface,
+        hostsViews: session.hostsViews
+      )
     } else {
-      session.mountedHarness?.driver.flush()
+      session.mountedHarness?.driver?.flush()
     }
   }
 
   private static func applyUserInput(_ step: [String: Any], session: AdapterSession) throws {
-    guard let driver = session.mountedHarness?.driver,
+    guard let harness = session.mountedHarness,
       let targetID = step["targetNode"] as? String
     else {
+      return
+    }
+    guard let driver = harness.driver else {
+      try writeUserInputToNode(step["inputValue"], componentID: targetID, surface: harness.surface)
       return
     }
     if let boolValue = step["inputValue"] as? Bool {
@@ -786,13 +812,50 @@ enum AdapterHarness {
     }
   }
 
+  /// Writes a user input value through the binding of the resolved node's component view, for
+  /// the harness that does not host the surface.
+  private static func writeUserInputToNode(
+    _ inputValue: Any?,
+    componentID: String,
+    surface: Surface
+  ) throws {
+    guard let targetNode = findNode(componentID: componentID, in: surface) else {
+      throw AdapterConformanceError("Component '\(componentID)' not found in surface")
+    }
+    if let boolValue = inputValue as? Bool {
+      A2UICheckBox(node: targetNode).isOn.wrappedValue = boolValue
+    } else if let strValue = inputValue as? String {
+      A2UITextField(node: targetNode).valueBinding.wrappedValue = strValue
+    }
+  }
+
   private static func invokeUserGesture(_ step: [String: Any], session: AdapterSession) throws {
-    guard let driver = session.mountedHarness?.driver,
+    guard let harness = session.mountedHarness,
       let targetID = step["targetNode"] as? String
     else {
       return
     }
+    guard let driver = harness.driver else {
+      // Without a hosted view, the gesture runs the resolved node's action as a press would.
+      guard let targetNode = findNode(componentID: targetID, in: harness.surface) else {
+        throw AdapterConformanceError("Component '\(targetID)' not found in surface")
+      }
+      if targetNode.type == "Button" {
+        guard !A2UIButton(node: targetNode).isDisabled else { return }
+      } else {
+        guard targetNode.isValid else { return }
+      }
+      targetNode.action(for: "action", userActivation: true)?()
+      return
+    }
     try driver.press(componentID: targetID)
+  }
+
+  private static func findNode(componentID: String, in surface: Surface) -> A2UICore.Node? {
+    guard let rootNode = surface.viewModel.rootNode else { return nil }
+    var nodes: [String: A2UICore.Node] = [:]
+    collectNodes(from: rootNode, into: &nodes)
+    return nodes[componentID]
   }
 
   private static func invokeProgrammaticAction(_ step: [String: Any], surface: Surface?) {
@@ -829,7 +892,11 @@ enum AdapterHarness {
       using: surface.catalogs,
       defaultCatalogID: surface.defaultCatalogID
     )
-    #expect(rendered != nil, "Expected Surface.render builder for '\(node.type)'")
+    if node.state == .resolved {
+      #expect(rendered != nil, "Expected Surface.render builder for '\(node.type)'")
+    } else {
+      #expect(rendered == nil, "Expected no Surface.render view for a \(node.state) placeholder")
+    }
     let children = resolveChildViewNodes(in: surface, node: node)
     let baseID = baseComponentID(for: node, in: surface)
     return AdapterViewNode(
@@ -1039,11 +1106,15 @@ enum AdapterHarness {
       let prevNode = findViewNode(atPath: path, in: previousTree)
       let currNode = findViewNode(atPath: path, in: currentTree)
       #expect(prevNode != nil && currNode != nil, "\(context): missing node at \(path)")
+      // Compare object identity: the instance IDs are deterministic strings that match even
+      // when the resolver recreates the node and the view remounts.
+      let prevIdentity = prevNode?.identity
+      let currIdentity = currNode?.identity
       #expect(
-        prevNode?.instanceID == currNode?.instanceID,
+        prevIdentity != nil && prevIdentity == currIdentity,
         "\(context): identity changed at \(path)"
       )
-      if prevNode == nil || currNode == nil || prevNode?.instanceID != currNode?.instanceID {
+      if prevIdentity == nil || prevIdentity != currIdentity {
         throw AdapterConformanceError("\(context): identity mismatch at \(path)")
       }
     }
@@ -1163,7 +1234,7 @@ enum AdapterHarness {
         Issue.record("\(context): missing accessibility node '\(componentID)'")
         throw AdapterConformanceError("\(context): missing accessibility node '\(componentID)'")
       }
-      let hostedElement = driver?.accessibilityNode(componentID: componentID)
+      let hostedElement = try driver?.accessibilityNode(componentID: componentID)
       let modifier = A2UIAccessibilityModifier(node: node)
       try assertModifierMatches(
         modifier,
@@ -1315,8 +1386,8 @@ enum AdapterHarness {
 
 /// Top-level helper creating an `AdapterSession` for a conformance test case.
 @MainActor
-func mountSurface(_ caseSpec: [String: Any]) throws -> AdapterSession {
-  try AdapterHarness.mountSurface(caseSpec)
+func mountSurface(_ caseSpec: [String: Any], hostsViews: Bool) throws -> AdapterSession {
+  try AdapterHarness.mountSurface(caseSpec, hostsViews: hostsViews)
 }
 
 /// Top-level helper executing a single adapter conformance step.

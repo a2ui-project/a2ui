@@ -890,7 +890,7 @@ public final class MessageProcessor: ObservableObject {
     installAgentFunctionCaller(on: vm)
 
     if let components = op.components {
-      try validateComponentsBatch(components, on: vm, isCreateSurface: true)
+      try validateComponentsBatch(components, on: vm)
     }
 
     surfaceGroupModel.addSurface(vm)
@@ -1121,8 +1121,7 @@ public final class MessageProcessor: ObservableObject {
 
   private func validateComponentsBatch(
     _ components: [[String: JSONValue]],
-    on surface: SurfaceViewModel,
-    isCreateSurface: Bool = false
+    on surface: SurfaceViewModel
   ) throws {
     var effectiveConfig = validationConfig
     if surface.protocolVersion.isAtLeastV10
@@ -1141,12 +1140,7 @@ public final class MessageProcessor: ObservableObject {
     }
 
     guard !components.isEmpty else { return }
-    try validateComponentGraph(
-      components,
-      on: surface,
-      config: effectiveConfig,
-      isCreateSurface: isCreateSurface
-    )
+    try validateComponentGraph(components, on: surface, config: effectiveConfig)
   }
 
   /// Checks the component graph of `surface` with `components` applied.
@@ -1162,13 +1156,15 @@ public final class MessageProcessor: ObservableObject {
   private func validateComponentGraph(
     _ components: [[String: JSONValue]],
     on surface: SurfaceViewModel,
-    config: ValidationConfig,
-    isCreateSurface: Bool = false
+    config: ValidationConfig
   ) throws {
     let held = surface.componentsModel.components
     let catalogs = surface.catalogs
     let defaultCatalogID = surface.defaultCatalogID
-    let checksBatch = config.allowDanglingReferences && config.allowMissingRoot
+    // The bound assumes the graph is acyclic, so a config that admits cycles checks the whole
+    // surface each time.
+    let checksBatch =
+      config.allowDanglingReferences && config.allowMissingRoot && !config.allowCyclicReferences
     var batch: [String: [String: JSONValue]] = [:]
     for component in components {
       guard let id = component["id"]?.stringValue else { continue }
@@ -1204,19 +1200,13 @@ public final class MessageProcessor: ObservableObject {
     graphBounds[surface.surfaceID] = nil
 
     let allComponents = try buildCombinedComponentsForTopology(components, on: surface)
-    do {
-      try GraphTopologyValidator.validate(
-        components: allComponents,
-        rootID: "root",
-        config: config,
-        catalogs: catalogs,
-        defaultCatalogID: defaultCatalogID
-      )
-    } catch is A2UIRecursionError
-      where isCreateSurface && checksBatch && config.allowUnknownElements
-    {
-      return
-    }
+    try GraphTopologyValidator.validate(
+      components: allComponents,
+      rootID: "root",
+      config: config,
+      catalogs: catalogs,
+      defaultCatalogID: defaultCatalogID
+    )
     if checksBatch {
       var graph: [String: [String]] = [:]
       for component in allComponents {

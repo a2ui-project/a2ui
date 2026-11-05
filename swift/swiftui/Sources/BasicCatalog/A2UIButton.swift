@@ -77,7 +77,7 @@ public struct A2UIButton: View {
     }
     .buttonStyle(.plain)
     .disabled(isDisabled)
-    .accessibilityIdentifier("A2UIButton_\(node.id)")
+    .accessibilityIdentifier("a2ui-\(node.id)")
   }
 
   @ViewBuilder

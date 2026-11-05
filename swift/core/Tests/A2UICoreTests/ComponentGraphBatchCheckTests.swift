@@ -212,6 +212,36 @@ struct ComponentGraphBatchCheckTests {
     try runRandomSequences(catalog: try plainCatalog(), seed: 2)
   }
 
+  @Test func cyclesAcceptedWhenConfigAllowsCyclicReferences() throws {
+    let processor = try makeProcessor(catalog: try plainCatalog(), allowsCycles: true)
+    try send([column("root", children: ["a"]), column("a", children: ["root"])], to: processor)
+    try send([column("a", children: ["a"])], to: processor)
+    let surface = try #require(processor.surfaceGroupModel.surfacesMap["s"])
+    let root = try #require(surface.rootNode)
+    let aNode = try #require(root.children(for: "children").first)
+    #expect(aNode.children(for: "children").first?.state == .cyclic)
+  }
+
+  @Test func depthLimitStillAppliesWhenConfigAllowsCyclicReferences() throws {
+    let processor = try makeProcessor(catalog: try plainCatalog(), allowsCycles: true)
+    let chain = (0...55).map { column("c\($0)", children: ["c\($0 + 1)"]) }
+    #expect(throws: A2UIRecursionError.self) {
+      try send(chain, to: processor)
+    }
+  }
+
+  @Test func compositionStillAppliesWhenConfigAllowsCyclicReferences() throws {
+    let processor = try makeProcessor(catalog: try compositionCatalog(), allowsCycles: true)
+    do {
+      try send([card("c", child: "c")], to: processor)
+      Issue.record("Expected the self-nested Card to break a composition rule")
+    } catch let error as A2UIValidationError {
+      // A recursion error is also a validation error, so check that the composition rule fired.
+      #expect(!(error is A2UIRecursionError))
+      #expect(error.message.contains("cannot contain child"))
+    }
+  }
+
   // MARK: - Helpers
 
   private func runRandomSequences(catalog: AnyCatalog, seed: UInt64) throws {
@@ -289,8 +319,16 @@ struct ComponentGraphBatchCheckTests {
   }
 
   /// A processor under the relaxed config holding surface `s` in the catalog `catalog`.
-  private func makeProcessor(catalog: AnyCatalog) throws -> MessageProcessor {
-    let processor = MessageProcessor(catalogs: [catalog], validationConfig: .relaxed)
+  ///
+  /// - Parameter allowsCycles: Whether the config also sets
+  ///   ``ValidationConfig/allowCyclicReferences``.
+  private func makeProcessor(
+    catalog: AnyCatalog,
+    allowsCycles: Bool = false
+  ) throws -> MessageProcessor {
+    var config = ValidationConfig.relaxed
+    config.allowCyclicReferences = allowsCycles
+    let processor = MessageProcessor(catalogs: [catalog], validationConfig: config)
     try processor.processMessages(
       .array([
         .object([

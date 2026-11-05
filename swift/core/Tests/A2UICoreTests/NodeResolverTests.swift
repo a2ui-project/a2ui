@@ -213,6 +213,135 @@ struct NodeResolverTests {
     #expect(handler.capturedErrors.count == 1)
   }
 
+  @Test func repeatedCyclicReferencesGetDistinctPlaceholders() throws {
+    let catalog = try makeCatalog()
+    let components: [String: ComponentModel] = [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("card")])]
+      ),
+      "card": ComponentModel(
+        id: "card",
+        type: "Container",
+        properties: [
+          "child": .string("root"),
+          "children": .array([.string("root"), .string("root")]),
+        ]
+      ),
+    ]
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: components),
+      dataModel: DataModel()
+    )
+
+    let rootNode = try #require(resolver.resolveTree())
+    let card = try #require(rootNode.children(for: "children").first)
+    let single = try #require(card.child(for: "child"))
+    let listed = card.children(for: "children")
+    #expect(listed.count == 2)
+    let placeholders = [single] + listed
+    #expect(placeholders.allSatisfy { $0.state == .cyclic })
+    #expect(Set(placeholders.map(\.identity)).count == 3)
+  }
+
+  @Test func cycleRemovedAndRestoredGetsFreshPlaceholder() throws {
+    let catalog = try makeCatalog()
+    let componentsModel = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("a")])]
+      ),
+      "a": ComponentModel(
+        id: "a",
+        type: "Container",
+        properties: ["children": .array([.string("root")])]
+      ),
+    ])
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: DataModel()
+    )
+
+    func cyclicChild() throws -> Node? {
+      let rootNode = try #require(resolver.resolveTree())
+      let aNode = try #require(rootNode.children(for: "children").first)
+      return aNode.children(for: "children").first
+    }
+
+    let first = try #require(try cyclicChild())
+    #expect(first.state == .cyclic)
+
+    componentsModel.addComponent(
+      ComponentModel(id: "a", type: "Container", properties: ["children": .array([])])
+    )
+    #expect(try cyclicChild() == nil)
+
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "a",
+        type: "Container",
+        properties: ["children": .array([.string("root")])]
+      )
+    )
+    let restored = try #require(try cyclicChild())
+    #expect(restored.state == .cyclic)
+    #expect(restored.identity != first.identity)
+  }
+
+  @Test func placeholdersInDifferentScopesAreNotEqual() {
+    let first = Node.pending(id: "item", scopeKey: "/items/0", dataContextPath: "/items/0")
+    let second = Node.pending(id: "item", scopeKey: "/items/1", dataContextPath: "/items/1")
+    let same = Node.pending(id: "item", scopeKey: "/items/0", dataContextPath: "/items/0")
+    #expect(first != second)
+    #expect(first == same)
+    #expect(Node.cyclic(id: "item") != Node.pending(id: "item"))
+  }
+
+  @Test func unknownTypeInUnregisteredCatalogIsReported() throws {
+    let catalog = try makeCatalog()
+    let handler = ExpressionErrorCaptureHandler()
+    let components: [String: ComponentModel] = [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["child": .string("orphan")]
+      ),
+      "orphan": ComponentModel(
+        id: "orphan",
+        type: "Text",
+        catalogID: "unregistered",
+        properties: ["text": .string("x")]
+      ),
+    ]
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: components),
+      dataModel: DataModel(),
+      actionHandler: handler
+    )
+
+    let rootNode = try #require(resolver.resolveTree())
+    let orphan = try #require(rootNode.child(for: "child"))
+    #expect(orphan.state == .unknownType)
+    #expect(orphan.properties.isEmpty)
+    let errors = genericErrors(handler)
+    #expect(errors.map(\.code) == ["UNKNOWN_COMPONENT_TYPE"])
+    #expect(
+      errors.first?.message
+        == "Component 'orphan' has type 'Text', which is not in catalog 'unregistered'."
+    )
+  }
+
   @Test func cyclicReferenceIsReportedOnce() throws {
     let catalog = try makeCatalog()
     let components = SurfaceComponentsModel(components: [
@@ -547,7 +676,8 @@ struct NodeResolverTests {
     #expect(childNode.id == "unknownChild")
     #expect(childNode.type == "NonExistentWidget")
     #expect(childNode.state == .unknownType)
-    #expect(childNode.properties["someProp"] as? String == "unclassifiedValue")
+    // An unknown-type node stays inert, so its properties are not resolved.
+    #expect(childNode.properties.isEmpty)
     #expect(handler.capturedErrors.count == 1)
     if case .generic(let genericError) = handler.capturedErrors.first {
       #expect(genericError.code == "UNKNOWN_COMPONENT_TYPE")

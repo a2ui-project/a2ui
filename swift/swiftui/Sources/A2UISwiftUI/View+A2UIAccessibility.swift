@@ -63,7 +63,9 @@ extension View {
     if attributes?.label?.isEmpty == false || attributes?.description?.isEmpty == false {
       accessibilityElement(children: children)
     } else {
-      self
+      // The children stay separate elements, so ``ComponentNodeView`` leaves the component's
+      // accessibility identifier off this container.
+      preference(key: A2UIAccessibilityContainerKey.self, value: children == .contain)
     }
   }
 

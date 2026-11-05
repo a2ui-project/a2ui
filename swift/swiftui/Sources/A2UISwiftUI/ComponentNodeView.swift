@@ -34,7 +34,10 @@ public struct ComponentNodeView: View {
 
   public var body: some View {
     let _ = (node.properties, node.metadata)
-    if let renderedView = Surface.render(
+    if node.state != .resolved {
+      // A pending, unknown-type, or cyclic placeholder renders nothing.
+      EmptyView()
+    } else if let renderedView = Surface.render(
       node: node, using: catalogs, defaultCatalogID: defaultCatalogID)
     {
       renderedView
@@ -79,10 +82,17 @@ private struct ComponentAccessibilityHostModifier: ViewModifier {
   /// Whether the rendered component reported applying its label and hint to its own control.
   @State private var controlCarriesLabel = false
 
+  /// Whether the rendered component reported a root whose children stay separate elements.
+  @State private var isUngroupedContainer = false
+
   func body(content: Content) -> some View {
     content
       .modifier(
-        A2UIAccessibilityModifier(node: node, appliesLabelAndHint: !controlCarriesLabel)
+        A2UIAccessibilityModifier(
+          node: node,
+          appliesLabelAndHint: !controlCarriesLabel,
+          appliesIdentifier: !isUngroupedContainer
+        )
       )
       .onPreferenceChange(A2UIAccessibilityControlKey.self) { carriesLabel in
         // SwiftUI delivers preference changes on the main thread. Updating synchronously avoids
@@ -93,7 +103,15 @@ private struct ComponentAccessibilityHostModifier: ViewModifier {
           }
         }
       }
-      // A nested component's control must not affect its ancestors.
+      .onPreferenceChange(A2UIAccessibilityContainerKey.self) { isContainer in
+        MainActor.assumeIsolated {
+          if isUngroupedContainer != isContainer {
+            isUngroupedContainer = isContainer
+          }
+        }
+      }
+      // A nested component's control or container must not affect its ancestors.
       .transformPreference(A2UIAccessibilityControlKey.self) { $0 = false }
+      .transformPreference(A2UIAccessibilityContainerKey.self) { $0 = false }
   }
 }
