@@ -19,6 +19,7 @@ import StarlightHeader from '../components/StarlightHeader.astro';
 import HeroChatGeneration from '../components/HeroChatGeneration.astro';
 import ExpressiveUiStudio from '../components/ExpressiveUiStudio.astro';
 import DesignSystemMorph from '../components/DesignSystemMorph.astro';
+import RendererLogo from '../components/RendererLogo.astro';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
@@ -28,10 +29,10 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>A2UI — Give AI Agents a Real Interface</title>
+    <title>A2UI — Compose the screen around customer intent</title>
     <meta
       name="description"
-      content="The open declarative UI protocol for AI agents. Stream interactive, stateful surfaces that render natively in your own React, Flutter, SwiftUI, and Compose design systems."
+      content="The open declarative UI protocol for AI agents. Capture what a customer wants and answer with native, personalized UI composed from components you already approved — in React, Flutter, SwiftUI, and Compose."
     />
     <link rel="icon" type="image/svg+xml" href={`${base}/assets/favicon.svg`} />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -83,13 +84,14 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
             <div class="a2-masthead__split">
               <h1 class="a2-h1">
-                Give AI agents a <span class="a2-serif-accent">real interface.</span>
+                Every customer gets the screen <span class="a2-serif-accent">they&nbsp;meant to&nbsp;ask&nbsp;for.</span>
               </h1>
 
               <div class="a2-masthead__right">
                 <p class="a2-lead">
-                  Agents stream pure declarative intent. Your app renders native, stateful UI — zero
-                  scripts, zero bolted-on iframes.
+                  Agents capture what a customer is trying to do and answer with a native screen —
+                  composed live from components your team already approved. Same app, same screen.
+                  A different composition for every intent.
                 </p>
 
                 <div class="a2-hero__actions">
@@ -112,9 +114,23 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
                 </div>
               </div>
             </div>
+
+            <!-- Renderer strip: the same stream renders natively in each of these -->
+            <div class="a2-renderers">
+              <span class="a2-renderers__lbl">RENDERS NATIVELY IN</span>
+              <ul class="a2-renderers__list" aria-label="Official A2UI renderers">
+                <li><a href={`${base}/concepts/renderer-sdks/`}><RendererLogo name="react" size={20} /><span>React</span></a></li>
+                <li><a href={`${base}/concepts/renderer-sdks/`}><RendererLogo name="lit" size={20} /><span>Lit</span></a></li>
+                <li><a href={`${base}/concepts/renderer-sdks/`}><RendererLogo name="angular" size={20} /><span>Angular</span></a></li>
+                <li><a href={`${base}/concepts/renderer-sdks/`}><RendererLogo name="flutter" size={20} /><span>Flutter</span></a></li>
+                <li><a href={`${base}/concepts/renderer-sdks/`}><RendererLogo name="swiftui" size={20} /><span>SwiftUI</span></a></li>
+                <li><a href={`${base}/concepts/renderer-sdks/`}><RendererLogo name="compose" size={20} /><span>Jetpack Compose</span></a></li>
+              </ul>
+              <a href={`${base}/ecosystem/renderers/`} class="a2-renderers__more">+ Vue, Svelte, React Native &amp; more from the community →</a>
+            </div>
           </div>
 
-          <!-- Interactive 4-Artifact Stage -->
+          <!-- Intent → Composed Screen Stage -->
           <div class="a2-hero__stage">
             <HeroChatGeneration />
           </div>
@@ -145,20 +161,21 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       </section>
 
       <!-- =================================================================
-           § 02 — BRAND & PLATFORM CHAMELEON (#native-rendering)
+           § 02 — RENDERERS & DESIGN SYSTEMS (#native-rendering)
            ================================================================= -->
       <section class="a2-section a2-section--alt" id="native-rendering">
         <div class="a2-wrap">
           <div class="a2-chapter">
             <div class="a2-chapter__rule">
-              <span>§ 02 — HOST DESIGN SYSTEMS</span>
-              <span>ZERO LLM CSS</span>
+              <span>§ 02 — RENDERERS &amp; DESIGN SYSTEMS</span>
+              <span>ONE STREAM · EVERY PLATFORM</span>
             </div>
             <div class="a2-chapter__split">
-              <h2 class="a2-h2">Their intelligence. <span class="a2-serif-accent">Your design system.</span></h2>
+              <h2 class="a2-h2">Works with your stack <span class="a2-serif-accent">and your design system.</span></h2>
               <p class="a2-sec-sub">
-                Separate agent intent from presentation so one semantic stream renders natively
-                across iOS, Android, Flutter, and Web.
+                The agent sends one semantic stream. Official renderers for React, Lit, Angular,
+                Flutter, SwiftUI, and Jetpack Compose map it to the components you already ship —
+                in your tokens, your type, your corners.
               </p>
             </div>
           </div>
@@ -419,7 +436,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
             <div>
               <span class="a2-sch-kicker">GET STARTED</span>
               <h2 class="a2-closing__title">
-                Stop forcing human workflows through <span class="a2-serif-accent">plain text.</span>
+                Stop answering customer intent with <span class="a2-serif-accent">a paragraph.</span>
               </h2>
             </div>
 
@@ -447,7 +464,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         <nav class="a2-footer__links" aria-label="Footer links">
           <a href={`${base}/quickstart/`}>Quickstart</a>
           <a href={`${base}/concepts/overview/`}>Concepts</a>
-          <a href={`${base}/renderers/`}>Renderers</a>
+          <a href={`${base}/concepts/renderer-sdks/`}>Renderers</a>
           <a href={`${base}/specification/v1.0-a2ui/`}>Specification</a>
           <a href="https://github.com/a2ui-project/a2ui" target="_blank" rel="noopener">GitHub</a>
           <a href="https://discord.gg/6fS2326966" target="_blank" rel="noopener">Discord</a>
@@ -579,7 +596,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     margin: 0;
     background: var(--a2-bg);
     color: var(--a2-text);
-    overflow-x: hidden;
+    overflow-x: clip;
   }
 
   .a2-wrap {
@@ -620,7 +637,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   .a2-hero {
     position: relative;
     padding: 72px 0 148px;
-    overflow: hidden;
+    overflow: clip; /* clip (not hidden) so the sticky stage inside the hero keeps working */
   }
 
   .a2-hero__grid-bg {
@@ -805,6 +822,90 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
   .a2-hero__stage {
     position: relative;
+  }
+
+  /* Renderer strip under the masthead (official targets) */
+  .a2-renderers {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    flex-wrap: wrap;
+    margin-top: 44px;
+    padding-top: 20px;
+    border-top: 1px solid var(--a2-border);
+  }
+
+  .a2-renderers__lbl {
+    font-family: var(--a2-font-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--a2-text-muted);
+    white-space: nowrap;
+  }
+
+  .a2-renderers__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 0;
+  }
+
+  .a2-renderers__list li {
+    display: flex;
+    align-items: center;
+  }
+
+  .a2-renderers__list li + li::before {
+    content: '';
+    width: 1px;
+    height: 16px;
+    margin: 0 16px;
+    background: var(--a2-border-strong);
+  }
+
+  .a2-renderers__list a {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    color: var(--a2-text-secondary);
+    text-decoration: none;
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    transition: color 0.16s ease;
+  }
+
+  .a2-renderers__list a:hover {
+    color: var(--a2-text);
+  }
+
+  .a2-renderers__list a:hover :global(.rmark) {
+    color: var(--brand);
+  }
+
+  .a2-renderers__more {
+    margin-left: auto;
+    font-family: var(--a2-font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--a2-accent-strong);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .a2-renderers__more:hover {
+    text-decoration: underline;
+  }
+
+  @media (max-width: 920px) {
+    .a2-renderers__more {
+      margin-left: 0;
+    }
   }
 
   /* =======================================================================

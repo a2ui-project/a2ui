@@ -16,384 +16,435 @@
  */
 ---
 
-<div class="hm-root" id="hero-chat-visual" role="region" aria-label="Abstract Generative UI structural modes">
-  <!-- Architectural Mode Ledger (Zero Pills — Clean 4-Column Structural Index) -->
-  <div class="hm-ledger" role="tablist" aria-label="Select a Generative UI mode">
-    <button type="button" role="tab" aria-selected="true" class="hm-ledger__item is-active" data-hm-mode="chat">
-      <span class="hm-ledger__idx">01 // THREADED</span>
-      <strong class="hm-ledger__title">In-Chat Stream</strong>
-    </button>
+<div class="ic-root" id="hero-chat-visual" role="region" aria-label="One app screen whose surface is composed uniquely for each intent as you scroll">
+  <div class="ic-split">
+    <!-- Live wire: the active intent flows into the phone's composer -->
+    <svg class="ic-wire-svg" id="ic-wire-svg" aria-hidden="true">
+      <path id="ic-wire-path" d="" />
+      <circle id="ic-wire-a" r="3.5" />
+      <circle id="ic-wire-b" r="3.5" />
+    </svg>
 
-    <button type="button" role="tab" aria-selected="false" class="hm-ledger__item" data-hm-mode="sidebar">
-      <span class="hm-ledger__idx">02 // SPLIT-PANE</span>
-      <strong class="hm-ledger__title">Copilot Sidebar</strong>
-    </button>
-
-    <button type="button" role="tab" aria-selected="false" class="hm-ledger__item" data-hm-mode="dashboard">
-      <span class="hm-ledger__idx">03 // ADAPTIVE</span>
-      <strong class="hm-ledger__title">Dynamic Dashboard</strong>
-    </button>
-
-    <button type="button" role="tab" aria-selected="false" class="hm-ledger__item" data-hm-mode="canvas">
-      <span class="hm-ledger__idx">04 // MULTI-SURFACE</span>
-      <strong class="hm-ledger__title">Spatial Canvas</strong>
-    </button>
-  </div>
-
-  <!-- Minimal Architectural Caption + Lens Switch -->
-  <div class="hm-meta-bar">
-    <p class="hm-meta-bar__desc" id="hm-mode-desc">
-      <span class="hm-meta-bar__tag">MODE 01</span>
-      Interactive A2UI surface injected directly inside a chronological message stream.
-    </p>
-
-    <div class="hm-lens" role="group" aria-label="Switch viewport lens">
-      <button type="button" class="hm-lens__btn is-active" data-hm-lens="ui">Visual Mode</button>
-      <button type="button" class="hm-lens__btn" data-hm-lens="wire">Wire JSON</button>
-    </div>
-  </div>
-
-  <!-- =====================================================================
-       ABSTRACT HOST VIEWPORT STAGE
-       ===================================================================== -->
-  <div class="hm-stage">
-    <!-- LENS 1: INTERACTIVE STRUCTURAL MODES -->
-    <div class="hm-lens-view is-active" data-hm-view="ui">
-
-      <!-- =================================================================
-           MODE 01: IN-CHAT STREAM (THREADED INLINE SURFACE)
-           ================================================================= -->
-      <div class="hm-scene is-active" data-hm-panel="chat">
-        <div class="hm-frame hm-frame--chat">
-          <div class="hm-frame__chrome">
-            <span class="hm-chrome-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-            <span class="hm-chrome-label">HOST // CONVERSATION THREAD</span>
-            <span class="hm-chrome-meta">surfaceId: "turn_04"</span>
-          </div>
-
-          <div class="hm-chat-viewport">
-            <!-- Abstract Prior User Turn (Quiet Wireframe) -->
-            <div class="hm-skel-turn hm-skel-turn--user" aria-hidden="true">
-              <div class="hm-skel-bubble">
-                <span class="hm-skel-line hm-skel-line--w72"></span>
-                <span class="hm-skel-line hm-skel-line--w44"></span>
-              </div>
-              <span class="hm-skel-avatar">U</span>
-            </div>
-
-            <!-- Abstract Agent Intro Line -->
-            <div class="hm-skel-turn" aria-hidden="true">
-              <span class="hm-skel-avatar hm-skel-avatar--ai">AI</span>
-              <div class="hm-skel-lines">
-                <span class="hm-skel-line hm-skel-line--w56"></span>
-              </div>
-            </div>
-
-            <!-- MOUNTED INLINE A2UI SURFACE (High-Contrast Focal Element) -->
-            <div class="hm-a2-surface hm-chat-surface">
-              <div class="hm-a2-surface__bar">
-                <span>A2UI INLINE SURFACE</span>
-                <span id="hm-chat-readout">PRESET B · 72% WEIGHT</span>
-              </div>
-
-              <div class="hm-chat-presets" role="radiogroup" aria-label="Abstract configuration preset">
-                <button type="button" class="hm-preset" data-chat-preset="PRESET A" data-chat-val="38">
-                  <svg viewBox="0 0 36 20" aria-hidden="true">
-                    <rect x="2" y="11" width="6" height="7" fill="currentColor" opacity="0.5" />
-                    <rect x="12" y="7" width="6" height="11" fill="currentColor" opacity="0.75" />
-                    <rect x="22" y="3" width="6" height="15" fill="currentColor" />
-                  </svg>
-                  <strong>Preset A</strong>
-                  <span>Low latency</span>
-                </button>
-
-                <button type="button" class="hm-preset is-selected" data-chat-preset="PRESET B" data-chat-val="72">
-                  <svg viewBox="0 0 36 20" aria-hidden="true">
-                    <rect x="2" y="5" width="6" height="13" fill="currentColor" opacity="0.65" />
-                    <rect x="12" y="2" width="6" height="16" fill="currentColor" />
-                    <rect x="22" y="6" width="6" height="12" fill="currentColor" opacity="0.65" />
-                  </svg>
-                  <strong>Preset B</strong>
-                  <span>Balanced</span>
-                </button>
-
-                <button type="button" class="hm-preset" data-chat-preset="PRESET C" data-chat-val="94">
-                  <svg viewBox="0 0 36 20" aria-hidden="true">
-                    <rect x="2" y="3" width="6" height="15" fill="currentColor" />
-                    <rect x="12" y="3" width="6" height="15" fill="currentColor" />
-                    <rect x="22" y="2" width="6" height="16" fill="currentColor" />
-                  </svg>
-                  <strong>Preset C</strong>
-                  <span>Max depth</span>
-                </button>
-              </div>
-
-              <div class="hm-chat-controls">
-                <div class="hm-slider-group">
-                  <div class="hm-slider-group__lbl">
-                    <span>PARAMETER WEIGHT</span>
-                    <strong id="hm-chat-pct">72%</strong>
-                  </div>
-                  <input type="range" id="hm-chat-slider" class="hm-range" min="10" max="100" value="72" aria-label="Parameter weight" />
-                </div>
-
-                <button type="button" class="hm-cta" id="hm-chat-commit">
-                  <span>Commit in Thread</span>
-                  <span aria-hidden="true">→</span>
-                </button>
-              </div>
-            </div>
-
-            <!-- Quiet Composer Skeleton at Base -->
-            <div class="hm-chat-composer" aria-hidden="true">
-              <span class="hm-skel-line hm-skel-line--w32"></span>
-              <span class="hm-composer-enter">↵</span>
-            </div>
-          </div>
-        </div>
+    <!-- =================================================================
+         LEFT: SCROLL STEPS — EACH INTENT IS SENT TO THE SAME SCREEN
+         ================================================================= -->
+    <div class="ic-picker">
+      <div class="ic-picker__head">
+        <span class="ic-kicker">SCROLL — EACH INTENT IS SENT TO THE SAME SCREEN</span>
       </div>
 
-      <!-- =================================================================
-           MODE 02: COPILOT SIDEBAR (DOCKED SPLIT-PANE WORKSPACE)
-           ================================================================= -->
-      <div class="hm-scene" data-hm-panel="sidebar">
-        <div class="hm-frame">
-          <div class="hm-frame__chrome">
-            <span class="hm-chrome-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-            <span class="hm-chrome-label">HOST // PRIMARY WORKSPACE + DOCKED A2UI SIDEBAR</span>
-            <span class="hm-chrome-meta">surfaceId: "copilot_rail"</span>
-          </div>
+      <div class="ic-steps">
+        <button type="button" class="ic-step is-active" data-ic="dinner" aria-pressed="true">
+          <span class="ic-step__idx">01 <em>PLAN</em></span>
+          <span class="ic-step__q">“Dinner for four tonight, one vegetarian, under $40.”</span>
+          <span class="ic-step__desc">A recipe that fits the diet and the budget, a basket built from it, pantry items skipped, and the 5:30 slot booked — as one screen.</span>
+          <span class="ic-step__state"><span class="ic-step__state-off">↓ SCROLL TO SEND</span><span class="ic-step__state-on">SENT ●</span></span>
+        </button>
 
-          <div class="hm-sidebar-split">
-            <!-- Left: Host Application Document / Canvas (Mutates Live!) -->
-            <div class="hm-doc-stage">
-              <div class="hm-doc-stage__hdr" aria-hidden="true">
-                <span>HOST ARTIFACT CANVAS</span>
-                <span id="hm-doc-state-lbl">SPLIT · 16PX GAP</span>
-              </div>
+        <button type="button" class="ic-step" data-ic="bill" aria-pressed="false">
+          <span class="ic-step__idx">02 <em>EXPLAIN</em></span>
+          <span class="ic-step__q">“Why was last week’s order $23 more than usual?”</span>
+          <span class="ic-step__desc">Same screen, different shape: a comparison, the three lines that moved, and a switch that stops it happening again.</span>
+          <span class="ic-step__state"><span class="ic-step__state-off">↓ SCROLL TO SEND</span><span class="ic-step__state-on">SENT ●</span></span>
+        </button>
 
-              <div class="hm-doc-canvas is-accented" id="hm-doc-canvas" data-layout="split" style="--doc-gap: 16px;">
-                <div class="hm-doc-block hm-doc-block--hero">
-                  <span class="hm-skel-line hm-skel-line--w44"></span>
-                  <span class="hm-skel-line hm-skel-line--w72"></span>
-                </div>
-                <div class="hm-doc-block hm-doc-block--a">
-                  <span class="hm-doc-glyph"></span>
-                  <span class="hm-skel-line hm-skel-line--w56"></span>
-                </div>
-                <div class="hm-doc-block hm-doc-block--b">
-                  <span class="hm-doc-glyph"></span>
-                  <span class="hm-skel-line hm-skel-line--w44"></span>
-                </div>
-                <div class="hm-doc-block hm-doc-block--c">
-                  <span class="hm-skel-line hm-skel-line--w72"></span>
-                  <span class="hm-skel-line hm-skel-line--w32"></span>
-                </div>
-              </div>
-            </div>
+        <button type="button" class="ic-step" data-ic="party" aria-pressed="false">
+          <span class="ic-step__idx">03 <em>HOST</em></span>
+          <span class="ic-step__q">“Hosting twelve kids Saturday afternoon — help me not forget anything.”</span>
+          <span class="ic-step__desc">Now it’s a plan: a timeline to the party, a checklist seeded from the RSVPs, and the two nut allergies already flagged.</span>
+          <span class="ic-step__state"><span class="ic-step__state-off">↓ SCROLL TO SEND</span><span class="ic-step__state-on">SENT ●</span></span>
+        </button>
 
-            <!-- Right: Docked A2UI Copilot Surface -->
-            <aside class="hm-a2-surface hm-copilot-pane" aria-label="Docked A2UI Copilot controls">
-              <div class="hm-a2-surface__bar">
-                <span>A2UI SIDEBAR</span>
-                <span>LIVE STEERING</span>
-              </div>
-
-              <div class="hm-skel-lines hm-copilot-prompt" aria-hidden="true">
-                <span class="hm-skel-line hm-skel-line--w72"></span>
-                <span class="hm-skel-line hm-skel-line--w44"></span>
-              </div>
-
-              <div class="hm-ctrl-block">
-                <span class="hm-ctrl-lbl">CANVAS TOPOLOGY</span>
-                <div class="hm-seg-row" role="radiogroup" aria-label="Canvas topology">
-                  <button type="button" class="hm-seg" data-sb-layout="editorial">Editorial</button>
-                  <button type="button" class="hm-seg is-selected" data-sb-layout="split">Split</button>
-                  <button type="button" class="hm-seg" data-sb-layout="bento">Bento</button>
-                </div>
-              </div>
-
-              <div class="hm-ctrl-block">
-                <div class="hm-slider-group__lbl">
-                  <span>GRID SPACING</span>
-                  <strong id="hm-sb-gap-val">16px</strong>
-                </div>
-                <input type="range" id="hm-sb-gap" class="hm-range" min="6" max="28" value="16" aria-label="Workspace grid spacing" />
-              </div>
-
-              <div class="hm-ctrl-block hm-ctrl-block--row">
-                <span>Focal Accent</span>
-                <button type="button" class="hm-switch is-on" id="hm-sb-accent" role="switch" aria-checked="true">
-                  <span>ON</span>
-                </button>
-              </div>
-            </aside>
-          </div>
-        </div>
+        <button type="button" class="ic-step" data-ic="eggs" aria-pressed="false">
+          <span class="ic-step__idx">04 <em>FIX</em></span>
+          <span class="ic-step__q">“Half the eggs arrived cracked.”</span>
+          <span class="ic-step__desc">No form, no ticket. The item is already found, you say how many, pick refund or replace, done.</span>
+          <span class="ic-step__state"><span class="ic-step__state-off">↓ SCROLL TO SEND</span><span class="ic-step__state-on">SENT ●</span></span>
+        </button>
       </div>
-
-      <!-- =================================================================
-           MODE 03: DYNAMIC DASHBOARD (INTENT-ASSEMBLED COMMAND SURFACE)
-           ================================================================= -->
-      <div class="hm-scene" data-hm-panel="dashboard">
-        <div class="hm-frame">
-          <div class="hm-frame__chrome">
-            <span class="hm-chrome-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-            <span class="hm-chrome-label">HOST // ADAPTIVE COMMAND VIEWPORT</span>
-            <span class="hm-chrome-meta">surfaceId: "dash_grid"</span>
-          </div>
-
-          <div class="hm-dash-stage">
-            <!-- Top Intent Switcher -->
-            <div class="hm-dash-intent">
-              <span class="hm-ctrl-lbl">ACTIVE INTENT ›</span>
-              <div class="hm-seg-row" role="tablist" aria-label="Dashboard intent">
-                <button type="button" class="hm-seg is-selected" data-db-intent="overview">System Overview</button>
-                <button type="button" class="hm-seg" data-db-intent="anomaly">Anomaly Triage</button>
-                <button type="button" class="hm-seg" data-db-intent="capacity">Capacity Allocation</button>
-              </div>
-            </div>
-
-            <!-- Self-Assembling A2UI Dashboard Grid -->
-            <div class="hm-a2-surface hm-dash-grid" id="hm-dash-grid" data-intent="overview">
-              <div class="hm-a2-surface__bar hm-dash-grid__bar">
-                <span>A2UI ASSEMBLED SURFACE</span>
-                <span id="hm-db-schema-tag">3 MODULES MOUNTED</span>
-              </div>
-
-              <!-- Module A: Primary Telemetry Plot -->
-              <div class="hm-db-card hm-db-card--chart">
-                <div class="hm-db-card__hdr">
-                  <span id="hm-db-chart-title">SIGNAL THROUGHPUT</span>
-                  <strong id="hm-db-kpi-main">98.4%</strong>
-                </div>
-
-                <svg viewBox="0 0 380 120" class="hm-db-svg" aria-hidden="true">
-                  <line x1="0" y1="30" x2="380" y2="30" stroke="var(--a2-border)" stroke-dasharray="2 4" />
-                  <line x1="0" y1="90" x2="380" y2="90" stroke="var(--a2-border)" stroke-dasharray="2 4" />
-                  <!-- Live movable threshold line -->
-                  <line id="hm-db-thresh-line" x1="0" y1="54" x2="380" y2="54" stroke="var(--a2-accent)" stroke-width="1.2" stroke-dasharray="5 4" />
-                  <path id="hm-db-area" d="M8 96 C85 88, 160 62, 245 48 C305 38, 340 28, 372 22 L372 114 L8 114 Z" fill="var(--a2-accent-soft)" />
-                  <path id="hm-db-curve" d="M8 96 C85 88, 160 62, 245 48 C305 38, 340 28, 372 22" fill="none" stroke="var(--a2-accent)" stroke-width="2.4" />
-                </svg>
-              </div>
-
-              <!-- Module B: Abstract Distribution Bars -->
-              <div class="hm-db-card">
-                <div class="hm-db-card__hdr">
-                  <span>NODE DISTRIBUTION</span>
-                  <strong id="hm-db-kpi-sub">4 ACTIVE</strong>
-                </div>
-                <div class="hm-db-bars" id="hm-db-bars" aria-hidden="true">
-                  <i style="height: 78%"></i>
-                  <i style="height: 54%"></i>
-                  <i style="height: 92%" class="is-hi"></i>
-                  <i style="height: 64%"></i>
-                  <i style="height: 42%"></i>
-                  <i style="height: 84%"></i>
-                </div>
-              </div>
-
-              <!-- Module C: Live Bound Threshold Control -->
-              <div class="hm-db-card">
-                <div class="hm-db-card__hdr">
-                  <span>ALERT CEILING</span>
-                  <strong id="hm-db-floor-val">0.68</strong>
-                </div>
-                <input type="range" id="hm-db-floor" class="hm-range" min="20" max="90" value="68" aria-label="Alert ceiling threshold" />
-                <span class="hm-db-hint">Binds threshold line in 0ms</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- =================================================================
-           MODE 04: SPATIAL CANVAS (MULTI-SURFACE GRAPH WORKSPACE)
-           ================================================================= -->
-      <div class="hm-scene" data-hm-panel="canvas">
-        <div class="hm-frame">
-          <div class="hm-frame__chrome">
-            <span class="hm-chrome-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-            <span class="hm-chrome-label">HOST // INFINITE SPATIAL CANVAS</span>
-            <span class="hm-chrome-meta">3 LINKED A2UI SURFACES</span>
-          </div>
-
-          <div class="hm-canvas-field">
-            <!-- SVG Bezier Signal Connectors -->
-            <svg class="hm-canvas-wires" viewBox="0 0 1000 280" preserveAspectRatio="none" aria-hidden="true">
-              <path d="M 306 142 C 326 142, 328 118, 348 118" fill="none" stroke="var(--a2-accent)" stroke-width="2" stroke-dasharray="4 3" />
-              <path d="M 652 118 C 672 118, 674 156, 694 156" fill="none" stroke="var(--a2-accent)" stroke-width="2" />
-              <circle cx="306" cy="142" r="4.5" fill="var(--a2-accent)" />
-              <circle cx="348" cy="118" r="4.5" fill="var(--a2-accent)" />
-              <circle cx="652" cy="118" r="4.5" fill="var(--a2-accent)" />
-              <circle cx="694" cy="156" r="4.5" fill="var(--a2-accent)" />
-            </svg>
-
-            <div class="hm-canvas-nodes">
-              <!-- Node 01: Signal Source -->
-              <div class="hm-a2-surface hm-node hm-node--1">
-                <div class="hm-a2-surface__bar">
-                  <span>SURFACE 01</span>
-                  <span>SOURCE</span>
-                </div>
-                <div class="hm-node__opts" role="radiogroup" aria-label="Canvas source wave">
-                  <button type="button" class="hm-seg is-selected" data-cv-src="1.0" data-cv-lbl="WAVE α">Wave α</button>
-                  <button type="button" class="hm-seg" data-cv-src="1.45" data-cv-lbl="WAVE β">Wave β</button>
-                </div>
-              </div>
-
-              <!-- Node 02: Transform Operator -->
-              <div class="hm-a2-surface hm-node hm-node--2">
-                <div class="hm-a2-surface__bar">
-                  <span>SURFACE 02</span>
-                  <span>TRANSFORM</span>
-                </div>
-                <div class="hm-slider-group__lbl">
-                  <span>GAIN</span>
-                  <strong id="hm-cv-gain-lbl">1.8×</strong>
-                </div>
-                <input type="range" id="hm-cv-gain" class="hm-range" min="10" max="30" value="18" aria-label="Spatial transform gain" />
-              </div>
-
-              <!-- Node 03: Live Output Synthesis -->
-              <div class="hm-a2-surface hm-node hm-node--3">
-                <div class="hm-a2-surface__bar">
-                  <span>SURFACE 03</span>
-                  <span id="hm-cv-out-lbl">WAVE α · 86 HZ</span>
-                </div>
-                <div class="hm-cv-spectrum" id="hm-cv-bars" aria-hidden="true">
-                  <i style="height: 36%"></i>
-                  <i style="height: 62%"></i>
-                  <i style="height: 88%"></i>
-                  <i style="height: 54%"></i>
-                  <i style="height: 94%"></i>
-                  <i style="height: 70%"></i>
-                  <i style="height: 44%"></i>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
     </div>
 
-    <!-- ===================================================================
-         LENS 2: DECLARATIVE A2UI WIRE JSON
-         =================================================================== -->
-    <div class="hm-lens-view" data-hm-view="wire">
-      <div class="hm-wire-sheet">
-        <div class="hm-wire-sheet__hdr">
-          <span>A2UI v1.0 STREAMED DESCRIPTOR // ZERO SCRIPTS</span>
-          <span id="hm-wire-target">MODE 01 · IN-CHAT STREAM</span>
+    <!-- =================================================================
+         RIGHT: STICKY STAGE — THE SAME ASSIST SCREEN
+         ================================================================= -->
+    <div class="ic-stage">
+      <div class="ic-stage__bar">
+        <span class="ic-stage__tag">✦ MARIGOLD MARKET · ASSIST SCREEN</span>
+        <div class="ic-lens" role="group" aria-label="Switch between the rendered screen and the wire payload">
+          <button type="button" class="ic-lens__btn is-active" data-ic-lens="screen">SCREEN</button>
+          <button type="button" class="ic-lens__btn" data-ic-lens="wire">WIRE JSON</button>
         </div>
-        <pre class="hm-wire-sheet__code" id="hm-wire-code"><code>&#123; "createSurface": &#123; "surfaceId": "turn_04", "mount": "chat.inline", "catalogId": "core.v1" &#125; &#125;
-&#123; "updateComponents": &#123; "surfaceId": "turn_04", "components": [
-    &#123; "id": "root", "component": "ChoiceGroup", "options": ["Preset A", "Preset B", "Preset C"], "value": &#123; "path": "/preset" &#125; &#125;,
-    &#123; "id": "weight", "component": "Slider", "value": &#123; "path": "/weight" &#125; &#125;,
-    &#123; "id": "commit", "component": "Button", "label": "Commit in Thread", "action": "applyTurn" &#125;
+      </div>
+
+      <!-- Rendered screen -->
+      <div class="ic-lens-view is-active" data-ic-view="screen">
+        <div class="ic-callout ic-callout--zone" aria-hidden="true">
+          <span class="ic-callout__t">A2UI SURFACE</span>
+          <span class="ic-callout__s">Composed from intent <b id="ic-zone-who">01</b></span>
+        </div>
+
+        <div class="ic-device">
+          <div class="ic-device__status" aria-hidden="true">
+            <span>9:41</span>
+            <span class="ic-device__sig"><i></i><i></i><i></i></span>
+          </div>
+
+          <!-- Constant app header -->
+          <div class="ic-shell-hdr" aria-hidden="true">
+            <span class="ic-shell-brand">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 6.5h11l-1.2 6.5h-8.6z"/><path d="M5.5 6.5 8 2.5l2.5 4"/></svg>
+              Marigold Market
+            </span>
+            <svg class="ic-shell-bell" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 11h8l-1-1.4V7a3 3 0 0 0-6 0v2.6L4 11z"/><path d="M6.8 13a1.3 1.3 0 0 0 2.4 0"/></svg>
+          </div>
+
+          <!-- The one surface slot that A2UI composes -->
+          <div class="ic-zone">
+            <span class="ic-zone__tag" aria-hidden="true">A2UI SURFACE · assist_zone</span>
+
+            <div class="ic-zone__skel" aria-hidden="true">
+              <span class="ic-zone__skel-lbl">COMPOSING FROM INTENT…</span>
+              <i style="width: 58%"></i>
+              <i style="width: 100%; height: 104px"></i>
+              <i style="width: 88%"></i>
+              <i style="width: 76%"></i>
+            </div>
+
+            <!-- 01 · PLAN: recipe + ingredient grid + budget meter -->
+            <div class="ic-screen is-active" data-ic-screen="dinner">
+              <header class="ic-greet">
+                <strong>Tonight · 4 servings</strong>
+                <span>1 vegetarian · under $40 · 5:30pm slot open</span>
+              </header>
+
+              <div class="ic-recipe">
+                <span class="ic-lbl">PICKED FOR YOU</span>
+                <strong>Sheet-pan gnocchi &amp; peppers</strong>
+                <span class="ic-recipe__meta">32 min · vegetarian ✓ · uses your pantry basil</span>
+              </div>
+
+              <div class="ic-grid" id="ic-dn-grid" role="group" aria-label="Ingredients">
+                <button type="button" class="ic-gtile" data-price="7.98"><b>Gnocchi ×2</b><span>$7.98</span></button>
+                <button type="button" class="ic-gtile" data-price="4.47"><b>Peppers ×3</b><span>$4.47</span></button>
+                <button type="button" class="ic-gtile" data-price="4.99"><b>Feta</b><span>$4.99</span></button>
+                <button type="button" class="ic-gtile" data-price="3.99"><b>Cherry toms</b><span>$3.99</span></button>
+                <button type="button" class="ic-gtile" data-price="3.49"><b>Ciabatta</b><span>$3.49</span></button>
+                <button type="button" class="ic-gtile is-pantry" data-price="0" disabled><b>Basil · oil</b><span>IN PANTRY</span></button>
+              </div>
+
+              <div class="ic-meter">
+                <div class="ic-meter__track"><i id="ic-dn-fill" style="width: 62%"></i></div>
+                <div class="ic-meter__lbl"><span id="ic-dn-total">$24.92</span><span>BUDGET $40</span></div>
+              </div>
+
+              <button type="button" class="ic-cta" id="ic-dn-cta" data-ic-cta data-done="✓ Added · arrives 5:30pm">
+                <span>Add 5 items · $24.92</span><span aria-hidden="true">→</span>
+              </button>
+            </div>
+
+            <!-- 02 · EXPLAIN: comparison bars + delta ledger + toggle -->
+            <div class="ic-screen" data-ic-screen="bill">
+              <header class="ic-greet">
+                <strong>Last week vs. usual</strong>
+                <span>Order #7702 · $109.40 · usual week ≈ $86</span>
+              </header>
+
+              <div class="ic-bars2" aria-hidden="true">
+                <div><span>USUAL</span><div class="ic-bars2__track"><i style="width: 79%"></i></div><b>$86</b></div>
+                <div class="is-hi"><span>LAST WK</span><div class="ic-bars2__track"><i style="width: 100%"></i></div><b>$109</b></div>
+              </div>
+
+              <div class="ic-deltas">
+                <div><span><strong>Salmon ×2</strong><em>price up 18%</em></span><b>+$14.00</b></div>
+                <div><span><strong>1-hour window</strong><em>instead of 2-hour</em></span><b>+$5.00</b></div>
+                <div><span><strong>Raspberries</strong><em>out of season</em></span><b>+$4.40</b></div>
+              </div>
+
+              <button type="button" class="ic-toggle-row is-on" id="ic-bl-toggle" aria-pressed="true">
+                <span><strong>Swap to frozen salmon next week</strong><em id="ic-bl-save">Saves about $9</em></span>
+                <i></i>
+              </button>
+
+              <button type="button" class="ic-cta" data-ic-cta data-done="✓ Weekly cap set · $90">
+                <span>Set a $90 weekly cap</span><span aria-hidden="true">→</span>
+              </button>
+            </div>
+
+            <!-- 03 · HOST: timeline + checklist -->
+            <div class="ic-screen" data-ic-screen="party">
+              <header class="ic-greet">
+                <strong>Saturday · 12 kids</strong>
+                <span>12 RSVPs · 2 nut allergies flagged from your list</span>
+              </header>
+
+              <div class="ic-tl3" aria-hidden="true">
+                <span class="is-done"><i></i><b>FRI</b><em>Order</em></span>
+                <span class="is-live"><i></i><b>SAT 10AM</b><em>Delivery</em></span>
+                <span><i></i><b>SAT 2PM</b><em>Party</em></span>
+              </div>
+
+              <div class="ic-checklist" id="ic-pt-list" role="group" aria-label="Party checklist">
+                <button type="button" class="ic-ck is-done"><i></i><span>Cake · ordered Tuesday</span></button>
+                <button type="button" class="ic-ck is-done"><i></i><span>Juice boxes ×24</span></button>
+                <button type="button" class="ic-ck"><i></i><span>Nut-free snacks ×2 <b>ALLERGY</b></span></button>
+                <button type="button" class="ic-ck"><i></i><span>Plates, cups, napkins</span></button>
+                <button type="button" class="ic-ck"><i></i><span>Ice · pick up Sat 1pm</span></button>
+              </div>
+
+              <button type="button" class="ic-cta" id="ic-pt-cta" data-ic-cta data-done="✓ Added · Sat 10am delivery">
+                <span>Add the 3 missing · Sat 10am</span><span aria-hidden="true">→</span>
+              </button>
+            </div>
+
+            <!-- 04 · FIX: item + stepper + two choices -->
+            <div class="ic-screen" data-ic-screen="eggs">
+              <header class="ic-greet">
+                <strong>Order #7731 · this morning</strong>
+                <span>Delivered 8:12am · 14 items · no photo needed</span>
+              </header>
+
+              <div class="ic-item">
+                <div class="ic-item__row"><strong>Organic eggs · dozen</strong><b>$6.49</b></div>
+                <div class="ic-stepper">
+                  <span>HOW MANY CRACKED?</span>
+                  <div><button type="button" id="ic-eg-minus" aria-label="Fewer">−</button><strong id="ic-eg-n">6</strong><button type="button" id="ic-eg-plus" aria-label="More">+</button><em>of 12</em></div>
+                </div>
+              </div>
+
+              <div class="ic-choice2" role="group" aria-label="Resolution">
+                <button type="button" class="ic-choice is-on" data-eg-choice="refund"><span>REFUND</span><strong id="ic-eg-refund">$3.25</strong><em>back on card today</em></button>
+                <button type="button" class="ic-choice" data-eg-choice="replace"><span>REPLACE</span><strong>Tomorrow</strong><em>7–9am · free</em></button>
+              </div>
+
+              <div class="ic-trust" aria-hidden="true">
+                <div><b>0</b><span>PRIOR CLAIMS</span></div>
+                <div><b>13</b><span>ITEMS FINE</span></div>
+                <div><b>Instant</b><span>NO REVIEW</span></div>
+              </div>
+
+              <button type="button" class="ic-cta" id="ic-eg-cta" data-ic-cta data-done="✓ Done · sorry about that">
+                <span>Refund $3.25 now</span><span aria-hidden="true">→</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Constant composer: where the intent actually arrives -->
+          <div class="ic-composer" id="ic-composer" aria-hidden="true">
+            <span class="ic-composer__ico"></span>
+            <span class="ic-composer__txt"><span id="ic-composer-text">Dinner for four tonight, one vegetarian, under $40.</span><i class="ic-caret"></i></span>
+            <span class="ic-composer__send">↑</span>
+          </div>
+
+          <!-- Constant tab bar -->
+          <nav class="ic-tabbar" aria-hidden="true">
+            <span><i class="ic-tab-ico ic-tab-ico--shop"></i>Shop</span>
+            <span class="is-on"><i class="ic-tab-ico ic-tab-ico--assist"></i>Assist</span>
+            <span><i class="ic-tab-ico ic-tab-ico--orders"></i>Orders</span>
+            <span><i class="ic-tab-ico ic-tab-ico--you"></i>You</span>
+          </nav>
+        </div>
+
+        <div class="ic-brace" aria-hidden="true">
+          <span class="ic-brace__t">YOUR APP SHELL</span>
+          <span class="ic-brace__s">Header, composer, tabs — same for everyone</span>
+        </div>
+      </div>
+
+      <!-- The declarative stream behind it -->
+      <div class="ic-lens-view" data-ic-view="wire">
+        <pre class="ic-wire" id="ic-wire"><code>&#123; "createSurface": &#123; "surfaceId": "assist_zone", "catalogId": "marigold.v1" &#125; &#125;
+&#123; "updateDataModel": &#123; "path": "/",
+    "value": &#123; "servings": 4, "diet": ["vegetarian"], "budget": 40, "pantry": ["basil", "olive oil"] &#125; &#125; &#125;
+&#123; "updateComponents": &#123; "surfaceId": "assist_zone", "components": [
+    &#123; "id": "pick", "component": "RecipeCard",
+      "title": "Sheet-pan gnocchi &amp; peppers", "minutes": 32 &#125;,
+    &#123; "id": "basket", "component": "IngredientGrid",
+      "items": &#123; "path": "/basket" &#125;, "skipPantry": true &#125;,
+    &#123; "id": "meter", "component": "BudgetMeter",
+      "value": &#123; "path": "/total" &#125;, "cap": &#123; "path": "/budget" &#125; &#125;,
+    &#123; "id": "cta", "component": "Button",
+      "label": "Add 5 items", "action": "addToBasket" &#125;
 ] &#125; &#125;</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       WHAT THE AGENT COMPOSES FROM (ILLUSTRATED 3-COLUMN DATUM ROW)
+       =================================================================== -->
+  <div class="ic-sources">
+    <div class="ic-sources__head">
+      <span class="ic-kicker">WHAT THE AGENT COMPOSES FROM</span>
+      <span class="ic-sources__eq" aria-hidden="true">
+        INTENT <b>+</b> CATALOG <b>+</b> CONTEXT <b>→</b> ONE SCREEN
+      </span>
+    </div>
+
+    <div class="ic-sources__grid">
+      <!-- 01 · CUSTOMER INTENT -->
+      <div class="ic-source">
+        <div class="ic-fig ic-fig--intent" aria-hidden="true">
+          <span class="ic-fig__quote">“</span>
+
+          <div class="ic-utter is-active" data-ic-utter="dinner">
+            <p><mark>Dinner for four</mark> tonight, <mark>one vegetarian</mark>, <mark>under $40</mark>.</p>
+            <span class="ic-trail"><b>TAPPED</b> Home <i>→</i> Recipes <i>→</i> Tonight</span>
+          </div>
+          <div class="ic-utter" data-ic-utter="bill">
+            <p>Why was <mark>last week’s order</mark> <mark>$23 more</mark> than usual?</p>
+            <span class="ic-trail"><b>TAPPED</b> Orders <i>→</i> #7702 <i>→</i> Receipt</span>
+          </div>
+          <div class="ic-utter" data-ic-utter="party">
+            <p>Hosting <mark>twelve kids</mark> <mark>Saturday afternoon</mark> — help me <mark>not forget anything</mark>.</p>
+            <span class="ic-trail"><b>TAPPED</b> Home <i>→</i> Occasions <i>→</i> Kids party</span>
+          </div>
+          <div class="ic-utter" data-ic-utter="eggs">
+            <p><mark>Half the eggs</mark> arrived <mark>cracked</mark>.</p>
+            <span class="ic-trail"><b>TAPPED</b> Orders <i>→</i> #7731 <i>→</i> Help</span>
+          </div>
+        </div>
+
+        <div class="ic-source__head">
+          <span class="ic-source__idx">01</span>
+          <h3>Customer intent</h3>
+        </div>
+        <p>What they asked for, in their own words — plus what they tapped on the way here.</p>
+        <div class="ic-chips" id="ic-src-intent">
+          <span>servings: 4</span><span>diet: 1 vegetarian</span><span>budget: $40</span>
+        </div>
+      </div>
+
+      <!-- 02 · YOUR CATALOG -->
+      <div class="ic-source">
+        <div class="ic-fig ic-fig--catalog" aria-hidden="true">
+          <svg class="ic-sheet" viewBox="0 0 360 150" fill="none">
+            <text x="10" y="13" class="ic-sheet__hdr">MARIGOLD DESIGN SYSTEM · 8 REGISTERED</text>
+            <g class="ic-sheet__lock">
+              <rect x="337" y="8" width="13" height="9" rx="1.5" />
+              <path d="M339.5 8 V6.2 a4 4 0 0 1 8 0 V8" />
+              <text x="331" y="15" text-anchor="end" class="ic-sheet__hdr ic-sheet__hdr--on">LOCKED</text>
+            </g>
+
+            <g class="ic-tile-svg is-on">
+              <rect x="10" y="24" width="76" height="44" rx="2" />
+              <rect x="18" y="33" width="34" height="3" class="ic-ink" />
+              <rect x="18" y="41" width="52" height="2" class="ic-ink-soft" />
+              <rect x="18" y="50" width="22" height="8" rx="1" class="ic-ink-fill" />
+              <text x="80" y="35" text-anchor="end" class="ic-tick">✓</text>
+              <text x="48" y="80" text-anchor="middle" class="ic-sheet__lbl">CARD</text>
+            </g>
+            <g class="ic-tile-svg is-on">
+              <rect x="98" y="24" width="76" height="44" rx="2" />
+              <rect x="110" y="50" width="7" height="11" class="ic-ink-soft" />
+              <rect x="121" y="42" width="7" height="19" class="ic-ink-soft" />
+              <rect x="132" y="35" width="7" height="26" class="ic-ink-fill" />
+              <rect x="143" y="46" width="7" height="15" class="ic-ink-soft" />
+              <rect x="154" y="31" width="7" height="30" class="ic-ink-fill" />
+              <text x="168" y="35" text-anchor="end" class="ic-tick">✓</text>
+              <text x="136" y="80" text-anchor="middle" class="ic-sheet__lbl">CHART</text>
+            </g>
+            <g class="ic-tile-svg">
+              <rect x="186" y="24" width="76" height="44" rx="2" />
+              <rect x="196" y="33" width="24" height="24" rx="1" class="ic-ink-soft" />
+              <rect x="224" y="33" width="28" height="3" class="ic-ink-soft" />
+              <rect x="224" y="41" width="20" height="2" class="ic-ink-soft" />
+              <text x="224" y="80" text-anchor="middle" class="ic-sheet__lbl">GRID TILE</text>
+            </g>
+            <g class="ic-tile-svg is-on">
+              <rect x="274" y="24" width="76" height="44" rx="2" />
+              <rect x="286" y="37" width="52" height="18" rx="2" class="ic-ink-fill" />
+              <rect x="298" y="45" width="28" height="2.5" class="ic-ink-inverse" />
+              <text x="344" y="35" text-anchor="end" class="ic-tick">✓</text>
+              <text x="312" y="80" text-anchor="middle" class="ic-sheet__lbl">BUTTON</text>
+            </g>
+
+            <g class="ic-tile-svg">
+              <rect x="10" y="92" width="76" height="44" rx="2" />
+              <rect x="18" y="101" width="6" height="6" class="ic-ink-soft" />
+              <rect x="28" y="103" width="40" height="2" class="ic-ink-soft" />
+              <rect x="18" y="111" width="6" height="6" class="ic-ink-soft" />
+              <rect x="28" y="113" width="34" height="2" class="ic-ink-soft" />
+              <rect x="18" y="121" width="6" height="6" class="ic-ink-soft" />
+              <rect x="28" y="123" width="44" height="2" class="ic-ink-soft" />
+              <text x="48" y="148" text-anchor="middle" class="ic-sheet__lbl">CHECKLIST</text>
+            </g>
+            <g class="ic-tile-svg">
+              <rect x="98" y="92" width="76" height="44" rx="2" />
+              <rect x="120" y="106" width="32" height="16" rx="8" class="ic-ink-soft-stroke" />
+              <circle cx="144" cy="114" r="5.5" class="ic-ink-fill" />
+              <text x="136" y="148" text-anchor="middle" class="ic-sheet__lbl">TOGGLE</text>
+            </g>
+            <g class="ic-tile-svg">
+              <rect x="186" y="92" width="76" height="44" rx="2" />
+              <rect x="200" y="106" width="14" height="14" rx="1" class="ic-ink-soft-stroke" />
+              <rect x="217" y="111" width="14" height="3" class="ic-ink-soft" />
+              <rect x="234" y="106" width="14" height="14" rx="1" class="ic-ink-soft-stroke" />
+              <text x="224" y="148" text-anchor="middle" class="ic-sheet__lbl">STEPPER</text>
+            </g>
+            <g class="ic-tile-svg is-blocked">
+              <rect x="274" y="92" width="76" height="44" rx="2" stroke-dasharray="4 3" />
+              <text x="312" y="119" text-anchor="middle" class="ic-raw">&lt;/&gt;</text>
+              <line x1="296" y1="124" x2="328" y2="104" class="ic-raw-strike" />
+              <text x="312" y="148" text-anchor="middle" class="ic-sheet__lbl ic-sheet__lbl--no">RAW HTML · ✕</text>
+            </g>
+          </svg>
+        </div>
+
+        <div class="ic-source__head">
+          <span class="ic-source__idx">02</span>
+          <h3>Your catalog</h3>
+        </div>
+        <p>Your design system, locked. Agents place only components you registered — never raw HTML.</p>
+        <div class="ic-chips" id="ic-src-catalog">
+          <span>RecipeCard</span><span>IngredientGrid</span><span>BudgetMeter</span>
+        </div>
+      </div>
+
+      <!-- 03 · LIVE CONTEXT -->
+      <div class="ic-source">
+        <div class="ic-fig ic-fig--context" aria-hidden="true">
+          <div class="ic-pulse">
+            <svg viewBox="0 0 72 72">
+              <circle cx="36" cy="36" r="30" class="ic-pulse__ring ic-pulse__ring--a" />
+              <circle cx="36" cy="36" r="30" class="ic-pulse__ring ic-pulse__ring--b" />
+              <circle cx="36" cy="36" r="18" class="ic-pulse__orbit" />
+              <line x1="36" y1="36" x2="36" y2="21" class="ic-pulse__hand" />
+              <circle cx="36" cy="36" r="4" class="ic-pulse__core" />
+            </svg>
+            <span class="ic-clock" id="ic-clock">17:05:32</span>
+            <span class="ic-clock__lbl">NOW</span>
+          </div>
+
+          <div class="ic-signals is-active" data-ic-ctx="dinner">
+            <div><span>PANTRY</span><strong>Basil &amp; olive oil on hand</strong></div>
+            <div><span>DELIVERY</span><strong>5:30pm slot open</strong></div>
+            <div><span>HISTORY</span><strong>Vegetarian in 3 of last 5 orders</strong></div>
+          </div>
+          <div class="ic-signals" data-ic-ctx="bill">
+            <div><span>ORDER</span><strong>#7702 · $109.40</strong></div>
+            <div><span>BASELINE</span><strong>12-week average $86</strong></div>
+            <div><span>PRICES</span><strong>Salmon +18% this week</strong></div>
+          </div>
+          <div class="ic-signals" data-ic-ctx="party">
+            <div><span>RSVPS</span><strong>12 confirmed · 2 nut allergies</strong></div>
+            <div><span>ORDERS</span><strong>Cake · ordered Tuesday</strong></div>
+            <div><span>SLOTS</span><strong>Sat 10am delivery open</strong></div>
+          </div>
+          <div class="ic-signals" data-ic-ctx="eggs">
+            <div><span>ORDER</span><strong>#7731 · delivered 8:12am</strong></div>
+            <div><span>ITEM</span><strong>Organic eggs ×12 · $6.49</strong></div>
+            <div><span>ACCOUNT</span><strong>No prior claims · instant refund</strong></div>
+          </div>
+        </div>
+
+        <div class="ic-source__head">
+          <span class="ic-source__idx">03</span>
+          <h3>Live context</h3>
+        </div>
+        <p>What’s true right now, bound into the data model — pantry, prices, orders, time.</p>
+        <div class="ic-chips" id="ic-src-context">
+          <span>/pantry: 2 items</span><span>/slot: "17:30"</span><span>/budget: 40</span>
+        </div>
       </div>
     </div>
   </div>
@@ -404,1071 +455,1969 @@
     const root = document.getElementById('hero-chat-visual');
     if (!root) return;
 
-    const modeMeta = {
-      chat: {
-        tag: 'MODE 01',
-        desc: 'Interactive A2UI surface injected directly inside a chronological message stream.',
-        target: 'MODE 01 · IN-CHAT STREAM',
-        wire: `{ "createSurface": { "surfaceId": "turn_04", "mount": "chat.inline", "catalogId": "core.v1" } }
-{ "updateComponents": { "surfaceId": "turn_04", "components": [
-    { "id": "root", "component": "ChoiceGroup", "options": ["Preset A", "Preset B", "Preset C"], "value": { "path": "/preset" } },
-    { "id": "weight", "component": "Slider", "value": { "path": "/weight" } },
-    { "id": "commit", "component": "Button", "label": "Commit in Thread", "action": "applyTurn" }
+    const intents = {
+      dinner: {
+        idx: '01',
+        quote: 'Dinner for four tonight, one vegetarian, under $40.',
+        intent: ['servings: 4', 'diet: 1 vegetarian', 'budget: $40'],
+        catalog: ['RecipeCard', 'IngredientGrid', 'BudgetMeter'],
+        context: ['/pantry: 2 items', '/slot: "17:30"', '/budget: 40'],
+        wire: `{ "createSurface": { "surfaceId": "assist_zone", "catalogId": "marigold.v1" } }
+{ "updateDataModel": { "path": "/",
+    "value": { "servings": 4, "diet": ["vegetarian"], "budget": 40, "pantry": ["basil", "olive oil"] } } }
+{ "updateComponents": { "surfaceId": "assist_zone", "components": [
+    { "id": "pick", "component": "RecipeCard",
+      "title": "Sheet-pan gnocchi & peppers", "minutes": 32 },
+    { "id": "basket", "component": "IngredientGrid",
+      "items": { "path": "/basket" }, "skipPantry": true },
+    { "id": "meter", "component": "BudgetMeter",
+      "value": { "path": "/total" }, "cap": { "path": "/budget" } },
+    { "id": "cta", "component": "Button",
+      "label": "Add 5 items", "action": "addToBasket" }
 ] } }`,
       },
-      sidebar: {
-        tag: 'MODE 02',
-        desc: 'Persistent side-panel surface docked beside a primary workspace to steer live artifacts.',
-        target: 'MODE 02 · COPILOT SIDEBAR',
-        wire: `{ "createSurface": { "surfaceId": "copilot_rail", "mount": "workspace.sidebar", "catalogId": "editor.v1" } }
-{ "updateComponents": { "surfaceId": "copilot_rail", "components": [
-    { "id": "topology", "component": "SegmentedControl", "options": ["Editorial", "Split", "Bento"], "value": { "path": "/layout" } },
-    { "id": "gap", "component": "Slider", "min": 6, "max": 28, "value": { "path": "/gridGap" } },
-    { "id": "focus", "component": "Switch", "label": "Focal Accent", "value": { "path": "/accent" } }
+      bill: {
+        idx: '02',
+        quote: 'Why was last week’s order $23 more than usual?',
+        intent: ['ask: explain', 'compare: usual week', 'delta: +$23'],
+        catalog: ['CompareBars', 'DeltaList', 'Toggle'],
+        context: ['/usual: 86.00', '/last: 109.40', '/priceChanges: 2'],
+        wire: `{ "createSurface": { "surfaceId": "assist_zone", "catalogId": "marigold.v1" } }
+{ "updateDataModel": { "path": "/",
+    "value": { "usual": 86.00, "last": 109.40, "drivers": 3, "swapFrozen": true } } }
+{ "updateComponents": { "surfaceId": "assist_zone", "components": [
+    { "id": "cmp", "component": "CompareBars",
+      "a": { "path": "/usual" }, "b": { "path": "/last" } },
+    { "id": "why", "component": "DeltaList", "items": { "path": "/deltas" } },
+    { "id": "swap", "component": "Toggle",
+      "label": "Swap to frozen salmon next week", "value": { "path": "/swapFrozen" } },
+    { "id": "cta", "component": "Button",
+      "label": "Set a $90 weekly cap", "action": "setCap" }
 ] } }`,
       },
-      dashboard: {
-        tag: 'MODE 03',
-        desc: 'Command surface that dynamically composes KPIs, plots, and bound controls per user intent.',
-        target: 'MODE 03 · DYNAMIC DASHBOARD',
-        wire: `{ "createSurface": { "surfaceId": "dash_grid", "mount": "command.grid", "catalogId": "telemetry.v1" } }
-{ "updateComponents": { "surfaceId": "dash_grid", "components": [
-    { "id": "plot", "component": "AreaSeries", "series": { "path": "/signal" }, "ceiling": { "path": "/ceiling" } },
-    { "id": "dist", "component": "BarDistribution", "bins": { "path": "/nodes" } },
-    { "id": "ctrl", "component": "ThresholdSlider", "value": { "path": "/ceiling" } }
+      party: {
+        idx: '03',
+        quote: 'Hosting twelve kids Saturday afternoon — help me not forget anything.',
+        intent: ['event: kids party', 'guests: 12', 'when: sat pm'],
+        catalog: ['Timeline', 'Checklist', 'Button'],
+        context: ['/rsvp: 12', '/allergies: ["nuts"]', '/cake: "ordered"'],
+        wire: `{ "createSurface": { "surfaceId": "assist_zone", "catalogId": "marigold.v1" } }
+{ "updateDataModel": { "path": "/",
+    "value": { "guests": 12, "allergies": ["nuts"], "cake": "ordered", "slot": "sat-10" } } }
+{ "updateComponents": { "surfaceId": "assist_zone", "components": [
+    { "id": "when", "component": "Timeline",
+      "stops": ["Fri order", "Sat 10am delivery", "Sat 2pm party"], "active": 1 },
+    { "id": "todo", "component": "Checklist",
+      "items": { "path": "/checklist" }, "flag": { "path": "/allergies" } },
+    { "id": "cta", "component": "Button",
+      "label": "Add the 3 missing", "action": "addMissing" }
 ] } }`,
       },
-      canvas: {
-        tag: 'MODE 04',
-        desc: 'Connected micro-surfaces floating on a 2D spatial graph with live cross-surface state.',
-        target: 'MODE 04 · SPATIAL CANVAS',
-        wire: `{ "createSurface": { "surfaceId": "node_01", "mount": "canvas.node", "position": [80, 110] } }
-{ "createSurface": { "surfaceId": "node_02", "mount": "canvas.node", "position": [365, 84] } }
-{ "createSurface": { "surfaceId": "node_03", "mount": "canvas.node", "position": [655, 126] } }
-{ "updateDataModel": { "path": "/graph/gain", "value": 1.8 } }`,
+      eggs: {
+        idx: '04',
+        quote: 'Half the eggs arrived cracked.',
+        intent: ['issue: damaged item', 'item: eggs', 'qty: about half'],
+        catalog: ['ItemRow', 'Stepper', 'ChoiceCards'],
+        context: ['/order: 7731', '/item: "eggs"', '/claims: 0'],
+        wire: `{ "createSurface": { "surfaceId": "assist_zone", "catalogId": "marigold.v1" } }
+{ "updateDataModel": { "path": "/",
+    "value": { "order": 7731, "item": "Organic eggs", "unitPrice": 6.49, "cracked": 6 } } }
+{ "updateComponents": { "surfaceId": "assist_zone", "components": [
+    { "id": "item", "component": "ItemRow", "name": { "path": "/item" }, "price": { "path": "/unitPrice" } },
+    { "id": "qty", "component": "Stepper",
+      "label": "How many cracked?", "max": 12, "value": { "path": "/cracked" } },
+    { "id": "pick", "component": "ChoiceCards",
+      "options": ["refund", "replace"], "value": { "path": "/resolution" } },
+    { "id": "cta", "component": "Button",
+      "label": "Refund now", "action": "resolve" }
+] } }`,
       },
     };
 
-    const descEl = document.getElementById('hm-mode-desc');
-    const wireTarget = document.getElementById('hm-wire-target');
-    const wireCode = document.getElementById('hm-wire-code');
-    const tabBtns = root.querySelectorAll('[data-hm-mode]');
-    const panels = root.querySelectorAll('[data-hm-panel]');
-    const lensBtns = root.querySelectorAll('[data-hm-lens]');
-    const lensViews = root.querySelectorAll('[data-hm-view]');
+    const steps = root.querySelectorAll('[data-ic]');
+    const screens = root.querySelectorAll('[data-ic-screen]');
+    const utters = root.querySelectorAll('[data-ic-utter]');
+    const ctxSets = root.querySelectorAll('[data-ic-ctx]');
+    const zone = root.querySelector('.ic-zone');
+    const zoneWho = document.getElementById('ic-zone-who');
+    const composer = document.getElementById('ic-composer');
+    const composerText = document.getElementById('ic-composer-text');
+    const wireEl = document.getElementById('ic-wire');
+    const srcIntent = document.getElementById('ic-src-intent');
+    const srcCatalog = document.getElementById('ic-src-catalog');
+    const srcContext = document.getElementById('ic-src-context');
+    const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    tabBtns.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const key = btn.getAttribute('data-hm-mode') || 'chat';
-        const m = modeMeta[key];
-        if (!m) return;
-        tabBtns.forEach((b) => {
-          const on = b === btn;
-          b.classList.toggle('is-active', on);
-          b.setAttribute('aria-selected', on ? 'true' : 'false');
-        });
-        panels.forEach((p) => p.classList.toggle('is-active', p.getAttribute('data-hm-panel') === key));
-        if (descEl) {
-          descEl.innerHTML = `<span class="hm-meta-bar__tag">${m.tag}</span> ${m.desc}`;
+    const renderChips = (el, list) => {
+      if (!el) return;
+      el.textContent = '';
+      list.forEach((t) => {
+        const s = document.createElement('span');
+        s.textContent = t;
+        el.appendChild(s);
+      });
+    };
+
+    /* --- Live wire from the active step into the phone's composer --- */
+    const split = root.querySelector('.ic-split');
+    const wireSvg = document.getElementById('ic-wire-svg');
+    const wirePath = document.getElementById('ic-wire-path');
+    const wireA = document.getElementById('ic-wire-a');
+    const wireB = document.getElementById('ic-wire-b');
+    let wireAllowed = true;
+    let wireRaf = 0;
+
+    const drawWire = () => {
+      wireRaf = 0;
+      if (!wireSvg || !split || !wirePath) return;
+      const row = root.querySelector('.ic-step.is-active .ic-step__q');
+      if (!wireAllowed || !row || !composer || window.innerWidth < 920) {
+        wireSvg.style.display = 'none';
+        return;
+      }
+      const sb = split.getBoundingClientRect();
+      const rb = row.getBoundingClientRect();
+      const tb = composer.getBoundingClientRect();
+      if (!sb.width || !tb.width) {
+        wireSvg.style.display = 'none';
+        return;
+      }
+      wireSvg.setAttribute('viewBox', `0 0 ${sb.width} ${sb.height}`);
+      wireSvg.style.width = `${sb.width}px`;
+      wireSvg.style.height = `${sb.height}px`;
+      const x1 = rb.right - sb.left + 10;
+      const y1 = rb.top + rb.height / 2 - sb.top;
+      const x2 = tb.left - sb.left + 2;
+      const y2 = tb.top + tb.height / 2 - sb.top;
+      const dx = Math.max(48, (x2 - x1) * 0.55);
+      wirePath.setAttribute('d', `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`);
+      if (wireA) { wireA.setAttribute('cx', String(x1)); wireA.setAttribute('cy', String(y1)); }
+      if (wireB) { wireB.setAttribute('cx', String(x2)); wireB.setAttribute('cy', String(y2)); }
+      wireSvg.style.display = 'block';
+    };
+
+    const scheduleWire = () => {
+      if (wireRaf) return;
+      wireRaf = requestAnimationFrame(drawWire);
+    };
+    window.addEventListener('resize', scheduleWire);
+    window.addEventListener('scroll', scheduleWire, { passive: true });
+    if ('ResizeObserver' in window && split) new ResizeObserver(scheduleWire).observe(split);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(scheduleWire);
+
+    /* --- Intent -> typed into the composer -> surface composes -> renders --- */
+    let timers = [];
+    let current = 'dinner';
+    const clearTimers = () => { timers.forEach(clearTimeout); timers = []; };
+
+    const showScreen = (key) => {
+      screens.forEach((s) => s.classList.toggle('is-active', s.getAttribute('data-ic-screen') === key));
+    };
+
+    const composeZone = (key) => {
+      if (!zone || reduceMotion) { showScreen(key); return; }
+      zone.classList.add('is-composing');
+      timers.push(setTimeout(() => {
+        showScreen(key);
+        zone.classList.remove('is-composing');
+      }, 420));
+    };
+
+    const typeIntoComposer = (text, done) => {
+      if (!composer || !composerText || reduceMotion) {
+        if (composerText) composerText.textContent = text;
+        done();
+        return;
+      }
+      composer.classList.remove('is-sent');
+      composer.classList.add('is-typing');
+      composerText.textContent = '';
+      const chars = Array.from(text);
+      let i = 0;
+      const step = () => {
+        i += 1;
+        composerText.textContent = chars.slice(0, i).join('');
+        if (i < chars.length) {
+          timers.push(setTimeout(step, 12));
+        } else {
+          composer.classList.remove('is-typing');
+          composer.classList.add('is-sent');
+          timers.push(setTimeout(() => composer.classList.remove('is-sent'), 700));
+          done();
         }
-        if (wireTarget) wireTarget.textContent = m.target;
-        if (wireCode) wireCode.textContent = m.wire;
+      };
+      step();
+    };
+
+    const setIntent = (key, animate) => {
+      const d = intents[key];
+      if (!d || (key === current && animate)) return;
+      current = key;
+      clearTimers();
+      steps.forEach((s) => {
+        const on = s.getAttribute('data-ic') === key;
+        s.classList.toggle('is-active', on);
+        s.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+      utters.forEach((u) => u.classList.toggle('is-active', u.getAttribute('data-ic-utter') === key));
+      ctxSets.forEach((c) => c.classList.toggle('is-active', c.getAttribute('data-ic-ctx') === key));
+      if (zoneWho) zoneWho.textContent = d.idx;
+      if (wireEl) wireEl.textContent = d.wire;
+      renderChips(srcIntent, d.intent);
+      renderChips(srcCatalog, d.catalog);
+      renderChips(srcContext, d.context);
+      scheduleWire();
+
+      if (!animate) {
+        if (composerText) composerText.textContent = d.quote;
+        showScreen(key);
+        return;
+      }
+      typeIntoComposer(d.quote, () => composeZone(key));
+    };
+
+    /* Scrolling sends each intent: a step activates when it crosses the middle band of the viewport */
+    if ('IntersectionObserver' in window) {
+      const io = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((e) => {
+            if (e.isIntersecting) setIntent(e.target.getAttribute('data-ic') || 'dinner', true);
+          });
+        },
+        { rootMargin: '-42% 0px -42% 0px', threshold: 0 }
+      );
+      steps.forEach((s) => io.observe(s));
+    }
+
+    steps.forEach((s) => {
+      s.addEventListener('click', () => {
+        const key = s.getAttribute('data-ic') || 'dinner';
+        setIntent(key, true);
+        s.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
       });
     });
+    scheduleWire();
 
-    lensBtns.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const lens = btn.getAttribute('data-hm-lens') || 'ui';
-        lensBtns.forEach((b) => b.classList.toggle('is-active', b === btn));
-        lensViews.forEach((v) => v.classList.toggle('is-active', v.getAttribute('data-hm-view') === lens));
+    /* --- In-surface interactions (bound locally, no round trips) --- */
+    const money = (n) => `$${n.toFixed(2)}`;
+
+    // 01 · basket tiles + budget meter
+    const dnTiles = root.querySelectorAll('.ic-gtile:not(.is-pantry)');
+    const dnFill = document.getElementById('ic-dn-fill');
+    const dnTotal = document.getElementById('ic-dn-total');
+    const dnCta = document.getElementById('ic-dn-cta');
+    const syncDinner = () => {
+      let total = 0; let count = 0;
+      dnTiles.forEach((t) => {
+        if (t.classList.contains('is-off')) return;
+        total += Number(t.getAttribute('data-price') || 0);
+        count += 1;
       });
-    });
-
-    /* --- Mode 01: In-Chat Stream --- */
-    let chatPreset = 'PRESET B';
-    const chatSlider = document.getElementById('hm-chat-slider');
-    const chatPct = document.getElementById('hm-chat-pct');
-    const chatReadout = document.getElementById('hm-chat-readout');
-    const chatCommit = document.getElementById('hm-chat-commit');
-
-    const syncChat = () => {
-      const val = chatSlider ? chatSlider.value : '72';
-      if (chatPct) chatPct.textContent = `${val}%`;
-      if (chatReadout) chatReadout.textContent = `${chatPreset} · ${val}% WEIGHT`;
-      if (chatCommit) {
-        chatCommit.classList.remove('is-done');
-        chatCommit.innerHTML = '<span>Commit in Thread</span><span aria-hidden="true">→</span>';
+      if (dnFill) dnFill.style.width = `${Math.min(100, (total / 40) * 100)}%`;
+      if (dnTotal) dnTotal.textContent = money(total);
+      if (dnCta && !dnCta.classList.contains('is-done')) {
+        dnCta.innerHTML = `<span>Add ${count} item${count === 1 ? '' : 's'} · ${money(total)}</span><span aria-hidden="true">→</span>`;
       }
     };
+    dnTiles.forEach((t) => t.addEventListener('click', () => { t.classList.toggle('is-off'); if (dnCta) dnCta.classList.remove('is-done'); syncDinner(); }));
 
-    root.querySelectorAll('[data-chat-preset]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        chatPreset = btn.getAttribute('data-chat-preset') || 'PRESET B';
-        const v = btn.getAttribute('data-chat-val') || '72';
-        root.querySelectorAll('[data-chat-preset]').forEach((b) => b.classList.toggle('is-selected', b === btn));
-        if (chatSlider) chatSlider.value = v;
-        syncChat();
-      });
-    });
-    if (chatSlider) chatSlider.addEventListener('input', syncChat);
-    if (chatCommit) {
-      chatCommit.addEventListener('click', () => {
-        chatCommit.classList.add('is-done');
-        chatCommit.innerHTML = `<span>✓ Applied · ${chatPreset}</span>`;
+    // 02 · frozen-salmon toggle
+    const blToggle = document.getElementById('ic-bl-toggle');
+    const blSave = document.getElementById('ic-bl-save');
+    if (blToggle) {
+      blToggle.addEventListener('click', () => {
+        const on = blToggle.classList.toggle('is-on');
+        blToggle.setAttribute('aria-pressed', on ? 'true' : 'false');
+        if (blSave) blSave.textContent = on ? 'Saves about $9' : 'Keep fresh · no change';
       });
     }
 
-    /* --- Mode 02: Copilot Sidebar --- */
-    const docCanvas = document.getElementById('hm-doc-canvas');
-    const docStateLbl = document.getElementById('hm-doc-state-lbl');
-    const sbGap = document.getElementById('hm-sb-gap');
-    const sbGapVal = document.getElementById('hm-sb-gap-val');
-    const sbAccent = document.getElementById('hm-sb-accent');
-    let sbLayout = 'split';
+    // 03 · checklist
+    const ptItems = root.querySelectorAll('.ic-ck');
+    const ptCta = document.getElementById('ic-pt-cta');
+    const syncParty = () => {
+      const missing = Array.from(ptItems).filter((i) => !i.classList.contains('is-done')).length;
+      if (!ptCta || ptCta.classList.contains('is-done')) return;
+      ptCta.innerHTML = missing
+        ? `<span>Add the ${missing} missing · Sat 10am</span><span aria-hidden="true">→</span>`
+        : '<span>Everything’s covered · nothing to add</span>';
+    };
+    ptItems.forEach((i) => i.addEventListener('click', () => { i.classList.toggle('is-done'); if (ptCta) ptCta.classList.remove('is-done'); syncParty(); }));
 
-    const syncSidebar = () => {
-      const gap = sbGap ? sbGap.value : '16';
-      if (sbGapVal) sbGapVal.textContent = `${gap}px`;
-      if (docCanvas) {
-        docCanvas.setAttribute('data-layout', sbLayout);
-        docCanvas.style.setProperty('--doc-gap', `${gap}px`);
+    // 04 · cracked-egg stepper + refund/replace choice
+    let eggs = 6; let egChoice = 'refund';
+    const egN = document.getElementById('ic-eg-n');
+    const egRefund = document.getElementById('ic-eg-refund');
+    const egCta = document.getElementById('ic-eg-cta');
+    const syncEggs = () => {
+      const refund = (6.49 / 12) * eggs;
+      if (egN) egN.textContent = String(eggs);
+      if (egRefund) egRefund.textContent = money(refund);
+      if (egCta && !egCta.classList.contains('is-done')) {
+        egCta.innerHTML = egChoice === 'refund'
+          ? `<span>Refund ${money(refund)} now</span><span aria-hidden="true">→</span>`
+          : `<span>Replace ${eggs} eggs · tomorrow 7–9am</span><span aria-hidden="true">→</span>`;
       }
-      if (docStateLbl) docStateLbl.textContent = `${sbLayout.toUpperCase()} · ${gap}PX GAP`;
     };
-
-    root.querySelectorAll('[data-sb-layout]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        sbLayout = btn.getAttribute('data-sb-layout') || 'split';
-        root.querySelectorAll('[data-sb-layout]').forEach((b) => b.classList.toggle('is-selected', b === btn));
-        syncSidebar();
-      });
-    });
-    if (sbGap) sbGap.addEventListener('input', syncSidebar);
-    if (sbAccent && docCanvas) {
-      sbAccent.addEventListener('click', () => {
-        const on = sbAccent.classList.toggle('is-on');
-        sbAccent.setAttribute('aria-checked', on ? 'true' : 'false');
-        sbAccent.innerHTML = `<span>${on ? 'ON' : 'OFF'}</span>`;
-        docCanvas.classList.toggle('is-accented', on);
-      });
-    }
-
-    /* --- Mode 03: Dynamic Dashboard --- */
-    const dashConfigs = {
-      overview: {
-        title: 'SIGNAL THROUGHPUT',
-        kpi: '98.4%',
-        sub: '4 ACTIVE',
-        curve: 'M8 96 C85 88, 160 62, 245 48 C305 38, 340 28, 372 22',
-        bars: [78, 54, 92, 64, 42, 84],
-        hi: 2,
-      },
-      anomaly: {
-        title: 'DRIFT VARIANCE',
-        kpi: '0.14σ',
-        sub: '1 SPIKE',
-        curve: 'M8 88 C75 86, 145 82, 210 24 C265 76, 320 74, 372 70',
-        bars: [32, 38, 96, 44, 30, 36],
-        hi: 2,
-      },
-      capacity: {
-        title: 'CLUSTER HEADROOM',
-        kpi: '64.0%',
-        sub: '12 SHARDS',
-        curve: 'M8 72 C95 66, 175 58, 255 44 C315 36, 345 34, 372 30',
-        bars: [62, 68, 74, 70, 82, 88],
-        hi: 5,
-      },
-    };
-
-    const dbGrid = document.getElementById('hm-dash-grid');
-    const dbTitle = document.getElementById('hm-db-chart-title');
-    const dbKpi = document.getElementById('hm-db-kpi-main');
-    const dbSub = document.getElementById('hm-db-kpi-sub');
-    const dbCurve = document.getElementById('hm-db-curve');
-    const dbArea = document.getElementById('hm-db-area');
-    const dbBars = document.querySelectorAll('#hm-db-bars i');
-    const dbFloor = document.getElementById('hm-db-floor');
-    const dbFloorVal = document.getElementById('hm-db-floor-val');
-    const dbThreshLine = document.getElementById('hm-db-thresh-line');
-
-    root.querySelectorAll('[data-db-intent]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const key = btn.getAttribute('data-db-intent') || 'overview';
-        const cfg = dashConfigs[key] || dashConfigs.overview;
-        root.querySelectorAll('[data-db-intent]').forEach((b) => b.classList.toggle('is-selected', b === btn));
-        if (dbGrid) dbGrid.setAttribute('data-intent', key);
-        if (dbTitle) dbTitle.textContent = cfg.title;
-        if (dbKpi) dbKpi.textContent = cfg.kpi;
-        if (dbSub) dbSub.textContent = cfg.sub;
-        if (dbCurve) dbCurve.setAttribute('d', cfg.curve);
-        if (dbArea) dbArea.setAttribute('d', `${cfg.curve} L372 114 L8 114 Z`);
-        dbBars.forEach((bar, idx) => {
-          bar.style.height = `${cfg.bars[idx] || 50}%`;
-          bar.classList.toggle('is-hi', idx === cfg.hi);
-        });
+    const egMinus = document.getElementById('ic-eg-minus');
+    const egPlus = document.getElementById('ic-eg-plus');
+    if (egMinus) egMinus.addEventListener('click', () => { eggs = Math.max(1, eggs - 1); if (egCta) egCta.classList.remove('is-done'); syncEggs(); });
+    if (egPlus) egPlus.addEventListener('click', () => { eggs = Math.min(12, eggs + 1); if (egCta) egCta.classList.remove('is-done'); syncEggs(); });
+    root.querySelectorAll('[data-eg-choice]').forEach((b) => {
+      b.addEventListener('click', () => {
+        egChoice = b.getAttribute('data-eg-choice') || 'refund';
+        root.querySelectorAll('[data-eg-choice]').forEach((x) => x.classList.toggle('is-on', x === b));
+        if (egCta) egCta.classList.remove('is-done');
+        syncEggs();
       });
     });
 
-    if (dbFloor) {
-      dbFloor.addEventListener('input', () => {
-        const v = Number(dbFloor.value);
-        if (dbFloorVal) dbFloorVal.textContent = (v / 100).toFixed(2);
-        const y = Math.round(108 - ((v - 20) / 70) * 84);
-        if (dbThreshLine) {
-          dbThreshLine.setAttribute('y1', String(y));
-          dbThreshLine.setAttribute('y2', String(y));
-        }
-      });
-    }
-
-    /* --- Mode 04: Spatial Canvas --- */
-    let cvMult = 1.0;
-    let cvName = 'WAVE α';
-    const cvGain = document.getElementById('hm-cv-gain');
-    const cvGainLbl = document.getElementById('hm-cv-gain-lbl');
-    const cvOutLbl = document.getElementById('hm-cv-out-lbl');
-    const cvBars = document.querySelectorAll('#hm-cv-bars i');
-    const baseSpec = [26, 46, 68, 40, 74, 52, 32];
-
-    const syncCanvas = () => {
-      const gain = cvGain ? Number(cvGain.value) / 10 : 1.8;
-      if (cvGainLbl) cvGainLbl.textContent = `${gain.toFixed(1)}×`;
-      const hz = Math.round(48 * cvMult * (gain / 1.0));
-      if (cvOutLbl) cvOutLbl.textContent = `${cvName} · ${hz} HZ`;
-      cvBars.forEach((b, idx) => {
-        const h = Math.min(98, Math.max(16, Math.round(baseSpec[idx] * cvMult * (gain / 1.6))));
-        b.style.height = `${h}%`;
-      });
-    };
-
-    root.querySelectorAll('[data-cv-src]').forEach((btn) => {
+    /* One-tap primary actions resolve in place */
+    root.querySelectorAll('[data-ic-cta]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        cvMult = Number(btn.getAttribute('data-cv-src') || '1.0');
-        cvName = btn.getAttribute('data-cv-lbl') || 'WAVE α';
-        root.querySelectorAll('[data-cv-src]').forEach((b) => b.classList.toggle('is-selected', b === btn));
-        syncCanvas();
+        if (btn.classList.contains('is-done')) return;
+        btn.classList.add('is-done');
+        btn.textContent = btn.getAttribute('data-done') || '✓ Done';
       });
     });
-    if (cvGain) cvGain.addEventListener('input', syncCanvas);
+
+    /* Live clock in the context instrument */
+    const clock = document.getElementById('ic-clock');
+    const tick = () => {
+      if (!clock) return;
+      const d = new Date();
+      clock.textContent = [d.getHours(), d.getMinutes(), d.getSeconds()]
+        .map((n) => String(n).padStart(2, '0'))
+        .join(':');
+    };
+    tick();
+    setInterval(tick, 1000);
+
+    /* Screen / Wire lens */
+    const lensBtns = root.querySelectorAll('[data-ic-lens]');
+    const lensViews = root.querySelectorAll('[data-ic-view]');
+    lensBtns.forEach((b) => {
+      b.addEventListener('click', () => {
+        const lens = b.getAttribute('data-ic-lens') || 'screen';
+        lensBtns.forEach((x) => x.classList.toggle('is-active', x === b));
+        lensViews.forEach((v) => v.classList.toggle('is-active', v.getAttribute('data-ic-view') === lens));
+        wireAllowed = lens === 'screen';
+        scheduleWire();
+      });
+    });
   })();
 </script>
 
 <style>
-  .hm-root {
+  /* Scroll-driven: each intent is sent to the same sticky Assist screen (Marigold Market, v2) */
+  .ic-root {
     width: 100%;
     color: var(--a2-text);
   }
 
-  /* =======================================================================
-     4-COLUMN SWISS MODE LEDGER (ZERO PILLS)
-     ======================================================================= */
-  .hm-ledger {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    border-top: 1px solid var(--a2-border-strong);
-    border-bottom: 1px solid var(--a2-border);
-  }
-
-  @media (max-width: 820px) {
-    .hm-ledger {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-
-  .hm-ledger__item {
-    appearance: none;
-    position: relative;
-    text-align: left;
-    padding: 18px 20px;
-    border: none;
-    border-right: 1px solid var(--a2-border);
-    background: transparent;
-    color: var(--a2-text-muted);
-    font-family: inherit;
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    transition: color 0.16s ease, background-color 0.16s ease;
-  }
-
-  .hm-ledger__item:last-child {
-    border-right: none;
-  }
-
-  .hm-ledger__item::before {
-    content: '';
-    position: absolute;
-    top: -1px;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: var(--a2-accent);
-    transform: scaleX(0);
-    transform-origin: left;
-    transition: transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1);
-  }
-
-  .hm-ledger__item:hover {
-    color: var(--a2-text);
-    background: var(--a2-surface-subtle);
-  }
-
-  .hm-ledger__item.is-active {
-    color: var(--a2-text);
-  }
-
-  .hm-ledger__item.is-active::before {
-    transform: scaleX(1);
-  }
-
-  .hm-ledger__idx {
+  .ic-kicker {
     font-family: var(--a2-font-mono);
-    font-size: 10px;
+    font-size: 10.5px;
     font-weight: 600;
     letter-spacing: 0.1em;
     color: var(--a2-text-muted);
   }
 
-  .hm-ledger__item.is-active .hm-ledger__idx {
+  /* =======================================================================
+     SPLIT: SCROLLING STEPS | STICKY STAGE
+     ======================================================================= */
+  .ic-split {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(300px, 0.88fr) minmax(0, 1.12fr);
+    gap: 64px;
+    align-items: start;
+  }
+
+  @media (max-width: 920px) {
+    .ic-split {
+      grid-template-columns: 1fr;
+      gap: 40px;
+    }
+  }
+
+  /* --- Steps --- */
+  .ic-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 4vh 0 22vh;
+  }
+
+  @media (max-width: 920px) {
+    .ic-picker {
+      order: 2;
+      padding: 0 0 8vh;
+    }
+  }
+
+  .ic-steps {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ic-steps::before {
+    content: '';
+    position: absolute;
+    left: 7px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--a2-border-strong);
+  }
+
+  .ic-step {
+    appearance: none;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 12px;
+    min-height: 56vh;
+    padding: 24px 0 24px 40px;
+    border: none;
+    background: transparent;
+    color: var(--a2-text);
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    opacity: 0.38;
+    transition: opacity 0.35s ease;
+  }
+
+  @media (max-width: 920px) {
+    .ic-step {
+      min-height: 0;
+      padding: 28px 0 28px 40px;
+    }
+  }
+
+  .ic-step:hover {
+    opacity: 0.7;
+  }
+
+  .ic-step.is-active {
+    opacity: 1;
+  }
+
+  .ic-step::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 15px;
+    height: 15px;
+    margin-top: -8px;
+    border-radius: 50%;
+    border: 1px solid var(--a2-border-strong);
+    background: var(--a2-bg);
+    transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .ic-step.is-active::before {
+    background: var(--a2-accent);
+    border-color: var(--a2-accent);
+    box-shadow: 0 0 0 5px var(--a2-accent-soft);
+  }
+
+  .ic-step__idx {
+    font-family: var(--a2-font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--a2-text-muted);
+  }
+
+  .ic-step__idx em {
+    font-style: normal;
+    margin-left: 8px;
     color: var(--a2-accent);
   }
 
-  .hm-ledger__title {
-    font-family: var(--a2-font-display);
-    font-size: 16px;
-    font-weight: 600;
-    letter-spacing: -0.02em;
+  .ic-step__q {
+    font-family: var(--a2-font-serif);
+    font-style: italic;
+    font-size: clamp(22px, 2.1vw, 28px);
+    line-height: 1.22;
+    letter-spacing: -0.015em;
+    color: var(--a2-text);
+    max-width: 18ch;
   }
 
-  /* =======================================================================
-     META CAPTION + LENS SWITCH
-     ======================================================================= */
-  .hm-meta-bar {
+  .ic-step__desc {
+    font-size: 14.5px;
+    line-height: 1.58;
+    color: var(--a2-text-secondary);
+    max-width: 42ch;
+  }
+
+  .ic-step__state {
+    font-family: var(--a2-font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--a2-text-muted);
+    margin-top: 4px;
+  }
+
+  .ic-step__state-on {
+    display: none;
+    color: var(--a2-accent-strong);
+  }
+
+  .ic-step.is-active .ic-step__state-off { display: none; }
+  .ic-step.is-active .ic-step__state-on { display: inline; }
+
+  /* --- Live intent wire --- */
+  .ic-wire-svg {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: none;
+    overflow: visible;
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  .ic-wire-svg path {
+    fill: none;
+    stroke: var(--a2-accent);
+    stroke-width: 1.6;
+    stroke-dasharray: 5 6;
+    animation: icFlow 1.1s linear infinite;
+  }
+
+  .ic-wire-svg circle {
+    fill: var(--a2-accent);
+  }
+
+  @keyframes icFlow {
+    to { stroke-dashoffset: -22; }
+  }
+
+  /* --- Stage (sticky, deep teal field) --- */
+  .ic-stage {
+    position: sticky;
+    top: 84px;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(45, 212, 191, 0.22);
+    background-color: #0a2c2a;
+    background-image:
+      linear-gradient(135deg, rgba(20, 184, 166, 0.22), transparent 58%),
+      radial-gradient(rgba(45, 212, 191, 0.26) 1px, transparent 1px);
+    background-size: 100% 100%, 16px 16px;
+    overflow: hidden;
+  }
+
+  @media (max-width: 920px) {
+    .ic-stage {
+      position: relative;
+      top: auto;
+      order: 1;
+    }
+  }
+
+  .ic-stage__bar {
+    position: relative;
+    z-index: 2;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 24px;
-    padding: 20px 0 28px;
-    flex-wrap: wrap;
+    gap: 16px;
+    padding: 16px 20px 0;
   }
 
-  .hm-meta-bar__desc {
-    margin: 0;
-    font-size: 14.5px;
-    color: var(--a2-text-secondary);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-
-  .hm-meta-bar__tag {
+  .ic-stage__tag {
     font-family: var(--a2-font-mono);
     font-size: 10.5px;
     font-weight: 700;
     letter-spacing: 0.1em;
-    color: var(--a2-accent);
+    padding: 6px 10px;
+    background: #f8fafc;
+    color: #071a19;
   }
 
-  .hm-lens {
+  .ic-lens {
     display: flex;
-    gap: 18px;
+    gap: 16px;
   }
 
-  .hm-lens__btn {
+  .ic-lens__btn {
     appearance: none;
     border: none;
     border-bottom: 2px solid transparent;
     background: transparent;
     padding: 4px 0;
     font-family: var(--a2-font-mono);
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 600;
     letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--a2-text-muted);
+    color: rgba(248, 250, 252, 0.55);
     cursor: pointer;
     transition: color 0.15s ease, border-color 0.15s ease;
   }
 
-  .hm-lens__btn:hover {
+  .ic-lens__btn:hover { color: #f8fafc; }
+
+  .ic-lens__btn.is-active {
+    color: #f8fafc;
+    border-bottom-color: var(--a2-accent-strong);
+  }
+
+  .ic-lens-view {
+    display: none;
+    flex: 1;
+    position: relative;
+  }
+
+  .ic-lens-view.is-active {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 24px 18px;
+  }
+
+  .ic-lens-view[data-ic-view='wire'].is-active {
+    justify-content: center;
+    min-height: 640px;
+  }
+
+  /* Blueprint callout for the composed zone (wide viewports) */
+  .ic-callout {
+    position: absolute;
+    display: none;
+    flex-direction: column;
+    gap: 4px;
+    width: 104px;
+    font-family: var(--a2-font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.08em;
+    pointer-events: none;
+  }
+
+  @media (min-width: 1180px) {
+    .ic-callout { display: flex; }
+  }
+
+  .ic-callout::before,
+  .ic-callout::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    width: 8px;
+    height: 1px;
+    background: var(--a2-accent-strong);
+  }
+
+  .ic-callout::before { top: 0; }
+  .ic-callout::after { bottom: 0; }
+
+  .ic-callout__t {
+    font-weight: 700;
+    color: var(--a2-accent-strong);
+  }
+
+  .ic-callout__s {
+    font-family: var(--a2-font-sans);
+    font-size: 11px;
+    letter-spacing: 0;
+    line-height: 1.35;
+    color: rgba(248, 250, 252, 0.68);
+  }
+
+  .ic-callout__s b {
+    font-weight: 600;
+    color: #f8fafc;
+  }
+
+  /* zone top = view pad 20 + border 1 + pad 12 + status 16 + 8 + hdr 36 + 10 */
+  .ic-callout--zone {
+    right: 14px;
+    top: 103px;
+    height: 372px;
+    padding-left: 12px;
+    border-left: 1px solid var(--a2-accent-strong);
+  }
+
+  /* horizontal brace under the device: the constant shell */
+  .ic-brace {
+    position: relative;
+    width: 440px;
+    max-width: 100%;
+    margin-top: 12px;
+    padding-top: 9px;
+    border-top: 1px solid rgba(248, 250, 252, 0.42);
+    display: flex;
+    justify-content: center;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    text-align: center;
+  }
+
+  .ic-brace::before,
+  .ic-brace::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    width: 1px;
+    height: 8px;
+    background: rgba(248, 250, 252, 0.42);
+  }
+
+  .ic-brace::before { left: 0; }
+  .ic-brace::after { right: 0; }
+
+  .ic-brace__t {
+    font-family: var(--a2-font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: #f8fafc;
+    white-space: nowrap;
+  }
+
+  .ic-brace__s {
+    font-size: 11px;
+    color: rgba(248, 250, 252, 0.68);
+    white-space: nowrap;
+  }
+
+  /* --- Device + constant shell --- */
+  .ic-device {
+    width: 328px;
+    max-width: 100%;
+    background: var(--a2-bg);
+    border: 1px solid var(--a2-border-strong);
+    border-radius: 28px;
+    box-shadow: 0 34px 80px -20px rgba(0, 0, 0, 0.72);
+    padding: 12px 14px 12px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ic-device__status {
+    height: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 8px;
+    font-family: var(--a2-font-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--a2-text-muted);
+  }
+
+  .ic-device__sig {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+  }
+
+  .ic-device__sig i {
+    width: 3px;
+    background: var(--a2-text-muted);
+    display: block;
+  }
+  .ic-device__sig i:nth-child(1) { height: 5px; }
+  .ic-device__sig i:nth-child(2) { height: 8px; }
+  .ic-device__sig i:nth-child(3) { height: 11px; }
+
+  .ic-shell-hdr {
+    margin-top: 8px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 6px;
+    border-bottom: 1px solid var(--a2-border);
+  }
+
+  .ic-shell-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
     color: var(--a2-text);
   }
 
-  .hm-lens__btn.is-active {
-    color: var(--a2-text);
-    border-bottom-color: var(--a2-accent);
+  .ic-shell-brand svg {
+    width: 15px;
+    height: 15px;
+    color: var(--a2-accent);
   }
+
+  .ic-shell-bell {
+    width: 16px;
+    height: 16px;
+    color: var(--a2-text-muted);
+  }
+
+  .ic-zone {
+    position: relative;
+    margin-top: 10px;
+    height: 372px;
+    box-sizing: border-box;
+    padding: 14px 10px 10px;
+    border: 1px dashed var(--a2-accent-border);
+  }
+
+  .ic-zone__tag {
+    position: absolute;
+    top: -7px;
+    left: 10px;
+    padding: 0 5px;
+    background: var(--a2-bg);
+    font-family: var(--a2-font-mono);
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--a2-accent-strong);
+  }
+
+  /* Composing skeleton */
+  .ic-zone__skel {
+    position: absolute;
+    inset: 14px 10px 10px;
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 2;
+  }
+
+  .ic-zone.is-composing .ic-zone__skel { display: flex; }
+  .ic-zone.is-composing .ic-screen { visibility: hidden; }
+
+  .ic-zone__skel-lbl {
+    font-family: var(--a2-font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--a2-accent-strong);
+    margin-bottom: 4px;
+  }
+
+  .ic-zone__skel i {
+    display: block;
+    height: 14px;
+    background: var(--a2-border-strong);
+    animation: icShimmer 0.9s ease-in-out infinite;
+  }
+
+  .ic-zone__skel i:nth-child(3) { animation-delay: 0.12s; }
+  .ic-zone__skel i:nth-child(4) { animation-delay: 0.24s; }
+  .ic-zone__skel i:nth-child(5) { animation-delay: 0.36s; }
+
+  @keyframes icShimmer {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 0.9; }
+  }
+
+  /* Composer */
+  .ic-composer {
+    margin-top: 10px;
+    height: 46px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 0 8px 0 10px;
+    border: 1px solid var(--a2-border-strong);
+    border-radius: 12px;
+    background: var(--a2-surface);
+    transition: border-color 0.18s ease;
+  }
+
+  .ic-composer.is-typing { border-color: var(--a2-accent); }
+
+  .ic-composer__ico {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+    border: 1.5px solid var(--a2-text-muted);
+    border-radius: 50%;
+  }
+
+  .ic-composer__txt {
+    flex: 1;
+    min-width: 0;
+    font-size: 11px;
+    line-height: 1.3;
+    color: var(--a2-text);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .ic-caret {
+    display: none;
+    width: 1.5px;
+    height: 11px;
+    margin-left: 1px;
+    vertical-align: -2px;
+    background: var(--a2-accent-strong);
+    animation: icCaret 0.8s steps(1) infinite;
+  }
+
+  .ic-composer.is-typing .ic-caret { display: inline-block; }
+
+  @keyframes icCaret { 50% { opacity: 0; } }
+
+  .ic-composer__send {
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--a2-border-strong);
+    color: var(--a2-text);
+    font-size: 13px;
+    font-weight: 700;
+    transition: background-color 0.18s ease, color 0.18s ease;
+  }
+
+  .ic-composer.is-sent .ic-composer__send {
+    background: var(--a2-accent);
+    color: #04201d;
+  }
+
+  .ic-tabbar {
+    margin-top: 8px;
+    height: 46px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    align-items: center;
+    text-align: center;
+    font-family: var(--a2-font-sans);
+    font-size: 9.5px;
+    font-weight: 600;
+    color: var(--a2-text-muted);
+  }
+
+  .ic-tabbar span.is-on { color: var(--a2-accent-strong); }
+
+  .ic-tab-ico {
+    display: block;
+    width: 14px;
+    height: 14px;
+    margin: 0 auto 4px;
+    border: 1.5px solid currentColor;
+    border-radius: 3px;
+  }
+
+  .ic-tab-ico--assist { border-radius: 50%; }
+  .ic-tab-ico--orders { height: 11px; width: 16px; }
+  .ic-tab-ico--you { border-radius: 50%; width: 12px; height: 12px; }
 
   /* =======================================================================
-     STAGE & ARCHITECTURAL HOST FRAME
+     COMPOSED SCREENS (four structurally different surfaces)
      ======================================================================= */
-  .hm-lens-view,
-  .hm-scene {
+  .ic-screen {
     display: none;
+    height: 100%;
+    flex-direction: column;
+    gap: 10px;
   }
 
-  .hm-lens-view.is-active,
-  .hm-scene.is-active {
-    display: block;
-    animation: hmFade 0.22s ease-out;
+  .ic-screen.is-active {
+    display: flex;
+    animation: icFade 0.22s ease-out;
   }
 
-  @keyframes hmFade {
+  @keyframes icFade {
     from { opacity: 0; transform: translateY(4px); }
     to { opacity: 1; transform: translateY(0); }
   }
 
-  .hm-frame {
-    border: 1px solid var(--a2-border-strong);
-    background: var(--a2-surface);
+  .ic-greet {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 2px 2px 0;
   }
 
-  .hm-frame__chrome {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 11px 18px;
-    border-bottom: 1px solid var(--a2-border);
-    background: var(--a2-surface-subtle);
+  .ic-greet strong {
+    font-size: 15.5px;
+    font-weight: 640;
+    letter-spacing: -0.02em;
+    color: var(--a2-text);
+  }
+
+  .ic-greet span {
     font-family: var(--a2-font-mono);
-    font-size: 10px;
-    letter-spacing: 0.09em;
+    font-size: 9.5px;
     color: var(--a2-text-muted);
   }
 
-  .hm-chrome-dots {
-    display: inline-flex;
-    gap: 5px;
-  }
-
-  .hm-chrome-dots i {
-    width: 6px;
-    height: 6px;
-    border: 1px solid var(--a2-border-strong);
-    display: block;
-  }
-
-  .hm-chrome-meta {
+  .ic-lbl {
+    font-family: var(--a2-font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
     color: var(--a2-accent-strong);
   }
 
-  /* Shared Skeleton Wireframe Elements (Quiet Host Chrome) */
-  .hm-skel-line {
-    display: block;
-    height: 7px;
-    background: var(--a2-border-strong);
-    opacity: 0.55;
-  }
-  .hm-skel-line--w32 { width: 32%; }
-  .hm-skel-line--w44 { width: 44%; }
-  .hm-skel-line--w56 { width: 56%; }
-  .hm-skel-line--w72 { width: 72%; }
-
-  .hm-skel-lines {
-    display: flex;
-    flex-direction: column;
-    gap: 7px;
-    flex: 1;
-  }
-
-  /* Shared Highlighted A2UI Surface Treatment */
-  .hm-a2-surface {
-    border: 1px solid var(--a2-accent);
-    background: var(--a2-bg);
-    position: relative;
-  }
-
-  .hm-a2-surface__bar {
+  .ic-cta {
+    appearance: none;
+    margin-top: auto;
+    width: 100%;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 8px 14px;
-    border-bottom: 1px solid var(--a2-border);
-    background: var(--a2-accent-soft);
-    font-family: var(--a2-font-mono);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.09em;
-    color: var(--a2-accent-strong);
-  }
-
-  .hm-range {
-    width: 100%;
-    accent-color: var(--a2-accent);
-    cursor: pointer;
-    margin: 6px 0 0;
-  }
-
-  .hm-slider-group__lbl {
-    display: flex;
-    justify-content: space-between;
-    font-family: var(--a2-font-mono);
-    font-size: 10.5px;
-    letter-spacing: 0.06em;
-    color: var(--a2-text-muted);
-  }
-
-  .hm-slider-group__lbl strong {
-    color: var(--a2-text);
-  }
-
-  .hm-cta {
-    appearance: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    padding: 10px 18px;
+    padding: 11px 16px;
     border: 1px solid var(--a2-cta-bg);
-    border-radius: 2px;
+    border-radius: 3px;
     background: var(--a2-cta-bg);
     color: var(--a2-cta-fg);
     font-family: var(--a2-font-sans);
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 600;
     cursor: pointer;
-    white-space: nowrap;
-    transition: opacity 0.15s ease, background-color 0.15s ease;
+    transition: background-color 0.15s ease;
   }
 
-  .hm-cta.is-done {
+  .ic-cta:hover { background: var(--a2-cta-hover); }
+
+  .ic-cta.is-done {
+    justify-content: center;
     background: var(--a2-success);
     border-color: var(--a2-success);
-    color: #fff;
+    color: #ffffff;
   }
 
-  .hm-seg-row {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-
-  .hm-seg {
-    appearance: none;
-    padding: 7px 12px;
-    border: 1px solid var(--a2-border-strong);
-    background: transparent;
-    color: var(--a2-text-secondary);
-    font-family: var(--a2-font-mono);
-    font-size: 11px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: border-color 0.14s ease, color 0.14s ease, background-color 0.14s ease;
-  }
-
-  .hm-seg:hover {
-    color: var(--a2-text);
-    border-color: var(--a2-text-muted);
-  }
-
-  .hm-seg.is-selected {
-    border-color: var(--a2-accent);
-    background: var(--a2-accent-soft);
-    color: var(--a2-accent-strong);
-    font-weight: 600;
-  }
-
-  /* =======================================================================
-     MODE 01: IN-CHAT STREAM
-     ======================================================================= */
-  .hm-chat-viewport {
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 28px 28px 24px;
+  /* 01 · recipe + grid + meter */
+  .ic-recipe {
     display: flex;
     flex-direction: column;
-    gap: 18px;
+    gap: 4px;
+    padding: 10px 12px 11px;
+    border: 1px solid var(--a2-accent-border);
+    background: var(--a2-accent-soft);
   }
 
-  .hm-skel-turn {
+  .ic-recipe strong {
+    font-family: var(--a2-font-display);
+    font-size: 17px;
+    font-weight: 660;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
+    color: var(--a2-text);
+  }
+
+  .ic-recipe__meta {
+    font-size: 10.5px;
+    color: var(--a2-text-secondary);
+  }
+
+  .ic-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
+  .ic-gtile {
+    appearance: none;
     display: flex;
-    align-items: center;
-    gap: 12px;
+    flex-direction: column;
+    gap: 3px;
+    padding: 8px 8px 7px;
+    border: 1px solid var(--a2-border-strong);
+    background: var(--a2-surface);
+    color: var(--a2-text);
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: opacity 0.15s ease, border-color 0.15s ease;
   }
 
-  .hm-skel-turn--user {
-    justify-content: flex-end;
+  .ic-gtile:hover { border-color: var(--a2-accent); }
+
+  .ic-gtile b {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
   }
 
-  .hm-skel-bubble {
-    width: 300px;
-    max-width: 75%;
-    padding: 12px 14px;
-    border: 1px solid var(--a2-border);
-    background: var(--a2-surface-subtle);
+  .ic-gtile span {
+    font-family: var(--a2-font-mono);
+    font-size: 9.5px;
+    color: var(--a2-text-muted);
+  }
+
+  .ic-gtile.is-off {
+    opacity: 0.4;
+    border-style: dashed;
+  }
+
+  .ic-gtile.is-off b { text-decoration: line-through; }
+
+  .ic-gtile.is-pantry {
+    border-style: dashed;
+    background: transparent;
+    color: var(--a2-text-muted);
+    cursor: default;
+  }
+
+  .ic-gtile.is-pantry span { color: var(--a2-accent-strong); font-weight: 700; font-size: 8.5px; letter-spacing: 0.08em; }
+
+  .ic-meter {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .ic-meter__track {
+    height: 6px;
+    background: var(--a2-border);
+  }
+
+  .ic-meter__track i {
+    display: block;
+    height: 100%;
+    background: var(--a2-accent);
+    transition: width 0.25s ease;
+  }
+
+  .ic-meter__lbl {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--a2-font-mono);
+    font-size: 9.5px;
+    color: var(--a2-text-muted);
+  }
+
+  .ic-meter__lbl span:first-child {
+    font-weight: 700;
+    color: var(--a2-text);
+  }
+
+  /* 02 · compare bars + deltas + toggle */
+  .ic-bars2 {
     display: flex;
     flex-direction: column;
     gap: 7px;
+    padding: 9px 12px 10px;
+    border: 1px solid var(--a2-border);
+    background: var(--a2-surface-subtle);
   }
 
-  .hm-skel-avatar {
-    width: 26px;
-    height: 26px;
-    border: 1px solid var(--a2-border-strong);
+  .ic-bars2 > div {
+    display: grid;
+    grid-template-columns: 52px 1fr 38px;
+    align-items: center;
+    gap: 8px;
     font-family: var(--a2-font-mono);
     font-size: 9.5px;
-    font-weight: 700;
     color: var(--a2-text-muted);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
   }
 
-  .hm-skel-avatar--ai {
-    border-color: var(--a2-accent);
-    color: var(--a2-accent);
+  .ic-bars2__track {
+    height: 14px;
+    background: var(--a2-border);
   }
 
-  .hm-chat-surface {
-    margin-left: 38px;
+  .ic-bars2__track i {
+    display: block;
+    height: 100%;
+    background: var(--a2-text-muted);
   }
 
-  @media (max-width: 640px) {
-    .hm-chat-surface { margin-left: 0; }
+  .ic-bars2 .is-hi .ic-bars2__track i { background: var(--a2-accent); }
+  .ic-bars2 .is-hi b, .ic-bars2 .is-hi span { color: var(--a2-text); }
+
+  .ic-bars2 b {
+    text-align: right;
+    font-size: 11px;
+    font-weight: 700;
   }
 
-  .hm-chat-presets {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-    padding: 18px 18px 14px;
-  }
-
-  @media (max-width: 600px) {
-    .hm-chat-presets { grid-template-columns: 1fr; }
-  }
-
-  .hm-preset {
-    appearance: none;
-    text-align: left;
-    padding: 14px;
-    border: 1px solid var(--a2-border);
-    background: var(--a2-surface);
-    color: var(--a2-text-secondary);
-    font-family: inherit;
-    cursor: pointer;
+  .ic-deltas {
     display: flex;
     flex-direction: column;
+  }
+
+  .ic-deltas > div {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 2px;
+    border-top: 1px solid var(--a2-border);
+  }
+
+  .ic-deltas > div:last-child { border-bottom: 1px solid var(--a2-border); }
+
+  .ic-deltas > div > span {
+    display: flex;
+    align-items: baseline;
     gap: 6px;
-    transition: border-color 0.15s ease, color 0.15s ease;
+    min-width: 0;
   }
 
-  .hm-preset svg {
-    width: 36px;
-    height: 20px;
+  .ic-deltas strong {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--a2-text);
+    white-space: nowrap;
+  }
+
+  .ic-deltas em {
+    font-style: normal;
+    font-size: 10.5px;
     color: var(--a2-text-muted);
-    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  .hm-preset.is-selected {
-    border-color: var(--a2-accent);
+  .ic-deltas b {
+    font-family: var(--a2-font-mono);
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--a2-coral);
+    white-space: nowrap;
+  }
+
+  .ic-toggle-row {
+    appearance: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--a2-border-strong);
+    background: var(--a2-surface);
+    color: var(--a2-text);
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .ic-toggle-row strong {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .ic-toggle-row em {
+    font-style: normal;
+    font-size: 10.5px;
+    color: var(--a2-accent-strong);
+  }
+
+  .ic-toggle-row i {
+    position: relative;
+    width: 32px;
+    height: 18px;
+    flex-shrink: 0;
+    border-radius: 9px;
+    background: var(--a2-border-strong);
+    transition: background-color 0.18s ease;
+  }
+
+  .ic-toggle-row i::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.18s ease;
+  }
+
+  .ic-toggle-row.is-on i { background: var(--a2-accent); }
+  .ic-toggle-row.is-on i::after { transform: translateX(14px); }
+
+  /* 03 · timeline + checklist */
+  .ic-tl3 {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    padding: 6px 0 2px;
+  }
+
+  .ic-tl3::before {
+    content: '';
+    position: absolute;
+    left: 16%;
+    right: 16%;
+    top: 11px;
+    height: 1px;
+    background: var(--a2-border-strong);
+  }
+
+  .ic-tl3 span {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    text-align: center;
+  }
+
+  .ic-tl3 i {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid var(--a2-border-strong);
+    background: var(--a2-bg);
+  }
+
+  .ic-tl3 .is-done i { background: var(--a2-accent); border-color: var(--a2-accent); }
+  .ic-tl3 .is-live i { border-color: var(--a2-accent-strong); box-shadow: 0 0 0 3px var(--a2-accent-soft); }
+
+  .ic-tl3 b {
+    font-family: var(--a2-font-mono);
+    font-size: 9px;
+    font-weight: 700;
     color: var(--a2-text);
   }
 
-  .hm-preset.is-selected svg {
-    color: var(--a2-accent);
+  .ic-tl3 em {
+    font-style: normal;
+    font-size: 9.5px;
+    color: var(--a2-text-muted);
   }
 
-  .hm-preset strong {
-    font-size: 13.5px;
+  .ic-checklist {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--a2-border);
+  }
+
+  .ic-ck {
+    appearance: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 2px;
+    border: none;
+    border-bottom: 1px solid var(--a2-border);
+    background: transparent;
+    color: var(--a2-text);
+    font-family: inherit;
+    font-size: 12px;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .ic-ck i {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    border: 1.5px solid var(--a2-border-strong);
+    border-radius: 3px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .ic-ck.is-done { color: var(--a2-text-muted); }
+  .ic-ck.is-done span { text-decoration: line-through; }
+
+  .ic-ck.is-done i {
+    background: var(--a2-accent);
+    border-color: var(--a2-accent);
+  }
+
+  .ic-ck.is-done i::after {
+    content: '✓';
+    font-size: 9px;
+    font-weight: 700;
+    color: #04201d;
+  }
+
+  .ic-ck b {
+    margin-left: 6px;
+    font-family: var(--a2-font-mono);
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--a2-amber);
+    border: 1px solid var(--a2-amber-border);
+    padding: 1px 4px;
+  }
+
+  /* 04 · item + stepper + choices */
+  .ic-item {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px 12px 11px;
+    border: 1px solid var(--a2-accent-border);
+    background: var(--a2-accent-soft);
+  }
+
+  .ic-item__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 13px;
     font-weight: 600;
     color: var(--a2-text);
   }
 
-  .hm-preset span {
-    font-size: 12px;
-    color: var(--a2-text-muted);
-  }
-
-  .hm-chat-controls {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 24px;
-    padding: 14px 18px 18px;
-    border-top: 1px solid var(--a2-border-subtle);
-    flex-wrap: wrap;
-  }
-
-  .hm-slider-group {
-    flex: 1;
-    min-width: 180px;
-  }
-
-  .hm-chat-composer {
-    margin-top: 4px;
-    padding: 11px 14px;
-    border: 1px dashed var(--a2-border-strong);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    opacity: 0.65;
-  }
-
-  .hm-composer-enter {
+  .ic-item__row b {
     font-family: var(--a2-font-mono);
-    font-size: 11px;
+    font-size: 12px;
+  }
+
+  .ic-stepper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .ic-stepper > span {
+    font-family: var(--a2-font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
     color: var(--a2-text-muted);
   }
 
-  /* =======================================================================
-     MODE 02: COPILOT SIDEBAR (SPLIT WORKSPACE)
-     ======================================================================= */
-  .hm-sidebar-split {
+  .ic-stepper > div {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .ic-stepper button {
+    appearance: none;
+    width: 26px;
+    height: 26px;
+    border: 1px solid var(--a2-border-strong);
+    background: var(--a2-bg);
+    color: var(--a2-text);
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .ic-stepper strong {
+    min-width: 18px;
+    text-align: center;
+    font-family: var(--a2-font-mono);
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--a2-text);
+  }
+
+  .ic-stepper em {
+    font-style: normal;
+    font-family: var(--a2-font-mono);
+    font-size: 9.5px;
+    color: var(--a2-text-muted);
+  }
+
+  .ic-choice2 {
     display: grid;
-    grid-template-columns: minmax(0, 1.75fr) minmax(260px, 1fr);
-    min-height: 330px;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
   }
 
-  @media (max-width: 820px) {
-    .hm-sidebar-split { grid-template-columns: 1fr; }
-  }
-
-  .hm-doc-stage {
-    padding: 24px 28px;
+  .ic-choice {
+    appearance: none;
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    background: var(--a2-surface-subtle);
+    gap: 3px;
+    padding: 10px 11px;
+    border: 1px solid var(--a2-border-strong);
+    background: var(--a2-surface);
+    color: var(--a2-text);
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
   }
 
-  .hm-doc-stage__hdr {
-    display: flex;
-    justify-content: space-between;
+  .ic-choice span {
     font-family: var(--a2-font-mono);
-    font-size: 10px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--a2-text-muted);
+  }
+
+  .ic-choice strong {
+    font-family: var(--a2-font-display);
+    font-size: 18px;
+    font-weight: 680;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+  }
+
+  .ic-choice em {
+    font-style: normal;
+    font-size: 10.5px;
+    color: var(--a2-text-muted);
+  }
+
+  .ic-choice.is-on {
+    border-color: var(--a2-accent);
+    background: var(--a2-accent-soft);
+  }
+
+  .ic-choice.is-on span { color: var(--a2-accent-strong); }
+
+  .ic-trust {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border-top: 1px solid var(--a2-border);
+    border-bottom: 1px solid var(--a2-border);
+  }
+
+  .ic-trust > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 9px 8px;
+    border-right: 1px solid var(--a2-border);
+  }
+
+  .ic-trust > div:last-child { border-right: none; }
+
+  .ic-trust b {
+    font-family: var(--a2-font-display);
+    font-size: 15px;
+    font-weight: 660;
+    letter-spacing: -0.02em;
+    color: var(--a2-text);
+  }
+
+  .ic-trust span {
+    font-family: var(--a2-font-mono);
+    font-size: 8.5px;
+    font-weight: 700;
     letter-spacing: 0.08em;
     color: var(--a2-text-muted);
   }
 
-  .hm-doc-canvas {
-    flex: 1;
-    display: grid;
-    gap: var(--doc-gap, 16px);
-    transition: gap 0.15s ease;
+  /* --- Wire JSON --- */
+  .ic-wire {
+    margin: 0;
+    width: 100%;
+    background: #0c0e14;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    padding: 18px;
+    font-family: var(--a2-font-mono);
+    font-size: 10.5px;
+    line-height: 1.7;
+    color: #e2e8f0;
+    overflow-x: auto;
   }
 
-  .hm-doc-canvas[data-layout='editorial'] {
-    grid-template-columns: 1fr;
-  }
-
-  .hm-doc-canvas[data-layout='split'] {
-    grid-template-columns: 1fr 1fr;
-  }
-  .hm-doc-canvas[data-layout='split'] .hm-doc-block--hero,
-  .hm-doc-canvas[data-layout='split'] .hm-doc-block--c {
-    grid-column: 1 / -1;
-  }
-
-  .hm-doc-canvas[data-layout='bento'] {
-    grid-template-columns: 1.3fr 1fr 1fr;
-  }
-  .hm-doc-canvas[data-layout='bento'] .hm-doc-block--hero {
-    grid-row: span 2;
-  }
-  .hm-doc-canvas[data-layout='bento'] .hm-doc-block--c {
-    grid-column: 2 / -1;
-  }
-
-  .hm-doc-block {
-    border: 1px solid var(--a2-border-strong);
-    background: var(--a2-bg);
-    padding: 16px;
+  /* =======================================================================
+     WHAT THE AGENT COMPOSES FROM (ILLUSTRATED)
+     ======================================================================= */
+  .ic-sources {
+    margin-top: 84px;
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    gap: 8px;
-    min-height: 62px;
-    transition: border-color 0.2s ease, background-color 0.2s ease;
+    gap: 22px;
   }
 
-  .hm-doc-canvas.is-accented .hm-doc-block--hero {
-    border-color: var(--a2-accent);
-    background: var(--a2-accent-soft);
-  }
-
-  .hm-doc-glyph {
-    width: 18px;
-    height: 18px;
-    border: 1.5px solid var(--a2-accent);
-    display: block;
-  }
-
-  .hm-copilot-pane {
-    border: none;
-    border-left: 2px solid var(--a2-accent);
+  .ic-sources__head {
     display: flex;
-    flex-direction: column;
+    align-items: baseline;
     justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
   }
 
-  .hm-copilot-prompt {
-    padding: 16px 20px 4px;
-    flex: 0;
+  .ic-sources__eq {
+    font-family: var(--a2-font-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--a2-text-muted);
   }
 
-  .hm-ctrl-block {
-    padding: 14px 20px;
-    border-top: 1px solid var(--a2-border-subtle);
+  .ic-sources__eq b {
+    font-weight: 700;
+    color: var(--a2-accent);
+    padding: 0 2px;
+  }
+
+  .ic-sources__grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 44px;
+  }
+
+  @media (max-width: 820px) {
+    .ic-sources__grid {
+      grid-template-columns: 1fr;
+      gap: 40px;
+    }
+  }
+
+  .ic-source {
+    padding-top: 18px;
+    border-top: 1px solid var(--a2-border-strong);
     display: flex;
     flex-direction: column;
     gap: 10px;
   }
 
-  .hm-ctrl-block--row {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 13px;
-    font-weight: 500;
+  .ic-source__head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-top: 8px;
   }
 
-  .hm-ctrl-lbl {
-    font-family: var(--a2-font-mono);
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.09em;
-    color: var(--a2-text-muted);
-  }
-
-  .hm-switch {
-    appearance: none;
-    padding: 5px 12px;
-    border: 1px solid var(--a2-border-strong);
-    background: transparent;
+  .ic-source__idx {
     font-family: var(--a2-font-mono);
     font-size: 10.5px;
     font-weight: 700;
-    color: var(--a2-text-muted);
-    cursor: pointer;
-  }
-
-  .hm-switch.is-on {
-    border-color: var(--a2-accent);
-    background: var(--a2-accent);
-    color: #fff;
-  }
-
-  /* =======================================================================
-     MODE 03: DYNAMIC DASHBOARD
-     ======================================================================= */
-  .hm-dash-stage {
-    padding: 22px 26px 26px;
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-  }
-
-  .hm-dash-intent {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    flex-wrap: wrap;
-  }
-
-  .hm-dash-grid {
-    display: grid;
-    grid-template-columns: 1.6fr 1fr 1fr;
-  }
-
-  @media (max-width: 860px) {
-    .hm-dash-grid { grid-template-columns: 1fr; }
-  }
-
-  .hm-dash-grid__bar {
-    grid-column: 1 / -1;
-  }
-
-  .hm-db-card {
-    padding: 20px;
-    border-right: 1px solid var(--a2-border);
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    gap: 14px;
-  }
-
-  .hm-db-card:last-child {
-    border-right: none;
-  }
-
-  .hm-db-card__hdr {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: 8px;
-    font-family: var(--a2-font-mono);
-    font-size: 10px;
     letter-spacing: 0.08em;
-    color: var(--a2-text-muted);
+    color: var(--a2-accent);
   }
 
-  .hm-db-card__hdr strong {
-    font-size: 16px;
+  .ic-source h3 {
+    margin: 0;
+    font-family: var(--a2-font-display);
+    font-size: 19px;
+    font-weight: 620;
+    letter-spacing: -0.022em;
     color: var(--a2-text);
-    letter-spacing: -0.02em;
   }
 
-  .hm-db-svg {
-    width: 100%;
-    height: 116px;
-    display: block;
+  .ic-source p {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.58;
+    color: var(--a2-text-secondary);
+    max-width: 40ch;
   }
 
-  .hm-db-bars {
-    height: 104px;
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    align-items: end;
-    gap: 8px;
-    padding-top: 10px;
-  }
-
-  .hm-db-bars i {
-    display: block;
-    background: var(--a2-border-strong);
-    transition: height 0.25s ease, background-color 0.2s ease;
-  }
-
-  .hm-db-bars i.is-hi {
-    background: var(--a2-accent);
-  }
-
-  .hm-db-hint {
-    font-family: var(--a2-font-mono);
-    font-size: 10px;
-    color: var(--a2-text-muted);
-  }
-
-  /* =======================================================================
-     MODE 04: SPATIAL CANVAS (DOT-GRID + MULTI-NODE GRAPH)
-     ======================================================================= */
-  .hm-canvas-field {
+  .ic-fig {
     position: relative;
-    min-height: 310px;
-    padding: 36px 28px;
-    background-image: radial-gradient(var(--a2-border-strong) 1px, transparent 1px);
-    background-size: 20px 20px;
-    display: flex;
-    align-items: center;
+    height: 164px;
+    border: 1px solid var(--a2-border);
+    background: var(--a2-surface-subtle);
+    overflow: hidden;
   }
 
-  .hm-canvas-wires {
+  /* 01 · Intent */
+  .ic-fig--intent { padding: 18px 20px 16px 58px; }
+
+  .ic-fig__quote {
     position: absolute;
-    inset: 0;
-    width: 100%;
+    top: 2px;
+    left: 16px;
+    font-family: var(--a2-font-serif);
+    font-style: italic;
+    font-size: 64px;
+    line-height: 1;
+    color: var(--a2-accent);
+    opacity: 0.9;
+  }
+
+  .ic-utter {
+    display: none;
     height: 100%;
-    pointer-events: none;
-  }
-
-  @media (max-width: 860px) {
-    .hm-canvas-wires { display: none; }
-  }
-
-  .hm-canvas-nodes {
-    position: relative;
-    z-index: 1;
-    width: 100%;
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 38px;
-    align-items: center;
-  }
-
-  @media (max-width: 860px) {
-    .hm-canvas-nodes { grid-template-columns: 1fr; gap: 18px; }
-  }
-
-  .hm-node {
-    padding-bottom: 16px;
-    box-shadow: var(--a2-shadow-sm);
-  }
-
-  .hm-node--2 {
-    transform: translateY(-18px);
-  }
-
-  .hm-node--3 {
-    transform: translateY(14px);
-  }
-
-  @media (max-width: 860px) {
-    .hm-node--2, .hm-node--3 { transform: none; }
-  }
-
-  .hm-node__opts,
-  .hm-node .hm-slider-group__lbl,
-  .hm-node .hm-range,
-  .hm-cv-spectrum {
-    padding-left: 14px;
-    padding-right: 14px;
-  }
-
-  .hm-node__opts {
-    padding-top: 14px;
-  }
-
-  .hm-node .hm-slider-group__lbl {
-    padding-top: 14px;
-  }
-
-  .hm-node .hm-range {
-    width: calc(100% - 28px);
-    margin-left: 14px;
-  }
-
-  .hm-cv-spectrum {
-    height: 68px;
-    padding-top: 14px;
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    align-items: end;
-    gap: 6px;
-  }
-
-  .hm-cv-spectrum i {
-    display: block;
-    background: var(--a2-accent);
-    transition: height 0.16s ease;
-  }
-
-  /* =======================================================================
-     WIRE JSON VIEW
-     ======================================================================= */
-  .hm-wire-sheet {
-    background: #0c0e14;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    padding: 22px 26px;
-  }
-
-  .hm-wire-sheet__hdr {
-    display: flex;
+    flex-direction: column;
     justify-content: space-between;
     gap: 12px;
+  }
+
+  .ic-utter.is-active {
+    display: flex;
+    animation: icFade 0.22s ease-out;
+  }
+
+  .ic-utter p {
+    margin: 0;
+    font-family: var(--a2-font-serif);
+    font-style: italic;
+    font-size: 18px;
+    line-height: 1.32;
+    letter-spacing: -0.01em;
+    color: var(--a2-text);
+    max-width: none;
+  }
+
+  .ic-utter mark {
+    background: var(--a2-accent-soft);
+    color: var(--a2-text);
+    box-shadow: inset 0 -2px 0 var(--a2-accent);
+    padding: 0 2px;
+  }
+
+  .ic-trail {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     flex-wrap: wrap;
     font-family: var(--a2-font-mono);
-    font-size: 10.5px;
-    letter-spacing: 0.08em;
-    color: #94a3b8;
-    padding-bottom: 12px;
-    margin-bottom: 14px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    color: var(--a2-text-secondary);
   }
 
-  .hm-wire-sheet__code {
-    margin: 0;
-    overflow-x: auto;
+  .ic-trail b {
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--a2-text-muted);
+    margin-right: 4px;
+  }
+
+  .ic-trail i {
+    font-style: normal;
+    color: var(--a2-accent);
+  }
+
+  /* 02 · Catalog */
+  .ic-fig--catalog { padding: 8px 6px 2px; }
+
+  .ic-sheet {
+    width: 100%;
+    height: 100%;
+    display: block;
     font-family: var(--a2-font-mono);
+  }
+
+  .ic-sheet__hdr {
+    font-size: 8.5px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    fill: var(--a2-text-muted);
+  }
+
+  .ic-sheet__hdr--on { fill: var(--a2-accent-strong); }
+
+  .ic-sheet__lock rect,
+  .ic-sheet__lock path {
+    stroke: var(--a2-accent-strong);
+    stroke-width: 1.4;
+    fill: none;
+  }
+
+  .ic-sheet__lbl {
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    fill: var(--a2-text-muted);
+  }
+
+  .ic-sheet__lbl--no { fill: var(--a2-coral); }
+
+  .ic-tile-svg > rect:first-child {
+    stroke: var(--a2-border-strong);
+    fill: var(--a2-bg);
+  }
+
+  .ic-tile-svg.is-on > rect:first-child {
+    stroke: var(--a2-accent);
+    fill: var(--a2-accent-soft);
+  }
+
+  .ic-tile-svg.is-blocked > rect:first-child {
+    stroke: var(--a2-coral);
+    fill: transparent;
+    opacity: 0.8;
+  }
+
+  .ic-ink { fill: var(--a2-text); }
+  .ic-ink-soft { fill: var(--a2-border-strong); }
+  .ic-ink-fill { fill: var(--a2-text-muted); }
+  .ic-tile-svg.is-on .ic-ink-fill { fill: var(--a2-accent); }
+  .ic-ink-inverse { fill: var(--a2-bg); }
+  .ic-ink-soft-stroke { stroke: var(--a2-border-strong); stroke-width: 2; fill: none; }
+
+  .ic-tick {
+    font-size: 9px;
+    font-weight: 700;
+    fill: var(--a2-accent-strong);
+  }
+
+  .ic-raw {
+    font-size: 12px;
+    font-weight: 700;
+    fill: var(--a2-coral);
+  }
+
+  .ic-raw-strike {
+    stroke: var(--a2-coral);
+    stroke-width: 1.5;
+  }
+
+  /* 03 · Context */
+  .ic-fig--context {
+    display: grid;
+    grid-template-columns: 96px 1fr;
+    gap: 12px;
+    padding: 14px 16px 14px 14px;
+    align-items: center;
+  }
+
+  .ic-pulse {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .ic-pulse svg {
+    width: 72px;
+    height: 72px;
+    display: block;
+  }
+
+  .ic-pulse__ring {
+    fill: none;
+    stroke: var(--a2-accent);
+    stroke-width: 1.2;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: icPulse 2.6s ease-out infinite;
+  }
+
+  .ic-pulse__ring--b { animation-delay: 1.3s; }
+
+  @keyframes icPulse {
+    0% { transform: scale(0.5); opacity: 0.85; }
+    100% { transform: scale(1.12); opacity: 0; }
+  }
+
+  .ic-pulse__orbit {
+    fill: none;
+    stroke: var(--a2-border-strong);
+    stroke-width: 1;
+    stroke-dasharray: 2 3;
+  }
+
+  .ic-pulse__hand {
+    stroke: var(--a2-accent-strong);
+    stroke-width: 2;
+    stroke-linecap: round;
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: icSweep 12s linear infinite;
+  }
+
+  @keyframes icSweep { to { transform: rotate(360deg); } }
+
+  .ic-pulse__core { fill: var(--a2-accent); }
+
+  .ic-clock {
+    font-family: var(--a2-font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--a2-text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ic-clock__lbl {
+    font-family: var(--a2-font-mono);
+    font-size: 8.5px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    color: var(--a2-text-muted);
+  }
+
+  .ic-signals {
+    display: none;
+    flex-direction: column;
+  }
+
+  .ic-signals.is-active {
+    display: flex;
+    animation: icFade 0.22s ease-out;
+  }
+
+  .ic-signals div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 7px 0 7px 12px;
+    border-left: 2px solid var(--a2-border-strong);
+    position: relative;
+  }
+
+  .ic-signals div::before {
+    content: '';
+    position: absolute;
+    left: -5px;
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    margin-top: -4px;
+    border-radius: 50%;
+    background: var(--a2-accent);
+    box-shadow: 0 0 0 3px var(--a2-accent-soft);
+  }
+
+  .ic-signals div:nth-child(1)::before { animation: icBlink 2.6s ease-in-out infinite; }
+  .ic-signals div:nth-child(2)::before { animation: icBlink 2.6s ease-in-out infinite 0.6s; }
+  .ic-signals div:nth-child(3)::before { animation: icBlink 2.6s ease-in-out infinite 1.4s; }
+
+  @keyframes icBlink {
+    0%, 100% { opacity: 0.45; }
+    50% { opacity: 1; }
+  }
+
+  .ic-signals span {
+    font-family: var(--a2-font-mono);
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--a2-text-muted);
+  }
+
+  .ic-signals strong {
     font-size: 12.5px;
-    line-height: 1.68;
-    color: #e2e8f0;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--a2-text);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ic-pulse__ring,
+    .ic-pulse__hand,
+    .ic-signals div::before,
+    .ic-wire-svg path,
+    .ic-caret,
+    .ic-zone__skel i {
+      animation: none;
+    }
+  }
+
+  .ic-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+  }
+
+  .ic-chips :global(span) {
+    font-family: var(--a2-font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 4px 7px;
+    border: 1px solid var(--a2-border-strong);
+    border-radius: 2px;
+    background: var(--a2-surface);
+    color: var(--a2-text-secondary);
   }
 </style>
-

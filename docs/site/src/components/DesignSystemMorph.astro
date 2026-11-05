@@ -14,6 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import RendererLogo from './RendererLogo.astro';
+
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
 
@@ -26,36 +28,36 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
           <span class="dsm-row__num">01</span>
           <span class="dsm-row__main">
             <strong>Cupertino Native</strong>
-            <span>iOS · SwiftUI Views</span>
+            <span>iOS · SwiftUI renderer</span>
           </span>
-          <span class="dsm-row__arrow" aria-hidden="true">→</span>
+          <span class="dsm-row__mark"><RendererLogo name="swiftui" size={18} /></span>
         </button>
 
         <button type="button" role="tab" aria-selected="false" class="dsm-row" data-dsm-skin="material">
           <span class="dsm-row__num">02</span>
           <span class="dsm-row__main">
             <strong>Material You Tonal</strong>
-            <span>Android · Jetpack Compose</span>
+            <span>Android · Jetpack Compose renderer</span>
           </span>
-          <span class="dsm-row__arrow" aria-hidden="true">→</span>
+          <span class="dsm-row__mark"><RendererLogo name="compose" size={18} /></span>
         </button>
 
         <button type="button" role="tab" aria-selected="false" class="dsm-row" data-dsm-skin="editorial">
           <span class="dsm-row__num">03</span>
           <span class="dsm-row__main">
             <strong>Editorial Luxury</strong>
-            <span>Custom Brand · Flutter</span>
+            <span>Custom brand · Flutter renderer</span>
           </span>
-          <span class="dsm-row__arrow" aria-hidden="true">→</span>
+          <span class="dsm-row__mark"><RendererLogo name="flutter" size={18} /></span>
         </button>
 
         <button type="button" role="tab" aria-selected="false" class="dsm-row" data-dsm-skin="saas">
           <span class="dsm-row__num">04</span>
           <span class="dsm-row__main">
             <strong>Monospace Workspace</strong>
-            <span>Web · React / Lit</span>
+            <span>Web · React, Lit or Angular renderer</span>
           </span>
-          <span class="dsm-row__arrow" aria-hidden="true">→</span>
+          <span class="dsm-row__mark"><RendererLogo name="react" size={18} /><RendererLogo name="lit" size={16} /><RendererLogo name="angular" size={18} /></span>
         </button>
       </div>
 
@@ -132,22 +134,34 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     </div>
   </div>
 
-  <!-- Slash-Separated Typographic SDK Ledger (Zero Pills!) -->
-  <div class="dsm-ledger">
-    <span class="dsm-ledger__lbl">OFFICIAL &amp; ECOSYSTEM RENDERERS</span>
-    <nav class="dsm-ledger__links" aria-label="Supported renderers">
-      <a href={`${base}/renderers/`}>React</a>
-      <span aria-hidden="true">/</span>
-      <a href={`${base}/renderers/`}>Flutter</a>
-      <span aria-hidden="true">/</span>
-      <a href={`${base}/renderers/`}>SwiftUI</a>
-      <span aria-hidden="true">/</span>
-      <a href={`${base}/renderers/`}>Jetpack Compose</a>
-      <span aria-hidden="true">/</span>
-      <a href={`${base}/renderers/`}>Angular</a>
-      <span aria-hidden="true">/</span>
-      <a href={`${base}/renderers/`}>Lit Web Components</a>
-    </nav>
+  <!-- Official renderer grid: one mark per target, plus the community ecosystem -->
+  <div class="dsm-renderers">
+    <div class="dsm-renderers__head">
+      <span class="dsm-renderers__lbl">OFFICIAL RENDERERS · ONE PROTOCOL</span>
+      <a href={`${base}/concepts/renderer-sdks/`} class="dsm-renderers__link">RENDERER SDKS →</a>
+    </div>
+
+    <ul class="dsm-rgrid" aria-label="Official A2UI renderers">
+      <li><a href={`${base}/concepts/renderer-sdks/`}><RendererLogo name="react" size={26} /><strong>React</strong><code>@a2ui/react</code></a></li>
+      <li><a href={`${base}/concepts/renderer-sdks/`}><RendererLogo name="lit" size={24} /><strong>Lit</strong><code>@a2ui/lit</code></a></li>
+      <li><a href={`${base}/concepts/renderer-sdks/`}><RendererLogo name="angular" size={26} /><strong>Angular</strong><code>@a2ui/angular</code></a></li>
+      <li><a href={`${base}/concepts/renderer-sdks/`}><RendererLogo name="flutter" size={26} /><strong>Flutter</strong><code>a2ui_flutter</code></a></li>
+      <li><a href={`${base}/concepts/renderer-sdks/`}><RendererLogo name="swiftui" size={26} /><strong>SwiftUI</strong><code>A2UISwiftUI</code></a></li>
+      <li><a href={`${base}/concepts/renderer-sdks/`}><RendererLogo name="compose" size={26} /><strong>Jetpack Compose</strong><code>Kotlin · Android</code></a></li>
+    </ul>
+
+    <div class="dsm-community">
+      <span class="dsm-renderers__lbl">FROM THE COMMUNITY</span>
+      <div class="dsm-community__list">
+        <span><RendererLogo name="vue" size={14} /> Vue</span>
+        <span><RendererLogo name="svelte" size={14} /> Svelte</span>
+        <span>React Native</span>
+        <span>Compose Multiplatform</span>
+        <span>Lynx</span>
+        <span>Ink (terminal)</span>
+        <a href={`${base}/ecosystem/renderers/`}>All ecosystem renderers →</a>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -371,18 +385,22 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     color: var(--a2-text-muted);
   }
 
-  .dsm-row__arrow {
-    font-family: var(--a2-font-mono);
-    font-size: 13px;
-    opacity: 0;
-    transform: translateX(-4px);
-    transition: all 0.16s ease;
+  .dsm-row__mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--a2-text-muted);
+    opacity: 0.55;
+    transition: opacity 0.16s ease;
   }
 
-  .dsm-row.is-active .dsm-row__arrow {
+  .dsm-row:hover .dsm-row__mark,
+  .dsm-row.is-active .dsm-row__mark {
     opacity: 1;
-    transform: translateX(0);
-    color: var(--a2-accent);
+  }
+
+  .dsm-row.is-active .dsm-row__mark :global(.rmark) {
+    color: var(--brand);
   }
 
   .dsm-note {
@@ -740,18 +758,24 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     transition: all 0.26s ease;
   }
 
-  /* --- Slash-Separated Typographic SDK Ledger --- */
-  .dsm-ledger {
+  /* --- Official renderer grid (marks + packages) --- */
+  .dsm-renderers {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 20px;
+    flex-direction: column;
+    gap: 18px;
     padding-top: 32px;
     border-top: 1px solid var(--a2-border);
   }
 
-  .dsm-ledger__lbl {
+  .dsm-renderers__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .dsm-renderers__lbl {
     font-family: var(--a2-font-mono);
     font-size: 10.5px;
     font-weight: 600;
@@ -759,30 +783,111 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     color: var(--a2-text-muted);
   }
 
-  .dsm-ledger__links {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 12px;
-    font-size: 13.5px;
+  .dsm-renderers__link {
+    font-family: var(--a2-font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: var(--a2-accent-strong);
+    text-decoration: none;
   }
 
-  .dsm-ledger__links a {
+  .dsm-renderers__link:hover { text-decoration: underline; }
+
+  .dsm-rgrid {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    border-top: 1px solid var(--a2-border-strong);
+    border-left: 1px solid var(--a2-border-strong);
+  }
+
+  @media (max-width: 920px) {
+    .dsm-rgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+
+  @media (max-width: 520px) {
+    .dsm-rgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  .dsm-rgrid li {
+    border-right: 1px solid var(--a2-border-strong);
+    border-bottom: 1px solid var(--a2-border-strong);
+  }
+
+  .dsm-rgrid a {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 118px;
+    padding: 18px 16px 16px;
     color: var(--a2-text);
     text-decoration: none;
-    font-weight: 500;
-    border-bottom: 1px solid transparent;
-    transition: border-color 0.15s ease, color 0.15s ease;
+    transition: background-color 0.16s ease;
   }
 
-  .dsm-ledger__links a:hover {
+  .dsm-rgrid a:hover {
+    background: var(--a2-surface-subtle);
+  }
+
+  .dsm-rgrid a :global(.rmark) {
+    color: var(--a2-text-secondary);
+    margin-bottom: 4px;
+  }
+
+  .dsm-rgrid a:hover :global(.rmark) {
+    color: var(--brand);
+  }
+
+  .dsm-rgrid strong {
+    font-size: 14px;
+    font-weight: 620;
+    letter-spacing: -0.015em;
+  }
+
+  .dsm-rgrid code {
+    font-family: var(--a2-font-mono);
+    font-size: 10.5px;
+    color: var(--a2-text-muted);
+  }
+
+  .dsm-community {
+    display: flex;
+    align-items: baseline;
+    gap: 22px;
+    flex-wrap: wrap;
+  }
+
+  .dsm-community__list {
+    display: flex;
+    align-items: center;
+    gap: 6px 18px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: var(--a2-text-secondary);
+  }
+
+  .dsm-community__list span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .dsm-community__list :global(.rmark) {
+    color: var(--a2-text-muted);
+  }
+
+  .dsm-community__list a {
+    font-family: var(--a2-font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
     color: var(--a2-accent-strong);
-    border-bottom-color: var(--a2-accent-strong);
+    text-decoration: none;
   }
 
-  .dsm-ledger__links span {
-    color: var(--a2-border-strong);
-    user-select: none;
-  }
+  .dsm-community__list a:hover { text-decoration: underline; }
 </style>
 
