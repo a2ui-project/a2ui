@@ -93,6 +93,9 @@ export {ComponentModel, DataModel, SurfaceModel} from '@a2ui/web_core/state';
 export {MessageProcessor} from '@a2ui/web_core/processing';
 export type {MessageProcessorOptions} from '@a2ui/web_core/processing';
 
+// ./validation
+export {PayloadValidator} from '@a2ui/web_core/validation';
+
 // ./errors
 export {
   A2uiCatalogError,

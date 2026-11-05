@@ -27,6 +27,7 @@ import {
   ComponentApi,
   ComponentModel,
   MessageProcessor,
+  PayloadValidator,
   STRICT_VALIDATION,
   SurfaceModel,
   ValidationConfig,
@@ -111,6 +112,11 @@ let sharedProcessor: MessageProcessor | undefined;
  *
  * An app that is both the agent and the renderer makes the state with `RendererState.of`,
  * on the processor it renders from, so each message is checked and applied once.
+ *
+ * A v1.0 `callRendererFunction` is checked against the catalogs, the way the renderer would
+ * check it, and never run by a state of its own: running it would run the renderer's
+ * function on the agent. A state made by `RendererState.of` hands the call to the
+ * renderer's processor once it is accepted.
  */
 export class RendererState {
   private readonly _catalogs: CatalogApi[];
@@ -144,6 +150,11 @@ export class RendererState {
   private runaway = 0;
   /** The function calls applied since the outermost open `apply` or transaction began. */
   private readonly calls: Message[] = [];
+  /**
+   * Whether the state hands the function calls it accepts to its processor. Only a state
+   * made by `RendererState.of` does, since its processor is the renderer's own.
+   */
+  private readonly runsCalls: boolean;
 
   /**
    * Creates the empty state of a renderer that holds the catalogs.
@@ -170,6 +181,7 @@ export class RendererState {
       );
     }
     this._catalogs = [...catalogs];
+    this.runsCalls = sharedProcessor !== undefined;
     this.processor = sharedProcessor ?? new MessageProcessor(this._catalogs as never);
   }
 
@@ -178,8 +190,9 @@ export class RendererState {
    *
    * The state applies each message it accepts to `processor` itself, so the renderer shows a
    * message as soon as the state applies it, and a rollback takes the message back out of the
-   * renderer's model. A function call reaches the processor only once the outermost `apply` or
-   * transaction it was applied in succeeds, since a function that ran cannot be rolled back.
+   * renderer's model. A function call reaches the processor only once it passes the checks
+   * `apply` makes and the outermost `apply` or transaction it was applied in succeeds, since
+   * a function that ran cannot be rolled back.
    *
    * The state checks messages against the surfaces the processor holds, including those it
    * held before, under its own rules whatever rules the processor was created with. The
@@ -295,6 +308,12 @@ export class RendererState {
    * to, and component ids and cycles against the surface's components. References, the root
    * and reachability are left to `checkTopology`, since a component may name a child that a
    * later message adds.
+   *
+   * A v1.0 `callRendererFunction` is checked, never run: the surface it names must exist,
+   * its catalog must be active and declare the function, the agent must be allowed to call
+   * the function, which must not require a user activation, its arguments must match the
+   * function's schema as written, and the calls nested in them must be calls the renderer
+   * can make.
    *
    * The call is atomic: if a message is rejected, none of them is applied. Being atomic
    * costs what the messages change, not the size of the surfaces they touch.
@@ -871,13 +890,14 @@ export class RendererState {
   /** Applies the message at `index` and returns the surface it targets, if any. */
   private applyMessage(payload: Message[], index: number): string | undefined {
     const message = payload[index];
+    if ('callRendererFunction' in message) {
+      this.checkRendererFunctionCall(payload, index);
+      if (this.runsCalls) this.holdCall(message);
+      return undefined;
+    }
     const [surfaceId, creates] = target(message);
     if (surfaceId === undefined) {
-      if ('callRendererFunction' in message) {
-        this.holdCall(message);
-      } else {
-        this.process(message);
-      }
+      this.process(message);
       return undefined;
     }
 
@@ -904,6 +924,37 @@ export class RendererState {
       this.noteChanged(surfaceId, ids);
     }
     return surfaceId;
+  }
+
+  /**
+   * Checks a `callRendererFunction` the way the renderer would.
+   *
+   * The call is checked, never run: running it would run the renderer's function on the
+   * agent, and the state has no renderer to answer. A renderer refuses a call with
+   * `INVALID_FUNCTION_CALL` when the surface it names doesn't exist, its catalog isn't
+   * registered, the catalog doesn't declare the function, the agent may not call the
+   * function, or its arguments don't match the function's schema, so each of these is
+   * rejected; see `checkFunctionCall`.
+   *
+   * A payload state assumes a surface the payload never named before, as it does for an
+   * update, since an earlier payload may have created it.
+   *
+   * @throws {A2uiValidationError} If the renderer would refuse the call.
+   */
+  private checkRendererFunctionCall(payload: Message[], index: number): void {
+    // `checkMessage` has checked the envelope against the message schema.
+    const body = payload[index].callRendererFunction as Message;
+    const surfaceId = body.surfaceId;
+    if (
+      typeof surfaceId === 'string' &&
+      !this.processor.model.getSurface(surfaceId) &&
+      !this.assumes(surfaceId, payload, index)
+    ) {
+      throw new A2uiValidationError(
+        `Function call '${String(body.functionCallId)}' names surface '${surfaceId}', which does not exist.`,
+      );
+    }
+    checkFunctionCall(this._catalogs, body);
   }
 
   /**
@@ -1024,6 +1075,130 @@ function asValidationError<T>(fn: () => T): T {
 
 function isObjectIterable(value: unknown): value is Iterable<unknown> {
   return typeof value === 'object' && value !== null && Symbol.iterator in value;
+}
+
+/**
+ * Checks the call of a `callRendererFunction` against the catalogs.
+ *
+ * The catalog the call names must be one of the catalogs, and it must declare the
+ * function. The agent may call a function whose `allowedCallers` is `agentOnly` or
+ * `rendererOrAgent`, and never one that requires a user activation, since a call from the
+ * agent has no user gesture. The arguments are checked as written, as a component's nested
+ * calls are, rather than resolved against the data model first, which only the renderer
+ * holds. A call nested in the arguments is checked by `checkNestedCalls`.
+ *
+ * @param catalogs The active catalogs.
+ * @param body The `callRendererFunction` body, which matches the message schema.
+ * @throws {A2uiValidationError} If a renderer holding the catalogs would refuse the call.
+ */
+function checkFunctionCall(catalogs: CatalogApi[], body: Message): void {
+  const subject = `Function call '${String(body.functionCallId)}'`;
+  const call = body.callFunction as Message;
+  const name = String(call['@call']);
+  const catalog = heldCatalog(catalogs, call.catalogId, subject);
+  const fn = catalog.functions.get(name);
+  if (!fn) {
+    throw new A2uiValidationError(
+      `${subject} names '${name}', which catalog '${catalog.id}' does not declare.`,
+    );
+  }
+  const allowedCallers = fn.allowedCallers ?? 'rendererOnly';
+  if (allowedCallers !== 'agentOnly' && allowedCallers !== 'rendererOrAgent') {
+    throw new A2uiValidationError(
+      `${subject} names '${name}', which only the renderer may call (allowedCallers is ${allowedCallers}).`,
+    );
+  }
+  if (fn.requiresUserActivation) {
+    throw new A2uiValidationError(
+      `${subject} names '${name}', which requires a user activation, and a call from the agent has none.`,
+    );
+  }
+  checkArgs(catalog, name, call.args, subject);
+  checkNestedCalls(catalogs, catalog, call.args, subject);
+}
+
+/** Returns the catalog with the id, or throws if it isn't one of them. */
+function heldCatalog(catalogs: CatalogApi[], catalogId: unknown, subject: string): CatalogApi {
+  const catalog = catalogs.find(c => c.id === catalogId);
+  if (catalog) return catalog;
+  throw new A2uiValidationError(
+    `${subject} names catalog '${String(catalogId)}', which isn't one of the active catalogs: ${catalogs
+      .map(c => c.id)
+      .join(', ')}.`,
+  );
+}
+
+/** Checks a call's arguments against its function's schema in the catalog. */
+function checkArgs(catalog: CatalogApi, name: string, args: unknown, subject: string): void {
+  try {
+    new PayloadValidator(catalog as never, STRICT_VALIDATION).validateFunction(
+      name,
+      args as Record<string, unknown> | undefined,
+    );
+  } catch (e) {
+    if (!(e instanceof A2uiValidationError)) throw e;
+    throw new A2uiValidationError(
+      `${subject} does not match the arguments of '${name}': ${e.message}`,
+      e.details,
+    );
+  }
+}
+
+/**
+ * Checks the function calls nested in a `callRendererFunction`'s arguments.
+ *
+ * The renderer resolves each one as it resolves the arguments, as a renderer call: one that
+ * names a catalog runs in it, which must be one of the catalogs, and one that names none
+ * runs in `home`, the catalog of the `callRendererFunction`. The renderer can't run an
+ * `agentOnly` function there. A reserved `@` system function belongs to no catalog, so it
+ * must not name one.
+ *
+ * @throws {A2uiValidationError} If a nested call is one the renderer can't make.
+ */
+function checkNestedCalls(
+  catalogs: CatalogApi[],
+  home: CatalogApi,
+  value: unknown,
+  subject: string,
+): void {
+  if (Array.isArray(value)) {
+    for (const item of value) checkNestedCalls(catalogs, home, item, subject);
+    return;
+  }
+  if (!value || typeof value !== 'object') return;
+  const record = value as Message;
+  const name = record['@call'];
+  if (typeof name === 'string') {
+    const where = `${subject} holds a call to '${name}' that`;
+    if (name.startsWith('@')) {
+      if ('catalogId' in record) {
+        throw new A2uiValidationError(
+          `${where} names a catalogId, but system functions belong to no catalog.`,
+        );
+      }
+      try {
+        new PayloadValidator(home as never, STRICT_VALIDATION).validateFunction(
+          name,
+          record.args as Record<string, unknown> | undefined,
+        );
+      } catch (e) {
+        if (!(e instanceof A2uiValidationError)) throw e;
+        throw new A2uiValidationError(`${where} is invalid: ${e.message}`, e.details);
+      }
+    } else {
+      const catalog =
+        record.catalogId === undefined ? home : heldCatalog(catalogs, record.catalogId, where);
+      if (catalog.functions.get(name)?.allowedCallers === 'agentOnly') {
+        throw new A2uiValidationError(
+          `${where} the renderer can't make: Function '${name}' cannot be called by renderer (allowedCallers is agentOnly).`,
+        );
+      }
+      checkArgs(catalog, name, record.args, where);
+    }
+  }
+  for (const [key, item] of Object.entries(record)) {
+    if (key !== '@call') checkNestedCalls(catalogs, home, item, subject);
+  }
 }
 
 /** Normalizes a payload into a list of message objects, each a copy of the original. */

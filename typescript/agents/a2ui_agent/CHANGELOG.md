@@ -1,5 +1,6 @@
 ## Unreleased
 
+- (v1_0) `validatePayload` and `RendererState.apply` check each `callRendererFunction` against the catalogs instead of running it, and reject one the renderer would refuse: a surface that doesn't exist when the call arrives, a catalog that isn't active, a function the catalog doesn't declare, a `rendererOnly` function (the default) or one that requires user activation, arguments that don't match the function's schema, and a nested call to an `agentOnly` function. They also reject an `agentOnly` function bound into a component. A state made by `RendererState.of` still hands an accepted call to the renderer's processor ([#3534](https://github.com/a2ui-project/a2ui/issues/3534)).
 - `ExpressPromptGenerator` teaches `Event(name, context?, userMessage=...)` in rule 8 for v1.0+ catalogs, while keeping the two-argument `Event(name, context)` rule for pre-v1.0 catalogs ([#3690](https://github.com/a2ui-project/a2ui/issues/3690), [#3867](https://github.com/a2ui-project/a2ui/pull/3867)).
 
 ## 0.1.0

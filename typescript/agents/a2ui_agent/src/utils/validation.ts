@@ -48,6 +48,12 @@ class PayloadState extends RendererState {
  * of its components is still checked against a catalog that defines all of them, and the
  * surface passes if one such catalog accepts it.
  *
+ * A v1.0 `callRendererFunction` is checked against the catalogs, never run: its catalog must
+ * be active and declare the function, the agent must be allowed to call the function, and
+ * its arguments must match the function's schema. A surface it names must exist when it
+ * arrives, or be one the payload never named before, which an earlier payload may have
+ * created.
+ *
  * To check a payload against what earlier payloads sent, keep a `RendererState` and call
  * its `apply` and `checkTopology` inside `state.transaction(...)`, so that a rejected
  * response is rolled back whole.
