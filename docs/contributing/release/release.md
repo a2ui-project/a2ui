@@ -1,5 +1,9 @@
 # Release process
 
+> **Protocol version status** (current / release candidate / legacy) lives in
+> [`specification/versions.json`](../../../specification/versions.json). Update it when a spec version changes status;
+> the docs build renders it into `llms.txt`.
+
 ## How to publish packages
 
 Release cadence: every 1-2 weeks.
