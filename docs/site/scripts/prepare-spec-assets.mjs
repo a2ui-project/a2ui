@@ -41,13 +41,36 @@ fs.rmSync(path.join(siteRoot, '.astro'), {recursive: true, force: true});
 // 1. Ensure public/ exists
 fs.mkdirSync(publicDir, {recursive: true});
 
-// 2. Copy static assets from docs/public/assets, CNAME, and llms.txt
+// 2. Copy static assets from docs/public/assets and CNAME, and render llms.txt
 copyRecursive(path.join(repoRoot, 'docs/public/assets'), path.join(publicDir, 'assets'));
 if (fs.existsSync(path.join(repoRoot, 'docs/public/CNAME'))) {
   fs.copyFileSync(path.join(repoRoot, 'docs/public/CNAME'), path.join(publicDir, 'CNAME'));
 }
-if (fs.existsSync(path.join(repoRoot, 'docs/public/llms.txt'))) {
-  fs.copyFileSync(path.join(repoRoot, 'docs/public/llms.txt'), path.join(publicDir, 'llms.txt'));
+// Render llms.txt from docs/site/llms.txt, filling version info from specification/versions.json
+// (the single source of truth for protocol version status).
+{
+  const {versions} = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, 'specification/versions.json'), 'utf8'),
+  );
+  const placeholders = {
+    '{{A2UI_PROTOCOL_VERSIONS}}': versions.map(v => `${v.version} (${v.status})`).join(', '),
+    '{{A2UI_SPEC_LINKS}}': versions
+      .filter(v => v.status !== 'legacy')
+      .map(v => `- [Specification ${v.version} (${v.status})](${v.spec})`)
+      .join('\n'),
+  };
+  let llms = fs.readFileSync(path.join(siteRoot, 'llms.txt'), 'utf8');
+  for (const [placeholder, value] of Object.entries(placeholders)) {
+    if (!llms.includes(placeholder)) {
+      throw new Error(`[prepare-spec-assets] Missing ${placeholder} in llms.txt`);
+    }
+    llms = llms.replaceAll(placeholder, value);
+  }
+  const unresolved = llms.match(/\{\{[A-Z0-9_]+\}\}/g);
+  if (unresolved) {
+    throw new Error(`[prepare-spec-assets] Unresolved placeholders in llms.txt: ${unresolved}`);
+  }
+  fs.writeFileSync(path.join(publicDir, 'llms.txt'), llms);
 }
 fs.writeFileSync(path.join(publicDir, '.nojekyll'), '');
 
@@ -56,7 +79,7 @@ const specDest = path.join(publicDir, 'specification');
 fs.mkdirSync(specDest, {recursive: true});
 copyRecursive(path.join(repoRoot, 'specification'), specDest);
 
-// Copy basic & mcp catalogs under specification/v1_0/catalogs/
+// Copy v1.0 basic, mcp, and vegachart catalogs under specification/v1_0/catalogs/
 const basicCatalogDest = path.join(specDest, 'v1_0/catalogs/basic');
 fs.mkdirSync(basicCatalogDest, {recursive: true});
 copyRecursive(
@@ -68,16 +91,46 @@ copyRecursive(
   path.join(basicCatalogDest, 'examples'),
 );
 
-const mcpCatalogDest = path.join(specDest, 'v1_0/catalogs/mcp');
-fs.mkdirSync(mcpCatalogDest, {recursive: true});
+const mcpCatalogV1Dest = path.join(specDest, 'v1_0/catalogs/mcp');
+fs.mkdirSync(mcpCatalogV1Dest, {recursive: true});
 copyRecursive(
   path.join(repoRoot, 'catalogs/mcp/v1/catalog.json'),
-  path.join(mcpCatalogDest, 'catalog.json'),
+  path.join(mcpCatalogV1Dest, 'catalog.json'),
 );
 copyRecursive(
   path.join(repoRoot, 'catalogs/mcp/v1/examples'),
-  path.join(mcpCatalogDest, 'examples'),
+  path.join(mcpCatalogV1Dest, 'examples'),
 );
+
+const vegaCatalogV1Src = path.join(repoRoot, 'catalogs/vegachart/v1/catalog.json');
+if (fs.existsSync(vegaCatalogV1Src)) {
+  const vegaCatalogV1Dest = path.join(specDest, 'v1_0/catalogs/vegachart');
+  fs.mkdirSync(vegaCatalogV1Dest, {recursive: true});
+  copyRecursive(vegaCatalogV1Src, path.join(vegaCatalogV1Dest, 'catalog.json'), {required: false});
+}
+
+// Copy v0.9 / v0.9.1 mcp and vegachart catalogs so $id URIs resolve cleanly
+for (const verDir of ['v0_9', 'v0_9_1']) {
+  const mcpCatalogV09Dest = path.join(specDest, `${verDir}/catalogs/mcp`);
+  fs.mkdirSync(mcpCatalogV09Dest, {recursive: true});
+  copyRecursive(
+    path.join(repoRoot, 'catalogs/mcp/catalog.json'),
+    path.join(mcpCatalogV09Dest, 'mcp_catalog.json'),
+  );
+  copyRecursive(
+    path.join(repoRoot, 'catalogs/mcp/catalog.json'),
+    path.join(mcpCatalogV09Dest, 'catalog.json'),
+  );
+
+  const vegaCatalogV09Src = path.join(repoRoot, 'catalogs/vegachart/v0_9/catalog.json');
+  if (fs.existsSync(vegaCatalogV09Src)) {
+    const vegaCatalogV09Dest = path.join(specDest, `${verDir}/catalogs/vegachart`);
+    fs.mkdirSync(vegaCatalogV09Dest, {recursive: true});
+    copyRecursive(vegaCatalogV09Src, path.join(vegaCatalogV09Dest, 'catalog.json'), {
+      required: false,
+    });
+  }
+}
 
 // Flatten JSON files to version roots (e.g. v0_8, v0_9, v0_9_1, v1_0, v1_1)
 const specVersions = fs.existsSync(specDest)

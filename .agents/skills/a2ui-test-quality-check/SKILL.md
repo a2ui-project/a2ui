@@ -1,6 +1,8 @@
 ---
 name: a2ui-test-quality-check
 description: Auditing test suites for assertion utility, boundary cases coverage, and verification strength.
+metadata:
+  internal: true
 ---
 
 # A2UI Test Quality & Assertions Auditing Skill
