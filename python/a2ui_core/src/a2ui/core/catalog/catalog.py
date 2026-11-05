@@ -1169,19 +1169,39 @@ def _agent_function_args_schema(fn: AgentFunction) -> Any:
     return schema
 
 
+def _follow_defs_pointer(defs: Mapping[str, Any], ref: str) -> Any:
+    """The node a local `#/$defs/...` reference names, followed as a JSON Pointer."""
+    node: Any = defs
+    for token in ref[len("#/$defs/") :].split("/"):
+        key = token.replace("~1", "/").replace("~0", "~")
+        if isinstance(node, Mapping):
+            node = node.get(key)
+        elif isinstance(node, list) and key.isdigit() and int(key) < len(node):
+            node = node[int(key)]
+        else:
+            return None
+    return node
+
+
 def _parameter_names(
-    schema: Any, catalog_defs: Mapping[str, Any] | None = None
+    schema: Any,
+    catalog_defs: Mapping[str, Any] | None = None,
+    outer_defs: Mapping[str, Any] | None = None,
 ) -> list[str]:
-    """Extracts declared parameter names from a function argument schema."""
+    """Extracts declared parameter names from a function argument schema.
+
+    A local `#/$defs/...` reference is followed as a JSON Pointer into the
+    schema's own `$defs`, then `outer_defs` (those of the whole function
+    definition), then the catalog's `catalog_defs`.
+    """
     if not isinstance(schema, dict):
         return []
     names: list[str] = []
     local_defs = schema.get("$defs")
     defs: dict[str, Any] = {}
-    if isinstance(catalog_defs, Mapping):
-        defs.update(catalog_defs)
-    if isinstance(local_defs, Mapping):
-        defs.update(local_defs)
+    for source in (catalog_defs, outer_defs, local_defs):
+        if isinstance(source, Mapping):
+            defs.update(source)
     visited: set[str] = set()
 
     def _extract_properties(node: Any) -> None:
@@ -1190,13 +1210,7 @@ def _parameter_names(
         ref = node.get("$ref")
         if isinstance(ref, str) and ref.startswith("#/$defs/") and ref not in visited:
             visited.add(ref)
-            def_name = (
-                ref[len("#/$defs/") :]
-                .split("/")[0]
-                .replace("~1", "/")
-                .replace("~0", "~")
-            )
-            target = defs.get(def_name)
+            target = _follow_defs_pointer(defs, ref)
             if isinstance(target, dict):
                 _extract_properties(target)
         props = node.get("properties")
@@ -1415,8 +1429,11 @@ class Catalog(Generic[TComponent, TFunction]):
                     f"Invalid UAX #31 function identifier: '{fn.name}'"
                 )
             if validate_identifiers and isinstance(fn, AgentFunction):
+                outer_defs = (
+                    fn.schema.get("$defs") if isinstance(fn.schema, dict) else None
+                )
                 for arg_name in _parameter_names(
-                    _agent_function_args_schema(fn), self.defs
+                    _agent_function_args_schema(fn), self.defs, outer_defs
                 ):
                     if not is_valid_uax31_identifier(arg_name):
                         raise A2uiCatalogError(

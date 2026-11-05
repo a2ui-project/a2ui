@@ -499,6 +499,66 @@ class TestCatalogAgentFunctions:
                 functions=[fn],
             )
 
+    def test_follows_a_deep_defs_pointer_to_the_node_it_names(self):
+        fn = AgentFunction(
+            "pay",
+            handler=_handler,
+            schema={
+                "$defs": {
+                    "Bundle": {
+                        "properties": {"bad-outer": {"type": "string"}},
+                        "allOf": [{
+                            "type": "object",
+                            "properties": {"bad-amount": {"type": "number"}},
+                        }],
+                    }
+                },
+                "$ref": "#/$defs/Bundle/allOf/0",
+            },
+        )
+
+        with pytest.raises(A2uiCatalogError, match="bad-amount"):
+            Catalog("c", "1.0", functions=[fn])
+
+    def test_a_deep_defs_pointer_does_not_reach_sibling_properties(self):
+        fn = AgentFunction(
+            "pay",
+            handler=_handler,
+            schema={
+                "$defs": {
+                    "Bundle": {
+                        "properties": {"bad-outer": {"type": "string"}},
+                        "allOf": [{"type": "object", "properties": {"amount": {}}}],
+                    }
+                },
+                "$ref": "#/$defs/Bundle/allOf/0",
+            },
+        )
+
+        assert list(Catalog("c", "1.0", functions=[fn]).agent_functions) == ["pay"]
+
+    def test_follows_the_defs_of_a_whole_function_definition(self):
+        fn = AgentFunction(
+            "pay",
+            handler=_handler,
+            schema={
+                "type": "object",
+                "$defs": {
+                    "Payment": {
+                        "type": "object",
+                        "properties": {"bad-amount": {"type": "number"}},
+                    }
+                },
+                "properties": {
+                    "@call": {"const": "pay"},
+                    "args": {"$ref": "#/$defs/Payment"},
+                },
+            },
+        )
+
+        with pytest.raises(A2uiCatalogError, match="bad-amount"):
+            Catalog("c", "1.0", functions=[fn])
+
     def test_parameter_names_are_not_checked_before_v1_0(self):
         fn = FunctionApi(
             "fetchRate",
