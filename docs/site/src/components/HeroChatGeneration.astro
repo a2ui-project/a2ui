@@ -56,23 +56,9 @@
     <!-- =================================================================
          RIGHT: STICKY STAGE — THE SAME ASSIST SCREEN
          ================================================================= -->
+    <!-- The phone, on its own -->
     <div class="ic-stage">
-      <div class="ic-stage__bar">
-        <span class="ic-stage__tag">✦ MARIGOLD MARKET · ASSIST SCREEN</span>
-        <div class="ic-lens" role="group" aria-label="Switch between the rendered screen and the wire payload">
-          <button type="button" class="ic-lens__btn is-active" data-ic-lens="screen">SCREEN</button>
-          <button type="button" class="ic-lens__btn" data-ic-lens="wire">WIRE JSON</button>
-        </div>
-      </div>
-
-      <!-- Rendered screen -->
-      <div class="ic-lens-view is-active" data-ic-view="screen">
-        <div class="ic-callout ic-callout--zone" aria-hidden="true">
-          <span class="ic-callout__t">A2UI SURFACE</span>
-          <span class="ic-callout__s">Composed from intent <b id="ic-zone-who">01</b></span>
-        </div>
-
-        <div class="ic-device">
+        <div class="ic-device" inert aria-hidden="true">
           <div class="ic-device__status" aria-hidden="true">
             <span>9:41</span>
             <span class="ic-device__sig"><i></i><i></i><i></i></span>
@@ -100,48 +86,33 @@
             <div class="ic-zone__skel" aria-hidden="true">
               <span class="ic-zone__skel-lbl">COMPOSING FROM INTENT…</span>
               <i style="width: 58%"></i>
-              <i style="width: 100%; height: 104px"></i>
-              <i style="width: 88%"></i>
-              <i style="width: 76%"></i>
+              <i style="width: 100%; height: 72px"></i>
+              <i style="width: 100%; height: 40px"></i>
             </div>
 
-            <!-- 01 · PLAN: recipe + ingredient grid + budget meter -->
+            <!-- 01 · PLAN: one recipe, one action -->
             <div class="ic-screen is-active" data-ic-screen="dinner">
               <header class="ic-greet">
                 <strong>Tonight · 4 servings</strong>
-                <span>1 vegetarian · under $40 · 5:30pm slot open</span>
+                <span>Vegetarian · under $40 · 5:30pm slot open</span>
               </header>
 
               <div class="ic-recipe">
                 <span class="ic-lbl">PICKED FOR YOU</span>
                 <strong>Sheet-pan gnocchi &amp; peppers</strong>
-                <span class="ic-recipe__meta">32 min · vegetarian ✓ · uses your pantry basil</span>
+                <span class="ic-recipe__meta">32 min · 5 items · $24.92</span>
               </div>
 
-              <div class="ic-grid" id="ic-dn-grid" role="group" aria-label="Ingredients">
-                <button type="button" class="ic-gtile" data-price="7.98"><b>Gnocchi ×2</b><span>$7.98</span></button>
-                <button type="button" class="ic-gtile" data-price="4.47"><b>Peppers ×3</b><span>$4.47</span></button>
-                <button type="button" class="ic-gtile" data-price="4.99"><b>Feta</b><span>$4.99</span></button>
-                <button type="button" class="ic-gtile" data-price="3.99"><b>Cherry toms</b><span>$3.99</span></button>
-                <button type="button" class="ic-gtile" data-price="3.49"><b>Ciabatta</b><span>$3.49</span></button>
-                <button type="button" class="ic-gtile is-pantry" data-price="0" disabled><b>Basil · oil</b><span>IN PANTRY</span></button>
-              </div>
-
-              <div class="ic-meter">
-                <div class="ic-meter__track"><i id="ic-dn-fill" style="width: 62%"></i></div>
-                <div class="ic-meter__lbl"><span id="ic-dn-total">$24.92</span><span>BUDGET $40</span></div>
-              </div>
-
-              <button type="button" class="ic-cta" id="ic-dn-cta" data-ic-cta data-done="✓ Added · arrives 5:30pm">
+              <button type="button" class="ic-cta" data-ic-cta data-done="✓ Added · arrives 5:30pm">
                 <span>Add 5 items · $24.92</span><span aria-hidden="true">→</span>
               </button>
             </div>
 
-            <!-- 02 · EXPLAIN: comparison bars + delta ledger + toggle -->
+            <!-- 02 · EXPLAIN: the comparison, one action -->
             <div class="ic-screen" data-ic-screen="bill">
               <header class="ic-greet">
                 <strong>Last week vs. usual</strong>
-                <span>Order #7702 · $109.40 · usual week ≈ $86</span>
+                <span>Salmon was up 18% · raspberries out of season</span>
               </header>
 
               <div class="ic-bars2" aria-hidden="true">
@@ -149,72 +120,39 @@
                 <div class="is-hi"><span>LAST WK</span><div class="ic-bars2__track"><i style="width: 100%"></i></div><b>$109</b></div>
               </div>
 
-              <div class="ic-deltas">
-                <div><span><strong>Salmon ×2</strong><em>price up 18%</em></span><b>+$14.00</b></div>
-                <div><span><strong>1-hour window</strong><em>instead of 2-hour</em></span><b>+$5.00</b></div>
-                <div><span><strong>Raspberries</strong><em>out of season</em></span><b>+$4.40</b></div>
-              </div>
-
-              <button type="button" class="ic-toggle-row is-on" id="ic-bl-toggle" aria-pressed="true">
-                <span><strong>Swap to frozen salmon next week</strong><em id="ic-bl-save">Saves about $9</em></span>
-                <i></i>
-              </button>
-
               <button type="button" class="ic-cta" data-ic-cta data-done="✓ Weekly cap set · $90">
                 <span>Set a $90 weekly cap</span><span aria-hidden="true">→</span>
               </button>
             </div>
 
-            <!-- 03 · HOST: timeline + checklist -->
+            <!-- 03 · HOST: a short checklist, one action -->
             <div class="ic-screen" data-ic-screen="party">
               <header class="ic-greet">
                 <strong>Saturday · 12 kids</strong>
-                <span>12 RSVPs · 2 nut allergies flagged from your list</span>
+                <span>2 nut allergies flagged from your list</span>
               </header>
-
-              <div class="ic-tl3" aria-hidden="true">
-                <span class="is-done"><i></i><b>FRI</b><em>Order</em></span>
-                <span class="is-live"><i></i><b>SAT 10AM</b><em>Delivery</em></span>
-                <span><i></i><b>SAT 2PM</b><em>Party</em></span>
-              </div>
 
               <div class="ic-checklist" id="ic-pt-list" role="group" aria-label="Party checklist">
                 <button type="button" class="ic-ck is-done"><i></i><span>Cake · ordered Tuesday</span></button>
-                <button type="button" class="ic-ck is-done"><i></i><span>Juice boxes ×24</span></button>
                 <button type="button" class="ic-ck"><i></i><span>Nut-free snacks ×2 <b>ALLERGY</b></span></button>
-                <button type="button" class="ic-ck"><i></i><span>Plates, cups, napkins</span></button>
                 <button type="button" class="ic-ck"><i></i><span>Ice · pick up Sat 1pm</span></button>
               </div>
 
               <button type="button" class="ic-cta" id="ic-pt-cta" data-ic-cta data-done="✓ Added · Sat 10am delivery">
-                <span>Add the 3 missing · Sat 10am</span><span aria-hidden="true">→</span>
+                <span>Add the 2 missing · Sat 10am</span><span aria-hidden="true">→</span>
               </button>
             </div>
 
-            <!-- 04 · FIX: item + stepper + two choices -->
+            <!-- 04 · FIX: refund or replace, one action -->
             <div class="ic-screen" data-ic-screen="eggs">
               <header class="ic-greet">
-                <strong>Order #7731 · this morning</strong>
-                <span>Delivered 8:12am · 14 items · no photo needed</span>
+                <strong>Organic eggs · 6 of 12 cracked</strong>
+                <span>Order #7731 · delivered 8:12am</span>
               </header>
 
-              <div class="ic-item">
-                <div class="ic-item__row"><strong>Organic eggs · dozen</strong><b>$6.49</b></div>
-                <div class="ic-stepper">
-                  <span>HOW MANY CRACKED?</span>
-                  <div><button type="button" id="ic-eg-minus" aria-label="Fewer">−</button><strong id="ic-eg-n">6</strong><button type="button" id="ic-eg-plus" aria-label="More">+</button><em>of 12</em></div>
-                </div>
-              </div>
-
               <div class="ic-choice2" role="group" aria-label="Resolution">
-                <button type="button" class="ic-choice is-on" data-eg-choice="refund"><span>REFUND</span><strong id="ic-eg-refund">$3.25</strong><em>back on card today</em></button>
+                <button type="button" class="ic-choice is-on" data-eg-choice="refund"><span>REFUND</span><strong>$3.25</strong><em>back on card today</em></button>
                 <button type="button" class="ic-choice" data-eg-choice="replace"><span>REPLACE</span><strong>Tomorrow</strong><em>7–9am · free</em></button>
-              </div>
-
-              <div class="ic-trust" aria-hidden="true">
-                <div><b>0</b><span>PRIOR CLAIMS</span></div>
-                <div><b>13</b><span>ITEMS FINE</span></div>
-                <div><b>Instant</b><span>NO REVIEW</span></div>
               </div>
 
               <button type="button" class="ic-cta" id="ic-eg-cta" data-ic-cta data-done="✓ Done · sorry about that">
@@ -240,29 +178,6 @@
             <span><i class="ic-tab-ico ic-tab-ico--you"></i>You</span>
           </nav>
         </div>
-
-        <div class="ic-brace" aria-hidden="true">
-          <span class="ic-brace__t">YOUR APP SHELL</span>
-          <span class="ic-brace__s">Header, composer, tabs — same for everyone</span>
-        </div>
-      </div>
-
-      <!-- The declarative stream behind it -->
-      <div class="ic-lens-view" data-ic-view="wire">
-        <pre class="ic-wire" id="ic-wire"><code>&#123; "createSurface": &#123; "surfaceId": "assist_zone", "catalogId": "marigold.v1" &#125; &#125;
-&#123; "updateDataModel": &#123; "path": "/",
-    "value": &#123; "servings": 4, "diet": ["vegetarian"], "budget": 40, "pantry": ["basil", "olive oil"] &#125; &#125; &#125;
-&#123; "updateComponents": &#123; "surfaceId": "assist_zone", "components": [
-    &#123; "id": "pick", "component": "RecipeCard",
-      "title": "Sheet-pan gnocchi &amp; peppers", "minutes": 32 &#125;,
-    &#123; "id": "basket", "component": "IngredientGrid",
-      "items": &#123; "path": "/basket" &#125;, "skipPantry": true &#125;,
-    &#123; "id": "meter", "component": "BudgetMeter",
-      "value": &#123; "path": "/total" &#125;, "cap": &#123; "path": "/budget" &#125; &#125;,
-    &#123; "id": "cta", "component": "Button",
-      "label": "Add 5 items", "action": "addToBasket" &#125;
-] &#125; &#125;</code></pre>
-      </div>
     </div>
   </div>
 
@@ -368,127 +283,30 @@
       dinner: {
         idx: '01',
         quote: 'Dinner for four tonight, one vegetarian, under $40.',
-        wire: `{ "createSurface": { "surfaceId": "assist_zone", "catalogId": "marigold.v1" } }
-{ "updateDataModel": { "path": "/",
-    "value": { "servings": 4, "diet": ["vegetarian"], "budget": 40, "pantry": ["basil", "olive oil"] } } }
-{ "updateComponents": { "surfaceId": "assist_zone", "components": [
-    { "id": "pick", "component": "RecipeCard",
-      "title": "Sheet-pan gnocchi & peppers", "minutes": 32 },
-    { "id": "basket", "component": "IngredientGrid",
-      "items": { "path": "/basket" }, "skipPantry": true },
-    { "id": "meter", "component": "BudgetMeter",
-      "value": { "path": "/total" }, "cap": { "path": "/budget" } },
-    { "id": "cta", "component": "Button",
-      "label": "Add 5 items", "action": "addToBasket" }
-] } }`,
       },
       bill: {
         idx: '02',
         quote: 'Why was last week’s order $23 more than usual?',
-        wire: `{ "createSurface": { "surfaceId": "assist_zone", "catalogId": "marigold.v1" } }
-{ "updateDataModel": { "path": "/",
-    "value": { "usual": 86.00, "last": 109.40, "drivers": 3, "swapFrozen": true } } }
-{ "updateComponents": { "surfaceId": "assist_zone", "components": [
-    { "id": "cmp", "component": "CompareBars",
-      "a": { "path": "/usual" }, "b": { "path": "/last" } },
-    { "id": "why", "component": "DeltaList", "items": { "path": "/deltas" } },
-    { "id": "swap", "component": "Toggle",
-      "label": "Swap to frozen salmon next week", "value": { "path": "/swapFrozen" } },
-    { "id": "cta", "component": "Button",
-      "label": "Set a $90 weekly cap", "action": "setCap" }
-] } }`,
       },
       party: {
         idx: '03',
         quote: 'Hosting twelve kids Saturday afternoon — help me not forget anything.',
-        wire: `{ "createSurface": { "surfaceId": "assist_zone", "catalogId": "marigold.v1" } }
-{ "updateDataModel": { "path": "/",
-    "value": { "guests": 12, "allergies": ["nuts"], "cake": "ordered", "slot": "sat-10" } } }
-{ "updateComponents": { "surfaceId": "assist_zone", "components": [
-    { "id": "when", "component": "Timeline",
-      "stops": ["Fri order", "Sat 10am delivery", "Sat 2pm party"], "active": 1 },
-    { "id": "todo", "component": "Checklist",
-      "items": { "path": "/checklist" }, "flag": { "path": "/allergies" } },
-    { "id": "cta", "component": "Button",
-      "label": "Add the 3 missing", "action": "addMissing" }
-] } }`,
       },
       eggs: {
         idx: '04',
         quote: 'Half the eggs arrived cracked.',
-        wire: `{ "createSurface": { "surfaceId": "assist_zone", "catalogId": "marigold.v1" } }
-{ "updateDataModel": { "path": "/",
-    "value": { "order": 7731, "item": "Organic eggs", "unitPrice": 6.49, "cracked": 6 } } }
-{ "updateComponents": { "surfaceId": "assist_zone", "components": [
-    { "id": "item", "component": "ItemRow", "name": { "path": "/item" }, "price": { "path": "/unitPrice" } },
-    { "id": "qty", "component": "Stepper",
-      "label": "How many cracked?", "max": 12, "value": { "path": "/cracked" } },
-    { "id": "pick", "component": "ChoiceCards",
-      "options": ["refund", "replace"], "value": { "path": "/resolution" } },
-    { "id": "cta", "component": "Button",
-      "label": "Refund now", "action": "resolve" }
-] } }`,
       },
     };
 
     const steps = root.querySelectorAll('[data-ic]');
     const screens = root.querySelectorAll('[data-ic-screen]');
     const zone = root.querySelector('.ic-zone');
-    const zoneWho = document.getElementById('ic-zone-who');
     const composer = document.getElementById('ic-composer');
     const composerText = document.getElementById('ic-composer-text');
     const sentBubble = document.getElementById('ic-sent');
     const sentText = document.getElementById('ic-sent-text');
-    const wireEl = document.getElementById('ic-wire');
     const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const narrow = window.matchMedia ? window.matchMedia('(max-width: 920px)') : { matches: false };
-
-    /* --- Live wire from the active step into the phone's composer --- */
-    const split = root.querySelector('.ic-split');
-    const wireSvg = document.getElementById('ic-wire-svg');
-    const wirePath = document.getElementById('ic-wire-path');
-    const wireA = document.getElementById('ic-wire-a');
-    const wireB = document.getElementById('ic-wire-b');
-    let wireAllowed = true;
-    let wireRaf = 0;
-
-    const drawWire = () => {
-      wireRaf = 0;
-      if (!wireSvg || !split || !wirePath) return;
-      const row = root.querySelector('.ic-step.is-active .ic-step__q');
-      if (!wireAllowed || !row || !composer || window.innerWidth < 920) {
-        wireSvg.style.display = 'none';
-        return;
-      }
-      const sb = split.getBoundingClientRect();
-      const rb = row.getBoundingClientRect();
-      const tb = composer.getBoundingClientRect();
-      if (!sb.width || !tb.width) {
-        wireSvg.style.display = 'none';
-        return;
-      }
-      wireSvg.setAttribute('viewBox', `0 0 ${sb.width} ${sb.height}`);
-      wireSvg.style.width = `${sb.width}px`;
-      wireSvg.style.height = `${sb.height}px`;
-      const x1 = rb.right - sb.left + 10;
-      const y1 = rb.top + rb.height / 2 - sb.top;
-      const x2 = tb.left - sb.left + 2;
-      const y2 = tb.top + tb.height / 2 - sb.top;
-      const dx = Math.max(48, (x2 - x1) * 0.55);
-      wirePath.setAttribute('d', `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`);
-      if (wireA) { wireA.setAttribute('cx', String(x1)); wireA.setAttribute('cy', String(y1)); }
-      if (wireB) { wireB.setAttribute('cx', String(x2)); wireB.setAttribute('cy', String(y2)); }
-      wireSvg.style.display = 'block';
-    };
-
-    const scheduleWire = () => {
-      if (wireRaf) return;
-      wireRaf = requestAnimationFrame(drawWire);
-    };
-    window.addEventListener('resize', scheduleWire);
-    window.addEventListener('scroll', scheduleWire, { passive: true });
-    if ('ResizeObserver' in window && split) new ResizeObserver(scheduleWire).observe(split);
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(scheduleWire);
 
     /* --- Intent -> typed into the composer -> surface composes -> renders --- */
     let timers = [];
@@ -554,9 +372,6 @@
         s.classList.toggle('is-active', on);
         s.setAttribute('aria-pressed', on ? 'true' : 'false');
       });
-      if (zoneWho) zoneWho.textContent = d.idx;
-      if (wireEl) wireEl.textContent = d.wire;
-      scheduleWire();
 
       if (!animate) {
         if (sentText) sentText.textContent = d.quote;
@@ -570,184 +385,115 @@
       });
     };
 
-    /* Scrolling sends each intent. Wide: a step activates when it crosses the middle band of the
-       viewport (steps beside a sticky phone). Narrow: the phone is pinned under the header and the
-       steps scroll beneath it, so the band is the strip of viewport below the pinned phone. */
-    const stage = root.querySelector('.ic-stage');
-    const device = root.querySelector('.ic-device');
-    const HEADER = 64;
-    let io = null;
-    let bandTop = 0;      // px from viewport top where the activation band starts (narrow)
-    let bandBottom = 0;   // px from viewport top where it ends
+    /* --- Autoplay: the four intents take turns on the same screen; click or swipe to pick one --- */
+    const order = Array.from(steps).map((st) => st.getAttribute('data-ic') || 'dinner');
+    const strip = document.getElementById('ic-steps');
+    const HOLD = 5100;            // ms per intent: typing + composing + reading time
+    let holdTimer = 0;
+    let inView = true;
+    root.style.setProperty('--ic-hold', `${HOLD}ms`);
 
-    const fitNarrowStage = () => {
-      if (!stage || !device) return;
-      if (!narrow.matches) {
-        stage.style.removeProperty('--ic-s');
-        return;
-      }
-      // natural (unscaled) device height, measured once
-      if (!device.dataset.h) {
-        stage.style.setProperty('--ic-s', '1');
-        device.dataset.h = String(Math.round(device.getBoundingClientRect().height) || 620);
-      }
-      const natural = Number(device.dataset.h);
-      // keep ~260px of viewport for the step passing underneath (32 = stage padding)
-      const room = window.innerHeight - HEADER - 260 - 32;
-      const s = Math.max(0.6, Math.min(0.86, room / natural));
-      stage.style.setProperty('--ic-s', s.toFixed(3));
-      stage.style.setProperty('--ic-dh', `${natural}px`);
+    const stripScrollTo = (st, smooth) => {
+      if (!strip || !narrow.matches) return;
+      const left = st.offsetLeft - (strip.clientWidth - st.offsetWidth) / 2;
+      strip.scrollTo({ left: Math.max(0, left), behavior: smooth && !reduceMotion ? 'smooth' : 'auto' });
     };
 
-    const observeSteps = () => {
-      if (!('IntersectionObserver' in window)) return;
-      if (io) io.disconnect();
-      let margin = '-42% 0px -42% 0px';
-      if (narrow.matches && stage) {
-        const vh = window.innerHeight;
-        const stageBottom = HEADER + stage.getBoundingClientRect().height;
-        bandTop = stageBottom;
-        bandBottom = vh - 24;
-        const topPct = Math.min(80, Math.max(0, (bandTop / vh) * 100));
-        const botPct = Math.max(0, 100 - (bandBottom / vh) * 100);
-        // activate when a step's quote line enters the strip below the pinned phone
-        margin = `-${topPct.toFixed(1)}% 0px -${botPct.toFixed(1)}% 0px`;
-      }
-      io = new IntersectionObserver(
-        (entries) => {
-          entries.forEach((e) => {
-            if (e.isIntersecting) setIntent(e.target.getAttribute('data-ic') || 'dinner', true);
-          });
-        },
-        { rootMargin: margin, threshold: narrow.matches ? 0.35 : 0 }
-      );
-      steps.forEach((st) => io.observe(st));
+    const restartBar = () => {
+      const live = root.querySelector('.ic-step.is-active .ic-step__bar');
+      if (!live) return;
+      live.style.animation = 'none';
+      void live.offsetWidth;
+      live.style.removeProperty('animation');
     };
 
-    const applyMode = () => {
-      fitNarrowStage();
-      // the stage height depends on --ic-s, so measure on the next frame
-      requestAnimationFrame(observeSteps);
+    const armNext = () => {
+      clearTimeout(holdTimer);
+      if (reduceMotion || !inView || document.hidden) return;
+      holdTimer = setTimeout(() => {
+        const i = order.indexOf(current);
+        go(order[(i + 1) % order.length], true);
+      }, HOLD);
     };
-    applyMode();
-    let modeRaf = 0;
-    window.addEventListener('resize', () => {
-      if (modeRaf) return;
-      modeRaf = requestAnimationFrame(() => { modeRaf = 0; applyMode(); });
-    });
-    if (narrow.addEventListener) narrow.addEventListener('change', applyMode);
 
+    const go = (key, animate) => {
+      setIntent(key, animate);
+      const st = root.querySelector(`.ic-step[data-ic="${key}"]`);
+      if (st) stripScrollTo(st, true);
+      restartBar();
+      armNext();
+    };
+
+    // click (desktop list / narrow cards) selects and restarts the clock
     steps.forEach((st) => {
       st.addEventListener('click', () => {
         const key = st.getAttribute('data-ic') || 'dinner';
-        setIntent(key, true);
-        if (narrow.matches && bandBottom > bandTop) {
-          // centre the step in the strip under the pinned phone
-          const r = st.getBoundingClientRect();
-          const target = window.scrollY + r.top + r.height / 2 - (bandTop + bandBottom) / 2;
-          window.scrollTo({ top: target, behavior: reduceMotion ? 'auto' : 'smooth' });
-        } else {
-          st.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
-        }
+        if (key === current) return;
+        go(key, true);
       });
     });
-    scheduleWire();
 
-    /* --- In-surface interactions (bound locally, no round trips) --- */
-    const money = (n) => `$${n.toFixed(2)}`;
-
-    // 01 · basket tiles + budget meter
-    const dnTiles = root.querySelectorAll('.ic-gtile:not(.is-pantry)');
-    const dnFill = document.getElementById('ic-dn-fill');
-    const dnTotal = document.getElementById('ic-dn-total');
-    const dnCta = document.getElementById('ic-dn-cta');
-    const syncDinner = () => {
-      let total = 0; let count = 0;
-      dnTiles.forEach((t) => {
-        if (t.classList.contains('is-off')) return;
-        total += Number(t.getAttribute('data-price') || 0);
-        count += 1;
-      });
-      if (dnFill) dnFill.style.width = `${Math.min(100, (total / 40) * 100)}%`;
-      if (dnTotal) dnTotal.textContent = money(total);
-      if (dnCta && !dnCta.classList.contains('is-done')) {
-        dnCta.innerHTML = `<span>Add ${count} item${count === 1 ? '' : 's'} · ${money(total)}</span><span aria-hidden="true">→</span>`;
-      }
-    };
-    dnTiles.forEach((t) => t.addEventListener('click', () => { t.classList.toggle('is-off'); if (dnCta) dnCta.classList.remove('is-done'); syncDinner(); }));
-
-    // 02 · frozen-salmon toggle
-    const blToggle = document.getElementById('ic-bl-toggle');
-    const blSave = document.getElementById('ic-bl-save');
-    if (blToggle) {
-      blToggle.addEventListener('click', () => {
-        const on = blToggle.classList.toggle('is-on');
-        blToggle.setAttribute('aria-pressed', on ? 'true' : 'false');
-        if (blSave) blSave.textContent = on ? 'Saves about $9' : 'Keep fresh · no change';
-      });
+    // narrow: a manual swipe selects whichever card snaps to the centre
+    if (strip) {
+      let scrollEndTimer = 0;
+      let programmatic = false;
+      const onSettle = () => {
+        if (!narrow.matches) return;
+        const mid = strip.scrollLeft + strip.clientWidth / 2;
+        let best = null;
+        let bestDist = Infinity;
+        steps.forEach((st) => {
+          const c = st.offsetLeft + st.offsetWidth / 2;
+          const dist = Math.abs(c - mid);
+          if (dist < bestDist) { bestDist = dist; best = st; }
+        });
+        if (!best) return;
+        const key = best.getAttribute('data-ic') || 'dinner';
+        if (key !== current) go(key, true);
+      };
+      strip.addEventListener('scroll', () => {
+        clearTimeout(scrollEndTimer);
+        scrollEndTimer = setTimeout(onSettle, 140);
+      }, { passive: true });
     }
 
-    // 03 · checklist
-    const ptItems = root.querySelectorAll('.ic-ck');
-    const ptCta = document.getElementById('ic-pt-cta');
-    const syncParty = () => {
-      const missing = Array.from(ptItems).filter((i) => !i.classList.contains('is-done')).length;
-      if (!ptCta || ptCta.classList.contains('is-done')) return;
-      ptCta.innerHTML = missing
-        ? `<span>Add the ${missing} missing · Sat 10am</span><span aria-hidden="true">→</span>`
-        : '<span>Everything’s covered · nothing to add</span>';
-    };
-    ptItems.forEach((i) => i.addEventListener('click', () => { i.classList.toggle('is-done'); if (ptCta) ptCta.classList.remove('is-done'); syncParty(); }));
-
-    // 04 · cracked-egg stepper + refund/replace choice
-    let eggs = 6; let egChoice = 'refund';
-    const egN = document.getElementById('ic-eg-n');
-    const egRefund = document.getElementById('ic-eg-refund');
-    const egCta = document.getElementById('ic-eg-cta');
-    const syncEggs = () => {
-      const refund = (6.49 / 12) * eggs;
-      if (egN) egN.textContent = String(eggs);
-      if (egRefund) egRefund.textContent = money(refund);
-      if (egCta && !egCta.classList.contains('is-done')) {
-        egCta.innerHTML = egChoice === 'refund'
-          ? `<span>Refund ${money(refund)} now</span><span aria-hidden="true">→</span>`
-          : `<span>Replace ${eggs} eggs · tomorrow 7–9am</span><span aria-hidden="true">→</span>`;
-      }
-    };
-    const egMinus = document.getElementById('ic-eg-minus');
-    const egPlus = document.getElementById('ic-eg-plus');
-    if (egMinus) egMinus.addEventListener('click', () => { eggs = Math.max(1, eggs - 1); if (egCta) egCta.classList.remove('is-done'); syncEggs(); });
-    if (egPlus) egPlus.addEventListener('click', () => { eggs = Math.min(12, eggs + 1); if (egCta) egCta.classList.remove('is-done'); syncEggs(); });
-    root.querySelectorAll('[data-eg-choice]').forEach((b) => {
-      b.addEventListener('click', () => {
-        egChoice = b.getAttribute('data-eg-choice') || 'refund';
-        root.querySelectorAll('[data-eg-choice]').forEach((x) => x.classList.toggle('is-on', x === b));
-        if (egCta) egCta.classList.remove('is-done');
-        syncEggs();
-      });
+    // only run while the section is on screen and the tab is visible
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver((entries) => {
+        entries.forEach((e) => {
+          const was = inView;
+          inView = e.isIntersecting;
+          if (inView && !was) { restartBar(); armNext(); }
+          if (!inView) clearTimeout(holdTimer);
+        });
+      }, { threshold: 0.25 }).observe(root);
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) clearTimeout(holdTimer); else { restartBar(); armNext(); }
+    });
+    if (narrow.addEventListener) narrow.addEventListener('change', () => {
+      const st = root.querySelector('.ic-step.is-active');
+      if (st) stripScrollTo(st, false);
     });
 
-    /* One-tap primary actions resolve in place */
-    root.querySelectorAll('[data-ic-cta]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        if (btn.classList.contains('is-done')) return;
-        btn.classList.add('is-done');
-        btn.textContent = btn.getAttribute('data-done') || '✓ Done';
-      });
-    });
+    // the first request plays itself once the section is reached
+    if (!reduceMotion && 'IntersectionObserver' in window) {
+      let kicked = false;
+      const kick = new IntersectionObserver((entries) => {
+        entries.forEach((e) => {
+          if (kicked || !e.isIntersecting) return;
+          kicked = true;
+          setIntent(current, true, true);
+          restartBar();
+          armNext();
+          kick.disconnect();
+        });
+      }, { threshold: 0.35 });
+      kick.observe(root);
+    } else {
+      armNext();
+    }
 
-    /* Screen / Wire lens */
-    const lensBtns = root.querySelectorAll('[data-ic-lens]');
-    const lensViews = root.querySelectorAll('[data-ic-view]');
-    lensBtns.forEach((b) => {
-      b.addEventListener('click', () => {
-        const lens = b.getAttribute('data-ic-lens') || 'screen';
-        lensBtns.forEach((x) => x.classList.toggle('is-active', x === b));
-        lensViews.forEach((v) => v.classList.toggle('is-active', v.getAttribute('data-ic-view') === lens));
-        wireAllowed = lens === 'screen';
-        scheduleWire();
-      });
-    });
   })();
 </script>
 
@@ -765,10 +511,10 @@
     display: grid;
     grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.1fr);
     gap: 56px;
-    align-items: start;
+    align-items: center;
   }
 
-  /* --- Intents: a vertical list beside the phone; the live one expands and runs a progress line --- */
+  /* --- Intents: a vertical list beside the phone; the live one unfolds and runs a progress line --- */
   .ic-picker {
     padding-top: 6px;
   }
@@ -942,224 +688,24 @@
     }
   }
 
-  /* --- Stage (deep teal field) --- */
+  /* --- Stage: just the phone, centred in its column (no field, no chrome) --- */
   .ic-stage {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    border: 1px solid rgba(45, 212, 191, 0.22);
-    background-color: #0a2c2a;
-    background-image:
-      linear-gradient(135deg, rgba(20, 184, 166, 0.22), transparent 58%),
-      radial-gradient(rgba(45, 212, 191, 0.26) 1px, transparent 1px);
-    background-size: 100% 100%, 16px 16px;
-    overflow: hidden;
-  }
-
-  @media (max-width: 920px) {
-    /* Full-bleed field, full-size phone (negative margins mirror .a2-wrap's padding) */
-    .ic-stage {
-      margin: 0 -36px;
-      border-left: none;
-      border-right: none;
-    }
-
-    .ic-stage .ic-brace {
-      display: none;
-    }
-  }
-
-  @media (max-width: 640px) {
-    .ic-stage {
-      margin: 0 -20px;
-    }
-  }
-
-  .ic-stage__bar {
-    position: relative;
-    z-index: 2;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 16px 20px 0;
-  }
-
-  .ic-stage__tag {
-    font-family: var(--a2-font-mono);
-    font-size: 10.5px;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    padding: 6px 10px;
-    background: #f8fafc;
-    color: #071a19;
-  }
-
-  .ic-lens {
-    display: flex;
-    gap: 16px;
-  }
-
-  .ic-lens__btn {
-    appearance: none;
-    border: none;
-    border-bottom: 2px solid transparent;
-    background: transparent;
-    padding: 4px 0;
-    font-family: var(--a2-font-mono);
-    font-size: 10.5px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    color: rgba(248, 250, 252, 0.55);
-    cursor: pointer;
-    transition: color 0.15s ease, border-color 0.15s ease;
-  }
-
-  .ic-lens__btn:hover { color: #f8fafc; }
-
-  .ic-lens__btn.is-active {
-    color: #f8fafc;
-    border-bottom-color: var(--a2-accent-strong);
-  }
-
-  .ic-lens-view {
-    display: none;
-    flex: 1;
-    position: relative;
-  }
-
-  .ic-lens-view.is-active {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 20px 24px 18px;
-  }
-
-  .ic-lens-view[data-ic-view='wire'].is-active {
-    justify-content: center;
-    min-height: 640px;
-  }
-
-  @media (max-width: 920px) {
-    .ic-lens-view.is-active {
-      padding: 16px 12px 16px;
-    }
-
-    .ic-lens-view[data-ic-view='wire'].is-active {
-      justify-content: flex-start;
-      min-height: 0;
-    }
-  }
-
-  /* Blueprint callout for the composed zone (wide viewports) */
-  .ic-callout {
-    position: absolute;
-    display: none;
-    flex-direction: column;
-    gap: 4px;
-    width: 104px;
-    font-family: var(--a2-font-mono);
-    font-size: 9.5px;
-    letter-spacing: 0.08em;
-    pointer-events: none;
-  }
-
-  @media (min-width: 1180px) {
-    .ic-callout { display: flex; }
-  }
-
-  .ic-callout::before,
-  .ic-callout::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    width: 8px;
-    height: 1px;
-    background: var(--a2-accent-strong);
-  }
-
-  .ic-callout::before { top: 0; }
-  .ic-callout::after { bottom: 0; }
-
-  .ic-callout__t {
-    font-weight: 700;
-    color: var(--a2-accent-strong);
-  }
-
-  .ic-callout__s {
-    font-family: var(--a2-font-sans);
-    font-size: 11px;
-    letter-spacing: 0;
-    line-height: 1.35;
-    color: rgba(248, 250, 252, 0.68);
-  }
-
-  .ic-callout__s b {
-    font-weight: 600;
-    color: #f8fafc;
-  }
-
-  /* zone top = view pad 20 + border 1 + pad 12 + status 16 + 8 + hdr 36 + 10 + bubble 46 + 10 */
-  .ic-callout--zone {
-    right: 14px;
-    top: 159px;
-    height: 376px;
-    padding-left: 12px;
-    border-left: 1px solid var(--a2-accent-strong);
-  }
-
-  /* horizontal brace under the device: the constant shell */
-  .ic-brace {
-    position: relative;
-    width: 440px;
-    max-width: 100%;
-    margin-top: 12px;
-    padding-top: 9px;
-    border-top: 1px solid rgba(248, 250, 252, 0.42);
     display: flex;
     justify-content: center;
-    align-items: baseline;
-    gap: 10px;
-    flex-wrap: wrap;
-    text-align: center;
-  }
-
-  .ic-brace::before,
-  .ic-brace::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    width: 1px;
-    height: 8px;
-    background: rgba(248, 250, 252, 0.42);
-  }
-
-  .ic-brace::before { left: 0; }
-  .ic-brace::after { right: 0; }
-
-  .ic-brace__t {
-    font-family: var(--a2-font-mono);
-    font-size: 9.5px;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    color: #f8fafc;
-    white-space: nowrap;
-  }
-
-  .ic-brace__s {
-    font-size: 11px;
-    color: rgba(248, 250, 252, 0.68);
-    white-space: nowrap;
+    padding: 8px 0;
   }
 
   /* --- Device + constant shell --- */
+  /* a preview, not a UI: no pointer, no selection, no cursor changes inside */
   .ic-device {
+    pointer-events: none;
+    user-select: none;
     width: 328px;
     max-width: 100%;
     background: var(--a2-bg);
     border: 1px solid var(--a2-border-strong);
     border-radius: 28px;
-    box-shadow: 0 34px 80px -20px rgba(0, 0, 0, 0.72);
+    box-shadow: var(--a2-shadow-lg);
     padding: 12px 14px 12px;
     display: flex;
     flex-direction: column;
@@ -1224,13 +770,13 @@
     color: var(--a2-text-muted);
   }
 
-  /* Thread: sent prompt on top, composed surface below (fixed height keeps the shell stable) */
+  /* Thread: sent prompt on top, composed surface below with air between (fixed height keeps the shell steady) */
   .ic-thread {
     margin-top: 10px;
-    height: 432px;
+    height: 336px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 22px;
   }
 
   .ic-sent {
@@ -1264,7 +810,7 @@
   }
 
   @keyframes icFlyUp {
-    from { transform: translateY(386px) scale(0.96); opacity: 0; }
+    from { transform: translateY(290px) scale(0.96); opacity: 0; }
     30% { opacity: 1; }
     to { transform: none; opacity: 1; }
   }
@@ -1440,7 +986,7 @@
     display: none;
     height: 100%;
     flex-direction: column;
-    gap: 10px;
+    gap: 14px;
   }
 
   .ic-screen.is-active {
@@ -1534,88 +1080,6 @@
     color: var(--a2-text-secondary);
   }
 
-  .ic-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 6px;
-  }
-
-  .ic-gtile {
-    appearance: none;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    padding: 8px 8px 7px;
-    border: 1px solid var(--a2-border-strong);
-    background: var(--a2-surface);
-    color: var(--a2-text);
-    font-family: inherit;
-    text-align: left;
-    cursor: pointer;
-    transition: opacity 0.15s ease, border-color 0.15s ease;
-  }
-
-  .ic-gtile:hover { border-color: var(--a2-accent); }
-
-  .ic-gtile b {
-    font-size: 10.5px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-  }
-
-  .ic-gtile span {
-    font-family: var(--a2-font-mono);
-    font-size: 9.5px;
-    color: var(--a2-text-muted);
-  }
-
-  .ic-gtile.is-off {
-    opacity: 0.4;
-    border-style: dashed;
-  }
-
-  .ic-gtile.is-off b { text-decoration: line-through; }
-
-  .ic-gtile.is-pantry {
-    border-style: dashed;
-    background: transparent;
-    color: var(--a2-text-muted);
-    cursor: default;
-  }
-
-  .ic-gtile.is-pantry span { color: var(--a2-accent-strong); font-weight: 700; font-size: 8.5px; letter-spacing: 0.08em; }
-
-  .ic-meter {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-  }
-
-  .ic-meter__track {
-    height: 6px;
-    background: var(--a2-border);
-  }
-
-  .ic-meter__track i {
-    display: block;
-    height: 100%;
-    background: var(--a2-accent);
-    transition: width 0.25s ease;
-  }
-
-  .ic-meter__lbl {
-    display: flex;
-    justify-content: space-between;
-    font-family: var(--a2-font-mono);
-    font-size: 9.5px;
-    color: var(--a2-text-muted);
-  }
-
-  .ic-meter__lbl span:first-child {
-    font-weight: 700;
-    color: var(--a2-text);
-  }
-
   /* 02 · compare bars + deltas + toggle */
   .ic-bars2 {
     display: flex;
@@ -1654,156 +1118,6 @@
     text-align: right;
     font-size: 11px;
     font-weight: 700;
-  }
-
-  .ic-deltas {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .ic-deltas > div {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 10px;
-    padding: 6px 2px;
-    border-top: 1px solid var(--a2-border);
-  }
-
-  .ic-deltas > div:last-child { border-bottom: 1px solid var(--a2-border); }
-
-  .ic-deltas > div > span {
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-    min-width: 0;
-  }
-
-  .ic-deltas strong {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--a2-text);
-    white-space: nowrap;
-  }
-
-  .ic-deltas em {
-    font-style: normal;
-    font-size: 10.5px;
-    color: var(--a2-text-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .ic-deltas b {
-    font-family: var(--a2-font-mono);
-    font-size: 11.5px;
-    font-weight: 700;
-    color: var(--a2-coral);
-    white-space: nowrap;
-  }
-
-  .ic-toggle-row {
-    appearance: none;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 10px;
-    border: 1px solid var(--a2-border-strong);
-    background: var(--a2-surface);
-    color: var(--a2-text);
-    font-family: inherit;
-    text-align: left;
-    cursor: pointer;
-  }
-
-  .ic-toggle-row strong {
-    display: block;
-    font-size: 12px;
-    font-weight: 600;
-  }
-
-  .ic-toggle-row em {
-    font-style: normal;
-    font-size: 10.5px;
-    color: var(--a2-accent-strong);
-  }
-
-  .ic-toggle-row i {
-    position: relative;
-    width: 32px;
-    height: 18px;
-    flex-shrink: 0;
-    border-radius: 9px;
-    background: var(--a2-border-strong);
-    transition: background-color 0.18s ease;
-  }
-
-  .ic-toggle-row i::after {
-    content: '';
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: #fff;
-    transition: transform 0.18s ease;
-  }
-
-  .ic-toggle-row.is-on i { background: var(--a2-accent); }
-  .ic-toggle-row.is-on i::after { transform: translateX(14px); }
-
-  /* 03 · timeline + checklist */
-  .ic-tl3 {
-    position: relative;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    padding: 6px 0 2px;
-  }
-
-  .ic-tl3::before {
-    content: '';
-    position: absolute;
-    left: 16%;
-    right: 16%;
-    top: 11px;
-    height: 1px;
-    background: var(--a2-border-strong);
-  }
-
-  .ic-tl3 span {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 3px;
-    text-align: center;
-  }
-
-  .ic-tl3 i {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    border: 1.5px solid var(--a2-border-strong);
-    background: var(--a2-bg);
-  }
-
-  .ic-tl3 .is-done i { background: var(--a2-accent); border-color: var(--a2-accent); }
-  .ic-tl3 .is-live i { border-color: var(--a2-accent-strong); box-shadow: 0 0 0 3px var(--a2-accent-soft); }
-
-  .ic-tl3 b {
-    font-family: var(--a2-font-mono);
-    font-size: 9px;
-    font-weight: 700;
-    color: var(--a2-text);
-  }
-
-  .ic-tl3 em {
-    font-style: normal;
-    font-size: 9.5px;
-    color: var(--a2-text-muted);
   }
 
   .ic-checklist {
@@ -1865,16 +1179,6 @@
     padding: 1px 4px;
   }
 
-  /* 04 · item + stepper + choices */
-  .ic-item {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 10px 12px 11px;
-    border: 1px solid var(--a2-accent-border);
-    background: var(--a2-accent-soft);
-  }
-
   .ic-item__row {
     display: flex;
     justify-content: space-between;
@@ -1887,55 +1191,6 @@
   .ic-item__row b {
     font-family: var(--a2-font-mono);
     font-size: 12px;
-  }
-
-  .ic-stepper {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .ic-stepper > span {
-    font-family: var(--a2-font-mono);
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    color: var(--a2-text-muted);
-  }
-
-  .ic-stepper > div {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .ic-stepper button {
-    appearance: none;
-    width: 26px;
-    height: 26px;
-    border: 1px solid var(--a2-border-strong);
-    background: var(--a2-bg);
-    color: var(--a2-text);
-    font-size: 15px;
-    line-height: 1;
-    cursor: pointer;
-  }
-
-  .ic-stepper strong {
-    min-width: 18px;
-    text-align: center;
-    font-family: var(--a2-font-mono);
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--a2-text);
-  }
-
-  .ic-stepper em {
-    font-style: normal;
-    font-family: var(--a2-font-mono);
-    font-size: 9.5px;
-    color: var(--a2-text-muted);
   }
 
   .ic-choice2 {
@@ -1988,52 +1243,7 @@
 
   .ic-choice.is-on span { color: var(--a2-accent-strong); }
 
-  .ic-trust {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    border-top: 1px solid var(--a2-border);
-    border-bottom: 1px solid var(--a2-border);
-  }
-
-  .ic-trust > div {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 9px 8px;
-    border-right: 1px solid var(--a2-border);
-  }
-
-  .ic-trust > div:last-child { border-right: none; }
-
-  .ic-trust b {
-    font-family: var(--a2-font-display);
-    font-size: 15px;
-    font-weight: 660;
-    letter-spacing: -0.02em;
-    color: var(--a2-text);
-  }
-
-  .ic-trust span {
-    font-family: var(--a2-font-mono);
-    font-size: 8.5px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    color: var(--a2-text-muted);
-  }
-
   /* --- Wire JSON --- */
-  .ic-wire {
-    margin: 0;
-    width: 100%;
-    background: #0c0e14;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    padding: 18px;
-    font-family: var(--a2-font-mono);
-    font-size: 10.5px;
-    line-height: 1.7;
-    color: #e2e8f0;
-    overflow-x: auto;
-  }
 
   /* =======================================================================
      WHAT THE AGENT COMPOSES FROM — OPEN COLUMNS + LINE ILLUSTRATIONS

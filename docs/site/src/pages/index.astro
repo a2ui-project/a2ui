@@ -575,6 +575,12 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         scroll-margin-top: 84px;
       }
 
+      /* no subtitle in this chapter: let the headline take the full measure */
+
+      .a2-chapter--stage .a2-chapter__split {
+        grid-template-columns: 1fr;
+      }
+
       .a2-chapter__split {
         display: grid;
         grid-template-columns: 1.05fr 0.95fr;

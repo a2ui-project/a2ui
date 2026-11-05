@@ -236,7 +236,7 @@
           ln.querySelector('b').textContent = pair[0];
           ln.querySelector('span').textContent = pair[1];
           ln.classList.add('is-on');
-        }, 120 + i * 190);
+        }, 100 + i * 150);
       });
       // 2. each renderer paints it — same payload, its own layout
       devs.forEach((d, i) => {
@@ -246,13 +246,13 @@
           d.classList.remove('is-paint');
           void d.offsetWidth;
           d.classList.add('is-paint');
-        }, 1150 + i * 110);
+        }, 920 + i * 90);
       });
       // 3. hold, then the next message
       later(() => {
         v = (v + 1) % payloads.length;
         if (visible) cycle();
-      }, 5200);
+      }, 4150);
     };
 
     if ('IntersectionObserver' in window) {
@@ -269,7 +269,7 @@
       if (document.hidden) { clear(); } else if (visible) { cycle(); }
     });
 
-    later(() => { v = 1; cycle(); }, 2600);
+    later(() => { v = 1; cycle(); }, 2100);
   })();
 </script>
 
