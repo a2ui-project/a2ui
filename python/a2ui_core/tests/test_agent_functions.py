@@ -466,6 +466,39 @@ class TestCatalogAgentFunctions:
         with pytest.raises(A2uiCatalogError, match="target-currency"):
             Catalog("c", "1.0", functions=[fn])
 
+    def test_rejects_an_invalid_parameter_name_in_catalog_defs_alongside_local_defs(
+        self,
+    ):
+        fn = AgentFunction(
+            "pay",
+            handler=_handler,
+            schema={
+                "$defs": {
+                    "LocalPart": {
+                        "type": "object",
+                        "properties": {"memo": {"type": "string"}},
+                    }
+                },
+                "allOf": [
+                    {"$ref": "#/$defs/LocalPart"},
+                    {"$ref": "#/$defs/CatalogPart"},
+                ],
+            },
+        )
+
+        with pytest.raises(A2uiCatalogError, match="bad-amount"):
+            Catalog(
+                "c",
+                "1.0",
+                defs={
+                    "CatalogPart": {
+                        "type": "object",
+                        "properties": {"bad-amount": {"type": "number"}},
+                    }
+                },
+                functions=[fn],
+            )
+
     def test_parameter_names_are_not_checked_before_v1_0(self):
         fn = FunctionApi(
             "fetchRate",
@@ -744,3 +777,57 @@ class TestValidation:
 
         with pytest.raises(A2uiValidationError):
             validator.validate_function("fetchFxRate", {"base": "EUR"})
+
+    def test_validates_and_applies_defaults_across_catalog_defs_and_local_defs(self):
+        fn = AgentFunction(
+            "pay",
+            handler=_handler,
+            return_type="object",
+            schema={
+                "$defs": {
+                    "MemoOpts": {
+                        "type": "object",
+                        "properties": {
+                            "memo": {"type": "string", "default": "standard"},
+                        },
+                    }
+                },
+                "allOf": [
+                    {"$ref": "#/$defs/MemoOpts"},
+                    {"$ref": "#/$defs/MoneyArgs"},
+                ],
+                "unevaluatedProperties": False,
+            },
+        )
+        catalog = Catalog(
+            "c",
+            "1.0",
+            defs={
+                "MoneyArgs": {
+                    "type": "object",
+                    "properties": {
+                        "amount": {"type": "number", "exclusiveMinimum": 0},
+                        "currency": {"type": "string", "default": "USD"},
+                    },
+                    "required": ["amount"],
+                }
+            },
+            functions=[fn],
+        )
+        validator = PayloadValidator(catalog, config=STRICT_VALIDATION)
+
+        assert validator.validate_function("pay", {"amount": 25}) == {
+            "amount": 25,
+            "currency": "USD",
+            "memo": "standard",
+        }
+        with pytest.raises(A2uiValidationError):
+            validator.validate_function("pay", {"amount": -5})
+        with pytest.raises(A2uiValidationError):
+            validator.validate_function("pay", {"amount": 25, "extra": True})
+
+        doc = catalog.to_json()
+        assert "MoneyArgs" in doc["$defs"]
+        assert "MemoOpts" in doc["$defs"]
+        assert "MoneyArgs" in catalog.validation_schema["$defs"]
+        assert "MemoOpts" in catalog.validation_schema["$defs"]

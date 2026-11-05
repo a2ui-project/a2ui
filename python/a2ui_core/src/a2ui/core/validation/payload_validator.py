@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 import copy
 import functools
 import re
@@ -1031,6 +1031,28 @@ class PayloadValidator:
         fn_defs = fn_schema.get("$defs", {}) if isinstance(fn_schema, dict) else {}
         return {**base_defs, **fn_defs}
 
+    _PARAM_SCHEMA_KEYWORDS = frozenset({
+        "properties",
+        "$ref",
+        "allOf",
+        "anyOf",
+        "oneOf",
+        "not",
+        "type",
+        "required",
+        "additionalProperties",
+        "unevaluatedProperties",
+        "minProperties",
+        "maxProperties",
+        "dependentRequired",
+        "dependentSchemas",
+        "patternProperties",
+        "propertyNames",
+        "if",
+        "const",
+        "enum",
+    })
+
     def _extract_raw_param_schema(
         self,
         fn_schema: dict[str, Any],
@@ -1051,18 +1073,53 @@ class PayloadValidator:
             return schema
 
         props = fn_schema.get("properties")
-        if isinstance(props, dict):
+        if isinstance(props, dict) and ("@call" in props or "call" in props):
             if "args" in props and isinstance(props["args"], dict):
+                args_schema = props["args"]
+                args_defs = (
+                    args_schema["$defs"]
+                    if isinstance(args_schema.get("$defs"), dict)
+                    else {}
+                )
                 return {
                     "$schema": JSON_SCHEMA_DRAFT_2020_12,
-                    "$defs": defs,
-                    **props["args"],
+                    **args_schema,
+                    "$defs": {**defs, **args_defs},
                 }
+            return None
+
+        if (
+            "args" in fn_schema
+            and isinstance(fn_schema["args"], dict)
+            and not isinstance(props, dict)
+        ):
+            args_schema = fn_schema["args"]
+            args_defs = (
+                args_schema["$defs"]
+                if isinstance(args_schema.get("$defs"), dict)
+                else {}
+            )
             return {
                 "$schema": JSON_SCHEMA_DRAFT_2020_12,
-                "$defs": defs,
-                "type": "object",
+                **args_schema,
+                "$defs": {**defs, **args_defs},
+            }
+
+        if any(key in fn_schema for key in self._PARAM_SCHEMA_KEYWORDS):
+            default_type: dict[str, Any] = (
+                {"type": "object"}
+                if "type" not in fn_schema
+                and "$ref" not in fn_schema
+                and not any(
+                    key in fn_schema for key in ("allOf", "anyOf", "oneOf", "not")
+                )
+                else {}
+            )
+            return {
+                "$schema": JSON_SCHEMA_DRAFT_2020_12,
+                **default_type,
                 **fn_schema,
+                "$defs": defs,
             }
 
         return None
@@ -1141,14 +1198,12 @@ class PayloadValidator:
             )
             raise A2uiValidationError(str(ref_err), details=[detail]) from ref_err
 
-        if isinstance(param_schema.get("properties"), dict):
-            for prop_name, prop_spec in param_schema["properties"].items():
-                if (
-                    isinstance(prop_spec, dict)
-                    and "default" in prop_spec
-                    and prop_name not in validated_args
-                ):
-                    validated_args[prop_name] = copy.deepcopy(prop_spec["default"])
+        param_defs = (
+            param_schema["$defs"]
+            if isinstance(param_schema.get("$defs"), Mapping)
+            else {}
+        )
+        _apply_object_defaults(validated_args, param_schema, param_defs)
 
         return validated_args
 
@@ -1179,10 +1234,16 @@ class PayloadValidator:
         )
 
         if theme_schema:
+            theme_defs = (
+                theme_schema["$defs"]
+                if isinstance(theme_schema, dict)
+                and isinstance(theme_schema.get("$defs"), dict)
+                else {}
+            )
             full_theme_schema = {
                 "$schema": JSON_SCHEMA_DRAFT_2020_12,
-                "$defs": defs,
                 **theme_schema,
+                "$defs": {**defs, **theme_defs},
             }
             if isinstance(base_schema, dict):
                 if "functions" in base_schema and "functions" not in full_theme_schema:
@@ -1257,3 +1318,78 @@ def validate_system_function(
     # the system functions of its protocol version.
     no_catalog = Catalog(catalog_id="", protocol_version=protocol_version)
     return PayloadValidator(no_catalog, config=config).validate_function(name, args)
+
+
+def _resolve_local_def(ref: str, defs: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    """Resolves a `#/$defs/...` JSON Pointer against `defs`."""
+    if not ref.startswith("#/$defs/"):
+        return None
+    parts = ref[len("#/$defs/") :].split("/")
+    def_name = parts[0].replace("~1", "/").replace("~0", "~")
+    curr: Any = defs.get(def_name)
+    for part in parts[1:]:
+        key = part.replace("~1", "/").replace("~0", "~")
+        if isinstance(curr, Mapping) and key in curr:
+            curr = curr[key]
+        else:
+            return None
+    return curr if isinstance(curr, Mapping) else None
+
+
+def _extract_property_default(
+    prop_spec: Mapping[str, Any],
+    defs: Mapping[str, Any],
+    visited: set[str] | None = None,
+) -> tuple[bool, Any]:
+    """Finds a `default` keyword on `prop_spec` or its `$ref`/`allOf` targets."""
+    if "default" in prop_spec:
+        return True, prop_spec["default"]
+    seen = set() if visited is None else set(visited)
+    ref = prop_spec.get("$ref")
+    if isinstance(ref, str) and ref not in seen:
+        seen.add(ref)
+        resolved = _resolve_local_def(ref, defs)
+        if resolved is not None:
+            has_default, value = _extract_property_default(resolved, defs, seen)
+            if has_default:
+                return True, value
+    all_of = prop_spec.get("allOf")
+    if isinstance(all_of, list):
+        for branch in all_of:
+            if isinstance(branch, Mapping):
+                has_default, value = _extract_property_default(branch, defs, seen)
+                if has_default:
+                    return True, value
+    return False, None
+
+
+def _apply_object_defaults(
+    target: dict[str, Any],
+    schema: Mapping[str, Any],
+    defs: Mapping[str, Any],
+    visited: set[str] | None = None,
+) -> None:
+    """Populates missing defaulted properties across `properties`, `$ref`, and `allOf`."""
+    seen = set() if visited is None else set(visited)
+    ref = schema.get("$ref")
+    if isinstance(ref, str) and ref not in seen:
+        seen.add(ref)
+        resolved = _resolve_local_def(ref, defs)
+        if resolved is not None:
+            _apply_object_defaults(target, resolved, defs, seen)
+    all_of = schema.get("allOf")
+    if isinstance(all_of, list):
+        for branch in all_of:
+            if isinstance(branch, Mapping):
+                _apply_object_defaults(target, branch, defs, seen)
+    props = schema.get("properties")
+    if isinstance(props, Mapping):
+        for prop_name, prop_spec in props.items():
+            if not isinstance(prop_spec, Mapping):
+                continue
+            if prop_name not in target:
+                has_default, default_val = _extract_property_default(prop_spec, defs)
+                if has_default:
+                    target[prop_name] = copy.deepcopy(default_val)
+            if isinstance(target.get(prop_name), dict):
+                _apply_object_defaults(target[prop_name], prop_spec, defs)

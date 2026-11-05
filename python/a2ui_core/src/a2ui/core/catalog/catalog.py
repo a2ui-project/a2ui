@@ -1782,10 +1782,22 @@ class Catalog(Generic[TComponent, TFunction]):
         })
 
         def resolve(node: Any) -> Any:
+            normalized_node = _normalize_external_schema_refs(node)
+            effective_root = root
+            if isinstance(normalized_node, Mapping) and isinstance(
+                normalized_node.get("$defs"), Mapping
+            ):
+                effective_root = {
+                    **root,
+                    "$defs": {
+                        **root.get("$defs", {}),
+                        **normalized_node["$defs"],
+                    },
+                }
             resolved_node = copy.deepcopy(
                 inline_local_refs(
-                    _normalize_external_schema_refs(node),
-                    root,
+                    normalized_node,
+                    effective_root,
                     inline_local_defs=inline_local_defs,
                 )
             )
