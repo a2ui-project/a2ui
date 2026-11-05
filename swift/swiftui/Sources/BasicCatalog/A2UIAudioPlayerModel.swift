@@ -14,21 +14,39 @@
 
 @preconcurrency import AVFoundation
 import BasicCatalog
+import Observation
 import SwiftUI
 
 /// Observable controller managing native audio playback, scrubbing, and time synchronization.
 @MainActor
-public final class A2UIAudioPlayerModel: ObservableObject {
-  @Published var isPlaying = false
-  @Published var currentTime: Double = 0
-  @Published var duration: Double = 0
-  @Published var isScrubbing = false
-  @Published var scrubValue: Double = 0
+@Observable
+public final class A2UIAudioPlayerModel {
+  var isPlaying = false
+  var currentTime: Double = 0
+  var duration: Double = 0
+  var isScrubbing = false
+  var scrubValue: Double = 0
+
+  /// Current displayed playback position, reflecting the active scrub position while dragging
+  /// and clamped to the track duration.
+  var displayTime: Double {
+    get {
+      let value = isScrubbing ? scrubValue : currentTime
+      return min(max(0, value), max(0.1, duration))
+    }
+    set {
+      if isScrubbing {
+        onScrubChange(newValue)
+      } else {
+        onScrubEnd(newValue)
+      }
+    }
+  }
 
   public private(set) var player: AVPlayer?
-  private var timeObserverToken: Any?
-  private var itemEndObserver: (any NSObjectProtocol)?
-  private var currentURL: URL?
+  @ObservationIgnored private var timeObserverToken: Any?
+  @ObservationIgnored private var itemEndObserver: (any NSObjectProtocol)?
+  @ObservationIgnored private var currentURL: URL?
 
   public init() {}
 
