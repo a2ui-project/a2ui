@@ -474,7 +474,25 @@ export function findUnsupportedReason(
   return undefined;
 }
 
-export function assertAllUnsupportedMatched(): void {
+export function assertAllUnsupportedMatched(
+  accessibilityCases: AccessibilityTestCase[] = [],
+  adapterCases: AdapterTestCase[] = [],
+): void {
+  for (const testCase of accessibilityCases) {
+    const steps: AccessibilityStep[] = testCase.steps ?? [
+      {
+        messages: testCase.messages ?? [],
+        assertions: testCase.assertions ?? {},
+      },
+    ];
+    findUnsupportedReason(testCase.name, steps as unknown as Array<Record<string, unknown>>);
+  }
+  for (const testCase of adapterCases) {
+    findUnsupportedReason(
+      testCase.name,
+      testCase.steps as unknown as Array<Record<string, unknown>>,
+    );
+  }
   const unused = Object.keys(UNSUPPORTED).filter(key => !matchedUnsupportedKeys.has(key));
   if (unused.length > 0) {
     throw new Error(

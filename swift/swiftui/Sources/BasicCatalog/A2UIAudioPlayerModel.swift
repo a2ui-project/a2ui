@@ -13,6 +13,7 @@
 // limitations under the License.
 
 @preconcurrency import AVFoundation
+import BasicCatalog
 import SwiftUI
 
 /// Observable controller managing native audio playback, scrubbing, and time synchronization.
@@ -27,15 +28,19 @@ public final class A2UIAudioPlayerModel: ObservableObject {
   public private(set) var player: AVPlayer?
   private var timeObserverToken: Any?
   private var itemEndObserver: (any NSObjectProtocol)?
-  private var currentURLString: String = ""
+  private var currentURL: URL?
 
   public init() {}
 
   public func load(urlString: String) {
-    guard urlString != currentURLString else { return }
+    guard let url = BasicCatalog.sanitizeMediaURL(urlString) else {
+      cleanUp()
+      return
+    }
+    // Compare the parsed URL so whitespace around an already loaded URL keeps playback going.
+    guard url != currentURL else { return }
     cleanUp()
-    currentURLString = urlString
-    guard let url = URL(string: urlString), !urlString.isEmpty else { return }
+    currentURL = url
 
     let playerItem = AVPlayerItem(url: url)
     let newPlayer = AVPlayer(playerItem: playerItem)
@@ -78,15 +83,7 @@ public final class A2UIAudioPlayerModel: ObservableObject {
   }
 
   func togglePlay() {
-    guard let player else {
-      if !currentURLString.isEmpty {
-        let url = currentURLString
-        currentURLString = ""
-        load(urlString: url)
-        togglePlay()
-      }
-      return
-    }
+    guard let player else { return }
 
     if isPlaying {
       player.pause()
@@ -131,6 +128,6 @@ public final class A2UIAudioPlayerModel: ObservableObject {
     isPlaying = false
     currentTime = 0
     duration = 0
-    currentURLString = ""
+    currentURL = nil
   }
 }

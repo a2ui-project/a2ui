@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- (v0_9) Restore `listStyle` property to basic catalog `List` component schema ([#3956](https://github.com/a2ui-project/a2ui/pull/3956)).
+
 ## 0.5.0
 
 - **Breaking:** The basic catalog `regex` function now validates patterns
