@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # ==============================================================================
-# Protocol v1.0 MessageProcessor Conformance Test Suite (Candidate Specification)
+# Protocol v1.0 MessageProcessor Conformance Test Suite
 # ==============================================================================
 
 - name: test_v10_create_surface_inline_initialization

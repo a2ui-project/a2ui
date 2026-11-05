@@ -245,7 +245,7 @@ export default defineConfig({
           items: [
             {
               label: 'v1.0',
-              badge: {text: 'Candidate', variant: 'tip'},
+              badge: {text: 'Current', variant: 'success'},
               items: [
                 {
                   label: 'Protocol Specification',
@@ -271,7 +271,6 @@ export default defineConfig({
             },
             {
               label: 'v0.9.1',
-              badge: {text: 'Active', variant: 'success'},
               items: [
                 {
                   label: 'Protocol Specification',
@@ -296,7 +295,8 @@ export default defineConfig({
               ],
             },
             {
-              label: 'v0.8 (Legacy)',
+              label: 'v0.8',
+              badge: {text: 'Deprecated', variant: 'caution'},
               collapsed: true,
               items: [
                 {

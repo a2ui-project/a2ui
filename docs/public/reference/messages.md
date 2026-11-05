@@ -6,13 +6,6 @@ This reference provides detailed documentation for all A2UI message types.
 
 All A2UI messages are JSON objects sent as JSON Lines (JSONL). Each line contains exactly one message.
 
-=== "v0.8 Message Types"
-
-    - `beginRendering` — Signal the client to render a surface
-    - `surfaceUpdate` — Add or update components
-    - `dataModelUpdate` — Update application state
-    - `deleteSurface` — Remove a surface
-
 === "v0.9 Message Types"
 
     - `createSurface` — Create a surface and specify its catalog
@@ -22,11 +15,57 @@ All A2UI messages are JSON objects sent as JSON Lines (JSONL). Each line contain
 
     All v0.9 messages include a `"version": "v0.9"` field.
 
+=== "v0.8 Message Types"
+
+    - `beginRendering` — Signal the client to render a surface
+    - `surfaceUpdate` — Add or update components
+    - `dataModelUpdate` — Update application state
+    - `deleteSurface` — Remove a surface
+
 ---
 
 ## beginRendering (v0.8) / createSurface (v0.9)
 
 Signals the client to initialize and render a surface.
+
+=== "v0.9 — `createSurface`"
+
+    ### Schema
+
+    ```typescript
+    {
+      version: "v0.9";
+      createSurface: {
+        surfaceId: string;      // Required: Unique surface identifier
+        catalogId: string;      // Required: URL of component catalog
+        theme?: object;         // Optional: Theme configuration
+        sendDataModel?: boolean; // Optional: Request client to send data model updates
+      }
+    }
+    ```
+
+    ### Properties
+
+    | Property        | Type    | Required | Description                                                     |
+    | --------------- | ------- | -------- | --------------------------------------------------------------- |
+    | `surfaceId`     | string  | ✅        | Unique identifier for this surface.                             |
+    | `catalogId`     | string  | ✅        | Identifier for the component catalog.                           |
+    | `theme`         | object  | ❌        | Theme configuration (e.g., `primaryColor`).                     |
+    | `sendDataModel` | boolean | ❌        | If true, client sends data model changes back to the server.    |
+
+    ### Example
+
+    ```json
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "main",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+      }
+    }
+    ```
+
+    The root component is determined by convention: one component in `updateComponents` must have `"id": "root"`. The `catalogId` is required.
 
 === "v0.8 — `beginRendering`"
 
@@ -77,50 +116,126 @@ Signals the client to initialize and render a surface.
 
     Must be sent after component definitions. The client buffers `surfaceUpdate` and `dataModelUpdate` messages until `beginRendering` is received.
 
-=== "v0.9 — `createSurface`"
+---
+
+## surfaceUpdate (v0.8) / updateComponents (v0.9)
+
+Add or update components within a surface.
+
+=== "v0.9 — `updateComponents`"
 
     ### Schema
 
     ```typescript
     {
       version: "v0.9";
-      createSurface: {
-        surfaceId: string;      // Required: Unique surface identifier
-        catalogId: string;      // Required: URL of component catalog
-        theme?: object;         // Optional: Theme configuration
-        sendDataModel?: boolean; // Optional: Request client to send data model updates
+      updateComponents: {
+        surfaceId: string;        // Required: Target surface
+        components: Array<{       // Required: List of components
+          id: string;             // Required: Component ID
+          component: string;      // Required: Component type name
+          ...properties           // Component-specific properties (flat)
+        }>
       }
     }
     ```
 
     ### Properties
 
-    | Property        | Type    | Required | Description                                                     |
-    | --------------- | ------- | -------- | --------------------------------------------------------------- |
-    | `surfaceId`     | string  | ✅        | Unique identifier for this surface.                             |
-    | `catalogId`     | string  | ✅        | Identifier for the component catalog.                           |
-    | `theme`         | object  | ❌        | Theme configuration (e.g., `primaryColor`).                     |
-    | `sendDataModel` | boolean | ❌        | If true, client sends data model changes back to the server.    |
+    | Property     | Type   | Required | Description                    |
+    | ------------ | ------ | -------- | ------------------------------ |
+    | `surfaceId`  | string | ✅        | ID of the surface to update    |
+    | `components` | array  | ✅        | Array of component definitions |
 
-    ### Example
+    ### Component Object
+
+    The component structure is flat:
+
+    - `id` (string, required): Unique identifier within the surface
+    - `component` (string, required): Component type name (e.g., `"Text"`, `"Button"`)
+    - All other properties are top-level on the component object.
+
+    ### Examples
+
+    **Single component:**
 
     ```json
     {
       "version": "v0.9",
-      "createSurface": {
+      "updateComponents": {
         "surfaceId": "main",
-        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+        "components": [
+          {
+            "id": "greeting",
+            "component": "Text",
+            "text": "Hello, World!",
+            "variant": "h1"
+          }
+        ]
       }
     }
     ```
 
-    The root component is determined by convention: one component in `updateComponents` must have `"id": "root"`. The `catalogId` is required.
+    **Multiple components:**
 
----
+    ```json
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "main",
+        "components": [
+          {
+            "id": "root",
+            "component": "Column",
+            "children": ["header", "body"]
+          },
+          {
+            "id": "header",
+            "component": "Text",
+            "text": "Welcome"
+          },
+          {
+            "id": "body",
+            "component": "Card",
+            "child": "content"
+          },
+          {
+            "id": "content",
+            "component": "Text",
+            "text": {"path": "/message"}
+          }
+        ]
+      }
+    }
+    ```
 
-## surfaceUpdate (v0.8) / updateComponents (v0.9)
+    **Updating existing component:**
 
-Add or update components within a surface.
+    ```json
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "main",
+        "components": [
+          {
+            "id": "greeting",
+            "component": "Text",
+            "text": "Hello, Alice!",
+            "variant": "h1"
+          }
+        ]
+      }
+    }
+    ```
+
+    ### Usage Notes
+
+    Keep these usage notes in mind:
+    - One component must have `"id": "root"` to serve as the tree root (convention, not a separate message field).
+    - Component type is a string (`"component": "Text"`) instead of a wrapper object.
+    - Properties are flat on the component object (no nesting under type key).
+    - Data binding uses `{"path": "/pointer"}` (JSON Pointer) — same key name as v0.8 but with standard JSON Pointer paths.
+    - Components can be added incrementally (streaming).
 
 === "v0.8 — `surfaceUpdate`"
 
@@ -255,121 +370,6 @@ Add or update components within a surface.
     - Children are referenced by ID.
     - Components can be added incrementally (streaming).
 
-=== "v0.9 — `updateComponents`"
-
-    ### Schema
-
-    ```typescript
-    {
-      version: "v0.9";
-      updateComponents: {
-        surfaceId: string;        // Required: Target surface
-        components: Array<{       // Required: List of components
-          id: string;             // Required: Component ID
-          component: string;      // Required: Component type name
-          ...properties           // Component-specific properties (flat)
-        }>
-      }
-    }
-    ```
-
-    ### Properties
-
-    | Property     | Type   | Required | Description                    |
-    | ------------ | ------ | -------- | ------------------------------ |
-    | `surfaceId`  | string | ✅        | ID of the surface to update    |
-    | `components` | array  | ✅        | Array of component definitions |
-
-    ### Component Object
-
-    The component structure is flat:
-
-    - `id` (string, required): Unique identifier within the surface
-    - `component` (string, required): Component type name (e.g., `"Text"`, `"Button"`)
-    - All other properties are top-level on the component object.
-
-    ### Examples
-
-    **Single component:**
-
-    ```json
-    {
-      "version": "v0.9",
-      "updateComponents": {
-        "surfaceId": "main",
-        "components": [
-          {
-            "id": "greeting",
-            "component": "Text",
-            "text": "Hello, World!",
-            "variant": "h1"
-          }
-        ]
-      }
-    }
-    ```
-
-    **Multiple components:**
-
-    ```json
-    {
-      "version": "v0.9",
-      "updateComponents": {
-        "surfaceId": "main",
-        "components": [
-          {
-            "id": "root",
-            "component": "Column",
-            "children": ["header", "body"]
-          },
-          {
-            "id": "header",
-            "component": "Text",
-            "text": "Welcome"
-          },
-          {
-            "id": "body",
-            "component": "Card",
-            "child": "content"
-          },
-          {
-            "id": "content",
-            "component": "Text",
-            "text": {"path": "/message"}
-          }
-        ]
-      }
-    }
-    ```
-
-    **Updating existing component:**
-
-    ```json
-    {
-      "version": "v0.9",
-      "updateComponents": {
-        "surfaceId": "main",
-        "components": [
-          {
-            "id": "greeting",
-            "component": "Text",
-            "text": "Hello, Alice!",
-            "variant": "h1"
-          }
-        ]
-      }
-    }
-    ```
-
-    ### Usage Notes
-
-    Keep these usage notes in mind:
-    - One component must have `"id": "root"` to serve as the tree root (convention, not a separate message field).
-    - Component type is a string (`"component": "Text"`) instead of a wrapper object.
-    - Properties are flat on the component object (no nesting under type key).
-    - Data binding uses `{"path": "/pointer"}` (JSON Pointer) — same key name as v0.8 but with standard JSON Pointer paths.
-    - Components can be added incrementally (streaming).
-
 ### Errors
 
 | Error                  | Cause                                  | Solution                                                                                                                                                                                      |
@@ -385,6 +385,72 @@ Add or update components within a surface.
 ## dataModelUpdate (v0.8) / updateDataModel (v0.9)
 
 Update the data model that components bind to.
+
+=== "v0.9 — `updateDataModel`"
+
+    ### Schema
+
+    ```typescript
+    {
+      version: "v0.9";
+      updateDataModel: {
+        surfaceId: string;      // Required: Target surface
+        path?: string;          // Optional: JSON Pointer path (defaults to "/")
+        value?: any;            // Optional: Value to set (omit to delete)
+      }
+    }
+    ```
+
+    ### Properties
+
+    | Property    | Type   | Required | Description                                           |
+    | ----------- | ------ | -------- | ----------------------------------------------------- |
+    | `surfaceId` | string | ✅        | ID of the surface to update.                          |
+    | `path`      | string | ❌        | JSON Pointer path (e.g., `/user/email`). Defaults to `/` (root). |
+    | `value`     | any    | ❌        | The value to set. If omitted, the key at `path` is removed. |
+
+    ### Examples
+
+    **Initialize entire model:**
+
+    ```json
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "main",
+        "path": "/",
+        "value": {
+          "user": {
+            "name": "Alice",
+            "email": "alice@example.com"
+          },
+          "items": []
+        }
+      }
+    }
+    ```
+
+    **Update nested property:**
+
+    ```json
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "main",
+        "path": "/user/email",
+        "value": "alice@newdomain.com"
+      }
+    }
+    ```
+
+    ### Usage Notes
+
+    Keep these usage notes in mind:
+    - v0.9 uses standard JSON Pointer paths and plain JSON values — no typed wrappers.
+    - `path` defaults to `"/"` (root) if omitted.
+    - `value` can be any JSON type (string, number, boolean, object, array, null). Omit to delete.
+    - Simpler than v0.8's `contents` adjacency list — closer to standard JSON Patch semantics.
+    - Components referencing `{"path": "/user/email"}` auto-update when that path changes.
 
 === "v0.8 — `dataModelUpdate`"
 
@@ -465,99 +531,11 @@ Update the data model that components bind to.
     - Uses typed value fields (`valueString`, `valueNumber`, `valueBoolean`, `valueMap`) — LLM-friendly, no type inference needed.
     - Any data transformation (e.g., formatting a date) must be done by the server before sending the message.
 
-=== "v0.9 — `updateDataModel`"
-
-    ### Schema
-
-    ```typescript
-    {
-      version: "v0.9";
-      updateDataModel: {
-        surfaceId: string;      // Required: Target surface
-        path?: string;          // Optional: JSON Pointer path (defaults to "/")
-        value?: any;            // Optional: Value to set (omit to delete)
-      }
-    }
-    ```
-
-    ### Properties
-
-    | Property    | Type   | Required | Description                                           |
-    | ----------- | ------ | -------- | ----------------------------------------------------- |
-    | `surfaceId` | string | ✅        | ID of the surface to update.                          |
-    | `path`      | string | ❌        | JSON Pointer path (e.g., `/user/email`). Defaults to `/` (root). |
-    | `value`     | any    | ❌        | The value to set. If omitted, the key at `path` is removed. |
-
-    ### Examples
-
-    **Initialize entire model:**
-
-    ```json
-    {
-      "version": "v0.9",
-      "updateDataModel": {
-        "surfaceId": "main",
-        "path": "/",
-        "value": {
-          "user": {
-            "name": "Alice",
-            "email": "alice@example.com"
-          },
-          "items": []
-        }
-      }
-    }
-    ```
-
-    **Update nested property:**
-
-    ```json
-    {
-      "version": "v0.9",
-      "updateDataModel": {
-        "surfaceId": "main",
-        "path": "/user/email",
-        "value": "alice@newdomain.com"
-      }
-    }
-    ```
-
-    ### Usage Notes
-
-    Keep these usage notes in mind:
-    - v0.9 uses standard JSON Pointer paths and plain JSON values — no typed wrappers.
-    - `path` defaults to `"/"` (root) if omitted.
-    - `value` can be any JSON type (string, number, boolean, object, array, null). Omit to delete.
-    - Simpler than v0.8's `contents` adjacency list — closer to standard JSON Patch semantics.
-    - Components referencing `{"path": "/user/email"}` auto-update when that path changes.
-
 ---
 
 ## deleteSurface
 
 Remove a surface and all its components and data.
-
-=== "v0.8 — `deleteSurface`"
-
-    ### Schema
-
-    ```typescript
-    {
-      deleteSurface: {
-        surfaceId: string;        // Required: Surface to delete
-      }
-    }
-    ```
-
-    ### Example
-
-    ```json
-    {
-      "deleteSurface": {
-        "surfaceId": "modal"
-      }
-    }
-    ```
 
 === "v0.9 — `deleteSurface`"
 
@@ -577,6 +555,28 @@ Remove a surface and all its components and data.
     ```json
     {
       "version": "v0.9",
+      "deleteSurface": {
+        "surfaceId": "modal"
+      }
+    }
+    ```
+
+=== "v0.8 — `deleteSurface`"
+
+    ### Schema
+
+    ```typescript
+    {
+      deleteSurface: {
+        surfaceId: string;        // Required: Surface to delete
+      }
+    }
+    ```
+
+    ### Example
+
+    ```json
+    {
       "deleteSurface": {
         "surfaceId": "modal"
       }
@@ -615,14 +615,6 @@ Message ordering must satisfy the following requirements:
 
 ### Recommended Order
 
-=== "v0.8"
-
-    ```jsonl
-    { "surfaceUpdate":    { "surfaceId": "main", "components": [...] } }
-    { "dataModelUpdate":  { "surfaceId": "main", "contents": {...} } }
-    { "beginRendering":   { "surfaceId": "main", "root": "root-id" } }
-    ```
-
 === "v0.9"
 
     ```jsonl
@@ -631,7 +623,24 @@ Message ordering must satisfy the following requirements:
     { "version": "v0.9", "updateDataModel":  { "surfaceId": "main", "path": "/", "value": {...} } }
     ```
 
+=== "v0.8"
+
+    ```jsonl
+    { "surfaceUpdate":    { "surfaceId": "main", "components": [...] } }
+    { "dataModelUpdate":  { "surfaceId": "main", "contents": {...} } }
+    { "beginRendering":   { "surfaceId": "main", "root": "root-id" } }
+    ```
+
 ### Progressive Building
+
+=== "v0.9"
+
+    ```jsonl
+    { "version": "v0.9", "createSurface":    { "surfaceId": "main", "catalogId": "..." } }
+    { "version": "v0.9", "updateComponents": { "surfaceId": "main", "components": [...] } }  // Header
+    { "version": "v0.9", "updateComponents": { "surfaceId": "main", "components": [...] } }  // Body + Footer
+    { "version": "v0.9", "updateDataModel":  { "surfaceId": "main", "path": "/", "value": {...} } }
+    ```
 
 === "v0.8"
 
@@ -643,23 +652,7 @@ Message ordering must satisfy the following requirements:
     { "dataModelUpdate": { "surfaceId": "main", "contents": {...} } }    // Data
     ```
 
-=== "v0.9"
-
-    ```jsonl
-    { "version": "v0.9", "createSurface":    { "surfaceId": "main", "catalogId": "..." } }
-    { "version": "v0.9", "updateComponents": { "surfaceId": "main", "components": [...] } }  // Header
-    { "version": "v0.9", "updateComponents": { "surfaceId": "main", "components": [...] } }  // Body + Footer
-    { "version": "v0.9", "updateDataModel":  { "surfaceId": "main", "path": "/", "value": {...} } }
-    ```
-
 ## Validation
-
-=== "v0.8"
-
-    Validate against:
-
-    - **[server_to_client.json](../../../specification/v0_8/json/server_to_client.json)**: Message envelope schema.
-    - **[standard_catalog_definition.json](../../../specification/v0_8/json/standard_catalog_definition.json)**: Component schemas.
 
 === "v0.9"
 
@@ -667,6 +660,13 @@ Message ordering must satisfy the following requirements:
 
     - **[server_to_client.json](../../../specification/v0_9/json/server_to_client.json)**: Message envelope schema.
     - **[catalogs/basic/catalog.json](../../../specification/v0_9/catalogs/basic/catalog.json)**: Component schemas.
+
+=== "v0.8"
+
+    Validate against:
+
+    - **[server_to_client.json](../../../specification/v0_8/json/server_to_client.json)**: Message envelope schema.
+    - **[standard_catalog_definition.json](../../../specification/v0_8/json/standard_catalog_definition.json)**: Component schemas.
 
 ## Further Reading
 
