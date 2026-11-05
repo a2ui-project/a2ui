@@ -34,6 +34,12 @@ public final class RPCHandler {
 
   private var pendingCalls: [String: PendingCall] = [:]
 
+  /// The number of outbound calls still awaiting the agent's response.
+  public var pendingCallCount: Int { pendingCalls.count }
+  /// Whether ``disposeAllPendingCalls()`` has run. A disposed handler rejects new outbound
+  /// calls and answers inbound calls with `DISPOSED`.
+  public private(set) var isDisposed = false
+
   public init() {}
 
   // MARK: - Incoming Calls (Agent -> Renderer)
@@ -53,6 +59,16 @@ public final class RPCHandler {
     dataContext: DataContext? = nil,
     userActivationPresent: Bool = false
   ) async -> RendererFunctionResponseMessage {
+    guard !isDisposed else {
+      return RendererFunctionResponseMessage(
+        functionCallID: message.functionCallID,
+        error: FunctionErrorPayload(
+          code: FunctionError.disposed(callID: message.functionCallID).rpcCode,
+          message: "The renderer's RPC state was disposed."
+        ),
+        version: message.version
+      )
+    }
     let callName = message.callFunction.call
     let targetCatalogID = message.callFunction.catalogID
 
@@ -262,6 +278,9 @@ public final class RPCHandler {
     sendOutbound: @escaping @Sendable (RendererToAgentMessage) -> Void
   ) async throws -> JSONValue {
     let callID = functionCallID ?? UUID().uuidString
+    guard !isDisposed else {
+      throw FunctionError.disposed(callID: callID)
+    }
     let payload = CallFunctionPayload(
       call: functionName,
       catalogID: catalogID,
@@ -326,7 +345,11 @@ public final class RPCHandler {
 
     if let error = response.error {
       pending.continuation.resume(
-        throwing: FunctionError.remoteError(code: error.code, message: error.message)
+        throwing: FunctionError.remoteError(
+          code: error.code,
+          message: error.message,
+          callID: response.functionCallID
+        )
       )
     } else if let value = response.value {
       pending.continuation.resume(returning: value)
@@ -339,7 +362,8 @@ public final class RPCHandler {
   /// `FunctionError.surfaceCallsCancelled`.
   public func cancelPendingCalls(forSurfaceID surfaceID: String) {
     let error = FunctionError.surfaceCallsCancelled(surfaceID: surfaceID)
-    for (callID, pending) in pendingCalls where pending.surfaceID == surfaceID {
+    let callsToCancel = pendingCalls.filter { $0.value.surfaceID == surfaceID }
+    for (callID, pending) in callsToCancel {
       pendingCalls.removeValue(forKey: callID)
       pending.timeoutTask?.cancel()
       pending.continuation.resume(throwing: error)
@@ -355,11 +379,13 @@ public final class RPCHandler {
     pendingCalls.removeAll()
   }
 
-  /// Disposes all active pending calls, throwing `FunctionError.disposed`.
+  /// Disposes the handler: rejects every in-flight call with `FunctionError.cancelled`
+  /// (`CANCELLED`), and makes later calls fail with `FunctionError.disposed` (`DISPOSED`).
   public func disposeAllPendingCalls() {
+    isDisposed = true
     for (callID, pending) in pendingCalls {
       pending.timeoutTask?.cancel()
-      pending.continuation.resume(throwing: FunctionError.disposed(callID: callID))
+      pending.continuation.resume(throwing: FunctionError.cancelled(callID: callID))
     }
     pendingCalls.removeAll()
   }

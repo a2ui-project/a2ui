@@ -313,6 +313,25 @@ class PayloadValidator:
                     )
                 )
 
+        if comp_type and isinstance(comp_type, str):
+            ver = getattr(self.catalog, "protocol_version", None)
+            if (
+                ver
+                and is_at_least_version(ver, ProtocolVersion.V1_0)
+                and not is_valid_uax31_identifier(comp_type)
+            ):
+                errors.append(
+                    A2uiErrorDetail(
+                        path=f"components.{comp_id}.component",
+                        code="invalid_identifier",
+                        message=(
+                            f"Component type '{comp_type}' must be a valid UAX"
+                            " #31 identifier"
+                        ),
+                        surface_id=surface_id,
+                    )
+                )
+
         target_comp = None
         target_cat = self.catalog
 
