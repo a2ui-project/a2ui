@@ -405,6 +405,7 @@ The Basic Catalog requires a `formatString` function capable of interpreting `${
 2.  **Tokenization**: Distinguish between DataPaths (e.g., `${/user/name}`) and FunctionCalls (e.g., `${now()}`).
 3.  **Escaping**: Literal `${` sequences must be handled (typically escaping as `\${`).
 4.  **Reactive Coercion**: Results are transformed into strings using the standard Type Coercion rules.
+5.  **Catalog Inheritance (v1.0+)**: Because the `${...}` template syntax cannot specify a `catalogId` and `formatString` interpolates functions from its own catalog, non-system function calls parsed from `${...}` expressions (at any nesting depth, including inside array or object argument literals) MUST inherit the `catalogId` that the enclosing `formatString` call resolved to. Reserved `@`-prefixed system functions (such as `${@index()}`) belong to no catalog and MUST NOT be stamped with a `catalogId`.
 
 ##### Regular expression guard (`regex`)
 
