@@ -515,15 +515,19 @@ class RpcHandler {
   /// Fails every pending call with [RpcErrorCode.cancelled], drops the
   /// listener, and makes later calls fail with [RpcErrorCode.disposed].
   /// Idempotent.
-  void dispose() {
+  ///
+  /// A non-empty [reason], such as `'session closed'`, is added to the
+  /// message of each cancelled call.
+  void dispose([String? reason]) {
     if (_disposed) return;
     _disposed = true;
+    final suffix = reason != null && reason.isNotEmpty ? ': $reason.' : '.';
     for (final functionCallId in List<String>.of(_pending.keys)) {
       _settle(
         functionCallId,
         error: A2uiRpcError(
           "Call '$functionCallId' was cancelled because the RpcHandler was "
-          'disposed.',
+          'disposed$suffix',
           RpcErrorCode.cancelled,
           functionCallId: functionCallId,
         ),

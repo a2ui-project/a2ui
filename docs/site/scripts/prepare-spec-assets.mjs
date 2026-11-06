@@ -55,7 +55,7 @@ if (fs.existsSync(path.join(repoRoot, 'docs/public/CNAME'))) {
   const placeholders = {
     '{{A2UI_PROTOCOL_VERSIONS}}': versions.map(v => `${v.version} (${v.status})`).join(', '),
     '{{A2UI_SPEC_LINKS}}': versions
-      .filter(v => v.status !== 'legacy')
+      .filter(v => v.status !== 'deprecated')
       .map(v => `- [Specification ${v.version} (${v.status})](${v.spec})`)
       .join('\n'),
   };

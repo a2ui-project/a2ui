@@ -22,6 +22,7 @@ import 'suites.dart';
 /// Conformance suites executed in the default test run by the per-suite
 /// `*_conformance_test.dart` files.
 const Set<String> activeAgentSuites = {
+  'agent/agent_functions.yaml',
   'agent/catalog_provider.yaml',
   'agent/catalog_resolution.yaml',
   'agent/catalog_transformer.yaml',
@@ -65,6 +66,9 @@ const Map<String, String> unsupportedAgentSuites = {
   'agent/macros/macros.yaml':
       'The composite macro suite targets the Python macro API, which '
       'a2ui_agent for Dart does not implement.',
+  'agent/renderer_function_calls.yaml':
+      'a2ui_agent for Dart does not implement calling renderer functions '
+      'yet.',
   'agent/skill.yaml':
       'a2ui_agent for Dart does not implement the skill generation API.',
 };

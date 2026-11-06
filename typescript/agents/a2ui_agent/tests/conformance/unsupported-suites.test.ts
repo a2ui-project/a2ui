@@ -33,6 +33,7 @@ import {
 } from './suite-helpers.js';
 
 export const ACTIVE_SUITES: ReadonlySet<string> = new Set([
+  'agent/agent_functions.yaml',
   'agent/catalog_provider.yaml',
   'agent/catalog_resolution.yaml',
   'agent/catalog_transformer.yaml',
@@ -64,6 +65,8 @@ export const UNSUPPORTED_SUITES: Readonly<Record<string, string>> = {
     'the fluent builder API is a Python-only helper not implemented in TypeScript',
   'agent/macros/macros.yaml':
     'the composite macro API is a Python-only helper not implemented in TypeScript',
+  'agent/renderer_function_calls.yaml':
+    'this SDK does not implement calling renderer functions yet',
   'agent/legacy/streaming_parser.yaml':
     'superseded by direct_json/response_streaming.yaml and express/response_streaming.yaml',
 };
