@@ -572,6 +572,24 @@ class DataContext:
             parent=self,
         )
 
+    def with_active_catalog_id(self, catalog_id: str | None) -> DataContext:
+        """Returns a derived context scoped to `catalog_id` as the active function catalog.
+
+        Internal: not part of the package's public API.
+        """
+        if not catalog_id or catalog_id == self.active_catalog_id:
+            return self
+        scoped = DataContext(
+            surface=self.surface,
+            path=self.path,
+            index=self._index,
+            parent=self,
+        )
+        scoped._agent_calls = self._agent_calls
+        scoped._agent_disabled = self._agent_disabled
+        scoped._active_catalog_id = catalog_id
+        return scoped
+
     def resolve_path(self, absolute_or_relative: str) -> str:
         """Resolves a relative path string against this context scope path."""
         if absolute_or_relative.startswith("/"):

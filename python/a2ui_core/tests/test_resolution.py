@@ -13,9 +13,13 @@
 # limitations under the License.
 
 from typing import Any
+from unittest.mock import MagicMock
+
 import pytest
 
-from a2ui.core.state import ComponentModel, SurfaceModel, DataModel
+from a2ui.core.basic_catalog import BasicCatalog, v0_9, v1_0
+from a2ui.core.basic_catalog.v1_0.function_impls import _adapt_ast_part_for_v10
+from a2ui.core.catalog import Catalog, FunctionImplementation
 from a2ui.core.resolution import (
     ComponentContext,
     DataContext,
@@ -23,9 +27,8 @@ from a2ui.core.resolution import (
     MissingDataBindingWarning,
     coerce_dynamic_boolean,
 )
-from a2ui.core.catalog import Catalog, FunctionImplementation
-from a2ui.core.basic_catalog import BasicCatalog, v0_9
 from a2ui.core.schema.v0_9.common_types import DynamicString, StrictBaseModel
+from a2ui.core.state import ComponentModel, DataModel, SurfaceModel
 
 
 class _OrderArgs(StrictBaseModel):
@@ -1754,8 +1757,6 @@ async def test_agent_rpc_error_dispatches_expression_error_with_function_call_id
 
 
 def test_v10_format_string_template_calls_inherit_catalog_and_preserve_index():
-    from a2ui.core.basic_catalog import v1_0
-
     basic_cat = v1_0.BasicCatalog()
     surface = SurfaceModel(
         "s1",
@@ -1782,12 +1783,12 @@ def test_v10_format_string_template_calls_inherit_catalog_and_preserve_index():
     assert res == "Item 1: drops (true)"
     assert errors == []
 
-    # Defensive parent attribute lookup when parent is a stub/mock without active_catalog_id.
-    from unittest.mock import MagicMock
-    from a2ui.core.basic_catalog.v1_0.function_impls import (
-        _adapt_ast_part_for_v10,
-    )
+    scoped_ctx = ctx.with_active_catalog_id(basic_cat.catalog_id)
+    assert scoped_ctx.active_catalog_id == basic_cat.catalog_id
+    assert scoped_ctx.index == 1
+    assert ctx.active_catalog_id is None
 
+    # Defensive parent attribute lookup when parent is a stub/mock without active_catalog_id.
     stub_ctx = DataContext(surface, path="/")
     stub_ctx.parent = object()  # type: ignore[assignment]
     assert stub_ctx.active_catalog_id is None
