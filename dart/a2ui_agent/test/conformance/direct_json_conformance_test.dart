@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:convert';
+
 import 'package:a2ui_agent/a2ui_agent.dart';
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
@@ -164,6 +166,11 @@ String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
     if (testCase['action'] == 'generate_prompt_snippet') {
       return 'The snippet embeds the schemas of the catalogs\' version, so '
           'the case runs as written in v1.0 only.';
+    }
+    // A compile case's input is JSON text, which encodes with its quotes
+    // escaped, so the key is matched without them.
+    if (jsonEncode(testCase).contains('callRendererFunction')) {
+      return 'Protocol v0.9 has no callRendererFunction message.';
     }
   }
   return null;
