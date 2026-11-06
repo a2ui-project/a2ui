@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-import fs from 'node:fs';
-
 import {afterEach, expect, test, vi} from 'vitest';
 import {z} from 'zod';
 
@@ -316,31 +314,26 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const suitePath = conformancePath(SUITE);
-if (fs.existsSync(suitePath)) {
-  const cases = loadCases([suitePath]);
+const cases = loadCases([conformancePath(SUITE)]);
 
-  test('renderer_function_calls.yaml is not empty', () => {
-    expect(cases.length).toBeGreaterThan(0);
-  });
+test('renderer_function_calls.yaml is not empty', () => {
+  expect(cases.length).toBeGreaterThan(0);
+});
 
-  describeSuite(
-    'Conformance: renderer_function_calls.yaml',
-    cases,
-    async testCase => {
-      if (testCase.action !== 'call_renderer_function') {
-        throw new Error(`Unhandled conformance action: ${testCase.action}`);
-      }
-      await runCallRendererFunction(testCase);
+describeSuite(
+  'Conformance: renderer_function_calls.yaml',
+  cases,
+  async testCase => {
+    if (testCase.action !== 'call_renderer_function') {
+      throw new Error(`Unhandled conformance action: ${testCase.action}`);
+    }
+    await runCallRendererFunction(testCase);
+  },
+  {
+    knownFailures: KNOWN_FAILURES,
+    skipReason: testCase => {
+      const verdict = classify(testCase);
+      return verdict.runnable ? undefined : verdict.reason;
     },
-    {
-      knownFailures: KNOWN_FAILURES,
-      skipReason: testCase => {
-        const verdict = classify(testCase);
-        return verdict.runnable ? undefined : verdict.reason;
-      },
-    },
-  );
-} else {
-  test.skip(`${SUITE} is not in this checkout`, () => {});
-}
+  },
+);
