@@ -237,12 +237,12 @@ struct FormatStringFunctionTests {
 
   @Test func recordsDefaultCatalogIDWhenFormatStringOmitsCatalogIDOnV10Surface() throws {
     let customID = "https://example.com/custom.json"
-    let customCatalog = Catalog(
+    let customCatalog = AnyCatalog(
       id: customID,
+      protocolVersion: .v10,
       components: [],
-      functions: [FormatStringFunction(), ActiveCatalogFunction()],
-      version: .v10
-    ).eraseToAnyCatalog()
+      functions: [FormatStringFunction(), ActiveCatalogFunction()]
+    )
     let resolver = NodeResolver(
       surfaceID: "s-default",
       catalogs: [customCatalog],
