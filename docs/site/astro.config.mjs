@@ -49,8 +49,10 @@ export default defineConfig({
     '/specification/v0.9-a2ui': '/specification/v0.9.1-a2ui/',
     '/specification/v0.9-evolution-guide': '/specification/v0.9.1-evolution-guide/',
     '/concepts/actions': '/concepts/actions-and-functions/',
+    '/concepts/agent-sdks': '/concepts/sdks/#agent-sdk',
     '/concepts/components': '/concepts/catalogs/',
     '/concepts/data-flow': '/concepts/data-binding/',
+    '/concepts/renderer-sdks': '/concepts/sdks/#renderer-sdk',
     '/concepts/transports': '/concepts/messages/',
     '/guides/a2ui_over_mcp': '/guides/a2ui-over-mcp/',
     '/guides/defining-your-own-catalog': '/guides/defining-a-catalog/',
@@ -100,7 +102,7 @@ export default defineConfig({
           tag: 'link',
           attrs: {
             rel: 'stylesheet',
-            href: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap',
+            href: 'https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,400..700;1,400..700&display=swap',
           },
         },
         {
@@ -114,7 +116,7 @@ export default defineConfig({
       components: {
         Header: './src/components/StarlightHeader.astro',
       },
-      customCss: ['./src/styles/custom.css'],
+      customCss: ['./src/styles/tokens.css', './src/styles/custom.css'],
       sidebar: [
         {
           label: 'Navigation',
@@ -163,12 +165,8 @@ export default defineConfig({
               badge: {text: 'P0', variant: 'danger'},
             },
             {
-              label: 'Agent SDKs',
-              slug: 'concepts/agent-sdks',
-            },
-            {
-              label: 'Renderer SDKs',
-              slug: 'concepts/renderer-sdks',
+              label: 'SDKs',
+              slug: 'concepts/sdks',
             },
             {
               label: 'Swappable Inference Formats',
