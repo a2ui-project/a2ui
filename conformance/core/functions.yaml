@@ -1276,6 +1276,20 @@
     value: "Count: ${pluralize(value: 2, one: 'drop', other: 'drops')}"
   expect: "Count: drops"
 
+- name: test_evaluate_function_v10_format_string_template_call_inherits_catalog_nested
+  description: >-
+    Verifies nested function calls at multiple depths inside a formatString ${...} template expression all inherit the catalogId that formatString itself resolved to on a defaultless surface.
+  action: evaluate_function
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  surface: {}
+  function: formatString
+  catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  args:
+    value: "Count: ${pluralize(value: 1, one: formatNumber(value: 42, grouping: false), other: 'many')} (${not(value: not(value: true))})"
+  expect: "Count: 42 (true)"
+
 - name: test_evaluate_function_v09_ignores_call_catalog_id
   description: >-
     Verifies a catalogId on a call is ignored before v1.0. On a v0.9 surface the call runs in the surface catalog, so naming a catalog the client does not have is not an error.
