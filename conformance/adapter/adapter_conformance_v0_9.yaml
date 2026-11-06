@@ -763,7 +763,7 @@
                 choice:
                   - opt_a
                 level: 10
-                when: '2025-01-01T08:00:00'
+                when: "2025-01-01T08:00:00"
       expectViewTree:
         id: root
         type: Column
@@ -780,7 +780,7 @@
             value: 10
           - id: when_input
             type: DateTimeInput
-            value: '2025-01-01T08:00:00'
+            value: "2025-01-01T08:00:00"
           - id: summary_text
             type: Text
             text: agreed=false choice=["opt_a"] level=10 when=2025-01-01T08:00:00
@@ -793,7 +793,7 @@
           choice:
             - opt_a
           level: 10
-          when: '2025-01-01T08:00:00'
+          when: "2025-01-01T08:00:00"
       expectViewTree:
         id: root
         type: Column
@@ -810,7 +810,7 @@
             value: 10
           - id: when_input
             type: DateTimeInput
-            value: '2025-01-01T08:00:00'
+            value: "2025-01-01T08:00:00"
           - id: summary_text
             type: Text
             text: agreed=true choice=["opt_a"] level=10 when=2025-01-01T08:00:00
@@ -824,7 +824,7 @@
           choice:
             - opt_b
           level: 10
-          when: '2025-01-01T08:00:00'
+          when: "2025-01-01T08:00:00"
       expectViewTree:
         id: root
         type: Column
@@ -841,7 +841,7 @@
             value: 10
           - id: when_input
             type: DateTimeInput
-            value: '2025-01-01T08:00:00'
+            value: "2025-01-01T08:00:00"
           - id: summary_text
             type: Text
             text: agreed=true choice=["opt_b"] level=10 when=2025-01-01T08:00:00
@@ -854,7 +854,7 @@
           choice:
             - opt_b
           level: 42
-          when: '2025-01-01T08:00:00'
+          when: "2025-01-01T08:00:00"
       expectViewTree:
         id: root
         type: Column
@@ -871,20 +871,20 @@
             value: 42
           - id: when_input
             type: DateTimeInput
-            value: '2025-01-01T08:00:00'
+            value: "2025-01-01T08:00:00"
           - id: summary_text
             type: Text
             text: agreed=true choice=["opt_b"] level=42 when=2025-01-01T08:00:00
     - op: user_input
       targetNode: when_input
-      inputValue: '2025-01-31T09:30:00'
+      inputValue: "2025-01-31T09:30:00"
       expectDataModel:
         form:
           agreed: true
           choice:
             - opt_b
           level: 42
-          when: '2025-01-31T09:30:00'
+          when: "2025-01-31T09:30:00"
       expectViewTree:
         id: root
         type: Column
@@ -901,14 +901,15 @@
             value: 42
           - id: when_input
             type: DateTimeInput
-            value: '2025-01-31T09:30:00'
+            value: "2025-01-31T09:30:00"
           - id: summary_text
             type: Text
             text: agreed=true choice=["opt_b"] level=42 when=2025-01-31T09:30:00
 - name: media_components_bind_url_and_name
-  description: 'Verifies that Image, Video, AudioPlayer, and Icon resolve bound and literal url and name properties and update when the data model changes.
+  description:
+    "Verifies that Image, Video, AudioPlayer, and Icon resolve bound and literal url and name properties and update when the data model changes.
 
-    '
+    "
   action: render_surface
   protocolVersion: v0.9
   catalogPaths:
@@ -997,9 +998,10 @@
             type: Icon
             name: check
 - name: tabs_switch_content
-  description: 'Verifies that Tabs initially renders the first tab''s child component and switches to the selected tab''s child component on user_input.
+  description:
+    "Verifies that Tabs initially renders the first tab's child component and switches to the selected tab's child component on user_input.
 
-    '
+    "
   action: render_surface
   protocolVersion: v0.9
   catalogPaths:
@@ -1046,9 +1048,10 @@
             type: Text
             text: Second tab content
 - name: modal_open_shows_content
-  description: 'Verifies that Modal initially mounts its trigger child and mounts its content child once the trigger is activated via user_gesture.
+  description:
+    "Verifies that Modal initially mounts its trigger child and mounts its content child once the trigger is activated via user_gesture.
 
-    '
+    "
   action: render_surface
   protocolVersion: v0.9
   catalogPaths:
@@ -1111,9 +1114,10 @@
             type: Text
             text: Modal dialog content
 - name: divider_and_slider_datetime_render
-  description: 'Verifies that Divider renders its axis property alongside bound Slider and DateTimeInput components.
+  description:
+    "Verifies that Divider renders its axis property alongside bound Slider and DateTimeInput components.
 
-    '
+    "
   action: render_surface
   protocolVersion: v0.9
   catalogPaths:
@@ -1158,7 +1162,7 @@
             path: /
             value:
               vol: 25
-              date: '2025-06-15'
+              date: "2025-06-15"
       expectViewTree:
         id: root
         type: Column
@@ -1171,4 +1175,4 @@
             value: 25
           - id: dt_input
             type: DateTimeInput
-            value: '2025-06-15'
+            value: "2025-06-15"
