@@ -32,6 +32,31 @@
   generator through `InferenceFormat.prompt_generator`, and subclass
   `PromptGenerator` to write a format of your own.
   [#3568](https://github.com/a2ui-project/a2ui/pull/3568)
+- `RendererFunctionCalls.call` checks its arguments in a fixed order shared
+  with the TypeScript and Dart SDKs. An empty `function_call_id` is now
+  refused with `INVALID_FUNCTION_CALL` instead of replaced by a generated
+  one, and so are a `name` that isn't a UAX #31 identifier or starts with
+  `@`, and `args` that aren't a mapping with identifier keys and JSON values
+  (no NaN or infinity). `timeout` and `default_timeout` must be finite
+  positive numbers (not bools); only `default_timeout=None` turns the limit
+  off. ([#3939](https://github.com/a2ui-project/a2ui/pull/3939))
+- `RendererFunctionCalls` takes optional `catalogs`. With them, `call` raises
+  `UNKNOWN_FUNCTION` for a catalog they lack or a name that isn't one of its
+  renderer functions (agent functions included), and
+  `INVALID_FUNCTION_CALL` for a `rendererOnly` function or one that requires
+  user activation, before anything is registered. Two catalogs with one ID
+  raise `A2uiCatalogError`.
+  ([#3939](https://github.com/a2ui-project/a2ui/pull/3939))
+- Add `RendererFunctionCalls` to `a2ui.rpc`, which sends v1.0
+  `callRendererFunction` messages for one conversation and settles each call's
+  future from the renderer's `rendererFunctionResponse`, with timeouts (30
+  seconds by default), `max_pending` and `dispose()`. Its `resolve` method is
+  the `on_renderer_function_response` callback of
+  `RendererToAgentMessageProcessor`: it returns `True` when it settles (or, for
+  a malformed response, fails) a pending call and `False` otherwise, so the
+  processor declines responses to calls it didn't make. `is_pending` tells
+  whether a response answers one of its calls. `agent_development.md` describes it
+  ([#3535](https://github.com/a2ui-project/a2ui/issues/3535)).
 - **BREAKING CHANGE**: (v1_0) The `TextField` builder in
   `a2ui.builder.v1_0.catalogs.basic` requires `value`, following the basic
   catalog. Recommended migration: pass `value`, such as

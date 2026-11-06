@@ -39,6 +39,7 @@
       {"$ref": "#/$defs/HandleAgentFunctionTest"},
       {"$ref": "#/$defs/ValidatePayloadTest"},
       {"$ref": "#/$defs/ProcessRendererMessageTest"},
+      {"$ref": "#/$defs/CallRendererFunctionTest"},
       {"$ref": "#/$defs/MarkdownSubsetTest"}
     ]
   },
@@ -2596,6 +2597,216 @@
         }
       },
       "required": ["category"],
+      "additionalProperties": false
+    },
+    "CallRendererFunctionTest": {
+      "type": "object",
+      "description": "Calling renderer functions from the agent with callRendererFunction, and settling the calls with the renderer's responses, on a fake clock that only `advance_ms` steps move.",
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "call_renderer_function"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "default_timeout_ms": {
+              "type": ["integer", "null"],
+              "exclusiveMinimum": 0,
+              "description": "How long a call waits for its response unless it sets its own timeout. Without it, the SDK's default, 30000. Null waits without a limit."
+            },
+            "max_pending": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "The most calls that may wait for a response at once."
+            },
+            "catalogs": {
+              "type": "array",
+              "description": "The agent's catalogs, which `call` checks each target against. Without them, calls aren't checked.",
+              "items": {"$ref": "#/$defs/RendererCallCatalog"}
+            }
+          },
+          "additionalProperties": false
+        },
+        "steps": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/RendererCallStep"},
+          "minItems": 1
+        },
+        "expect_error": {
+          "$ref": "#/$defs/RendererCallsBuildError",
+          "description": "Building the calls helper fails with this error, such as a CatalogError for two catalogs with one id. The case then has no `steps`."
+        }
+      },
+      "required": ["name", "action"],
+      "oneOf": [{"required": ["steps"]}, {"required": ["expect_error"]}],
+      "additionalProperties": false
+    },
+    "RendererCallCatalog": {
+      "type": "object",
+      "description": "A v1.0 catalog the harness builds in code (not from a catalog document, so it isn't checked against the catalog schema): its id and its functions, by name. Each function takes any object as `args` and returns `any`.",
+      "properties": {
+        "catalogId": {"type": "string"},
+        "functions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "allowedCallers": {
+                "enum": ["rendererOnly", "agentOnly", "rendererOrAgent"],
+                "description": "Omitted means rendererOnly."
+              },
+              "requiresUserActivation": {"type": "boolean"}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["catalogId", "functions"],
+      "additionalProperties": false
+    },
+    "RendererCallState": {
+      "description": "The state of a call: still pending, settled with a value, or failed with an RPC error code. `error.message` is a substring of the failure's message.",
+      "oneOf": [
+        {"const": "pending"},
+        {
+          "type": "object",
+          "properties": {"value": {}},
+          "required": ["value"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {"type": "string"},
+                "message": {"type": "string"}
+              },
+              "required": ["code"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["error"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "RendererCallsBuildError": {
+      "type": "object",
+      "description": "The error building the calls helper fails with: its category and, optionally, a literal substring of its message.",
+      "properties": {
+        "category": {"enum": ["CatalogError"]},
+        "message": {
+          "type": "string",
+          "description": "A literal substring of the error's message, not a regular expression."
+        }
+      },
+      "required": ["category"],
+      "additionalProperties": false
+    },
+    "RendererCallError": {
+      "type": "object",
+      "description": "The RPC error a `call` step is refused with: its code and, optionally, a literal substring of its message.",
+      "properties": {
+        "code": {"type": "string"},
+        "message": {
+          "type": "string",
+          "description": "A literal substring of the error's message, not a regular expression."
+        }
+      },
+      "required": ["code"],
+      "additionalProperties": false
+    },
+    "RendererCallStep": {
+      "type": "object",
+      "description": "One step of a call_renderer_function case: exactly one of `call`, `respond`, `advance_ms` or `dispose`, then its expectations, checked once pending asynchronous work has run.",
+      "properties": {
+        "call": {
+          "type": "object",
+          "description": "Makes a call. `label` names it for later steps.",
+          "properties": {
+            "label": {"type": "string"},
+            "catalogId": {"type": "string"},
+            "name": {"type": "string"},
+            "args": {
+              "description": "The call's arguments. Usually an object; any other JSON value tests that `call` refuses it."
+            },
+            "surfaceId": {"type": "string"},
+            "functionCallId": {
+              "type": "string",
+              "description": "The ID to give the call, in place of a generated one."
+            },
+            "timeout_ms": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "description": "How long this call waits for its response, in place of the default."
+            }
+          },
+          "required": ["label", "catalogId", "name"],
+          "additionalProperties": false
+        },
+        "respond": {
+          "type": "object",
+          "description": "Hands the calls a rendererFunctionResponse, for the call `call` labels or for a literal `functionCallId`.",
+          "properties": {
+            "call": {"type": "string"},
+            "functionCallId": {"type": "string"},
+            "value": {},
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {"type": "string"},
+                "message": {"type": "string"}
+              },
+              "required": ["code", "message"],
+              "additionalProperties": false
+            }
+          },
+          "allOf": [
+            {"oneOf": [{"required": ["call"]}, {"required": ["functionCallId"]}]},
+            {"oneOf": [{"required": ["value"]}, {"required": ["error"]}]}
+          ],
+          "additionalProperties": false
+        },
+        "advance_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Moves the fake clock forward."
+        },
+        "dispose": {
+          "type": "object",
+          "description": "Disposes the calls, with an optional reason.",
+          "properties": {
+            "reason": {"type": "string"}
+          },
+          "additionalProperties": false
+        },
+        "expect_message": {
+          "type": "object",
+          "description": "On a `call` step, the callRendererFunction message, less its functionCallId."
+        },
+        "expect_error": {
+          "$ref": "#/$defs/RendererCallError",
+          "description": "On a `call` step, the call is refused with this RPC error instead of being made."
+        },
+        "expect_calls": {
+          "type": "object",
+          "description": "The state of the calls it names, by label.",
+          "additionalProperties": {"$ref": "#/$defs/RendererCallState"}
+        },
+        "expect_pending_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "How many calls are waiting for a response."
+        }
+      },
+      "oneOf": [
+        {"required": ["call"]},
+        {"required": ["respond"]},
+        {"required": ["advance_ms"]},
+        {"required": ["dispose"]}
+      ],
       "additionalProperties": false
     },
     "ExpectError": {

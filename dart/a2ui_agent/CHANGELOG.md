@@ -23,6 +23,31 @@
   catalog, then the examples under `### Examples:` followed by a blank line.
   Add your own heading around the snippet if you want one.
   [#3567](https://github.com/a2ui-project/a2ui/pull/3567)
+- (v1_0) Added `RendererToAgentMessageProcessor`, whose `processMessage` takes
+  one v1.0 message a renderer sent and returns a `ProcessResult` (`handled`,
+  `replies`). It answers `callAgentFunction` with the catalogs' agent
+  functions, and passes `action`, `error` and `rendererFunctionResponse` to the
+  `onAction`, `onError` and `onRendererFunctionResponse` callbacks, which may
+  return `false` to decline a message. The library re-exports the agent
+  function and renderer-to-agent message types from `a2ui_core`
+  ([#3536](https://github.com/a2ui-project/a2ui/issues/3536), [#3861](https://github.com/a2ui-project/a2ui/pull/3861)).
+- (v1_0) Added `RendererFunctionCalls`, which calls renderer functions from
+  the agent: `call` builds the `callRendererFunction` message with a `Future`
+  for the result, and `resolve`, passed to `RendererToAgentMessageProcessor`
+  as `onRendererFunctionResponse`, settles the call and declines responses to
+  calls it doesn't track. The library also re-exports
+  `CallRendererFunctionMessage`
+  ([#3535](https://github.com/a2ui-project/a2ui/issues/3535)).
+  Given the renderer's `catalogs`, `call` refuses a call to a function that
+  isn't one of their renderer functions (`UNKNOWN_FUNCTION`), or to one that is
+  `rendererOnly` or requires a user activation (`INVALID_FUNCTION_CALL`).
+  `call` checks its arguments in the same order as the Python and TypeScript
+  SDKs; `args` must have identifier keys and JSON values, and nested function
+  calls in it are left for the renderer to check.
+  `resolve` holds a response to the v1.0 `FunctionResponse` schema: version
+  `'1.0'` and exactly one of `value` (`null` for a function that returns
+  nothing) and `error`. A response that breaks it fails its pending call with
+  `UNKNOWN_ERROR`.
 
 ## 0.1.0
 

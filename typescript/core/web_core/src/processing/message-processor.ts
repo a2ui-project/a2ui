@@ -179,6 +179,11 @@ export interface MessageProcessorOptions {
   reportErrorsOnly?: boolean;
   /** Default timeout in milliseconds for callAgentFunction requests (default: 30000ms). */
   defaultTimeoutMs?: number;
+  /**
+   * The most settled agent function answers each surface caches (default:
+   * 256), evicting the oldest first. Must be a positive integer.
+   */
+  maxAgentCallCacheEntries?: number;
 }
 
 import {formatZodIssue} from './format-zod-issue.js';
@@ -205,6 +210,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   private readonly defaultVersion?: ProtocolVersion;
   private readonly errorHandler?: (error: RendererErrorMessage) => void;
   private readonly reportErrorsOnly: boolean;
+  /** The settled agent call cache bound for the surfaces this processor creates. */
+  private readonly maxAgentCallCacheEntries?: number;
   /** Whether outbound messages, and so `callAgentFunction`, can reach the agent. */
   private readonly hasOutboundListener: boolean;
   /**
@@ -220,12 +227,21 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * @param catalogs List of available component catalogs.
    * @param actionHandler Global handler for actions dispatched from all surfaces.
    * @param options Configuration options for the processor.
+   * @throws {RangeError} If `options.maxAgentCallCacheEntries` isn't a positive integer.
    */
   constructor(
     catalogs: Catalog<any>[],
     private actionHandler?: ActionListener,
     options?: MessageProcessorOptions,
   ) {
+    const maxEntries = options?.maxAgentCallCacheEntries;
+    if (
+      maxEntries !== undefined &&
+      (typeof maxEntries !== 'number' || !Number.isInteger(maxEntries) || maxEntries < 1)
+    ) {
+      throw new RangeError('maxAgentCallCacheEntries must be a positive integer.');
+    }
+    this.maxAgentCallCacheEntries = maxEntries;
     this.registeredCatalogs = catalogs;
     this.model = new SurfaceGroupModel<T>();
     this.adapterRegistry = options?.adapterRegistry ?? defaultVersionAdapterFactory;
@@ -928,7 +944,18 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       availableCatalogs.set(targetCatalog.id, targetCatalog);
     }
     return new DataContext(
-      new SurfaceModel(fallbackSurfaceId, targetCatalog, availableCatalogs),
+      new SurfaceModel(
+        fallbackSurfaceId,
+        targetCatalog,
+        availableCatalogs,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        this.maxAgentCallCacheEntries,
+      ),
       '/',
     );
   }
@@ -1085,6 +1112,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       op.rootId ?? 'root',
       op.metadata,
       surfaceVersion,
+      this.maxAgentCallCacheEntries,
     );
     // From v1.0, a function the renderer does not implement runs on the agent.
     // Without an outbound listener there is no way to reach it, so such calls
