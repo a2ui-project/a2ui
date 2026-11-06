@@ -473,4 +473,102 @@ describe('ExpressResponseStream unit tests', () => {
     ).toEqual([]);
     expect(() => updateStream.feed('</a2ui>')).toThrow(/surface-creating scope/);
   });
+
+  it('reports identical syntax error line, column, message, and rawContent across chunk sizes and split points', () => {
+    const parser = new ExpressParser([v10Catalog]);
+    const reply = [
+      'Here is your card:',
+      '<a2ui>',
+      'surface("main")',
+      'root = Column([header, body, footer])',
+      'header = Text("Welcome")',
+      'body = Text(" Everything above is valid and already compiled.")',
+      'footer = Column([btn1, btn2])',
+      'btn1 = Text("OK")',
+      'btn2 = Text("Cancel",\n  variant: "body")',
+      '</a2ui>',
+      'Done.',
+    ].join('\n');
+
+    let baselineError: A2uiCompilationParseError | undefined;
+    try {
+      parser.parseResponse(reply);
+    } catch (e) {
+      baselineError = e as A2uiCompilationParseError;
+    }
+    expect(baselineError).toBeInstanceOf(A2uiCompilationParseError);
+    expect(baselineError?.line).toBe(8);
+    expect(baselineError?.column).toBe(9);
+
+    const captureStreamError = (chunks: string[]): A2uiCompilationParseError => {
+      const stream = parser.openStream();
+      try {
+        for (const chunk of chunks) {
+          stream.feed(chunk);
+        }
+        stream.close();
+      } catch (e) {
+        return e as A2uiCompilationParseError;
+      }
+      throw new Error('Expected stream to throw A2uiCompilationParseError');
+    };
+
+    for (const size of [1, 7, 17, 200, reply.length]) {
+      const chunks: string[] = [];
+      for (let i = 0; i < reply.length; i += size) {
+        chunks.push(reply.slice(i, i + size));
+      }
+      const err = captureStreamError(chunks);
+      expect(err).toBeInstanceOf(A2uiCompilationParseError);
+      expect(err.line).toBe(baselineError?.line);
+      expect(err.column).toBe(baselineError?.column);
+      expect(err.message).toBe(baselineError?.message);
+      expect(err.rawContent).toBe(baselineError?.rawContent);
+    }
+
+    for (let split = 1; split < reply.length; split++) {
+      const err = captureStreamError([reply.slice(0, split), reply.slice(split)]);
+      expect(err.line).toBe(baselineError?.line);
+      expect(err.column).toBe(baselineError?.column);
+      expect(err.message).toBe(baselineError?.message);
+    }
+  });
+
+  it('reports identical syntax error line and column when semicolon-separated statements share a line', () => {
+    const parser = new ExpressParser([v10Catalog]);
+    const reply = [
+      '<a2ui>',
+      'surface("main")',
+      'root = Column([t1, t2]); t1 = Text("Hello"); t2 = Text(text: "bad")',
+      '</a2ui>',
+    ].join('\n');
+
+    let baselineError: A2uiCompilationParseError | undefined;
+    try {
+      parser.parseResponse(reply);
+    } catch (e) {
+      baselineError = e as A2uiCompilationParseError;
+    }
+    expect(baselineError).toBeInstanceOf(A2uiCompilationParseError);
+    expect(baselineError?.line).toBe(2);
+    expect(baselineError?.column).toBe(59);
+
+    for (const size of [1, 5, 17, reply.length]) {
+      const stream = parser.openStream();
+      let streamError: A2uiCompilationParseError | undefined;
+      try {
+        for (let i = 0; i < reply.length; i += size) {
+          stream.feed(reply.slice(i, i + size));
+        }
+        stream.close();
+      } catch (e) {
+        streamError = e as A2uiCompilationParseError;
+      }
+      expect(streamError).toBeInstanceOf(A2uiCompilationParseError);
+      expect(streamError?.line).toBe(baselineError?.line);
+      expect(streamError?.column).toBe(baselineError?.column);
+      expect(streamError?.message).toBe(baselineError?.message);
+      expect(streamError?.rawContent).toBe(baselineError?.rawContent);
+    }
+  });
 });

@@ -547,6 +547,26 @@ const CONTINUATION_OPERATORS = new Set([
   ':',
 ]);
 
+interface SourceOrigin {
+  lineOffset: number;
+  colOffset: number;
+}
+
+function prefixOrigin(prefix: string): SourceOrigin {
+  let lineOffset = 0;
+  let lastNewline = -1;
+  for (let i = 0; i < prefix.length; i++) {
+    if (prefix.charCodeAt(i) === 10) {
+      lineOffset += 1;
+      lastNewline = i;
+    }
+  }
+  return {
+    lineOffset,
+    colOffset: prefix.length - (lastNewline + 1),
+  };
+}
+
 function isValidPrefixBoundary(dslText: string, prefixLen: number): boolean {
   if (prefixLen <= 0 || prefixLen >= dslText.length) {
     return true;
@@ -785,7 +805,9 @@ export class ExpressScopeSession {
       isValidPrefixBoundary(dslText, this.cachedPrefix.length)
     ) {
       const tail = dslText.slice(this.cachedPrefix.length);
-      const tailStatements = tail.trim() ? this.compiler.parseStatements(tail, true, false) : [];
+      const tailStatements = tail.trim()
+        ? this.compiler.parseStatements(tail, true, false, prefixOrigin(this.cachedPrefix))
+        : [];
       const statements = [...this.cachedStatements, ...tailStatements];
       if (cachePrefix) {
         this.cachedPrefix = dslText;
@@ -1553,12 +1575,19 @@ export class ExpressCompiler {
   /**
    * Strips sentinel tags and parses the DSL body into statements.
    */
-  parseStatements(dslText: string, isFinal: boolean, stripSentinels = true): ExpressStatement[] {
+  parseStatements(
+    dslText: string,
+    isFinal: boolean,
+    stripSentinels = true,
+    origin: SourceOrigin = {lineOffset: 0, colOffset: 0},
+  ): ExpressStatement[] {
     const dslBody = stripSentinels ? stripSentinelTags(dslText) : dslText;
     try {
       const parsed = parseExpress(dslBody);
       if (isFinal && parsed.errors.length > 0) {
-        const [line, col, msg, isLexer] = parsed.errors[0];
+        const [rawLine, rawCol, msg, isLexer] = parsed.errors[0];
+        const line = rawLine + origin.lineOffset;
+        const col = rawLine === 1 ? rawCol + origin.colOffset : rawCol;
         throw new ExpressSyntaxError(
           `Syntax error at line ${line}:${col}: ${msg}`,
           line,
