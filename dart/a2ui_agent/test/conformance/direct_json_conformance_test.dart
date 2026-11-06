@@ -51,6 +51,7 @@ const Map<String, Set<String>> _knownKeys = {
   'case:generate_prompt_snippet': {
     ...caseMetadataKeys,
     'args',
+    'expect_contains',
     'expect_deterministic',
     'expect_error',
     'expect_file',
@@ -139,11 +140,15 @@ void main() {
 /// data model, which only lowering a whole payload can split.
 const Set<String> _v1OnlyCases = {
   'test_compile_json_newline_in_create_surface_data_model_preserved',
+  'test_decompile_json_call_renderer_function',
+  'test_decompile_json_catalog_qualified_components',
+  'test_parse_response_call_renderer_function_renderer_or_agent_succeeds',
   'test_stream_create_surface_inline_components_v10',
   'test_stream_create_surface_inline_components_in_small_chunks_v10',
   'test_stream_multi_catalog_resolution_v10',
   'test_stream_component_catalog_id_arrives_late_v10',
   'test_stream_catalog_id_split_across_chunks_v10',
+  'test_stream_second_block_calling_renderer_only_function_fails_v10',
 };
 
 /// Whether the catalogs of [testCase] target v1.0, as most cases' do.

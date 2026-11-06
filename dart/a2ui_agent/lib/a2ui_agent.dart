@@ -66,6 +66,7 @@ export 'src/prompt/generator.dart';
 export 'src/rpc/renderer_function_calls.dart';
 export 'src/rpc/renderer_to_agent_message_processor.dart';
 export 'src/utils/catalog_resolver.dart';
+export 'src/utils/catalogs.dart' show agentCallableFunctions;
 export 'src/utils/renderer_capabilities.dart';
 export 'src/utils/renderer_state.dart' show RendererState;
 export 'src/utils/validation.dart';

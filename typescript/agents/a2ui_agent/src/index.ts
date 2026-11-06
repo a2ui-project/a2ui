@@ -103,6 +103,7 @@ export {
 
 export {CatalogConfig} from './processor/catalog-config.js';
 
+export {agentCallableFunctions} from './utils/agent-callable.js';
 export {resolveCatalogs} from './utils/catalog-resolver.js';
 export {
   A2UI_CLIENT_CAPABILITIES_KEY,

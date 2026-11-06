@@ -14,6 +14,7 @@
 
 """Helpers shared by the inference formats and agent integrations."""
 
+from .agent_callable import agent_callable_functions
 from .catalog_resolver import resolve_catalogs
 from .examples import load_examples, resolve_examples_path
 from .renderer_capabilities import read_renderer_capabilities
@@ -24,6 +25,7 @@ from .versions import to_version_number
 
 __all__ = [
     "RendererState",
+    "agent_callable_functions",
     "load_agent_to_renderer_schema",
     "load_common_types_schema",
     "load_examples",

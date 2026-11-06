@@ -39,6 +39,7 @@ const Set<String> activeAgentSuites = {
   'agent/multi_catalog_formats.yaml',
   'agent/renderer_capabilities.yaml',
   'agent/renderer_function_calls.yaml',
+  'agent/renderer_state.yaml',
   'agent/request_processor.yaml',
   'agent/streamed_answer.yaml',
 };
@@ -53,6 +54,8 @@ const Set<String> performanceAgentSuites = {
 /// `agent/**/*.yaml` suites not implemented by `a2ui_agent` for Dart,
 /// paired with the reason recorded in the executed-case manifest.
 const Map<String, String> unsupportedAgentSuites = {
+  'agent/atom/compiler.yaml':
+      'Elemental and Atom are experimental and Python-only',
   'agent/builder/builder.yaml':
       'The fluent builder AST suite targets the Python builder API, which '
       'a2ui_agent for Dart does not implement.',
@@ -62,6 +65,8 @@ const Map<String, String> unsupportedAgentSuites = {
   'agent/legacy/parser.yaml':
       'Pre-blueprint legacy suite retained only for backward compatibility; '
       'superseded by the current agent suites.',
+  'agent/elemental/compiler.yaml':
+      'Elemental and Atom are experimental and Python-only',
   'agent/legacy/streaming_parser.yaml':
       'Pre-blueprint legacy suite retained only for backward compatibility; '
       'superseded by the current agent suites.',

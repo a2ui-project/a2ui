@@ -253,6 +253,7 @@ const SKIP_TEST_SUITES = new Map([
   ],
   ['builder.yaml', 'typesafe builder API is agent-side only'],
   ['macros.yaml', 'composite macros are agent-side only'],
+  ['renderer_state.yaml', 'agent-side RendererState turn validation is tested in the agent SDK'],
 ]);
 
 /**

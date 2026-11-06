@@ -112,6 +112,9 @@ def iter_renderer_errors(case):
     for step in case.get("steps") or []:
         if isinstance(step, dict):
             yield from _iter_container_renderer_errors(step)
+    for turn in case.get("turns") or []:
+        if isinstance(turn, dict):
+            yield from _iter_container_renderer_errors(turn)
 
 
 def get_yaml_files():
@@ -384,6 +387,90 @@ def test_renderer_error_rejects_spec_violations(invalid_renderer_error):
     "valid_case",
     [
         {
+            "name": "multi-turn renderer state",
+            "action": "renderer_state_turns",
+            "catalogs": ["test_data/catalogs/simplified_catalog_v1_0.json"],
+            "turns": [
+                {
+                    "payload": [{
+                        "version": "1.0",
+                        "createSurface": {
+                            "surfaceId": "s1",
+                            "catalogId": "conformance/simplified",
+                        },
+                    }],
+                    "expect_surfaces": {
+                        "s1": {
+                            "components": {"root": {"component": "Text", "text": "Hi"}},
+                            "data": {},
+                        }
+                    },
+                },
+                {
+                    "response": '<a2ui>\nsurface("s1") { root = Text("Hi") }\n</a2ui>',
+                    "format": "express",
+                    "expectError": {"category": "ValidationError"},
+                },
+            ],
+        },
+        {
+            "name": "create processor with then_stream",
+            "action": "create_processor",
+            "args": {
+                "format": "direct_json",
+                "catalogs": [
+                    {"catalog": "test_data/catalogs/simplified_catalog_v1_0.json"}
+                ],
+                "renderer_capabilities": {
+                    "1.0": {"supportedCatalogIds": ["conformance/simplified"]}
+                },
+            },
+            "expect": {"active_catalog_ids": ["conformance/simplified"]},
+            "then_stream": {
+                "steps": [
+                    {"input": "Hello ", "expect": [{"text": "Hello "}]},
+                ],
+                "expect_close": [],
+            },
+        },
+        {
+            "name": "create processor with then_stream close error",
+            "action": "create_processor",
+            "args": {
+                "format": "express",
+                "catalogs": [
+                    {"catalog": "test_data/catalogs/simplified_catalog_v1_0.json"}
+                ],
+            },
+            "then_stream": {
+                "steps": [
+                    {"input": "<a2ui>\nroot = Text(", "expect": []},
+                ],
+                "expect_error": {"category": "ParseError"},
+            },
+        },
+        {
+            "name": "prompt snippet callable functions",
+            "action": "generate_prompt_snippet",
+            "args": {
+                "format": "express",
+                "catalogs": [
+                    {"catalog": "test_data/catalogs/simplified_catalog_v1_0.json"}
+                ],
+            },
+            "expect_callable_functions": ["notifyAgent", "showToast"],
+            "expect_contains": ["notifyAgent", "showToast"],
+        },
+    ],
+)
+def test_agent_suite_schemas_accept_valid_cases(valid_case):
+    VALIDATOR.validate([valid_case])
+
+
+@pytest.mark.parametrize(
+    "valid_case",
+    [
+        {
             "name": "rpc_cancelled_case",
             "action": "handle_rpc",
             "catalog": "test_rpc_cat_v10",
@@ -504,6 +591,102 @@ def test_renderer_error_rejects_spec_violations(invalid_renderer_error):
 )
 def test_handle_rpc_lifecycle_schema_accepts_valid_cases(valid_case):
     jsonschema.validate(instance=[valid_case], schema=SCHEMA)
+
+
+@pytest.mark.parametrize(
+    "invalid_case",
+    [
+        # renderer_state_turns turn missing both payload and response
+        {
+            "name": "turn without payload or response",
+            "action": "renderer_state_turns",
+            "catalogs": ["test_data/catalogs/simplified_catalog_v1_0.json"],
+            "turns": [{"expect_surfaces": {}}],
+        },
+        # renderer_state_turns turn with both payload and response
+        {
+            "name": "turn with both payload and response",
+            "action": "renderer_state_turns",
+            "catalogs": ["test_data/catalogs/simplified_catalog_v1_0.json"],
+            "turns": [
+                {"payload": [], "response": "<a2ui></a2ui>", "expect_surfaces": {}}
+            ],
+        },
+        # renderer_state_turns turn missing outcome expectation
+        {
+            "name": "turn without outcome expectation",
+            "action": "renderer_state_turns",
+            "catalogs": ["test_data/catalogs/simplified_catalog_v1_0.json"],
+            "turns": [{"payload": []}],
+        },
+        # renderer_state_turns expect_surfaces with array components instead of map
+        {
+            "name": "expect_surfaces with array components",
+            "action": "renderer_state_turns",
+            "catalogs": ["test_data/catalogs/simplified_catalog_v1_0.json"],
+            "turns": [{"payload": [], "expect_surfaces": {"s1": {"components": []}}}],
+        },
+        # renderer_state_turns expect_surfaces with unknown surface expectation key
+        {
+            "name": "expect_surfaces with unknown key",
+            "action": "renderer_state_turns",
+            "catalogs": ["test_data/catalogs/simplified_catalog_v1_0.json"],
+            "turns": [{"payload": [], "expect_surfaces": {"s1": {"unknown_key": 1}}}],
+        },
+        # create_processor with unknown top-level key
+        {
+            "name": "create_processor unknown top-level key",
+            "action": "create_processor",
+            "args": {
+                "catalogs": [
+                    {"catalog": "test_data/catalogs/simplified_catalog_v1_0.json"}
+                ]
+            },
+            "unknown_field": True,
+        },
+        # create_processor then_stream step missing both expect and expect_error
+        {
+            "name": "then_stream step without expectation",
+            "action": "create_processor",
+            "args": {
+                "catalogs": [
+                    {"catalog": "test_data/catalogs/simplified_catalog_v1_0.json"}
+                ]
+            },
+            "then_stream": {"steps": [{"input": "chunk"}]},
+        },
+        # create_processor then_stream with both expect_close and expect_error
+        {
+            "name": "then_stream with both expect_close and expect_error",
+            "action": "create_processor",
+            "args": {
+                "catalogs": [
+                    {"catalog": "test_data/catalogs/simplified_catalog_v1_0.json"}
+                ]
+            },
+            "then_stream": {
+                "steps": [{"input": "chunk", "expect": []}],
+                "expect_close": [],
+                "expect_error": {"category": "ParseError"},
+            },
+        },
+        # generate_prompt_snippet with non-array expect_callable_functions
+        {
+            "name": "non-array expect_callable_functions",
+            "action": "generate_prompt_snippet",
+            "args": {
+                "format": "express",
+                "catalogs": [
+                    {"catalog": "test_data/catalogs/simplified_catalog_v1_0.json"}
+                ],
+            },
+            "expect_callable_functions": "notifyAgent",
+        },
+    ],
+)
+def test_agent_suite_schemas_reject_invalid_cases(invalid_case):
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate([invalid_case])
 
 
 @pytest.mark.parametrize(

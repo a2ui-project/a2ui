@@ -267,11 +267,12 @@ All four actions in `response_parser.yaml` run against `format.createParser()`:
 
 ### Prompt generation
 
-`generate_prompt_snippet` (`prompt_generator.yaml`) builds the target format from `args.catalogs`, optional `args.examples` (loaded from `CONFORMANCE_ROOT`), and optional `args.allowed_messages`. Call `format.promptGenerator.generate()` and check three optional expectations:
+`generate_prompt_snippet` (`prompt_generator.yaml`) builds the target format from `args.catalogs`, optional `args.examples` (loaded from `CONFORMANCE_ROOT`), and optional `args.allowed_messages`. Call `format.promptGenerator.generate()` and check four optional expectations:
 
 1. `expect_file`: Exact string equality against the golden text file at `conformancePath(expect_file)` (used by `direct_json`, which embeds deterministic JSON schemas formatted with 2-space indentation).
 2. `expect_contains` and `expect_absent`: Substring presence and absence checks. Express and catalog-pruning cases use these checks so implementations can word prose naturally while still checking every component signature and pruned symbol.
 3. `expect_deterministic`: Calling `generate()` a second time on a newly created format with identical inputs returns the exact same string.
+4. `expect_callable_functions`: Call `agentCallableFunctions(transformedCatalogs)` and assert the returned ordered list equals `expect_callable_functions`, and that each function name in the list appears in the generated prompt snippet.
 
 ### Chunked response streaming
 
@@ -290,6 +291,7 @@ All four actions in `response_parser.yaml` run against `format.createParser()`:
 1. `create_format` (`agent/request_processor.yaml` and `agent/multi_catalog_formats.yaml`): Build an `InferenceFormat` through `DirectJsonFormatFactory` or `ExpressFormatFactory` with `args.catalogs` and `args.examples`, then check `expect.prompt_snippet_contains` and `expect.prompt_snippet_absent`. When `expect.parsers_are_distinct` is `true`, check that two `format.createParser()` calls return distinct object instances. When `expect.parser_state_isolated` is `true`, stream `args.probe_chunks` through one parser, check for non-empty output, and check that a second parser produces identical parts.
 2. `create_processor` (`agent/request_processor.yaml`): Build `A2uiGenerator` with `args.catalogs`, `args.examples`, `args.accepts_inline_catalogs`, and optional `args.format` (omit the factory argument when `args.format` is absent to test the default Express factory). Snapshot the generator's catalogs before calling `generator.createProcessor(args.renderer_capabilities, formatOverride: args.format_override)`, then check `expect.active_catalog_ids`, positional `expect.catalogs`, prompt snippet checks, and `expect.generator_catalogs_unchanged`. If a sibling `then_parse` block is present, run `processor.parseResponse(then_parse.input, wrapped: then_parse.wrapped ?? true)` and check `then_parse.expect` or `then_parse.expect_error`.
 3. `stream_answer` (`agent/streamed_answer.yaml`): Build an `A2uiRequestProcessor` (`DirectJsonFormatFactory` with `args.catalog`) and a Core `MessageProcessor` (`args.renderer_catalogs ?? [args.catalog]`), then open `StreamedAnswer(processor, renderer)`. Unlike `parse_chunk` deltas, each step's `expect_parts` checks the full `answer.parts` list accumulated so far (`{"text": ...}`, `{"surface": surface.id}`, or `{"error": {"category": ...}}`). Assert reference identity (`same` / `===` / `is`) between each `AnswerSurfacePart.surface` and `renderer.model.getSurface(surface.id)`, and check `step.expect_in_block` plus `expect_close` after `answer.close()`.
+4. `renderer_state_turns` (`agent/renderer_state.yaml`): Construct a stateful `RendererState` with the case's `catalogs`, then execute `turns` in order. Each turn applies either `turn.payload` (via `state.apply` followed by `state.checkTopology` inside `state.transaction`) or `turn.response` parsed with `turn.format` (`express` or `direct_json`). Check `turn.expectError` / `turn.expect_error` when a turn is expected to fail and roll back, and compare `turn.expect_surfaces` against the state's active surfaces after each turn.
 
 ### Agent functions
 
