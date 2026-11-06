@@ -16,6 +16,33 @@ Client (Stream Reader) → Message Parser → Renderer → Native UI
 
 A2UI defines a sequence of JSON messages that describe the UI. When streamed, these messages are often formatted as **JSON Lines (JSONL)**, where each line is a complete JSON object.
 
+=== "v0.9"
+
+    ```jsonl
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "main",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+      }
+    }
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "main",
+        "components": [...]
+      }
+    }
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "main",
+        "path": "/user",
+        "value": { "name": "Alice" }
+      }
+    }
+    ```
+
 === "v0.8"
 
     ```jsonl
@@ -46,33 +73,6 @@ A2UI defines a sequence of JSON messages that describe the UI. When streamed, th
     }
     ```
 
-=== "v0.9"
-
-    ```jsonl
-    {
-      "version": "v0.9",
-      "createSurface": {
-        "surfaceId": "main",
-        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
-      }
-    }
-    {
-      "version": "v0.9",
-      "updateComponents": {
-        "surfaceId": "main",
-        "components": [...]
-      }
-    }
-    {
-      "version": "v0.9",
-      "updateDataModel": {
-        "surfaceId": "main",
-        "path": "/user",
-        "value": { "name": "Alice" }
-      }
-    }
-    ```
-
 **Why this format?**
 
 A sequence of self-contained JSON objects is streaming-friendly, easy for LLMs to generate incrementally, and resilient to errors.
@@ -80,6 +80,109 @@ A sequence of self-contained JSON objects is streaming-friendly, easy for LLMs t
 ## Lifecycle Example: Restaurant Booking
 
 **User:** "Book a table for 2 tomorrow at 7pm"
+
+=== "v0.9"
+
+    **1. Agent creates surface:**
+
+    ```json
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "booking",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+      }
+    }
+    ```
+
+    **2. Agent defines UI structure:**
+
+    ```json
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "booking",
+        "components": [
+          {
+            "id": "root",
+            "component": "Column",
+            "children": ["header", "guests-field", "submit-btn"]
+          },
+          {
+            "id": "header",
+            "component": "Text",
+            "text": "Confirm Reservation",
+            "variant": "h1"
+          },
+          {
+            "id": "guests-field",
+            "component": "TextField",
+            "label": "Guests",
+            "value": { "path": "/reservation/guests" }
+          },
+          {
+            "id": "submit-btn",
+            "component": "Button",
+            "child": "submit-text",
+            "variant": "primary",
+            "action": {
+              "event": {
+                "name": "confirm",
+                "context": {
+                  "details": { "path": "/reservation" }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+    ```
+
+    **3. Agent populates data:**
+
+    ```json
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "booking",
+        "path": "/reservation",
+        "value": {
+          "datetime": "2025-12-16T19:00:00Z",
+          "guests": "2"
+        }
+      }
+    }
+    ```
+
+    **4. User edits guests to "3"** → Client updates `/reservation/guests` automatically
+
+    **5. User clicks "Confirm"** → Client sends action:
+
+    ```json
+    {
+      "version": "v0.9",
+      "action": {
+        "name": "confirm",
+        "surfaceId": "booking",
+        "context": {
+          "details": {
+            "datetime": "2025-12-16T19:00:00Z",
+            "guests": "3"
+          }
+        }
+      }
+    }
+    ```
+
+    **6. Agent responds** → Updates UI or sends:
+
+    ```json
+    {
+      "version": "v0.9",
+      "deleteSurface": { "surfaceId": "booking" }
+    }
+    ```
 
 === "v0.8"
 
@@ -186,109 +289,6 @@ A sequence of self-contained JSON objects is streaming-friendly, easy for LLMs t
 
     ```json
     { "deleteSurface": { "surfaceId": "booking" } }
-    ```
-
-=== "v0.9"
-
-    **1. Agent creates surface:**
-
-    ```json
-    {
-      "version": "v0.9",
-      "createSurface": {
-        "surfaceId": "booking",
-        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
-      }
-    }
-    ```
-
-    **2. Agent defines UI structure:**
-
-    ```json
-    {
-      "version": "v0.9",
-      "updateComponents": {
-        "surfaceId": "booking",
-        "components": [
-          {
-            "id": "root",
-            "component": "Column",
-            "children": ["header", "guests-field", "submit-btn"]
-          },
-          {
-            "id": "header",
-            "component": "Text",
-            "text": "Confirm Reservation",
-            "variant": "h1"
-          },
-          {
-            "id": "guests-field",
-            "component": "TextField",
-            "label": "Guests",
-            "value": { "path": "/reservation/guests" }
-          },
-          {
-            "id": "submit-btn",
-            "component": "Button",
-            "child": "submit-text",
-            "variant": "primary",
-            "action": {
-              "event": {
-                "name": "confirm",
-                "context": {
-                  "details": { "path": "/reservation" }
-                }
-              }
-            }
-          }
-        ]
-      }
-    }
-    ```
-
-    **3. Agent populates data:**
-
-    ```json
-    {
-      "version": "v0.9",
-      "updateDataModel": {
-        "surfaceId": "booking",
-        "path": "/reservation",
-        "value": {
-          "datetime": "2025-12-16T19:00:00Z",
-          "guests": "2"
-        }
-      }
-    }
-    ```
-
-    **4. User edits guests to "3"** → Client updates `/reservation/guests` automatically
-
-    **5. User clicks "Confirm"** → Client sends action:
-
-    ```json
-    {
-      "version": "v0.9",
-      "action": {
-        "name": "confirm",
-        "surfaceId": "booking",
-        "context": {
-          "details": {
-            "datetime": "2025-12-16T19:00:00Z",
-            "guests": "3"
-          }
-        }
-      }
-    }
-    ```
-
-    **6. Agent responds** → Updates UI or sends:
-
-    ```json
-    {
-      "version": "v0.9",
-      "deleteSurface": { "surfaceId": "booking" }
-    }
     ```
 
 ## Transport Options

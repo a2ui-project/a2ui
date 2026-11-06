@@ -70,6 +70,9 @@ A2UI_INFERENCE_CLOSE_TAG = "</a2ui>"
 A2UI_SCHEMA_BLOCK_START = "---BEGIN A2UI JSON SCHEMA---"
 A2UI_SCHEMA_BLOCK_END = "---END A2UI JSON SCHEMA---"
 
+# Heading that introduces the few-shot examples in a prompt snippet or skill.
+EXAMPLES_HEADING = "### Examples:\n\n"
+
 DEFAULT_WORKFLOW_RULES = f"""
 The generated response MUST follow these rules:
 - The response can contain one or more A2UI JSON blocks.

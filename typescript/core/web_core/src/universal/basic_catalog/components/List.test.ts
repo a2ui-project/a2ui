@@ -33,6 +33,8 @@ import {
   registerUniversalElement,
   type WebComponentImplementation,
 } from '../../index.js';
+import {ListApi} from '../../../v0_9/basic_catalog/components/basic_components.js';
+import {PayloadValidator} from '../../../validation/payload-validator.js';
 
 describe('List Component', () => {
   let basicCatalog: Catalog<WebComponentImplementation>;
@@ -431,5 +433,48 @@ describe('List Component', () => {
     });
     const ul = el.querySelector('ul.a2ui-list');
     assert.strictEqual(ul?.getAttribute('aria-label'), 'Bullet points');
+  });
+
+  describe('ListApi schema validation', () => {
+    it('should parse valid list with listStyle', () => {
+      const parsed = ListApi.schema.parse({
+        children: [],
+        listStyle: 'none',
+      });
+      assert.strictEqual(parsed.listStyle, 'none');
+    });
+
+    it('should parse valid listStyle variants', () => {
+      assert.strictEqual(
+        ListApi.schema.parse({children: [], listStyle: 'ordered'}).listStyle,
+        'ordered',
+      );
+      assert.strictEqual(
+        ListApi.schema.parse({children: [], listStyle: 'unordered'}).listStyle,
+        'unordered',
+      );
+      assert.strictEqual(ListApi.schema.parse({children: [], listStyle: 'none'}).listStyle, 'none');
+    });
+
+    it('should reject invalid listStyle', () => {
+      assert.throws(() =>
+        ListApi.schema.parse({
+          children: [],
+          listStyle: 'invalid',
+        }),
+      );
+    });
+
+    it('should validate list component with listStyle via PayloadValidator', () => {
+      const validator = new PayloadValidator(basicCatalog);
+      assert.doesNotThrow(() => {
+        validator.validateComponent({
+          id: 'list-style-test',
+          component: 'List',
+          children: [],
+          listStyle: 'none',
+        });
+      });
+    });
   });
 });

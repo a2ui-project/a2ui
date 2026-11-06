@@ -208,7 +208,7 @@ Let's peek at what the agent is returning. Here's a simplified example of the JS
       }}
     ```
 
-=== "Legacy (v0.8)"
+=== "v0.8"
 
     **Defining the UI:**
 
