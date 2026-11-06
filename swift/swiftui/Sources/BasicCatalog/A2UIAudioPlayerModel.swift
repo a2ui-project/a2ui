@@ -37,7 +37,7 @@ public final class A2UIAudioPlayerModel {
     set {
       if isScrubbing {
         onScrubChange(newValue)
-      } else {
+      } else if abs(newValue - currentTime) > 0.01 {
         onScrubEnd(newValue)
       }
     }
