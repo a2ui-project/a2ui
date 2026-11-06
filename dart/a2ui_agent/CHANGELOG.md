@@ -8,8 +8,13 @@
   later, is still rejected. With `a2ui_core`'s checks, `validatePayload`,
   `RendererState.apply` and the parsers also reject an `agentOnly` function
   bound into a component, and one nested in the arguments of a
-  `callRendererFunction`
-  ([#3534](https://github.com/a2ui-project/a2ui/issues/3534)).
+  `callRendererFunction`. A call nested there that names no `catalogId` is
+  checked against the default catalog of the surface the message names; on a
+  surface the payload only assumes, whose default catalog is unknown, it
+  passes if some active catalog declares the function and the renderer may
+  make the call
+  ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
+  [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
 - `DirectJsonPromptGenerator.generate()` follows the prompt layout
   the other SDKs use: the rules without the `## Workflow Description:` heading,
   then a schema block with the protocol schemas, then one schema block per

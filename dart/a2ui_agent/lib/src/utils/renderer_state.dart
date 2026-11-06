@@ -426,7 +426,10 @@ class RendererState {
   /// Checks [message] as the processor would, without running it.
   ///
   /// The surface it names must exist, unless [assumesSurface], for a call on
-  /// a surface the state assumes (see [_assumesCallSurface]).
+  /// a surface the state assumes (see [_assumesCallSurface]). A call nested
+  /// in the arguments that names no catalog runs in the default catalog of
+  /// that surface, which the state knows only for a surface it did not
+  /// assume: a placeholder's catalog is a guess.
   void _checkCall(
     CallRendererFunctionMessage message, {
     bool assumesSurface = false,
@@ -439,24 +442,30 @@ class RendererState {
       );
     }
     _asValidationError(() {
-      _processor.checkRendererFunctionCall(message);
+      _processor.checkRendererFunctionCall(
+        message,
+        assumesSurface: assumesSurface || _assumed.contains(message.surfaceId),
+      );
       checkPathsAndRecursion(message.toJson());
     });
   }
 
   /// Whether a payload state assumes the surface [message], the message at
-  /// [index] of [payload], names, which the state lacks.
+  /// [index] of [payload], names: one the state lacks, or holds only as a
+  /// placeholder.
   ///
   /// As for an update (see [_assumes]), an earlier payload may have created
   /// a surface the payload never named before. A call does not create the
-  /// surface, so it is checked as on a surface that exists.
+  /// surface, so it is checked as on a surface that exists, whose default
+  /// catalog is unknown.
   bool _assumesCallSurface(
     CallRendererFunctionMessage message,
     List<AgentToRendererMessage> payload,
     int index,
   ) => switch (message.surfaceId) {
     final String surfaceId =>
-      getSurface(surfaceId) == null && _assumes(surfaceId, payload, index),
+      _assumed.contains(surfaceId) ||
+          getSurface(surfaceId) == null && _assumes(surfaceId, payload, index),
     null => false,
   };
 

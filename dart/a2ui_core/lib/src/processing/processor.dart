@@ -797,21 +797,35 @@ class MessageProcessor<T extends ComponentApi> {
 
   /// Checks [message], a `callRendererFunction` an agent is about to send,
   /// as [processMessages] on a processor from [MessageProcessor.forAgent]
-  /// checks it, except that the surface it names is not looked up.
+  /// checks it, except that the surface it names need not exist.
   ///
   /// For an agent that checks a call on its own, such as one a parser reads
   /// as it streams, whose surface an earlier response may have created.
   /// [isUserActivated] is as for [processMessages].
+  ///
+  /// A call nested in the arguments that names no `catalogId` runs in the
+  /// default catalog of the surface the message names, which [model] holds
+  /// unless the surface is one the agent only assumes exists. With
+  /// [assumesSurface], or when [model] lacks the surface, its default
+  /// catalog is unknown, so such a call passes if some catalog this
+  /// processor holds declares the function and the renderer may make the
+  /// call in it.
   ///
   /// Throws [A2uiValidationError] wherever a renderer holding [catalogs]
   /// would answer the call with an `INVALID_FUNCTION_CALL` error.
   void checkRendererFunctionCall(
     CallRendererFunctionMessage message, {
     bool isUserActivated = false,
+    bool assumesSurface = false,
   }) {
+    final SurfaceModel<T>? surface = switch (message.surfaceId) {
+      final String surfaceId when !assumesSurface =>
+        model.getSurface(surfaceId),
+      _ => null,
+    };
     for (final InternalOperation operation in _route(message).operations) {
       if (operation is CallRendererFunctionOp) {
-        _checkFunctionCall(operation, isUserActivated);
+        _checkFunctionCall(operation, isUserActivated, surface: surface);
       }
     }
   }
@@ -826,14 +840,15 @@ class MessageProcessor<T extends ComponentApi> {
     CallRendererFunctionOp operation,
     bool isUserActivated,
   ) {
-    if (operation.surfaceId case final String surfaceId
-        when model.getSurface(surfaceId) == null) {
-      throw A2uiValidationError(
-        "Function call '${operation.functionCallId}' names surface "
-        "'$surfaceId', which does not exist.",
-      );
+    SurfaceModel<T>? surface;
+    if (operation.surfaceId case final String surfaceId) {
+      surface = model.getSurface(surfaceId) ??
+          (throw A2uiValidationError(
+            "Function call '${operation.functionCallId}' names surface "
+            "'$surfaceId', which does not exist.",
+          ));
     }
-    _checkFunctionCall(operation, isUserActivated);
+    _checkFunctionCall(operation, isUserActivated, surface: surface);
   }
 
   /// Checks the call of a `callRendererFunction`: the catalog it names is
@@ -847,9 +862,16 @@ class MessageProcessor<T extends ComponentApi> {
   /// model first, which only the renderer holds.
   ///
   /// A call nested in the arguments runs in the catalog it names, which this
-  /// processor must hold too, or else in the call's catalog, which stands in
-  /// for a surface default. The renderer makes each such call itself, so it
-  /// may not call an `agentOnly` function. Each call may hold only the fields
+  /// processor must hold too. One that names none runs where the renderer
+  /// evaluates the arguments: in the call's catalog when the message names
+  /// no surface, or else in the default catalog of [surface], the surface it
+  /// names, and is rejected if that surface has none. When the message names
+  /// a surface but [surface] is null, the surface is one the caller assumes
+  /// exists, whose default catalog is unknown, so such a call passes if some
+  /// catalog this processor holds declares the function and the renderer
+  /// may make the call in it. The renderer makes each nested call itself, so
+  /// it may not call an `agentOnly` function, nor, unless [isUserActivated],
+  /// one that requires a user activation. Each call may hold only the fields
   /// `FunctionCall` allows.
   ///
   /// Throws [A2uiValidationError] wherever a renderer would answer the call
@@ -857,8 +879,9 @@ class MessageProcessor<T extends ComponentApi> {
   /// processor does not hold or whose protocol version is not the message's.
   void _checkFunctionCall(
     CallRendererFunctionOp operation,
-    bool isUserActivated,
-  ) {
+    bool isUserActivated, {
+    required SurfaceModel<T>? surface,
+  }) {
     final subject = "Function call '${operation.functionCallId}'";
     // The message's parser has checked the types of `@call`, `catalogId`
     // and `args`.
@@ -908,18 +931,40 @@ class MessageProcessor<T extends ComponentApi> {
       );
     }
     final Map<String, Object?> args = call.args;
+    final String? surfaceId = operation.surfaceId;
+    // Where a nested call that names no catalogId runs: see the comment.
+    final bool homeIsDefault =
+        surfaceId == null || identical(surface?.defaultCatalog, catalog);
     validatorFor(catalog, version: operation.version)
       ..validateFunctionCallFields(operation.callFunction)
-      ..validateFunction(name, args);
+      ..validateFunction(name, args, catalogIsDefault: homeIsDefault);
+    final where = "in function call '${operation.functionCallId}'";
     _validateNestedFunctionCalls(
       args,
       home: catalog,
-      homeIsDefault: true,
-      resolve: (String? id, String subject) =>
-          id == null ? catalog : held(id, subject),
+      homeIsDefault: homeIsDefault,
+      resolve: (String? id, String subject) {
+        if (id != null) return held(id, subject);
+        if (surfaceId == null) return catalog;
+        if (surface == null) return null;
+        return surface.defaultCatalog ??
+            (throw A2uiValidationError(
+              "$subject names no catalogId, and surface '$surfaceId' has no "
+              'default catalog.',
+            ));
+      },
+      anyCatalogs: [
+        for (final Catalog<T, FunctionImplementation> candidate in catalogs)
+          if (isCatalogVersionCompatible(
+            candidate.protocolVersion?.jsonValue,
+            operation.version.jsonValue,
+          ))
+            candidate,
+      ],
       version: operation.version,
-      where: "in function call '${operation.functionCallId}'",
+      where: where,
       checkFields: true,
+      disallowUserActivation: !isUserActivated,
     );
   }
 
@@ -1542,49 +1587,61 @@ class MessageProcessor<T extends ComponentApi> {
   /// the catalog [resolve] returns for the `catalogId` it names, or for null
   /// when it names none: for a component, its surface's default catalog,
   /// which [homeIsDefault] says whether [home] is. See
-  /// [SurfaceModel.resolveCatalog]. Every call's catalog is resolved. The
-  /// arguments of a call that runs in [home] (see `nestedCallRunsInCatalog`)
-  /// were checked by the validator of [home], so only the other calls'
-  /// arguments are checked here. With [checkFields], each call may also hold
-  /// only the fields `FunctionCall` allows.
+  /// [SurfaceModel.resolveCatalog]. When [resolve] returns null for a call
+  /// that names no catalog, where it runs is unknown, and the call passes if
+  /// it passes in one of [anyCatalogs] that declares its function. Every
+  /// call's catalog is resolved. The arguments of a call that runs in [home]
+  /// (see `nestedCallRunsInCatalog`) were checked by the validator of
+  /// [home], so only the other calls' arguments are checked here. With
+  /// [checkFields], each call may also hold only the fields `FunctionCall`
+  /// allows.
   ///
   /// [where] places each call in an error message, such as "in component
   /// 'x'", and [componentId] names the component that holds the calls.
   ///
   /// Every nested call, in a component or in a call's arguments, is made by
   /// the renderer, so none may call a function the resolved catalog declares
-  /// [AllowedCallers.agentOnly].
+  /// [AllowedCallers.agentOnly]. With [disallowUserActivation], for the
+  /// arguments of an agent's call, which come with no user activation, none
+  /// may call a function that requires one either.
   ///
   /// Throws what [resolve] throws for a catalog a call cannot resolve to,
   /// and [A2uiValidationError] when the resolved catalog declares no such
-  /// function, declares it `agentOnly`, or a call does not match its schema.
+  /// function, the renderer may not make the call, or a call does not match
+  /// its schema.
   void _validateNestedFunctionCalls(
     Object? node, {
     required Catalog<T, FunctionImplementation> home,
     required bool homeIsDefault,
-    required Catalog<T, FunctionImplementation> Function(
+    required Catalog<T, FunctionImplementation>? Function(
       String? catalogId,
       String subject,
     ) resolve,
+    List<Catalog<T, FunctionImplementation>> anyCatalogs = const [],
     required A2uiProtocolVersion version,
     required String where,
     Object? componentId,
     bool checkFields = false,
+    bool disallowUserActivation = false,
     String path = '',
   }) {
-    if (node is List) {
-      for (var i = 0; i < node.length; i++) {
-        _validateNestedFunctionCalls(
-          node[i],
+    void visit(Object? child, String childPath) => _validateNestedFunctionCalls(
+          child,
           home: home,
           homeIsDefault: homeIsDefault,
           resolve: resolve,
+          anyCatalogs: anyCatalogs,
           version: version,
           where: where,
           componentId: componentId,
           checkFields: checkFields,
-          path: '$path/$i',
+          disallowUserActivation: disallowUserActivation,
+          path: childPath,
         );
+
+    if (node is List) {
+      for (var i = 0; i < node.length; i++) {
+        visit(node[i], '$path/$i');
       }
       return;
     }
@@ -1598,26 +1655,20 @@ class MessageProcessor<T extends ComponentApi> {
         home: home,
         homeIsDefault: homeIsDefault,
         resolve: resolve,
+        anyCatalogs: anyCatalogs,
         version: version,
         where: where,
         componentId: componentId,
         checkFields: checkFields,
+        disallowUserActivation: disallowUserActivation,
       );
     }
     for (final MapEntry<Object?, Object?> entry in node.entries) {
-      final childPath = entry.key is String
-          ? '$path/${_escapePointer(entry.key as String)}'
-          : path;
-      _validateNestedFunctionCalls(
+      visit(
         entry.value,
-        home: home,
-        homeIsDefault: homeIsDefault,
-        resolve: resolve,
-        version: version,
-        where: where,
-        componentId: componentId,
-        checkFields: checkFields,
-        path: childPath,
+        entry.key is String
+            ? '$path/${_escapePointer(entry.key as String)}'
+            : path,
       );
     }
   }
@@ -1628,26 +1679,37 @@ class MessageProcessor<T extends ComponentApi> {
     required String path,
     required Catalog<T, FunctionImplementation> home,
     required bool homeIsDefault,
-    required Catalog<T, FunctionImplementation> Function(
+    required Catalog<T, FunctionImplementation>? Function(
       String? catalogId,
       String subject,
     ) resolve,
+    required List<Catalog<T, FunctionImplementation>> anyCatalogs,
     required A2uiProtocolVersion version,
     required String where,
     Object? componentId,
     required bool checkFields,
+    required bool disallowUserActivation,
   }) {
     final subject = "Function call '$name' $where";
+    // `FunctionCall` allows neither field to be null: a renderer reading
+    // the call rejects an explicit null, so it is not taken as omitted.
     final Object? catalogId = node['catalogId'];
-    if (catalogId != null && catalogId is! String) {
+    if (node.containsKey('catalogId') && catalogId is! String) {
       throw A2uiValidationError(
-        "$subject has a non-string 'catalogId'.",
+        catalogId == null
+            ? "$subject has a null 'catalogId', and 'catalogId' must be a "
+                'string.'
+            : "$subject has a non-string 'catalogId'.",
         path: '$path/catalogId',
       );
     }
     final Map<String, Object?> args = switch (node['args']) {
-      null => const <String, Object?>{},
+      null when !node.containsKey('args') => const <String, Object?>{},
       final Map<Object?, Object?> map => map.cast<String, Object?>(),
+      null => throw A2uiValidationError(
+          "$subject has null 'args', and 'args' must be an object.",
+          path: '$path/args',
+        ),
       _ => throw A2uiValidationError(
           "$subject has non-object 'args'.",
           path: '$path/args',
@@ -1660,38 +1722,87 @@ class MessageProcessor<T extends ComponentApi> {
       }
       return;
     }
-    final Catalog<T, FunctionImplementation> catalog =
-        resolve(catalogId as String?, subject);
-    if (catalog.functions[name]?.allowedCallers == AllowedCallers.agentOnly) {
-      final msg = "$subject is a call the renderer can't make: "
-          '${rendererMayNotCall(name)}';
+    void checkIn(Catalog<T, FunctionImplementation> catalog) {
+      final FunctionImplementation? function = catalog.functions[name];
+      final String? refusal = switch (function) {
+        FunctionImplementation(allowedCallers: AllowedCallers.agentOnly) =>
+          rendererMayNotCall(name),
+        FunctionImplementation(requiresUserActivation: true)
+            when disallowUserActivation =>
+          "Function '$name' requires a user activation, and a call from the "
+              'agent has none.',
+        _ => null,
+      };
+      if (refusal != null) {
+        final msg = "$subject is a call the renderer can't make: $refusal";
+        throw A2uiValidationError(
+          msg,
+          path: path,
+          errors: [
+            A2uiErrorDetail(
+              path: path,
+              code: 'invalid_function_call',
+              message: msg,
+            ),
+          ],
+        );
+      }
+      final PayloadValidator<T, FunctionImplementation> validator =
+          validatorFor(catalog, version: version);
+      if (checkFields) validator.validateFunctionCallFields(node);
+      if (!nestedCallRunsInCatalog(
+        catalogId,
+        home.id,
+        catalogIsDefault: homeIsDefault,
+      )) {
+        validator.validateFunctionArgs(
+          name,
+          args,
+          componentId: componentId,
+          path: path,
+        );
+      }
+    }
+
+    final Catalog<T, FunctionImplementation>? catalog = resolve(
+      catalogId as String?,
+      subject,
+    );
+    if (catalog != null) {
+      checkIn(catalog);
+      return;
+    }
+    // The call names no catalog, and where it runs is unknown: it passes if
+    // it passes in some catalog that declares its function.
+    final declaring = <Catalog<T, FunctionImplementation>>[
+      for (final Catalog<T, FunctionImplementation> candidate in anyCatalogs)
+        if (candidate.functions.containsKey(name)) candidate,
+    ];
+    if (declaring.isEmpty) {
+      final msg = "Unrecognized function '$name': $subject names no "
+          'catalogId, and no catalog this processor holds declares it.';
       throw A2uiValidationError(
         msg,
         path: path,
         errors: [
           A2uiErrorDetail(
             path: path,
-            code: 'invalid_function_call',
+            code: 'unrecognized_function',
             message: msg,
           ),
         ],
       );
     }
-    final PayloadValidator<T, FunctionImplementation> validator =
-        validatorFor(catalog, version: version);
-    if (checkFields) validator.validateFunctionCallFields(node);
-    if (!nestedCallRunsInCatalog(
-      catalogId,
-      home.id,
-      catalogIsDefault: homeIsDefault,
-    )) {
-      validator.validateFunctionArgs(
-        name,
-        args,
-        componentId: componentId,
-        path: path,
-      );
+    A2uiValidationError? firstError;
+    for (final candidate in declaring) {
+      try {
+        checkIn(candidate);
+        return;
+      } on A2uiValidationError catch (error) {
+        firstError ??= error;
+      }
     }
+    throw firstError!;
   }
 
   static String _escapePointer(String segment) =>

@@ -408,12 +408,20 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// [ValidationConfig.allowUnknownElements]; from v1.0 a renderer that
   /// allows it forwards the call to the agent.
   ///
+  /// From v1.0 a call nested in [args] that names no `catalogId` runs in the
+  /// default catalog of the surface it is evaluated on. [catalogIsDefault]
+  /// says whether [catalog] is that default, as it is for a call evaluated
+  /// with no surface. When it is not, the arguments of such calls are left
+  /// to the caller, which checks them against the catalog they run in, as
+  /// for the calls nested in a component that names another catalog.
+  ///
   /// Throws [A2uiValidationError] if the call breaks any of those rules or the
   /// arguments do not match the function's schema.
   void validateFunction(
     String name,
     Map<String, Object?> args, {
     String path = '',
+    bool catalogIsDefault = true,
   }) {
     args = _jsonMap(args);
     if (_v1) {
@@ -426,6 +434,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
         path.isEmpty
             ? '/args/${_escape(arg.key)}'
             : '$path/args/${_escape(arg.key)}',
+        componentCatalogId: catalogIsDefault ? null : catalog.id,
       );
     }
     _checkArgs(name, args, path: path);

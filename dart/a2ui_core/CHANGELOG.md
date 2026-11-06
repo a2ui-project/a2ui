@@ -10,7 +10,21 @@
   `componentId`. A call nested in the arguments of a `callRendererFunction` is
   a renderer call too, so `MessageProcessor` rejects one there as well. The
   error matches the one `Catalog.invoke` reports when such a call is evaluated
-  ([#3534](https://github.com/a2ui-project/a2ui/issues/3534)).
+  ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
+  [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
+- (v1_0) `MessageProcessor` checks a call nested in the arguments of a
+  `callRendererFunction` that names no `catalogId` against the default catalog
+  of the surface the message names, where the renderer runs it, rather than
+  the call's own catalog, and rejects one on a surface with no default
+  catalog. `checkRendererFunctionCall` looks the surface up in `model`; with
+  its new `assumesSurface`, or for a surface `model` lacks, such a call passes
+  if some catalog declares the function and the renderer may make the call.
+  A nested call may not require a user activation unless the message is
+  handled with one, nor hold a null `catalogId` or `args`.
+  `PayloadValidator.validateFunction` takes `catalogIsDefault`, which, when
+  false, leaves such calls to the caller
+  ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
+  [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
 - (v0_9) Restore `listStyle` property to basic catalog `List` component schema ([#3956](https://github.com/a2ui-project/a2ui/pull/3956)).
 
 ## 0.5.0

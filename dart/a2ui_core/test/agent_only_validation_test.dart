@@ -162,6 +162,23 @@ void main() {
       }
     });
 
+    test(
+        'leaves a nested call that names no catalog to the caller when the '
+        'catalog is not the default', () {
+      final Map<String, Object?> args = {
+        'value': {'@call': 'greet'},
+      };
+      expect(
+        () => validator(shared).validateFunction('formatString', args),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      validator(shared).validateFunction(
+        'formatString',
+        args,
+        catalogIsDefault: false,
+      );
+    });
+
     test('lets validateFunction check the arguments of an agentOnly call', () {
       expect(
         () => validator(agentOnly).validateFunction(
@@ -370,6 +387,166 @@ void main() {
         processor([shared]).processMessages([
           call(shared, {'value': formatHello}),
         ]);
+      });
+
+      final Map<String, Object?> openUrl = {
+        '@call': 'openUrl',
+        'args': {'url': 'https://example.com'},
+      };
+
+      test(
+          'rejects a function that requires a user activation nested in '
+          'its arguments', () {
+        expect(
+          () => processor([shared]).processMessages([
+            call(shared, {'value': openUrl}),
+          ]),
+          throwsA(
+            isA<A2uiValidationError>().having(
+              (e) => e.message,
+              'message',
+              "Function call 'openUrl' in function call 'f1' is a call the "
+                  "renderer can't make: Function 'openUrl' requires a user "
+                  'activation, and a call from the agent has none.',
+            ),
+          ),
+        );
+      });
+
+      test(
+          'accepts one that requires a user activation when the call has '
+          'one', () {
+        processor([shared]).processMessages(
+          [
+            call(shared, {'value': openUrl}),
+          ],
+          isUserActivated: true,
+        );
+      });
+
+      group('on a surface', () {
+        // `extra` declares `greet`, which the basic catalog does not.
+        final CatalogApi extra = Catalog.fromJson({
+          'catalogId': 'https://example.com/extra.json',
+          'protocolVersion': '1.0',
+          'components': <String, Object?>{},
+          'functions': {
+            'greet': {
+              'type': 'object',
+              'returnType': 'string',
+              'allowedCallers': 'rendererOrAgent',
+              'properties': {
+                '@call': {'const': 'greet'},
+                'args': {'type': 'object', 'additionalProperties': false},
+              },
+              'required': ['@call'],
+            },
+            'echo': {
+              'type': 'object',
+              'returnType': 'any',
+              'allowedCallers': 'rendererOrAgent',
+              'properties': {
+                '@call': {'const': 'echo'},
+                'args': {'type': 'object'},
+              },
+              'required': ['@call'],
+            },
+          },
+        });
+        const greet = {'@call': 'greet'};
+
+        test('rejects a null catalogId or null args on a nested call', () {
+          for (final MapEntry<String, String> entry in {
+            'catalogId': "'catalogId' must be a string",
+            'args': "'args' must be an object",
+          }.entries) {
+            expect(
+              () => processor([shared, extra]).processMessages([
+                {
+                  'version': '1.0',
+                  'callRendererFunction': {
+                    'functionCallId': 'f1',
+                    'callFunction': {
+                      'catalogId': extra.id,
+                      '@call': 'echo',
+                      'args': {
+                        'value': {'@call': 'greet', entry.key: null},
+                      },
+                    },
+                  },
+                },
+              ]),
+              throwsA(
+                isA<A2uiValidationError>()
+                    .having((e) => e.message, 'message', contains(entry.value))
+                    .having((e) => e.path, 'path', '/value/${entry.key}'),
+              ),
+              reason: entry.key,
+            );
+          }
+        });
+
+        Map<String, Object?> createSurface([String? catalogId]) => {
+              'version': '1.0',
+              'createSurface': {
+                'surfaceId': 's',
+                if (catalogId != null) 'catalogId': catalogId,
+              },
+            };
+
+        CallRendererFunctionMessage onSurface(String surfaceId) =>
+            CallRendererFunctionMessage(
+              version: '1.0',
+              surfaceId: surfaceId,
+              functionCallId: 'f1',
+              callFunction: {
+                'catalogId': shared.id,
+                '@call': 'formatString',
+                'args': {'value': greet},
+              },
+            );
+
+        test(
+            "runs a nested call that names no catalog in the surface's "
+            'default catalog', () {
+          processor([shared, extra]).processMessages([
+            createSurface(extra.id),
+            onSurface('s').toJson(),
+          ]);
+        });
+
+        test('rejects one when the surface has no default catalog', () {
+          final MessageProcessor<ComponentApi> p = processor([shared, extra])
+            ..processMessages([createSurface()]);
+          expect(
+            () => p.checkRendererFunctionCall(onSurface('s')),
+            throwsA(
+              isA<A2uiValidationError>().having(
+                (e) => e.message,
+                'message',
+                "Function call 'greet' in function call 'f1' names no "
+                    "catalogId, and surface 's' has no default catalog.",
+              ),
+            ),
+          );
+        });
+
+        test('accepts one on an assumed surface if a catalog declares it', () {
+          final MessageProcessor<ComponentApi> p = processor([shared, extra])
+            ..processMessages([createSurface(shared.id)]);
+          p.checkRendererFunctionCall(onSurface('elsewhere'));
+          p.checkRendererFunctionCall(onSurface('s'), assumesSurface: true);
+          expect(
+            () => p.checkRendererFunctionCall(onSurface('s')),
+            throwsA(
+              isA<A2uiValidationError>().having(
+                (e) => e.message,
+                'message',
+                contains("Unrecognized function 'greet'"),
+              ),
+            ),
+          );
+        });
       });
     });
   });
