@@ -27,7 +27,7 @@ import {
   DynamicStringSchema,
 } from '../v0_9/schema/common-types.js';
 import {ChildSchema as V1ChildSchema} from '../v1_0/schema/common-types.js';
-import {extractRefFields} from './ref-fields.js';
+import {extractCatalogRefFields, extractRefFields} from './ref-fields.js';
 
 describe('extractRefFields', () => {
   it('extracts explicit ComponentIdSchema, ChildSchema, ChildListSchema, and REF pointers on any field name', () => {
@@ -56,12 +56,19 @@ describe('extractRefFields', () => {
     assert.deepStrictEqual(refs.get('tabs'), {kind: 'nested', keys: new Set(['panel'])});
   });
 
-  it('unwraps readonly, branded, refined, default, and lazy wrappers safely', () => {
+  it('unwraps readonly, branded, refined, default, catch, pipeline, and lazy wrappers safely', () => {
     const schema = z
       .lazy(() =>
         z.object({
           slot: ComponentIdSchema.brand<'SlotId'>().readonly().optional(),
           list: ChildListSchema.refine(() => true).default([]),
+          caughtSingle: ComponentIdSchema.catch('fallback'),
+          pipedSingle: ComponentIdSchema.pipe(z.string()),
+          pipedFromAny: z.any().pipe(ComponentIdSchema),
+          transformedSingle: ComponentIdSchema.transform(s => s.trim()).pipe(z.string()),
+          incompatiblePipeIn: z.number().pipe(ComponentIdSchema),
+          incompatiblePipeOut: ComponentIdSchema.pipe(z.number()),
+          incompatibleTransformPipe: z.number().transform(String).pipe(ComponentIdSchema),
         }),
       )
       .describe('Lazy wrapper');
@@ -69,6 +76,13 @@ describe('extractRefFields', () => {
     const refs = extractRefFields(schema);
     assert.deepStrictEqual(refs.get('slot'), {kind: 'single'});
     assert.deepStrictEqual(refs.get('list'), {kind: 'list'});
+    assert.deepStrictEqual(refs.get('caughtSingle'), {kind: 'single'});
+    assert.deepStrictEqual(refs.get('pipedSingle'), {kind: 'single'});
+    assert.deepStrictEqual(refs.get('pipedFromAny'), {kind: 'single'});
+    assert.deepStrictEqual(refs.get('transformedSingle'), {kind: 'single'});
+    assert.strictEqual(refs.has('incompatiblePipeIn'), false);
+    assert.strictEqual(refs.has('incompatiblePipeOut'), false);
+    assert.strictEqual(refs.has('incompatibleTransformPipe'), false);
   });
 
   it('terminates cleanly on self-referential z.lazy schemas without misclassifying inline object trees', () => {
@@ -120,12 +134,16 @@ describe('extractRefFields', () => {
 
     const numberRecordRefs = extractRefFields(z.record(z.number()));
     assert.strictEqual(numberRecordRefs.size, 0);
+
+    // Non-transform pipelines must satisfy both input and output wire constraints.
+    assert.strictEqual(extractRefFields(z.number().pipe(z.any())).size, 0);
+    assert.strictEqual(extractRefFields(z.any().pipe(z.number())).size, 0);
+    assert.strictEqual(extractRefFields(z.number().transform(String).pipe(z.any())).size, 0);
   });
 
-  it('extracts child and children fallbacks for empty-shape and open ZodObject schemas', () => {
+  it('extracts child and children fallbacks for unannotated empty-shape and open ZodObject schemas while excluding strict or closed empty schemas', () => {
     for (const schema of [
       z.object({}),
-      z.object({}).strict(),
       z.object({title: z.string()}).passthrough(),
       z.object({title: z.string()}).catchall(z.unknown()),
     ]) {
@@ -135,6 +153,17 @@ describe('extractRefFields', () => {
       assert.strictEqual(refs.size, 2);
     }
 
+    // Strict or incompatible catchall empty objects reject unknown `child`/`children` keys.
+    assert.strictEqual(extractRefFields(z.object({}).strict()).size, 0);
+    assert.strictEqual(extractRefFields(z.object({}).catchall(z.number())).size, 0);
+
+    // Static catalog introspection excludes zero-property leaf schemas (`z.object({})`)
+    // while keeping explicitly open schemas.
+    assert.strictEqual(extractCatalogRefFields(z.object({})).size, 0);
+    const openCatalogRefs = extractCatalogRefFields(z.object({}).passthrough());
+    assert.deepStrictEqual(openCatalogRefs.get('child'), {kind: 'single'});
+    assert.deepStrictEqual(openCatalogRefs.get('children'), {kind: 'list'});
+
     const stringCatchallRefs = extractRefFields(z.object({title: z.string()}).catchall(z.string()));
     assert.deepStrictEqual(stringCatchallRefs.get('child'), {kind: 'single'});
     assert.strictEqual(stringCatchallRefs.has('children'), false);
@@ -143,11 +172,15 @@ describe('extractRefFields', () => {
     assert.strictEqual(numberCatchallRefs.size, 0);
   });
 
-  it('extracts unannotated child, children, and nested item child fields with compatible types', () => {
+  it('extracts unannotated child, children, discriminated union properties, and nested item child fields with compatible types', () => {
     const schema = z.object({
       title: z.string().optional(),
       child: z.string().optional(),
       children: z.array(z.string()).optional(),
+      discriminatedList: z.discriminatedUnion('mode', [
+        z.object({mode: z.literal('template'), componentId: z.string(), path: z.string()}),
+        z.object({mode: z.literal('none')}),
+      ]),
       tabItems: z
         .array(
           z.object({
@@ -170,6 +203,7 @@ describe('extractRefFields', () => {
     const refs = extractRefFields(schema);
     assert.deepStrictEqual(refs.get('child'), {kind: 'single'});
     assert.deepStrictEqual(refs.get('children'), {kind: 'list'});
+    assert.deepStrictEqual(refs.get('discriminatedList'), {kind: 'list'});
     assert.deepStrictEqual(refs.get('tabItems'), {kind: 'nested', keys: new Set(['child'])});
     assert.deepStrictEqual(refs.get('unionItems'), {
       kind: 'nested',
@@ -182,11 +216,12 @@ describe('extractRefFields', () => {
     assert.strictEqual(refs.has('title'), false);
   });
 
-  it('supports dynamic and unannotated component schemas loaded via Catalog.fromJson', () => {
+  it('supports dynamic, oneOf, and unannotated component schemas loaded via Catalog.fromJson', () => {
     const catalog = Catalog.fromJson({
       catalogId: 'https://example.com/dynamic-catalog.json',
       components: {
-        EmptyBox: {type: 'object'},
+        EmptyLeaf: {type: 'object'},
+        EmptyOpenBox: {type: 'object', additionalProperties: true},
         OpenBox: {
           allOf: [
             {$ref: 'common_types.json#/$defs/ComponentCommon'},
@@ -204,6 +239,20 @@ describe('extractRefFields', () => {
             children: {type: 'array', items: {type: 'string'}},
           },
         },
+        OneOfSlotContainer: {
+          type: 'object',
+          properties: {
+            slot: {
+              oneOf: [
+                {$ref: 'common_types.json#/$defs/ComponentId'},
+                {$ref: 'common_types.json#/$defs/ChildList'},
+              ],
+            },
+            count: {
+              oneOf: [{type: 'number'}, {type: 'boolean'}],
+            },
+          },
+        },
         ClosedLeaf: {
           type: 'object',
           properties: {
@@ -214,7 +263,7 @@ describe('extractRefFields', () => {
       },
     });
 
-    for (const compName of ['EmptyBox', 'OpenBox', 'UnannotatedContainer']) {
+    for (const compName of ['EmptyOpenBox', 'OpenBox', 'UnannotatedContainer']) {
       const api = catalog.components.get(compName);
       assert.ok(api, `expected component ${compName}`);
       const refs = extractRefFields(api.schema);
@@ -222,9 +271,17 @@ describe('extractRefFields', () => {
       assert.deepStrictEqual(refs.get('children'), {kind: 'list'}, `${compName}.children`);
     }
 
-    const leafApi = catalog.components.get('ClosedLeaf');
-    assert.ok(leafApi);
-    assert.strictEqual(extractRefFields(leafApi.schema).size, 0);
+    const oneOfApi = catalog.components.get('OneOfSlotContainer');
+    assert.ok(oneOfApi);
+    const oneOfRefs = extractRefFields(oneOfApi.schema);
+    assert.deepStrictEqual(oneOfRefs.get('slot'), {kind: 'list'});
+    assert.strictEqual(oneOfRefs.has('count'), false);
+
+    for (const leafName of ['EmptyLeaf', 'ClosedLeaf']) {
+      const leafApi = catalog.components.get(leafName);
+      assert.ok(leafApi, `expected leaf ${leafName}`);
+      assert.strictEqual(extractRefFields(leafApi.schema).size, 0, `${leafName} refs`);
+    }
   });
 
   it('does not misclassify closed non-child schemas or incompatible scalar types on child/children', () => {
@@ -285,9 +342,14 @@ describe('extractRefFields', () => {
     assert.deepStrictEqual(extractRefFields(z.union([listBranch, singleBranch])).get('slot'), {
       kind: 'list',
     });
+    assert.deepStrictEqual(
+      extractRefFields(z.object({slot: ComponentIdSchema.or(ChildListSchema)})).get('slot'),
+      {kind: 'list'},
+    );
 
     // Intersection compatibility: narrowing an explicit ref field with `z.string()` keeps it,
-    // while narrowing with `z.number()` or an incompatible `ZodRecord` drops it.
+    // while narrowing with `z.number()`, mutually incompatible ref kinds, or an incompatible
+    // `ZodRecord` drops it.
     const narrowedValid = z.object({header: ComponentIdSchema}).and(z.object({header: z.string()}));
     assert.deepStrictEqual(extractRefFields(narrowedValid).get('header'), {kind: 'single'});
 
@@ -295,6 +357,49 @@ describe('extractRefFields', () => {
       .object({header: ComponentIdSchema})
       .and(z.object({header: z.number()}));
     assert.strictEqual(extractRefFields(narrowedInvalid).has('header'), false);
+    assert.strictEqual(
+      extractRefFields(z.object({header: ComponentIdSchema.and(z.number())})).has('header'),
+      false,
+    );
+
+    // Mutually incompatible `single` & `list` intersection accepts neither strings nor arrays.
+    const conflictingRefKinds = z
+      .object({slot: ComponentIdSchema})
+      .and(z.object({slot: z.array(ComponentIdSchema)}));
+    assert.strictEqual(extractRefFields(conflictingRefKinds).size, 0);
+
+    // Narrowing `single | list` with `z.string()` preserves `single`.
+    const narrowedUnionToSingle = z
+      .object({slot: z.union([ComponentIdSchema, ChildListSchema])})
+      .and(z.object({slot: z.string()}));
+    assert.deepStrictEqual(extractRefFields(narrowedUnionToSingle).get('slot'), {kind: 'single'});
+    const propLevelNarrowedToSingle = z.object({
+      slot: z.union([ComponentIdSchema, ChildListSchema]).and(z.string()),
+    });
+    assert.deepStrictEqual(extractRefFields(propLevelNarrowedToSingle).get('slot'), {
+      kind: 'single',
+    });
+
+    // Nested array of objects intersected with array of numbers drops the nested ref,
+    // and intersecting two object-array schemas filters incompatible item sub-keys.
+    const nestedVsNumberArray = z
+      .object({items: z.array(z.object({child: ComponentIdSchema}))})
+      .and(z.object({items: z.array(z.number())}));
+    assert.strictEqual(extractRefFields(nestedVsNumberArray).size, 0);
+
+    const nestedFilteredSubKeys = z
+      .object({
+        items: z.array(z.object({keep: ComponentIdSchema, drop: ComponentIdSchema})),
+      })
+      .and(
+        z.object({
+          items: z.array(z.object({keep: z.string(), drop: z.number()})),
+        }),
+      );
+    assert.deepStrictEqual(extractRefFields(nestedFilteredSubKeys).get('items'), {
+      kind: 'nested',
+      keys: new Set(['keep']),
+    });
 
     const recordInvalid = z.object({child: z.string()}).and(z.record(z.number()));
     assert.strictEqual(extractRefFields(recordInvalid).size, 0);

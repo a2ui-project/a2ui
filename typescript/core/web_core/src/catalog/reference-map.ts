@@ -18,11 +18,15 @@ import {z} from 'zod';
 
 import {
   type ChildRefAnalysisOptions,
+  canSchemaHoldListRef,
+  canSchemaHoldSingleRef,
+  extractCatalogRefFields,
   extractRefDefName,
-  extractRefFields,
+  getUnionOptions,
+  isTemplateRefObject,
+  unwrapZodField,
 } from '../resolution/ref-fields.js';
-import {childRefKindOf} from '../types/child-ref-helpers.js';
-import type {Catalog, ComponentApi} from './types.js';
+import type {Catalog, ComponentApi, FunctionApi} from './types.js';
 
 export {type ChildRefAnalysisOptions, extractRefDefName};
 
@@ -60,71 +64,6 @@ export interface ChildRefAnalysis {
   isChildList: boolean;
 }
 
-function unwrapNextZodLayer(current: any, visited?: Set<any>): any {
-  if (!current?._def) return null;
-  if (visited) {
-    if (visited.has(current)) return null;
-    visited.add(current);
-  }
-  const typeName = current._def.typeName;
-  switch (typeName) {
-    case 'ZodOptional':
-    case 'ZodNullable':
-    case 'ZodDefault':
-    case 'ZodReadonly':
-    case 'ZodCatch':
-      return current._def.innerType;
-    case 'ZodBranded':
-      return current._def.type;
-    case 'ZodEffects':
-      return current._def.schema;
-    case 'ZodPipeline':
-      return current._def['out'];
-    case 'ZodLazy':
-      return current._def.getter();
-    default:
-      return null;
-  }
-}
-
-function getDescriptions(type: any): string[] {
-  const descriptions: string[] = [];
-  const visited = new Set<any>();
-  let current = type;
-  while (current) {
-    if (current.description) descriptions.push(current.description);
-    if (current._def?.description) descriptions.push(current._def.description);
-    const next = unwrapNextZodLayer(current, visited);
-    if (!next) break;
-    current = next;
-  }
-  return descriptions;
-}
-
-function getChildRefKindFromChain(type: any): ReturnType<typeof childRefKindOf> {
-  const visited = new Set<any>();
-  let current = type;
-  while (current) {
-    const kind = childRefKindOf(current);
-    if (kind) return kind;
-    const next = unwrapNextZodLayer(current, visited);
-    if (!next) break;
-    current = next;
-  }
-  return undefined;
-}
-
-function unwrapZodType(type: any): any {
-  const visited = new Set<any>();
-  let current = type;
-  while (current) {
-    const next = unwrapNextZodLayer(current, visited);
-    if (!next) break;
-    current = next;
-  }
-  return current;
-}
-
 function checkDirectJsonRef(
   ref: string,
   options: ChildRefAnalysisOptions,
@@ -150,7 +89,7 @@ function checkCombinerList(
   let hasChild = false;
   for (const sub of list) {
     if (typeof sub !== 'object' || sub === null) continue;
-    const subRes = checkJsonSchemaRef(sub as Record<string, any>, options);
+    const subRes = checkJsonSchemaRef(sub as Record<string, unknown>, options);
     if (subRes.isChildList) return {isChild: false, isChildList: true};
     if (subRes.isChild) hasChild = true;
   }
@@ -158,7 +97,7 @@ function checkCombinerList(
 }
 
 function checkCombinerRefs(
-  schema: Record<string, any>,
+  schema: Record<string, unknown>,
   options: ChildRefAnalysisOptions,
 ): ChildRefAnalysis | null {
   let hasChild = false;
@@ -173,15 +112,15 @@ function checkCombinerRefs(
 }
 
 function checkJsonSchemaRef(
-  schema: Record<string, any>,
+  schema: Record<string, unknown>,
   options: ChildRefAnalysisOptions,
 ): ChildRefAnalysis {
   const ref = typeof schema.$ref === 'string' ? schema.$ref : '';
   const directMatch = checkDirectJsonRef(ref, options);
   if (directMatch) return directMatch;
 
-  if (schema.type === 'array' && schema.items) {
-    const itemsRes = checkJsonSchemaRef(schema.items, options);
+  if (schema.type === 'array' && typeof schema.items === 'object' && schema.items !== null) {
+    const itemsRes = checkJsonSchemaRef(schema.items as Record<string, unknown>, options);
     if (itemsRes.isChild || itemsRes.isChildList) {
       return {isChild: false, isChildList: true};
     }
@@ -190,15 +129,19 @@ function checkJsonSchemaRef(
   const combinerMatch = checkCombinerRefs(schema, options);
   if (combinerMatch) return combinerMatch;
 
+  const props =
+    typeof schema.properties === 'object' && schema.properties !== null
+      ? (schema.properties as Record<string, unknown>)
+      : undefined;
   if (
     schema.type === 'object' &&
-    schema.properties &&
-    ((Object.hasOwn(schema.properties, 'componentId') &&
-      (Object.hasOwn(schema.properties, 'path') ||
-        Object.hasOwn(schema.properties, '@path') ||
-        Object.hasOwn(schema.properties, 'dataBinding'))) ||
-      Object.hasOwn(schema.properties, 'explicitList') ||
-      Object.hasOwn(schema.properties, 'template'))
+    props &&
+    ((Object.hasOwn(props, 'componentId') &&
+      (Object.hasOwn(props, 'path') ||
+        Object.hasOwn(props, '@path') ||
+        Object.hasOwn(props, 'dataBinding'))) ||
+      Object.hasOwn(props, 'explicitList') ||
+      Object.hasOwn(props, 'template'))
   ) {
     return {isChild: false, isChildList: true};
   }
@@ -206,23 +149,8 @@ function checkJsonSchemaRef(
   return {isChild: false, isChildList: false};
 }
 
-function isTemplateShape(unwrappedOpt: any): boolean {
-  if (
-    unwrappedOpt?._def?.typeName === 'ZodObject' &&
-    typeof unwrappedOpt._def.shape === 'function'
-  ) {
-    const shape = unwrappedOpt._def.shape();
-    return Boolean(
-      (shape.componentId && (shape.path || shape['@path'] || shape.dataBinding)) ||
-      shape.explicitList ||
-      shape.template,
-    );
-  }
-  return false;
-}
-
 function isArrayOfChild(
-  unwrappedOpt: any,
+  unwrappedOpt: z.ZodTypeAny,
   options: ChildRefAnalysisOptions,
   path: Set<unknown>,
 ): boolean {
@@ -233,7 +161,7 @@ function isArrayOfChild(
 }
 
 function analyzeUnionOptions(
-  options: any[],
+  options: z.ZodTypeAny[],
   analysisOptions: ChildRefAnalysisOptions,
   path: Set<unknown>,
 ): ChildRefAnalysis {
@@ -242,8 +170,8 @@ function analyzeUnionOptions(
   let hasChildRef = false;
 
   for (const opt of options) {
-    const unwrappedOpt = unwrapZodType(opt);
-    if (isTemplateShape(unwrappedOpt)) {
+    const unwrappedOpt = unwrapZodField(opt).schema;
+    if (isTemplateRefObject(unwrappedOpt)) {
       hasTemplate = true;
     }
     if (isArrayOfChild(unwrappedOpt, analysisOptions, path)) {
@@ -321,7 +249,7 @@ function checkDescriptionChildRef(
 }
 
 function analyzeZodArray(
-  elem: any,
+  elem: z.ZodTypeAny,
   options: ChildRefAnalysisOptions,
   path: Set<unknown>,
 ): ChildRefAnalysis {
@@ -329,6 +257,45 @@ function analyzeZodArray(
   if (elemRes.isChild || elemRes.isChildList) {
     return {isChild: false, isChildList: true};
   }
+  return {isChild: false, isChildList: false};
+}
+
+function analyzeIntersectedSchemas(
+  left: z.ZodTypeAny,
+  right: z.ZodTypeAny,
+  options: ChildRefAnalysisOptions,
+  path: Set<unknown>,
+  outerMatch?: ChildRefAnalysis | null,
+): ChildRefAnalysis {
+  const leftRes = analyzeChildRefSchemaOnPath(left, options, path);
+  const rightRes = analyzeChildRefSchemaOnPath(right, options, path);
+
+  const isList =
+    (Boolean(outerMatch?.isChildList) &&
+      canSchemaHoldListRef(left, options) &&
+      canSchemaHoldListRef(right, options)) ||
+    (leftRes.isChildList && canSchemaHoldListRef(right, options)) ||
+    (rightRes.isChildList && canSchemaHoldListRef(left, options));
+  if (isList) {
+    return {isChild: false, isChildList: true};
+  }
+
+  const isSingle =
+    (Boolean(outerMatch?.isChild) &&
+      canSchemaHoldSingleRef(left, options) &&
+      canSchemaHoldSingleRef(right, options)) ||
+    (leftRes.isChild && canSchemaHoldSingleRef(right, options)) ||
+    (rightRes.isChild && canSchemaHoldSingleRef(left, options)) ||
+    (leftRes.isChildList &&
+      canSchemaHoldSingleRef(left, options) &&
+      canSchemaHoldSingleRef(right, options)) ||
+    (rightRes.isChildList &&
+      canSchemaHoldSingleRef(right, options) &&
+      canSchemaHoldSingleRef(left, options));
+  if (isSingle) {
+    return {isChild: true, isChildList: false};
+  }
+
   return {isChild: false, isChildList: false};
 }
 
@@ -387,46 +354,85 @@ function analyzeSchemaNode(
   options: ChildRefAnalysisOptions,
   path: Set<unknown>,
 ): ChildRefAnalysis {
-  const directKind = getChildRefKindFromChain(schema);
-  if (directKind === 'component-id') {
-    return {isChild: true, isChildList: false};
-  }
-  if (directKind === 'child-list') {
-    return {isChild: false, isChildList: true};
+  if (!('_def' in schema) || !(schema as z.ZodTypeAny)._def) {
+    return checkJsonSchemaRef(schema as Record<string, unknown>, options);
   }
 
-  const descMatch = checkDescriptionChildRef(getDescriptions(schema), options);
-  if (descMatch) return descMatch;
+  const field = unwrapZodField(schema as z.ZodTypeAny);
+  const explicitMatch: ChildRefAnalysis | null = field.refs.has('child-list')
+    ? {isChild: false, isChildList: true}
+    : field.refs.has('component-id')
+      ? {isChild: true, isChildList: false}
+      : checkDescriptionChildRef(field.descriptions, options);
 
-  const current = unwrapZodType(schema);
+  const current = field.schema;
   if (!current?._def) {
-    return checkJsonSchemaRef(schema as Record<string, any>, options);
+    return explicitMatch ?? {isChild: false, isChildList: false};
   }
 
   if (current !== schema && path.has(current)) {
     return {isChild: false, isChildList: false};
   }
 
-  const typeName = current._def.typeName;
+  const typeName = current._def.typeName as string;
+
+  // Zod's `.and()` copies the left operand's `description` onto the `ZodIntersection`,
+  // so verify compatibility against both sides before trusting an outer marker.
+  if (typeName === 'ZodIntersection') {
+    const def = current._def as {left: z.ZodTypeAny; right: z.ZodTypeAny};
+    return analyzeIntersectedSchemas(def.left, def.right, options, path, explicitMatch);
+  }
+
+  if (explicitMatch?.isChildList) {
+    return explicitMatch;
+  }
+
+  // Zod's `.or()` copies the first operand's `description` onto the `ZodUnion`,
+  // so inspect all union branches before settling on `isChild: true`.
+  const unionOptions = getUnionOptions(current);
+  if (unionOptions) {
+    const unionRes = analyzeUnionOptions(unionOptions, options, path);
+    if (unionRes.isChildList) {
+      return unionRes;
+    }
+    if (unionRes.isChild || explicitMatch?.isChild) {
+      return {isChild: true, isChildList: false};
+    }
+    return {isChild: false, isChildList: false};
+  }
+
+  if (explicitMatch) {
+    return explicitMatch;
+  }
 
   if (typeName === 'ZodArray') {
-    return analyzeZodArray(current._def.type, options, path);
+    return analyzeZodArray(current._def.type as z.ZodTypeAny, options, path);
   }
 
-  if (typeName === 'ZodUnion') {
-    const unionOptions = (current._def.options as any[]) ?? [];
-    return analyzeUnionOptions(unionOptions, options, path);
-  }
-
-  if (typeName === 'ZodObject' && typeof current._def.shape === 'function') {
-    const shape = current._def.shape();
-    if (
-      (shape.componentId && (shape.path || shape['@path'] || shape.dataBinding)) ||
-      shape.explicitList ||
-      shape.template
-    ) {
-      return {isChild: false, isChildList: true};
+  if (typeName === 'ZodPipeline') {
+    const def = current._def as {in: z.ZodTypeAny; out: z.ZodTypeAny};
+    const pipeIn = def['in'];
+    const pipeOut = def['out'];
+    const inField = unwrapZodField(pipeIn);
+    if (inField.hasTransform) {
+      const inRes = analyzeChildRefSchemaOnPath(pipeIn, options, path);
+      if (inRes.isChild || inRes.isChildList) {
+        return inRes;
+      }
+      const outRes = analyzeChildRefSchemaOnPath(pipeOut, options, path);
+      if (outRes.isChildList && canSchemaHoldListRef(pipeIn, options)) {
+        return {isChild: false, isChildList: true};
+      }
+      if (outRes.isChild && canSchemaHoldSingleRef(pipeIn, options)) {
+        return {isChild: true, isChildList: false};
+      }
+      return {isChild: false, isChildList: false};
     }
+    return analyzeIntersectedSchemas(pipeIn, pipeOut, options, path);
+  }
+
+  if (isTemplateRefObject(current)) {
+    return {isChild: false, isChildList: true};
   }
 
   return {isChild: false, isChildList: false};
@@ -504,6 +510,22 @@ function rawArrayItemProperties(propSchema: unknown): Record<string, unknown> | 
   return itemProps as Record<string, unknown>;
 }
 
+function canRawSchemaHoldString(raw: unknown): boolean {
+  if (raw === true) return true;
+  if (typeof raw !== 'object' || raw === null) return false;
+  const obj = raw as Record<string, unknown>;
+  return obj['type'] === undefined || obj['type'] === 'string';
+}
+
+function canRawSchemaHoldStringArray(raw: unknown): boolean {
+  if (raw === true) return true;
+  if (typeof raw !== 'object' || raw === null) return false;
+  const obj = raw as Record<string, unknown>;
+  if (obj['type'] === undefined) return true;
+  if (obj['type'] !== 'array') return false;
+  return obj['items'] === undefined || canRawSchemaHoldString(obj['items']);
+}
+
 function inspectRawProperties(
   properties: Record<string, unknown>,
   acc: ChildRefAccumulator,
@@ -533,16 +555,11 @@ function inspectRawProperties(
       key === 'children' &&
       typeof propSchema === 'object' &&
       propSchema !== null &&
-      (propSchema as Record<string, unknown>)['type'] === 'array'
+      (propSchema as Record<string, unknown>)['type'] === 'array' &&
+      canRawSchemaHoldStringArray(propSchema)
     ) {
-      const items = (propSchema as Record<string, unknown>)['items'];
-      if (
-        !items ||
-        (typeof items === 'object' && (items as Record<string, unknown>)['type'] === 'string')
-      ) {
-        acc.listRefs.add(key);
-        continue;
-      }
+      acc.listRefs.add(key);
+      continue;
     }
 
     const itemProps = rawArrayItemProperties(propSchema);
@@ -574,7 +591,7 @@ function inspectComponentSchema(
   if (!schema || typeof schema !== 'object') return;
 
   if ('_def' in schema && (schema as z.ZodTypeAny)._def) {
-    const refFields = extractRefFields(schema as z.ZodTypeAny, options);
+    const refFields = extractCatalogRefFields(schema as z.ZodTypeAny, options);
     for (const [key, refKind] of refFields) {
       if (refKind.kind === 'single') {
         acc.singleRefs.add(key);
@@ -598,19 +615,15 @@ function inspectComponentSchema(
   if (rawProps) {
     inspectRawProperties(rawProps, acc, options);
   }
-  const isEmptyRawObject =
-    rawSchema['type'] === 'object' &&
-    (!rawProps || Object.keys(rawProps).length === 0) &&
-    rawSchema['additionalProperties'] !== false;
-  const isOpenRawObject =
-    rawSchema['additionalProperties'] === true || rawSchema['unevaluatedProperties'] === true;
-  if (isEmptyRawObject || isOpenRawObject) {
-    if (!rawProps || !Object.hasOwn(rawProps, 'child')) {
-      acc.singleRefs.add('child');
-    }
-    if (!rawProps || !Object.hasOwn(rawProps, 'children')) {
-      acc.listRefs.add('children');
-    }
+  const extraRule = rawSchema['additionalProperties'] ?? rawSchema['unevaluatedProperties'];
+  if (canRawSchemaHoldString(extraRule) && (!rawProps || !Object.hasOwn(rawProps, 'child'))) {
+    acc.singleRefs.add('child');
+  }
+  if (
+    canRawSchemaHoldStringArray(extraRule) &&
+    (!rawProps || !Object.hasOwn(rawProps, 'children'))
+  ) {
+    acc.listRefs.add('children');
   }
 }
 
@@ -621,17 +634,21 @@ function inspectComponentSchema(
  * @param options Required configuration specifying recognized child definition names.
  * @returns ComponentRefMap containing single, list, and nested reference properties.
  */
-export function buildComponentRefMap(
-  catalogOrComponents: Catalog<any, any> | ComponentApi[] | Map<string, ComponentApi>,
+export function buildComponentRefMap<
+  T extends ComponentApi = ComponentApi,
+  F extends FunctionApi = FunctionApi,
+>(
+  catalogOrComponents: Catalog<T, F> | ReadonlyArray<T> | ReadonlyMap<string, T>,
   options: ChildRefAnalysisOptions,
 ): ComponentRefMap {
   const refMap: ComponentRefMap = {};
-  const componentApis: ComponentApi[] =
-    typeof (catalogOrComponents as any)?.components?.values === 'function'
-      ? Array.from((catalogOrComponents as any).components.values())
+  const maybeCatalog = catalogOrComponents as {components?: ReadonlyMap<string, T>};
+  const componentApis: ReadonlyArray<ComponentApi> =
+    typeof maybeCatalog?.components?.values === 'function'
+      ? Array.from(maybeCatalog.components.values())
       : Array.isArray(catalogOrComponents)
         ? catalogOrComponents
-        : Array.from((catalogOrComponents as Map<string, ComponentApi>).values());
+        : Array.from((catalogOrComponents as ReadonlyMap<string, T>).values());
 
   for (const compApi of componentApis) {
     const acc: ChildRefAccumulator = {

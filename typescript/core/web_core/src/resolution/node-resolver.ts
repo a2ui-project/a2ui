@@ -23,7 +23,7 @@ import {
   BehaviorNode,
   GenericBinder,
   getSafeChildList,
-  scrapeSchemaBehavior,
+  scrapeComponentBehavior,
 } from './generic-binder.js';
 import {
   ComponentNode,
@@ -372,7 +372,7 @@ export class NodeResolver<
         parent,
         occurrence,
         refFields: extractRefFields(api.schema),
-        behavior: scrapeSchemaBehavior(api.schema),
+        behavior: scrapeComponentBehavior(api.schema),
         componentModel: model,
         binder,
       },

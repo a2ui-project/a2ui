@@ -1988,4 +1988,86 @@ describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
 
     resolver.dispose();
   });
+
+  it('resolves dynamic bindings, actions, accessibility, and child references on ZodIntersection, variant union, and ZodPipeline schemas', () => {
+    const VariantAndIntersectedApi: ComponentApi = {
+      name: 'VariantContainer',
+      schema: z
+        .object({
+          subtitle: DynamicStringSchema.optional(),
+          onTap: ActionSchema.optional(),
+        })
+        .and(
+          z.union([
+            z.object({
+              mode: z.literal('single'),
+              title: DynamicStringSchema,
+              child: ComponentIdSchema.pipe(z.string()),
+            }),
+            z.object({
+              mode: z.literal('list'),
+              title: DynamicStringSchema,
+              children: ChildListSchema,
+            }),
+          ]),
+        ),
+    };
+
+    const catalog = new Catalog<ComponentApi>('composite-catalog', '0.9', [
+      VariantAndIntersectedApi,
+      TextApi,
+    ]);
+    const surface = new SurfaceModel('surf-comp', catalog);
+    surface.dataModel.set('/title', 'Hello Composite');
+    surface.dataModel.set('/sub', 'Subtext');
+    surface.dataModel.set('/a11y', 'Accessible Container');
+
+    const actions: unknown[] = [];
+    surface.onAction.subscribe(a => {
+      actions.push(a);
+    });
+
+    const resolver = new NodeResolver(surface, catalog);
+    add(surface, 'root', 'VariantContainer', {
+      mode: 'single',
+      title: {path: '/title'},
+      subtitle: {path: '/sub'},
+      child: 'kid-1',
+      onTap: {event: {name: 'clicked'}},
+      accessibility: {label: {path: '/a11y'}},
+    });
+    add(surface, 'kid-1', 'Text', {text: 'Child 1'});
+    add(surface, 'kid-2', 'Text', {text: 'Child 2'});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.strictEqual(bound(root, 'title'), 'Hello Composite');
+    assert.strictEqual(bound(root, 'subtitle'), 'Subtext');
+    const a11y = props(root).accessibility as Record<string, unknown>;
+    assert.ok(a11y.label instanceof ResolvedBinding);
+    assert.strictEqual((a11y.label as ResolvedBinding<unknown>).value, 'Accessible Container');
+    assert.ok(isComponentNode(props(root).child));
+    assert.strictEqual((props(root).child as ComponentNode).componentId, 'kid-1');
+    assert.strictEqual(typeof props(root).onTap, 'function');
+    (props(root).onTap as () => void)();
+    assert.strictEqual(actions.length, 1);
+
+    // Switch variant to `list` and update bound data.
+    surface.dataModel.set('/title', 'Updated Composite');
+    surface.componentsModel.get('root')!.properties = {
+      mode: 'list',
+      title: {path: '/title'},
+      children: ['kid-1', 'kid-2'],
+    };
+    assert.strictEqual(bound(root, 'title'), 'Updated Composite');
+    assert.strictEqual(Object.hasOwn(props(root), 'child'), false);
+    const listKids = props(root).children as ComponentNode[];
+    assert.strictEqual(listKids.length, 2);
+    assert.deepStrictEqual(
+      listKids.map(k => k.componentId),
+      ['kid-1', 'kid-2'],
+    );
+
+    resolver.dispose();
+  });
 });

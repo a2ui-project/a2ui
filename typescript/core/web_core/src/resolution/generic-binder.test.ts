@@ -1812,4 +1812,123 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     sub.unsubscribe();
     surface.dispose();
   });
+
+  it('terminates cleanly on recursive z.lazy schemas in scrapeSchemaBehavior', () => {
+    const RecArray: z.ZodTypeAny = z.lazy(() => z.array(RecArray));
+    assert.deepStrictEqual(scrapeSchemaBehavior(RecArray), {
+      type: 'ARRAY',
+      element: {type: 'STATIC'},
+    });
+
+    const RecOptional: z.ZodTypeAny = z.lazy(() => RecOptional.optional());
+    assert.deepStrictEqual(scrapeSchemaBehavior(RecOptional), {type: 'STATIC'});
+
+    const RecObject: z.ZodTypeAny = z.lazy(() =>
+      z.object({
+        label: CommonSchemas.DynamicString,
+        next: RecObject.optional(),
+      }),
+    );
+    const scrapedObj = scrapeSchemaBehavior(RecObject);
+    assert.strictEqual(scrapedObj.type, 'OBJECT');
+    if (scrapedObj.type === 'OBJECT') {
+      assert.deepStrictEqual(scrapedObj.shape.label, {type: 'DYNAMIC'});
+      assert.deepStrictEqual(scrapedObj.shape.next, {type: 'STATIC'});
+    }
+  });
+
+  it('binds dynamic, action, and structural properties across ZodIntersection, ZodPipeline, ZodCatch, and object-variant unions', () => {
+    const componentIdSchema = z.string().describe('REF:common_types.json#/$defs/ComponentId');
+    const variantUnionSchema = z.discriminatedUnion('mode', [
+      z.object({
+        mode: z.literal('card'),
+        title: CommonSchemas.DynamicString.catch('fallback').pipe(z.any()),
+        child: componentIdSchema,
+      }),
+      z.object({
+        mode: z.literal('list'),
+        title: CommonSchemas.DynamicString,
+        children: CommonSchemas.ChildList,
+      }),
+    ]);
+
+    const scrapedVariant = scrapeSchemaBehavior(variantUnionSchema);
+    assert.strictEqual(scrapedVariant.type, 'OBJECT');
+
+    const scrapedOpenRecord = scrapeSchemaBehavior(z.record(z.unknown()));
+    assert.strictEqual(scrapedOpenRecord.type, 'OBJECT');
+    if (scrapedOpenRecord.type === 'OBJECT') {
+      assert.deepStrictEqual(scrapedOpenRecord.shape.children, {type: 'STRUCTURAL'});
+      assert.strictEqual(scrapedOpenRecord.shape.accessibility?.type, 'OBJECT');
+    }
+
+    const scrapedNumericRecord = scrapeSchemaBehavior(z.record(z.number()));
+    assert.strictEqual(scrapedNumericRecord.type, 'OBJECT');
+    if (scrapedNumericRecord.type === 'OBJECT') {
+      assert.strictEqual(Object.hasOwn(scrapedNumericRecord.shape, 'children'), false);
+      assert.strictEqual(scrapedNumericRecord.shape.accessibility?.type, 'OBJECT');
+    }
+
+    const compositeSchema = z
+      .object({
+        subtitle: CommonSchemas.DynamicString.optional(),
+      })
+      .and(variantUnionSchema)
+      .and(
+        z.object({
+          onPress: CommonSchemas.Action.optional(),
+        }),
+      );
+
+    const catalog = new Catalog('test-composite', '0.9', [], []);
+    const surface = new SurfaceModel('s1', catalog);
+    surface.dataModel.set('/heading', 'Bound Heading');
+    surface.dataModel.set('/sub', 'Bound Sub');
+    surface.dataModel.set('/items', [{name: 'A'}, {name: 'B'}]);
+
+    const dispatched: unknown[] = [];
+    surface.onAction.subscribe(evt => {
+      dispatched.push(evt);
+    });
+
+    const compModel = new ComponentModel(
+      'c1',
+      'CompositeCard',
+      {
+        mode: 'list',
+        title: {path: '/heading'},
+        subtitle: {path: '/sub'},
+        children: {componentId: 'item-tpl', path: '/items'},
+        onPress: {event: {name: 'tap'}},
+        accessibility: {label: {path: '/heading'}},
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const binder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c1'),
+      compositeSchema,
+    );
+    const sub = binder.subscribe(() => {});
+
+    assert.strictEqual(binder.snapshot.title, 'Bound Heading');
+    assert.strictEqual(binder.snapshot.subtitle, 'Bound Sub');
+    assert.deepStrictEqual(binder.snapshot.children, [
+      {id: 'item-tpl', basePath: '/items/0'},
+      {id: 'item-tpl', basePath: '/items/1'},
+    ]);
+    assert.deepStrictEqual(binder.snapshot.accessibility, {
+      label: 'Bound Heading',
+      setLabel: (binder.snapshot.accessibility as Record<string, unknown>).setLabel,
+      setDescription: (binder.snapshot.accessibility as Record<string, unknown>).setDescription,
+      setHidden: (binder.snapshot.accessibility as Record<string, unknown>).setHidden,
+    });
+    assert.strictEqual(typeof binder.snapshot.onPress, 'function');
+    (binder.snapshot.onPress as () => void)();
+    assert.strictEqual(dispatched.length, 1);
+
+    sub.unsubscribe();
+    surface.dispose();
+  });
 });
