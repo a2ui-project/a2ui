@@ -302,7 +302,7 @@
     catalogs:
       - catalog: "test_data/catalogs/allowed_callers_catalog_v1_0.json"
   expect_callable_functions: ["notifyAgent", "showToast"]
-  expect_contains: ["notifyAgent", "showToast"]
+  expect_contains: ["Only these functions can be called this way: `notifyAgent`, `showToast`."]
 
 - name: test_express_snippet_has_no_standalone_call_rule_without_callable_functions
   description: When no active catalog function is agent-callable, the standalone renderer call rule is omitted from the Express prompt.

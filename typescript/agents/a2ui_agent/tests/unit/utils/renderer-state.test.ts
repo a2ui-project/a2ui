@@ -949,4 +949,130 @@ describe('RendererState.of', () => {
 
     expect(snapshot(state)).toEqual(before);
   });
+
+  it('validates surfaceId, catalogId, function declaration, allowedCallers, and args on callRendererFunction', () => {
+    const catalog = new InMemoryCatalogProvider(
+      {
+        catalogId: 'https://example.com/rpc_validation',
+        components: {
+          Text: {
+            type: 'object',
+            properties: {
+              component: {const: 'Text'},
+              text: {type: 'string'},
+            },
+            required: ['component', 'text'],
+          },
+        },
+        functions: {
+          showToast: {
+            type: 'object',
+            returnType: 'void',
+            allowedCallers: 'rendererOrAgent',
+            properties: {
+              '@call': {const: 'showToast'},
+              args: {
+                type: 'object',
+                properties: {message: {type: 'string'}},
+                required: ['message'],
+                additionalProperties: false,
+              },
+            },
+            required: ['@call', 'args'],
+          },
+          localOnly: {
+            type: 'object',
+            returnType: 'string',
+            properties: {
+              '@call': {const: 'localOnly'},
+              args: {type: 'object', properties: {}},
+            },
+            required: ['@call', 'args'],
+          },
+        },
+      },
+      '1.0',
+    ).load();
+    const state = new RendererState([catalog]);
+    state.apply([
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 's',
+          catalogId: 'https://example.com/rpc_validation',
+          components: [{id: 'root', component: 'Text', text: 'Hi'}],
+        },
+      },
+    ]);
+
+    expect(() =>
+      state.apply({
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'c1',
+          surfaceId: 'missing',
+          callFunction: {
+            catalogId: catalog.id,
+            '@call': 'showToast',
+            args: {message: 'hello'},
+          },
+        },
+      }),
+    ).toThrow(/missing/);
+
+    expect(() =>
+      state.apply({
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'c2',
+          surfaceId: 's',
+          callFunction: {catalogId: catalog.id, '@call': 'localOnly', args: {}},
+        },
+      }),
+    ).toThrow(/localOnly/);
+
+    expect(() =>
+      state.apply({
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'c3',
+          callFunction: {
+            catalogId: 'https://example.com/unknown',
+            '@call': 'showToast',
+            args: {message: 'hello'},
+          },
+        },
+      }),
+    ).toThrow(/not active/);
+
+    expect(() =>
+      state.apply({
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'c4',
+          callFunction: {catalogId: catalog.id, '@call': 'undeclaredFn', args: {}},
+        },
+      }),
+    ).toThrow(/undeclaredFn/);
+
+    expect(() =>
+      state.apply({
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'c5',
+          surfaceId: 's',
+          callFunction: {catalogId: catalog.id, '@call': 'showToast', args: {message: 123}},
+        },
+      }),
+    ).toThrow(A2uiValidationError);
+
+    state.apply({
+      version: '1.0',
+      callRendererFunction: {
+        functionCallId: 'c6',
+        surfaceId: 's',
+        callFunction: {catalogId: catalog.id, '@call': 'showToast', args: {message: 'ok'}},
+      },
+    });
+  });
 });

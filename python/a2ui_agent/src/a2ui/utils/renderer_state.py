@@ -743,9 +743,25 @@ class RendererState:
     def _apply_message(self, payload: list[dict[str, Any]], index: int) -> str | None:
         """Applies the message at an index and returns the surface it targets."""
         message = payload[index]
+        if "callRendererFunction" in message and not _actions(message):
+            call_renderer = message.get("callRendererFunction")
+            if isinstance(call_renderer, Mapping):
+                call_surface_id = call_renderer.get("surfaceId")
+                if (
+                    isinstance(call_surface_id, str)
+                    and self._processor.model.get_surface(call_surface_id) is None
+                    and not self._assumes(call_surface_id, payload, index)
+                ):
+                    call_id = call_renderer.get("functionCallId", "")
+                    raise A2uiValidationError(
+                        f"Function call '{call_id}' names surface"
+                        f" '{call_surface_id}', which does not exist."
+                    )
+            check_agent_callable(message, self._catalogs)
+            self._process([message])
+            return None
         surface_id, creates = _target(message)
         if surface_id is None:
-            check_agent_callable(message, self._catalogs)
             self._process([message])
             return None
 

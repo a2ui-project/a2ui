@@ -33,8 +33,6 @@
       {"$ref": "#/$defs/RouteAgentFunctionTest"},
       {"$ref": "#/$defs/DeriveTest"},
       {"$ref": "#/$defs/RenderSurfaceTest"},
-      {"$ref": "#/$defs/ReadRendererCapabilitiesTest"},
-      {"$ref": "#/$defs/ParseInboundMessageTest"},
       {"$ref": "#/$defs/RendererStateTurnsTest"},
       {"$ref": "#/$defs/HandleRpcTest"}
     ]
@@ -107,8 +105,6 @@
             "validation_schema",
             "verify_cuttable_keys",
             "wrap",
-            "read_renderer_capabilities",
-            "parse_inbound_message",
             "renderer_state_turns"
           ],
           "description": "The conformance test action to perform."
@@ -316,20 +312,11 @@
         },
         {
           "if": {
-            "properties": {"action": {"const": "read_renderer_capabilities"}},
+            "properties": {"action": {"const": "create_processor"}},
             "required": ["action"]
           },
           "then": {
-            "$ref": "#/$defs/ReadRendererCapabilitiesTest"
-          }
-        },
-        {
-          "if": {
-            "properties": {"action": {"const": "parse_inbound_message"}},
-            "required": ["action"]
-          },
-          "then": {
-            "$ref": "#/$defs/ParseInboundMessageTest"
+            "$ref": "#/$defs/CreateProcessorTest"
           }
         },
         {
@@ -2246,6 +2233,9 @@
       "type": "object",
       "description": "Taking an agent's registered catalogs and a renderer's capabilities through to a request processor, and using that processor for a turn.",
       "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "features": {"type": "array", "items": {"type": "string"}},
         "action": {"const": "create_processor"},
         "args": {
           "type": "object",
@@ -2324,6 +2314,7 @@
                   }
                 },
                 "required": ["input"],
+                "oneOf": [{"required": ["expect"]}, {"required": ["expect_error"]}],
                 "additionalProperties": false
               },
               "minItems": 1
@@ -2335,11 +2326,13 @@
             "expect_error": {"$ref": "#/$defs/ExpectError"}
           },
           "required": ["steps"],
+          "not": {"required": ["expect_close", "expect_error"]},
           "additionalProperties": false
         },
         "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
-      "required": ["action", "args"]
+      "required": ["name", "action", "args"],
+      "additionalProperties": false
     },
     "ExpectError": {
       "description": "Expected error specification (error message string, regex, or structured error object).",
@@ -2469,97 +2462,13 @@
       },
       "additionalProperties": false
     },
-    "ReadRendererCapabilitiesTest": {
-      "type": "object",
-      "description": "Reading and validating a renderer capabilities entry from request or message metadata for a target protocol version.",
-      "properties": {
-        "name": {"type": "string"},
-        "description": {"type": "string"},
-        "action": {"const": "read_renderer_capabilities"},
-        "args": {
-          "type": "object",
-          "properties": {
-            "version": {"$ref": "#/$defs/ProtocolVersion"},
-            "metadata": {
-              "type": ["object", "null"],
-              "description": "Message or transport metadata mapping, or null when absent."
-            }
-          },
-          "required": ["version", "metadata"],
-          "additionalProperties": false
-        },
-        "expect": {
-          "type": ["object", "null"],
-          "description": "Normalized capabilities map for `resolve_catalogs`, or null when no matching entry is present."
-        },
-        "expectError": {"$ref": "#/$defs/ExpectError"},
-        "expect_error": {"$ref": "#/$defs/ExpectError"}
-      },
-      "required": ["name", "action", "args"],
-      "oneOf": [
-        {"required": ["expect"]},
-        {"required": ["expectError"]},
-        {"required": ["expect_error"]}
-      ],
-      "additionalProperties": false
-    },
-    "ParseInboundMessageTest": {
-      "type": "object",
-      "description": "Validating an inbound renderer-to-agent message and formatting user actions and errors for model input.",
-      "properties": {
-        "name": {"type": "string"},
-        "description": {"type": "string"},
-        "action": {"const": "parse_inbound_message"},
-        "args": {
-          "type": "object",
-          "properties": {
-            "version": {"$ref": "#/$defs/ProtocolVersion"},
-            "message": {
-              "type": "object",
-              "description": "Inbound renderer-to-agent message object."
-            }
-          },
-          "required": ["version", "message"],
-          "additionalProperties": false
-        },
-        "expect": {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "enum": ["action", "error", "callAgentFunction", "rendererFunctionResponse"]
-            },
-            "model_input_contains": {
-              "type": "array",
-              "items": {"type": "string"}
-            },
-            "model_input": {
-              "type": "null"
-            }
-          },
-          "required": ["kind"],
-          "not": {
-            "required": ["model_input_contains", "model_input"]
-          },
-          "additionalProperties": false
-        },
-        "expectError": {"$ref": "#/$defs/ExpectError"},
-        "expect_error": {"$ref": "#/$defs/ExpectError"}
-      },
-      "required": ["name", "action", "args"],
-      "oneOf": [
-        {"required": ["expect"]},
-        {"required": ["expectError"]},
-        {"required": ["expect_error"]}
-      ],
-      "additionalProperties": false
-    },
     "RendererStateTurnsTest": {
       "type": "object",
       "description": "Applying a multi-turn sequence of message payloads or formatted model responses against a stateful `RendererState` instance.",
       "properties": {
         "name": {"type": "string"},
         "description": {"type": "string"},
+        "features": {"type": "array", "items": {"type": "string"}},
         "action": {"const": "renderer_state_turns"},
         "catalogs": {
           "type": "array",
@@ -2586,12 +2495,37 @@
               "format": {"$ref": "#/$defs/InferenceFormatName"},
               "expect_surfaces": {
                 "type": "object",
-                "description": "Expected surface state snapshot keyed by surface ID after this turn completes."
+                "description": "Expected surface state snapshot keyed by surface ID after this turn completes.",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "components": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": ["component"]
+                      }
+                    },
+                    "data": {}
+                  },
+                  "additionalProperties": false
+                }
               },
               "expectError": {"$ref": "#/$defs/ExpectError"},
               "expect_error": {"$ref": "#/$defs/ExpectError"}
             },
-            "oneOf": [{"required": ["payload"]}, {"required": ["response"]}],
+            "allOf": [
+              {
+                "oneOf": [{"required": ["payload"]}, {"required": ["response"]}]
+              },
+              {
+                "oneOf": [
+                  {"required": ["expect_surfaces"]},
+                  {"required": ["expectError"]},
+                  {"required": ["expect_error"]}
+                ]
+              }
+            ],
             "additionalProperties": false
           }
         }

@@ -204,6 +204,29 @@ def test_normalize_prompt_example_messages_rejects_empty_or_none_version(
 
 
 def test_direct_json_compile_passes_messages_through_unchanged():
+    from a2ui.processor import InMemoryCatalogProvider
+
+    primary = InMemoryCatalogProvider({
+        "catalogId": PRIMARY,
+        "protocolVersion": "1.0",
+        "components": {},
+        "functions": {
+            "notify": {
+                "type": "object",
+                "allowedCallers": "rendererOrAgent",
+                "properties": {
+                    "@call": {"const": "notify"},
+                    "args": {
+                        "type": "object",
+                        "properties": {"url": {"type": "string"}},
+                        "required": ["url"],
+                        "additionalProperties": False,
+                    },
+                },
+                "required": ["@call", "args"],
+            },
+        },
+    }).load()
     messages = [
         {
             "version": "1.0",
@@ -215,19 +238,19 @@ def test_direct_json_compile_passes_messages_through_unchanged():
                 "functionCallId": "fn-1",
                 "callFunction": {
                     "catalogId": PRIMARY,
-                    "@call": "openUrl",
+                    "@call": "notify",
                     "args": {"url": "https://a2ui.org"},
                 },
             },
         },
     ]
     catalog = BasicCatalog("1.0")
-    parser = DirectJsonParser([catalog])
+    parser = DirectJsonParser([catalog, primary])
     create = {
         "version": "1.0",
         "createSurface": {"surfaceId": "s1", "catalogId": catalog.catalog_id},
     }
-    state = RendererState([catalog])
+    state = RendererState([catalog, primary])
     state.apply(create)
     parts = parser.parse_response(json.dumps(messages), wrapped=False, state=state)
     assert to_message_dicts(parts[0].a2ui) == messages

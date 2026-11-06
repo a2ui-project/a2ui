@@ -73,11 +73,14 @@ List<String> agentCallableFunctions(List<CatalogApi> catalogs) {
   final seen = <String>{};
   return [
     for (final CatalogApi catalog in catalogs)
-      for (final FunctionApi function in catalog.functions.values)
-        if ((function.allowedCallers == AllowedCallers.agentOnly ||
-                function.allowedCallers == AllowedCallers.rendererOrAgent) &&
-            !function.requiresUserActivation &&
-            seen.add(function.name))
-          function.name,
+      if ((catalog.protocolVersion ?? A2uiProtocolVersion.v0_9).isAtLeast(
+        A2uiProtocolVersion.v1_0,
+      ))
+        for (final FunctionApi function in catalog.functions.values)
+          if ((function.allowedCallers == AllowedCallers.agentOnly ||
+                  function.allowedCallers == AllowedCallers.rendererOrAgent) &&
+              !function.requiresUserActivation &&
+              seen.add(function.name))
+            function.name,
   ];
 }

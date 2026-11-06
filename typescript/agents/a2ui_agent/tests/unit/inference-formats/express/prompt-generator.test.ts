@@ -695,5 +695,29 @@ describe('ExpressPromptGenerator', () => {
       ]).generateBaseRules();
       expect(withoutCall).not.toContain('Only these functions can be called this way');
     });
+
+    it('numbers multi-catalog rules sequentially alongside standalone function call rules and allowedMessages', () => {
+      const cat1 = loadConformanceCatalog('allowed_callers_catalog_v1_0.json');
+      const cat2 = loadConformanceCatalog('custom_catalog_v1_0.json');
+      const rules = new ExpressPromptGenerator([cat1, cat2]).generateBaseRules();
+      const numbers = [...rules.matchAll(/^(\d+)\. /gm)].map(m => Number(m[1]));
+      expect(numbers).toEqual(Array.from({length: numbers.length}, (_, i) => i + 1));
+      expect(rules).toContain('## Multiple Catalogs');
+      expect(rules).toContain(
+        'Only these functions can be called this way: `notifyAgent`, `showToast`.',
+      );
+
+      const filtered = new ExpressPromptGenerator([cat1, cat2], undefined, [
+        'createSurface',
+        'updateComponents',
+      ]).generateBaseRules();
+      const filteredNumbers = [...filtered.matchAll(/^(\d+)\. /gm)].map(m => Number(m[1]));
+      expect(filteredNumbers).toEqual(
+        Array.from({length: filteredNumbers.length}, (_, i) => i + 1),
+      );
+      expect(filtered).toContain('## Multiple Catalogs');
+      expect(filtered).not.toContain('Only these functions can be called this way');
+      expect(filtered).not.toContain('deleteSurface(');
+    });
   });
 });

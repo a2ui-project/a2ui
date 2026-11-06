@@ -1010,7 +1010,7 @@ class ExpressScopeSession:
                     "surface() extensions require a surface-creating scope with a"
                     " root component."
                 )
-            if compiled_data and not compiled_components:
+            if compiled_components or compiled_data:
                 return self._compile_incremental_updates(
                     scope,
                     state,
@@ -1071,7 +1071,8 @@ class ExpressScopeSession:
         messages: list[dict[str, Any]] = []
         if delta_components:
             if (
-                not scope.has_surface_directive
+                not is_final
+                and not scope.has_surface_directive
                 and not state.surface_created
                 and not surface_exists
             ):

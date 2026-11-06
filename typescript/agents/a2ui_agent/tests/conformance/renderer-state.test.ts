@@ -17,30 +17,27 @@
 import {expect} from 'vitest';
 
 import {
-  A2uiCompilationParseError,
-  A2uiCompilationValidationError,
-  A2uiValidationError,
+  AgentToRendererMessage,
   DirectJsonFormatFactory,
   ExpressFormatFactory,
   InferenceFormat,
-  ParseError,
   RendererState,
 } from '../../src/index.js';
 import {CatalogApi} from '../../src/internal/web-core.js';
 import {loadCases} from './loader.js';
-import {firstCatalogId, loadCatalogFromRelativePath, lowerText} from './lowering.js';
-import {conformancePath, forEachSuiteVersion} from './suite-helpers.js';
+import {firstCatalogId, liftValueKeys, lowerMessages, lowerText} from './lowering.js';
+import {
+  assertKnownKeys,
+  CASE_METADATA_KEYS,
+  conformancePath,
+  expectThrowsCategory,
+  forEachSuiteVersion,
+  loadCatalogEntry,
+} from './suite-helpers.js';
 
 const DEFAULT_CATALOG = 'test_data/catalogs/simplified_catalog_v1_0.json';
 
-const RENDERER_STATE_CASE_KEYS = new Set([
-  'name',
-  'description',
-  'sourceFile',
-  'action',
-  'catalogs',
-  'turns',
-]);
+const RENDERER_STATE_CASE_KEYS = new Set([...CASE_METADATA_KEYS, 'catalogs', 'turns']);
 const RENDERER_STATE_TURN_KEYS = new Set([
   'format',
   'payload',
@@ -49,35 +46,7 @@ const RENDERER_STATE_TURN_KEYS = new Set([
   'expectError',
   'expect_error',
 ]);
-
-const ERRORS_BY_CATEGORY: Record<string, Array<new (...args: never[]) => Error>> = {
-  ParseError: [ParseError, A2uiCompilationParseError],
-  ValidationError: [A2uiValidationError, A2uiCompilationValidationError],
-};
-
-function assertKnownKeys(obj: Record<string, unknown>, allowed: Set<string>, where: string): void {
-  const unknown = Object.keys(obj).filter(k => !allowed.has(k));
-  expect(unknown, `Unknown ${where} keys`).toEqual([]);
-}
-
-function expectThrowsCategory(
-  fn: () => void,
-  expectError: {category: string; message?: string},
-): void {
-  let thrown: unknown;
-  try {
-    fn();
-  } catch (e) {
-    thrown = e;
-  }
-  expect(thrown, `Expected error ${JSON.stringify(expectError)}`).toBeInstanceOf(Error);
-  const classes = ERRORS_BY_CATEGORY[expectError.category];
-  expect(classes, `Unknown error category ${expectError.category}`).toBeDefined();
-  expect(classes.some(errorClass => thrown instanceof errorClass)).toBe(true);
-  if (expectError.message) {
-    expect((thrown as Error).message).toContain(expectError.message);
-  }
-}
+const RENDERER_STATE_SURFACE_EXPECT_KEYS = new Set(['components', 'data']);
 
 function makeFormat(formatName: unknown, catalogs: CatalogApi[]): InferenceFormat {
   if (formatName === 'express') {
@@ -89,10 +58,16 @@ function makeFormat(formatName: unknown, catalogs: CatalogApi[]): InferenceForma
 function assertExpectedSurfaces(
   state: RendererState,
   expectSurfaces: Record<string, unknown>,
+  isLowered: boolean,
 ): void {
   expect(new Set(state.surfaceIds)).toEqual(new Set(Object.keys(expectSurfaces)));
   for (const [surfaceId, rawExpected] of Object.entries(expectSurfaces)) {
     const expectedSurface = rawExpected as Record<string, unknown>;
+    assertKnownKeys(
+      expectedSurface,
+      RENDERER_STATE_SURFACE_EXPECT_KEYS,
+      `expect_surfaces.${surfaceId}`,
+    );
     const surface = state.getSurface(surfaceId);
     expect(surface).toBeDefined();
     if (!surface) continue;
@@ -103,11 +78,13 @@ function assertExpectedSurfaces(
         const comp = surface.componentsModel.get(compId);
         expect(comp).toBeDefined();
         if (!comp) continue;
-        expect({component: comp.type, ...comp.properties}).toEqual(expectedComp);
+        const props = isLowered ? liftValueKeys(comp.properties) : comp.properties;
+        expect({component: comp.type, ...props}).toEqual(expectedComp);
       }
     }
     if (expectedSurface.data !== undefined) {
-      const actualData = surface.dataModel.get('/') ?? {};
+      const val = surface.dataModel.get('/');
+      const actualData = val === undefined || val === null ? {} : val;
       expect(actualData).toEqual(expectedSurface.data);
     }
   }
@@ -125,33 +102,54 @@ forEachSuiteVersion(
     );
 
     const isLowered = version === 'v0.9-lowered';
-    const rawCatalogs = Array.isArray(tc.catalogs) ? (tc.catalogs as string[]) : [DEFAULT_CATALOG];
-    const injId = isLowered ? firstCatalogId({catalogs: rawCatalogs}) : undefined;
-    const catalogs = rawCatalogs.map(p => loadCatalogFromRelativePath(p, isLowered));
+    const rawCatalogs = Array.isArray(tc.catalogs) ? tc.catalogs : [DEFAULT_CATALOG];
+    const injId = isLowered ? firstCatalogId({catalogs: rawCatalogs}, DEFAULT_CATALOG) : undefined;
+    const catalogs = rawCatalogs.map(
+      entry => loadCatalogEntry(entry, isLowered).transformedCatalog,
+    );
     const state = new RendererState(catalogs);
 
     const turns = tc.turns as Array<Record<string, unknown>>;
     for (const turn of turns) {
       assertKnownKeys(turn, RENDERER_STATE_TURN_KEYS, 'renderer_state_turns turn');
-      const formatName = turn.format ?? 'direct_json';
-      const isExpress = formatName === 'express';
-      const format = makeFormat(formatName, catalogs);
-      const parser = format.createParser();
-
-      const rawResponse = turn.response as string;
-      const turnInput = isLowered && !isExpress ? lowerText(rawResponse, injId) : rawResponse;
-
       const expectErr = (turn.expect_error ?? turn.expectError) as
-        | {category: string; message?: string}
+        | Record<string, unknown>
+        | string
         | undefined;
+
+      let applyTurn: () => void;
+      if (turn.payload !== undefined) {
+        const rawPayload = turn.payload as Array<Record<string, unknown>>;
+        const messages = isLowered
+          ? lowerMessages(rawPayload, injId)
+          : (rawPayload as unknown as AgentToRendererMessage[]);
+        applyTurn = () => {
+          state.transaction(() => {
+            state.checkTopology(state.apply(messages));
+          });
+        };
+      } else {
+        const formatName = turn.format ?? 'direct_json';
+        const isExpress = formatName === 'express';
+        const format = makeFormat(formatName, catalogs);
+        const parser = format.createParser();
+
+        const rawResponse = turn.response as string;
+        const catId = rawResponse.includes('"catalogId"') ? undefined : injId;
+        const turnInput = isLowered && !isExpress ? lowerText(rawResponse, catId) : rawResponse;
+        applyTurn = () => {
+          parser.parseResponse(turnInput, {state});
+        };
+      }
+
       if (expectErr !== undefined) {
-        expectThrowsCategory(() => parser.parseResponse(turnInput, {state}), expectErr);
+        expectThrowsCategory(applyTurn, expectErr);
         continue;
       }
 
-      parser.parseResponse(turnInput, {state});
+      applyTurn();
       if (turn.expect_surfaces !== undefined) {
-        assertExpectedSurfaces(state, turn.expect_surfaces as Record<string, unknown>);
+        assertExpectedSurfaces(state, turn.expect_surfaces as Record<string, unknown>, isLowered);
       }
     }
   },

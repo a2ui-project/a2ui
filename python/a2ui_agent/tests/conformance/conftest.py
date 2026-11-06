@@ -63,12 +63,15 @@ def _combine_outcomes(
         for status, reason in outcomes.values():
             if status == target:
                 return status, reason
+    for status, reason in outcomes.values():
+        if status == "skipped" and not reason:
+            return "skipped", None
     if any(status == "passed" for status, _ in outcomes.values()):
         return "passed", None
     for _, reason in outcomes.values():
         if reason:
             return "skipped", reason
-    return "skipped", "skipped"
+    return "skipped", None
 
 
 def _extract_version_key(item: pytest.Item) -> str:
@@ -174,6 +177,25 @@ def pytest_runtest_makereport(
         reason,
         version_key=_extract_version_key(item),
     )
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Applies version-qualified `KNOWN_GAPS` markers (`<case>::<version>`)."""
+    from .test_conformance import KNOWN_GAPS
+
+    if not KNOWN_GAPS:
+        return
+    for item in items:
+        identity = _extract_case_identity(item)
+        if identity is None:
+            continue
+        suite, case_name = identity
+        version_key = _extract_version_key(item)
+        reason = KNOWN_GAPS.get(
+            f"{suite}::{case_name}::{version_key}"
+        ) or KNOWN_GAPS.get(f"{case_name}::{version_key}")
+        if reason:
+            item.add_marker(pytest.mark.xfail(reason=reason, strict=True))
 
 
 def pytest_deselected(items: Sequence[pytest.Item]) -> None:

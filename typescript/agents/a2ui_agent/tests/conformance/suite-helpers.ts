@@ -39,13 +39,20 @@ import {
   ComponentPruningTransformer,
   FileSystemCatalogProvider,
   FunctionPruningTransformer,
+  InMemoryCatalogProvider,
   ParseError,
   Parser,
   validatePayload,
 } from '../../src/index.js';
 import {CatalogApi} from '../../src/internal/web-core.js';
 import {CONFORMANCE_ROOT, KNOWN_FAILURES, LoadedCase, SUPERSEDED, UNSUPPORTED} from './loader.js';
-import {SUITE_VERSIONS, SuiteVersion, v09SkipReason} from './lowering.js';
+import {
+  loadCatalogFromRelativePath,
+  lowerCatalogDocument,
+  SUITE_VERSIONS,
+  SuiteVersion,
+  v09SkipReason,
+} from './lowering.js';
 import {
   ActiveCase,
   recordCase,
@@ -173,6 +180,81 @@ export function assertExpectedError(fn: () => unknown, testCase: LoadedCase): vo
 }
 
 /**
+ * Runs `fn` and asserts that it throws an error matching `expectError` (including compilation
+ * error subclasses and case-insensitive message regexes).
+ */
+export function expectThrowsCategory(
+  fn: () => unknown,
+  expectError: Record<string, unknown> | string,
+): void {
+  if (typeof expectError === 'string') {
+    expect(fn).toThrowError(new RegExp(expectError, 'i'));
+    return;
+  }
+  assertKnownKeys(expectError, EXPECT_ERROR_KEYS, 'expect_error');
+  const category = expectError.category as string;
+  let thrown: unknown;
+  try {
+    fn();
+  } catch (e) {
+    thrown = e;
+  }
+  expect(thrown, `Expected error ${JSON.stringify(expectError)}`).toBeInstanceOf(Error);
+  if (category === 'CompilationError') {
+    expect(thrown).toBeInstanceOf(A2uiCompilationError);
+  } else {
+    expect(categoryOf(thrown)).toBe(category);
+  }
+  if (typeof expectError.message === 'string' && expectError.message) {
+    expect((thrown as Error).message).toMatch(new RegExp(expectError.message, 'i'));
+  }
+}
+
+/**
+ * Resolves a catalog entry (string path, inline catalog document, or `{catalog, transformers}`
+ * registration) into a `CatalogConfig`, optionally lowering v1.0 catalogs to v0.9.
+ */
+export function loadCatalogEntry(entry: unknown, lower = false): CatalogConfig {
+  const transformers: CatalogTransformer[] = [];
+  let ref: unknown = entry;
+  if (ref !== null && typeof ref === 'object' && 'catalog' in (ref as Record<string, unknown>)) {
+    const reg = ref as {
+      catalog: unknown;
+      transformers?: Array<{component_pruning?: string[]; function_pruning?: string[]}>;
+    };
+    for (const t of reg.transformers ?? []) {
+      if (t.component_pruning) {
+        transformers.push(new ComponentPruningTransformer(t.component_pruning));
+      }
+      if (t.function_pruning) {
+        transformers.push(new FunctionPruningTransformer(t.function_pruning));
+      }
+    }
+    ref = reg.catalog;
+  }
+
+  if (ref !== null && typeof ref === 'object') {
+    const rawDoc = ref as Record<string, unknown>;
+    const baseDoc = {
+      protocolVersion: '1.0',
+      catalogId: 'inline',
+      ...rawDoc,
+    };
+    const doc = lower ? lowerCatalogDocument(baseDoc, 'inline') : baseDoc;
+    const catalog = new InMemoryCatalogProvider(doc).load();
+    return new CatalogConfig(catalog, transformers);
+  }
+
+  if (typeof ref !== 'string') {
+    throw new Error(`Invalid catalog reference: expected string, got ${typeof ref}`);
+  }
+  const catalog = lower
+    ? loadCatalogFromRelativePath(ref, true)
+    : new FileSystemCatalogProvider(conformancePath(ref)).load();
+  return new CatalogConfig(catalog, transformers);
+}
+
+/**
  * Compiles one block and checks its messages on their own.
  *
  * A conformance `compile` case fixes the messages an agent sends for one block, so they are
@@ -223,12 +305,13 @@ export function expectCatalogContents(
     serialized_defs_contain?: string[];
     serialized_defs_omit?: string[];
   },
+  options: {lowered?: boolean} = {},
 ): void {
   assertKnownKeys(expected as Record<string, unknown>, CATALOG_EXPECT_KEYS, 'expect.catalog');
   if (expected.catalog_id !== undefined) {
     expect(catalog.id).toBe(expected.catalog_id);
   }
-  if (expected.protocol_version !== undefined) {
+  if (expected.protocol_version !== undefined && !options.lowered) {
     expect(catalog.protocolVersion).toBe(expected.protocol_version);
   }
   if (expected.components) {
@@ -273,9 +356,13 @@ export function registerCase(
     return;
   }
   const knownFailure =
+    knownFailures.get(`${compositeKey}::${versionKey}`) ??
+    knownFailures.get(`${testCase.name}::${versionKey}`) ??
     knownFailures.get(compositeKey) ??
     knownFailures.get(testCase.name) ??
     knownFailures.get(title) ??
+    KNOWN_FAILURES.get(`${compositeKey}::${versionKey}`) ??
+    KNOWN_FAILURES.get(`${testCase.name}::${versionKey}`) ??
     KNOWN_FAILURES.get(compositeKey) ??
     KNOWN_FAILURES.get(testCase.name);
   const wrappedRun = async (ctx: {task: object}) => {

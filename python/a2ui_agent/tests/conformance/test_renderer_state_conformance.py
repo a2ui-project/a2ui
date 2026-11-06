@@ -30,7 +30,9 @@ from .conformance_helpers import (
 from .lowering import (
     SUITE_VERSIONS,
     first_catalog_id,
+    lift_value_keys,
     lower_catalog_entry,
+    lower_messages,
     lower_text,
     v09_skip_reason,
 )
@@ -58,13 +60,22 @@ _RENDERER_STATE_TURN_KEYS = frozenset({
     "expectError",
     "expect_error",
 })
+_RENDERER_STATE_SURFACE_EXPECT_KEYS = frozenset({
+    "components",
+    "data",
+})
 
 
 def _assert_expected_surfaces(
-    state: RendererState, expect_surfaces: dict[str, Any]
+    state: RendererState, expect_surfaces: dict[str, Any], *, is_lowered: bool
 ) -> None:
     assert set(state.surface_ids) == set(expect_surfaces.keys())
     for surface_id, expected_surface in expect_surfaces.items():
+        assert_known_keys(
+            expected_surface,
+            _RENDERER_STATE_SURFACE_EXPECT_KEYS,
+            f"expect_surfaces.{surface_id}",
+        )
         surface = state.get_surface(surface_id)
         assert surface is not None, f"Missing surface {surface_id}"
         if "components" in expected_surface:
@@ -73,10 +84,14 @@ def _assert_expected_surfaces(
             for comp_id, expected_comp in expected_comps.items():
                 comp = surface.components_model.get(comp_id)
                 assert comp is not None, f"Missing component {comp_id} on {surface_id}"
-                actual_comp = {"component": comp.type, **comp.properties}
+                props = (
+                    lift_value_keys(comp.properties) if is_lowered else comp.properties
+                )
+                actual_comp = {"component": comp.type, **props}
                 assert actual_comp == expected_comp
         if "data" in expected_surface:
-            actual_data = surface.data_model.get("/") or {}
+            val = surface.data_model.get("/")
+            actual_data = {} if val is None else val
             assert actual_data == expected_surface["data"]
 
 
@@ -104,23 +119,42 @@ def test_renderer_state_conformance(
 
     for turn in test_case["turns"]:
         assert_known_keys(turn, _RENDERER_STATE_TURN_KEYS, "renderer_state_turns turn")
-        fmt_name = turn.get("format", "direct_json")
-        is_express = fmt_name == "express"
-        parser = _format_for(fmt_name, catalogs).create_parser()
-
-        raw_response = turn["response"]
-        turn_input = (
-            lower_text(raw_response, catalog_id=inj_id)
-            if (is_lowered and not is_express)
-            else raw_response
-        )
-
         expect_err = turn.get("expect_error") or turn.get("expectError")
+
+        if "payload" in turn:
+            raw_payload = turn["payload"]
+            messages = (
+                lower_messages(raw_payload, default_catalog_id=inj_id)
+                if is_lowered
+                else raw_payload
+            )
+
+            def apply_turn(msgs: Any = messages) -> None:
+                with state.transaction():
+                    state.check_topology(state.apply(msgs))
+
+        else:
+            fmt_name = turn.get("format", "direct_json")
+            is_express = fmt_name == "express"
+            parser = _format_for(fmt_name, catalogs).create_parser()
+            raw_response = turn["response"]
+            cat_id = None if '"catalogId"' in raw_response else inj_id
+            turn_input = (
+                lower_text(raw_response, catalog_id=cat_id)
+                if (is_lowered and not is_express)
+                else raw_response
+            )
+
+            def apply_turn(p: Any = parser, inp: str = turn_input) -> None:
+                p.parse_response(inp, state=state)
+
         if expect_err is not None:
             with assert_raises(expect_err):
-                parser.parse_response(turn_input, state=state)
+                apply_turn()
             continue
 
-        parser.parse_response(turn_input, state=state)
+        apply_turn()
         if "expect_surfaces" in turn:
-            _assert_expected_surfaces(state, turn["expect_surfaces"])
+            _assert_expected_surfaces(
+                state, turn["expect_surfaces"], is_lowered=is_lowered
+            )

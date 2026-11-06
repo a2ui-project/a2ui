@@ -387,79 +387,6 @@ def test_renderer_error_rejects_spec_violations(invalid_renderer_error):
     "valid_case",
     [
         {
-            "name": "read capabilities object",
-            "action": "read_renderer_capabilities",
-            "args": {
-                "version": "1.0",
-                "metadata": {
-                    "a2uiRendererCapabilities": {
-                        "1.0": {"supportedCatalogIds": ["catalog_a"]}
-                    }
-                },
-            },
-            "expect": {"1.0": {"supportedCatalogIds": ["catalog_a"]}},
-        },
-        {
-            "name": "read capabilities null",
-            "action": "read_renderer_capabilities",
-            "args": {"version": "1.0", "metadata": None},
-            "expect": None,
-        },
-        {
-            "name": "read capabilities error",
-            "action": "read_renderer_capabilities",
-            "args": {
-                "version": "1.0",
-                "metadata": {"a2uiRendererCapabilities": {"1.0": "invalid"}},
-            },
-            "expectError": {"category": "CatalogError"},
-        },
-        {
-            "name": "inbound action message",
-            "action": "parse_inbound_message",
-            "args": {
-                "version": "1.0",
-                "message": {
-                    "version": "1.0",
-                    "action": {
-                        "name": "submit",
-                        "surfaceId": "main",
-                        "sourceComponentId": "btn",
-                        "timestamp": "2026-01-01T00:00:00Z",
-                        "context": {"qty": 2},
-                    },
-                },
-            },
-            "expect": {
-                "kind": "action",
-                "model_input_contains": ["submit", "main", "btn"],
-            },
-        },
-        {
-            "name": "inbound rpc message",
-            "action": "parse_inbound_message",
-            "args": {
-                "version": "1.0",
-                "message": {
-                    "version": "1.0",
-                    "callAgentFunction": {
-                        "functionCallId": "call-1",
-                        "callFunction": {"@call": "lookup"},
-                    },
-                },
-            },
-            "expect": {
-                "kind": "callAgentFunction",
-                "model_input": None,
-            },
-        },
-        {
-            "name": "inbound invalid message",
-            "action": "parse_inbound_message",
-            "args": {"version": "1.0", "message": {"version": "v0.9"}},
-            "expectError": {"category": "ValidationError"},
-        },
-        {
             "name": "multi-turn renderer state",
             "action": "renderer_state_turns",
             "catalogs": ["test_data/catalogs/simplified_catalog_v1_0.json"],
@@ -472,7 +399,12 @@ def test_renderer_error_rejects_spec_violations(invalid_renderer_error):
                             "catalogId": "conformance/simplified",
                         },
                     }],
-                    "expect_surfaces": {"s1": {"components": []}},
+                    "expect_surfaces": {
+                        "s1": {
+                            "components": {"root": {"component": "Text", "text": "Hi"}},
+                            "data": {},
+                        }
+                    },
                 },
                 {
                     "response": '<a2ui>\nsurface("s1") { root = Text("Hi") }\n</a2ui>',
@@ -480,6 +412,42 @@ def test_renderer_error_rejects_spec_violations(invalid_renderer_error):
                     "expectError": {"category": "ValidationError"},
                 },
             ],
+        },
+        {
+            "name": "create processor with then_stream",
+            "action": "create_processor",
+            "args": {
+                "format": "direct_json",
+                "catalogs": [
+                    {"catalog": "test_data/catalogs/simplified_catalog_v1_0.json"}
+                ],
+                "renderer_capabilities": {
+                    "1.0": {"supportedCatalogIds": ["conformance/simplified"]}
+                },
+            },
+            "expect": {"active_catalog_ids": ["conformance/simplified"]},
+            "then_stream": {
+                "steps": [
+                    {"input": "Hello ", "expect": [{"text": "Hello "}]},
+                ],
+                "expect_close": [],
+            },
+        },
+        {
+            "name": "create processor with then_stream close error",
+            "action": "create_processor",
+            "args": {
+                "format": "express",
+                "catalogs": [
+                    {"catalog": "test_data/catalogs/simplified_catalog_v1_0.json"}
+                ],
+            },
+            "then_stream": {
+                "steps": [
+                    {"input": "<a2ui>\nroot = Text(", "expect": []},
+                ],
+                "expect_error": {"category": "ParseError"},
+            },
         },
         {
             "name": "prompt snippet callable functions",
@@ -628,39 +596,6 @@ def test_handle_rpc_lifecycle_schema_accepts_valid_cases(valid_case):
 @pytest.mark.parametrize(
     "invalid_case",
     [
-        # read_renderer_capabilities missing metadata in args
-        {
-            "name": "missing metadata",
-            "action": "read_renderer_capabilities",
-            "args": {"version": "1.0"},
-            "expect": None,
-        },
-        # read_renderer_capabilities with both expect and expectError
-        {
-            "name": "both expect and expectError",
-            "action": "read_renderer_capabilities",
-            "args": {"version": "1.0", "metadata": {}},
-            "expect": None,
-            "expectError": {"category": "CatalogError"},
-        },
-        # parse_inbound_message with unknown kind
-        {
-            "name": "unknown inbound kind",
-            "action": "parse_inbound_message",
-            "args": {"version": "1.0", "message": {}},
-            "expect": {"kind": "unknownKind"},
-        },
-        # parse_inbound_message with both model_input_contains and model_input
-        {
-            "name": "conflicting model_input expectations",
-            "action": "parse_inbound_message",
-            "args": {"version": "1.0", "message": {}},
-            "expect": {
-                "kind": "action",
-                "model_input_contains": ["x"],
-                "model_input": None,
-            },
-        },
         # renderer_state_turns turn missing both payload and response
         {
             "name": "turn without payload or response",
@@ -673,7 +608,67 @@ def test_handle_rpc_lifecycle_schema_accepts_valid_cases(valid_case):
             "name": "turn with both payload and response",
             "action": "renderer_state_turns",
             "catalogs": ["test_data/catalogs/simplified_catalog_v1_0.json"],
-            "turns": [{"payload": [], "response": "<a2ui></a2ui>"}],
+            "turns": [
+                {"payload": [], "response": "<a2ui></a2ui>", "expect_surfaces": {}}
+            ],
+        },
+        # renderer_state_turns turn missing outcome expectation
+        {
+            "name": "turn without outcome expectation",
+            "action": "renderer_state_turns",
+            "catalogs": ["test_data/catalogs/simplified_catalog_v1_0.json"],
+            "turns": [{"payload": []}],
+        },
+        # renderer_state_turns expect_surfaces with array components instead of map
+        {
+            "name": "expect_surfaces with array components",
+            "action": "renderer_state_turns",
+            "catalogs": ["test_data/catalogs/simplified_catalog_v1_0.json"],
+            "turns": [{"payload": [], "expect_surfaces": {"s1": {"components": []}}}],
+        },
+        # renderer_state_turns expect_surfaces with unknown surface expectation key
+        {
+            "name": "expect_surfaces with unknown key",
+            "action": "renderer_state_turns",
+            "catalogs": ["test_data/catalogs/simplified_catalog_v1_0.json"],
+            "turns": [{"payload": [], "expect_surfaces": {"s1": {"unknown_key": 1}}}],
+        },
+        # create_processor with unknown top-level key
+        {
+            "name": "create_processor unknown top-level key",
+            "action": "create_processor",
+            "args": {
+                "catalogs": [
+                    {"catalog": "test_data/catalogs/simplified_catalog_v1_0.json"}
+                ]
+            },
+            "unknown_field": True,
+        },
+        # create_processor then_stream step missing both expect and expect_error
+        {
+            "name": "then_stream step without expectation",
+            "action": "create_processor",
+            "args": {
+                "catalogs": [
+                    {"catalog": "test_data/catalogs/simplified_catalog_v1_0.json"}
+                ]
+            },
+            "then_stream": {"steps": [{"input": "chunk"}]},
+        },
+        # create_processor then_stream with both expect_close and expect_error
+        {
+            "name": "then_stream with both expect_close and expect_error",
+            "action": "create_processor",
+            "args": {
+                "catalogs": [
+                    {"catalog": "test_data/catalogs/simplified_catalog_v1_0.json"}
+                ]
+            },
+            "then_stream": {
+                "steps": [{"input": "chunk", "expect": []}],
+                "expect_close": [],
+                "expect_error": {"category": "ParseError"},
+            },
         },
         # generate_prompt_snippet with non-array expect_callable_functions
         {

@@ -29,6 +29,7 @@ import {
   MessageProcessor,
   STRICT_VALIDATION,
   SurfaceModel,
+  validateRecursionAndPaths,
   ValidationConfig,
 } from '../internal/web-core.js';
 import {checkAgentCallable} from './agent-callable.js';
@@ -873,13 +874,27 @@ export class RendererState {
   private applyMessage(payload: Message[], index: number): string | undefined {
     const message = payload[index];
     const [surfaceId, creates] = target(message);
-    if (surfaceId === undefined) {
-      if ('callRendererFunction' in message) {
-        checkAgentCallable(message, this._catalogs);
-        this.holdCall(message);
-      } else {
-        this.process(message);
+    if ('callRendererFunction' in message && surfaceId === undefined) {
+      const callRenderer = bodyOf(message, 'callRendererFunction');
+      const callSurfaceId = callRenderer?.surfaceId;
+      if (
+        typeof callSurfaceId === 'string' &&
+        !this.processor.model.getSurface(callSurfaceId) &&
+        !this.assumes(callSurfaceId, payload, index)
+      ) {
+        const callId =
+          typeof callRenderer?.functionCallId === 'string' ? callRenderer.functionCallId : '';
+        throw new A2uiValidationError(
+          `Function call '${callId}' names surface '${callSurfaceId}', which does not exist.`,
+        );
       }
+      checkAgentCallable(message, this._catalogs);
+      asValidationError(() => validateRecursionAndPaths(message));
+      this.holdCall(message);
+      return undefined;
+    }
+    if (surfaceId === undefined) {
+      this.process(message);
       return undefined;
     }
 

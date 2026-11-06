@@ -31,6 +31,7 @@ const Map<String, Set<String>> _knownKeys = {
     'expectError',
     'expect_error',
   },
+  'expect_surface:renderer_state_turns': {'components', 'data'},
 };
 
 void main() {
@@ -40,7 +41,22 @@ void main() {
       final List<Map<String, Object?>> cases = loadSuite(path);
       test('suite is not empty', () => expect(cases, isNotEmpty));
       for (final testCase in cases) {
-        test(testCase['name']! as String, () => _runCase(testCase, version));
+        test(testCase['name']! as String, () {
+          if (version == SuiteVersion.v0_9) {
+            final args = <String, Object?>{
+              'catalogs': testCase['catalogs'] ?? const [_defaultCatalogPath],
+            };
+            if (caseCatalogVersion(args) case final String catVer
+                when catVer == '0.8' ||
+                    catVer == 'v0.8' ||
+                    catVer == '0.9' ||
+                    catVer == 'v0.9') {
+              markTestSkipped('Case already targets protocol version $catVer.');
+              return;
+            }
+          }
+          _runCase(testCase, version);
+        });
       }
     });
   }
@@ -69,28 +85,38 @@ void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
       _knownKeys['turn:renderer_state_turns']!,
       'turn:renderer_state_turns',
     );
-    final formatName = (turn['format'] ?? 'direct_json') as String;
-    final isExpress = formatName == 'express';
-    final InferenceFormat format = isExpress
-        ? const ExpressFormatFactory().createFormat(catalogs)
-        : const DirectJsonFormatFactory().createFormat(catalogs);
-    final Parser parser = format.createParser();
-    final rawResponse = turn['response']! as String;
-    final String turnInput = isExpress
-        ? rawResponse
-        : version.text(rawResponse, catalogId: injectedId);
     final Object? error = turn['expect_error'] ?? turn['expectError'];
-    if (error != null) {
-      expectThrowsCategory(
-        () => parser.parseResponse(turnInput, state: state),
-        error,
+    final void Function() applyTurn;
+    if (turn['payload'] case final List<Object?> rawPayload) {
+      final List<AgentToRendererMessage> messages = version.messages(
+        rawPayload,
       );
+      applyTurn = () =>
+          state.transaction(() => state.checkTopology(state.apply(messages)));
+    } else {
+      final formatName = (turn['format'] ?? 'direct_json') as String;
+      final isExpress = formatName == 'express';
+      final InferenceFormat format = isExpress
+          ? const ExpressFormatFactory().createFormat(catalogs)
+          : const DirectJsonFormatFactory().createFormat(catalogs);
+      final Parser parser = format.createParser();
+      final rawResponse = turn['response']! as String;
+      final String? catId = rawResponse.contains('"catalogId"')
+          ? null
+          : injectedId;
+      final String turnInput = isExpress
+          ? rawResponse
+          : version.text(rawResponse, catalogId: catId);
+      applyTurn = () => parser.parseResponse(turnInput, state: state);
+    }
+    if (error != null) {
+      expectThrowsCategory(applyTurn, error);
       continue;
     }
-    parser.parseResponse(turnInput, state: state);
+    applyTurn();
     if (turn['expect_surfaces']
         case final Map<String, Object?> expectSurfaces) {
-      _assertExpectedSurfaces(state, expectSurfaces);
+      _assertExpectedSurfaces(state, expectSurfaces, version);
     }
   }
 }
@@ -98,11 +124,17 @@ void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
 void _assertExpectedSurfaces(
   RendererState state,
   Map<String, Object?> expectSurfaces,
+  SuiteVersion version,
 ) {
   expect(state.surfaceIds.toSet(), expectSurfaces.keys.toSet());
   for (final MapEntry<String, Object?>(:String key, :Object? value)
       in expectSurfaces.entries) {
     final expectedSurface = value! as Map<String, Object?>;
+    assertKnownKeys(
+      expectedSurface,
+      _knownKeys['expect_surface:renderer_state_turns']!,
+      'expect_surfaces.$key',
+    );
     final SurfaceModel<ComponentApi>? surface = state.getSurface(key);
     expect(surface, isNotNull, reason: 'Missing surface $key');
     if (expectedSurface['components']
@@ -116,7 +148,10 @@ void _assertExpectedSurfaces(
         final expectedComp = expVal! as Map<String, Object?>;
         final ComponentModel? comp = surface.componentsModel.get(compId);
         expect(comp, isNotNull, reason: 'Missing component $compId on $key');
-        expect({'component': comp!.type, ...comp.properties}, expectedComp);
+        expect({
+          'component': comp!.type,
+          ...version.liftProperties(comp.properties),
+        }, expectedComp);
       }
     }
     if (expectedSurface.containsKey('data')) {

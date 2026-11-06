@@ -281,6 +281,31 @@ def _strip_rule_prefix(rule: str) -> str:
     return re.sub(rf"\n {{{prefix_len}}}", "\n", rule[prefix_len:])
 
 
+def _renumber_rules(text: str) -> str:
+    """Renumbers all numbered rule paragraphs sequentially starting from 1."""
+    rule_index = 0
+
+    def _replace(match: re.Match[str]) -> str:
+        nonlocal rule_index
+        rule_index += 1
+        old_prefix = match.group(1)
+        body = match.group(2)
+        new_prefix = f"{rule_index}. "
+        if len(old_prefix) != len(new_prefix):
+            body = re.sub(
+                rf"\n {{{len(old_prefix)}}}",
+                "\n" + (" " * len(new_prefix)),
+                body,
+            )
+        return f"{new_prefix}{body}"
+
+    return re.sub(
+        r"(?<=\n\n)(\d+\. )([^\n]*(?:\n(?!\n)[^\n]*)*)",
+        _replace,
+        text,
+    )
+
+
 def _filter_express_rules(
     allowed_messages: Sequence[str] | None,
     callable_fns: Sequence[str] = (),
@@ -427,7 +452,7 @@ class ExpressPromptGenerator(PromptGenerator):
             )
             if not has_comp_or_data:
                 return base
-        return f"{base}\n\n{_multi_catalog_rules(self.helpers)}"
+        return _renumber_rules(f"{base}\n\n{_multi_catalog_rules(self.helpers)}")
 
     def generate_catalog_instructions(
         self,

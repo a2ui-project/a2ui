@@ -205,6 +205,9 @@ const Map<String, String> _v1OnlyCases = {
   'test_compile_express_standalone_call_user_activation_function'
           '_is_validation_error':
       'Protocol v0.9 has no callRendererFunction message.',
+  'test_express_snippet_names_only_agent_callable_functions'
+          '_for_standalone_calls':
+      'Protocol v0.9 function schema does not support allowedCallers.',
 };
 
 /// Why this SDK cannot run [testCase] in [version], or null if it can.

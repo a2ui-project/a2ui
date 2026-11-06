@@ -306,6 +306,74 @@ class TestExpressPromptGenerator(unittest.TestCase):
         )
         self.assertNotIn("Only these functions can be called this way", filtered)
 
+    def test_express_multi_catalog_rules_renumber_sequentially_with_callable_functions(
+        self,
+    ):
+        import re
+
+        cat_a = Catalog.from_json(
+            protocol_version=ProtocolVersion.V1_0,
+            catalog_id="test/cat_a",
+            catalog_schema={
+                "catalogId": "test/cat_a",
+                "protocolVersion": "1.0",
+                "components": {
+                    "Text": {
+                        "properties": {
+                            "component": {"const": "Text"},
+                            "text": {"type": "string"},
+                        },
+                        "required": ["component", "text"],
+                    }
+                },
+                "functions": {
+                    "showToast": {
+                        "returnType": "void",
+                        "allowedCallers": "rendererOrAgent",
+                        "properties": {
+                            "@call": {"const": "showToast"},
+                            "args": {"type": "object", "properties": {}},
+                        },
+                    }
+                },
+            },
+        )
+        cat_b = Catalog.from_json(
+            protocol_version=ProtocolVersion.V1_0,
+            catalog_id="test/cat_b",
+            catalog_schema={
+                "catalogId": "test/cat_b",
+                "protocolVersion": "1.0",
+                "components": {
+                    "Badge": {
+                        "properties": {
+                            "component": {"const": "Badge"},
+                            "label": {"type": "string"},
+                        },
+                        "required": ["component", "label"],
+                    }
+                },
+                "functions": {},
+            },
+        )
+        generator = ExpressFormat([cat_a, cat_b]).prompt_generator
+        rules = generator.generate_base_rules()
+        numbers = [int(m) for m in re.findall(r"(?m)^(\d+)\. ", rules)]
+        self.assertEqual(numbers, list(range(1, len(numbers) + 1)))
+        self.assertIn("## Multiple Catalogs", rules)
+        self.assertIn(
+            "Only these functions can be called this way: `showToast`.", rules
+        )
+
+        filtered = generator.generate_base_rules(
+            allowed_messages=["createSurface", "updateComponents"]
+        )
+        filtered_numbers = [int(m) for m in re.findall(r"(?m)^(\d+)\. ", filtered)]
+        self.assertEqual(filtered_numbers, list(range(1, len(filtered_numbers) + 1)))
+        self.assertIn("## Multiple Catalogs", filtered)
+        self.assertNotIn("Only these functions can be called this way", filtered)
+        self.assertNotIn("deleteSurface(", filtered)
+
 
 if __name__ == "__main__":
     unittest.main()

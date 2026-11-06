@@ -68,6 +68,11 @@ function combineOutcomes(outcomes: ReadonlyMap<string, Outcome>): Outcome {
     }
   }
   for (const outcome of outcomes.values()) {
+    if (outcome.status === 'skipped' && !outcome.reason) {
+      return {status: 'skipped'};
+    }
+  }
+  for (const outcome of outcomes.values()) {
     if (outcome.status === 'passed') {
       return {status: 'passed'};
     }
@@ -77,7 +82,7 @@ function combineOutcomes(outcomes: ReadonlyMap<string, Outcome>): Outcome {
       return {status: 'skipped', reason: outcome.reason};
     }
   }
-  return {status: 'skipped', reason: 'skipped'};
+  return {status: 'skipped'};
 }
 
 /**
@@ -142,7 +147,7 @@ export function registerAfterEachManifestRecorder(): void {
     current.recorded = true;
     const state = ctx.task.result?.state;
     if (state === 'skip') {
-      const reason = current.skipReason?.trim() || ctx.task.result?.note?.trim() || 'skipped';
+      const reason = current.skipReason?.trim() || ctx.task.result?.note?.trim() || undefined;
       recordCase(current.suite, current.name, 'skipped', reason, current.version);
       return;
     }

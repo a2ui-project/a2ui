@@ -134,6 +134,25 @@ function exampleRootComponent(catalogs: readonly CatalogApi[]): string | undefin
   return undefined;
 }
 
+function renumberRules(text: string): string {
+  let ruleIndex = 0;
+  return text.replace(
+    /(?<=\n\n)(\d+\. )([^\n]*(?:\n(?!\n)[^\n]*)*)/g,
+    (_match, oldPrefix: string, body: string) => {
+      ruleIndex += 1;
+      const newPrefix = `${ruleIndex}. `;
+      const adjustedBody =
+        oldPrefix.length === newPrefix.length
+          ? body
+          : body.replace(
+              new RegExp(`\\n {${oldPrefix.length}}`, 'g'),
+              '\n' + ' '.repeat(newPrefix.length),
+            );
+      return `${newPrefix}${adjustedBody}`;
+    },
+  );
+}
+
 /** The message types a fenced JSON example may contain to be rewritten as Express. */
 const TRANSLATABLE_MESSAGE_TYPES = [
   'createSurface',
@@ -419,7 +438,8 @@ export class ExpressPromptGenerator extends PromptGenerator {
       }
     }
 
-    if (callRendererAllowed && callableFns.length > 0) {
+    const hasCallableRule = callRendererAllowed && callableFns.length > 0;
+    if (hasCallableRule) {
       const formatted = callableFns.map(name => `\`${name}\``).join(', ');
       const callRule =
         'To have the renderer run a function right away, output the call as a standalone command (no variable assignment):\n' +
@@ -429,8 +449,6 @@ export class ExpressPromptGenerator extends PromptGenerator {
         /\n\n13\. Static properties:/,
         `\n\n13. ${callRule}\n\n14. Static properties:`,
       );
-      let ruleIndex = 0;
-      rules = rules.replace(/(?<=\n\n)\d+(?=\. )/g, () => String(++ruleIndex));
     }
 
     const rootComponent = exampleRootComponent(this.catalogs);
@@ -438,11 +456,16 @@ export class ExpressPromptGenerator extends PromptGenerator {
       rules = rules.replace(ROOT_EXAMPLE_LINE, `root = ${rootComponent}(...)`);
     }
 
+    const hasMultiCatalogRules = this.catalogs.length > 1 && wantsComponentsOrData;
     const lines = [rules];
-    if (this.catalogs.length > 1 && wantsComponentsOrData) {
+    if (hasMultiCatalogRules) {
       lines.push(this.multiCatalogRules());
     }
-    return lines.join('\n');
+    const combined = lines.join('\n');
+    if (allowedMessages !== undefined || hasCallableRule || hasMultiCatalogRules) {
+      return renumberRules(combined);
+    }
+    return combined;
   }
 
   protected renderCatalogInstructions(catalog: CatalogApi): string {

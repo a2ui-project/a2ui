@@ -106,13 +106,18 @@ function declaredVersion(args: StreamingArgs): string | undefined {
   return document.protocolVersion?.replace(/^v/, '');
 }
 
-function makeParser(args: StreamingArgs, lower = false): DirectJsonParser {
+function makeParser(
+  args: StreamingArgs,
+  lower = false,
+  bufferIncompleteComponents = false,
+): DirectJsonParser {
   if (args.format !== 'direct_json') {
     throw new Error(`Unexpected format '${args.format}'`);
   }
   const catalogs = catalogPaths(args).map(file => loadCatalogFromRelativePath(file, lower));
   return new DirectJsonParser(catalogs, {
     progressiveKeys: args.progressive_keys ?? [],
+    bufferIncompleteComponents,
   });
 }
 
@@ -173,14 +178,11 @@ function runCase(testCase: LoadedCase, version: SuiteVersion): void {
     'parse_chunk args',
   );
   const wrapped = args.wrapped ?? true;
-  const parser = makeParser(args, isLowered);
+  const parser = makeParser(args, isLowered, isLowered && caseDeclaresV1(testCase.args));
   const stream: ResponseStream<StreamPart> = parser.openStream({
     wrapped,
     afterRejectedBlock: args.after_rejected_block ?? 'end',
   });
-  if (isLowered && caseDeclaresV1(testCase.args)) {
-    (stream as unknown as {v10: boolean}).v10 = true;
-  }
   const chunks: string[] = [];
   const yielded: Array<Record<string, unknown>> = [];
 

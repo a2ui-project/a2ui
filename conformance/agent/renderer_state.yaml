@@ -49,8 +49,9 @@
             "updateComponents": {
               "surfaceId": "s1",
               "components": [
-                {"id": "root", "component": "Column", "children": ["header"]},
-                {"id": "header", "component": "Text", "text": "Hello"}
+                {"id": "root", "component": "Column", "children": ["header", "subtitle"]},
+                {"id": "header", "component": "Text", "text": "Hello"},
+                {"id": "subtitle", "component": "Text", "text": {"@path": "/title"}}
               ]
             }
           }
@@ -61,10 +62,14 @@
           components:
             root:
               component: "Column"
-              children: ["header"]
+              children: ["header", "subtitle"]
             header:
               component: "Text"
               text: "Hello"
+            subtitle:
+              component: "Text"
+              text:
+                "@path": "/title"
           data: {}
     - format: direct_json
       response: |-
@@ -95,10 +100,14 @@
           components:
             root:
               component: "Column"
-              children: ["header"]
+              children: ["header", "subtitle"]
             header:
               component: "Text"
               text: "Updated"
+            subtitle:
+              component: "Text"
+              text:
+                "@path": "/title"
           data:
             title: "Updated"
 
@@ -290,18 +299,23 @@
         Creating the main surface.
         <a2ui>
         surface("s1")
-        root = Column([header])
+        root = Column([header, subtitle])
         header = Text("Hello")
+        subtitle = Text($/title)
         </a2ui>
       expect_surfaces:
         s1:
           components:
             root:
               component: "Column"
-              children: ["header"]
+              children: ["header", "subtitle"]
             header:
               component: "Text"
               text: "Hello"
+            subtitle:
+              component: "Text"
+              text:
+                "@path": "/title"
           data: {}
     - format: express
       response: |-
@@ -316,10 +330,14 @@
           components:
             root:
               component: "Column"
-              children: ["header"]
+              children: ["header", "subtitle"]
             header:
               component: "Text"
               text: "Updated"
+            subtitle:
+              component: "Text"
+              text:
+                "@path": "/title"
           data:
             title: "Updated"
 
@@ -360,14 +378,17 @@
             item_a:
               component: "Text"
               text: "Item A"
+          data: {}
     - format: express
       response: |-
         <a2ui>
-        surface("s1")
+        surface("s1", update=true)
+        $/status = "draft"
         root = Column([nonexistent_child])
         </a2ui>
       expect_error:
         category: "ValidationError"
+        message: "nonexistent_child"
     - format: express
       response: |-
         <a2ui>
@@ -383,6 +404,7 @@
             item_a:
               component: "Text"
               text: "Item A Updated"
+          data: {}
 
 - name: test_renderer_state_express_delete_then_recreate_surface
   description: Deleting an Express surface on turn 2 allows re-creating the same surface on turn 3.
@@ -420,3 +442,73 @@
             root:
               component: "Text"
               text: "Second"
+
+# --- Decoded message payload multi-turn state ---
+
+- name: test_renderer_state_payload_applies_and_rolls_back_messages
+  description: Applying decoded AgentToRendererMessage payloads inside a RendererState transaction retains state across turns and rolls back failed turns atomically.
+  action: renderer_state_turns
+  catalogs:
+    - "test_data/catalogs/simplified_catalog_v1_0.json"
+  turns:
+    - payload:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "conformance/simplified"
+            components:
+              - id: "root"
+                component: "Column"
+                children: ["title_text"]
+              - id: "title_text"
+                component: "Text"
+                text:
+                  "@path": "/title"
+            dataModel:
+              title: "Initial"
+      expect_surfaces:
+        s1:
+          components:
+            root:
+              component: "Column"
+              children: ["title_text"]
+            title_text:
+              component: "Text"
+              text:
+                "@path": "/title"
+          data:
+            title: "Initial"
+    - payload:
+        - version: "1.0"
+          updateDataModel:
+            surfaceId: "s1"
+            path: "/title"
+            value: "Discarded"
+        - version: "1.0"
+          updateComponents:
+            surfaceId: "s1"
+            components:
+              - id: "root"
+                component: "Column"
+                children: ["nonexistent_child"]
+      expect_error:
+        category: "ValidationError"
+        message: "nonexistent_child"
+    - payload:
+        - version: "1.0"
+          updateDataModel:
+            surfaceId: "s1"
+            path: "/title"
+            value: "Committed"
+      expect_surfaces:
+        s1:
+          components:
+            root:
+              component: "Column"
+              children: ["title_text"]
+            title_text:
+              component: "Text"
+              text:
+                "@path": "/title"
+          data:
+            title: "Committed"

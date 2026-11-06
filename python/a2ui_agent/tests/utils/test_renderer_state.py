@@ -898,3 +898,142 @@ def test_rejected_call_renderer_function_leaves_state_unchanged_in_transaction()
             ])
 
     assert _snapshot(state) == before
+
+
+def test_call_renderer_function_validates_surface_catalog_declaration_and_args():
+    catalog = Catalog.from_json({
+        "catalogId": "test/rpc_validation",
+        "protocolVersion": "1.0",
+        "components": {
+            "Text": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "Text"},
+                    "text": {"type": "string"},
+                },
+                "required": ["component", "text"],
+            }
+        },
+        "functions": {
+            "showToast": {
+                "type": "object",
+                "returnType": "void",
+                "allowedCallers": "rendererOrAgent",
+                "properties": {
+                    "@call": {"const": "showToast"},
+                    "args": {
+                        "type": "object",
+                        "properties": {"message": {"type": "string"}},
+                        "required": ["message"],
+                        "additionalProperties": False,
+                    },
+                },
+                "required": ["@call", "args"],
+            },
+            "localOnly": {
+                "type": "object",
+                "returnType": "string",
+                "properties": {
+                    "@call": {"const": "localOnly"},
+                    "args": {"type": "object", "properties": {}},
+                },
+                "required": ["@call", "args"],
+            },
+        },
+    })
+    state = RendererState([catalog])
+    state.apply([{
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "s",
+            "catalogId": "test/rpc_validation",
+            "components": [{"id": "root", "component": "Text", "text": "Hi"}],
+        },
+    }])
+
+    # Nonexistent surfaceId is rejected.
+    with pytest.raises(A2uiValidationError, match="missing"):
+        state.apply({
+            "version": "1.0",
+            "callRendererFunction": {
+                "functionCallId": "c1",
+                "surfaceId": "missing",
+                "callFunction": {
+                    "catalogId": catalog.catalog_id,
+                    "@call": "showToast",
+                    "args": {"message": "hello"},
+                },
+            },
+        })
+
+    # surfaceId set on an existing surface still enforces allowedCallers.
+    with pytest.raises(A2uiValidationError, match="localOnly"):
+        state.apply({
+            "version": "1.0",
+            "callRendererFunction": {
+                "functionCallId": "c2",
+                "surfaceId": "s",
+                "callFunction": {
+                    "catalogId": catalog.catalog_id,
+                    "@call": "localOnly",
+                    "args": {},
+                },
+            },
+        })
+
+    # Unknown catalogId is rejected.
+    with pytest.raises(A2uiValidationError, match="not active"):
+        state.apply({
+            "version": "1.0",
+            "callRendererFunction": {
+                "functionCallId": "c3",
+                "callFunction": {
+                    "catalogId": "test/unknown",
+                    "@call": "showToast",
+                    "args": {"message": "hello"},
+                },
+            },
+        })
+
+    # Undeclared function is rejected.
+    with pytest.raises(A2uiValidationError, match="undeclaredFn"):
+        state.apply({
+            "version": "1.0",
+            "callRendererFunction": {
+                "functionCallId": "c4",
+                "callFunction": {
+                    "catalogId": catalog.catalog_id,
+                    "@call": "undeclaredFn",
+                    "args": {},
+                },
+            },
+        })
+
+    # Invalid arguments are rejected against the function schema.
+    with pytest.raises(A2uiValidationError):
+        state.apply({
+            "version": "1.0",
+            "callRendererFunction": {
+                "functionCallId": "c5",
+                "surfaceId": "s",
+                "callFunction": {
+                    "catalogId": catalog.catalog_id,
+                    "@call": "showToast",
+                    "args": {"message": 123},
+                },
+            },
+        })
+
+    # Valid surface-scoped call succeeds.
+    state.apply({
+        "version": "1.0",
+        "callRendererFunction": {
+            "functionCallId": "c6",
+            "surfaceId": "s",
+            "callFunction": {
+                "catalogId": catalog.catalog_id,
+                "@call": "showToast",
+                "args": {"message": "ok"},
+            },
+        },
+    })

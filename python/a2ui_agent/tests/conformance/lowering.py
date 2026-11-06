@@ -116,11 +116,8 @@ V1_ONLY_CASES: dict[str, str] = {
     "test_compile_express_standalone_call_user_activation_function_is_validation_error": (
         "Protocol v0.9 has no callRendererFunction message."
     ),
-    "test_generate_prompt_express_callable_from_filtering": (
-        "Protocol v0.9 function schema does not support callableFrom."
-    ),
-    "test_generate_prompt_express_includes_at_syntax_rule": (
-        "Protocol v0.9 uses plain path and call keys rather than @path and @call."
+    "test_express_snippet_names_only_agent_callable_functions_for_standalone_calls": (
+        "Protocol v0.9 function schema does not support allowedCallers."
     ),
     # Direct JSON cases
     "test_compile_json_newline_in_create_surface_data_model_preserved": (
@@ -148,7 +145,7 @@ V1_ONLY_CASES: dict[str, str] = {
     "test_stream_component_catalog_id_arrives_late_v10": _ONE_CATALOG_PER_SURFACE,
     "test_stream_catalog_id_split_across_chunks_v10": _ONE_CATALOG_PER_SURFACE,
     "test_stream_second_block_calling_renderer_only_function_fails_v10": (
-        "Protocol v0.9 function schema does not support callableFrom."
+        "Protocol v0.9 function schema does not support allowedCallers."
     ),
     "test_decompile_json_call_renderer_function": (
         "Protocol v0.9 has no callRendererFunction message."
@@ -210,7 +207,8 @@ def lower_catalog_document(
         for fn_name, fn_val in functions.items():
             if isinstance(fn_val, dict):
                 fn_copy = dict(fn_val)
-                fn_copy.pop("callableFrom", None)
+                fn_copy.pop("allowedCallers", None)
+                fn_copy.pop("requiresUserActivation", None)
                 if fn_copy.get("returnType") == "validationResult":
                     fn_copy["returnType"] = "boolean"
                 props = fn_copy.get("properties")
@@ -354,6 +352,11 @@ def _rename_keys_in(node: Any, *, lower: bool) -> Any:
             for k, v in node.items()
         }
     return node
+
+
+def lift_value_keys(node: Any) -> Any:
+    """Lifts v0.9 reserved keys (`path`, `call`) inside a component property map to v1.0."""
+    return _rename_keys_in(node, lower=False)
 
 
 def _rename_reserved_keys(message: Mapping[str, Any], *, lower: bool) -> dict[str, Any]:
@@ -512,20 +515,48 @@ def v09_skip_reason(suite: str, case: Mapping[str, Any]) -> str | None:
     if suite == "agent/multi_catalog_formats.yaml":
         return _ONE_CATALOG_PER_SURFACE
     args = case.get("args")
+    catalog_source = args if isinstance(args, Mapping) else case
+    cat_ver = case_catalog_version(catalog_source)
+    if cat_ver in ("0.8", "v0.8", "0.9", "v0.9"):
+        return f"Case already targets protocol version {cat_ver}."
+
+    catalogs = catalog_source.get("catalogs")
+    formats: list[str] = []
     if isinstance(args, Mapping):
-        if isinstance(args.get("catalogs"), list) and len(args["catalogs"]) > 1:
-            return _ONE_CATALOG_PER_SURFACE
         fmt = args.get("format")
-        if fmt in ("elemental", "atom"):
-            return f"Experimental format {fmt} does not target lowered v0.9 suites."
-        cat_ver = case_catalog_version(args)
-        if cat_ver in ("0.8", "v0.8", "0.9", "v0.9"):
-            return f"Case already targets protocol version {cat_ver}."
-        if fmt == "direct_json" and case.get("action") == "generate_prompt_snippet":
+        if isinstance(fmt, str):
+            formats.append(fmt)
+        elif case.get("action") == "create_processor":
+            formats.append("express")
+        fmt_override = args.get("format_override")
+        if isinstance(fmt_override, str):
+            formats.append(fmt_override)
+    turns = case.get("turns")
+    if isinstance(turns, list):
+        for turn in turns:
+            if isinstance(turn, Mapping) and "response" in turn:
+                turn_fmt = turn.get("format", "direct_json")
+                if isinstance(turn_fmt, str):
+                    formats.append(turn_fmt)
+
+    for fmt_name in formats:
+        if fmt_name in ("elemental", "atom"):
             return (
-                "The Direct JSON snippet embeds the schemas of the catalogs'"
-                " version, so the case runs as written in v1.0 only."
+                f"Experimental format {fmt_name} does not target lowered v0.9 suites."
             )
+
+    if isinstance(catalogs, list) and len(catalogs) > 1 and "express" in formats:
+        return _ONE_CATALOG_PER_SURFACE
+
+    if (
+        isinstance(args, Mapping)
+        and args.get("format") == "direct_json"
+        and case.get("action") == "generate_prompt_snippet"
+    ):
+        return (
+            "The Direct JSON snippet embeds the schemas of the catalogs'"
+            " version, so the case runs as written in v1.0 only."
+        )
     if '"callRendererFunction"' in json.dumps(case):
         return "Protocol v0.9 has no callRendererFunction message."
     return None

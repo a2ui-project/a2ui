@@ -83,10 +83,8 @@ export const V1_ONLY_CASES: Readonly<Record<string, string>> = {
     'Protocol v0.9 has no callRendererFunction message.',
   test_compile_express_standalone_call_user_activation_function_is_validation_error:
     'Protocol v0.9 has no callRendererFunction message.',
-  test_generate_prompt_express_callable_from_filtering:
-    'Protocol v0.9 function schema does not support callableFrom.',
-  test_generate_prompt_express_includes_at_syntax_rule:
-    'Protocol v0.9 uses plain path and call keys rather than @path and @call.',
+  test_express_snippet_names_only_agent_callable_functions_for_standalone_calls:
+    'Protocol v0.9 function schema does not support allowedCallers.',
   // Direct JSON cases
   test_compile_json_newline_in_create_surface_data_model_preserved:
     'v0.9 createSurface does not carry inline dataModel.',
@@ -106,7 +104,7 @@ export const V1_ONLY_CASES: Readonly<Record<string, string>> = {
   test_stream_component_catalog_id_arrives_late_v10: ONE_CATALOG_PER_SURFACE,
   test_stream_catalog_id_split_across_chunks_v10: ONE_CATALOG_PER_SURFACE,
   test_stream_second_block_calling_renderer_only_function_fails_v10:
-    'Protocol v0.9 function schema does not support callableFrom.',
+    'Protocol v0.9 function schema does not support allowedCallers.',
   test_decompile_json_call_renderer_function: 'Protocol v0.9 has no callRendererFunction message.',
   test_decompile_json_catalog_qualified_components: ONE_CATALOG_PER_SURFACE,
 };
@@ -168,7 +166,8 @@ export function lowerCatalogDocument(
     for (const [fnName, fnVal] of Object.entries(functions as Record<string, unknown>)) {
       if (fnVal !== null && typeof fnVal === 'object' && !Array.isArray(fnVal)) {
         const fnCopy: Record<string, unknown> = {...(fnVal as Record<string, unknown>)};
-        delete fnCopy['callableFrom'];
+        delete fnCopy['allowedCallers'];
+        delete fnCopy['requiresUserActivation'];
         if (fnCopy['returnType'] === 'validationResult') {
           fnCopy['returnType'] = 'boolean';
         }
@@ -329,6 +328,20 @@ function renameKeysIn(node: unknown, lower: boolean): unknown {
   return node;
 }
 
+/** Lifts v0.9 reserved keys (`path`, `call`) inside a component property object to v1.0. */
+export function liftValueKeys<T>(node: T): T {
+  return renameKeysIn(node, false) as T;
+}
+
+/** Lowers renderer capabilities keyed by protocol version. */
+export function lowerCapabilities<T>(capabilities: Record<string, T>): Record<string, T> {
+  const result: Record<string, T> = {};
+  for (const [k, v] of Object.entries(capabilities)) {
+    result[String(swapVersion(k))] = structuredClone(v);
+  }
+  return result;
+}
+
 function renameReservedKeys(
   message: Record<string, unknown>,
   lower: boolean,
@@ -483,21 +496,50 @@ export function v09SkipReason(testCase: LoadedCase): string | undefined {
     return ONE_CATALOG_PER_SURFACE;
   }
   const args = testCase.args;
+  const catalogSource = args ?? (testCase as unknown as Record<string, unknown>);
+  const catVer = caseCatalogVersion(catalogSource);
+  if (catVer === '0.8' || catVer === 'v0.8' || catVer === '0.9' || catVer === 'v0.9') {
+    return `Case already targets protocol version ${catVer}.`;
+  }
+
+  const catalogs = catalogSource['catalogs'];
+  const formats: string[] = [];
   if (args) {
-    if (Array.isArray(args['catalogs']) && args['catalogs'].length > 1) {
-      return ONE_CATALOG_PER_SURFACE;
-    }
     const fmt = args['format'];
-    if (fmt === 'elemental' || fmt === 'atom') {
-      return `Experimental format ${fmt} does not target lowered v0.9 suites.`;
+    if (typeof fmt === 'string') {
+      formats.push(fmt);
+    } else if (testCase.action === 'create_processor') {
+      formats.push('express');
     }
-    const catVer = caseCatalogVersion(args);
-    if (catVer === '0.8' || catVer === 'v0.8' || catVer === '0.9' || catVer === 'v0.9') {
-      return `Case already targets protocol version ${catVer}.`;
+    const fmtOverride = args['format_override'];
+    if (typeof fmtOverride === 'string') {
+      formats.push(fmtOverride);
     }
-    if (fmt === 'direct_json' && testCase.action === 'generate_prompt_snippet') {
-      return "The Direct JSON snippet embeds the schemas of the catalogs' version, so the case runs as written in v1.0 only.";
+  }
+  const turns = (testCase as unknown as Record<string, unknown>)['turns'];
+  if (Array.isArray(turns)) {
+    for (const turn of turns) {
+      if (turn !== null && typeof turn === 'object' && 'response' in (turn as object)) {
+        const turnFmt = (turn as Record<string, unknown>)['format'] ?? 'direct_json';
+        if (typeof turnFmt === 'string') {
+          formats.push(turnFmt);
+        }
+      }
     }
+  }
+
+  for (const fmtName of formats) {
+    if (fmtName === 'elemental' || fmtName === 'atom') {
+      return `Experimental format ${fmtName} does not target lowered v0.9 suites.`;
+    }
+  }
+
+  if (Array.isArray(catalogs) && catalogs.length > 1 && formats.includes('express')) {
+    return ONE_CATALOG_PER_SURFACE;
+  }
+
+  if (args && args['format'] === 'direct_json' && testCase.action === 'generate_prompt_snippet') {
+    return "The Direct JSON snippet embeds the schemas of the catalogs' version, so the case runs as written in v1.0 only.";
   }
   if (JSON.stringify(testCase).includes('"callRendererFunction"')) {
     return 'Protocol v0.9 has no callRendererFunction message.';
