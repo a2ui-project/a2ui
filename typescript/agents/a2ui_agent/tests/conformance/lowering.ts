@@ -90,12 +90,6 @@ export const V1_ONLY_CASES: Readonly<Record<string, string>> = {
     'v0.9 createSurface does not carry inline dataModel.',
   test_parse_response_call_renderer_function_renderer_or_agent_succeeds:
     'Protocol v0.9 has no callRendererFunction message.',
-  test_parse_response_call_renderer_function_agent_only_succeeds:
-    'Protocol v0.9 has no callRendererFunction message.',
-  test_parse_response_call_renderer_function_renderer_only_is_validation_error:
-    'Protocol v0.9 has no callRendererFunction message.',
-  test_parse_response_call_renderer_function_user_activation_is_validation_error:
-    'Protocol v0.9 has no callRendererFunction message.',
   test_stream_create_surface_inline_components_v10:
     'v0.9 createSurface does not carry inline components.',
   test_stream_create_surface_inline_components_in_small_chunks_v10:

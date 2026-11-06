@@ -143,11 +143,6 @@ const Set<String> _v1OnlyCases = {
   'test_decompile_json_call_renderer_function',
   'test_decompile_json_catalog_qualified_components',
   'test_parse_response_call_renderer_function_renderer_or_agent_succeeds',
-  'test_parse_response_call_renderer_function_agent_only_succeeds',
-  'test_parse_response_call_renderer_function_renderer_only'
-      '_is_validation_error',
-  'test_parse_response_call_renderer_function_user_activation'
-      '_is_validation_error',
   'test_stream_create_surface_inline_components_v10',
   'test_stream_create_surface_inline_components_in_small_chunks_v10',
   'test_stream_multi_catalog_resolution_v10',

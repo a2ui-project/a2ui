@@ -172,19 +172,19 @@
   action: decompile
   args:
     format: direct_json
-    catalog: "test_data/catalogs/agent_allowed_callers_catalog_v1_0.json"
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
   messages:
     - version: "1.0"
       callRendererFunction:
         functionCallId: "call_1"
         callFunction:
-          catalogId: "conformance/allowed_callers"
-          "@call": "showToast"
+          catalogId: "conformance/agent_functions"
+          "@call": "notify"
           args:
             message: "Saved"
   expect_contains:
     - '"callRendererFunction"'
-    - '"showToast"'
+    - '"notify"'
     - '"Saved"'
   expect_round_trip: true
 

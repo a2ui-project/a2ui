@@ -4515,20 +4515,20 @@
   action: parse_chunk
   args:
     format: direct_json
-    catalog: "test_data/catalogs/agent_allowed_callers_catalog_v1_0.json"
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "conformance/allowed_callers", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "conformance/simplified", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
               createSurface:
                 surfaceId: "main"
-                catalogId: "conformance/allowed_callers"
+                catalogId: "conformance/simplified"
                 components:
                   - id: "root"
                     component: "Text"
                     text: "Hello"
-    - input: '<a2ui-json>[{"version": "1.0", "callRendererFunction": {"functionCallId": "call_1", "callFunction": {"catalogId": "conformance/allowed_callers", "@call": "formatValue", "args": {"value": "abc"}}}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "1.0", "callRendererFunction": {"functionCallId": "call_1", "callFunction": {"catalogId": "conformance/simplified", "@call": "formatString", "args": {"value": "abc"}}}}]</a2ui-json>'
       expect_error:
         category: "ValidationError"
-        message: "formatValue"
+        message: "formatString"

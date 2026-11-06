@@ -681,15 +681,17 @@ describe('ExpressPromptGenerator', () => {
     });
 
     it('emits the standalone call rule listing only agent-callable functions in v1.0', () => {
-      const cat = loadConformanceCatalog('agent_allowed_callers_catalog_v1_0.json');
-      const rules = new ExpressPromptGenerator([cat]).generateBaseRules();
+      const simplified = loadConformanceCatalog('simplified_catalog_v1_0.json');
+      const agentFns = loadConformanceCatalog('agent_functions_catalog_v1_0.json');
+      const rules = new ExpressPromptGenerator([simplified, agentFns]).generateBaseRules();
       expect(rules).toContain(
-        'Only these functions can be called this way: `notifyAgent`, `showToast`.',
+        'Only these functions can be called this way: `notify`, `record`, `peek`.',
       );
-      expect(rules).not.toContain('`formatValue`');
-      expect(rules).not.toContain('`launch`');
+      expect(rules).not.toContain('`formatString`');
+      expect(rules).not.toContain('`openUrl`');
+      expect(rules).not.toContain('`required`');
 
-      const withoutCall = new ExpressPromptGenerator([cat], undefined, [
+      const withoutCall = new ExpressPromptGenerator([simplified, agentFns], undefined, [
         'createSurface',
         'updateComponents',
       ]).generateBaseRules();
@@ -697,14 +699,14 @@ describe('ExpressPromptGenerator', () => {
     });
 
     it('numbers multi-catalog rules sequentially alongside standalone function call rules and allowedMessages', () => {
-      const cat1 = loadConformanceCatalog('agent_allowed_callers_catalog_v1_0.json');
+      const cat1 = loadConformanceCatalog('agent_functions_catalog_v1_0.json');
       const cat2 = loadConformanceCatalog('custom_catalog_v1_0.json');
       const rules = new ExpressPromptGenerator([cat1, cat2]).generateBaseRules();
       const numbers = [...rules.matchAll(/^(\d+)\. /gm)].map(m => Number(m[1]));
       expect(numbers).toEqual(Array.from({length: numbers.length}, (_, i) => i + 1));
       expect(rules).toContain('## Multiple Catalogs');
       expect(rules).toContain(
-        'Only these functions can be called this way: `notifyAgent`, `showToast`.',
+        'Only these functions can be called this way: `notify`, `record`, `peek`.',
       );
 
       const filtered = new ExpressPromptGenerator([cat1, cat2], undefined, [
