@@ -259,6 +259,111 @@
     category: CatalogError
     message: "bad-amount"
 
+- name: test_declare_agent_function_with_a_local_def_that_differs_from_a_catalog_def_is_a_catalog_error
+  description: >-
+    An agent function's local $defs merge with the catalog's root $defs, and the catalog document keeps one definition per name, so a local definition that differs from the catalog's is refused: the agent and the renderer would otherwise validate one call against different schemas.
+  action: declare_agent_functions
+  args:
+    catalog:
+      catalog:
+        catalogId: conformance/defs_collision
+        protocolVersion: "1.0"
+        components: {}
+        $defs:
+          Money:
+            type: object
+            properties:
+              amount: {type: number}
+              currency: {type: string, default: USD}
+            required: [amount]
+      agent_functions:
+        pay:
+          returnType: object
+          args:
+            $defs:
+              Money:
+                type: object
+                properties:
+                  amount: {type: number}
+                  currency: {type: string, default: EUR}
+                required: [amount]
+            type: object
+            properties:
+              total: {$ref: "#/$defs/Money"}
+            required: [total]
+          behavior: {returns_args: true}
+  expect_error:
+    category: CatalogError
+    message: "Money"
+
+- name: test_declare_agent_function_with_a_local_def_equal_to_a_catalog_def
+  description: >-
+    A local $defs entry that is identical to the catalog's entry of that name is accepted, since hoisting it into the catalog document loses nothing.
+  action: declare_agent_functions
+  args:
+    catalog:
+      catalog:
+        catalogId: conformance/defs_equal
+        protocolVersion: "1.0"
+        components: {}
+        $defs:
+          Money:
+            type: object
+            properties:
+              amount: {type: number}
+              currency: {type: string, default: USD}
+            required: [amount]
+      agent_functions:
+        pay:
+          returnType: object
+          args:
+            $defs:
+              Money:
+                type: object
+                properties:
+                  amount: {type: number}
+                  currency: {type: string, default: USD}
+                required: [amount]
+            type: object
+            properties:
+              total: {$ref: "#/$defs/Money"}
+            required: [total]
+          behavior: {returns_args: true}
+  expect:
+    functions: [pay]
+    agent_functions: [pay]
+    document_functions: [pay]
+
+- name: test_declare_two_agent_functions_with_differing_local_defs_of_one_name_is_a_catalog_error
+  description: >-
+    Two agent functions on one catalog may not define one local $defs name differently, since the catalog document would keep only one of them.
+  action: declare_agent_functions
+  args:
+    catalog:
+      catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      agent_functions:
+        pay:
+          returnType: object
+          args:
+            $defs:
+              Money: {type: number}
+            type: object
+            properties:
+              total: {$ref: "#/$defs/Money"}
+          behavior: {returns_args: true}
+        refund:
+          returnType: object
+          args:
+            $defs:
+              Money: {type: string}
+            type: object
+            properties:
+              total: {$ref: "#/$defs/Money"}
+          behavior: {returns_args: true}
+  expect_error:
+    category: CatalogError
+    message: "Money"
+
 # --- Answering callAgentFunction ---
 
 - name: test_handle_agent_function_returns_the_value_and_copies_the_call_id
@@ -379,6 +484,36 @@
       catalogId: conformance/simplified
       surfaceId: checkout
       functionCallId: ctx-1
+
+- name: test_handle_agent_function_that_requires_user_activation
+  description: >-
+    A rendererOnly agent function may require user activation. The renderer enforces it by sending the call only after a user gesture, so the agent answers the call like any other.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          confirmPayment:
+            returnType: boolean
+            requiresUserActivation: true
+            args:
+              type: object
+              properties:
+                amount: {type: number}
+              required: [amount]
+            behavior: {returns: true}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: ua-1
+        callFunction:
+          "@call": confirmPayment
+          catalogId: conformance/simplified
+          args: {amount: 25}
+  expect:
+    functionCallId: ua-1
+    value: true
 
 - name: test_handle_agent_function_with_an_argument_of_the_wrong_type
   description: Arguments that fail the function's schema get INVALID_FUNCTION_CALL, and the handler does not run.
@@ -809,7 +944,7 @@
 
 - name: test_handle_agent_function_whose_handler_fails
   description: >-
-    A handler that fails gets EXECUTION_ERROR, with the failure's message.
+    A handler that fails gets EXECUTION_ERROR. The message of an ordinary failure is SDK-defined and may be redacted, so the case does not check it.
   action: handle_agent_function
   args:
     catalogs:
@@ -833,7 +968,6 @@
     functionCallId: e-1
     error:
       code: EXECUTION_ERROR
-      message: "rate service unavailable"
 
 - name: test_handle_agent_function_whose_handler_fails_with_a_validation_error
   description: >-

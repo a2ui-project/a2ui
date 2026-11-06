@@ -53,6 +53,9 @@ CATEGORY_TO_EXCEPTION: dict[str, type[Exception]] = {
 
 AgentFunctionHandler = Callable[[dict[str, Any], AgentFunctionContext], Any]
 
+# Reply codes for a call the processor rejects before running any handler.
+REJECTED_CALL_CODES = frozenset({"INVALID_FUNCTION_CALL", "UNKNOWN_FUNCTION"})
+
 
 def _load_cases() -> list[Any]:
     cases = load_conformance_yaml(SUITE)
@@ -73,28 +76,24 @@ def _document(ref: str | Mapping[str, Any]) -> tuple[dict[str, Any], str]:
     return dict(ref), "inline"
 
 
-def _handler(behavior: Mapping[str, Any]) -> AgentFunctionHandler:
-    """The handler that carries out a case's scripted behaviour."""
+def _behavior(behavior: Mapping[str, Any]) -> AgentFunctionHandler:
+    """The handler body that carries out a case's scripted behaviour."""
     if "returns" in behavior:
         value = behavior["returns"]
 
-        async def returns(args: dict[str, Any], context: AgentFunctionContext) -> Any:
+        def returns(args: dict[str, Any], context: AgentFunctionContext) -> Any:
             return value
 
         return returns
     if behavior.get("returns_args"):
 
-        async def returns_args(
-            args: dict[str, Any], context: AgentFunctionContext
-        ) -> Any:
+        def returns_args(args: dict[str, Any], context: AgentFunctionContext) -> Any:
             return args
 
         return returns_args
     if behavior.get("returns_context"):
 
-        async def returns_context(
-            args: dict[str, Any], context: AgentFunctionContext
-        ) -> Any:
+        def returns_context(args: dict[str, Any], context: AgentFunctionContext) -> Any:
             return {
                 "catalogId": context.catalog_id,
                 "surfaceId": context.surface_id,
@@ -105,7 +104,7 @@ def _handler(behavior: Mapping[str, Any]) -> AgentFunctionHandler:
     if "raises" in behavior:
         failure = behavior["raises"]
 
-        async def raises(args: dict[str, Any], context: AgentFunctionContext) -> Any:
+        def raises(args: dict[str, Any], context: AgentFunctionContext) -> Any:
             if "code" in failure:
                 raise A2uiRpcError(failure["message"], code=failure["code"])
             if failure.get("validation"):
@@ -116,12 +115,29 @@ def _handler(behavior: Mapping[str, Any]) -> AgentFunctionHandler:
     raise ValueError(f"Unknown agent function behavior: {behavior}")
 
 
+def _handler(
+    name: str, behavior: Mapping[str, Any], calls: list[str]
+) -> AgentFunctionHandler:
+    """The handler for a case's scripted behaviour, which records each run.
+
+    `calls` gets `name` each time the handler runs, so a case
+    can check that a rejected call ran none.
+    """
+    body = _behavior(behavior)
+
+    async def handler(args: dict[str, Any], context: AgentFunctionContext) -> Any:
+        calls.append(name)
+        return body(args, context)
+
+    return handler
+
+
 def _agent_function(
-    key: str, declaration: Mapping[str, Any], catalog: CatalogApi
+    key: str, declaration: Mapping[str, Any], catalog: CatalogApi, calls: list[str]
 ) -> AgentFunction:
     """The agent function a declaration describes, for `catalog`."""
     name = declaration.get("name", key)
-    handler = _handler(declaration["behavior"])
+    handler = _handler(name, declaration["behavior"], calls)
     if declaration.get("from_api"):
         api = catalog.functions.get(name) or FunctionApi(
             name,
@@ -136,11 +152,15 @@ def _agent_function(
         return_type=declaration["returnType"],
         schema=declaration["args"],
         description=declaration.get("description"),
+        requires_user_activation=declaration.get("requiresUserActivation", False),
     )
 
 
-def _catalog(entry: Mapping[str, Any]) -> CatalogApi:
-    """The catalog a case's entry describes, with its agent functions."""
+def _catalog(entry: Mapping[str, Any], calls: list[str]) -> CatalogApi:
+    """The catalog a case's entry describes, with its agent functions.
+
+    Their handlers record each run in `calls`.
+    """
     document, fallback_id = _document(entry["catalog"])
     catalog = InMemoryCatalogProvider(
         document,
@@ -149,7 +169,7 @@ def _catalog(entry: Mapping[str, Any]) -> CatalogApi:
     ).load()
     return catalog.copy_with(
         agent_functions=[
-            _agent_function(key, declaration, catalog)
+            _agent_function(key, declaration, catalog, calls)
             for key, declaration in entry.get("agent_functions", {}).items()
         ]
     )
@@ -171,31 +191,39 @@ def _assert_error_matches(error: BaseException, expected: Mapping[str, Any]) -> 
 
 def _run_declare(case: Mapping[str, Any]) -> None:
     entry = case["args"]["catalog"]
+    calls: list[str] = []
     if "expect_error" in case:
         with pytest.raises(Exception) as excinfo:
-            _catalog(entry)
+            _catalog(entry, calls)
         _assert_error_matches(excinfo.value, case["expect_error"])
+        assert calls == []
         return
-    catalog = _catalog(entry)
+    catalog = _catalog(entry, calls)
     expected = case["expect"]
     assert sorted(catalog.functions) == sorted(expected["functions"])
     assert sorted(catalog.agent_functions) == sorted(expected["agent_functions"])
     document_functions = catalog.to_json().get("functions", {})
     assert sorted(document_functions) == sorted(expected["document_functions"])
+    assert calls == []
 
 
 def _run_handle(case: Mapping[str, Any]) -> None:
     args = case["args"]
-    processor = RendererToAgentMessageProcessor(
-        [_catalog(entry) for entry in args["catalogs"]]
-    )
+    calls: list[str] = []
+
+    def build() -> RendererToAgentMessageProcessor:
+        return RendererToAgentMessageProcessor(
+            [_catalog(entry, calls) for entry in args["catalogs"]]
+        )
 
     if "expect_error" in case:
         with pytest.raises(Exception) as excinfo:
-            asyncio.run(processor.process_message(args["message"]))
+            asyncio.run(build().process_message(args["message"]))
         _assert_error_matches(excinfo.value, case["expect_error"])
+        assert calls == []
         return
 
+    processor = build()
     result = asyncio.run(processor.process_message(args["message"]))
     assert result.handled
     assert len(result.replies) == 1, result.replies
@@ -213,6 +241,8 @@ def _run_handle(case: Mapping[str, Any]) -> None:
         assert error["code"] == expected["error"]["code"], error
         if "message" in expected["error"]:
             assert expected["error"]["message"] in error["message"], error
+        if error["code"] in REJECTED_CALL_CODES:
+            assert calls == [], calls
     else:
         assert set(response) == {"functionCallId", "value"}, response
         assert response["value"] == expected["value"]
@@ -220,14 +250,20 @@ def _run_handle(case: Mapping[str, Any]) -> None:
 
 def _run_validate(case: Mapping[str, Any]) -> None:
     args = case["args"]
-    catalogs = [_catalog(entry) for entry in args["catalogs"]]
+    calls: list[str] = []
+
+    def build() -> list[CatalogApi]:
+        return [_catalog(entry, calls) for entry in args["catalogs"]]
+
     if "expect_error" in case:
         with pytest.raises(Exception) as excinfo:
-            validate_payload(catalogs, args["messages"])
+            validate_payload(build(), args["messages"])
         _assert_error_matches(excinfo.value, case["expect_error"])
+        assert calls == []
         return
     assert case["expect_valid"] is True
-    validate_payload(catalogs, args["messages"])
+    validate_payload(build(), args["messages"])
+    assert calls == []
 
 
 _CALLBACK_OPTIONS = {
@@ -286,6 +322,7 @@ def _normalize_timestamps(value: Any) -> Any:
 def _run_process(case: Mapping[str, Any]) -> None:
     args = case["args"]
     received: list[tuple[str, Any]] = []
+    calls: list[str] = []
 
     def record(kind: str, declines: bool) -> Callable[[Any], bool]:
         def callback(message: Any) -> bool:
@@ -303,7 +340,7 @@ def _run_process(case: Mapping[str, Any]) -> None:
 
     def build() -> RendererToAgentMessageProcessor:
         return RendererToAgentMessageProcessor(
-            [_catalog(entry) for entry in entries], **callbacks
+            [_catalog(entry, calls) for entry in entries], **callbacks
         )
 
     if "expect_error" in case:
@@ -311,6 +348,7 @@ def _run_process(case: Mapping[str, Any]) -> None:
             asyncio.run(build().process_message(args["message"]))
         _assert_error_matches(excinfo.value, case["expect_error"])
         assert received == []
+        assert calls == []
         return
 
     processor = build()
@@ -324,6 +362,12 @@ def _run_process(case: Mapping[str, Any]) -> None:
     assert len(replies) == len(expected_replies), replies
     for reply, expected_reply in zip(replies, expected_replies):
         _assert_reply_matches(reply, expected_reply)
+    if any(
+        reply.get("agentFunctionResponse", {}).get("error", {}).get("code")
+        in REJECTED_CALL_CODES
+        for reply in expected_replies
+    ):
+        assert calls == [], calls
     if "callback" in expected:
         assert len(received) == 1, received
         kind, message = received[0]
