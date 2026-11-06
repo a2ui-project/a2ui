@@ -329,7 +329,7 @@ const githubBlobBase = 'https://github.com/a2ui-project/a2ui/blob/main';
   }
 
   :root[data-theme='light'] .a2-se-desc {
-    color: #334155;
+    color: #3c4043;
   }
 
   .a2-se-desc strong {
@@ -338,7 +338,7 @@ const githubBlobBase = 'https://github.com/a2ui-project/a2ui/blob/main';
   }
 
   :root[data-theme='light'] .a2-se-desc strong {
-    color: #0f172a;
+    color: #1f1f1f;
   }
 
   .a2-se-meta {
@@ -352,7 +352,7 @@ const githubBlobBase = 'https://github.com/a2ui-project/a2ui/blob/main';
   }
 
   :root[data-theme='light'] .a2-se-meta {
-    color: #475569;
+    color: #5f6368;
   }
 
   .a2-se-meta a {
@@ -390,8 +390,8 @@ const githubBlobBase = 'https://github.com/a2ui-project/a2ui/blob/main';
     font-weight: 500;
     line-height: 1.4;
     color: var(--sl-color-text-accent);
-    background: rgba(20, 184, 166, 0.08);
-    border: 1px solid rgba(20, 184, 166, 0.28);
+    background: rgba(66, 133, 244, 0.08);
+    border: 1px solid rgba(66, 133, 244, 0.28);
     border-radius: 4px;
     cursor: pointer;
     vertical-align: middle;
@@ -399,19 +399,19 @@ const githubBlobBase = 'https://github.com/a2ui-project/a2ui/blob/main';
   }
 
   .a2-se-copy-id-btn:hover {
-    background: rgba(20, 184, 166, 0.18);
+    background: rgba(66, 133, 244, 0.18);
     border-color: var(--sl-color-accent);
   }
 
   :root[data-theme='light'] .a2-se-copy-id-btn {
-    background: #f1f5f9;
-    border-color: #cbd5e1;
-    color: #0f766e;
+    background: #f1f3f4;
+    border-color: #bdc1c6;
+    color: #0842a0;
   }
 
   :root[data-theme='light'] .a2-se-copy-id-btn:hover {
-    background: #e2e8f0;
-    border-color: #0d9488;
+    background: #e8eaed;
+    border-color: #0b57d0;
   }
 
   .a2-se-defs {
@@ -423,7 +423,7 @@ const githubBlobBase = 'https://github.com/a2ui-project/a2ui/blob/main';
   }
 
   :root[data-theme='light'] .a2-se-defs {
-    color: #334155;
+    color: #3c4043;
   }
 
   .a2-se-defs summary {
@@ -434,7 +434,7 @@ const githubBlobBase = 'https://github.com/a2ui-project/a2ui/blob/main';
   }
 
   :root[data-theme='light'] .a2-se-defs summary {
-    color: #334155;
+    color: #3c4043;
   }
 
   .a2-se-defs summary:hover {
@@ -458,7 +458,7 @@ const githubBlobBase = 'https://github.com/a2ui-project/a2ui/blob/main';
   }
 
   :root[data-theme='light'] .a2-se-defs__label {
-    color: #0f172a;
+    color: #1f1f1f;
   }
 
   .a2-se-defs a {
@@ -483,15 +483,15 @@ const githubBlobBase = 'https://github.com/a2ui-project/a2ui/blob/main';
     gap: 0.5rem;
     padding: 0.45rem 0.75rem;
     border-radius: 6px;
-    border: 1px solid rgba(20, 184, 166, 0.35);
-    background: rgba(20, 184, 166, 0.1);
+    border: 1px solid rgba(66, 133, 244, 0.35);
+    background: rgba(66, 133, 244, 0.1);
     font-family: var(--sl-font-mono);
     font-size: 0.78rem;
     color: var(--sl-color-text-accent);
   }
 
   :root[data-theme='light'] .a2-se-pointer-bar {
-    color: #0f766e;
+    color: #0842a0;
   }
 
   .a2-se-pointer-bar[hidden] {
@@ -499,13 +499,13 @@ const githubBlobBase = 'https://github.com/a2ui-project/a2ui/blob/main';
   }
 
   .a2-se-pointer-bar.is-warning {
-    border-color: rgba(245, 158, 11, 0.4);
-    background: rgba(245, 158, 11, 0.1);
-    color: #f59e0b;
+    border-color: color-mix(in srgb, var(--a2-amber) 40%, transparent);
+    background: var(--a2-amber-soft);
+    color: var(--a2-amber);
   }
 
   :root[data-theme='light'] .a2-se-pointer-bar.is-warning {
-    color: #b45309;
+    color: var(--a2-amber-strong);
   }
 
   .a2-se-pointer-bar__text {
@@ -519,14 +519,14 @@ const githubBlobBase = 'https://github.com/a2ui-project/a2ui/blob/main';
     font-weight: 600;
     padding: 0.25rem 0.55rem;
     border-radius: 5px;
-    border: 1px solid rgba(20, 184, 166, 0.45);
+    border: 1px solid rgba(66, 133, 244, 0.45);
     background: transparent;
     color: inherit;
     cursor: pointer;
   }
 
   .a2-se-clear-btn:hover {
-    background: rgba(20, 184, 166, 0.16);
+    background: rgba(66, 133, 244, 0.16);
   }
 
   /* Expressive Code line numbering & permalink range highlighting */
@@ -548,27 +548,27 @@ const githubBlobBase = 'https://github.com/a2ui-project/a2ui/blob/main';
     min-width: 3.1rem;
     padding: 0 0.65rem 0 0.75rem;
     text-align: right;
-    color: rgba(148, 163, 184, 0.55);
+    color: rgba(154, 160, 166, 0.55);
     user-select: none;
     font-family: var(--sl-font-mono);
     font-size: var(--ec-codeFontSize, 0.85rem);
     line-height: var(--ec-codeLineHt, 1.65);
     font-variant-numeric: tabular-nums;
-    border-inline-end: 1px solid rgba(148, 163, 184, 0.14);
+    border-inline-end: 1px solid rgba(154, 160, 166, 0.14);
   }
 
   :root[data-theme='light'] .a2-schema-viewer :global(.expressive-code .ec-line::before) {
-    color: rgba(100, 116, 139, 0.7);
-    border-inline-end-color: rgba(100, 116, 139, 0.18);
+    color: rgba(128, 134, 139, 0.7);
+    border-inline-end-color: rgba(128, 134, 139, 0.18);
   }
 
   .a2-schema-viewer :global(.expressive-code .ec-line.is-highlighted) {
-    background: rgba(20, 184, 166, 0.16) !important;
+    background: rgba(66, 133, 244, 0.16) !important;
     box-shadow: inset 3px 0 0 var(--sl-color-accent);
   }
 
   :root[data-theme='light'] .a2-schema-viewer :global(.expressive-code .ec-line.is-highlighted) {
-    background: rgba(13, 148, 136, 0.13) !important;
+    background: rgba(11, 87, 208, 0.13) !important;
   }
 
   .a2-schema-viewer :global(.expressive-code .ec-line.is-highlighted::before) {

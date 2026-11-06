@@ -20,7 +20,7 @@ Every agent authoring or editing pages under `docs/site/` must follow these glob
 4. **Canonical Topic Ownership (Anti-Overlap Rules)**:
     - Each core topic has a single canonical owner page. Other pages must summarize the concept in 1–2 sentences and link to the owner rather than repeating tables, benchmarks, or deep explanations:
         - **Wire message envelopes & v0.9.1 $\rightarrow$ v1.0 message renames**: Owned by [`Messages`](#messages) (`/concepts/messages/`).
-        - **Official SDK inventories, Core SDK dependency, source links & registry links**: Owned by [`Agent SDKs`](#agent-sdks) (`/concepts/agent-sdks/`) and [`Renderer SDKs`](#renderer-sdks) (`/concepts/renderer-sdks/`).
+        - **Official SDK inventories, Core SDK dependency, source links & registry links**: Owned by [`SDKs`](#sdks) (`/concepts/sdks/`).
         - **Inference format mechanics (Express, Direct JSON) & token/latency benchmark table**: Owned by [`Swappable Inference Formats`](#swappable-inference-formats) (`/concepts/inference-formats/`).
         - **Server-side `@macro` expansion & data baking**: Owned by [`Macros`](#macros) (`/concepts/macros/`).
         - **Module blueprints & YAML conformance suites**: Owned by [`SDK Development`](#sdk-development) (`/guides/sdk-development/`).
@@ -53,8 +53,7 @@ All cross-page links must target these exact Starlight routes (with `docs/site/s
 | **Concepts**      | Catalogs, Components and Functions               | **P0**   | `content/docs/concepts/catalogs.mdx`                                                             | `/concepts/catalogs/`                                                                           |
 | **Concepts**      | Data Model and Data Binding                      | **P0**   | `content/docs/concepts/data-binding.mdx`                                                         | `/concepts/data-binding/`                                                                       |
 | **Concepts**      | Actions and Functions                            | **P0**   | `content/docs/concepts/actions-and-functions.mdx`                                                | `/concepts/actions-and-functions/`                                                              |
-| **Concepts**      | Agent SDKs                                       | **P1**   | `content/docs/concepts/agent-sdks.mdx`                                                           | `/concepts/agent-sdks/`                                                                         |
-| **Concepts**      | Renderer SDKs                                    | **P1**   | `content/docs/concepts/renderer-sdks.mdx`                                                        | `/concepts/renderer-sdks/`                                                                      |
+| **Concepts**      | SDKs                                             | **P1**   | `content/docs/concepts/sdks.mdx`                                                                 | `/concepts/sdks/`                                                                               |
 | **Concepts**      | Swappable Inference Formats                      | **P1**   | `content/docs/concepts/inference-formats.mdx`                                                    | `/concepts/inference-formats/`                                                                  |
 | **Concepts**      | Macros                                           | **P2**   | `content/docs/concepts/macros.mdx`                                                               | `/concepts/macros/`                                                                             |
 | **Concepts**      | Security and Trust Boundaries                    | **P2**   | `content/docs/concepts/security.mdx`                                                             | `/concepts/security/`                                                                           |
@@ -113,7 +112,7 @@ _(Where `<ver>` is `v1.0`, `v0.9.1`, or `v0.8`.)_
 5. **Macros: Give the model bigger words**
     - Teaser showing server-defined `@macro` calls expanding into standard wire primitives, linking to [Macros](#macros) (`/concepts/macros/`).
 6. **Multi-Platform Client Rendering**
-    - Interactive 6-platform renderer switcher (Flutter, React, Angular, Lit Web Components, SwiftUI, Jetpack Compose), linking to [Renderer SDKs](#renderer-sdks) (`/concepts/renderer-sdks/`).
+    - Interactive 6-platform renderer switcher (Flutter, React, Angular, Lit Web Components, SwiftUI, Jetpack Compose), linking to [SDKs](#sdks) (`/concepts/sdks/#renderer-sdk`).
 
 ---
 
@@ -136,7 +135,7 @@ _(Where `<ver>` is `v1.0`, `v0.9.1`, or `v0.8`.)_
     - **Boundary Rule**: The `A2UI AGENT SDK` container strictly encloses the **Skill generator** and **Compiler**. The `Agent` (e.g. Gemini Interactions API / LLM runtime) sits outside the SDK box as user application code that consumes domain skills + generated A2UI skills and feeds model output into the compiler.
     - Include cards for **Component schemas (your catalog)**, **Domain skills**, **A2UI Agent SDK**, **Agent**, **A2UI Protocol JSON** (`updateComponents`), and **Data sent separately** (`updateDataModel`), paired with the client phone mockup ("Berlin to San Francisco today, and two tickets back." and flight cards outlined with _"A2UI renderer draws this part"_).
 - **Content Outline**:
-    1. **Core Mental Model**: Introduce Component Schemas (`catalog.json`), the A2UI Agent SDK (linking to [Agent SDKs](#agent-sdks)), the Agent application runtime, decoupled layout (`updateComponents`) vs. state (`updateDataModel`) messages, and the Client App & Renderer SDK (linking to [Renderer SDKs](#renderer-sdks)).
+    1. **Core Mental Model**: Introduce Component Schemas (`catalog.json`), the A2UI Agent SDK (linking to [SDKs](#sdks)), the Agent application runtime, decoupled layout (`updateComponents`) vs. state (`updateDataModel`) messages, and the Client App & Renderer SDK (linking to [SDKs](#sdks)).
     2. **End-to-End Architecture Walkthrough**: Place `<ArchitecturePipelineOverview />` near the top and walk through the 5 stages: (1) Catalog definition, (2) Skill generation, (3) Agent prompting & reasoning, (4) Parsing, compilation & validation, and (5) Incremental client rendering.
     3. **Capabilities & Catalog Negotiation**: Explain how the client advertises capabilities (`a2uiRendererCapabilities` in v1.0 / `a2uiClientCapabilities` in v0.9.1: `supportedCatalogIds`, `inlineCatalogs`) and how the agent selects the active catalog.
 
@@ -216,40 +215,17 @@ _(Where `<ver>` is `v1.0`, `v0.9.1`, or `v0.8`.)_
             4. _From Explicit Agent-to-Renderer Messages (`callRendererFunction` — New in v1.0)_: Sent directly by the agent mid-session to invoke a renderer-side function (e.g. querying device state) and receive `rendererFunctionResponse`.
         - **Caller & Gesture Constraints (`v1.0`)**: Summarize how `allowedCallers` (`rendererOnly` | `agentOnly` | `rendererOrAgent`) and `requiresUserActivation: true` govern which trigger contexts are permitted, linking to [`/concepts/security/`](#security-and-trust-boundaries).
 
+<a id="sdks"></a>
 <a id="agent-sdks"></a>
-
-#### Agent SDKs (`/concepts/agent-sdks/`) [P1]
-
-- **Canonical Owner**: Single source of truth for official Agent SDKs, framework extensions, and their Core SDK dependencies.
-- **Content Outline**:
-    1. **Foundation on the Core SDK**: Explain that every Agent SDK depends on a language-specific Core SDK (`a2ui-core`, `@a2ui/web_core`, `a2ui_core`) implementing the shared data structures and behaviors common to both agents and renderers (protocol message models, `Catalog` schemas, surface/`dataModel` state containers, JSON Pointer resolution, expression evaluation, and validation primitives).
-    2. **Primary Responsibilities**: (1) Catalog loading, `CatalogTransformer` pruning, and client capability negotiation (`a2uiRendererCapabilities` in v1.0 / `a2uiClientCapabilities` in v0.9.1); (2) Skill & system prompt generation (`SkillGenerator` in Python/TS and prompt builders + decompiled examples across SDKs); (3) Swappable inference format compilation & streaming (Express DSL, Direct JSON chunk healing); (4) Stateful validation against `RendererState` & LLM self-correction; (5) Server-side `@macro` expansion (currently Python) and agent framework integrations (ADK, A2A).
-    3. **Why Use an Official Agent SDK?**: Replaces brittle hand-written schema prompts with catalog-driven skills, cuts output tokens via Express without client changes, catches invalid references/schemas before emission, and abstracts `v0.9.1` vs. `v1.0`.
-    4. **Available Official Agent SDKs Table**:
-        - **Columns**: (1) _Language / Runtime_, (2) _Packages & Roles_ (Agent SDK, framework adapters like ADK/A2A, and Core SDK dependency), (3) _Protocol Versions_, (4) _GitHub Source_ (deep link in `a2ui-project/a2ui`), (5) _Published Package_ (direct link on PyPI, npm, pub.dev, or explicit in-repo status).
-        - **Discovery Instructions**: Inspect `python/*/pyproject.toml`, `typescript/agents/*/package.json`, `typescript/core/*/package.json`, `dart/*/pubspec.yaml`, and `kotlin/` legacy notes; verify `"private"` flags, release tags, and live registry URLs. Note that Swift targets client rendering (`A2UISwiftCore` / `A2UISwiftUI`) rather than server-side agent generation.
-    5. **Next Steps / Integration Guide**: Follow the step-by-step server setup and framework wiring in [How to Integrate with My Agent Server](#how-to-integrate-with-my-agent-server) (`/guides/agent-integration/`).
-    6. **Community & Custom SDKs**: Cross-link to [`/ecosystem/renderers/`](#ecosystem-renderers--tools-ecosystemrenderers) and [`/guides/sdk-development/`](#sdk-development).
-
 <a id="renderer-sdks"></a>
 
-#### Renderer SDKs (`/concepts/renderer-sdks/`) [P1]
+#### SDKs (`/concepts/sdks/`) [P1]
 
 - **Canonical Owner & Framing Rules**:
-    - Single source of truth for official client Renderer SDKs and Core SDKs.
-    - Do **not** mention `60fps`.
-    - Refer to **incremental updates** (applying incremental component tree and data model updates), **not** "streaming" (an agent-side concept).
-    - Do **not** pitch "native widget rendering" as a standalone feature bullet; explain instead that framework adapters include a **built-in implementation of the Basic Catalog** and make **custom catalogs** straightforward by letting developers supply per-`Component` rendering logic while the framework handles reactive state updates.
-- **Content Outline**:
-    1. **Foundation on the Core SDK**: Explain that every Renderer SDK depends on a language-specific Core SDK (`@a2ui/web_core`, `a2ui_core`, SwiftPM product `A2UISwiftCore` [module `A2UICore`], and AndroidX A2UI core) implementing shared message models, surface and `DataModel` state trees, JSON Pointer resolution, `@path` / `@call` evaluation, and validation rules common to agents and renderers.
-    2. **Built-In Basic Catalog & Custom Catalog Ergonomics**: Framework adapters ship with the Basic Catalog built in for immediate use, and let teams implement custom catalogs by registering rendering functions per `Component` (plus local functions) while the adapter and Core SDK manage incremental updates, reactive bindings, scoped list templates, validation `checks`, and event dispatch.
-    3. **Primary Responsibilities**: (1) Applying incremental `createSurface`, `updateComponents`, `updateDataModel`, and `deleteSurface` updates; (2) Reactive state, scoped `ChildList` templates, relative JSON Pointers, `@index`, and two-way input bindings; (3) Local function evaluation, `checks`, and `allowedCallers` / `requiresUserActivation` enforcement; (4) Advertising renderer capabilities (`a2uiRendererCapabilities` / `a2uiClientCapabilities`), dispatching `action` / RPC messages, and reporting structured `error` payloads; (5) Host platform accessibility mapping (and recommended live-region announcement throttling).
-    4. **Why Use an Official Renderer SDK?**: (1) **Abstracts protocol versions** (`v0.9.1` and `v1.0`), (2) **Implements subtle reactive state changes reliably** (incremental ID updates, nested `ChildList` lexical scopes, relative pointers, two-way bindings, reactive `checks`), and (3) **Supports all protocol features** (bidirectional RPCs, caller security gates, `sendDataModel`, accessibility attributes, structured `error` reporting).
-    5. **Available Official Renderer SDKs Table**:
-        - **Columns**: (1) _UI Framework / Platform_, (2) _Language_, (3) _Packages & Core Dependency_ (Framework Adapter, Core SDK, and Basic/Add-on Catalog packages where separate), (4) _Protocol Versions_, (5) _GitHub / Source Code_, (6) _Published Package_.
-        - **Discovery Instructions**: Inspect `typescript/{core,renderers,catalogs}/*/package.json` (noting Web bundles the Basic Catalog in `@a2ui/lit` and `@a2ui/web_core/v0_9/universal`, while `typescript/catalogs/` houses add-on catalogs like `mcp` and `vegachart`), `dart/*/pubspec.yaml`, and the repo-root [`Package.swift`](../../Package.swift) (`A2UISwiftCore`, `A2UISwiftUI`, `BasicCatalog`, `BasicCatalogSwiftUI`), verifying `"private"` flags and live registry links. Explicitly include the **Jetpack Compose SDK**, consulting [https://developer.android.com/develop/ui/compose/agentic](https://developer.android.com/develop/ui/compose/agentic) for authoritative Maven coordinates, source links, and documentation.
-    6. **Next Steps / Integration Guide**: Follow the step-by-step client runtime setup, catalog registration, and reactive update mounting in [How to Integrate with My Client](#how-to-integrate-with-my-client) (`/guides/client-integration/`).
-    7. **Community Renderers & Custom Adapters**: Cross-link to [`/ecosystem/renderers/`](#ecosystem-renderers--tools-ecosystemrenderers) and [`/guides/sdk-development/`](#sdk-development).
+    - Single source of truth for official Core SDKs, Agent SDKs, and Renderer SDKs.
+    - Lead with the three-tiered SDK architecture (Core SDK, Agent SDK, and Renderer SDK), noting that split client-server deployments use two layers per side while single-language codebases handling both inference and rendering (e.g. TypeScript and Dart) can use all three layers together.
+    - Walk through `Core SDK`, `Agent SDK`, and `Renderer SDK` in sequence, each with `Primary functions`, a clean 4-column `Packages` table (omitting package manager prefixes and avoiding noisy backticks), and unheaded follow-up links underneath.
+    - Do **not** mention `60fps`, refer to **incremental updates** on the renderer rather than "streaming", and explain that framework adapters include a **built-in implementation of the Basic Catalog** and support **custom catalogs** via per-component rendering logic.
 
 <a id="swappable-inference-formats"></a>
 
@@ -309,10 +285,10 @@ _(Where `<ver>` is `v1.0`, `v0.9.1`, or `v0.8`.)_
 
 #### How to Integrate with My Client (`/guides/client-integration/`) [P1]
 
-- **Sources**: Link to [Renderer SDKs](#renderer-sdks) (`/concepts/renderer-sdks/`) for package coordinates; verify APIs against `dart/a2ui_flutter/`, `typescript/renderers/`, `swift/swiftui/`, `samples/client/`, and [https://developer.android.com/develop/ui/compose/agentic](https://developer.android.com/develop/ui/compose/agentic).
+- **Sources**: Link to [SDKs](#sdks) (`/concepts/sdks/#renderer-sdk`) for package coordinates; verify APIs against `dart/a2ui_flutter/`, `typescript/renderers/`, `swift/swiftui/`, `samples/client/`, and [https://developer.android.com/develop/ui/compose/agentic](https://developer.android.com/develop/ui/compose/agentic).
 - **Content Outline** (tabbed across `Flutter` | `Web` | `SwiftUI` | `Jetpack Compose`):
-    1. **Overview**: Link to `/concepts/renderer-sdks/` and summarize the 6 integration steps.
-    2. **Step 1: Install Dependencies**: Tabbed install commands matching `/concepts/renderer-sdks/`.
+    1. **Overview**: Link to `/concepts/sdks/#renderer-sdk` and summarize the 6 integration steps.
+    2. **Step 1: Install Dependencies**: Tabbed install commands matching `/concepts/sdks/#renderer-sdk`.
     3. **Step 2: Initialize `MessageProcessor` & Register Catalogs**: Registering the built-in Basic Catalog plus custom component/function adapters.
     4. **Step 3: Advertise Renderer Capabilities**: Attaching `supportedCatalogIds` and `inlineCatalogs` in request/session metadata (`a2uiRendererCapabilities` in v1.0 / `a2uiClientCapabilities` in v0.9.1).
     5. **Step 4: Connect Transport & Apply Incremental Updates**: Passing transport payloads into the processor (`processMessages` in TS/Dart, `process(message:)` / `process(payload:)` in Swift) without assuming hardcoded JSONL framing.
@@ -323,10 +299,10 @@ _(Where `<ver>` is `v1.0`, `v0.9.1`, or `v0.8`.)_
 
 #### How to Integrate with My Agent Server (`/guides/agent-integration/`) [P1]
 
-- **Sources**: Link to [Agent SDKs](#agent-sdks) (`/concepts/agent-sdks/`) for package coordinates; verify APIs against `python/a2ui_agent/`, `python/a2ui_adk/`, `python/a2ui_a2a/`, `typescript/agents/a2ui_agent/`, `dart/a2ui_agent/`, and [`docs/public/guides/a2ui-with-any-agent-framework.md`](../public/guides/a2ui-with-any-agent-framework.md).
+- **Sources**: Link to [SDKs](#sdks) (`/concepts/sdks/#agent-sdk`) for package coordinates; verify APIs against `python/a2ui_agent/`, `python/a2ui_adk/`, `python/a2ui_a2a/`, `typescript/agents/a2ui_agent/`, `dart/a2ui_agent/`, and [`docs/public/guides/a2ui-with-any-agent-framework.md`](../public/guides/a2ui-with-any-agent-framework.md).
 - **Content Outline** (tabbed across `TypeScript` | `Python` | `Dart`):
-    1. **Overview**: Link to `/concepts/agent-sdks/` and summarize the 6 server steps.
-    2. **Step 1: Install Dependencies**: Tabbed install commands matching `/concepts/agent-sdks/`.
+    1. **Overview**: Link to `/concepts/sdks/#agent-sdk` and summarize the 6 server steps.
+    2. **Step 1: Install Dependencies**: Tabbed install commands matching `/concepts/sdks/#agent-sdk`.
     3. **Step 2: Configure `A2uiGenerator`, Catalogs & Inference Format**: Initializing `CatalogConfig` and the inference format factory (`inferenceFormatFactory` in TS/Dart, `inference_format_factory` in Python; include a 1-sentence link to `/concepts/macros/` for Python `MacroExpander`).
     4. **Step 3: Negotiate Capabilities & Inject System Prompt**: Creating a request processor from client capabilities (`a2uiRendererCapabilities` / `a2uiClientCapabilities`) and appending `promptSnippet` / `prompt_snippet` to LLM system instructions.
     5. **Step 4: Parse Output, Validate & Self-Correct**: Using `parseResponse` / `parse_response` (or `openStream` / `open_stream`), validating against `RendererState`, and feeding `VALIDATION_FAILED` errors back to the LLM for retry.
@@ -408,7 +384,7 @@ _(Where `<ver>` is `v1.0`, `v0.9.1`, or `v0.8`.)_
 
 - **Canonical Owner**: Single home for Spec-Driven Development (SDD) blueprints and conformance testing.
 - **Content Outline**:
-    1. **Writing Your Own SDK**: Link to [`/concepts/agent-sdks/`](#agent-sdks) and [`/concepts/renderer-sdks/`](#renderer-sdks) for official SDKs, and explain how to build custom SDKs (e.g. Rust, Go, C#, Vue, Svelte).
+    1. **Writing Your Own SDK**: Link to [`/concepts/sdks/`](#sdks) for official SDKs, and explain how to build custom SDKs (e.g. Rust, Go, C#, Vue, Svelte).
     2. **Module Blueprints**: Point to [`a2ui_core.blueprint.md`](../../blueprints/modules/a2ui_core.blueprint.md), [`a2ui_agent.blueprint.md`](../../blueprints/modules/a2ui_agent.blueprint.md), and [`a2ui_framework_adapter.blueprint.md`](../../blueprints/modules/a2ui_framework_adapter.blueprint.md).
     3. **YAML Conformance Suites**: Explain validating implementations against [`conformance/core/`](../../conformance/core/), [`conformance/agent/`](../../conformance/agent/), and [`conformance/README.md`](../../conformance/README.md).
 
@@ -427,7 +403,7 @@ _(Where `<ver>` is `v1.0`, `v0.9.1`, or `v0.8`.)_
 ### Ecosystem Renderers & Tools (`/ecosystem/renderers/`) [P1]
 
 - Port and clean up [`docs/public/ecosystem/renderers.md`](../public/ecosystem/renderers.md):
-    1. **Introduction & Disclaimer**: Clarify community maintenance and link to [`/concepts/agent-sdks/`](#agent-sdks) and [`/concepts/renderer-sdks/`](#renderer-sdks) for official first-party SDKs.
+    1. **Introduction & Disclaimer**: Clarify community maintenance and link to [`/concepts/sdks/`](#sdks) for official first-party SDKs.
     2. **Unified Community Renderers Table**: Project/package name, target platform/framework, supported protocol versions (`v0.8`, `v0.9.1`, `v1.0`), maintenance status, and repo/registry links.
     3. **Agent-Side Libraries & Ecosystem Utilities**: Community server libraries, transports, and developer tools.
     4. **Submitting to the Ecosystem**: PR instructions against `a2ui-project/a2ui`.
@@ -440,7 +416,7 @@ _(Where `<ver>` is `v1.0`, `v0.9.1`, or `v0.8`.)_
 
 Single-source specification markdown files directly from `specification/` and `catalogs/` via `--8<--` includes (omitting `v0.9`, as `v0.9.1` supersedes it with minor patch refinements):
 
-- **v1.0 (Candidate)** `[Badge: Candidate]`
+- **v1.0 (Current)** `[Badge: Current]`
     - `v1.0 Protocol Specification`: [`specification/v1_0/docs/a2ui_protocol.md`](../../specification/v1_0/docs/a2ui_protocol.md)
     - `v1.0 Custom Functions Guide`: [`specification/v1_0/docs/a2ui_custom_functions.md`](../../specification/v1_0/docs/a2ui_custom_functions.md)
     - `v1.0 SDKs Specification`: [`specification/v1_0/docs/sdks_spec.md`](../../specification/v1_0/docs/sdks_spec.md)
@@ -448,7 +424,7 @@ Single-source specification markdown files directly from `specification/` and `c
     - `v1.0 A2A Extension`: [`specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md`](../../specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md)
     - `v1.0 Evolution Guide`: [`specification/v1_0/docs/evolution_guide.md`](../../specification/v1_0/docs/evolution_guide.md)
     - `v1.0 Basic Catalog Guide`: [`catalogs/basic/v1/basic_catalog_implementation_guide.md`](../../catalogs/basic/v1/basic_catalog_implementation_guide.md)
-- **v0.9.1 (Active / Current)** `[Badge: Active]` _(note briefly that v0.9.1 supersedes v0.9)_
+- **v0.9.1** _(note briefly that v0.9.1 supersedes v0.9)_
     - `v0.9.1 Protocol Specification`: [`specification/v0_9_1/docs/a2ui_protocol.md`](../../specification/v0_9_1/docs/a2ui_protocol.md)
     - `v0.9.1 Custom Functions Guide`: [`specification/v0_9_1/docs/a2ui_custom_functions.md`](../../specification/v0_9_1/docs/a2ui_custom_functions.md)
     - `v0.9.1 SDKs Specification`: [`specification/v0_9_1/docs/sdks_spec.md`](../../specification/v0_9_1/docs/sdks_spec.md)
@@ -456,7 +432,7 @@ Single-source specification markdown files directly from `specification/` and `c
     - `v0.9.1 A2A Extension`: [`specification/v0_9_1/docs/a2ui_extension_specification.md`](../../specification/v0_9_1/docs/a2ui_extension_specification.md)
     - `v0.9.1 Evolution Guide`: [`specification/v0_9_1/docs/evolution_guide.md`](../../specification/v0_9_1/docs/evolution_guide.md)
     - `v0.9.1 Basic Catalog Guide`: [`specification/v0_9_1/docs/basic_catalog_implementation_guide.md`](../../specification/v0_9_1/docs/basic_catalog_implementation_guide.md)
-- **v0.8 (Legacy)**
+- **v0.8 (Deprecated)** `[Badge: Deprecated]`
     - `v0.8 Protocol Specification`: [`specification/v0_8/docs/a2ui_protocol.md`](../../specification/v0_8/docs/a2ui_protocol.md)
     - `v0.8 JSON Schemas Explorer`: `/specification/v0.8/schemas/`
     - `v0.8 A2A Extension`: [`specification/v0_8/docs/a2ui_extension_specification.md`](../../specification/v0_8/docs/a2ui_extension_specification.md)

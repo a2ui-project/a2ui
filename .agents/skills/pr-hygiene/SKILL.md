@@ -4,6 +4,8 @@ description: >-
   Enforces pull request scope, atomicity, and software design standards distilled from human
   reviewer feedback across A2UI pull requests. Use when authoring, preparing, splitting, or
   reviewing a pull request, or when a change introduces new modules, abstractions, or comments.
+metadata:
+  internal: true
 ---
 
 # PR Hygiene, Atomicity, Scope Control & Software Design

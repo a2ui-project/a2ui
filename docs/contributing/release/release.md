@@ -1,5 +1,9 @@
 # Release process
 
+> **Protocol version status** (`release-candidate` / `current` / `previous` / `deprecated`) lives in
+> [`specification/versions.json`](../../../specification/versions.json). Update it when a spec version changes status;
+> the docs build renders it into `llms.txt`.
+
 ## How to publish packages
 
 Release cadence: every 1-2 weeks.
@@ -205,6 +209,67 @@ being started by one.
 To test access and artifact staging without publishing anything, run the
 [Release Python SDKs](../../../.github/workflows/release-pypi.yml) workflow with
 `dry_run: true`. See go/oss-exit-gate-builders and go/oss-exit-gate-onduty.
+
+### Swift Package Manager
+
+The Swift package is defined by [Package.swift](../../../Package.swift) at the
+repository root. Its four libraries, `A2UISwiftCore`, `A2UISwiftUI`,
+`BasicCatalog` and `BasicCatalogSwiftUI`, are released together under one
+version, following [Semver](https://semver.org/). Before 1.0.0, a breaking
+change bumps the minor version.
+
+Swift has no package registry. Swift Package Manager installs a package from
+its git repository and takes versions from its tags, so users depend on this
+repository directly:
+
+```swift
+.package(url: "https://github.com/a2ui-project/a2ui", from: "1.2.3")
+```
+
+and name it `a2ui` in their product dependencies, for example
+`.product(name: "A2UISwiftUI", package: "a2ui")`.
+
+Each Swift release commit gets a tag:
+
+- `v<version>+swift`, which Swift Package Manager reads as `<version>`,
+  because it ignores Semver build metadata after the `+`. The `+swift` suffix
+  keeps it clear that the tag belongs to the Swift package and not to the whole
+  repository. Users still write the plain version, without `+swift`, in
+  `Package.swift`.
+
+Swift Package Manager reads every tag of the form `v<major>.<minor>` or
+`v<major>.<minor>.<patch>`, with or without build metadata, as a version of
+the package. This has two consequences:
+
+- The existing protocol tags `v0.8` and `v0.9` are read as versions 0.8.0 and
+  0.9.0. Their commits have no `Package.swift`, so a user asking for
+  `from: "0.1.0"` would get 0.9.0 and fail to build. Swift release versions
+  must therefore be higher than 0.9.0.
+- No other release process in this repository may push tags of that form.
+
+**1. Choose the commit**
+
+Pick a commit on `main` where the
+[Swift Core (iOS)](../../../.github/workflows/swift_build_and_test.yml) workflow
+passed. Its `test` job runs `swift test`, and its `ios-build` job builds the
+libraries and the sample app for the iOS Simulator.
+
+**2. Tag the commit**
+
+```bash
+git tag swift/v<version> <commit>
+git tag v<version>+swift <commit>
+git push origin swift/v<version> v<version>+swift
+```
+
+Create a GitHub release for `swift/v<version>` with the release notes.
+
+**3. Check the release**
+
+In a scratch package that depends on
+`.package(url: "https://github.com/a2ui-project/a2ui", exact: "<version>")`,
+run `swift package resolve`. `Package.resolved` should show
+`<version>+swift` at the tagged commit.
 
 ### Documentation website
 

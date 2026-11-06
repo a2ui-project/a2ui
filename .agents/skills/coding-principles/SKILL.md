@@ -5,6 +5,8 @@ description: >-
   reviewer feedback across A2UI pull requests. Use when authoring new code, refactoring, addressing
   review feedback, or reviewing PR diffs. Don't use for release publishing or spec blueprint
   generation without code or PR changes.
+metadata:
+  internal: true
 ---
 
 # Skill: coding-principles

@@ -51,6 +51,18 @@ public struct A2UIAccessibilityModifier: ViewModifier {
     self.appliesLabelAndHint = appliesLabelAndHint
   }
 
+  /// The accessibility identifier (`a2ui-<componentId>`) assigned to the rendered view.
+  public var identifier: String {
+    "a2ui-\(node.id)"
+  }
+
+  /// Whether the identifier is set here. A component that applied its label and hint to its own
+  /// control set the identifier on that control too. A container whose children stay separate
+  /// elements clears it with ``SwiftUI/View/a2uiAccessibilityElement(for:children:)``.
+  private var appliesAccessibilityIdentifier: Bool {
+    appliesLabelAndHint
+  }
+
   /// The explicit accessibility label, if the agent set a non-empty one.
   public var label: String? {
     attributes?.label.flatMap { $0.isEmpty ? nil : $0 }
@@ -86,6 +98,7 @@ public struct A2UIAccessibilityModifier: ViewModifier {
   public func body(content: Content) -> some View {
     hidden(
       content
+        .a2uiOptionalAccessibilityIdentifier(appliesAccessibilityIdentifier ? identifier : nil)
         .a2uiOptionalAccessibilityLabel(appliesLabelAndHint ? label : nil)
         .a2uiOptionalAccessibilityHint(appliesLabelAndHint ? hint : nil)
     )
