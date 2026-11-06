@@ -278,13 +278,20 @@ class DataContext {
         !part.containsKey('@path')) {
       return bindingFor(part['path'] as String);
     }
-    if (part['call'] is String && !part.containsKey('@call')) {
-      final String callName = part['call'] as String;
+    final hasCall = part['call'] is String;
+    final hasAtCall = part['@call'] is String;
+    final String? callName = hasCall && !hasAtCall
+        ? part['call'] as String
+        : (hasAtCall ? part['@call'] as String : null);
+    if (callName != null) {
       final Object? rawArgs = part['args'];
+      final Object? existingCatalogId = part['catalogId'];
       final String? catalogId = _activeCallCatalogId;
       return <String, Object?>{
         '@call': callName,
-        if (!callName.startsWith('@') && catalogId != null)
+        if (existingCatalogId != null)
+          'catalogId': existingCatalogId
+        else if (!callName.startsWith('@') && catalogId != null)
           'catalogId': catalogId,
         'args': <String, Object?>{
           if (rawArgs is Map)
