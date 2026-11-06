@@ -49,8 +49,10 @@ export default defineConfig({
     '/specification/v0.9-a2ui': '/specification/v0.9.1-a2ui/',
     '/specification/v0.9-evolution-guide': '/specification/v0.9.1-evolution-guide/',
     '/concepts/actions': '/concepts/actions-and-functions/',
+    '/concepts/agent-sdks': '/concepts/sdks/#agent-sdk',
     '/concepts/components': '/concepts/catalogs/',
     '/concepts/data-flow': '/concepts/data-binding/',
+    '/concepts/renderer-sdks': '/concepts/sdks/#renderer-sdk',
     '/concepts/transports': '/concepts/messages/',
     '/guides/a2ui_over_mcp': '/guides/a2ui-over-mcp/',
     '/guides/defining-your-own-catalog': '/guides/defining-a-catalog/',
@@ -159,12 +161,8 @@ export default defineConfig({
               badge: {text: 'P0', variant: 'danger'},
             },
             {
-              label: 'Agent SDKs',
-              slug: 'concepts/agent-sdks',
-            },
-            {
-              label: 'Renderer SDKs',
-              slug: 'concepts/renderer-sdks',
+              label: 'SDKs',
+              slug: 'concepts/sdks',
             },
             {
               label: 'Swappable Inference Formats',
