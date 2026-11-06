@@ -21,7 +21,9 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const pathname = Astro.url.pathname;
 const isOverview = pathname === `${base}/` || pathname === `${base}` || pathname === '/';
 const isSpec = !isOverview && pathname.includes('/specification/');
-const isDocs = !isOverview && !isSpec;
+const isGetHelp =
+  pathname === `${base}/get-help` || pathname.startsWith(`${base}/get-help/`);
+const isDocs = !isOverview && !isSpec && !isGetHelp;
 
 const dataAttributes: Record<string, string> = {};
 if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash'] = '';
@@ -74,6 +76,11 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
         href={`${base}/specification/v1.0-a2ui/`}
         class:list={['a2-sl-tab', { 'is-active': isSpec }]}
         aria-current={isSpec ? 'page' : undefined}>Spec<span class="a2-sl-tab__long">ification</span></a
+      >
+      <a
+        href={`${base}/get-help/`}
+        class:list={['a2-sl-tab', { 'is-active': isGetHelp }]}
+        aria-current={isGetHelp ? 'page' : undefined}><span class="a2-sl-tab__xlong">Get </span>Help</a
       >
     </nav>
   </div>
@@ -575,7 +582,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
     font-weight: 500;
   }
 
-  @media (max-width: 720px) {
+  @media (max-width: 860px) {
     .a2-sl-tab--desk-only,
     .a2-sl-brand__ver {
       display: none;
@@ -646,6 +653,20 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
   }
 
   @media (max-width: 600px) {
+    .a2-sl-header {
+      gap: 8px;
+    }
+    .a2-sl-header__left {
+      gap: 4px;
+    }
+    .a2-sl-brand {
+      gap: 6px;
+      font-size: 15.5px;
+    }
+    .a2-sl-tab {
+      padding: 5px 7px;
+      font-size: 13px;
+    }
     .a2-sl-search-label {
       display: none;
     }
@@ -818,6 +839,12 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
     }
 
     .a2-sl-tab__long {
+      display: none;
+    }
+  }
+
+  @media (max-width: 380px) {
+    .a2-sl-tab__xlong {
       display: none;
     }
   }
