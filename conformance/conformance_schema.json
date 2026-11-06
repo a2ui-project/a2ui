@@ -2351,7 +2351,11 @@
         "returnType": {"type": "string"},
         "args": {
           "type": "object",
-          "description": "JSON Schema of the function's args."
+          "description": "JSON Schema of the function's args. Its local `$defs` merge with the catalog's root `$defs`; a name defined differently in both, or in two agent functions of one catalog, is a CatalogError."
+        },
+        "requiresUserActivation": {
+          "type": "boolean",
+          "description": "Passed to the agent function built from `args` (rendererOnly): a renderer runs the call only after a user gesture."
         },
         "behavior": {"$ref": "#/$defs/AgentFunctionBehavior"}
       },
