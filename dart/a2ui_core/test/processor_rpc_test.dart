@@ -100,6 +100,16 @@ void main() {
     expect(responses().single.response.functionCallId, 'c1');
   });
 
+  test('callRendererFunction resolves against an added catalog', () async {
+    processor.addCatalog(_catalog('gamma'));
+
+    await processor.processMessagesAsync(
+      _callRendererFunction('c-added', 'slow', catalogId: 'gamma'),
+    );
+
+    expect(responses().single.response.value, 'late');
+  });
+
   test('processMessages does not throw and still emits', () async {
     processor.processMessages(
       _callRendererFunction('c2', 'missing', catalogId: 'alpha'),

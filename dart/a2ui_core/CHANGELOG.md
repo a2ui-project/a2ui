@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Added `MessageProcessor.addCatalog`, which adds a catalog to a processor
+  after it is built. `createSurface` messages, renderer function calls and
+  `getRendererCapabilities` see the catalog from then on; surfaces created
+  before the call keep the catalogs they were created with. A catalog whose id
+  the processor already holds is rejected with `A2uiCatalogError`.
+  `MessageProcessor.catalogs` lists the added catalog too, and still cannot
+  be modified ([#3303](https://github.com/a2ui-project/a2ui/issues/3303),
+  [#3304](https://github.com/a2ui-project/a2ui/pull/3304)).
 - (v0_9) Restore `listStyle` property to basic catalog `List` component schema ([#3956](https://github.com/a2ui-project/a2ui/pull/3956)).
 
 ## 0.5.0
@@ -130,7 +138,7 @@
   ([#2724](https://github.com/a2ui-project/a2ui/pull/2724)).
 - **Breaking:** `MessageProcessor.catalogs` cannot be modified: it is a copy
   of the list the processor was created with, and adding to it throws
-  `UnsupportedError`. Pass every catalog when creating the processor
+  `UnsupportedError`. Add a catalog with `addCatalog`
   ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
 - Added `MessageErrorMapper`, `SurfaceGroupModel.onError`, and
   `MessageProcessor.processMessagesWithErrors` for mapping `A2uiError`

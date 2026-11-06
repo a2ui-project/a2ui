@@ -94,6 +94,7 @@ const Map<String, Set<String>> _knownKeys = {
     'path',
   },
   'step': {
+    'addCatalogPaths',
     'description',
     'expect',
     'expectError',
@@ -118,14 +119,15 @@ const Map<String, Set<String>> _knownKeys = {
 
 /// Runs the shared message-processor suites against [MessageProcessor] and
 /// [DataContext]: `core/message_processor_v0_9.yaml`,
-/// `core/message_processor_v1_0.yaml`, `core/composition_constraints.yaml`,
-/// the `process_messages` cases of `core/reserved_keys.yaml`, and the
-/// `validate` cases of `core/functions.yaml`, `core/expressions.yaml`,
-/// `core/index_function.yaml`, and `core/multi_catalog.yaml`, which render
-/// basic-catalog components.
+/// `core/message_processor_v1_0.yaml`, `core/add_catalog.yaml`,
+/// `core/composition_constraints.yaml`, the `process_messages` cases of
+/// `core/reserved_keys.yaml`, and the `validate` cases of
+/// `core/functions.yaml`, `core/expressions.yaml`, `core/index_function.yaml`,
+/// and `core/multi_catalog.yaml`, which render basic-catalog components.
 void main() {
   _registerSuite('core/message_processor_v0_9.yaml');
   _registerSuite('core/message_processor_v1_0.yaml');
+  _registerSuite('core/add_catalog.yaml');
   _registerSuite(
     'core/reserved_keys.yaml',
     onlyAction: 'process_messages',
@@ -298,13 +300,29 @@ Future<void> _runSteps(
     final Map<String, Object?> step = steps[index];
     assertKnownKeys(step, _knownKeys['step']!, 'step');
     final Object? payload = step['messages'] ?? step['payload'];
-    final Object? expectError = step['expectError'] ??
-        (index == steps.length - 1 ? testCase['expectError'] : null);
+    final List<Catalog<ComponentApi, FunctionImplementation>> added =
+        _stepCatalogs(testCase, step);
     final ValidationConfig? validationConfig =
         switch (step['validationConfig']) {
       final Map<String, Object?> rules => _validationConfig(rules),
       _ => null,
     };
+    Future<void> runStep() async {
+      for (final catalog in added) {
+        processor.addCatalog(catalog);
+      }
+      if (payload != null) {
+        await _processPayload(
+          processor,
+          payload,
+          resolveNodes: resolveNodes,
+          validationConfig: validationConfig,
+        );
+      }
+    }
+
+    final Object? expectError = step['expectError'] ??
+        (index == steps.length - 1 ? testCase['expectError'] : null);
     emittedErrors.clear();
     if (expectError != null) {
       final Object? firstRaw = switch (payload) {
@@ -313,12 +331,7 @@ Future<void> _runSteps(
         _ => null,
       };
       await expectLater(
-        () => _processPayload(
-          processor,
-          payload,
-          resolveNodes: resolveNodes,
-          validationConfig: validationConfig,
-        ),
+        runStep,
         throwsA(
           _matchesError(
             expectError as Map<String, Object?>,
@@ -330,12 +343,7 @@ Future<void> _runSteps(
         reason: '$name: step $index',
       );
     } else {
-      await _processPayload(
-        processor,
-        payload,
-        resolveNodes: resolveNodes,
-        validationConfig: validationConfig,
-      );
+      await runStep();
       if (step['expect'] case final Map<String, Object?> stepExpect) {
         _checkSurfaces(processor, stepExpect, '$name: step $index');
       }
@@ -546,12 +554,41 @@ String _versionOf(Map<String, Object?> testCase) {
   return 'v0.9';
 }
 
-/// The catalog ids the case's `createSurface` messages name.
-Set<String> _catalogIdsOf(Map<String, Object?> testCase) => <String>{
-      for (final Map<String, Object?> message in _messagesOf(testCase))
-        if (message['createSurface'] case final Map<String, Object?> body)
-          if (body['catalogId'] case final String id) id,
-    };
+/// The catalog ids the case's `createSurface` messages name, other than those
+/// of the catalogs its steps add, which are missing until those steps run.
+Set<String> _catalogIdsOf(Map<String, Object?> testCase) {
+  final Set<String> added = {
+    if (testCase['steps'] case final List<Object?> steps)
+      for (final Object? step in steps)
+        for (final catalog in _stepCatalogs(
+          testCase,
+          (step! as Map).cast<String, Object?>(),
+        ))
+          catalog.id,
+  };
+  return <String>{
+    for (final Map<String, Object?> message in _messagesOf(testCase))
+      if (message['createSurface'] case final Map<String, Object?> body)
+        if (body['catalogId'] case final String id)
+          if (!added.contains(id)) id,
+  };
+}
+
+/// The catalogs a `process_messages` step adds with
+/// [MessageProcessor.addCatalog], from its `addCatalogPaths`.
+List<Catalog<ComponentApi, FunctionImplementation>> _stepCatalogs(
+  Map<String, Object?> testCase,
+  Map<String, Object?> step,
+) =>
+    [
+      if (step['addCatalogPaths'] case final List<Object?> paths)
+        for (final Object? path in paths)
+          if (path is String)
+            rendererCatalog(
+              readConformanceJson(path),
+              protocolVersion: _versionOf(testCase),
+            ),
+    ];
 
 /// The messages a case processes, accepting both the bare list and the
 /// `{messages: [...]}` wrapper the protocol allows, across all of its steps.
