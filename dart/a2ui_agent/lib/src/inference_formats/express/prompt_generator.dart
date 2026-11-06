@@ -73,7 +73,7 @@ class ExpressPromptGenerator extends PromptGenerator {
       _rules(
         resolveAllowedMessages(allowedMessages, version),
         v1: v1,
-        callable: v1 ? _agentCallable(catalogs) : const [],
+        callable: v1 ? agentCallableFunctions(catalogs) : const [],
       ),
     );
     String section(CatalogApi catalog, String heading) => _catalogSection(
@@ -163,17 +163,6 @@ String _catalogsV1(List<CatalogApi> catalogs) {
   }
   return buffer.toString();
 }
-
-/// The functions of [catalogs] the agent may ask the renderer to run with
-/// `callRendererFunction`: those whose `allowedCallers` admits the agent, and
-/// which need no user activation, which a call from the agent never has.
-List<String> _agentCallable(List<CatalogApi> catalogs) => [
-  for (final CatalogApi catalog in catalogs)
-    for (final FunctionApi function in catalog.functions.values)
-      if (function.allowedCallers != AllowedCallers.rendererOnly &&
-          !function.requiresUserActivation)
-        function.name,
-];
 
 /// The `instructions` of [catalog], with each JSON example of messages in
 /// them written as the Express block it decompiles to, or null if it has
