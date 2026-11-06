@@ -30,6 +30,20 @@
   ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
   [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
 - (v0_9) Restore `listStyle` property to basic catalog `List` component schema ([#3956](https://github.com/a2ui-project/a2ui/pull/3956)).
+- `RpcHandler.dispose` takes an optional reason, which each cancelled call's
+  error message names. `SurfaceModel` and `MessageProcessor` take
+  `maxAgentCallCacheEntries` (256 by default), the number of settled agent
+  call answers a surface keeps; the oldest answer is evicted first, and calls
+  still in flight don't count
+  ([#3861](https://github.com/a2ui-project/a2ui/pull/3861)).
+- (v1_0) Added `AgentFunction` (`AgentFunction(...)`, `AgentFunction.fromApi`,
+  `withHandler`), `AgentFunctionContext` and `AgentFunctionHandler`, for
+  catalog functions that run on the agent, with `Catalog.agentFunctions`,
+  `Catalog.rendererFunctions`, `Catalog.copyWith(agentFunctions: ...)` and
+  `A2uiRpcError.custom` ([#3536](https://github.com/a2ui-project/a2ui/issues/3536), [#3861](https://github.com/a2ui-project/a2ui/pull/3861)).
+  A catalog with agent functions throws `A2uiCatalogError` when an agent
+  function's local `$defs` defines a name differently from the catalog's
+  `$defs` or from another agent function's local `$defs`.
 
 ## 0.5.0
 
@@ -159,20 +173,6 @@
   of the list the processor was created with, and adding to it throws
   `UnsupportedError`. Pass every catalog when creating the processor
   ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
-- `RpcHandler.dispose` takes an optional reason, which each cancelled call's
-  error message names. `SurfaceModel` and `MessageProcessor` take
-  `maxAgentCallCacheEntries` (256 by default), the number of settled agent
-  call answers a surface keeps; the oldest answer is evicted first, and calls
-  still in flight don't count
-  ([#3861](https://github.com/a2ui-project/a2ui/pull/3861)).
-- (v1_0) Added `AgentFunction` (`AgentFunction(...)`, `AgentFunction.fromApi`,
-  `withHandler`), `AgentFunctionContext` and `AgentFunctionHandler`, for
-  catalog functions that run on the agent, with `Catalog.agentFunctions`,
-  `Catalog.rendererFunctions`, `Catalog.copyWith(agentFunctions: ...)` and
-  `A2uiRpcError.custom` ([#3536](https://github.com/a2ui-project/a2ui/issues/3536), [#3861](https://github.com/a2ui-project/a2ui/pull/3861)).
-  A catalog with agent functions throws `A2uiCatalogError` when an agent
-  function's local `$defs` defines a name differently from the catalog's
-  `$defs` or from another agent function's local `$defs`.
 - Added `MessageErrorMapper`, `SurfaceGroupModel.onError`, and
   `MessageProcessor.processMessagesWithErrors` for mapping `A2uiError`
   exceptions into structured wire-format `ErrorMessage` envelopes, and
