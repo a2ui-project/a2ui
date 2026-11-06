@@ -54,6 +54,7 @@ interface AgentFunctionSpec {
   returnType?: string;
   args?: Record<string, unknown>;
   description?: string;
+  requiresUserActivation?: boolean;
   behavior?: BehaviorSpec;
 }
 
@@ -63,6 +64,20 @@ interface CatalogWithAgentFunctionsSpec {
 }
 
 type CallbackKind = 'action' | 'error' | 'rendererFunctionResponse';
+
+/** Counts the calls to the handlers of a case's agent functions. */
+interface HandlerCalls {
+  count: number;
+}
+
+/** Builds the handler `behavior` describes, counting its calls in `calls`. */
+function buildCountingHandler(calls: HandlerCalls, behavior?: BehaviorSpec): AgentFunctionHandler {
+  const handler = buildHandler(behavior);
+  return (args, context) => {
+    calls.count++;
+    return handler(args, context);
+  };
+}
 
 function buildHandler(behavior?: BehaviorSpec): AgentFunctionHandler {
   if (!behavior) {
@@ -97,7 +112,10 @@ function buildHandler(behavior?: BehaviorSpec): AgentFunctionHandler {
   return () => null;
 }
 
-function buildCatalogWithAgentFunctions(spec: CatalogWithAgentFunctionsSpec): CatalogApi {
+function buildCatalogWithAgentFunctions(
+  spec: CatalogWithAgentFunctionsSpec,
+  calls: HandlerCalls,
+): CatalogApi {
   const base =
     typeof spec.catalog === 'string'
       ? Catalog.fromJson(
@@ -111,7 +129,7 @@ function buildCatalogWithAgentFunctions(spec: CatalogWithAgentFunctionsSpec): Ca
   const agentFunctions: AgentFunction[] = [];
   for (const [key, fnSpec] of Object.entries(spec.agent_functions ?? {})) {
     const name = fnSpec.name ?? key;
-    const handler = buildHandler(fnSpec.behavior);
+    const handler = buildCountingHandler(calls, fnSpec.behavior);
     if (fnSpec.from_api) {
       // The catalog's own declaration, or else a foreign one built from the
       // case's signature, which the catalog must refuse.
@@ -122,6 +140,7 @@ function buildCatalogWithAgentFunctions(spec: CatalogWithAgentFunctionsSpec): Ca
           returnType: fnSpec.returnType ?? 'any',
           schema: fnSpec.args,
           description: fnSpec.description,
+          requiresUserActivation: fnSpec.requiresUserActivation,
           handler,
         });
         declaration = {
@@ -129,6 +148,7 @@ function buildCatalogWithAgentFunctions(spec: CatalogWithAgentFunctionsSpec): Ca
           returnType: signature.returnType,
           schema: signature.schema,
           description: signature.description,
+          requiresUserActivation: signature.requiresUserActivation,
         };
       }
       agentFunctions.push(AgentFunction.fromApi(declaration, handler));
@@ -144,6 +164,7 @@ function buildCatalogWithAgentFunctions(spec: CatalogWithAgentFunctionsSpec): Ca
           returnType: fnSpec.returnType,
           schema: fnSpec.args,
           description: fnSpec.description,
+          requiresUserActivation: fnSpec.requiresUserActivation,
           handler,
         }),
       );
@@ -201,12 +222,15 @@ async function expectRejectsCaseError(
 function runDeclareAgentFunctions(testCase: LoadedCase): void {
   const {catalog: spec} = (testCase.args ?? {}) as {catalog: CatalogWithAgentFunctionsSpec};
 
+  const calls: HandlerCalls = {count: 0};
+
   if (testCase.expect_error) {
-    expectThrowsCaseError(() => buildCatalogWithAgentFunctions(spec), testCase);
+    expectThrowsCaseError(() => buildCatalogWithAgentFunctions(spec, calls), testCase);
+    expect(calls.count).toBe(0);
     return;
   }
 
-  const catalog = buildCatalogWithAgentFunctions(spec);
+  const catalog = buildCatalogWithAgentFunctions(spec, calls);
   const expected = testCase.expect as {
     functions: string[];
     agent_functions: string[];
@@ -225,15 +249,19 @@ async function runHandleAgentFunction(testCase: LoadedCase): Promise<void> {
     catalogs: CatalogWithAgentFunctionsSpec[];
     message: Record<string, unknown>;
   };
-  const catalogs = args.catalogs.map(buildCatalogWithAgentFunctions);
-  const processor = new RendererToAgentMessageProcessor({catalogs});
+  const calls: HandlerCalls = {count: 0};
+  const build = () =>
+    new RendererToAgentMessageProcessor({
+      catalogs: args.catalogs.map(spec => buildCatalogWithAgentFunctions(spec, calls)),
+    });
 
   if (testCase.expect_error) {
-    await expectRejectsCaseError(() => processor.processMessage(args.message), testCase);
+    await expectRejectsCaseError(async () => build().processMessage(args.message), testCase);
+    expect(calls.count).toBe(0);
     return;
   }
 
-  const result = await processor.processMessage(args.message);
+  const result = await build().processMessage(args.message);
   expect(result.handled).toBe(true);
   expect(result.replies).toHaveLength(1);
   const response = result.replies[0] as AgentFunctionResponseMessage;
@@ -257,6 +285,7 @@ async function runHandleAgentFunction(testCase: LoadedCase): Promise<void> {
     if (expected.error.message !== undefined) {
       expect(body.error!.message).toContain(expected.error.message);
     }
+    expectHandlerSkippedIfRejected(expected.error.code, calls);
   } else {
     expect(Object.keys(body).sort()).toEqual(['functionCallId', 'value']);
     expect(body.value).toEqual(expected.value);
@@ -268,12 +297,24 @@ function runValidatePayload(testCase: LoadedCase): void {
     catalogs: CatalogWithAgentFunctionsSpec[];
     messages: unknown[];
   };
-  const catalogs = args.catalogs.map(buildCatalogWithAgentFunctions);
+  const calls: HandlerCalls = {count: 0};
+  const build = () => args.catalogs.map(spec => buildCatalogWithAgentFunctions(spec, calls));
   if (testCase.expect_error) {
-    expectThrowsCaseError(() => validatePayload(catalogs, args.messages), testCase);
+    expectThrowsCaseError(() => validatePayload(build(), args.messages), testCase);
+    expect(calls.count).toBe(0);
     return;
   }
-  validatePayload(catalogs, args.messages);
+  validatePayload(build(), args.messages);
+}
+
+/** Error codes of replies to calls that the agent rejects before running the handler. */
+const REJECTED_CALL_CODES = new Set(['INVALID_FUNCTION_CALL', 'UNKNOWN_FUNCTION']);
+
+/** Checks that no handler ran when the expected reply rejects the call. */
+function expectHandlerSkippedIfRejected(code: string, calls: HandlerCalls): void {
+  if (REJECTED_CALL_CODES.has(code)) {
+    expect(calls.count, `a handler ran for a call rejected with ${code}`).toBe(0);
+  }
 }
 
 /**
@@ -329,9 +370,10 @@ async function runProcessRendererMessage(testCase: LoadedCase): Promise<void> {
     });
   }
   const catalogSpecs = args.catalogs ?? (args.catalog ? [args.catalog] : []);
+  const calls: HandlerCalls = {count: 0};
   const build = () => {
     const options: RendererToAgentMessageProcessorOptions = {
-      catalogs: catalogSpecs.map(buildCatalogWithAgentFunctions),
+      catalogs: catalogSpecs.map(spec => buildCatalogWithAgentFunctions(spec, calls)),
       onAction: callbacks.get('action'),
       onError: callbacks.get('error'),
       onRendererFunctionResponse: callbacks.get('rendererFunctionResponse'),
@@ -342,6 +384,7 @@ async function runProcessRendererMessage(testCase: LoadedCase): Promise<void> {
   if (testCase.expect_error) {
     await expectRejectsCaseError(async () => build().processMessage(args.message), testCase);
     expect(received).toEqual([]);
+    expect(calls.count).toBe(0);
     return;
   }
 
@@ -355,6 +398,12 @@ async function runProcessRendererMessage(testCase: LoadedCase): Promise<void> {
   };
   expect(result.handled).toBe(expected.handled);
   expectReplies(result.replies, expected.replies ?? []);
+  for (const reply of expected.replies ?? []) {
+    const error = (reply['agentFunctionResponse'] as {error?: {code: string}} | undefined)?.error;
+    if (error !== undefined) {
+      expectHandlerSkippedIfRejected(error.code, calls);
+    }
+  }
   expect(normalizeTimestamps(received)).toEqual(
     normalizeTimestamps(expected.callback ? [expected.callback] : []),
   );
