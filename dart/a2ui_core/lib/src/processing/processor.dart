@@ -965,6 +965,7 @@ class MessageProcessor<T extends ComponentApi> {
       where: where,
       checkFields: true,
       disallowUserActivation: !isUserActivated,
+      resolvedAtRoot: true,
     );
   }
 
@@ -1605,10 +1606,17 @@ class MessageProcessor<T extends ComponentApi> {
   /// arguments of an agent's call, which come with no user activation, none
   /// may call a function that requires one either.
   ///
+  /// With [resolvedAtRoot], for the arguments of an agent's call, which the
+  /// renderer resolves at the root of the data model, outside any list
+  /// template, no call may be to `@index`, and each data binding must be an
+  /// object holding only a string `@path` (`DataBinding` in
+  /// `common_types.json`).
+  ///
   /// Throws what [resolve] throws for a catalog a call cannot resolve to,
   /// and [A2uiValidationError] when the resolved catalog declares no such
-  /// function, the renderer may not make the call, or a call does not match
-  /// its schema.
+  /// function, the renderer may not make the call, a call does not match
+  /// its schema, or, with [resolvedAtRoot], a call is to `@index` or a data
+  /// binding is malformed.
   void _validateNestedFunctionCalls(
     Object? node, {
     required Catalog<T, FunctionImplementation> home,
@@ -1623,6 +1631,7 @@ class MessageProcessor<T extends ComponentApi> {
     Object? componentId,
     bool checkFields = false,
     bool disallowUserActivation = false,
+    bool resolvedAtRoot = false,
     String path = '',
   }) {
     void visit(Object? child, String childPath) => _validateNestedFunctionCalls(
@@ -1636,6 +1645,7 @@ class MessageProcessor<T extends ComponentApi> {
           componentId: componentId,
           checkFields: checkFields,
           disallowUserActivation: disallowUserActivation,
+          resolvedAtRoot: resolvedAtRoot,
           path: childPath,
         );
 
@@ -1646,6 +1656,9 @@ class MessageProcessor<T extends ComponentApi> {
       return;
     }
     if (node is! Map) return;
+    if (resolvedAtRoot && path.isNotEmpty && node.containsKey('@path')) {
+      _checkDataBinding(node, '$where at $path', path: path);
+    }
     final Object? name = path.isEmpty ? null : node['@call'];
     if (name is String) {
       _checkNestedCallNode(
@@ -1661,6 +1674,7 @@ class MessageProcessor<T extends ComponentApi> {
         componentId: componentId,
         checkFields: checkFields,
         disallowUserActivation: disallowUserActivation,
+        resolvedAtRoot: resolvedAtRoot,
       );
     }
     for (final MapEntry<Object?, Object?> entry in node.entries) {
@@ -1689,6 +1703,7 @@ class MessageProcessor<T extends ComponentApi> {
     Object? componentId,
     required bool checkFields,
     required bool disallowUserActivation,
+    required bool resolvedAtRoot,
   }) {
     final subject = "Function call '$name' $where";
     // `FunctionCall` allows neither field to be null: a renderer reading
@@ -1715,6 +1730,14 @@ class MessageProcessor<T extends ComponentApi> {
           path: '$path/args',
         ),
     };
+    if (name == _indexFunction && resolvedAtRoot) {
+      throw A2uiValidationError(
+        "$subject calls '$_indexFunction', which has no list item here: the "
+        'arguments of a callRendererFunction are resolved at the root, '
+        'outside any list template.',
+        path: path,
+      );
+    }
     if (name.startsWith('@')) {
       _validateSystemFunction(name, args, node, subject, path: path);
       if (checkFields) {
@@ -1803,6 +1826,33 @@ class MessageProcessor<T extends ComponentApi> {
       }
     }
     throw firstError!;
+  }
+
+  /// Checks [node], an object holding `@path`, as a `DataBinding` of
+  /// `common_types.json`: its `@path` must be a string, absolute or
+  /// relative, and it may hold no other field. [subject] places it in an
+  /// error message.
+  ///
+  /// Throws [A2uiValidationError] for a malformed binding.
+  static void _checkDataBinding(
+    Map<Object?, Object?> node,
+    String subject, {
+    required String path,
+  }) {
+    if (node['@path'] is! String) {
+      throw A2uiValidationError(
+        "The data binding $subject has a non-string '@path'.",
+        path: '$path/@path',
+      );
+    }
+    for (final Object? key in node.keys) {
+      if (key == '@path') continue;
+      throw A2uiValidationError(
+        "The data binding $subject has a field '$key', and a data binding "
+        "holds only '@path'.",
+        path: '$path/${key is String ? _escapePointer(key) : key}',
+      );
+    }
   }
 
   static String _escapePointer(String segment) =>

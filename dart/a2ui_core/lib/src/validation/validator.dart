@@ -449,7 +449,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// that names catalogs per call. [componentId] names the component the call
   /// is nested in, for the error message. A call nested in a component is a
   /// renderer call, so with a [componentId] the function may not be
-  /// [AllowedCallers.agentOnly].
+  /// [AllowedCallers.agentOnly] from v1.0.
   ///
   /// Throws [A2uiValidationError] if the catalog declares no such function,
   /// the renderer may not call it, or the arguments do not match its schema.
@@ -501,9 +501,10 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// Checks one call's arguments against [catalog]'s schema for [name].
   ///
   /// With [rendererCall], the call is one the renderer makes, such as a call
-  /// held in a component (a property binding, a check or an action), so the
-  /// function may not be [AllowedCallers.agentOnly]; `Catalog.invoke`
-  /// refuses such a call with the same message when it is evaluated.
+  /// held in a component (a property binding, a check or an action), so from
+  /// v1.0 the function may not be [AllowedCallers.agentOnly];
+  /// `Catalog.invoke` refuses such a call with the same message when it is
+  /// evaluated.
   void _checkArgs(
     String name,
     Map<String, Object?> args, {
@@ -531,7 +532,10 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
         ],
       );
     }
-    if (rendererCall &&
+    // `allowedCallers` is a v1.0 feature: a v0.9 catalog's renderer calls
+    // are not restricted by it.
+    if (_v1 &&
+        rendererCall &&
         catalog.functions[name]?.allowedCallers == AllowedCallers.agentOnly) {
       final msg = '$where${rendererMayNotCall(name)}';
       throw A2uiValidationError(

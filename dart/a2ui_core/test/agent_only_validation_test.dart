@@ -209,6 +209,58 @@ void main() {
         returnsNormally,
       );
     });
+
+    test('accepts an agentOnly function bound in a v0.9 catalog', () {
+      // `allowedCallers` is a v1.0 feature, so v0.9 ignores it.
+      final CatalogApi v09 = Catalog.fromJson({
+        'catalogId': 'arcana',
+        'components': {
+          'Label': {
+            'type': 'object',
+            'properties': {
+              'id': {'type': 'string'},
+              'component': {'const': 'Label'},
+              'text': <String, Object?>{},
+            },
+            'required': ['component', 'text'],
+          },
+        },
+        'functions': {
+          'getMoonPhase': {
+            'type': 'object',
+            'allowedCallers': 'agentOnly',
+            'returnType': 'string',
+            'properties': {
+              'call': {'const': 'getMoonPhase'},
+              'args': {'type': 'object'},
+            },
+            'required': ['call'],
+          },
+        },
+      });
+      final Map<String, Object?> label = {
+        'id': 'root',
+        'component': 'Label',
+        'text': {
+          'call': 'getMoonPhase',
+          'args': {'date': 'today'},
+        },
+      };
+      PayloadValidator<ComponentApi, FunctionApi>(
+        catalog: v09,
+        protocolVersion: A2uiProtocolVersion.v0_9,
+        commonTypesSchema: readConformanceJson(
+          'specification/v0_9/json/common_types.json',
+        ),
+      )
+        ..validateComponent(label)
+        ..validateFunctionArgs(
+          'getMoonPhase',
+          {'date': 'today'},
+          componentId: 'root',
+          path: '/text',
+        );
+    });
   });
 
   group('MessageProcessor', () {
@@ -422,6 +474,121 @@ void main() {
           ],
           isUserActivated: true,
         );
+      });
+
+      // `echo` takes any arguments, so only the checks of nested values
+      // judge them.
+      final CatalogApi loose = Catalog.fromJson({
+        'catalogId': 'https://example.com/loose.json',
+        'protocolVersion': '1.0',
+        'components': <String, Object?>{},
+        'functions': {
+          'echo': {
+            'type': 'object',
+            'returnType': 'any',
+            'allowedCallers': 'rendererOrAgent',
+            'properties': {
+              '@call': {'const': 'echo'},
+              'args': {'type': 'object'},
+            },
+            'required': ['@call'],
+          },
+        },
+      });
+      Map<String, Object?> echo(Map<String, Object?> args) => {
+            'version': '1.0',
+            'callRendererFunction': {
+              'functionCallId': 'f1',
+              'callFunction': {
+                'catalogId': loose.id,
+                '@call': 'echo',
+                'args': args,
+              },
+            },
+          };
+
+      Matcher refusedWith(String text, String path) => throwsA(
+            isA<A2uiValidationError>()
+                .having((e) => e.message, 'message', contains(text))
+                .having((e) => e.path, 'path', path),
+          );
+
+      test(
+          'rejects an @index call nested in its arguments, which are '
+          'resolved outside any list template', () {
+        for (final Map<String, Object?> args in [
+          {
+            'value': {'@call': '@index'},
+          },
+          {
+            'value': {
+              '@call': 'echo',
+              'args': {
+                'value': {'@call': '@index'},
+              },
+            },
+          },
+        ]) {
+          expect(
+            () => processor([loose]).processMessages([echo(args)]),
+            throwsA(
+              isA<A2uiValidationError>().having(
+                (e) => e.message,
+                'message',
+                contains("calls '@index', which has no list item here"),
+              ),
+            ),
+            reason: '$args',
+          );
+        }
+      });
+
+      test('rejects null args on a nested @index call before @index', () {
+        expect(
+          () => processor([loose]).processMessages([
+            echo({
+              'value': {'@call': '@index', 'args': null},
+            }),
+          ]),
+          refusedWith("'args' must be an object", '/value/args'),
+        );
+      });
+
+      test('rejects a data binding whose @path is not a string', () {
+        expect(
+          () => processor([loose]).processMessages([
+            echo({
+              'value': {'@path': 5},
+            }),
+          ]),
+          refusedWith("non-string '@path'", '/value/@path'),
+        );
+      });
+
+      test('rejects a data binding with a field other than @path', () {
+        expect(
+          () => processor([loose]).processMessages([
+            echo({
+              'value': {
+                '@call': 'echo',
+                'args': {
+                  'value': {'@path': '/user/name', 'bogus': 1},
+                },
+              },
+            }),
+          ]),
+          refusedWith("field 'bogus'", '/value/args/value/bogus'),
+        );
+      });
+
+      test('accepts an absolute or relative data binding', () {
+        for (final path in ['/user/name', 'name']) {
+          processor([loose]).processMessages([
+            echo({
+              'value': {'@path': path},
+            }),
+          ]);
+        }
       });
 
       group('on a surface', () {

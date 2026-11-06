@@ -2,14 +2,16 @@
 
 ## Unreleased
 
-- (v1_0) `PayloadValidator.validateComponent`, and `MessageProcessor` for
-  calls into another catalog, reject a call to a function whose
-  `allowedCallers` is `agentOnly` in a property binding, a check or an action,
-  or nested in one, since only an agent's `callRendererFunction` may call one.
-  `PayloadValidator.validateFunctionArgs` rejects one when given a
-  `componentId`. A call nested in the arguments of a `callRendererFunction` is
-  a renderer call too, so `MessageProcessor` rejects one there as well. The
-  error matches the one `Catalog.invoke` reports when such a call is evaluated
+- **Breaking:** (v1_0) `PayloadValidator.validateComponent`, and
+  `MessageProcessor` for calls into another catalog, reject a call to a
+  function whose `allowedCallers` is `agentOnly` in a property binding, a
+  check or an action, or nested in one, since only an agent's
+  `callRendererFunction` may call one. `PayloadValidator.validateFunctionArgs`
+  rejects one when given a `componentId`. A call nested in the arguments of a
+  `callRendererFunction` is a renderer call too, so `MessageProcessor` rejects
+  one there as well. The error matches the one `Catalog.invoke` reports when
+  such a call is evaluated. v0.9 catalogs are not affected. To migrate, bind
+  only `rendererOnly` or `rendererOrAgent` functions in components
   ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
   [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
 - (v1_0) `MessageProcessor` checks a call nested in the arguments of a
@@ -20,7 +22,9 @@
   its new `assumesSurface`, or for a surface `model` lacks, such a call passes
   if some catalog declares the function and the renderer may make the call.
   A nested call may not require a user activation unless the message is
-  handled with one, nor hold a null `catalogId` or `args`.
+  handled with one, nor hold a null `catalogId` or `args`, nor call `@index`,
+  since the arguments are resolved outside any list template. A data binding
+  in the arguments must hold only a string `@path`.
   `PayloadValidator.validateFunction` takes `catalogIsDefault`, which, when
   false, leaves such calls to the caller
   ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),

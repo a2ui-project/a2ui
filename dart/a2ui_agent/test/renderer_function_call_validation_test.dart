@@ -245,6 +245,27 @@ void main() {
       }
     });
 
+    test('is refused when @index is nested in its arguments, which are '
+        'resolved outside any list template', () {
+      expect(
+        () => validatePayload(catalogs, [
+          call(
+            'shared',
+            args: {
+              'value': {'@call': '@index'},
+            },
+          ),
+        ]),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains("calls '@index', which has no list item here"),
+          ),
+        ),
+      );
+    });
+
     test('assumes a surface the payload never named', () {
       validatePayload(catalogs, [call('secret', surfaceId: 'elsewhere')]);
     });

@@ -167,13 +167,29 @@ String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
       return 'The snippet embeds the schemas of the catalogs\' version, so '
           'the case runs as written in v1.0 only.';
     }
-    // A compile case's input is JSON text, which encodes with its quotes
-    // escaped, so the key is matched without them.
-    if (jsonEncode(testCase).contains('callRendererFunction')) {
+    if (_sendsCallRendererFunction(testCase)) {
       return 'Protocol v0.9 has no callRendererFunction message.';
     }
   }
   return null;
+}
+
+/// Whether a message in the input of [testCase], JSON text of a list of
+/// messages, is a `callRendererFunction`.
+bool _sendsCallRendererFunction(Map<String, Object?> testCase) {
+  final Object? input = testCase['input'];
+  if (input is! String) return false;
+  final Object? messages;
+  try {
+    messages = jsonDecode(input);
+  } on FormatException {
+    return false;
+  }
+  return messages is List &&
+      messages.any(
+        (Object? message) =>
+            message is Map && message.containsKey('callRendererFunction'),
+      );
 }
 
 void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
