@@ -78,7 +78,7 @@ graph TD
     %% Unidirectional Data Cycle (Flowing vertically through the center)
     McpComponent ==>|"2. Tool Action Request<br/>(e.g., score_update)"| Shell
     Shell ==>|"3. Action Delegation (A2UI Protocol)"| Agent
-    Agent ==>|"4. State Mutation & Sync (dataModelUpdate)"| Shell
+    Agent ==>|"4. State Mutation & Sync (updateDataModel)"| Shell
 
     %% Style Sibling Relationship
     McpComponent -.->|"No Direct Access (Strictly Isolated)"| SiblingComponent
@@ -89,7 +89,7 @@ graph TD
 1. **Initialize postMessage Event Bridge (1)**: The host shell instantiates the double-iframe sandbox and establishes a secure message relay bridge with the `McpApp` component.
 2. **Tool Action Request (2)**: When a user interacts with the sandboxed app (e.g., scores a point in the Pong game), the app triggers a tool action by posting a message over the postMessage bridge.
 3. **Action Delegation (3)**: The host layout engine intercepts the action and delegates its execution to the `AI Proxy Agent` over the A2UI/A2A protocol. The agent optionally coordinates with the `MCP App Server` using the standard MCP Protocol (SSE / Stdio) if external calculation or resources are required.
-4. **State Mutation & Sync (4)**: The agent processes the action, mutates the master session state, and pushes a `dataModelUpdate` back to the host state manager.
+4. **State Mutation & Sync (4)**: The agent processes the action, mutates the master session state, and pushes an `updateDataModel` back to the host state manager.
 5. **Reactive State Update (5)**: The host updates its local store, triggering a reactive update on sibling A2UI components (such as native scoreboards or displays) bound to that state path. Direct communication between the sandboxed component and native sibling elements is strictly blocked to maintain containerization security.
 
 ## Usage / Code Example

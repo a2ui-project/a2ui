@@ -29,6 +29,13 @@ import 'renderer_state.dart';
 /// catalog that defines all of them, and the surface passes if one such
 /// catalog accepts it.
 ///
+/// A v1.0 `callRendererFunction` is checked against the catalogs, never run:
+/// its catalog must be active and declare the function, the agent must be
+/// allowed to call the function, its arguments must match the function's
+/// schema, and a call nested in them must be one the renderer can make. A
+/// surface it names must exist when it arrives, or be one the payload never
+/// named before, which an earlier payload may have created.
+///
 /// To check a payload against what earlier payloads sent, keep a
 /// [RendererState] and call its [RendererState.apply] and
 /// [RendererState.checkTopology] inside [RendererState.transaction], so a

@@ -6,7 +6,7 @@ description: 'How A2UI decouples the wire protocol from LLM generation with Expr
 import {Tabs, TabItem} from '@astrojs/starlight/components';
 import InferencePipeline from '@components/docs/InferencePipeline.astro';
 
-A2UI separates the wire format that [renderer SDKs](/concepts/renderer-sdks/) consume from the inference format that a language model writes. Every client renderer receives the same standard A2UI JSON messages over the wire. On the server, the [agent SDKs](/concepts/agent-sdks/) let you swap how the model generates UI without changing any client code.
+A2UI separates the wire format that [renderer SDKs](/concepts/sdks/#renderer-sdk) consume from the inference format that a language model writes. Every client renderer receives the same standard A2UI JSON messages over the wire. On the server, the [agent SDKs](/concepts/sdks/#agent-sdk) let you swap how the model generates UI without changing any client code.
 
 In the diagram below, `A2uiRequestProcessor` coordinates three stages on the server. First, `PromptGenerator` compiles the active [catalog schemas](/concepts/catalogs/), `instructions`, and few-shot `examples` into a format-specific system prompt snippet. Next, the model emits its response inside sentinel tags such as `<a2ui>` for Express or `<a2ui-json>` for Direct JSON. Finally, `Parser` or `ResponseStream` heals streaming text, compiles the payload into wire JSON, and validates every message against `RendererState`.
 
