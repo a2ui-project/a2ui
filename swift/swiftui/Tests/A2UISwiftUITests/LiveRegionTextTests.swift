@@ -201,6 +201,8 @@ struct LiveRegionTextTests {
         - Box two
 
         1. Unpack
+
+           Keep the box.
         2. Check the **contents**
         """,
       ],
@@ -221,7 +223,7 @@ struct LiveRegionTextTests {
       host.recorder.text == [
         "Order status",
         "Shipped\nYour order left the warehouse.\nBox one\nBox two\n1. Unpack\n"
-          + "2. Check the contents",
+          + "Keep the box.\n2. Check the contents",
       ])
   }
 

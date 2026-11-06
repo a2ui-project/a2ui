@@ -41,12 +41,18 @@ extension A2UIText {
     // Runs in the same block share a presentation intent; inline styles only split runs.
     var blocks: [String] = []
     var currentIntent: PresentationIntent?
+    // An item's number is shown once, before its first block, so later blocks don't repeat it.
+    var numberedItems: Set<Int> = []
     for run in attributed.runs {
       let runText = String(attributed[run.range].characters)
       if !blocks.isEmpty, run.presentationIntent == currentIntent {
         blocks[blocks.count - 1] += runText
+      } else if let item = orderedListItem(run.presentationIntent),
+        numberedItems.insert(item.identity).inserted
+      {
+        blocks.append("\(item.ordinal). " + runText)
       } else {
-        blocks.append(orderedListNumber(run.presentationIntent) + runText)
+        blocks.append(runText)
       }
       currentIntent = run.presentationIntent
     }
@@ -57,9 +63,12 @@ extension A2UIText {
       .joined(separator: "\n")
   }
 
-  /// The number shown before an ordered list item, such as `"2. "`, or `""` for any other block.
-  /// The numbers are on screen and give the order of the steps, so they are read too.
-  private static func orderedListNumber(_ intent: PresentationIntent?) -> String {
+  /// The ordered list item a block belongs to: its number and the item's identity. `nil` for a
+  /// block outside an ordered list. The numbers are on screen and give the order of the steps, so
+  /// they are read too.
+  private static func orderedListItem(
+    _ intent: PresentationIntent?
+  ) -> (ordinal: Int, identity: Int)? {
     // Components run from the innermost block outwards.
     guard let components = intent?.components,
       let itemIndex = components.firstIndex(where: {
@@ -70,8 +79,8 @@ extension A2UIText {
       itemIndex + 1 < components.count,
       case .orderedList = components[itemIndex + 1].kind
     else {
-      return ""
+      return nil
     }
-    return "\(ordinal). "
+    return (ordinal, components[itemIndex].identity)
   }
 }
