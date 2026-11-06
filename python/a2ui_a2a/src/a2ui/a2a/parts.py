@@ -31,6 +31,7 @@ from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats.direct_json import read_json
 from a2ui.parser import A2uiPart
 from a2ui.parser import BlockLexer
+from a2ui.parser import JSON_PAYLOAD_START_RE
 from a2ui.parser import Parser
 from a2ui.parser import RawA2uiPart
 from a2ui.parser import ResponsePart
@@ -52,6 +53,9 @@ _BLOCK_LEXER = BlockLexer(
     # apostrophe or `#` in a block never hides its close tag.
     string_delimiters={'"'},
     single_line_comments=set(),
+    # When the open tag is missing, the block starts at the first line that
+    # opens a JSON array or object.
+    payload_start_pattern=JSON_PAYLOAD_START_RE,
 )
 
 

@@ -35,6 +35,9 @@
 - Export `read_json` from `a2ui.inference_formats.direct_json`, which reads a
   complete JSON document the way the Direct JSON parser does: it accepts
   trailing commas and raw line breaks in strings, and straightens curly quotes.
+  Export `JSON_PAYLOAD_START_RE` from `a2ui.parser`, the pattern a
+  `BlockLexer` for JSON blocks passes as `payload_start_pattern` to recover a
+  block whose open tag is missing.
   [#3790](https://github.com/a2ui-project/a2ui/pull/3790)
 - **BREAKING CHANGE**: (v1_0) The `TextField` builder in
   `a2ui.builder.v1_0.catalogs.basic` requires `value`, following the basic

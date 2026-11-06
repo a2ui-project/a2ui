@@ -264,3 +264,15 @@ def test_extract_a2ui_json_to_parts_logs_and_skips_unclosed_block(caplog):
     assert len(parts) == 1
     assert parts[0].root.text == "Intro"
     assert "Skipping unclosed A2UI JSON block." in caplog.text
+
+
+@pytest.mark.parametrize("prose", ["total = 42", "Here you go:"])
+def test_extract_a2ui_json_to_parts_recovers_missing_open_tag(prose):
+    """A block missing its open tag starts at the first line opening JSON."""
+    content = f"{prose}\n{json.dumps([_CREATE])}\n</a2ui-json>"
+
+    parts = extract_a2ui_json_to_parts(content)
+
+    assert len(parts) == 2
+    assert parts[0].root.text == prose
+    assert parts[1].root.data == _CREATE
