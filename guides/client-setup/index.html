@@ -1775,10 +1775,6 @@
       
         
       
-        
-      
-        
-      
     
     
     
@@ -2152,240 +2148,6 @@
     
   
     Basic Catalog Guide
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    
-    
-      
-        
-      
-        
-      
-    
-    
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8_3" >
-        
-          
-          <label class="md-nav__link" for="__nav_8_3" id="__nav_8_3_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    v0.9
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_8_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_8_3">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    v0.9
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../specification/v0.9-a2ui/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    A2UI Protocol
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../specification/v0.9-evolution-guide/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Evolution Guide
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    
-    
-      
-        
-      
-        
-      
-    
-    
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8_4" >
-        
-          
-          <label class="md-nav__link" for="__nav_8_4" id="__nav_8_4_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    v0.8 (Deprecated)
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_8_4_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_8_4">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    v0.8 (Deprecated)
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../specification/v0.8-a2ui/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    A2UI Protocol
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../specification/v0.8-a2a-extension/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    A2A Extension
   
 
     
@@ -2855,8 +2617,8 @@
 <tr>
 <th>Renderer</th>
 <th>Platform</th>
-<th>v0.8</th>
-<th>v0.9</th>
+<th>v1.0</th>
+<th>v0.9.1</th>
 <th>Status</th>
 </tr>
 </thead>
@@ -2885,19 +2647,20 @@
 <tr>
 <td><strong><a href="https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_flutter">Flutter (<code>a2ui_flutter</code>)</a></strong></td>
 <td>Mobile/Desktop/Web</td>
-<td>—</td>
+<td>✅</td>
 <td>✅</td>
 <td>🧪 Alpha</td>
 </tr>
 <tr>
 <td><strong><a href="https://developer.android.com/develop/ui/compose/agentic">Jetpack Compose</a></strong></td>
 <td>Android</td>
-<td>—</td>
+<td>🚧</td>
 <td>✅</td>
 <td>🧪 Alpha</td>
 </tr>
 </tbody>
 </table>
+<p>The React, Lit, and Angular renderers also support the deprecated v0.8. 🚧 means support is planned.</p>
 <p>For more see all <a href="../../reference/renderers/">A2UI Renderers</a> and <a href="../../ecosystem/renderers/">Community A2UI Renderers</a>.</p>
 <h2 id="component-catalogs">Component Catalogs<a class="headerlink" href="#component-catalogs" title="Permanent link">&para;</a></h2>
 <p>A component catalog is any collection of components. A2UI provides a "Basic Catalog" but we expect you will add your own components, or shared libraries or fully replace the basic components with your own.</p>
@@ -3018,7 +2781,7 @@ discontinued.</p>
 <h2 id="error-handling">Error Handling<a class="headerlink" href="#error-handling" title="Permanent link">&para;</a></h2>
 <p>Common errors to handle:</p>
 <ul>
-<li><strong>Invalid Surface ID</strong>: Surface referenced before <code>beginRendering</code> (v0.8) or <code>createSurface</code> (v0.9) was received.</li>
+<li><strong>Invalid Surface ID</strong>: Surface referenced before <code>createSurface</code> was received.</li>
 <li><strong>Invalid Component ID</strong>: Component IDs must be unique within a surface.</li>
 <li><strong>Invalid Data Path</strong>: Check data model structure and JSON Pointer syntax.</li>
 <li><strong>Schema Validation Failed</strong>: Verify message format matches A2UI specification.</li>

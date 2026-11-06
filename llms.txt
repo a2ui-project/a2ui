@@ -48,7 +48,7 @@
 - [Agents](https://a2ui.org/reference/agents/)
 - [Specification v1.0 (current)](https://a2ui.org/specification/v1.0-a2ui/)
 - [Specification v0.9.1 (previous)](https://a2ui.org/specification/v0.9.1-a2ui/)
-- [Specification v0.9 (previous)](https://a2ui.org/specification/v0.9-a2ui/)
+- [Specification v0.9 (previous)](https://github.com/a2ui-project/a2ui/tree/main/specification/v0_9)
 
 ## Optional
 

@@ -1681,10 +1681,6 @@
       
         
       
-        
-      
-        
-      
     
     
     
@@ -2079,240 +2075,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    
-    
-      
-        
-      
-        
-      
-    
-    
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8_3" >
-        
-          
-          <label class="md-nav__link" for="__nav_8_3" id="__nav_8_3_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    v0.9
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_8_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_8_3">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    v0.9
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../specification/v0.9-a2ui/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    A2UI Protocol
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../specification/v0.9-evolution-guide/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Evolution Guide
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    
-    
-      
-        
-      
-        
-      
-    
-    
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8_4" >
-        
-          
-          <label class="md-nav__link" for="__nav_8_4" id="__nav_8_4_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    v0.8 (Deprecated)
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_8_4_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_8_4">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    v0.8 (Deprecated)
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../specification/v0.8-a2ui/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    A2UI Protocol
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../specification/v0.8-a2a-extension/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    A2A Extension
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -2663,7 +2425,7 @@
 <p>This document outlines the required features for a new renderer implementation of the A2UI protocol. It is intended for developers building new renderers (e.g., for React, Flutter, iOS, etc.).</p>
 <blockquote>
 <p>NOTE: Version-Aware Guide</p>
-<p>This guide provides implementation checklists for v1.0, v0.9.1, and v0.8. Use the tabs below to select the version you are targeting.</p>
+<p>This guide provides implementation checklists for v1.0 and v0.9.1. Use the tabs below to select the version you are targeting.</p>
 </blockquote>
 <h2 id="web-renderers-use-a2uiweb_core-web_core">Web Renderers: Use <code>@a2ui/web_core</code> (<code>web_core</code>)<a class="headerlink" href="#web-renderers-use-a2uiweb_core-web_core" title="Permanent link">&para;</a></h2>
 <p>If you're building a renderer for the web (React, Vue, Svelte, etc.), you don't need to implement message processing, state management, or schema validation from scratch. The <strong><a href="https://github.com/a2ui-project/a2ui/blob/main/typescript/core/web_core"><code>@a2ui/web_core</code></a></strong> package (<code>web_core</code>) provides all the framework-agnostic logic that the maintained Lit, Angular, and React renderers share.</p>
@@ -2698,7 +2460,7 @@
 </tr>
 <tr>
 <td><strong>Expression parser</strong></td>
-<td>Client-side function evaluation (v0.9+)</td>
+<td>Client-side function evaluation</td>
 </tr>
 </tbody>
 </table>
@@ -2708,15 +2470,12 @@
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">import</span><span class="w"> </span><span class="kr">type</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="kr">as</span><span class="w"> </span><span class="nx">Types</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;@a2ui/web_core/types/types&#39;</span><span class="p">;</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">import</span><span class="w"> </span><span class="kr">type</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="kr">as</span><span class="w"> </span><span class="nx">Primitives</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;@a2ui/web_core/types/primitives&#39;</span><span class="p">;</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1">// v0.8: Message processing and state</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="nx">A2uiMessageProcessor</span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;@a2ui/web_core/data/model-processor&#39;</span><span class="p">;</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1">// v0.9.1 / v1.0: Message processing, surfaces, catalogs</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="nx">MessageProcessor</span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;@a2ui/web_core/v0_9&#39;</span><span class="p">;</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="nx">SurfaceModel</span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;@a2ui/web_core/v0_9&#39;</span><span class="p">;</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="c1">// Styles and layout helpers</span>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="k">import</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="kr">as</span><span class="w"> </span><span class="nx">Styles</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;@a2ui/web_core/styles/index&#39;</span><span class="p">;</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1">// v0.9.1 / v1.0: Message processing, surfaces, catalogs</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="nx">MessageProcessor</span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;@a2ui/web_core/v0_9&#39;</span><span class="p">;</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="nx">SurfaceModel</span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;@a2ui/web_core/v0_9&#39;</span><span class="p">;</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1">// Styles and layout helpers</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="k">import</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="kr">as</span><span class="w"> </span><span class="nx">Styles</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;@a2ui/web_core/styles/index&#39;</span><span class="p">;</span>
 </span></code></pre></div>
 <p>Your renderer only needs to:</p>
 <ol>
@@ -2728,7 +2487,6 @@
 <h3 id="version-support">Version support<a class="headerlink" href="#version-support" title="Permanent link">&para;</a></h3>
 <p><code>web_core</code> exports API sets per version:</p>
 <ul>
-<li><code>@a2ui/web_core/v0_8</code> — deprecated v0.8</li>
 <li><code>@a2ui/web_core/v0_9</code> — v0.9/v0.9.1 support with <code>createSurface</code>, custom catalogs, client-side functions</li>
 <li><code>@a2ui/web_core/v1_0</code> — v1.0 support including RPC action responses</li>
 </ul>
@@ -2739,19 +2497,19 @@
 <hr />
 <h2 id="i-core-protocol-implementation-checklist">I. Core Protocol Implementation Checklist<a class="headerlink" href="#i-core-protocol-implementation-checklist" title="Permanent link">&para;</a></h2>
 <p>This section details the fundamental mechanics of the A2UI protocol. A compliant renderer must implement these systems to successfully parse the server stream, manage state, and handle user interactions.</p>
-<div class="tabbed-set tabbed-alternate" data-tabs="1:3"><input checked="checked" id="v10" name="__tabbed_1" type="radio" /><input id="v091" name="__tabbed_1" type="radio" /><input id="v08" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="v10">v1.0</label><label for="v091">v0.9.1</label><label for="v08">v0.8</label></div>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="v10" name="__tabbed_1" type="radio" /><input id="v091" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="v10">v1.0</label><label for="v091">v0.9.1</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
 <p>All requirements from v0.9.1, with the following extensions:
-- <strong>Surface Properties</strong>:
-    - Handle <code>createSurface</code> with <code>surfaceProperties</code> (renamed from <code>theme</code>). Custom primary brand colors are no longer supported inside the surface schema.
+- <strong>Surface Creation</strong>:
+    - Handle <code>createSurface</code> without <code>theme</code> (removed in v1.0). Accept optional initial <code>components</code> and <code>dataModel</code>, and treat <code>catalogId</code> as an optional default catalog.
 - <strong>Directional Function Calls (RPC)</strong>:
     - Handle <code>callRendererFunction</code> messages from the agent and return <code>rendererFunctionResponse</code> (or <code>error</code>).
 - <strong>Client-to-Server</strong>:
     - Support initiating <code>callAgentFunction</code> messages to the agent for remote function execution.
-    - If using A2A, every A2A <code>Message</code> sent to the server must include an <code>a2uiClientCapabilities</code> object in the <code>metadata</code> field of the A2A <code>Message</code>.
-- <strong>Capabilities</strong>:
-    - Expose <code>surfaceProperties</code> in place of <code>theme</code> during capabilities exchange.</p>
+    - If using A2A, every A2A <code>Message</code> sent to the server must include an <code>a2uiRendererCapabilities</code> object in the <code>metadata</code> field of the A2A <code>Message</code>.
+- <strong>Data Binding Resolution</strong>:
+    - Resolve <code>{"@path": "..."}</code> bindings and <code>{"@call": "..."}</code> function calls.</p>
 </div>
 <div class="tabbed-block">
 <ul>
@@ -2792,49 +2550,9 @@
 </ul>
 </li>
 <li><strong>Client-to-Server</strong>:<ul>
-<li>Dispatch <code>action</code> (replaces <code>userAction</code>) containing context with resolved paths.</li>
+<li>Dispatch <code>action</code> containing context with resolved paths.</li>
 <li>Automatically include the full client-side data model in the metadata if <code>sendDataModel</code> was requested.</li>
 <li>Send structured <code>ValidationFailed</code> error messages to the server if a schema validation fails.</li>
-</ul>
-</li>
-</ul>
-</div>
-<div class="tabbed-block">
-<ul>
-<li><strong>JSONL Stream Parsing</strong>: Read a streaming response line by line, decoding each line as a distinct JSON object.</li>
-<li><strong>Message Dispatcher</strong>: Identify message types (<code>beginRendering</code>, <code>surfaceUpdate</code>, <code>dataModelUpdate</code>, <code>deleteSurface</code>) and route to the correct handler.</li>
-<li><strong>Surface Management</strong>:<ul>
-<li>Key surfaces by <code>surfaceId</code>.</li>
-<li>Handle <code>surfaceUpdate</code>: Add/update components in the surface's buffer.</li>
-<li>Handle <code>deleteSurface</code>: Remove the surface and all associated data/components.</li>
-</ul>
-</li>
-<li><strong>Component Buffering</strong>:<ul>
-<li>Maintain a component buffer (e.g., <code>Map&lt;String, Component&gt;</code>) for each surface.</li>
-<li>Reconstruct the UI tree by resolving <code>id</code> references (<code>children.explicitList</code>, <code>child</code>, <code>contentChild</code>, etc.).</li>
-</ul>
-</li>
-<li><strong>Data Model Store</strong>:<ul>
-<li>Maintain data model state for each surface.</li>
-<li>Handle <code>dataModelUpdate</code>: Update values at paths using the adjacency list representation (<code>[{ "key": "name", "valueString": "Bob" }]</code>).</li>
-</ul>
-</li>
-<li><strong>Progressive Rendering</strong>:<ul>
-<li>Buffer updates until <code>beginRendering</code> is received.</li>
-<li>Start rendering from the specified <code>root</code> ID upon receiving <code>beginRendering</code>. Apply theme styles.</li>
-</ul>
-</li>
-<li><strong>Data Binding Resolution</strong>:<ul>
-<li>Resolve <code>BoundValue</code> objects using <code>literalString</code> / <code>literalNumber</code> / <code>path</code>.</li>
-</ul>
-</li>
-<li><strong>Dynamic Lists</strong>:<ul>
-<li>For <code>children.template</code>, iterate over the data list at <code>template.dataBinding</code> and render components using <code>template.componentId</code>.</li>
-</ul>
-</li>
-<li><strong>Client-to-Server</strong>:<ul>
-<li>Dispatch <code>userAction</code> containing context with resolved paths to the server.</li>
-<li>Include <code>a2uiClientCapabilities</code> in transport metadata.</li>
 </ul>
 </li>
 </ul>
@@ -2844,16 +2562,18 @@
 <hr />
 <h2 id="ii-basic-component-catalog-checklist">II. Basic Component Catalog Checklist<a class="headerlink" href="#ii-basic-component-catalog-checklist" title="Permanent link">&para;</a></h2>
 <p>To ensure a consistent user experience across platforms, A2UI defines a basic set of components. Your client should map these abstract definitions to their corresponding native UI widgets.</p>
-<div class="tabbed-set tabbed-alternate" data-tabs="2:3"><input checked="checked" id="v10_1" name="__tabbed_2" type="radio" /><input id="v091_1" name="__tabbed_2" type="radio" /><input id="v08_1" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="v10_1">v1.0</label><label for="v091_1">v0.9.1</label><label for="v08_1">v0.8</label></div>
+<div class="tabbed-set tabbed-alternate" data-tabs="2:2"><input checked="checked" id="v10_1" name="__tabbed_2" type="radio" /><input id="v091_1" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="v10_1">v1.0</label><label for="v091_1">v0.9.1</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<p>All components from v0.9.1, with the following extensions:
+<p>All components from v0.9.1, with the following changes:
+- <strong>Text</strong>: <code>variant</code> is <code>caption</code> or <code>body</code>. Render simple Markdown, including headings.
 - <strong>Video</strong>: Support the <code>posterUrl</code> property to display a preview image.
-- <strong>TextField</strong>: Support the <code>placeholder</code> property.</p>
+- <strong>TextField</strong>: Support the <code>placeholder</code> property. <code>value</code> is required, and <code>validationRegexp</code> is removed in favor of <code>checks</code> with the <code>regex</code> function.
+- <strong>Slider</strong>: Support the <code>steps</code> property to snap to discrete values.</p>
 </div>
 <div class="tabbed-block">
 <ul>
-<li><strong>Text</strong>: Render text. Support <code>variant</code> (replaces <code>usageHint</code>).</li>
+<li><strong>Text</strong>: Render text. Support <code>variant</code>.</li>
 <li><strong>Image</strong>: Render image from URL. Support <code>fit</code> and <code>variant</code>.</li>
 <li><strong>Icon</strong>: Render system icons.</li>
 <li><strong>Video</strong>: Render video player.</li>
@@ -2866,29 +2586,9 @@
 <li><strong>Modal</strong>: Popup triggered by <code>trigger</code> displaying <code>content</code>.</li>
 <li><strong>Button</strong>: Clickable button triggering <code>action</code>. Support <code>variant</code> (primary, borderless).</li>
 <li><strong>CheckBox</strong>: Boolean checkbox.</li>
-<li><strong>TextField</strong>: Input field supporting <code>label</code>, <code>value</code> (replaces <code>text</code>), <code>variant</code> (<code>shortText</code>, <code>longText</code>, etc.), and <code>checks</code> (validation functions).</li>
-<li><strong>ChoicePicker</strong>: (Replaces MultipleChoice) Support <code>options</code> and <code>variant</code> (<code>mutuallyExclusive</code>, <code>multipleSelection</code>).</li>
-<li><strong>Slider</strong>: Support ranges using <code>min</code>, <code>max</code> (replaces <code>minValue</code>, <code>maxValue</code>).</li>
-</ul>
-</div>
-<div class="tabbed-block">
-<ul>
-<li><strong>Text</strong>: Render text. Support <code>usageHint</code> (h1-h5, body, caption).</li>
-<li><strong>Image</strong>: Render image from URL. Support <code>fit</code> and <code>usageHint</code> (avatar, hero, etc.).</li>
-<li><strong>Icon</strong>: Render system icons.</li>
-<li><strong>Video</strong>: Render video player.</li>
-<li><strong>AudioPlayer</strong>: Render audio player with description.</li>
-<li><strong>Divider</strong>: Render horizontal/vertical lines.</li>
-<li><strong>Row</strong> / <strong>Column</strong>: Arrange children horizontally/vertically. Support <code>distribution</code> and <code>alignment</code>. Support child <code>weight</code>.</li>
-<li><strong>List</strong>: Render scrollable list.</li>
-<li><strong>Card</strong>: Box layout with rounded corners and shadows.</li>
-<li><strong>Tabs</strong>: Tabbed navigation using <code>tabItems</code>.</li>
-<li><strong>Modal</strong>: Popup triggered by <code>entryPointChild</code> displaying <code>contentChild</code>.</li>
-<li><strong>Button</strong>: Clickable button triggering <code>userAction</code>. Support <code>primary</code> variant.</li>
-<li><strong>CheckBox</strong>: Boolean checkbox.</li>
-<li><strong>TextField</strong>: Input field supporting <code>label</code>, <code>textFieldType</code> (<code>shortText</code>, <code>longText</code>, etc.), and <code>validationRegexp</code>.</li>
-<li><strong>MultipleChoice</strong>: Support <code>options</code>, <code>maxAllowedSelections</code>, and single/multiple value selections.</li>
-<li><strong>Slider</strong>: Support ranges using <code>minValue</code>, <code>maxValue</code>.</li>
+<li><strong>TextField</strong>: Input field supporting <code>label</code>, <code>value</code>, <code>variant</code> (<code>shortText</code>, <code>longText</code>, etc.), and <code>checks</code> (validation functions).</li>
+<li><strong>ChoicePicker</strong>: Support <code>options</code> and <code>variant</code> (<code>mutuallyExclusive</code>, <code>multipleSelection</code>).</li>
+<li><strong>Slider</strong>: Support ranges using <code>min</code> and <code>max</code>.</li>
 </ul>
 </div>
 </div>
