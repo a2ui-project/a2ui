@@ -448,16 +448,16 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 
 <style>
   .a2-sl-header {
-    --a2-hdr-text: var(--a2-text, #f8fafc);
-    --a2-hdr-text-secondary: var(--a2-text-secondary, #94a3b8);
-    --a2-hdr-text-muted: var(--a2-text-muted, #64748b);
-    --a2-hdr-surface: var(--a2-surface, #141923);
-    --a2-hdr-hover-bg: var(--a2-surface-raised, #1a202d);
-    --a2-hdr-border: var(--a2-border, #1e2533);
-    --a2-hdr-border-strong: var(--a2-border-strong, #2c364a);
-    --a2-hdr-accent: var(--a2-accent, #14b8a6);
-    --a2-hdr-accent-text: var(--a2-accent-strong, #2dd4bf);
-    --a2-hdr-accent-soft: var(--a2-accent-soft, rgba(20, 184, 166, 0.12));
+    --a2-hdr-text: var(--a2-text, #ffffff);
+    --a2-hdr-text-secondary: var(--a2-text-secondary, #9aa0a6);
+    --a2-hdr-text-muted: var(--a2-text-muted, #80868b);
+    --a2-hdr-surface: var(--a2-surface, #1e1f20);
+    --a2-hdr-hover-bg: var(--a2-surface-raised, #282a2c);
+    --a2-hdr-border: var(--a2-border, #2a2b2d);
+    --a2-hdr-border-strong: var(--a2-border-strong, #303134);
+    --a2-hdr-accent: var(--a2-accent, #8ab4f8);
+    --a2-hdr-accent-text: var(--a2-accent-strong, #aecbfa);
+    --a2-hdr-accent-soft: var(--a2-accent-soft, rgba(138, 180, 248, 0.12));
 
     display: flex;
     justify-content: space-between;
@@ -468,16 +468,16 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
   }
 
   :global(:root[data-theme='light']) .a2-sl-header {
-    --a2-hdr-text: #0f172a;
-    --a2-hdr-text-secondary: #475569;
-    --a2-hdr-text-muted: #64748b;
+    --a2-hdr-text: #1f1f1f;
+    --a2-hdr-text-secondary: #5f6368;
+    --a2-hdr-text-muted: #80868b;
     --a2-hdr-surface: #ffffff;
-    --a2-hdr-hover-bg: #f1f5f9;
-    --a2-hdr-border: #e2e8f0;
-    --a2-hdr-border-strong: #cbd5e1;
-    --a2-hdr-accent: #0d9488;
-    --a2-hdr-accent-text: #0f766e;
-    --a2-hdr-accent-soft: rgba(13, 148, 136, 0.09);
+    --a2-hdr-hover-bg: #f1f3f4;
+    --a2-hdr-border: #e8eaed;
+    --a2-hdr-border-strong: #bdc1c6;
+    --a2-hdr-accent: #0b57d0;
+    --a2-hdr-accent-text: #0842a0;
+    --a2-hdr-accent-soft: rgba(11, 87, 208, 0.09);
   }
 
   .a2-sl-header__left {
@@ -730,7 +730,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
   /* --- Search Modal Dialog --- */
   .a2-sl-search-dialog {
     margin: 0;
-    background-color: var(--a2-surface, #141923);
+    background-color: var(--a2-surface, #1e1f20);
     border: 1px solid var(--a2-hdr-border-strong);
     width: 100%;
     max-width: 100%;
@@ -743,7 +743,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 
   :global(:root[data-theme='light']) .a2-sl-search-dialog {
     background-color: #ffffff;
-    box-shadow: 0 20px 40px -12px rgba(15, 23, 42, 0.18);
+    box-shadow: 0 20px 40px -12px rgba(31, 31, 31, 0.18);
   }
 
   .a2-sl-search-dialog[open] {
@@ -821,13 +821,13 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
   }
 
   #starlight__search {
-    --pagefind-ui-primary: var(--a2-text, #f8fafc);
-    --pagefind-ui-text: var(--a2-text-secondary, #94a3b8);
+    --pagefind-ui-primary: var(--a2-text, #ffffff);
+    --pagefind-ui-text: var(--a2-text-secondary, #9aa0a6);
     --pagefind-ui-font: var(--a2-font-sans, sans-serif);
-    --pagefind-ui-background: var(--a2-surface-subtle, #0e121a);
-    --pagefind-ui-border: var(--a2-border-strong, #2c364a);
+    --pagefind-ui-background: var(--a2-surface-subtle, #1a1a1b);
+    --pagefind-ui-border: var(--a2-border-strong, #303134);
     --pagefind-ui-border-width: 1px;
-    --pagefind-ui-tag: var(--a2-border-strong, #2c364a);
+    --pagefind-ui-tag: var(--a2-border-strong, #303134);
     --sl-search-cancel-space: 5rem;
     --sl-search-result-spacing: calc(1.25rem * var(--pagefind-ui-scale, 0.8));
     --sl-search-result-pad-inline-start: calc(3.75rem * var(--pagefind-ui-scale, 0.8));
@@ -846,15 +846,15 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
   }
 
   :root[data-theme='light'] #starlight__search {
-    --pagefind-ui-primary: #0f172a;
-    --pagefind-ui-text: #334155;
+    --pagefind-ui-primary: #1f1f1f;
+    --pagefind-ui-text: #3c4043;
     --pagefind-ui-background: #ffffff;
-    --pagefind-ui-border: #cbd5e1;
-    --pagefind-ui-tag: #e2e8f0;
-    --sl-color-accent-low: #ccfbf1;
-    --sl-color-accent: #0d9488;
-    --sl-color-accent-high: #0f766e;
-    --sl-color-text-accent: #0d9488;
+    --pagefind-ui-border: #bdc1c6;
+    --pagefind-ui-tag: #e8eaed;
+    --sl-color-accent-low: #e8f0fe;
+    --sl-color-accent: #0b57d0;
+    --sl-color-accent-high: #0842a0;
+    --sl-color-text-accent: #0b57d0;
   }
 
   @media (min-width: 50rem) {
@@ -864,26 +864,26 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
   }
 
   #starlight__search .pagefind-ui__form::before {
-    --pagefind-ui-text: var(--sl-color-gray-1, #f1f5f9);
+    --pagefind-ui-text: var(--sl-color-gray-1, #f1f3f4);
     opacity: 1;
   }
 
   :root[data-theme='light'] #starlight__search .pagefind-ui__form::before {
-    --pagefind-ui-text: #475569;
+    --pagefind-ui-text: #5f6368;
   }
 
   #starlight__search .pagefind-ui__search-input {
-    color: var(--sl-color-white, #f8fafc);
+    color: var(--sl-color-white, #ffffff);
     font-weight: 400;
     width: calc(100% - var(--sl-search-cancel-space));
   }
 
   :root[data-theme='light'] #starlight__search .pagefind-ui__search-input {
-    color: #0f172a;
+    color: #1f1f1f;
   }
 
   #starlight__search input:focus {
-    --pagefind-ui-border: var(--sl-color-accent, #14b8a6);
+    --pagefind-ui-border: var(--sl-color-accent, #4285f4);
   }
 
   #starlight__search .pagefind-ui__search-clear {
@@ -895,7 +895,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
   }
 
   #starlight__search .pagefind-ui__search-clear:focus {
-    outline: 1px solid var(--sl-color-accent, #14b8a6);
+    outline: 1px solid var(--sl-color-accent, #4285f4);
   }
 
   #starlight__search .pagefind-ui__search-clear::before {
@@ -904,7 +904,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
       center / 50% no-repeat;
     mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m13.41 12 6.3-6.29a1 1 0 1 0-1.42-1.42L12 10.59l-6.29-6.3a1 1 0 0 0-1.42 1.42l6.3 6.29-6.3 6.29a1 1 0 0 0 .33 1.64 1 1 0 0 0 1.09-.22l6.29-6.3 6.29 6.3a1 1 0 0 0 1.64-.33 1 1 0 0 0-.22-1.09L13.41 12Z'/%3E%3C/svg%3E")
       center / 50% no-repeat;
-    background-color: var(--sl-color-text-accent, #2dd4bf);
+    background-color: var(--sl-color-text-accent, #8ab4f8);
     display: block;
     width: 100%;
     height: 100%;
@@ -936,13 +936,13 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
     .pagefind-ui__result-title:not(:where(.pagefind-ui__result-nested *)):focus-within,
   #starlight__search .pagefind-ui__result-nested:hover,
   #starlight__search .pagefind-ui__result-nested:focus-within {
-    outline: 1px solid var(--sl-color-accent-high, #5eead4);
+    outline: 1px solid var(--sl-color-accent-high, #aecbfa);
   }
 
   #starlight__search
     .pagefind-ui__result-title:not(:where(.pagefind-ui__result-nested *)):focus-within,
   #starlight__search .pagefind-ui__result-nested:focus-within {
-    background-color: var(--sl-color-accent-low, #0d3b38);
+    background-color: var(--sl-color-accent-low, #0f2a57);
   }
 
   #starlight__search .pagefind-ui__result-thumb,
@@ -969,7 +969,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
     inset-block: 0;
     inset-inline-start: var(--sl-search-page-icon-inline-start);
     width: var(--sl-search-page-icon-size);
-    background: var(--sl-color-gray-3, #64748b);
+    background: var(--sl-color-gray-3, #80868b);
     -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='currentColor' viewBox='0 0 24 24'%3E%3Cpath d='M9 10h1a1 1 0 1 0 0-2H9a1 1 0 0 0 0 2Zm0 2a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2H9Zm11-3V8l-6-6a1 1 0 0 0-1 0H7a3 3 0 0 0-3 3v14a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V9Zm-6-4 3 3h-2a1 1 0 0 1-1-1V5Zm4 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5v3a3 3 0 0 0 3 3h3v9Zm-3-3H9a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2Z'/%3E%3C/svg%3E")
       center no-repeat;
     mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='currentColor' viewBox='0 0 24 24'%3E%3Cpath d='M9 10h1a1 1 0 1 0 0-2H9a1 1 0 0 0 0 2Zm0 2a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2H9Zm11-3V8l-6-6a1 1 0 0 0-1 0H7a3 3 0 0 0-3 3v14a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V9Zm-6-4 3 3h-2a1 1 0 0 1-1-1V5Zm4 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5v3a3 3 0 0 0 3 3h3v9Zm-3-3H9a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2Z'/%3E%3C/svg%3E")
@@ -983,12 +983,12 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 
   #starlight__search .pagefind-ui__result-link {
     position: unset;
-    --pagefind-ui-text: var(--sl-color-white, #f8fafc);
+    --pagefind-ui-text: var(--sl-color-white, #ffffff);
     font-weight: 600;
   }
 
   :root[data-theme='light'] #starlight__search .pagefind-ui__result-link {
-    --pagefind-ui-text: #0f172a;
+    --pagefind-ui-text: #1f1f1f;
   }
 
   #starlight__search .pagefind-ui__result-link:hover {
@@ -1005,7 +1005,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
     inset-block: 0;
     inset-inline-start: var(--sl-search-tree-diagram-inline-start);
     width: var(--sl-search-tree-diagram-size);
-    background: var(--sl-color-gray-4, #475569);
+    background: var(--sl-color-gray-4, #5f6368);
     -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='currentColor' stroke-linecap='round' viewBox='0 0 16 1000' preserveAspectRatio='xMinYMin slice'%3E%3Cpath d='M8 0v1000m6-988H8'/%3E%3C/svg%3E")
       0% 0% / 100% no-repeat;
     mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='currentColor' stroke-linecap='round' viewBox='0 0 16 1000' preserveAspectRatio='xMinYMin slice'%3E%3Cpath d='M8 0v1000m6-988H8'/%3E%3C/svg%3E")
@@ -1029,7 +1029,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
   }
 
   #starlight__search mark {
-    color: var(--sl-color-text-accent, #2dd4bf);
+    color: var(--sl-color-text-accent, #8ab4f8);
     background-color: transparent;
     font-weight: 600;
   }

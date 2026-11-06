@@ -40,69 +40,70 @@
   --a2-tracking-body: -0.008em;
   --a2-tracking-mono-wide: 0.09em;
 
-  /* --- Dark Theme: Sleek Obsidian Studio --- */
-  --a2-bg: #08090d;
-  --a2-bg-alt: #0f121a;
-  --a2-bg-nav: rgba(8, 9, 13, 0.82);
-  --a2-shell: #11141c;
-  --a2-surface: #141821;
-  --a2-surface-raised: #1a1f2b;
-  --a2-surface-subtle: #0f1219;
-  --a2-code-bg: #0b0d13;
-  --a2-code-header: #11151f;
+  /* --- Dark Theme: Google near-black (Gemini / Material surfaces) --- */
+  --a2-bg: #131314;
+  --a2-bg-alt: #1e1f20;
+  --a2-bg-nav: rgba(19, 19, 20, 0.82);
+  --a2-shell: #1e1f20;
+  --a2-surface: #1e1f20;
+  --a2-surface-raised: #282a2c;
+  --a2-surface-subtle: #1a1a1b;
+  --a2-code-bg: #0e0e0f;
+  --a2-code-header: #1e1f20;
   --a2-dot-grid: rgba(255, 255, 255, 0.05);
 
-  /* --- Ink Hierarchy --- */
-  --a2-text: #f8fafc;
-  --a2-text-secondary: #94a3b8;
-  --a2-text-muted: #64748b;
+  /* --- Ink Hierarchy (Google greys) --- */
+  --a2-text: #e8eaed;
+  --a2-text-secondary: #9aa0a6;
+  --a2-text-muted: #80868b;
 
   /* --- Hairlines & Borders --- */
   --a2-border: rgba(255, 255, 255, 0.08);
   --a2-border-subtle: rgba(255, 255, 255, 0.05);
   --a2-border-strong: rgba(255, 255, 255, 0.14);
 
-  /* --- Primary High-Contrast Action --- */
-  --a2-cta-bg: #f8fafc;
-  --a2-cta-fg: #090b10;
-  --a2-cta-hover: #e2e8f0;
+  /* --- Primary Action: Material dark primary (light blue fill, deep blue ink) --- */
+  --a2-cta-bg: #8ab4f8;
+  --a2-cta-fg: #062e6f;
+  --a2-cta-hover: #aecbfa;
 
-  /* --- Semantic Accents (Zero Purple on Dark) --- */
-  --a2-accent: #14b8a6;
-  --a2-accent-strong: #2dd4bf;
-  /* Headline emphasis word(s): the accent itself on dark, the deeper ink-leaning teal on light */
-  --a2-heading-accent: #14b8a6;
-  --a2-accent-soft: rgba(20, 184, 166, 0.12);
-  --a2-accent-border: rgba(45, 212, 191, 0.28);
+  /* --- Accent: Google Blue family (Blue 300 on dark) --- */
+  --a2-accent: #8ab4f8;
+  --a2-accent-strong: #aecbfa;
+  /* Headline emphasis word(s): the accent itself on dark, the deeper link blue on light */
+  --a2-heading-accent: #8ab4f8;
+  --a2-accent-soft: rgba(138, 180, 248, 0.12);
+  --a2-accent-border: rgba(138, 180, 248, 0.3);
 
-  --a2-blue: #38bdf8;
-  --a2-blue-soft: rgba(56, 189, 248, 0.12);
-  --a2-blue-border: rgba(56, 189, 248, 0.26);
+  --a2-blue: #8ab4f8;
+  --a2-blue-soft: rgba(138, 180, 248, 0.12);
+  --a2-blue-border: rgba(138, 180, 248, 0.26);
 
-  --a2-amber: #fbbf24;
-  --a2-amber-soft: rgba(251, 191, 36, 0.12);
-  --a2-amber-border: rgba(251, 191, 36, 0.28);
+  /* --- Semantic (Google Yellow / Red / Green, 300 tones on dark) --- */
+  --a2-amber: #fdd663;
+  --a2-amber-soft: rgba(253, 214, 99, 0.12);
+  --a2-amber-border: rgba(253, 214, 99, 0.28);
 
-  --a2-coral: #fb7185;
-  --a2-coral-soft: rgba(251, 113, 133, 0.12);
+  --a2-coral: #f28b82;
+  --a2-coral-soft: rgba(242, 139, 130, 0.12);
 
-  --a2-success: #34d399;
-  --a2-success-soft: rgba(52, 211, 153, 0.12);
-  --a2-success-border: rgba(52, 211, 153, 0.28);
+  --a2-success: #81c995;
+  --a2-success-soft: rgba(129, 201, 149, 0.12);
+  --a2-success-border: rgba(129, 201, 149, 0.28);
 
-  --a2-danger: #f87171;
-  --a2-danger-soft: rgba(248, 113, 113, 0.12);
-  --a2-danger-border: rgba(248, 113, 113, 0.28);
+  --a2-danger: #f28b82;
+  --a2-danger-soft: rgba(242, 139, 130, 0.12);
+  --a2-danger-border: rgba(242, 139, 130, 0.28);
 
   /* --- Syntax Highlighting Tokens --- */
-  --a2-syn-base: #cbd5e1;
-  --a2-syn-key: #94a3b8;
-  --a2-syn-comp: #2dd4bf;
-  --a2-syn-fn: #38bdf8;
-  --a2-syn-str: #34d399;
-  --a2-syn-num: #fbbf24;
-  --a2-syn-kw: #7dd3fc;
-  --a2-syn-comment: #64748b;
+  --a2-syn-base: #e8eaed;
+  --a2-syn-key: #9aa0a6;
+  --a2-syn-comp: #8ab4f8;
+  --a2-syn-fn: #78d9ec;
+  --a2-syn-str: #81c995;
+  --a2-syn-num: #fdd663;
+  --a2-syn-kw: #aecbfa;
+  --a2-syn-comment: #80868b;
 
   /* --- Radii & Sculpted Elevation --- */
   --a2-radius-xs: 6px;
@@ -146,64 +147,66 @@
 }
 
 :root[data-theme='light'] {
-  --a2-bg: #fafaf9;
-  --a2-bg-alt: #f0f1f3;
-  --a2-bg-nav: rgba(250, 250, 249, 0.84);
-  --a2-shell: #f1f2f4;
+  /* Google light: cool off-white surfaces, blue-grey alt band */
+  --a2-bg: #f8fafd;
+  --a2-bg-alt: #ecf1f8;
+  --a2-bg-nav: rgba(248, 250, 253, 0.84);
+  --a2-shell: #ecf1f8;
   --a2-surface: #ffffff;
   --a2-surface-raised: #ffffff;
-  --a2-surface-subtle: #f7f7f6;
-  --a2-code-bg: #f6f7f9;
-  --a2-code-header: #eef0f4;
-  --a2-dot-grid: rgba(15, 23, 42, 0.055);
+  --a2-surface-subtle: #f3f6fb;
+  --a2-code-bg: #f3f6fb;
+  --a2-code-header: #e9eef6;
+  --a2-dot-grid: rgba(31, 31, 31, 0.055);
 
-  --a2-text: #090d16;
-  --a2-text-secondary: #4b5563;
-  --a2-text-muted: #6b7280;
+  --a2-text: #1f1f1f;
+  --a2-text-secondary: #444746;
+  --a2-text-muted: #747775;
 
-  --a2-border: rgba(15, 23, 42, 0.08);
-  --a2-border-subtle: rgba(15, 23, 42, 0.05);
-  --a2-border-strong: rgba(15, 23, 42, 0.13);
+  --a2-border: rgba(31, 31, 31, 0.09);
+  --a2-border-subtle: rgba(31, 31, 31, 0.05);
+  --a2-border-strong: rgba(31, 31, 31, 0.15);
 
-  --a2-cta-bg: #090d16;
+  /* Primary action: Google Blue fill */
+  --a2-cta-bg: #0b57d0;
   --a2-cta-fg: #ffffff;
-  --a2-cta-hover: #1e2536;
+  --a2-cta-hover: #0842a0;
 
-  --a2-accent: #0d9488;
-  --a2-accent-strong: #0f766e;
-  --a2-heading-accent: #0f766e;
-  --a2-accent-soft: rgba(13, 148, 136, 0.08);
-  --a2-accent-border: rgba(13, 148, 136, 0.24);
+  --a2-accent: #0b57d0;
+  --a2-accent-strong: #0842a0;
+  --a2-heading-accent: #0b57d0;
+  --a2-accent-soft: rgba(11, 87, 208, 0.08);
+  --a2-accent-border: rgba(11, 87, 208, 0.26);
 
-  --a2-blue: #0284c7;
-  --a2-blue-soft: rgba(2, 132, 199, 0.08);
-  --a2-blue-border: rgba(2, 132, 199, 0.22);
+  --a2-blue: #1a73e8;
+  --a2-blue-soft: rgba(26, 115, 232, 0.08);
+  --a2-blue-border: rgba(26, 115, 232, 0.22);
 
-  --a2-amber: #d97706;
-  --a2-amber-soft: rgba(217, 119, 6, 0.09);
-  --a2-amber-border: rgba(217, 119, 6, 0.24);
+  --a2-amber: #e37400;
+  --a2-amber-soft: rgba(227, 116, 0, 0.09);
+  --a2-amber-border: rgba(227, 116, 0, 0.26);
 
-  --a2-coral: #e11d48;
-  --a2-coral-soft: rgba(225, 29, 72, 0.08);
+  --a2-coral: #d93025;
+  --a2-coral-soft: rgba(217, 48, 37, 0.08);
 
-  --a2-success: #059669;
-  --a2-success-soft: #ecfdf5;
-  --a2-success-border: #6ee7b7;
+  --a2-success: #188038;
+  --a2-success-soft: #e6f4ea;
+  --a2-success-border: #a8dab5;
 
-  --a2-danger: #dc2626;
-  --a2-danger-soft: #fef2f2;
-  --a2-danger-border: #fca5a5;
+  --a2-danger: #d93025;
+  --a2-danger-soft: #fce8e6;
+  --a2-danger-border: #f6aea9;
 
-  --a2-syn-base: #1e293b;
-  --a2-syn-key: #475569;
-  --a2-syn-comp: #0f766e;
-  --a2-syn-fn: #0369a1;
-  --a2-syn-str: #047857;
-  --a2-syn-num: #b45309;
-  --a2-syn-kw: #0284c7;
-  --a2-syn-comment: #94a3b8;
+  --a2-syn-base: #1f1f1f;
+  --a2-syn-key: #5f6368;
+  --a2-syn-comp: #0b57d0;
+  --a2-syn-fn: #007b83;
+  --a2-syn-str: #188038;
+  --a2-syn-num: #b06000;
+  --a2-syn-kw: #1a73e8;
+  --a2-syn-comment: #9aa0a6;
 
-  --a2-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
-  --a2-shadow-md: 0 14px 34px -8px rgba(15, 23, 42, 0.07), 0 2px 6px rgba(15, 23, 42, 0.03);
-  --a2-shadow-lg: 0 28px 64px -16px rgba(15, 23, 42, 0.1), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --a2-shadow-sm: 0 1px 2px rgba(60, 64, 67, 0.08);
+  --a2-shadow-md: 0 14px 34px -8px rgba(60, 64, 67, 0.12), 0 2px 6px rgba(60, 64, 67, 0.06);
+  --a2-shadow-lg: 0 28px 64px -16px rgba(60, 64, 67, 0.16), 0 1px 3px rgba(60, 64, 67, 0.06);
 }

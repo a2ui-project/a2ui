@@ -274,7 +274,7 @@
 </script>
 
 <style>
-  /* Scene scales with its column: 1 design px = --px (600 × 400 grid) */
+  /* Scene scales with its column: 1 design px = --px (600 × 400 grid); colours come from tokens */
   .ff {
     container-type: inline-size;
     width: 100%;
@@ -612,16 +612,17 @@
     opacity: 0.55;
   }
 
+  /* thumbnail = soft blue container, button = solid Google-blue primary */
   .ff-view .tb {
     border-radius: calc(var(--px) * 2);
     background: var(--ff-accent);
-    opacity: 0.9;
+    opacity: 0.45;
   }
 
   .ff-view .b {
     height: calc(var(--px) * var(--u) * 2.4);
     border-radius: calc(var(--px) * 1.5);
-    background: var(--ff-ink);
+    background: var(--ff-accent);
     margin-top: auto;
   }
 

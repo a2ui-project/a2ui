@@ -696,7 +696,7 @@
   }
 
   /* --- Device + constant shell --- */
-  /* a preview, not a UI: no pointer, no selection, no cursor changes inside */
+  /* a preview, not a UI: no pointer, no selection, no cursor changes inside (colours come from tokens) */
   .ic-device {
     pointer-events: none;
     user-select: none;
@@ -948,7 +948,7 @@
 
   .ic-composer.is-sent .ic-composer__send {
     background: var(--a2-accent);
-    color: #04201d;
+    color: var(--a2-cta-fg);
   }
 
   .ic-tabbar {
@@ -1165,7 +1165,7 @@
     content: '✓';
     font-size: 9px;
     font-weight: 700;
-    color: #04201d;
+    color: var(--a2-cta-fg);
   }
 
   .ic-ck b {
