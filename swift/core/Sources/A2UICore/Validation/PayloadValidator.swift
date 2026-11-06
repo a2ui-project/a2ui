@@ -460,6 +460,35 @@ public final class PayloadValidator: Sendable {
     throw buildFunctionSchemaValidationError(name: name, result: result)
   }
 
+  /// Throws if the renderer may not call `name`, a function of this catalog.
+  ///
+  /// A call held in a component (a property binding, a check or an action) is made by the
+  /// renderer. In v1.0 a function whose `allowedCallers` is `agentOnly` runs only for an agent's
+  /// `callRendererFunction`, so it can't be bound into a component; `DataContext` refuses such
+  /// a call when it is evaluated. `allowedCallers` is a v1.0 feature, so v0.9 calls are not
+  /// restricted.
+  ///
+  /// - Parameter name: The called function.
+  /// - Throws: `A2UIValidationError` if the catalog declares the function `agentOnly`. Its
+  ///   detail is at `functions.<name>`, which `remapNestedFunctionError` moves to the call's
+  ///   location.
+  func assertRendererMayCall(_ name: String) throws {
+    guard enforceIdentifiers, catalog.functions[name]?.api.allowedCallers == .agentOnly else {
+      return
+    }
+    let msg = "Function '\(name)' cannot be called by renderer (allowedCallers is agentOnly)."
+    throw A2UIValidationError(
+      msg,
+      details: [
+        A2UIErrorDetail(
+          path: "functions.\(name)",
+          code: "invalid_function_call",
+          message: msg
+        )
+      ]
+    )
+  }
+
   private func resolveCatalogOrSystemFunction(name: String) -> (any FunctionImplementation)? {
     if enforceIdentifiers, name.hasPrefix("@") {
       return name == "@index" ? IndexFunction() : nil
@@ -724,6 +753,7 @@ public final class PayloadValidator: Sendable {
         callDict: dict,
         componentNamesCatalog: componentNamesCatalog
       ) {
+        try assertRendererMayCall(rawName)
         try validateFunctionInternal(
           name: rawName,
           args: rawArgs,

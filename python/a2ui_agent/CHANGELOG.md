@@ -1,5 +1,23 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v1_0) `validate_payload` and `RendererState.apply`
+  check each `callRendererFunction` against the catalogs instead of running
+  it, and reject one the renderer would refuse: a surface that doesn't exist
+  when the call arrives, a catalog that isn't active, a function the catalog
+  doesn't declare, a `rendererOnly` function (the default) or one that
+  requires user activation, arguments that don't match the function's schema,
+  and a nested call the renderer can't make (to an `agentOnly` function or one
+  that requires user activation, malformed, or naming no catalog on a surface
+  without a default one), a nested `@index` call (the arguments are resolved
+  outside any list template), and a malformed data binding (an `@path` that
+  isn't a string, or a field other than `@path`). Each refusal has the code
+  `INVALID_FUNCTION_CALL`. A nested call that names no catalog is checked
+  against the default catalog of the surface the call names. They also reject
+  an `agentOnly` function bound into a component. Recommended migration:
+  declare the functions an agent calls with `allowedCallers` set to
+  `agentOnly` or `rendererOrAgent` in the catalog the call names
+  ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
+  [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
 - **BREAKING CHANGE**: `PromptGenerator.generate()` is now final and returns
   `assemble_instructions(self)`, which `SkillGenerator.generate_skill()` also
   uses, so a monolithic skill for a format's own catalogs holds its prompt
@@ -288,6 +306,22 @@
   that declare none, and a function call given to a property with a static
   type. Elemental output whose top-level element has no `id="root"` is
   rejected, as its prompt requires.
+- Add `a2ui.rpc` with `RendererToAgentMessageProcessor`, which processes the
+  v1.0 messages a renderer sends to the agent. `process_message` returns a
+  `ProcessResult` (`handled`, `replies`). A
+  `callAgentFunction` is always handled: the processor runs the handler of the
+  catalogs' agent function (`Catalog.copy_with(agent_functions=...)` in
+  `a2ui-core`), validates the arguments against the function's schema, and
+  replies with one `agentFunctionResponse`, carrying the value or
+  `UNKNOWN_FUNCTION`, `INVALID_FUNCTION_CALL` or `EXECUTION_ERROR`. Sync
+  handlers run on a worker thread, and `agent_function_timeout` bounds a call.
+  `action`, `error` and `rendererFunctionResponse` go to the `on_action`,
+  `on_error` and `on_renderer_function_response` callbacks, which may return
+  `False` to decline; without one, the message is left unhandled for the
+  agent's turn. `a2ui.rpc` re-exports the v1.0 message classes.
+  `agent_development.md` describes it and what strict renderers need
+  ([#3536](https://github.com/a2ui-project/a2ui/issues/3536),
+  [#3793](https://github.com/a2ui-project/a2ui/pull/3793)).
 - The Express response parser treats only `"` as a string delimiter, as
   Express does, so an apostrophe in a comment (`/* Chef's pick */`) no longer
   swallows the closing `</a2ui>` tag

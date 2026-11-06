@@ -24,7 +24,7 @@ Each surface maintains its own JSON data model. In v1.0, you can provide an init
 When the renderer receives an `updateDataModel` message, it applies upsert semantics at the target JSON Pointer `path`. If the path does not exist yet, the renderer creates any missing intermediate objects and inserts the value; if the path already exists, the renderer replaces the value at that path. Omitting `path` (or setting it to `"/"`) replaces the entire root data model for the surface. To delete a key at `path`, set `"value": null` in v1.0, or omit the `value` property in v0.9.1.
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 ```json
 {
@@ -38,7 +38,7 @@ When the renderer receives an `updateDataModel` message, it applies upsert seman
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Current)">
+  <TabItem label="v0.9.1">
 
 ```json
 {
@@ -67,7 +67,7 @@ UI components can be bound to paths in the surface data model so they can displa
 To display a value from the data model, bind a component's dynamic property to a JSON Pointer path. Whenever the value at that path is populated or updated, the component updates automatically:
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 ```json
 {
@@ -78,7 +78,7 @@ To display a value from the data model, bind a component's dynamic property to a
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Current)">
+  <TabItem label="v0.9.1">
 
 ```json
 {
@@ -96,7 +96,7 @@ To display a value from the data model, bind a component's dynamic property to a
 Interactive input components (such as `TextField`, `CheckBox`, or `Slider`) bind their `value` property to a path in the data model. This creates a two-way binding: the input displays the current value at that path, and as the user types or toggles the control, the renderer updates that path in the local data model immediately:
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 ```json
 {
@@ -108,7 +108,7 @@ Interactive input components (such as `TextField`, `CheckBox`, or `Slider`) bind
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Current)">
+  <TabItem label="v0.9.1">
 
 ```json
 {
@@ -127,7 +127,7 @@ Interactive input components (such as `TextField`, `CheckBox`, or `Slider`) bind
 Component events ([`action.event`](/specification/v1.0/schemas/#common_types.json/$defs/Action)) can include data model references inside their `context` object. When the user triggers the event (for example, by clicking a button to submit a form), the renderer resolves each path against the local data model and sends the current values in the outbound [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message:
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 ```json
 {
@@ -146,7 +146,7 @@ Component events ([`action.event`](/specification/v1.0/schemas/#common_types.jso
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Current)">
+  <TabItem label="v0.9.1">
 
 ```json
 {
@@ -180,7 +180,7 @@ When a container binds to a list path (such as `"/guests"`), the renderer repeat
 The following example populates a `/guests` list in the data model and renders each guest's `name` using a `Column` template:
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 ```json
 [
@@ -217,7 +217,7 @@ The following example populates a `/guests` list in the data model and renders e
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Current)">
+  <TabItem label="v0.9.1">
 
 ```json
 [
@@ -271,7 +271,7 @@ When a user edits an input component, two-way bindings update the surface data m
 Include data model references in `action.event.context` to send specific values (such as form fields) when the user triggers an [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) event. When the user clicks the `submitButton` component shown earlier, the renderer resolves each bound path against the local data model and sends the resolved `action` message to the agent. This is best when you want to send data model state to an agent to reason over and process:
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 ```json
 {
@@ -289,7 +289,7 @@ Include data model references in `action.event.context` to send specific values 
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Current)">
+  <TabItem label="v0.9.1">
 
 ```json
 {
@@ -313,6 +313,9 @@ Include data model references in `action.event.context` to send specific values 
 
 In v1.0, an interactive component such as a submit button can use `action.functionCall` to trigger an agent-side function (`callAgentFunction`) with arguments bound to paths in the data model. This is best when you want to send data model state directly to programmatic code on the agent side:
 
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0">
+
 ```json
 {
   "id": "saveButton",
@@ -329,12 +332,36 @@ In v1.0, an interactive component such as a submit button can use `action.functi
 }
 ```
 
+  </TabItem>
+  <TabItem label="v0.9.1">
+
+Agent-side functions were introduced in v1.0. In v0.9.1, pass bound data model paths in `action.event.context` instead:
+
+```json
+{
+  "id": "saveButton",
+  "component": "Button",
+  "child": "saveLabel",
+  "action": {
+    "event": {
+      "name": "save_reservation",
+      "context": {
+        "email": {"path": "/reservation/guestEmail"}
+      }
+    }
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
+
 ### `sendDataModel: true`
 
 Set `"sendDataModel": true` in the [`createSurface`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage) message to instruct the renderer to attach the full surface data model to the transport metadata of every outbound message (`a2uiRendererDataModel` in v1.0, or `a2uiClientDataModel` in v0.9.1, shaped as `{"version": "1.0", "surfaces": {"booking": {...}}}`). This is best when you want to synchronize complete surface state as context for the agent:
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 ```json
 {
@@ -348,7 +375,7 @@ Set `"sendDataModel": true` in the [`createSurface`](/specification/v1.0/schemas
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Current)">
+  <TabItem label="v0.9.1">
 
 ```json
 {

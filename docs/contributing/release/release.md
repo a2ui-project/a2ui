@@ -1,6 +1,6 @@
 # Release process
 
-> **Protocol version status** (current / release candidate / legacy) lives in
+> **Protocol version status** (`release-candidate` / `current` / `previous` / `deprecated`) lives in
 > [`specification/versions.json`](../../../specification/versions.json). Update it when a spec version changes status;
 > the docs build renders it into `llms.txt`.
 

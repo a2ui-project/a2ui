@@ -579,3 +579,26 @@ async def test_call_renderer_function_surface_id_resolution() -> None:
         direct_res["rendererFunctionResponse"]["error"]["code"]
         == RpcErrorCode.INVALID_FUNCTION_CALL.value
     )
+
+
+@pytest.mark.asyncio
+async def test_rpc_handler_dispose_cancels_rejects_and_clears_listener() -> None:
+    sent: list[dict[str, Any]] = []
+    cat = Catalog("basic", protocol_version="1.0")
+    handler = RpcHandler([cat], outbound_listener=sent.append)
+    pending = handler.call_agent_function(
+        surface_id="s1",
+        call=FunctionCall(call="fetchData"),
+        options=CallOptions(function_call_id="call-pending"),
+    )
+
+    handler.dispose()
+
+    assert handler.outbound_listener is None
+    with pytest.raises(A2uiRpcError) as cancelled:
+        await pending
+    assert cancelled.value.code == RpcErrorCode.CANCELLED.value
+    with pytest.raises(A2uiRpcError) as refused:
+        handler.call_agent_function(surface_id="s1", call=FunctionCall(call="later"))
+    assert refused.value.code == RpcErrorCode.DISPOSED.value
+    assert len(sent) == 1
