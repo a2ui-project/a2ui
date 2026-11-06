@@ -3,6 +3,11 @@
   "agent": {"include": ["agent/**/*.yaml"]},
   "extensions": {"include": ["extensions/**/*.yaml"]},
   "adapter": {
-    "include": ["core/adapter_conformance.yaml", "core/accessibility.yaml"]
+    "include": [
+      "core/adapter_conformance.yaml",
+      "core/accessibility.yaml",
+      "adapter/markdown_subset.yaml",
+      "adapter/adapter_conformance_v0_9.yaml"
+    ]
   }
 }
