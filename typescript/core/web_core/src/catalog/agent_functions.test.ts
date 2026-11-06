@@ -655,6 +655,56 @@ describe('Catalog.agentFunctions', () => {
     );
   });
 
+  describe('local $defs that collide', () => {
+    const money = {type: 'object', properties: {amount: {type: 'number'}}};
+    const withLocalMoney = (name: string, definition: unknown) =>
+      new AgentFunction({
+        name,
+        schema: {$defs: {Money: definition}, $ref: '#/$defs/Money'},
+        handler: () => 1,
+      });
+    const collision = (fnName: string, other: string) => (err: unknown) =>
+      err instanceof A2uiCatalogError &&
+      err.message === `Agent function '${fnName}' defines $defs 'Money' differently from ${other}.`;
+
+    it('rejects a local $defs entry that the catalog defines differently', () => {
+      const withDefs = new Catalog('c', '1.0', [], [], {defs: {Money: money}});
+      const pay = withLocalMoney('pay', {type: 'object', properties: {cents: {type: 'integer'}}});
+
+      assert.throws(
+        () => withDefs.copyWith({agentFunctions: [pay]}),
+        collision('pay', 'the catalog'),
+      );
+      assert.throws(
+        () => new Catalog('c', '1.0', [], [pay], {defs: {Money: money}}),
+        collision('pay', 'the catalog'),
+      );
+    });
+
+    it('accepts a local $defs entry equal to the catalog one', () => {
+      const withDefs = new Catalog('c', '1.0', [], [], {defs: {Money: money}});
+      // Equal as JSON values, though written with the keys in another order.
+      const pay = withLocalMoney('pay', {properties: {amount: {type: 'number'}}, type: 'object'});
+
+      const catalog = withDefs.copyWith({agentFunctions: [pay]});
+      assert.deepStrictEqual([...catalog.agentFunctions.keys()], ['pay']);
+    });
+
+    it('rejects two agent functions whose local $defs entries of one name differ', () => {
+      const empty = new Catalog('c', '1.0', [], []);
+      const pay = withLocalMoney('pay', money);
+      const refund = withLocalMoney('refund', {type: 'string'});
+
+      assert.throws(
+        () => empty.copyWith({agentFunctions: [pay, refund]}),
+        collision('refund', "agent function 'pay'"),
+      );
+      assert.doesNotThrow(() =>
+        empty.copyWith({agentFunctions: [pay, withLocalMoney('refund', money)]}),
+      );
+    });
+  });
+
   it('does not leak internal schema helpers onto public barrel exports', () => {
     for (const barrel of [rootApi, v10Api, resolutionApi] as Array<Record<string, unknown>>) {
       assert.strictEqual(barrel['getDeclaredSchemaKeys'], undefined);

@@ -21,7 +21,7 @@ import {allowsAgentRouting} from '../resolution/data-context-internal.js';
 import type {SurfaceModel} from '../state/surface-model.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
-import {A2uiMetadata} from '../common/metadata.js';
+import {A2uiMetadata, jsonValueEquals} from '../common/metadata.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.js';
 import {assertUax31Identifier} from '../common/uax31.js';
@@ -657,6 +657,9 @@ export class Catalog<
    *
    * @param options Fields and entries to override on the copied catalog.
    * @returns A new `Catalog` instance.
+   * @throws {A2uiCatalogError} If an agent function's JSON Schema has a local
+   *   `$defs` entry that the catalog's `$defs`, or another agent function's,
+   *   defines differently.
    */
   copyWith(options: CopyWithCatalogOptions<T, F> = {}): Catalog<T, F> {
     const nextComponents =
@@ -830,7 +833,9 @@ export class Catalog<
    *   parameters, or a `CatalogOptions` object.
    * @param instructions Optional system instructions or usage guidelines. Ignored
    *   when `themeSchemaOrOptions` is a `CatalogOptions` object that sets them.
-   * @throws {A2uiCatalogError} If `protocolVersion` is empty or not provided.
+   * @throws {A2uiCatalogError} If `protocolVersion` is empty or not provided,
+   *   or an agent function's JSON Schema has a local `$defs` entry that the
+   *   catalog's `$defs`, or another agent function's, defines differently.
    */
   constructor(
     id: string,
@@ -938,6 +943,7 @@ export class Catalog<
           `Catalog '${this.id}' targets protocol version ${this.protocolVersion}, but agent functions need v1.0 or later.`,
         );
       }
+      assertAgentFunctionDefsAgree(defs, agentFuncMap.values());
       for (const [name, agentFn] of agentFuncMap) {
         assertUax31Identifier(name, `function identifier: '${name}'`);
         // The keys the Zod schema declares, on every branch and through
@@ -1055,6 +1061,48 @@ function assertUniqueFunctionNames(catalogId: string, functions: ReadonlyArray<F
       );
     }
     seen.add(fn.name);
+  }
+}
+
+/**
+ * Throws if an agent function's JSON Schema declares a local `$defs` entry
+ * that the catalog's `$defs`, or another agent function's local `$defs`,
+ * defines differently.
+ *
+ * A `#/$defs/<name>` reference in an agent function's schema resolves
+ * against the catalog's `$defs` merged with the function's own, so a name
+ * defined two ways would mean one thing to the agent and another once the
+ * catalog document is published. Equal definitions (compared as JSON values)
+ * are accepted.
+ */
+function assertAgentFunctionDefsAgree(
+  catalogDefs: Readonly<Record<string, unknown>> | undefined,
+  agentFunctions: Iterable<AgentFunction>,
+): void {
+  // The function, if any, whose local `$defs` first defined each name.
+  const seen = new Map<string, {definition: unknown; owner?: string}>();
+  for (const [name, definition] of Object.entries(catalogDefs ?? {})) {
+    seen.set(name, {definition});
+  }
+  for (const agentFn of agentFunctions) {
+    const localDefs = agentFn.jsonSchema?.['$defs'];
+    if (typeof localDefs !== 'object' || localDefs === null || Array.isArray(localDefs)) {
+      continue;
+    }
+    for (const [defName, definition] of Object.entries(localDefs as Record<string, unknown>)) {
+      const previous = seen.get(defName);
+      if (previous === undefined) {
+        seen.set(defName, {definition, owner: agentFn.name});
+        continue;
+      }
+      if (!jsonValueEquals(previous.definition, definition)) {
+        const other =
+          previous.owner === undefined ? 'the catalog' : `agent function '${previous.owner}'`;
+        throw new A2uiCatalogError(
+          `Agent function '${agentFn.name}' defines $defs '${defName}' differently from ${other}.`,
+        );
+      }
+    }
   }
 }
 
