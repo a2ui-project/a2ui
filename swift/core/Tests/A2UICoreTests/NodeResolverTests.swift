@@ -1307,6 +1307,195 @@ struct NodeResolverTests {
     #expect(rebornRoot.string(for: "text") == "Reborn")
   }
 
+  @Test func incrementalChildArrivalResolvesOnlyTheArrivingChildren() throws {
+    let catalog = try makeCatalog()
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Container",
+          properties: ["children": .array([.string("a"), .string("b"), .string("c")])]
+        )
+      ]
+    )
+    let dataModel = DataModel(initial: .object(["msg": .string("Hello")]))
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: dataModel
+    )
+
+    let root = try #require(resolver.resolveTree())
+    let pending = root.children(for: "children")
+    #expect(pending.map(\.state) == [.pending, .pending, .pending])
+
+    // 1. "b" arrives: root keeps its identity and replaces only the placeholder of "b".
+    componentsModel.addComponent(
+      ComponentModel(id: "b", type: "Text", properties: ["text": .object(["path": .string("/msg")])])
+    )
+    let rootAfterB = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 2)
+    #expect(rootAfterB.box === root.box)
+    #expect(root.box.revision == 1)
+    let afterB = root.children(for: "children")
+    #expect(afterB.map(\.id) == ["a", "b", "c"])
+    #expect(afterB[0].box === pending[0].box)
+    #expect(afterB[1].box !== pending[1].box)
+    #expect(afterB[1].string(for: "text") == "Hello")
+    #expect(afterB[2].box === pending[2].box)
+
+    // 2. "a" and "c" arrive together: root updates once.
+    componentsModel.addComponent(
+      ComponentModel(id: "a", type: "Text", properties: ["text": .string("A")])
+    )
+    componentsModel.addComponent(
+      ComponentModel(id: "c", type: "Text", properties: ["text": .string("C")])
+    )
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 3)
+    #expect(root.box.revision == 2)
+    let afterAll = root.children(for: "children")
+    #expect(afterAll.map(\.state) == [.resolved, .resolved, .resolved])
+    #expect(afterAll[1].box === afterB[1].box)
+
+    // 3. The arrived children keep their dependencies: a data write resolves only "b".
+    dataModel.set("/msg", value: .string("Updated"))
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(root.box.revision == 2)
+    #expect(afterAll[1].string(for: "text") == "Updated")
+
+    // 4. "b" is removed: its slot goes back to a placeholder.
+    componentsModel.removeComponent("b")
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    let afterRemoval = root.children(for: "children")
+    #expect(afterRemoval.map(\.state) == [.resolved, .pending, .resolved])
+    #expect(afterRemoval[0].box === afterAll[0].box)
+    #expect(afterRemoval[2].box === afterAll[2].box)
+    dataModel.set("/msg", value: .string("Ignored"))
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 0)
+  }
+
+  @Test func incrementalChildArrivalReplacesNestedReferences() throws {
+    let componentIDRef = "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/ComponentId"
+    let cardSchema = try Schema(
+      instance: """
+        {
+          "allOf": [
+            { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/ComponentCommon" },
+            {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "component": { "type": "string" },
+                "slots": {
+                  "type": "object",
+                  "properties": { "header": { "$ref": "\(componentIDRef)" } }
+                },
+                "tabs": { "type": "array", "items": { "$ref": "\(componentIDRef)" } }
+              }
+            }
+          ]
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let baseCatalog = try makeCatalog()
+    let catalog = Catalog(
+      id: "test",
+      components: Array(baseCatalog.components.values) + [
+        AnyComponentAPI(name: "Card", schema: cardSchema)
+      ]
+    )
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Card",
+          properties: [
+            "slots": .object(["header": .string("title")]),
+            "tabs": .array([.string("tab"), .string("title")]),
+          ]
+        )
+      ]
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: DataModel()
+    )
+
+    let root = try #require(resolver.resolveTree())
+    let tabsBefore = try #require(root.array(for: "tabs")?.compactMap { $0 as? Node })
+    #expect(tabsBefore.map(\.state) == [.pending, .pending])
+
+    componentsModel.addComponent(
+      ComponentModel(id: "title", type: "Text", properties: ["text": .string("Title")])
+    )
+    let rootAfter = try #require(resolver.resolveTree())
+    #expect(rootAfter.box === root.box)
+    #expect(root.box.revision == 1)
+    let slots = try #require(root.properties["slots"] as? ResolvedDictionary)
+    let header = try #require(slots.storage["header"] as? Node)
+    #expect(header.state == .resolved)
+    #expect(header.string(for: "text") == "Title")
+    let tabsAfter = try #require(root.array(for: "tabs")?.compactMap { $0 as? Node })
+    #expect(tabsAfter.count == 2)
+    #expect(tabsAfter[0].box === tabsBefore[0].box)
+    #expect(tabsAfter[1].box === header.box)
+  }
+
+  @Test func incrementalArrivalOfChildSharedByTwoParentsUpdatesBoth() throws {
+    let catalog = try makeCatalog()
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Container",
+          properties: ["children": .array([.string("left"), .string("right")])]
+        ),
+        "left": ComponentModel(
+          id: "left",
+          type: "Container",
+          properties: ["child": .string("shared")]
+        ),
+        "right": ComponentModel(
+          id: "right",
+          type: "Container",
+          properties: ["child": .string("shared")]
+        ),
+      ]
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: DataModel()
+    )
+
+    let root = try #require(resolver.resolveTree())
+    let parents = root.children(for: "children")
+    #expect(parents.count == 2)
+    #expect(parents.compactMap { $0.child(for: "child")?.state } == [.pending, .pending])
+
+    componentsModel.addComponent(
+      ComponentModel(id: "shared", type: "Text", properties: ["text": .string("Both")])
+    )
+    _ = try #require(resolver.resolveTree())
+    let left = try #require(parents[0].child(for: "child"))
+    let right = try #require(parents[1].child(for: "child"))
+    #expect(left.state == .resolved)
+    #expect(left.string(for: "text") == "Both")
+    #expect(right.box === left.box)
+  }
+
   @Test func incrementalReparentingUpdatesVisitedAndPreservesNodeIdentity() throws {
     let catalog = try makeCatalog()
     // Initial hierarchy: root -> a -> b -> c

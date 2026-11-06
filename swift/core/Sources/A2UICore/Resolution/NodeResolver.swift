@@ -358,6 +358,9 @@ public final class NodeResolver: Sendable {
     }
 
     var affectedNodeIDs: Set<String> = []
+    // Parents affected only because some of their children changed identity, with the IDs of
+    // those children. Such a parent can often have just those child slots resolved again.
+    var changedChildIDsByParent: [String: Set<String>] = [:]
 
     for call in changedAgentCalls {
       affectedNodeIDs.formUnion(nodesByAgentCall[call] ?? [])
@@ -410,7 +413,7 @@ public final class NodeResolver: Sendable {
           if let recordedIdentity = parentRecord.childIdentities[compID],
             recordedIdentity != currentIdentity
           {
-            affectedNodeIDs.insert(parentNodeKey)
+            changedChildIDsByParent[parentNodeKey, default: []].insert(compID)
           }
         }
       }
@@ -455,11 +458,11 @@ public final class NodeResolver: Sendable {
       }
     }
 
-    guard !affectedNodeIDs.isEmpty else {
+    guard !affectedNodeIDs.isEmpty || !changedChildIDsByParent.isEmpty else {
       return activeNodes["root"]
     }
 
-    let sortedAffected = affectedNodeIDs.sorted {
+    let sortedAffected = affectedNodeIDs.union(changedChildIDsByParent.keys).sorted {
       (nodeRecords[$0]?.visited.count ?? 0) < (nodeRecords[$1]?.visited.count ?? 0)
     }
 
@@ -474,12 +477,23 @@ public final class NodeResolver: Sendable {
     }
 
     for nodeKey in sortedAffected {
-      guard !resolvedInCurrentPass.contains(nodeKey),
-        let record = nodeRecords[nodeKey],
-        activeNodes[nodeKey] != nil
-      else {
+      guard !resolvedInCurrentPass.contains(nodeKey), activeNodes[nodeKey] != nil else {
         continue
       }
+      // Checked before reading the parent's record, so that updating the record in place
+      // does not copy it.
+      if !affectedNodeIDs.contains(nodeKey),
+        let changedChildIDs = changedChildIDsByParent[nodeKey],
+        resolveChangedChildSlots(
+          ofParent: nodeKey,
+          childIDs: changedChildIDs,
+          components: components,
+          data: currentData
+        )
+      {
+        continue
+      }
+      guard let record = nodeRecords[nodeKey] else { continue }
       _ = resolveNode(
         definitionID: record.definitionID,
         instanceID: record.instanceID,
@@ -494,6 +508,131 @@ public final class NodeResolver: Sendable {
     }
 
     return activeNodes["root"]
+  }
+
+  /// A reference from a parent node to a child whose component changed identity.
+  private struct ChildSlot {
+    let childID: String
+    let childNodeKey: String
+    let instanceID: String
+    let basePath: String?
+    let index: Int?
+    let instanceSuffix: String?
+  }
+
+  /// Resolves again only the references a parent holds to the children in `childIDs`, and puts
+  /// the resulting nodes in place of the old ones in the parent's properties.
+  ///
+  /// A parent whose component, data and agent calls are unchanged resolves to the same
+  /// properties except for those child nodes, so this gives the result of resolving the parent
+  /// again without visiting each of its other children. That keeps a surface whose children
+  /// arrive one message at a time linear in the number of messages. The parent counts in
+  /// ``lastResolvedNodeCount`` as it would if resolved in full.
+  ///
+  /// - Returns: `false` if the parent's references can't be handled this way (a template child
+  ///   list, a cycle, or a child shared with another parent), or if the parent doesn't hold the
+  ///   nodes its records name; the caller then resolves the parent in full, which reuses any
+  ///   child resolved here.
+  private func resolveChangedChildSlots(
+    ofParent parentKey: String,
+    childIDs: Set<String>,
+    components: [String: ComponentModel],
+    data: JSONValue
+  ) -> Bool {
+    guard let parentNode = activeNodes[parentKey],
+      let found = changedChildSlots(ofParent: parentKey, childIDs: childIDs)
+    else {
+      return false
+    }
+
+    let previousComponentID = currentComponentID
+    let previousChildIdentities = currentNodeChildIdentities
+    let previousDirectChildren = currentNodeDirectChildren
+    currentComponentID = parentKey
+    currentNodeChildIdentities = [:]
+    currentNodeDirectChildren = []
+    defer {
+      currentComponentID = previousComponentID
+      currentNodeChildIdentities = previousChildIdentities
+      currentNodeDirectChildren = previousDirectChildren
+    }
+
+    var replacements: [ObjectIdentifier: Node] = [:]
+    for slot in found.slots {
+      let oldNode = activeNodes[slot.childNodeKey]
+      let newNode = resolveChildReference(
+        definitionID: slot.childID,
+        instanceID: slot.instanceID,
+        basePath: slot.basePath,
+        index: slot.index,
+        instanceSuffix: slot.instanceSuffix,
+        visited: found.visited,
+        components: components,
+        data: data,
+        recurseIntoChildren: false
+      )
+      if let oldNode, let newNode, oldNode.box !== newNode.box {
+        replacements[ObjectIdentifier(oldNode.box)] = newNode
+      }
+    }
+
+    // The parent holds the previous node of each slot, so replacing none means its properties
+    // are not what the records say; resolve it in full instead.
+    if !replacements.isEmpty && parentNode.box.replaceChildNodes(replacements) == 0 {
+      return false
+    }
+    for (childID, identity) in currentNodeChildIdentities ?? [:] {
+      nodeRecords[parentKey]?.childIdentities[childID] = identity
+    }
+    lastResolvedNodeCount += 1
+    return true
+  }
+
+  /// The visited set a parent passes to its children, and its references to the children in
+  /// `childIDs`, or `nil` if they can't be resolved apart from the rest of the parent.
+  private func changedChildSlots(
+    ofParent parentKey: String,
+    childIDs: Set<String>
+  ) -> (visited: Set<String>, slots: [ChildSlot])? {
+    guard let parentRecord = nodeRecords[parentKey],
+      parentRecord.templateCounts.isEmpty,
+      parentRecord.cyclicKeys.isEmpty
+    else {
+      return nil
+    }
+    let childVisited = parentRecord.visited.union([parentKey])
+    var slots: [ChildSlot] = []
+    for childID in childIDs {
+      let slotCount = slots.count
+      for childNodeKey in nodesByDefinitionID[childID] ?? [] {
+        guard let parents = parentsByChildInstanceID[childNodeKey], parents.contains(parentKey)
+        else {
+          continue
+        }
+        guard parents.count == 1,
+          !childVisited.contains(childNodeKey),
+          activeNodes[childNodeKey] != nil,
+          let childRecord = nodeRecords[childNodeKey],
+          childRecord.definitionID == childID,
+          childRecord.visited == childVisited
+        else {
+          return nil
+        }
+        slots.append(
+          ChildSlot(
+            childID: childID,
+            childNodeKey: childNodeKey,
+            instanceID: childRecord.instanceID,
+            basePath: childRecord.basePath,
+            index: childRecord.index,
+            instanceSuffix: childRecord.instanceSuffix
+          )
+        )
+      }
+      // Every reference that is not cyclic or templated has a child node of this ID.
+      guard slots.count > slotCount else { return nil }
+    }
+    return (childVisited, slots)
   }
 
   private func componentIdentity(
