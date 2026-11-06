@@ -488,6 +488,23 @@ describe('A2uiSurface', () => {
     expect(reported).toHaveLength(1);
     expect(String(reported[0]?.message)).toContain('does not mark the referencing property');
     expect(String(reported[0]?.message)).toContain('componentId()');
+    expect(reported[0]).toMatchObject({componentId: 'kid', componentType: 'Text'});
+  });
+
+  it('reports a child reference to a missing component by id, with no type', () => {
+    const surface = setup();
+    const errors: Array<Record<string, unknown>> = [];
+    surface.onError.subscribe(e => {
+      errors.push(e as Record<string, unknown>);
+    });
+    add(surface, 'root', 'UnmarkedParent', {child: 'ghost'});
+
+    render(<A2uiSurface surface={surface} />);
+
+    const reported = errors.filter(e => e.code === 'UNRESOLVED_CHILD_REFERENCE');
+    expect(reported).toHaveLength(1);
+    expect(reported[0]).toMatchObject({componentId: 'ghost'});
+    expect(reported[0]?.componentType).toBeUndefined();
   });
 
   it('reports unresolved references after render, so error subscribers may set state', async () => {
