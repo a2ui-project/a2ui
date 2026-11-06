@@ -1,6 +1,8 @@
 ---
 name: a2ui-generate-pydantic-models
 description: Automated generator for strongly typed Pydantic v2 data models and basic catalogs across any A2UI protocol version (v0.8, v0.9, v0.9.1, v1.0, etc.).
+metadata:
+  internal: true
 ---
 
 # A2UI Pydantic Model Generation Skill

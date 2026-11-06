@@ -44,7 +44,7 @@ To include every specification version on `a2ui.org` **without duplicating Markd
 1. Wrapper files in `src/content/docs/specification/` (e.g., `v1.0-a2ui.md`) contain YAML frontmatter and an include directive:
     ```markdown
     ---
-    title: A2UI Protocol v1.0 (Candidate)
+    title: A2UI Protocol v1.0
     ---
     --8<-- "specification/v1_0/docs/a2ui_protocol.md"
     ```

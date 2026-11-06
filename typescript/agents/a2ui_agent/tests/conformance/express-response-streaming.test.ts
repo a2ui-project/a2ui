@@ -14,16 +14,48 @@
  * limitations under the License.
  */
 
-import {describe, expect, test} from 'vitest';
+import {expect} from 'vitest';
+
 import {ExpressParser} from '../../src/inference-formats/express/parser.js';
 import {StreamPart} from '../../src/parser/response-part.js';
 import {ResponseStream} from '../../src/parser/response-stream.js';
 import {FileSystemCatalogProvider} from '../../src/processor/catalog-providers.js';
 import {LoadedCase, loadCases} from './loader.js';
-import {categoryOf, conformancePath, registerCase} from './suite-helpers.js';
+import {
+  assertKnownKeys,
+  CASE_METADATA_KEYS,
+  categoryOf,
+  conformancePath,
+  describeSuite,
+  EXPECT_ERROR_KEYS,
+  KNOWN_FAILURES,
+} from './suite-helpers.js';
 
-const KNOWN_FAILURES = new Map<string, string>();
 const UNSUPPORTED_VERSIONS = new Map<string, string>([['0.8', 'this SDK does not implement v0.8']]);
+
+const PARSE_CHUNK_CASE_KEYS = new Set([
+  ...CASE_METADATA_KEYS,
+  'args',
+  'steps',
+  'expect_close',
+  'expect_error',
+  'expect_matches_single_shot',
+]);
+const PARSE_CHUNK_ARGS_KEYS = new Set([
+  'format',
+  'catalog',
+  'catalogs',
+  'progressive_keys',
+  'wrapped',
+  'after_rejected_block',
+]);
+const PARSE_CHUNK_STEP_KEYS = new Set([
+  'input',
+  'expect',
+  'expect_error',
+  'expect_partial_results',
+  'expect_in_block',
+]);
 
 interface StreamingArgs {
   format: string;
@@ -88,6 +120,11 @@ function partToDict(part: StreamPart): Record<string, unknown> {
 
 /** Runs `fn`, expects it to throw `expected`, and returns the error. */
 function expectError(fn: () => unknown, expected: ExpectedError): unknown {
+  assertKnownKeys(
+    expected as unknown as Record<string, unknown>,
+    EXPECT_ERROR_KEYS,
+    'expect_error',
+  );
   let thrown: unknown;
   try {
     fn();
@@ -97,7 +134,7 @@ function expectError(fn: () => unknown, expected: ExpectedError): unknown {
   expect(thrown, 'the step should raise').toBeDefined();
   expect(categoryOf(thrown)).toBe(expected.category);
   if (expected.message) {
-    expect((thrown as Error).message).toMatch(new RegExp(expected.message));
+    expect((thrown as Error).message).toMatch(new RegExp(expected.message, 'i'));
   }
   return thrown;
 }
@@ -117,7 +154,13 @@ function mergeAdjacentText(parts: Array<Record<string, unknown>>): Array<Record<
 }
 
 function runCase(testCase: LoadedCase): void {
+  assertKnownKeys(testCase, PARSE_CHUNK_CASE_KEYS, 'parse_chunk case');
   const args = testCase.args as unknown as StreamingArgs;
+  assertKnownKeys(
+    args as unknown as Record<string, unknown>,
+    PARSE_CHUNK_ARGS_KEYS,
+    'parse_chunk args',
+  );
   const wrapped = args.wrapped ?? true;
   const parser = makeParser(args);
   const stream: ResponseStream<StreamPart> = parser.openStream({
@@ -128,6 +171,11 @@ function runCase(testCase: LoadedCase): void {
   const yielded: Array<Record<string, unknown>> = [];
 
   for (const [index, step] of (testCase.steps as Step[]).entries()) {
+    assertKnownKeys(
+      step as unknown as Record<string, unknown>,
+      PARSE_CHUNK_STEP_KEYS,
+      'parse_chunk step',
+    );
     chunks.push(step.input);
     if (step.expect_error) {
       const error = expectError(() => stream.feed(step.input), step.expect_error);
@@ -167,14 +215,15 @@ function runCase(testCase: LoadedCase): void {
   }
 }
 
-describe('Conformance: express/response_streaming.yaml', () => {
-  for (const testCase of loadCases([conformancePath('agent/express/response_streaming.yaml')])) {
-    const version = declaredVersion(testCase.args as unknown as StreamingArgs);
-    const unsupported = version ? UNSUPPORTED_VERSIONS.get(version) : undefined;
-    if (unsupported) {
-      test.skip(`${testCase.action} · ${testCase.name} (${unsupported})`, () => {});
-      continue;
-    }
-    registerCase(testCase, KNOWN_FAILURES, () => runCase(testCase));
-  }
-});
+describeSuite(
+  'Conformance: express/response_streaming.yaml',
+  loadCases([conformancePath('agent/express/response_streaming.yaml')]),
+  testCase => runCase(testCase),
+  {
+    knownFailures: KNOWN_FAILURES,
+    skipReason: testCase => {
+      const version = declaredVersion(testCase.args as unknown as StreamingArgs);
+      return version ? UNSUPPORTED_VERSIONS.get(version) : undefined;
+    },
+  },
+);

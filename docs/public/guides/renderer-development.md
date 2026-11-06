@@ -4,7 +4,7 @@ This document outlines the required features for a new renderer implementation o
 
 > NOTE: Version-Aware Guide
 >
-> This guide provides implementation checklists for v0.8, v0.9.1 (Current Production), and v1.0 (Candidate). Use the tabs below to select the version you are targeting.
+> This guide provides implementation checklists for v1.0, v0.9.1, and v0.8. Use the tabs below to select the version you are targeting.
 
 ## Web Renderers: Use `@a2ui/web_core` (`web_core`)
 
@@ -53,9 +53,9 @@ See the [React renderer](../../../typescript/renderers/react), [Lit renderer](..
 
 `web_core` exports API sets per version:
 
-- `@a2ui/web_core/v0_8` — stable v0.8
+- `@a2ui/web_core/v0_8` — deprecated v0.8
 - `@a2ui/web_core/v0_9` — v0.9/v0.9.1 support with `createSurface`, custom catalogs, client-side functions
-- `@a2ui/web_core/v1_0` — candidate v1.0 support including RPC action responses
+- `@a2ui/web_core/v1_0` — v1.0 support including RPC action responses
 
 > TIP: Start with `web_core`
 >
@@ -67,32 +67,20 @@ See the [React renderer](../../../typescript/renderers/react), [Lit renderer](..
 
 This section details the fundamental mechanics of the A2UI protocol. A compliant renderer must implement these systems to successfully parse the server stream, manage state, and handle user interactions.
 
-=== "v0.8"
+=== "v1.0"
 
-    - **JSONL Stream Parsing**: Read a streaming response line by line, decoding each line as a distinct JSON object.
-    - **Message Dispatcher**: Identify message types (`beginRendering`, `surfaceUpdate`, `dataModelUpdate`, `deleteSurface`) and route to the correct handler.
-    - **Surface Management**:
-        - Key surfaces by `surfaceId`.
-        - Handle `surfaceUpdate`: Add/update components in the surface's buffer.
-        - Handle `deleteSurface`: Remove the surface and all associated data/components.
-    - **Component Buffering**:
-        - Maintain a component buffer (e.g., `Map<String, Component>`) for each surface.
-        - Reconstruct the UI tree by resolving `id` references (`children.explicitList`, `child`, `contentChild`, etc.).
-    - **Data Model Store**:
-        - Maintain data model state for each surface.
-        - Handle `dataModelUpdate`: Update values at paths using the adjacency list representation (`[{ "key": "name", "valueString": "Bob" }]`).
-    - **Progressive Rendering**:
-        - Buffer updates until `beginRendering` is received.
-        - Start rendering from the specified `root` ID upon receiving `beginRendering`. Apply theme styles.
-    - **Data Binding Resolution**:
-        - Resolve `BoundValue` objects using `literalString` / `literalNumber` / `path`.
-    - **Dynamic Lists**:
-        - For `children.template`, iterate over the data list at `template.dataBinding` and render components using `template.componentId`.
+    All requirements from v0.9.1, with the following extensions:
+    - **Surface Properties**:
+        - Handle `createSurface` with `surfaceProperties` (renamed from `theme`). Custom primary brand colors are no longer supported inside the surface schema.
+    - **Directional Function Calls (RPC)**:
+        - Handle `callRendererFunction` messages from the agent and return `rendererFunctionResponse` (or `error`).
     - **Client-to-Server**:
-        - Dispatch `userAction` containing context with resolved paths to the server.
-        - Include `a2uiClientCapabilities` in transport metadata.
+        - Support initiating `callAgentFunction` messages to the agent for remote function execution.
+        - If using A2A, every A2A `Message` sent to the server must include an `a2uiClientCapabilities` object in the `metadata` field of the A2A `Message`.
+    - **Capabilities**:
+        - Expose `surfaceProperties` in place of `theme` during capabilities exchange.
 
-=== "v0.9.1 (Current)"
+=== "v0.9.1"
 
     - **JSONL Stream Parsing**: Read a streaming response line by line, decoding each line as a distinct JSON object.
     - **Message Dispatcher**: Identify message types (`createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface`) and route to the correct handler.
@@ -121,24 +109,61 @@ This section details the fundamental mechanics of the A2UI protocol. A compliant
         - Automatically include the full client-side data model in the metadata if `sendDataModel` was requested.
         - Send structured `ValidationFailed` error messages to the server if a schema validation fails.
 
-=== "v1.0 (Candidate)"
+=== "v0.8"
 
-    All requirements from v0.9.1, with the following extensions:
-    - **Surface Properties**:
-        - Handle `createSurface` with `surfaceProperties` (renamed from `theme`). Custom primary brand colors are no longer supported inside the surface schema.
-    - **Directional Function Calls (RPC)**:
-        - Handle `callRendererFunction` messages from the agent and return `rendererFunctionResponse` (or `error`).
+    - **JSONL Stream Parsing**: Read a streaming response line by line, decoding each line as a distinct JSON object.
+    - **Message Dispatcher**: Identify message types (`beginRendering`, `surfaceUpdate`, `dataModelUpdate`, `deleteSurface`) and route to the correct handler.
+    - **Surface Management**:
+        - Key surfaces by `surfaceId`.
+        - Handle `surfaceUpdate`: Add/update components in the surface's buffer.
+        - Handle `deleteSurface`: Remove the surface and all associated data/components.
+    - **Component Buffering**:
+        - Maintain a component buffer (e.g., `Map<String, Component>`) for each surface.
+        - Reconstruct the UI tree by resolving `id` references (`children.explicitList`, `child`, `contentChild`, etc.).
+    - **Data Model Store**:
+        - Maintain data model state for each surface.
+        - Handle `dataModelUpdate`: Update values at paths using the adjacency list representation (`[{ "key": "name", "valueString": "Bob" }]`).
+    - **Progressive Rendering**:
+        - Buffer updates until `beginRendering` is received.
+        - Start rendering from the specified `root` ID upon receiving `beginRendering`. Apply theme styles.
+    - **Data Binding Resolution**:
+        - Resolve `BoundValue` objects using `literalString` / `literalNumber` / `path`.
+    - **Dynamic Lists**:
+        - For `children.template`, iterate over the data list at `template.dataBinding` and render components using `template.componentId`.
     - **Client-to-Server**:
-        - Support initiating `callAgentFunction` messages to the agent for remote function execution.
-        - If using A2A, every A2A `Message` sent to the server must include an `a2uiClientCapabilities` object in the `metadata` field of the A2A `Message`.
-    - **Capabilities**:
-        - Expose `surfaceProperties` in place of `theme` during capabilities exchange.
+        - Dispatch `userAction` containing context with resolved paths to the server.
+        - Include `a2uiClientCapabilities` in transport metadata.
 
 ---
 
 ## II. Basic Component Catalog Checklist
 
 To ensure a consistent user experience across platforms, A2UI defines a basic set of components. Your client should map these abstract definitions to their corresponding native UI widgets.
+
+=== "v1.0"
+
+    All components from v0.9.1, with the following extensions:
+    - **Video**: Support the `posterUrl` property to display a preview image.
+    - **TextField**: Support the `placeholder` property.
+
+=== "v0.9.1"
+
+    - **Text**: Render text. Support `variant` (replaces `usageHint`).
+    - **Image**: Render image from URL. Support `fit` and `variant`.
+    - **Icon**: Render system icons.
+    - **Video**: Render video player.
+    - **AudioPlayer**: Render audio player with description.
+    - **Divider**: Render horizontal/vertical lines.
+    - **Row** / **Column**: Arrange children horizontally/vertically. Support `justify` and `align`. Support child `weight`.
+    - **List**: Render scrollable list.
+    - **Card**: Box layout with rounded corners and shadows.
+    - **Tabs**: Tabbed navigation using `tabs`.
+    - **Modal**: Popup triggered by `trigger` displaying `content`.
+    - **Button**: Clickable button triggering `action`. Support `variant` (primary, borderless).
+    - **CheckBox**: Boolean checkbox.
+    - **TextField**: Input field supporting `label`, `value` (replaces `text`), `variant` (`shortText`, `longText`, etc.), and `checks` (validation functions).
+    - **ChoicePicker**: (Replaces MultipleChoice) Support `options` and `variant` (`mutuallyExclusive`, `multipleSelection`).
+    - **Slider**: Support ranges using `min`, `max` (replaces `minValue`, `maxValue`).
 
 === "v0.8"
 
@@ -158,28 +183,3 @@ To ensure a consistent user experience across platforms, A2UI defines a basic se
     - **TextField**: Input field supporting `label`, `textFieldType` (`shortText`, `longText`, etc.), and `validationRegexp`.
     - **MultipleChoice**: Support `options`, `maxAllowedSelections`, and single/multiple value selections.
     - **Slider**: Support ranges using `minValue`, `maxValue`.
-
-=== "v0.9.1 (Current)"
-
-    - **Text**: Render text. Support `variant` (replaces `usageHint`).
-    - **Image**: Render image from URL. Support `fit` and `variant`.
-    - **Icon**: Render system icons.
-    - **Video**: Render video player.
-    - **AudioPlayer**: Render audio player with description.
-    - **Divider**: Render horizontal/vertical lines.
-    - **Row** / **Column**: Arrange children horizontally/vertically. Support `justify` and `align`. Support child `weight`.
-    - **List**: Render scrollable list.
-    - **Card**: Box layout with rounded corners and shadows.
-    - **Tabs**: Tabbed navigation using `tabs`.
-    - **Modal**: Popup triggered by `trigger` displaying `content`.
-    - **Button**: Clickable button triggering `action`. Support `variant` (primary, borderless).
-    - **CheckBox**: Boolean checkbox.
-    - **TextField**: Input field supporting `label`, `value` (replaces `text`), `variant` (`shortText`, `longText`, etc.), and `checks` (validation functions).
-    - **ChoicePicker**: (Replaces MultipleChoice) Support `options` and `variant` (`mutuallyExclusive`, `multipleSelection`).
-    - **Slider**: Support ranges using `min`, `max` (replaces `minValue`, `maxValue`).
-
-=== "v1.0 (Candidate)"
-
-    All components from v0.9.1, with the following extensions:
-    - **Video**: Support the `posterUrl` property to display a preview image.
-    - **TextField**: Support the `placeholder` property.

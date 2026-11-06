@@ -6,7 +6,7 @@ A2UI Express is a compact, token-efficient declarative syntax designed for dynam
 
 ## Environment Variable Gate
 
-To prevent pollution of the stable v1.0 baseline workspace during development, all A2UI Express code imports and command-line utilities are gated behind the environment variable `A2UI_EXPRESS_ENABLED`.
+To prevent pollution of the v1.0 baseline workspace during development, all A2UI Express code imports and command-line utilities are gated behind the environment variable `A2UI_EXPRESS_ENABLED`.
 
 You **must** prepend `A2UI_EXPRESS_ENABLED=true` to all python command invocations.
 

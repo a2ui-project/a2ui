@@ -22,14 +22,15 @@ import pytest
 
 from a2ui.core import (
     A2uiCatalogError,
-    A2uiError,
     A2uiRecursionError,
     A2uiValidationError,
 )
 from a2ui.core.schema.v1_0 import CatalogDefinition as CatalogDefinitionV10
 
+from .conformance_helpers import assert_known_keys, case_params
 from .macro_suite import Case, GOLDEN_DIR, load_cases, run_case, validate_payload
 
+SUITE = "agent/macros/macros.yaml"
 CASES = load_cases()
 GOLDEN_CASES = [c for c in CASES if c.golden is not None]
 ERROR_CASES = [c for c in CASES if c.expect_error is not None]
@@ -42,10 +43,29 @@ CATEGORY_TO_EXCEPTION = {
     "ValidationError": A2uiValidationError,
 }
 
+_EXPECT_ERROR_KEYS = frozenset({"category", "message"})
+_MACRO_EXPECT_KEYS = frozenset({
+    "absent_any_component_references",
+    "absent_components",
+    "absent_property_on_all_components",
+    "any_component_references",
+    "augmented_components",
+    "catalog_id",
+    "component_count",
+    "component_properties",
+    "component_types",
+    "components",
+    "create_surface_catalog_id",
+    "has_any_component_discriminator",
+    "has_any_function",
+    "protocol_version",
+})
 
-@pytest.mark.parametrize("case", GOLDEN_CASES, ids=lambda c: c.id)
-def test_matches_golden(case: Case) -> None:
+
+@pytest.mark.parametrize("suite, case", case_params(SUITE, GOLDEN_CASES))
+def test_matches_golden(suite: str, case: Case) -> None:
     """Macro expansion emits exactly the recorded wire payload."""
+    del suite
     assert run_case(case) == case.load_golden(), case.description
 
 
@@ -55,23 +75,26 @@ def test_golden_is_spec_valid(case: Case) -> None:
     validate_payload(case.load_golden(), case)
 
 
-@pytest.mark.parametrize("case", ERROR_CASES, ids=lambda c: c.id)
-def test_expect_error(case: Case) -> None:
+@pytest.mark.parametrize("suite, case", case_params(SUITE, ERROR_CASES))
+def test_expect_error(suite: str, case: Case) -> None:
     """Error cases trigger the expected exception category."""
+    del suite
     assert case.expect_error is not None
-    category = case.expect_error.get("category")
-    expected_exc = CATEGORY_TO_EXCEPTION.get(category, A2uiError)
-    with pytest.raises(expected_exc):
+    assert_known_keys(case.expect_error, _EXPECT_ERROR_KEYS, "expect_error")
+    expected_exc = CATEGORY_TO_EXCEPTION[str(case.expect_error.get("category"))]
+    with pytest.raises(expected_exc, match=case.expect_error.get("message")):
         payload = run_case(case)
         if isinstance(payload, list) and payload:
             validate_payload(payload, case)
 
 
-@pytest.mark.parametrize("case", EXPECT_CASES, ids=lambda c: c.id)
-def test_expect_assertion(case: Case) -> None:
+@pytest.mark.parametrize("suite, case", case_params(SUITE, EXPECT_CASES))
+def test_expect_assertion(suite: str, case: Case) -> None:
     """Evaluates expect assertions for catalog synthesis, sidecar export, and transport fallbacks."""
+    del suite
     result = run_case(case)
     expect = case.expect or {}
+    assert_known_keys(expect, _MACRO_EXPECT_KEYS, "macros expect")
 
     if isinstance(result, list):
         all_comps = [
@@ -154,7 +177,7 @@ def test_expect_assertion(case: Case) -> None:
             .get("anyComponent", {})
             .get("oneOf", [])
         )
-        ref_targets = [r.get("$ref", "") for r in refs if isinstance(r, dict)]
+        ref_targets = [str(r.get("$ref") or "") for r in refs if isinstance(r, dict)]
         for name in expect["absent_any_component_references"]:
             assert not any(
                 r.endswith(f"/{name}") for r in ref_targets
@@ -179,9 +202,10 @@ def test_expect_assertion(case: Case) -> None:
             CatalogDefinitionV10.model_validate(result.to_json())
 
 
-@pytest.mark.parametrize("case", PASSTHROUGH_CASES, ids=lambda c: c.id)
-def test_reverse_passthrough(case: Case) -> None:
+@pytest.mark.parametrize("suite, case", case_params(SUITE, PASSTHROUGH_CASES))
+def test_reverse_passthrough(suite: str, case: Case) -> None:
     """Verifies transform_to_inference returns messages untouched."""
+    del suite
     result = run_case(case)
     assert len(result) == 1
     assert result[0]["updateComponents"]["components"] == [case.input]

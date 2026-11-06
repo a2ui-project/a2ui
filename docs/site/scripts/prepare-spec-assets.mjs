@@ -41,13 +41,36 @@ fs.rmSync(path.join(siteRoot, '.astro'), {recursive: true, force: true});
 // 1. Ensure public/ exists
 fs.mkdirSync(publicDir, {recursive: true});
 
-// 2. Copy static assets from docs/public/assets, CNAME, and llms.txt
+// 2. Copy static assets from docs/public/assets and CNAME, and render llms.txt
 copyRecursive(path.join(repoRoot, 'docs/public/assets'), path.join(publicDir, 'assets'));
 if (fs.existsSync(path.join(repoRoot, 'docs/public/CNAME'))) {
   fs.copyFileSync(path.join(repoRoot, 'docs/public/CNAME'), path.join(publicDir, 'CNAME'));
 }
-if (fs.existsSync(path.join(repoRoot, 'docs/public/llms.txt'))) {
-  fs.copyFileSync(path.join(repoRoot, 'docs/public/llms.txt'), path.join(publicDir, 'llms.txt'));
+// Render llms.txt from docs/site/llms.txt, filling version info from specification/versions.json
+// (the single source of truth for protocol version status).
+{
+  const {versions} = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, 'specification/versions.json'), 'utf8'),
+  );
+  const placeholders = {
+    '{{A2UI_PROTOCOL_VERSIONS}}': versions.map(v => `${v.version} (${v.status})`).join(', '),
+    '{{A2UI_SPEC_LINKS}}': versions
+      .filter(v => v.status !== 'deprecated')
+      .map(v => `- [Specification ${v.version} (${v.status})](${v.spec})`)
+      .join('\n'),
+  };
+  let llms = fs.readFileSync(path.join(siteRoot, 'llms.txt'), 'utf8');
+  for (const [placeholder, value] of Object.entries(placeholders)) {
+    if (!llms.includes(placeholder)) {
+      throw new Error(`[prepare-spec-assets] Missing ${placeholder} in llms.txt`);
+    }
+    llms = llms.replaceAll(placeholder, value);
+  }
+  const unresolved = llms.match(/\{\{[A-Z0-9_]+\}\}/g);
+  if (unresolved) {
+    throw new Error(`[prepare-spec-assets] Unresolved placeholders in llms.txt: ${unresolved}`);
+  }
+  fs.writeFileSync(path.join(publicDir, 'llms.txt'), llms);
 }
 fs.writeFileSync(path.join(publicDir, '.nojekyll'), '');
 
