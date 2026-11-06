@@ -182,7 +182,9 @@ def _email_execute(
 EmailImplementation = create_function_implementation(EmailApi, _email_execute)
 
 
-def _adapt_ast_part_for_v10(part: Any) -> Any:
+def _adapt_ast_part_for_v10(part: Any, catalog_id: str | None = None) -> Any:
+    if isinstance(part, list):
+        return [_adapt_ast_part_for_v10(item, catalog_id) for item in part]
     if not isinstance(part, dict):
         return part
     if (
@@ -193,16 +195,19 @@ def _adapt_ast_part_for_v10(part: Any) -> Any:
     ):
         return {"@path": part["path"]}
     if "call" in part and isinstance(part["call"], str) and "@call" not in part:
+        call_name = part["call"]
         args = {}
         raw_args = part.get("args")
         if isinstance(raw_args, dict):
             for k, v in raw_args.items():
-                args[k] = _adapt_ast_part_for_v10(v)
-        res = {"@call": part["call"], "args": args}
+                args[k] = _adapt_ast_part_for_v10(v, catalog_id)
+        res: dict[str, Any] = {"@call": call_name, "args": args}
+        if catalog_id is not None and not call_name.startswith("@"):
+            res["catalogId"] = catalog_id
         if "returnType" in part:
             res["returnType"] = part["returnType"]
         return res
-    return part
+    return {k: _adapt_ast_part_for_v10(v, catalog_id) for k, v in part.items()}
 
 
 # Formatting
@@ -222,10 +227,11 @@ def _format_string(
         return ""
 
     resolved_parts = []
+    active_catalog_id = getattr(context, "active_catalog_id", None) if context else None
     for part in parts:
         if context and hasattr(context, "resolve_dynamic_value"):
             dyn_part = (
-                _adapt_ast_part_for_v10(part)
+                _adapt_ast_part_for_v10(part, active_catalog_id)
                 if getattr(context, "at_least_v10", False)
                 else part
             )

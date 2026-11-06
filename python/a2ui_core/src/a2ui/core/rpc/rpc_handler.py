@@ -524,31 +524,44 @@ class RpcHandler:
                 prepared.validated_args if prepared.validated_args is not None else args
             )
             has_pos_context, has_kw_context = self._inspect_call_signature(target_fn)
-            raw_res = (
-                target_fn(fn_args, effective_context)
-                if has_pos_context
-                else (
-                    target_fn(fn_args, context=effective_context)
-                    if has_kw_context
-                    else target_fn(fn_args)
-                )
+            prev_catalog_id = (
+                getattr(effective_context, "_active_catalog_id", None)
+                if effective_context is not None
+                else None
             )
-            if inspect.isawaitable(raw_res):
-                try:
-                    loop = asyncio.get_running_loop()
-                    if loop.is_running():
-                        with concurrent.futures.ThreadPoolExecutor(
-                            max_workers=1
-                        ) as executor:
-                            val = executor.submit(
-                                asyncio.run, cast(Any, raw_res)
-                            ).result()
-                    else:
+            if effective_context is not None and matched_catalog is not None:
+                effective_context._active_catalog_id = getattr(
+                    matched_catalog, "catalog_id", None
+                )
+            try:
+                raw_res = (
+                    target_fn(fn_args, effective_context)
+                    if has_pos_context
+                    else (
+                        target_fn(fn_args, context=effective_context)
+                        if has_kw_context
+                        else target_fn(fn_args)
+                    )
+                )
+                if inspect.isawaitable(raw_res):
+                    try:
+                        loop = asyncio.get_running_loop()
+                        if loop.is_running():
+                            with concurrent.futures.ThreadPoolExecutor(
+                                max_workers=1
+                            ) as executor:
+                                val = executor.submit(
+                                    asyncio.run, cast(Any, raw_res)
+                                ).result()
+                        else:
+                            val = asyncio.run(cast(Any, raw_res))
+                    except RuntimeError:
                         val = asyncio.run(cast(Any, raw_res))
-                except RuntimeError:
-                    val = asyncio.run(cast(Any, raw_res))
-            else:
-                val = raw_res
+                else:
+                    val = raw_res
+            finally:
+                if effective_context is not None and matched_catalog is not None:
+                    effective_context._active_catalog_id = prev_catalog_id
             return self._build_success_response(val, call_id, version)
         except Exception as e:
             err_model = self._create_response_error(
@@ -595,16 +608,33 @@ class RpcHandler:
                 prepared.validated_args if prepared.validated_args is not None else args
             )
             has_pos_context, has_kw_context = self._inspect_call_signature(target_fn)
-            raw_res = (
-                target_fn(fn_args, effective_context)
-                if has_pos_context
-                else (
-                    target_fn(fn_args, context=effective_context)
-                    if has_kw_context
-                    else target_fn(fn_args)
-                )
+            prev_catalog_id = (
+                getattr(effective_context, "_active_catalog_id", None)
+                if effective_context is not None
+                else None
             )
-            val = await cast(Any, raw_res) if inspect.isawaitable(raw_res) else raw_res
+            if effective_context is not None and matched_catalog is not None:
+                effective_context._active_catalog_id = getattr(
+                    matched_catalog, "catalog_id", None
+                )
+            try:
+                raw_res = (
+                    target_fn(fn_args, effective_context)
+                    if has_pos_context
+                    else (
+                        target_fn(fn_args, context=effective_context)
+                        if has_kw_context
+                        else target_fn(fn_args)
+                    )
+                )
+                val = (
+                    await cast(Any, raw_res)
+                    if inspect.isawaitable(raw_res)
+                    else raw_res
+                )
+            finally:
+                if effective_context is not None and matched_catalog is not None:
+                    effective_context._active_catalog_id = prev_catalog_id
             return self._build_success_response(val, call_id, version)
         except Exception as e:
             err_model = self._create_response_error(

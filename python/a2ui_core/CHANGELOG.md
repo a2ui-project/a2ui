@@ -35,6 +35,13 @@
 - (v1_0) The basic catalog `regex` function's `pattern` description now names
   the A2UI regex dialect and its safety limits
   ([#3820](https://github.com/a2ui-project/a2ui/pull/3820)).
+- (v1_0) Function calls inside `${...}` template expressions of `formatString`
+  now inherit the `catalogId` that the enclosing `formatString` call resolved
+  to (preserving reserved `@`-prefixed system calls such as `${@index()}` as
+  catalogless), so nested template calls resolve against `formatString`'s
+  catalog on defaultless multi-catalog surfaces. `DataContext.active_catalog_id`
+  exposes the catalog ID of the currently executing function call
+  ([#3727](https://github.com/a2ui-project/a2ui/issues/3727)).
 - Add `RpcHandler.cancel_surface_calls` to cancel pending outbound agent
   function calls with `RpcErrorCode.CANCELLED`.
 - `DataModel` now defensively copies `initial_data` and values passed to `set()`, preventing subsequent caller mutation of input dicts or lists from silently mutating internal state, and `PayloadValidator` now validates component type names against UAX 31 identifier syntax on v1.0+ surfaces.
