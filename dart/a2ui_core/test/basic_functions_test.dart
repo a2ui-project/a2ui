@@ -141,32 +141,33 @@ void main() {
       'while keeping @index catalogless',
       () {
         final Catalog<ComponentApi, FunctionImplementation> basic =
-            BasicCatalogV1_0.create();
+            BasicCatalog.v1_0();
         final surface = SurfaceModel<ComponentApi>(
-          id: 's-no-default',
+          's-no-default',
           protocolVersion: '1.0',
-          availableCatalogs: {basic.id: basic},
+          availableCatalogs: [basic],
         );
-        final errors = <A2uiError>[];
-        surface.errors.listen(errors.add);
-        final rootCtx = ComponentContext(
-          surface: surface,
-          componentId: 'root',
+        addTearDown(surface.dispose);
+        final errors = <A2uiRendererError>[];
+        surface.onError.subscribe(errors.add);
+        final root = ComponentModel('root', 'Text', {});
+        final DataContext rootCtx = ComponentContext(
+          surface,
+          root,
           basePath: '/items/2',
           index: 2,
         ).dataContext;
 
+        const template = r'Row ${@index()}: '
+            r"${pluralize(value: 2, one: 'drop', other: 'drops')} "
+            r'(${not(value: not(value: true))})';
         final Map<String, Object?> callExpr = {
           '@call': 'formatString',
           'catalogId': basic.id,
-          'args': {
-            'value':
-                r'Row ${@index()}: '
-                r"${pluralize(value: 2, one: 'drop', other: 'drops')}",
-          },
+          'args': {'value': template},
         };
-        expect(rootCtx.resolveDynamicValue(callExpr), 'Row 2: drops');
-        expect(rootCtx.resolveSignal(callExpr).value, 'Row 2: drops');
+        expect(rootCtx.resolveDynamicValue(callExpr), 'Row 2: drops (true)');
+        expect(rootCtx.resolveSignal(callExpr).value, 'Row 2: drops (true)');
         expect(errors, isEmpty);
       },
     );
