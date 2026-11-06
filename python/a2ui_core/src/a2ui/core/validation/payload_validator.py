@@ -230,15 +230,21 @@ def check_renderer_may_call(catalog: CatalogApi, name: str) -> None:
     into a component. `DataContext` refuses such a call when it is evaluated,
     with the same message.
 
+    `allowedCallers` is a v1.0 feature, so a catalog before v1.0 restricts
+    no binding.
+
     Args:
         catalog: The catalog the call runs in.
         name: The called function.
 
     Raises:
-        A2uiValidationError: If the catalog declares the function `agentOnly`.
-            Its detail is at `functions.<name>`, which
+        A2uiValidationError: If the v1.0+ catalog declares the function
+            `agentOnly`. Its detail is at `functions.<name>`, which
             `rebase_function_error_details` moves to the call's location.
     """
+    ver = getattr(catalog, "protocol_version", None)
+    if not (ver and is_at_least_version(ver, ProtocolVersion.V1_0)):
+        return
     if hasattr(catalog, "get_function"):
         fn = catalog.get_function(name)
     else:

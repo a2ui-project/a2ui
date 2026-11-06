@@ -8,7 +8,10 @@
   requires user activation, arguments that don't match the function's schema,
   and a nested call the renderer can't make (to an `agentOnly` function or one
   that requires user activation, malformed, or naming no catalog on a surface
-  without a default one). A nested call that names no catalog is checked
+  without a default one), a nested `@index` call (the arguments are resolved
+  outside any list template), and a malformed data binding (an `@path` that
+  isn't a string, or a field other than `@path`). Each refusal has the code
+  `INVALID_FUNCTION_CALL`. A nested call that names no catalog is checked
   against the default catalog of the surface the call names. They also reject
   an `agentOnly` function bound into a component. Recommended migration:
   declare the functions an agent calls with `allowedCallers` set to

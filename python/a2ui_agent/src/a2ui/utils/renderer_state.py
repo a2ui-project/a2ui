@@ -41,7 +41,7 @@ from a2ui.core import (
     SurfaceModel,
     ValidationConfig,
 )
-from a2ui.core.catalog import is_system_function_name
+from a2ui.core.catalog import INDEX_FUNCTION_NAME, is_system_function_name
 from a2ui.core.common import is_at_least_version, to_protocol_version
 from a2ui.core.processing import (
     InternalCallRendererFunctionOp,
@@ -800,7 +800,8 @@ class RendererState:
         it names doesn't exist, its catalog isn't registered, the catalog
         doesn't declare the function, the agent may not call the function, or
         its arguments don't match the function's schema, so each of these is
-        rejected; see `_check_function_call`.
+        rejected; see `_check_function_call`. Each refusal has the code
+        `INVALID_FUNCTION_CALL`, as an invalid envelope of the message has.
 
         A payload state assumes a surface the payload never named before, as
         it does for an update, since an earlier payload may have created it.
@@ -816,19 +817,31 @@ class RendererState:
             if not isinstance(op, InternalCallRendererFunctionOp):
                 continue
             surface_id = op.surface_id
-            if (
-                surface_id is not None
-                and self._processor.model.get_surface(surface_id) is None
-                and not (
-                    self._assumes_unknown_surfaces
-                    and self._assumes(surface_id, payload, index)
+            try:
+                if (
+                    surface_id is not None
+                    and self._processor.model.get_surface(surface_id) is None
+                    and not (
+                        self._assumes_unknown_surfaces
+                        and self._assumes(surface_id, payload, index)
+                    )
+                ):
+                    raise A2uiValidationError(
+                        f"Function call '{op.function_call_id}' names surface"
+                        f" '{surface_id}', which does not exist."
+                    )
+                _check_function_call(
+                    self._catalogs, op, self._nested_call_home(surface_id)
                 )
-            ):
+            except A2uiValidationError as e:
                 raise A2uiValidationError(
-                    f"Function call '{op.function_call_id}' names surface"
-                    f" '{surface_id}', which does not exist."
-                )
-            _check_function_call(self._catalogs, op, self._nested_call_home(surface_id))
+                    str(e),
+                    details=e.details,
+                    code="INVALID_FUNCTION_CALL",
+                    path=e.path,
+                    surface_id=surface_id,
+                    function_call_id=op.function_call_id,
+                ) from e
 
     def _nested_call_home(self, surface_id: str | None) -> _NestedCallHome | None:
         """Where the calls nested in a call on a surface run, if they name no catalog.
@@ -1180,9 +1193,10 @@ def _check_nested_calls(
 
     The renderer resolves the arguments as dynamic values, so every object in
     them, at any depth, may hold only the reserved `@` directives it knows,
-    and each nested call is checked by `_check_nested_call`. An object whose
-    `@call` isn't a string is resolved as a plain object, so the values in it
-    are checked too.
+    and each nested call is checked by `_check_nested_call`. A data binding
+    holds only `@path`, a string; a relative path resolves against the root.
+    An object whose `@call` isn't a string is resolved as a plain object, so
+    the values in it are checked too.
 
     Raises:
       A2uiValidationError: If the renderer couldn't resolve the arguments.
@@ -1200,6 +1214,18 @@ def _check_nested_calls(
             f"{subject} holds an argument the renderer can't resolve: {e}",
             details=e.details,
         ) from e
+    if "@path" in value:
+        for key in value:
+            if key != "@path":
+                raise A2uiValidationError(
+                    f"{subject} holds a data binding with unrecognized field"
+                    f" '{key}'; a binding holds only '@path'."
+                )
+        if not isinstance(value["@path"], str):
+            raise A2uiValidationError(
+                f"{subject} holds a data binding whose '@path' must be a string."
+            )
+        return
     name = value.get("@call")
     if isinstance(name, str):
         _check_nested_call(catalogs, home, protocol_version, value, name, subject)
@@ -1223,8 +1249,10 @@ def _check_nested_call(
     accepted if some active catalog lets the renderer make it. The renderer
     can't run an `agentOnly` function there, nor one that requires a user
     activation, since the agent's call has none. A reserved `@` system
-    function belongs to no catalog, so it must not name one. The call holds
-    only `@call`, `catalogId` and `args`, none of them null.
+    function belongs to no catalog, so it must not name one, and the
+    renderer resolves the arguments outside any list template, where
+    `@index` fails. The call holds only `@call`, `catalogId` and `args`,
+    none of them null.
 
     Raises:
       A2uiValidationError: If the nested call is one the renderer can't make.
@@ -1248,6 +1276,11 @@ def _check_nested_call(
             validate_system_function(name, args, protocol_version)
         except A2uiValidationError as e:
             raise A2uiValidationError(f"{where} that is invalid: {e}") from e
+        if name == INDEX_FUNCTION_NAME:
+            raise A2uiValidationError(
+                f"{where}, but the renderer resolves the arguments outside any"
+                f" list template, where '{INDEX_FUNCTION_NAME}' is unavailable."
+            )
         return
 
     if "catalogId" in call:

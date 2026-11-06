@@ -141,6 +141,45 @@ def test_agent_only_function_nested_in_another_call_is_rejected():
         })
 
 
+def test_v09_agent_only_function_in_a_binding_is_accepted():
+    """`allowedCallers` is a v1.0 feature; a v0.9 catalog restricts no binding."""
+    catalog = Catalog.from_json({
+        "catalogId": _ARCANA_ID,
+        "protocolVersion": "0.9",
+        "components": {
+            "Label": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "Label"},
+                    "text": {"$ref": "common_types.json#/$defs/DynamicString"},
+                },
+                "required": ["component", "text"],
+            },
+        },
+        "functions": {
+            "getMoonPhase": {
+                "type": "object",
+                "allowedCallers": "agentOnly",
+                "returnType": "string",
+                "properties": {
+                    "call": {"const": "getMoonPhase"},
+                    "args": {
+                        "type": "object",
+                        "properties": {"date": {"type": "string"}},
+                        "additionalProperties": False,
+                    },
+                },
+                "required": ["call"],
+            },
+        },
+    })
+    PayloadValidator(catalog, config=STRICT_VALIDATION).validate_component({
+        "id": "root",
+        "component": "Label",
+        "text": {"call": "getMoonPhase", "args": {"date": "today"}},
+    })
+
+
 def test_renderer_or_agent_function_in_a_binding_is_accepted():
     _validate({
         "id": "root",

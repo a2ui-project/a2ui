@@ -294,9 +294,10 @@ def test_argument_schema_checks_the_calls_it_admits():
             "catalogId": _BASIC.catalog_id,
             "args": {"value": "hi"},
         },
-        [{"@call": "@index"}],
+        [{"@path": "/name"}],
+        {"@path": "name"},
     ],
-    ids=["same_catalog", "another_catalog", "system_function_in_a_list"],
+    ids=["same_catalog", "another_catalog", "binding_in_a_list", "relative_binding"],
 )
 def test_call_nested_in_untyped_arguments_is_accepted(value):
     validate_payload(_CATALOGS, [_call("echo", args={"value": value})])
@@ -399,6 +400,25 @@ def test_call_under_a_non_string_call_key_is_checked(value, match):
             {"@call": "@index", "args": None},
             "holds a call to '@index' whose 'args' must be an object",
         ),
+        (
+            {"@call": "@index"},
+            (
+                "holds a call to '@index', but the renderer resolves the arguments"
+                " outside any list template"
+            ),
+        ),
+        (
+            [{"inner": {"@call": "@index", "args": {}}}],
+            "holds a call to '@index', but the renderer resolves",
+        ),
+        (
+            {"@path": 5},
+            "holds a data binding whose '@path' must be a string",
+        ),
+        (
+            {"@path": "/user/name", "bogus": 1},
+            "holds a data binding with unrecognized field 'bogus'",
+        ),
     ],
     ids=[
         "unknown_directive",
@@ -409,11 +429,30 @@ def test_call_under_a_non_string_call_key_is_checked(value, match):
         "null_args",
         "list_args",
         "system_function_null_args",
+        "index_outside_a_list_template",
+        "index_deep_in_a_list",
+        "non_string_path",
+        "extra_binding_field",
     ],
 )
 def test_argument_the_renderer_cant_resolve_is_rejected(value, match):
     with pytest.raises(A2uiValidationError, match=match):
         validate_payload(_CATALOGS, [_call("echo", args={"value": value})])
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        _call("summonDragon", catalog_id=_BASIC.catalog_id),
+        _call("echo", args={"value": {"@call": "getMoonPhase"}}),
+    ],
+    ids=["unknown_function", "nested_agent_only_call"],
+)
+def test_refused_call_has_the_invalid_function_call_code(message):
+    with pytest.raises(A2uiValidationError) as e:
+        validate_payload(_CATALOGS, [message])
+    assert e.value.code == "INVALID_FUNCTION_CALL"
+    assert e.value.function_call_id == "f1"
 
 
 def test_nested_call_that_requires_user_activation_is_rejected():
@@ -677,3 +716,57 @@ def test_agent_only_function_bound_into_a_component_is_rejected():
         r" is agentOnly\)",
     ):
         validate_payload(_CATALOGS, payload)
+
+
+def test_v09_binding_to_an_agent_only_function_is_accepted():
+    """`allowedCallers` is a v1.0 feature, so v0.9 validation ignores it."""
+    catalog = Catalog.from_json({
+        "catalogId": "arcana",
+        "protocolVersion": "0.9",
+        "components": {
+            "Label": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "Label"},
+                    "text": {"$ref": "common_types.json#/$defs/DynamicString"},
+                },
+                "required": ["component", "text"],
+            },
+        },
+        "functions": {
+            "getMoonPhase": {
+                "type": "object",
+                "allowedCallers": "agentOnly",
+                "returnType": "string",
+                "properties": {
+                    "call": {"const": "getMoonPhase"},
+                    "args": {
+                        "type": "object",
+                        "properties": {"date": {"type": "string"}},
+                        "additionalProperties": False,
+                    },
+                },
+                "required": ["call"],
+            },
+        },
+    })
+    validate_payload(
+        [catalog],
+        [
+            {
+                "version": "v0.9",
+                "createSurface": {"surfaceId": "s", "catalogId": "arcana"},
+            },
+            {
+                "version": "v0.9",
+                "updateComponents": {
+                    "surfaceId": "s",
+                    "components": [{
+                        "id": "root",
+                        "component": "Label",
+                        "text": {"call": "getMoonPhase", "args": {"date": "today"}},
+                    }],
+                },
+            },
+        ],
+    )

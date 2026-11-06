@@ -1,15 +1,17 @@
 ## Unreleased
 
-- (v1_0) Component validation (`PayloadValidator.validate_component`, and
-  `MessageProcessor` for calls into another catalog) rejects a call to a
-  function whose `allowedCallers` is `agentOnly` in a property binding, a check
-  or an action, since only an agent's `callRendererFunction` may call one. The
-  error matches the one `DataContext` reports when such a call is evaluated.
-  `PayloadValidator.validate_function` checks only the envelope of a call
-  nested in an argument, as component validation does, since the call runs in
-  the catalog it names. `InternalCallRendererFunctionOp` is exported from
-  `a2ui.core.processing`, and `validate_reserved_directives` from
-  `a2ui.core.resolution`
+- **BREAKING CHANGE**: (v1_0) Component validation
+  (`PayloadValidator.validate_component`, and `MessageProcessor` for calls into
+  another catalog) rejects a call to a function whose `allowedCallers` is
+  `agentOnly` in a property binding, a check or an action, since only an
+  agent's `callRendererFunction` may call one. The error matches the one
+  `DataContext` reports when such a call is evaluated. v0.9 catalogs are not
+  affected. `PayloadValidator.validate_function` checks only the envelope of a
+  call nested in an argument, as component validation does, since the call
+  runs in the catalog it names. Recommended migration: bind only
+  `rendererOnly` or `rendererOrAgent` functions in components.
+  `InternalCallRendererFunctionOp` is exported from `a2ui.core.processing`, and
+  `validate_reserved_directives` from `a2ui.core.resolution`
   ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
   [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
 - (v0_9) Restore `list_style` (`listStyle`) property to basic catalog `List` component schema ([#3956](https://github.com/a2ui-project/a2ui/pull/3956)).
