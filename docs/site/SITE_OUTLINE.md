@@ -416,7 +416,7 @@ _(Where `<ver>` is `v1.0`, `v0.9.1`, or `v0.8`.)_
 
 Single-source specification markdown files directly from `specification/` and `catalogs/` via `--8<--` includes (omitting `v0.9`, as `v0.9.1` supersedes it with minor patch refinements):
 
-- **v1.0 (Candidate)** `[Badge: Candidate]`
+- **v1.0 (Current)** `[Badge: Current]`
     - `v1.0 Protocol Specification`: [`specification/v1_0/docs/a2ui_protocol.md`](../../specification/v1_0/docs/a2ui_protocol.md)
     - `v1.0 Custom Functions Guide`: [`specification/v1_0/docs/a2ui_custom_functions.md`](../../specification/v1_0/docs/a2ui_custom_functions.md)
     - `v1.0 SDKs Specification`: [`specification/v1_0/docs/sdks_spec.md`](../../specification/v1_0/docs/sdks_spec.md)
@@ -424,7 +424,7 @@ Single-source specification markdown files directly from `specification/` and `c
     - `v1.0 A2A Extension`: [`specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md`](../../specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md)
     - `v1.0 Evolution Guide`: [`specification/v1_0/docs/evolution_guide.md`](../../specification/v1_0/docs/evolution_guide.md)
     - `v1.0 Basic Catalog Guide`: [`catalogs/basic/v1/basic_catalog_implementation_guide.md`](../../catalogs/basic/v1/basic_catalog_implementation_guide.md)
-- **v0.9.1 (Active / Current)** `[Badge: Active]` _(note briefly that v0.9.1 supersedes v0.9)_
+- **v0.9.1** _(note briefly that v0.9.1 supersedes v0.9)_
     - `v0.9.1 Protocol Specification`: [`specification/v0_9_1/docs/a2ui_protocol.md`](../../specification/v0_9_1/docs/a2ui_protocol.md)
     - `v0.9.1 Custom Functions Guide`: [`specification/v0_9_1/docs/a2ui_custom_functions.md`](../../specification/v0_9_1/docs/a2ui_custom_functions.md)
     - `v0.9.1 SDKs Specification`: [`specification/v0_9_1/docs/sdks_spec.md`](../../specification/v0_9_1/docs/sdks_spec.md)
@@ -432,7 +432,7 @@ Single-source specification markdown files directly from `specification/` and `c
     - `v0.9.1 A2A Extension`: [`specification/v0_9_1/docs/a2ui_extension_specification.md`](../../specification/v0_9_1/docs/a2ui_extension_specification.md)
     - `v0.9.1 Evolution Guide`: [`specification/v0_9_1/docs/evolution_guide.md`](../../specification/v0_9_1/docs/evolution_guide.md)
     - `v0.9.1 Basic Catalog Guide`: [`specification/v0_9_1/docs/basic_catalog_implementation_guide.md`](../../specification/v0_9_1/docs/basic_catalog_implementation_guide.md)
-- **v0.8 (Legacy)**
+- **v0.8 (Deprecated)** `[Badge: Deprecated]`
     - `v0.8 Protocol Specification`: [`specification/v0_8/docs/a2ui_protocol.md`](../../specification/v0_8/docs/a2ui_protocol.md)
     - `v0.8 JSON Schemas Explorer`: `/specification/v0.8/schemas/`
     - `v0.8 A2A Extension`: [`specification/v0_8/docs/a2ui_extension_specification.md`](../../specification/v0_8/docs/a2ui_extension_specification.md)

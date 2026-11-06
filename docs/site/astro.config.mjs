@@ -98,7 +98,7 @@ export default defineConfig({
           tag: 'link',
           attrs: {
             rel: 'stylesheet',
-            href: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap',
+            href: 'https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,400..700;1,400..700&display=swap',
           },
         },
         {
@@ -112,7 +112,7 @@ export default defineConfig({
       components: {
         Header: './src/components/StarlightHeader.astro',
       },
-      customCss: ['./src/styles/custom.css'],
+      customCss: ['./src/styles/tokens.css', './src/styles/custom.css'],
       sidebar: [
         {
           label: 'Navigation',
@@ -243,7 +243,7 @@ export default defineConfig({
           items: [
             {
               label: 'v1.0',
-              badge: {text: 'Candidate', variant: 'tip'},
+              badge: {text: 'Current', variant: 'success'},
               items: [
                 {
                   label: 'Protocol Specification',
@@ -269,7 +269,6 @@ export default defineConfig({
             },
             {
               label: 'v0.9.1',
-              badge: {text: 'Active', variant: 'success'},
               items: [
                 {
                   label: 'Protocol Specification',
@@ -294,7 +293,8 @@ export default defineConfig({
               ],
             },
             {
-              label: 'v0.8 (Legacy)',
+              label: 'v0.8',
+              badge: {text: 'Deprecated', variant: 'caution'},
               collapsed: true,
               items: [
                 {

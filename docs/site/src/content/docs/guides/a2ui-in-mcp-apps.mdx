@@ -154,7 +154,7 @@ In `v1.0`, protocol messages set `"version": "1.0"`, expressions use `@path` and
 Here is the initial surface payload returned by `open_counter_app`:
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 ```json
 [
@@ -231,7 +231,7 @@ Here is the initial surface payload returned by `open_counter_app`:
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
+  <TabItem label="v0.9.1">
 
 ```json
 [
@@ -315,7 +315,7 @@ Here is the initial surface payload returned by `open_counter_app`:
 When the embedded app invokes `increase_counter`, the tool returns only an [`updateDataModel`](../../specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) message (`server_to_client.json` in `v0.9.1`) so the existing surface updates `/count` without rebuilding its component tree:
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 ```json
 [
@@ -331,7 +331,7 @@ When the embedded app invokes `increase_counter`, the tool returns only an [`upd
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
+  <TabItem label="v0.9.1">
 
 ```json
 [
@@ -614,7 +614,7 @@ Create an `index.html` entry point with a mount element for your surface:
 In `src/main.ts`, register `renderMarkdown` via `setMarkdownRenderer`, initialize `MessageProcessor` with `basicCatalog` (or your custom catalog), mount `<a2ui-surface>` when a surface is created, and use `App` from `@modelcontextprotocol/ext-apps` to handle the `ui/initialize` handshake, incoming `ui/notifications/tool-result` payloads, automatic iframe resizing (`autoResize: true`), and outbound `tools/call` requests whenever a component dispatches an [action](../../concepts/actions-and-functions/):
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 ```typescript
 import {html, render} from 'lit';
@@ -674,7 +674,7 @@ await app.connect();
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
+  <TabItem label="v0.9.1">
 
 ```typescript
 import {html, render} from 'lit';

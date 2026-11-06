@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- `DirectJsonPromptGenerator.generate()` follows the prompt layout
+  the other SDKs use: the rules without the `## Workflow Description:` heading,
+  then a schema block with the protocol schemas, then one schema block per
+  catalog, then the examples under `### Examples:` followed by a blank line.
+  Add your own heading around the snippet if you want one.
+  [#3567](https://github.com/a2ui-project/a2ui/pull/3567)
+
 ## 0.1.0
 
 - Remove `(Agent to UI)` from the embedded v0.9 `server_to_client.json` and v1.0

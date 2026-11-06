@@ -341,7 +341,7 @@ export const MyComponent = createComponentImplementation(MyComponentApi, ({props
 
 ## Legacy Support (v0.8)
 
-A2UI v0.8 is maintained for backward compatibility. While it remains the default export for the `@a2ui/react` package, it is recommended to transition to v0.9 for new features like type-safe binders and logic functions.
+A2UI v0.8 is deprecated and maintained only for backward compatibility. It is available from the `@a2ui/react/v0_8` entry point. New projects should use the package root, which supports v0.9 and v1.0 with type-safe binders and logic functions.
 
 ### Import and Usage
 
@@ -367,7 +367,7 @@ function LegacyApp() {
 
 ### Key Differences (v0.8 vs v0.9)
 
-| Feature         | v0.8 (Legacy)                           | v0.9 (Current)                                                   |
+| Feature         | v0.8 (Deprecated)                       | v0.9 and later                                                   |
 | :-------------- | :-------------------------------------- | :--------------------------------------------------------------- |
 | **Protocol**    | Uses `BeginRendering`, `SurfaceUpdate`. | Uses `createSurface`, `updateComponents`, `updateDataModel`.     |
 | **Data Flow**   | Unidirectional surface updates.         | Bidirectional synchronization (`sendDataModel`).                 |

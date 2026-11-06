@@ -39,9 +39,11 @@ describe('PromptGenerator', () => {
   const cat2 = {id: 'cat2'} as CatalogApi;
   const catEmpty = {id: 'empty'} as CatalogApi;
 
-  it('generate() joins base rules, catalog instructions and examples in order', () => {
+  it('generate() joins base rules, catalog instructions and headed examples in order', () => {
     const generator = new TestPromptGenerator([cat1]);
-    expect(generator.generate()).toBe('BASE_RULES\n\nCATALOG_INSTRUCTIONS:cat1\n\nEXAMPLES:cat1');
+    expect(generator.generate()).toBe(
+      'BASE_RULES\n\nCATALOG_INSTRUCTIONS:cat1\n\n### Examples:\n\nEXAMPLES:cat1',
+    );
   });
 
   it('generate() leaves out sections that render nothing', () => {

@@ -49,6 +49,26 @@ Each surface has a JSON object holding state:
 
 ## Literal vs. Path Values
 
+=== "v0.9"
+
+    **Literal (fixed):**
+    ```json
+    {
+      "id": "title",
+      "component": "Text",
+      "text": "Welcome"
+    }
+    ```
+
+    **Data-bound (reactive):**
+    ```json
+    {
+      "id": "username",
+      "component": "Text",
+      "text": { "path": "/user/name" }
+    }
+    ```
+
 === "v0.8"
 
     **Literal (fixed):**
@@ -75,31 +95,21 @@ Each surface has a JSON object holding state:
     }
     ```
 
-=== "v0.9 and later"
-
-    **Literal (fixed):**
-    ```json
-    {
-      "id": "title",
-      "component": "Text",
-      "text": "Welcome"
-    }
-    ```
-
-    **Data-bound (reactive):**
-    ```json
-    {
-      "id": "username",
-      "component": "Text",
-      "text": { "path": "/user/name" }
-    }
-    ```
-
 When `/user/name` changes from "Alice" to "Bob", the text **automatically updates** to "Bob".
 
 ## Reactive Updates
 
 Components bound to data paths automatically update when the data changes:
+
+=== "v0.9"
+
+    ```json
+    {
+      "id": "status",
+      "component": "Text",
+      "text": {"path": "/order/status"}
+    }
+    ```
 
 === "v0.8"
 
@@ -114,16 +124,6 @@ Components bound to data paths automatically update when the data changes:
     }
     ```
 
-=== "v0.9 and later"
-
-    ```json
-    {
-      "id": "status",
-      "component": "Text",
-      "text": {"path": "/order/status"}
-    }
-    ```
-
 - **Initial:** `/order/status` = "Processing..." → displays "Processing..."
 - **Update:** Send a data model update with `status: "Shipped"` → displays "Shipped"
 
@@ -132,6 +132,19 @@ No component updates needed—just data updates.
 ## Dynamic Lists
 
 Use templates to render arrays:
+
+=== "v0.9"
+
+    ```json
+    {
+      "id": "product-list",
+      "component": "Column",
+      "children": {
+        "path": "/products",
+        "componentId": "product-card"
+      }
+    }
+    ```
 
 === "v0.8"
 
@@ -147,19 +160,6 @@ Use templates to render arrays:
             }
           }
         }
-      }
-    }
-    ```
-
-=== "v0.9 and later"
-
-    ```json
-    {
-      "id": "product-list",
-      "component": "Column",
-      "children": {
-        "path": "/products",
-        "componentId": "product-card"
       }
     }
     ```
@@ -181,6 +181,19 @@ Use templates to render arrays:
 
 Inside a template, paths are scoped to the array item:
 
+=== "v0.9"
+
+    ```json
+    {
+      "id": "product-name",
+      "component": "Text",
+      "text": {"path": "name"}
+    }
+    ```
+
+    - For `/products/0`, `name` resolves to `/products/0/name` → "Widget"
+    - For `/products/1`, `name` resolves to `/products/1/name` → "Gadget"
+
 === "v0.8"
 
     ```json
@@ -197,24 +210,19 @@ Inside a template, paths are scoped to the array item:
     - For `/products/0`, `/name` resolves to `/products/0/name` → "Widget"
     - For `/products/1`, `/name` resolves to `/products/1/name` → "Gadget"
 
-=== "v0.9 and later"
-
-    ```json
-    {
-      "id": "product-name",
-      "component": "Text",
-      "text": {"path": "name"}
-    }
-    ```
-
-    - For `/products/0`, `name` resolves to `/products/0/name` → "Widget"
-    - For `/products/1`, `name` resolves to `/products/1/name` → "Gadget"
-
 Adding/removing items automatically updates the rendered components.
 
 ## Input Bindings
 
 Interactive components update the data model bidirectionally:
+
+=== "v0.9"
+
+    | Component          | Example                                     | User Action      | Data Update                |
+    | ------------------ | ------------------------------------------- | ---------------- | -------------------------- |
+    | **TextField**      | `{"value": {"path": "/form/name"}}`         | Types "Alice"    | `/form/name` = `"Alice"`   |
+    | **CheckBox**       | `{"value": {"path": "/form/agreed"}}`       | Checks box       | `/form/agreed` = `true`    |
+    | **ChoicePicker**   | `{"value": {"path": "/form/country"}}`      | Selects "Canada" | `/form/country` = `["ca"]` |
 
 === "v0.8"
 
@@ -224,30 +232,11 @@ Interactive components update the data model bidirectionally:
     | **CheckBox**       | `{"value": {"path": "/form/agreed"}}`       | Checks box       | `/form/agreed` = `true`    |
     | **MultipleChoice** | `{"selections": {"path": "/form/country"}}` | Selects "Canada" | `/form/country` = `["ca"]` |
 
-=== "v0.9 and later"
-
-    | Component          | Example                                     | User Action      | Data Update                |
-    | ------------------ | ------------------------------------------- | ---------------- | -------------------------- |
-    | **TextField**      | `{"value": {"path": "/form/name"}}`         | Types "Alice"    | `/form/name` = `"Alice"`   |
-    | **CheckBox**       | `{"value": {"path": "/form/agreed"}}`       | Checks box       | `/form/agreed` = `true`    |
-    | **ChoicePicker**   | `{"value": {"path": "/form/country"}}`      | Selects "Canada" | `/form/country` = `["ca"]` |
-
 ## Best Practices
 
 - **Use granular updates**: Update only changed paths.
 
-=== "v0.8"
-
-    ```json
-    {
-      "dataModelUpdate": {
-        "path": "/user",
-        "contents": [{"key": "name", "valueString": "Alice"}]
-      }
-    }
-    ```
-
-=== "v0.9 and later"
+=== "v0.9"
 
     ```json
     {
@@ -256,6 +245,17 @@ Interactive components update the data model bidirectionally:
         "surfaceId": "user_profile",
         "path": "/user/name",
         "value": "Alice"
+      }
+    }
+    ```
+
+=== "v0.8"
+
+    ```json
+    {
+      "dataModelUpdate": {
+        "path": "/user",
+        "contents": [{"key": "name", "valueString": "Alice"}]
       }
     }
     ```

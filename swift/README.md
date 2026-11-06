@@ -76,6 +76,33 @@ Plural rules and numeric boundary behavior follow the installed operating system
 fractional and very large counts. They are not pinned to an ICU release and may differ from Web
 `Intl.PluralRules`. Non-finite numbers return `other`.
 
+## Opening links
+
+`openUrl` checks that the URL is `http`, `https`, `mailto` or `tel` and passes the resolved URL to
+the `OpenURLHandler` the catalog was built with. Without one, as in `makeCatalog(version:)` and
+`allCatalogs`, it opens nothing. On iOS:
+
+```swift
+final class SystemURLOpener: OpenURLHandler {
+  func open(_ url: URL) {
+    Task { @MainActor in UIApplication.shared.open(url) }
+  }
+}
+
+let urlOpener = SystemURLOpener()  // Keep this alive, e.g. in your view model.
+let catalog = BasicCatalog.makeCatalog(version: .v10, openURLHandler: urlOpener)
+```
+
+The catalog holds the handler weakly, following the delegate pattern, so it never creates a retain
+cycle. Keep a strong reference to the handler outside the catalog, for example in the view or view
+model that owns the `MessageProcessor`, or share one instance across the app. If nothing else
+holds it, it is released and links stop opening.
+
+In SwiftUI, `BasicCatalogImplementation.makeCatalog(version:locale:openURLHandler:)` takes the same
+handler. Pass that catalog to both `MessageProcessor` and `Surface`, since
+`Catalog<ComponentImplementation>` conforms to `CatalogProtocol`. If you use separate catalogs, give
+`openURLHandler` to the `MessageProcessor` catalog, because that is where functions run.
+
 ## Agent guidelines and coding standards
 
 For AI agents and contributors working in this directory hierarchy:
