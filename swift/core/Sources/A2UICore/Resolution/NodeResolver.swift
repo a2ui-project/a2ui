@@ -66,6 +66,11 @@ public final class NodeResolver: Sendable {
     var cyclicKeys: [String] = []
   }
 
+  private struct ExpressionErrorKey: Hashable {
+    let nodeKey: String
+    let dedupeKey: String
+  }
+
   /// The number of `resolveNode` invocations executed during the most recent `resolveTree()` pass.
   package private(set) var lastResolvedNodeCount = 0
 
@@ -92,11 +97,11 @@ public final class NodeResolver: Sendable {
   private var currentNodeChildSlots: [String: [NodeBox.ChildSlot]]?
   /// The cyclic placeholder keys the node being resolved references, in order.
   private var currentNodeCyclicKeys: [String]?
-  private var reportedExpressionErrors: Set<String> = []
+  private var reportedExpressionErrors: Set<ExpressionErrorKey> = []
   /// The error keys each node reported in the current pass, by node key. A node shared by several
   /// parents resolves once per parent, so these are committed to `reportedExpressionErrors` when
   /// the pass ends rather than after each visit.
-  private var expressionErrorsInCurrentPass: [String: Set<String>] = [:]
+  private var expressionErrorsInCurrentPass: [String: Set<ExpressionErrorKey>] = [:]
   /// Shared dedupe keys reported in the current pass, so nodes that report the same one in a
   /// pass report it once.
   private var sharedErrorsInCurrentPass: Set<String> = []
@@ -373,12 +378,10 @@ public final class NodeResolver: Sendable {
       if reportedExpressionErrors.isEmpty {
         hadClearedErrors = false
       } else {
-        let directPrefix = "\(compID):"
-        let instancePrefixes = (nodesByDefinitionID[compID] ?? []).map { "\($0):" }
         let previousErrorCount = reportedExpressionErrors.count
+        let instances = nodesByDefinitionID[compID] ?? []
         reportedExpressionErrors = reportedExpressionErrors.filter { key in
-          guard !key.hasPrefix(directPrefix) else { return false }
-          return !instancePrefixes.contains { key.hasPrefix($0) }
+          key.nodeKey != compID && !instances.contains(key.nodeKey)
         }
         hadClearedErrors = reportedExpressionErrors.count != previousErrorCount
       }
@@ -696,8 +699,9 @@ public final class NodeResolver: Sendable {
   private func pruneSubtree(_ nodeKey: String, protectedNodeKeys: Set<String> = []) {
     guard !protectedNodeKeys.contains(nodeKey) else { return }
     activeNodes.removeValue(forKey: nodeKey)
-    let prefix = "\(nodeKey):"
-    reportedExpressionErrors = reportedExpressionErrors.filter { !$0.hasPrefix(prefix) }
+    if !reportedExpressionErrors.isEmpty {
+      reportedExpressionErrors = reportedExpressionErrors.filter { $0.nodeKey != nodeKey }
+    }
     expressionErrorsInCurrentPass.removeValue(forKey: nodeKey)
     guard let record = nodeRecords.removeValue(forKey: nodeKey) else { return }
 
@@ -2565,12 +2569,19 @@ extension NodeResolver {
   /// Replaces the errors recorded for each node resolved in the pass with the ones it reported in
   /// the pass, so an error is reported again only after its node resolves without it.
   private func commitExpressionErrorsOfCurrentPass() {
-    for nodeKey in resolvedInCurrentPass {
-      let prefix = "\(nodeKey):"
-      reportedExpressionErrors = reportedExpressionErrors.filter { !$0.hasPrefix(prefix) }
-      reportedExpressionErrors.formUnion(expressionErrorsInCurrentPass[nodeKey] ?? [])
+    if !reportedExpressionErrors.isEmpty {
+      reportedExpressionErrors = reportedExpressionErrors.filter {
+        !resolvedInCurrentPass.contains($0.nodeKey)
+      }
     }
-    expressionErrorsInCurrentPass.removeAll()
+    if !expressionErrorsInCurrentPass.isEmpty {
+      for nodeKey in resolvedInCurrentPass {
+        if let keys = expressionErrorsInCurrentPass[nodeKey] {
+          reportedExpressionErrors.formUnion(keys)
+        }
+      }
+      expressionErrorsInCurrentPass.removeAll()
+    }
   }
 
   /// Reports a `GenericError` for a problem in the component tree.
@@ -2600,15 +2611,14 @@ extension NodeResolver {
   private func report(_ error: RendererError, dedupeKey: String, sharedAcrossNodes: Bool = false) {
     if isResolvingTree {
       let nodeKey = currentComponentID ?? ""
-      let key = "\(nodeKey):\(dedupeKey)"
+      let key = ExpressionErrorKey(nodeKey: nodeKey, dedupeKey: dedupeKey)
       let isFirstInPass = expressionErrorsInCurrentPass[nodeKey, default: []].insert(key).inserted
       guard isFirstInPass, !reportedExpressionErrors.contains(key) else {
         return
       }
       if sharedAcrossNodes {
-        let suffix = ":\(dedupeKey)"
         guard sharedErrorsInCurrentPass.insert(dedupeKey).inserted,
-          !reportedExpressionErrors.contains(where: { $0.hasSuffix(suffix) })
+          !reportedExpressionErrors.contains(where: { $0.dedupeKey == dedupeKey })
         else {
           return
         }
