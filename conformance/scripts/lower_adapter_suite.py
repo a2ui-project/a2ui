@@ -81,17 +81,17 @@ def _rename_keys(node: Any) -> Any:
 
 
 def _build_validator() -> jsonschema.Draft202012Validator:
-    v09_json_dir = REPO_ROOT / "specification" / "v0_9" / "json"
+    v091_json_dir = REPO_ROOT / "specification" / "v0_9_1" / "json"
     catalog_path = (
-        REPO_ROOT / "specification" / "v0_9" / "catalogs" / "basic" / "catalog.json"
+        REPO_ROOT / "specification" / "v0_9_1" / "catalogs" / "basic" / "catalog.json"
     )
 
-    with open(v09_json_dir / "server_to_client.json", encoding="utf-8") as f:
-        s2c = json.load(f)
-    with open(v09_json_dir / "common_types.json", encoding="utf-8") as f:
-        common = json.load(f)
+    with open(v091_json_dir / "server_to_client.json", encoding="utf-8") as f:
+        server_to_client_schema = json.load(f)
+    with open(v091_json_dir / "common_types.json", encoding="utf-8") as f:
+        common_types_schema = json.load(f)
     with open(catalog_path, encoding="utf-8") as f:
-        cat = json.load(f)
+        catalog_schema = json.load(f)
 
     # Augment basic catalog with incrementCounter function used by the test harness
     increment_counter_schema = {
@@ -108,27 +108,34 @@ def _build_validator() -> jsonschema.Draft202012Validator:
         },
         "required": ["call"],
     }
-    cat["$defs"]["anyFunction"]["oneOf"].append(increment_counter_schema)
+    catalog_schema["$defs"]["anyFunction"]["oneOf"].append(increment_counter_schema)
 
     registry = Registry()
-    for res in [s2c, common, cat]:
-        if "$id" in res:
-            registry = registry.with_resource(res["$id"], Resource.from_contents(res))
+    for resource_schema in [
+        server_to_client_schema,
+        common_types_schema,
+        catalog_schema,
+    ]:
+        if "$id" in resource_schema:
+            registry = registry.with_resource(
+                resource_schema["$id"],
+                Resource.from_contents(resource_schema),
+            )
 
     registry = registry.with_resource(
         "https://a2ui.org/specification/v0_9/catalog.json",
-        Resource.from_contents(cat),
+        Resource.from_contents(catalog_schema),
     )
     registry = registry.with_resource(
         "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
-        Resource.from_contents(cat),
+        Resource.from_contents(catalog_schema),
     )
     registry = registry.with_resource(
         "common_types.json",
-        Resource.from_contents(common),
+        Resource.from_contents(common_types_schema),
     )
 
-    return jsonschema.Draft202012Validator(s2c, registry=registry)
+    return jsonschema.Draft202012Validator(server_to_client_schema, registry=registry)
 
 
 def lower_case(case: dict[str, Any]) -> dict[str, Any] | None:

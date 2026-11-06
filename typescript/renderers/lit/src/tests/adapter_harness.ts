@@ -160,7 +160,6 @@ export interface AdapterSession {
   recordedErrors: Array<{code: string; message: string; surfaceId: string}>;
   recordedOutbound: Array<Record<string, unknown>>;
   protocolVersion: string;
-  currentOp?: string;
   priorIdentities: Map<string, HTMLElement>;
   priorNodes: Map<string, ComponentNode<LitComponentApi>>;
   lastCallId?: string;
@@ -471,6 +470,7 @@ export function findUnsupportedReason(
 export function assertAllUnsupportedMatched(
   accessibilityCases: AccessibilityTestCase[] = [],
   adapterCases: AdapterTestCase[] = [],
+  adapterV09Cases: AdapterTestCase[] = [],
 ): void {
   for (const testCase of accessibilityCases) {
     const steps: AccessibilityStep[] = testCase.steps ?? [
@@ -481,7 +481,7 @@ export function assertAllUnsupportedMatched(
     ];
     findUnsupportedReason(testCase.name, steps as unknown as Array<Record<string, unknown>>);
   }
-  for (const testCase of adapterCases) {
+  for (const testCase of [...adapterCases, ...adapterV09Cases]) {
     findUnsupportedReason(
       testCase.name,
       testCase.steps as unknown as Array<Record<string, unknown>>,
@@ -682,6 +682,7 @@ function findDomElementForNode(
       return el as HTMLElement;
     }
     if (
+      a2uiEl.node === undefined &&
       a2uiEl.context?.componentModel.id === target.componentId &&
       a2uiEl.context?.dataContext.path === target.dataPath
     ) {
@@ -839,9 +840,7 @@ export function assertViewTree(
   if (expected.occupiesLayout !== undefined && resolvedSurfaceEl) {
     const domEl = findDomElementForNode(resolvedSurfaceEl, actual);
     const occupies =
-      domEl !== undefined &&
-      window.getComputedStyle(domEl).display !== 'none' &&
-      (domEl.offsetWidth > 0 || domEl.offsetHeight > 0 || actual.state === 'resolved');
+      domEl !== undefined && !domEl.hidden && window.getComputedStyle(domEl).display !== 'none';
     assert.equal(occupies, expected.occupiesLayout);
   }
   if (actual.state === 'resolved' && resolvedSurfaceEl) {
@@ -1149,15 +1148,13 @@ export async function ensureSurfaceMounted(
       message: err.message,
       surfaceId: surface.id,
     });
-    if (session.currentOp !== 'programmatic_invoke') {
-      session.recordedOutbound.push(
-        frameErrorEnvelope(
-          err as unknown as Record<string, unknown>,
-          surface.id,
-          session.protocolVersion,
-        ),
-      );
-    }
+    session.recordedOutbound.push(
+      frameErrorEnvelope(
+        err as unknown as Record<string, unknown>,
+        surface.id,
+        session.protocolVersion,
+      ),
+    );
   });
 
   const el = document.createElement('a2ui-surface') as unknown as A2uiSurface;
@@ -1489,7 +1486,6 @@ export async function runStep(session: AdapterSession, step: AdapterStep): Promi
   session.recordedActions = [];
   session.recordedErrors = [];
   session.recordedOutbound.length = 0;
-  session.currentOp = step.op;
   session.priorIdentities = snapshotViewIdentities(session.surfaceEl);
   session.priorNodes = snapshotNodes(session.surfaceEl);
 

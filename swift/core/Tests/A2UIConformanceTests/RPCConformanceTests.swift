@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import A2UICore
 import A2UIJSON
 import BasicCatalog
 import Foundation
@@ -19,8 +20,6 @@ import JSONSchema
 import OrderedCollections
 import OrderedJSON
 import Testing
-
-@testable import A2UICore
 
 private final class RPCErrorCaptureHandler: ActionHandling, @unchecked Sendable {
   var capturedErrors: [RendererError] = []

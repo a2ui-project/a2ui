@@ -64,9 +64,15 @@ afterEach(() => {
 
 const accessibilityCases = loadYamlCases<AccessibilityTestCase>('accessibility.yaml');
 const adapterCases = loadYamlCases<AdapterTestCase>('adapter_conformance.yaml');
+const adapterV09Cases = yaml.load(
+  fs.readFileSync(
+    path.resolve(CONFORMANCE_DIR, '../adapter/adapter_conformance_v0_9.yaml'),
+    'utf8',
+  ),
+) as AdapterTestCase[];
 
 afterAll(() => {
-  assertAllUnsupportedMatched(accessibilityCases, adapterCases);
+  assertAllUnsupportedMatched(accessibilityCases, adapterCases, adapterV09Cases);
 });
 
 describe('@a2ui/react Accessibility Conformance (conformance/core/accessibility.yaml)', () => {
@@ -138,13 +144,6 @@ describe('@a2ui/react Accessibility Conformance (conformance/core/accessibility.
 });
 
 describe('@a2ui/react Adapter Conformance (conformance/core/adapter_conformance.yaml)', () => {
-  const adapterV09Cases = yaml.load(
-    fs.readFileSync(
-      path.resolve(CONFORMANCE_DIR, '../adapter/adapter_conformance_v0_9.yaml'),
-      'utf8',
-    ),
-  ) as AdapterTestCase[];
-
   beforeEach(() => {
     vi.spyOn(window, 'open').mockImplementation(() => null);
   });

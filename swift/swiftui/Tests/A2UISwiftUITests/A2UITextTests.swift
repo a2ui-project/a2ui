@@ -68,11 +68,13 @@ struct A2UITextTests {
     #expect(headingLevels(text: "# Title") == [.h1])
     #expect(headingLevels(text: "### Title") == [.h3])
     #expect(headingLevels(text: "###### Title") == [.h6])
-    #expect(headingLevels(text: "####### Title") == [.h6])
+    #expect(headingLevels(text: "###") == [.h3])
   }
 
   @Test func bodyAndCaptionTextAreNotAccessibilityHeadings() {
     #expect(headingLevels(text: "Title").isEmpty)
+    #expect(headingLevels(text: "####### Title").isEmpty)
+    #expect(headingLevels(text: "#hashtag").isEmpty)
     #expect(headingLevels(text: "Title", variant: "body").isEmpty)
     #expect(headingLevels(text: "Title", variant: "caption").isEmpty)
     #expect(headingLevels(text: "- One\n- Two").isEmpty)

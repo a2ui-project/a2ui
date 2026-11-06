@@ -28,7 +28,11 @@ void main() {
   );
 
   tearDownAll(
-    () => assertAllUnsupportedMatched(accessibilityTests, adapterTests),
+    () => assertAllUnsupportedMatched(
+      accessibilityTests,
+      adapterTests,
+      adapterTestsV09,
+    ),
   );
 
   group('Accessibility Conformance (accessibility.yaml)', () {

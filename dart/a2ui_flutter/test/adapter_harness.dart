@@ -367,6 +367,7 @@ String? findUnsupportedReason(
 void assertAllUnsupportedMatched([
   List<Object?> accessibilityCases = const [],
   List<Object?> adapterCases = const [],
+  List<Object?> adapterV09Cases = const [],
 ]) {
   for (final rawCase in accessibilityCases) {
     final testCase = rawCase! as Map<String, Object?>;
@@ -378,7 +379,7 @@ void assertAllUnsupportedMatched([
         ];
     findUnsupportedReason(name, steps);
   }
-  for (final rawCase in adapterCases) {
+  for (final rawCase in [...adapterCases, ...adapterV09Cases]) {
     final testCase = rawCase! as Map<String, Object?>;
     final name = testCase['name']! as String;
     final List<Object?> steps =
@@ -723,18 +724,15 @@ class AdapterHarnessSession {
           functionCallId: err.functionCallId,
         );
         errors.add(normalized);
-        if (currentOp != 'programmatic_invoke') {
-          final errMap =
-              jsonDecode(jsonEncode(normalized.toJson()))
-                  as Map<String, Object?>;
-          if (normalized.functionCallId != null) {
-            errMap.remove('surfaceId');
-          }
-          outbound.add(<String, Object?>{
-            'version': protocolVersion,
-            'error': errMap,
-          });
+        final errMap =
+            jsonDecode(jsonEncode(normalized.toJson())) as Map<String, Object?>;
+        if (normalized.functionCallId != null) {
+          errMap.remove('surfaceId');
         }
+        outbound.add(<String, Object?>{
+          'version': protocolVersion,
+          'error': errMap,
+        });
       });
     });
     processor.model.onSurfaceDeleted.subscribe((deletedId) {
@@ -747,7 +745,6 @@ class AdapterHarnessSession {
   WidgetTester? tester;
   final String protocolVersion;
   final bool? strictMode;
-  String? currentOp;
   String? lastCallId;
   late final MessageProcessor<ComponentImplementation> processor;
   SurfaceModel<ComponentImplementation>? surface;
@@ -965,7 +962,6 @@ Future<void> _executeStep(
   harness.errors.clear();
   harness.outbound.clear();
   final op = step['op']! as String;
-  harness.currentOp = op;
   switch (op) {
     case 'process_messages':
       await harness.processMessages(tester, step['messages']! as List<Object?>);

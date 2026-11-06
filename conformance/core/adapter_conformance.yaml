@@ -405,7 +405,13 @@
       expectErrors:
         - surfaceId: "adapter_surface"
           message: "openUrl"
-      expectOutbound: []
+      expectOutbound:
+        - version: "1.0"
+          error:
+            code: "EXPRESSION_ERROR"
+            surfaceId: "adapter_surface"
+            message:
+              $match: "any"
 
 - name: multi_catalog_mixed_surface_rendering
   description: Verifies that a single v1.0 surface renders components from both the default basic catalog and a secondary custom catalog via component-level catalogId overrides.

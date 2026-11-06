@@ -171,7 +171,6 @@ export interface HarnessState {
   errors: Array<Record<string, unknown>>;
   outbound: Array<Record<string, unknown>>;
   protocolVersion: string;
-  currentOp?: string;
   previousNodes: Map<string, ComponentNode>;
   previousDomElements: Map<string, HTMLElement>;
   lastCallId?: string;
@@ -477,6 +476,7 @@ export function findUnsupportedReason(
 export function assertAllUnsupportedMatched(
   accessibilityCases: AccessibilityTestCase[] = [],
   adapterCases: AdapterTestCase[] = [],
+  adapterV09Cases: AdapterTestCase[] = [],
 ): void {
   for (const testCase of accessibilityCases) {
     const steps: AccessibilityStep[] = testCase.steps ?? [
@@ -487,7 +487,7 @@ export function assertAllUnsupportedMatched(
     ];
     findUnsupportedReason(testCase.name, steps as unknown as Array<Record<string, unknown>>);
   }
-  for (const testCase of adapterCases) {
+  for (const testCase of [...adapterCases, ...adapterV09Cases]) {
     findUnsupportedReason(
       testCase.name,
       testCase.steps as unknown as Array<Record<string, unknown>>,
@@ -1440,15 +1440,13 @@ export function mountSurface(caseSpec?: Partial<AdapterTestCase>): HarnessState 
         surfaceId: (errRecord['surfaceId'] as string | undefined) ?? surface.id,
         ...(typeof errRecord['path'] === 'string' ? {path: errRecord['path']} : {}),
       });
-      if (state.currentOp !== 'programmatic_invoke') {
-        state.outbound.push(
-          frameErrorEnvelope(
-            err as unknown as Record<string, unknown>,
-            surface.id,
-            state.protocolVersion,
-          ),
-        );
-      }
+      state.outbound.push(
+        frameErrorEnvelope(
+          err as unknown as Record<string, unknown>,
+          surface.id,
+          state.protocolVersion,
+        ),
+      );
     });
   });
   rendererService.surfaceGroup.onSurfaceDeleted.subscribe(deletedId => {
@@ -1489,7 +1487,6 @@ export async function runStep(state: HarnessState, step: AdapterStep): Promise<v
   state.actions = [];
   state.errors = [];
   state.outbound.length = 0;
-  state.currentOp = step.op;
   if (step.messages && step.messages.length > 0) {
     state.rendererService.processMessages(step.messages);
   }

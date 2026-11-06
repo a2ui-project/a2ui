@@ -74,7 +74,7 @@ describe('@a2ui/lit Adapter & Accessibility Conformance', () => {
   });
 
   after(() => {
-    assertAllUnsupportedMatched();
+    assertAllUnsupportedMatched(accessibilityCases, adapterCases, adapterV09Cases);
     teardownTestDom();
   });
 

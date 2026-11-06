@@ -67,8 +67,8 @@ function ensureJasmineManifestReporter(): void {
 }
 
 afterAll(() => {
-  const {accessibility, adapterConformance} = getConformanceSuites();
-  assertAllUnsupportedMatched(accessibility, adapterConformance);
+  const {accessibility, adapterConformance, adapterConformanceV09 = []} = getConformanceSuites();
+  assertAllUnsupportedMatched(accessibility, adapterConformance, adapterConformanceV09);
 });
 
 async function runAxe(container: HTMLElement, rules: string[]): Promise<void> {
