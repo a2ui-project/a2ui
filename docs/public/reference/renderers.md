@@ -14,20 +14,22 @@ You have a lot of flexibility, to bring custom components to a renderer, or buil
 
 ### Web
 
-| Renderer                     | Platform           | v0.8      | v0.9.1    | v1.0      | Links                                         |
-| ---------------------------- | ------------------ | --------- | --------- | --------- | --------------------------------------------- |
-| **React**                    | Web                | ✅ Stable | ✅ Stable | ✅ Stable | [Code](../../../typescript/renderers/react)   |
-| **Lit (Web Components)**     | Web                | ✅ Stable | ✅ Stable | ✅ Stable | [Code](../../../typescript/renderers/lit)     |
-| **Angular**                  | Web                | ✅ Stable | ✅ Stable | ✅ Stable | [Code](../../../typescript/renderers/angular) |
-| **Flutter (`a2ui_flutter`)** | Mobile/Desktop/Web | —         | ✅ Alpha  | ✅ Alpha  | [Code](../../../dart/a2ui_flutter)            |
+| Renderer                     | Platform           | v1.0      | v0.9.1    | Links                                         |
+| ---------------------------- | ------------------ | --------- | --------- | --------------------------------------------- |
+| **React**                    | Web                | ✅ Stable | ✅ Stable | [Code](../../../typescript/renderers/react)   |
+| **Lit (Web Components)**     | Web                | ✅ Stable | ✅ Stable | [Code](../../../typescript/renderers/lit)     |
+| **Angular**                  | Web                | ✅ Stable | ✅ Stable | [Code](../../../typescript/renderers/angular) |
+| **Flutter (`a2ui_flutter`)** | Mobile/Desktop/Web | ✅ Alpha  | ✅ Alpha  | [Code](../../../dart/a2ui_flutter)            |
+
+The React, Lit, and Angular renderers also support the deprecated v0.8.
 
 ### Mobile
 
-| Renderer                     | Platform           | v0.8 | v0.9.1   | v1.0       | Links                                                                                                                                                        |
-| ---------------------------- | ------------------ | ---- | -------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Flutter (`a2ui_flutter`)** | Mobile/Desktop/Web | —    | ✅ Alpha | ✅ Alpha   | [Code](../../../dart/a2ui_flutter)                                                                                                                           |
-| **SwiftUI**                  | iOS/macOS          | —    | ✅ Alpha | ✅ Alpha   | [Code](../../../swift/swiftui)                                                                                                                               |
-| **Jetpack Compose**          | Android            | —    | ✅ Alpha | 🚧 Planned | [Docs](https://developer.android.com/develop/ui/compose/agentic) · [Code](https://cs.android.com/androidx/platform/frameworks/support/+/androidx-main:a2ui/) |
+| Renderer                     | Platform           | v1.0       | v0.9.1   | Links                                                                                                                                                        |
+| ---------------------------- | ------------------ | ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Flutter (`a2ui_flutter`)** | Mobile/Desktop/Web | ✅ Alpha   | ✅ Alpha | [Code](../../../dart/a2ui_flutter)                                                                                                                           |
+| **SwiftUI**                  | iOS/macOS          | ✅ Alpha   | ✅ Alpha | [Code](../../../swift/swiftui)                                                                                                                               |
+| **Jetpack Compose**          | Android            | 🚧 Planned | ✅ Alpha | [Docs](https://developer.android.com/develop/ui/compose/agentic) · [Code](https://cs.android.com/androidx/platform/frameworks/support/+/androidx-main:a2ui/) |
 
 Check the [Roadmap](../roadmap.md) for more.
 

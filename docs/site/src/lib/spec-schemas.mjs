@@ -52,13 +52,10 @@ export const SPEC_DOC_ROUTES = {
   'specification/v0_9_1/docs/basic_catalog_implementation_guide.md':
     'specification/v0.9.1-basic-catalog-implementation-guide',
 
-  'specification/v0_8/docs/a2ui_protocol.md': 'specification/v0.8-a2ui',
-  'specification/v0_8/docs/a2ui_extension_specification.md': 'specification/v0.8-a2a-extension',
-  'specification/v0_8/docs/custom_catalog_changes.md': 'specification/v0.8-custom-catalog-changes',
 };
 
 /**
- * Categorized JSON Schema catalog for v1.0, v0.9.1, and v0.8 (matching SITE_OUTLINE.md 4.2.1).
+ * Categorized JSON Schema catalog for v1.0 and v0.9.1 (matching SITE_OUTLINE.md 4.2.1).
  */
 export const SPEC_SCHEMAS = {
   'v1.0': [
@@ -189,50 +186,6 @@ export const SPEC_SCHEMAS = {
       alias: 'client_to_server_list_wrapper.json',
       sourcePath: 'specification/v0_9_1/json/client_to_server_list_wrapper.json',
       rawPublicPath: '/specification/v0_9_1/client_to_server_list_wrapper.json',
-    },
-  ],
-  'v0.8': [
-    {
-      category: 'Wire Messages',
-      alias: 'server_to_client.json',
-      sourcePath: 'specification/v0_8/json/server_to_client.json',
-      rawPublicPath: '/specification/v0_8/server_to_client.json',
-    },
-    {
-      category: 'Wire Messages',
-      alias: 'client_to_server.json',
-      sourcePath: 'specification/v0_8/json/client_to_server.json',
-      rawPublicPath: '/specification/v0_8/client_to_server.json',
-    },
-    {
-      category: 'Wire Messages',
-      alias: 'server_to_client_with_standard_catalog.json',
-      sourcePath: 'specification/v0_8/json/server_to_client_with_standard_catalog.json',
-      rawPublicPath: '/specification/v0_8/server_to_client_with_standard_catalog.json',
-    },
-    {
-      category: 'Catalogs & Capabilities',
-      alias: 'standard_catalog_definition.json',
-      sourcePath: 'specification/v0_8/json/standard_catalog_definition.json',
-      rawPublicPath: '/specification/v0_8/standard_catalog_definition.json',
-    },
-    {
-      category: 'Catalogs & Capabilities',
-      alias: 'catalog_description_schema.json',
-      sourcePath: 'specification/v0_8/json/catalog_description_schema.json',
-      rawPublicPath: '/specification/v0_8/catalog_description_schema.json',
-    },
-    {
-      category: 'Catalogs & Capabilities',
-      alias: 'a2ui_client_capabilities_schema.json',
-      sourcePath: 'specification/v0_8/json/a2ui_client_capabilities_schema.json',
-      rawPublicPath: '/specification/v0_8/a2ui_client_capabilities_schema.json',
-    },
-    {
-      category: 'Catalogs & Capabilities',
-      alias: 'minimal_catalog.json',
-      sourcePath: 'specification/v0_8/json/catalogs/minimal/minimal_catalog.json',
-      rawPublicPath: '/specification/v0_8/json/catalogs/minimal/minimal_catalog.json',
     },
   ],
 };

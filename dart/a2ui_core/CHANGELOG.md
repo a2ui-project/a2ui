@@ -2,7 +2,52 @@
 
 ## Unreleased
 
+- **Breaking:** (v1_0) `PayloadValidator.validateComponent`, and
+  `MessageProcessor` for calls into another catalog, reject a call to a
+  function whose `allowedCallers` is `agentOnly` in a property binding, a
+  check or an action, or nested in one, since only an agent's
+  `callRendererFunction` may call one. `PayloadValidator.validateFunctionArgs`
+  rejects one when given a `componentId`. A call nested in the arguments of a
+  `callRendererFunction` is a renderer call too, so `MessageProcessor` rejects
+  one there as well. The error matches the one `Catalog.invoke` reports when
+  such a call is evaluated. v0.9 catalogs are not affected. To migrate, bind
+  only `rendererOnly` or `rendererOrAgent` functions in components
+  ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
+  [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
+- (v1_0) `MessageProcessor` checks a call nested in the arguments of a
+  `callRendererFunction` that names no `catalogId` against the default catalog
+  of the surface the message names, where the renderer runs it, rather than
+  the call's own catalog, and rejects one on a surface with no default
+  catalog. `checkRendererFunctionCall` looks the surface up in `model`; with
+  its new `assumesSurface`, or for a surface `model` lacks, such a call passes
+  if some catalog declares the function and the renderer may make the call.
+  A nested call may not require a user activation unless the message is
+  handled with one, nor hold a null `catalogId` or `args`, nor call `@index`,
+  since the arguments are resolved outside any list template. A data binding
+  in the arguments must hold only a string `@path`.
+  `PayloadValidator.validateFunction` takes `catalogIsDefault`, which, when
+  false, leaves such calls to the caller
+  ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
+  [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
 - (v0_9) Restore `listStyle` property to basic catalog `List` component schema ([#3956](https://github.com/a2ui-project/a2ui/pull/3956)).
+- `RpcHandler.dispose` takes an optional reason, which each cancelled call's
+  error message names. `SurfaceModel` and `MessageProcessor` take
+  `maxAgentCallCacheEntries` (256 by default), the number of settled agent
+  call answers a surface keeps; the oldest answer is evicted first, and calls
+  still in flight don't count
+  ([#3861](https://github.com/a2ui-project/a2ui/pull/3861)).
+- (v1_0) Added `AgentFunction` (`AgentFunction(...)`, `AgentFunction.fromApi`,
+  `withHandler`), `AgentFunctionContext` and `AgentFunctionHandler`, for
+  catalog functions that run on the agent, with `Catalog.agentFunctions`,
+  `Catalog.rendererFunctions`, `Catalog.copyWith(agentFunctions: ...)` and
+  `A2uiRpcError.custom` ([#3536](https://github.com/a2ui-project/a2ui/issues/3536), [#3861](https://github.com/a2ui-project/a2ui/pull/3861)).
+  A catalog with agent functions throws `A2uiCatalogError` when an agent
+  function's local `$defs` defines a name differently from the catalog's
+  `$defs` or from another agent function's local `$defs`.
+- (v1_0) Added `RpcErrorCode.tooManyPending` (`TOO_MANY_PENDING`), which
+  `a2ui_agent`'s `RendererFunctionCalls` reports when an agent has too many
+  calls to renderer functions pending
+  ([#3535](https://github.com/a2ui-project/a2ui/issues/3535)).
 
 ## 0.5.0
 

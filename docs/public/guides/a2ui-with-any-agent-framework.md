@@ -496,4 +496,4 @@ advanced patterns), see CopilotKit's
 
 - **[A2UI Composer](https://a2ui-composer.ag-ui.com/)**: Build widgets visually.
 - **[Concepts › Transports](../concepts/transports.md)**: How A2UI maps onto AG-UI.
-- **[v0.9 specification](../specification/v0.9-a2ui.md)**: The underlying protocol.
+- **[v1.0 specification](../specification/v1.0-a2ui.md)**: The underlying protocol.
