@@ -19,7 +19,57 @@ A2UI uses an **adjacency list model** for component hierarchies. Instead of nest
 
 ## The Adjacency List Model
 
-=== "v0.9"
+=== "v1.0"
+
+    ```json
+    {
+      "version": "1.0",
+      "updateComponents": {
+        "surfaceId": "main",
+        "components": [
+          {
+            "id": "root",
+            "component": "Column",
+            "children": ["greeting", "buttons"]
+          },
+          {
+            "id": "greeting",
+            "component": "Text",
+            "text": "Hello"
+          },
+          {
+            "id": "buttons",
+            "component": "Row",
+            "children": ["cancel-btn", "ok-btn"]
+          },
+          {
+            "id": "cancel-btn",
+            "component": "Button",
+            "child": "cancel-text",
+            "action": { "event": { "name": "cancel" } }
+          },
+          {
+            "id": "cancel-text",
+            "component": "Text",
+            "text": "Cancel"
+          },
+          {
+            "id": "ok-btn",
+            "component": "Button",
+            "child": "ok-text",
+            "action": { "event": { "name": "ok" } }
+          },
+          {
+            "id": "ok-text",
+            "component": "Text",
+            "text": "OK"
+          }
+        ]
+      }
+    }
+    ```
+
+=== "v0.9.1"
 
     ```json
     {
@@ -69,105 +119,24 @@ A2UI uses an **adjacency list model** for component hierarchies. Instead of nest
     }
     ```
 
-    v0.9 and later use a flatter component format: `"component": "Text"` instead of nested `{"Text": {...}}`, and children are simple arrays instead of `{"explicitList": [...]}`.
-
-=== "v0.8"
-
-    ```json
-    {
-      "surfaceUpdate": {
-        "components": [
-          {
-            "id": "root",
-            "component": {
-              "Column": {
-                "children": { "explicitList": ["greeting", "buttons"] }
-              }
-            }
-          },
-          {
-            "id": "greeting",
-            "component": {
-              "Text": { "text": { "literalString": "Hello" } }
-            }
-          },
-          {
-            "id": "buttons",
-            "component": {
-              "Row": {
-                "children": { "explicitList": ["cancel-btn", "ok-btn"] }
-              }
-            }
-          },
-          {
-            "id": "cancel-btn",
-            "component": {
-              "Button": {
-                "child": "cancel-text",
-                "action": { "name": "cancel" }
-              }
-            }
-          },
-          {
-            "id": "cancel-text",
-            "component": {
-              "Text": { "text": { "literalString": "Cancel" } }
-            }
-          },
-          {
-            "id": "ok-btn",
-            "component": {
-              "Button": {
-                "child": "ok-text",
-                "action": { "name": "ok" }
-              }
-            }
-          },
-          {
-            "id": "ok-text",
-            "component": {
-              "Text": { "text": { "literalString": "OK" } }
-            }
-          }
-        ]
-      }
-    }
-    ```
-
 Components reference children by ID, not by nesting.
 
 ## Component Basics
 
 Every component has:
 
-1. **ID**: Unique identifier (`"welcome"`)
+1. **ID**: Unique identifier (`"last-updated"`)
 2. **Type**: Component type (`Text`, `Button`, `Card`)
 3. **Properties**: Configuration specific to that type
 
-=== "v0.9"
-
-    ```json
-    {
-      "id": "welcome",
-      "component": "Text",
-      "text": "Hello",
-      "variant": "h1"
-    }
-    ```
-
-=== "v0.8"
-
-    ```json
-    {
-      "id": "welcome",
-      "component": {
-        "Text": {
-          "text": { "literalString": "Hello" },
-          "usageHint": "h1"
-        }
-      }
-    }
-    ```
+```json
+{
+  "id": "last-updated",
+  "component": "Text",
+  "text": "Updated 5 minutes ago",
+  "variant": "caption"
+}
+```
 
 ## The Basic Catalog
 
@@ -179,68 +148,39 @@ For the complete component gallery with examples, see [Component Reference](../r
 
 ## Static vs. Dynamic Children
 
-=== "v0.9"
+**Static** - Fixed list of child IDs:
 
-    **Static** - Fixed list of child IDs:
+```json
+{
+  "children": ["back-btn", "title", "menu-btn"]
+}
+```
 
-    ```json
-    {
-      "children": ["back-btn", "title", "menu-btn"]
-    }
-    ```
+**Dynamic** - Generate children from data array:
 
-    **Dynamic** - Generate children from data array:
+```json
+{
+  "children": {
+    "path": "/items",
+    "componentId": "item-template"
+  }
+}
+```
 
-    ```json
-    {
-      "children": {
-        "path": "/items",
-        "componentId": "item-template"
-      }
-    }
-    ```
-
-    For each item in `/items`, render the `item-template`. See [Data Binding](data-binding.md) for details.
-
-=== "v0.8"
-
-    **Static (`explicitList`)** - Fixed list of child IDs:
-
-    ```json
-    {
-      "children": {
-        "explicitList": ["back-btn", "title", "menu-btn"]
-      }
-    }
-    ```
-
-    **Dynamic (`template`)** - Generate children from data array:
-
-    ```json
-    {
-      "children": {
-        "template": {
-          "dataBinding": "/items",
-          "componentId": "item-template"
-        }
-      }
-    }
-    ```
-
-    For each item in `/items`, render the `item-template`. See [Data Binding](data-binding.md) for details.
+For each item in `/items`, render the `item-template`. See [Data Binding](data-binding.md) for details.
 
 ## Hydrating with Values
 
 Components get their values two ways:
 
-=== "v0.9"
+=== "v1.0"
 
     - **Literal** - Fixed value: `{"text": "Welcome"}`
-    - **Data-bound** - From data model: `{"text": {"path": "/user/name"}}`
+    - **Data-bound** - From data model: `{"text": {"@path": "/user/name"}}`
 
-=== "v0.8"
+=== "v0.9.1"
 
-    - **Literal** - Fixed value: `{"text": {"literalString": "Welcome"}}`
+    - **Literal** - Fixed value: `{"text": "Welcome"}`
     - **Data-bound** - From data model: `{"text": {"path": "/user/name"}}`
 
 LLMs can generate components with literal values or bind them to data paths for dynamic content.
@@ -249,18 +189,18 @@ LLMs can generate components with literal values or bind them to data paths for 
 
 Components compose into **surfaces** (widgets):
 
-=== "v0.9"
+=== "v1.0"
 
-    1. LLM creates a surface via `createSurface` (specifying catalog; in v1.0, can also include initial data model and components)
-    2. LLM generates component definitions via `updateComponents`
-    3. LLM populates data via `updateDataModel`
+    1. LLM creates a surface via `createSurface`, which names the catalog and can also carry the initial components and data model
+    2. LLM generates or changes component definitions via `updateComponents`
+    3. LLM populates or changes data via `updateDataModel`
     4. Client renders all components as native widgets
 
-=== "v0.8"
+=== "v0.9.1"
 
-    1. LLM generates component definitions via `surfaceUpdate`
-    2. LLM populates data via `dataModelUpdate`
-    3. LLM signals render via `beginRendering`
+    1. LLM creates a surface via `createSurface` (specifying the catalog)
+    2. LLM generates component definitions via `updateComponents`
+    3. LLM populates data via `updateDataModel`
     4. Client renders all components as native widgets
 
 A surface is a complete, cohesive UI (form, dashboard, chat, etc.).
