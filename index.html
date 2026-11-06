@@ -1769,7 +1769,7 @@
   <span class="md-ellipsis">
     
   
-    v1.0 (Candidate)
+    v1.0 (Current)
   
 
     
@@ -1785,7 +1785,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    v1.0 (Candidate)
+    v1.0 (Current)
   
 
           </label>
@@ -1946,7 +1946,7 @@
   <span class="md-ellipsis">
     
   
-    v0.9.1 (Current)
+    v0.9.1
   
 
     
@@ -1962,7 +1962,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    v0.9.1 (Current)
+    v0.9.1
   
 
           </label>
@@ -2119,7 +2119,7 @@
   <span class="md-ellipsis">
     
   
-    v0.9 (Previous Stable)
+    v0.9
   
 
     
@@ -2135,7 +2135,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    v0.9 (Previous Stable)
+    v0.9
   
 
           </label>
@@ -2236,7 +2236,7 @@
   <span class="md-ellipsis">
     
   
-    v0.8 (Legacy)
+    v0.8 (Deprecated)
   
 
     
@@ -2252,7 +2252,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    v0.8 (Legacy)
+    v0.8 (Deprecated)
   
 
           </label>
@@ -2665,23 +2665,23 @@ A2UI (Agent to User Interface) enables AI agents to generate rich, interactive u
 <tbody>
 <tr>
 <td><strong><a href="specification/v1.0-a2ui/">v1.0</a></strong></td>
-<td><strong>Candidate</strong></td>
-<td>Release candidate. Adds client-to-server RPC (<code>actionResponse</code>), action IDs, and renames theme to surfaceProperties. (Previously designated as v0.10 when in draft). <a href="specification/v1.0-evolution-guide/">Evolution guide →</a></td>
+<td><strong>Current</strong></td>
+<td>Current version. Adds client-to-server RPC (<code>actionResponse</code>), action IDs, and renames theme to surfaceProperties. (Previously designated as v0.10.) <a href="specification/v1.0-evolution-guide/">Evolution guide →</a></td>
 </tr>
 <tr>
 <td><strong><a href="specification/v0.9.1-a2ui/">v0.9.1</a></strong></td>
-<td><strong>Current</strong></td>
-<td>Current production release. Minor refinements to v0.9, standardizing on the <code>application/a2ui+json</code> MIME type and relaxing surfaceId constraints. <a href="specification/v0.9.1-evolution-guide/">Evolution guide →</a></td>
+<td>Previous</td>
+<td>Minor refinements to v0.9, standardizing on the <code>application/a2ui+json</code> MIME type and relaxing surfaceId constraints. <a href="specification/v0.9.1-evolution-guide/">Evolution guide →</a></td>
 </tr>
 <tr>
 <td><strong><a href="specification/v0.9-a2ui/">v0.9</a></strong></td>
-<td><strong>Stable</strong></td>
-<td>Previous stable version. Philosophical shift to Prompt-First. Introduces <code>createSurface</code>, client-side functions, custom catalogs, modular schemas, and validation failed error formatting. <a href="specification/v0.9-evolution-guide/">Evolution guide →</a></td>
+<td>Previous</td>
+<td>Philosophical shift to Prompt-First. Introduces <code>createSurface</code>, client-side functions, custom catalogs, modular schemas, and validation failed error formatting. <a href="specification/v0.9-evolution-guide/">Evolution guide →</a></td>
 </tr>
 <tr>
 <td><strong><a href="specification/v0.8-a2ui/">v0.8</a></strong></td>
-<td><strong>Legacy</strong></td>
-<td>Legacy version. Structured Output first. Baseline surfaces, components, data binding, and adjacency list model.</td>
+<td><strong>Deprecated</strong></td>
+<td>Deprecated legacy version. Structured Output first. Baseline surfaces, components, data binding, and adjacency list model.</td>
 </tr>
 </tbody>
 </table>
@@ -2693,7 +2693,7 @@ and is in active development <a href="https://github.com/a2ui-project/a2ui">on G
 <p>Instead of text-only responses or risky code execution, A2UI lets agents send <strong>declarative component descriptions</strong> that clients render using their own native widgets. It's like having agents speak a universal UI language.</p>
 <p>This repository contains:</p>
 <ul>
-<li><strong><a href="specification/v0.9.1-a2ui/">A2UI specifications</a></strong> (v0.9.1 current, v1.0 candidate).</li>
+<li><strong><a href="specification/v1.0-a2ui/">A2UI specifications</a></strong>.</li>
 <li><strong>Implementations for <a href="reference/renderers/">renderers</a></strong> (Angular, Flutter, Lit, Markdown, etc.) on the client side.</li>
 <li><strong>Transports like <a href="concepts/transports/">A2A</a></strong> which communicate A2UI messages between agents and clients.</li>
 </ul>
@@ -2757,8 +2757,8 @@ and is in active development <a href="https://github.com/a2ui-project/a2ui">on G
 <li>
 <p><span class="twemoji lg middle"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 9h5.5L13 3.5zM6 2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4c0-1.11.89-2 2-2m9 16v-2H6v2zm3-4v-2H6v2z"/></svg></span> <strong>Protocol Specifications</strong></p>
 <hr />
-<p>Dive into the complete technical specs: <a href="specification/v0.8-a2ui/">v0.8 (legacy)</a> · <a href="specification/v0.9-a2ui/">v0.9 (stable)</a> · <a href="specification/v0.9.1-a2ui/">v0.9.1 (current)</a> · <a href="specification/v1.0-a2ui/">v1.0 (candidate)</a></p>
-<p><a href="specification/v0.9.1-a2ui/"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13.22 19.03a.75.75 0 0 1 0-1.06L18.19 13H3.75a.75.75 0 0 1 0-1.5h14.44l-4.97-4.97a.749.749 0 0 1 .326-1.275.75.75 0 0 1 .734.215l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0"/></svg></span> Read the v0.9.1 spec</a></p>
+<p>Dive into the complete technical specs: <a href="specification/v1.0-a2ui/">v1.0</a> · <a href="specification/v0.9.1-a2ui/">v0.9.1</a> · <a href="specification/v0.9-a2ui/">v0.9</a> · <a href="specification/v0.8-a2ui/">v0.8 (deprecated)</a></p>
+<p><a href="specification/v1.0-a2ui/"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13.22 19.03a.75.75 0 0 1 0-1.06L18.19 13H3.75a.75.75 0 0 1 0-1.5h14.44l-4.97-4.97a.749.749 0 0 1 .326-1.275.75.75 0 0 1 .734.215l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0"/></svg></span> Read the v1.0 spec</a></p>
 </li>
 </ul>
 </div>
