@@ -7,7 +7,7 @@
   compile to `{"@call": "@index", ...}` without a `catalogId`, the decompiler
   writes such calls back as `@index(...)`, and the v1.0 Express prompt lists
   `@index(offset?)`. Before v1.0, `@index()` is a validation error
-  ([#3725](https://github.com/a2ui-project/a2ui/issues/3725)).
+  ([#3725](https://github.com/a2ui-project/a2ui/issues/3725), [#4025](https://github.com/a2ui-project/a2ui/pull/4025)).
 - `DirectJsonPromptGenerator.generate()` follows the prompt layout
   the other SDKs use: the rules without the `## Workflow Description:` heading,
   then a schema block with the protocol schemas, then one schema block per

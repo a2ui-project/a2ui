@@ -5,7 +5,7 @@
   compile to `{"@call": "@index", ...}` without a `catalogId`, the decompiler
   writes such calls back as `@index(...)`, and the v1.0 Express prompt lists
   `@index(offset?)`. Before v1.0, `@index()` is a validation error
-  ([#3725](https://github.com/a2ui-project/a2ui/issues/3725)).
+  ([#3725](https://github.com/a2ui-project/a2ui/issues/3725), [#4025](https://github.com/a2ui-project/a2ui/pull/4025)).
 - **BREAKING CHANGE**: `PromptGenerator.generate()` is now final and returns
   `assemble_instructions(self)`, which `SkillGenerator.generate_skill()` also
   uses, so a monolithic skill for a format's own catalogs holds its prompt
