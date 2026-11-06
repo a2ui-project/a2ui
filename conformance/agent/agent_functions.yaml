@@ -81,9 +81,9 @@
           from_api: true
           behavior: {returns: null}
   expect:
-    functions: [notify]
+    functions: [notify, peek, record]
     agent_functions: [notify]
-    document_functions: [notify]
+    document_functions: [notify, peek, record]
 
 - name: test_declare_agent_function_from_an_undeclared_function_is_a_catalog_error
   description: >-
