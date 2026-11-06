@@ -28,9 +28,11 @@ Implemented:
 - `A2uiGenerator.createProcessor` and `resolveCatalogs` negotiate the
   protocol version, then pick the registered catalogs of that version the
   renderer supports, after their transformers, and the inline catalogs it
-  declares when `acceptsInlineCatalogs` is true. For a request
-  that carries no capabilities, `resolveCatalogs` takes null and activates
-  every registered catalog.
+  declares when `acceptsInlineCatalogs` is true. `readRendererCapabilities`
+  extracts and validates `A2uiRendererCapabilities` from transport metadata
+  (`a2uiRendererCapabilities` in v1.0 and `a2uiClientCapabilities` in v0.9).
+  For a request that carries no capabilities, `resolveCatalogs` takes null and
+  activates every registered catalog.
 - `ComponentPruningTransformer` and `FunctionPruningTransformer` narrow a
   catalog to an allowlist.
 - `A2uiRequestProcessor.promptSnippet` teaches the model the format, the

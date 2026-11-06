@@ -47,5 +47,6 @@ export 'src/processor/processor.dart';
 export 'src/processor/streamed_answer.dart';
 export 'src/prompt/generator.dart';
 export 'src/utils/catalog_resolver.dart';
+export 'src/utils/renderer_capabilities.dart';
 export 'src/utils/renderer_state.dart' show RendererState;
 export 'src/utils/validation.dart';

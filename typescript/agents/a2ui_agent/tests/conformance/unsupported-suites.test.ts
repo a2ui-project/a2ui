@@ -49,6 +49,7 @@ export const ACTIVE_SUITES: ReadonlySet<string> = new Set([
   'agent/legacy/inference_format.yaml',
   'agent/legacy/parser.yaml',
   'agent/multi_catalog_formats.yaml',
+  'agent/renderer_capabilities.yaml',
   'agent/request_processor.yaml',
   'agent/skill.yaml',
   'agent/streamed_answer.yaml',

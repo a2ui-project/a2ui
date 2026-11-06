@@ -34,7 +34,8 @@
       {"$ref": "#/$defs/RouteAgentFunctionTest"},
       {"$ref": "#/$defs/DeriveTest"},
       {"$ref": "#/$defs/RenderSurfaceTest"},
-      {"$ref": "#/$defs/HandleRpcTest"}
+      {"$ref": "#/$defs/HandleRpcTest"},
+      {"$ref": "#/$defs/ReadRendererCapabilitiesTest"}
     ]
   },
   "$defs": {
@@ -88,6 +89,7 @@
             "process_messages",
             "provide_catalog",
             "prune",
+            "read_renderer_capabilities",
             "render",
             "resolve_catalogs",
             "resolve_path",
@@ -317,6 +319,15 @@
           },
           "then": {
             "$ref": "#/$defs/HandleRpcTest"
+          }
+        },
+        {
+          "if": {
+            "properties": {"action": {"const": "read_renderer_capabilities"}},
+            "required": ["action"]
+          },
+          "then": {
+            "$ref": "#/$defs/ReadRendererCapabilitiesTest"
           }
         }
       ],
@@ -2593,6 +2604,35 @@
         "expectError": {"$ref": "#/$defs/ExpectError"},
         "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
+      "additionalProperties": false
+    },
+    "ReadRendererCapabilitiesTest": {
+      "type": "object",
+      "description": "Reads and validates transport renderer capabilities metadata for a protocol version.",
+      "required": ["name", "action", "args"],
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "features": {"type": "array", "items": {"type": "string"}},
+        "action": {"const": "read_renderer_capabilities"},
+        "args": {
+          "type": "object",
+          "required": ["version", "metadata"],
+          "properties": {
+            "version": {"$ref": "#/$defs/ProtocolVersion"},
+            "metadata": {"type": ["object", "null"]}
+          },
+          "additionalProperties": false
+        },
+        "expect": {"type": ["object", "null"]},
+        "expectError": {"$ref": "#/$defs/ExpectError"},
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "oneOf": [
+        {"required": ["expect"]},
+        {"required": ["expectError"]},
+        {"required": ["expect_error"]}
+      ],
       "additionalProperties": false
     }
   }
