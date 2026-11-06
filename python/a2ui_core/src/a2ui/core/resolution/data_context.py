@@ -442,7 +442,10 @@ class DataContext:
         """The catalog ID of the currently executing catalog function, if any."""
         if self._active_catalog_id is not None:
             return self._active_catalog_id
-        return self.parent.active_catalog_id if self.parent is not None else None
+        if self.parent is not None:
+            parent_id = getattr(self.parent, "active_catalog_id", None)
+            return parent_id if isinstance(parent_id, str) else None
+        return None
 
     @property
     def is_user_activated(self) -> bool:

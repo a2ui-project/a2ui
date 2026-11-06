@@ -194,18 +194,24 @@ def _adapt_ast_part_for_v10(part: Any, catalog_id: str | None = None) -> Any:
         and "@path" not in part
     ):
         return {"@path": part["path"]}
-    if "call" in part and isinstance(part["call"], str) and "@call" not in part:
-        call_name = part["call"]
+    has_call = "call" in part and isinstance(part["call"], str)
+    has_at_call = "@call" in part and isinstance(part["@call"], str)
+    call_name = (
+        part["call"]
+        if has_call and not has_at_call
+        else (part["@call"] if has_at_call else None)
+    )
+    if call_name is not None:
         args = {}
         raw_args = part.get("args")
         if isinstance(raw_args, dict):
             for k, v in raw_args.items():
                 args[k] = _adapt_ast_part_for_v10(v, catalog_id)
         res: dict[str, Any] = {"@call": call_name, "args": args}
-        if catalog_id is not None and not call_name.startswith("@"):
+        if "catalogId" in part and part["catalogId"] is not None:
+            res["catalogId"] = part["catalogId"]
+        elif catalog_id is not None and not call_name.startswith("@"):
             res["catalogId"] = catalog_id
-        if "returnType" in part:
-            res["returnType"] = part["returnType"]
         return res
     return {k: _adapt_ast_part_for_v10(v, catalog_id) for k, v in part.items()}
 

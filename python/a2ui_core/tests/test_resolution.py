@@ -1773,9 +1773,37 @@ def test_v10_format_string_template_calls_inherit_catalog_and_preserve_index():
         "catalogId": basic_cat.catalog_id,
         "args": {
             "value": (
-                "Item ${@index()}: ${pluralize(value: 2, one: 'drop', other: 'drops')}"
+                "Item ${@index()}:"
+                " ${pluralize(value: 2, one: 'drop', other: 'drops')}"
+                " (${not(value: not(value: true))})"
             )
         },
     })
-    assert res == "Item 1: drops"
+    assert res == "Item 1: drops (true)"
     assert errors == []
+
+    # Defensive parent attribute lookup when parent is a stub/mock without active_catalog_id.
+    from unittest.mock import MagicMock
+    from a2ui.core.basic_catalog.v1_0.function_impls import (
+        _adapt_ast_part_for_v10,
+    )
+
+    stub_ctx = DataContext(surface, path="/")
+    stub_ctx.parent = object()  # type: ignore[assignment]
+    assert stub_ctx.active_catalog_id is None
+    stub_ctx.parent = MagicMock()
+    assert stub_ctx.active_catalog_id is None
+
+    assert _adapt_ast_part_for_v10(
+        {
+            "@call": "fn",
+            "catalogId": "explicit-cat",
+            "args": {"x": {"path": "/a"}},
+            "returnType": "any",
+        },
+        "inherited-cat",
+    ) == {
+        "@call": "fn",
+        "catalogId": "explicit-cat",
+        "args": {"x": {"@path": "/a"}},
+    }
