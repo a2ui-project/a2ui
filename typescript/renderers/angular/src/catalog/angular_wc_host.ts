@@ -344,11 +344,13 @@ export class AngularWcHost extends HTMLElement {
     this.binder?.unbind(this.boundProps);
     this.boundProps = undefined;
     const ref = this.componentRef;
+    const appRef = this.appRef;
     this.componentRef = undefined;
     this.appRef = undefined;
     this.binder = undefined;
     this.ngZone = undefined;
     if (ref) {
+      appRef?.detachView(ref.hostView);
       ref.destroy();
     }
   }

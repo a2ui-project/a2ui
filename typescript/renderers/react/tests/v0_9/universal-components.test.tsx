@@ -74,9 +74,15 @@ const ThemedPanel = createComponentImplementation(
   ),
 );
 
-const Thrower = createComponentImplementation({name: 'Thrower', schema: z.object({})}, () => {
-  throw new Error('nested component failed');
-});
+const Thrower = createComponentImplementation(
+  {name: 'Thrower', schema: z.object({label: CommonSchemas.DynamicString.optional()})},
+  ({props}) => {
+    if (!props.label || props.label === 'boom') {
+      throw new Error('nested component failed');
+    }
+    return <span data-testid="thrower-recovered">{String(props.label)}</span>;
+  },
+);
 
 /** A clickable React wrapper that counts its own clicks. */
 const clicks = new Map<string, number>();
@@ -359,15 +365,16 @@ describe('mixed React and Web Component catalogs', () => {
     ).not.toBeNull();
   });
 
-  it('catches a throw from a component under a Lit parent, preserves siblings, and reports to surface.onError', async () => {
+  it('catches a throw from a component under a Lit parent, preserves siblings, reports to surface.onError, and recovers when props update', async () => {
     // React reports caught render errors through console.error.
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const surface = surfaceWith(
       'boundary-through-lit',
       new ComponentModel('root', 'Column', {children: ['thrower-1', 'badge-1']}, catalog),
-      new ComponentModel('thrower-1', 'Thrower', {}, catalog),
+      new ComponentModel('thrower-1', 'Thrower', {label: {path: '/throwerLabel'}}, catalog),
       new ComponentModel('badge-1', 'Badge', {label: 'still here'}, catalog),
     );
+    surface.dataModel.set('/throwerLabel', 'boom');
     const errors: unknown[] = [];
     surface.onError.subscribe(err => {
       errors.push(err);
@@ -390,6 +397,14 @@ describe('mixed React and Web Component catalogs', () => {
         surfaceId: 'boundary-through-lit',
       },
     ]);
+
+    act(() => {
+      surface.dataModel.set('/throwerLabel', 'recovered');
+    });
+
+    expect(await within(container).findByTestId('thrower-recovered')).toHaveTextContent(
+      'recovered',
+    );
   });
 
   it('catches a throw from a Lit component on data update, clears stale DOM, preserves siblings, and reports to surface.onError', async () => {

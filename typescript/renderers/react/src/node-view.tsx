@@ -469,16 +469,44 @@ interface NodeErrorBoundaryState {
 class NodeErrorBoundary extends Component<NodeErrorBoundaryProps, NodeErrorBoundaryState> {
   override state: NodeErrorBoundaryState = {failed: false};
   private reported = false;
+  private unsubscribe?: () => void;
 
   static getDerivedStateFromError(): NodeErrorBoundaryState {
     return {failed: true};
   }
 
+  override componentDidMount(): void {
+    this.subscribeToNodeProps();
+  }
+
   override componentDidUpdate(prevProps: NodeErrorBoundaryProps): void {
-    if (prevProps.node !== this.props.node && this.state.failed) {
-      this.reported = false;
-      this.setState({failed: false});
+    if (prevProps.node !== this.props.node) {
+      this.subscribeToNodeProps();
+      if (this.state.failed) {
+        this.reported = false;
+        this.setState({failed: false});
+      }
     }
+  }
+
+  override componentWillUnmount(): void {
+    this.unsubscribe?.();
+  }
+
+  private subscribeToNodeProps(): void {
+    this.unsubscribe?.();
+    let lastProps = getValue(this.props.node.props);
+    this.unsubscribe = effect(() => {
+      const nextProps = getValue(this.props.node.props);
+      if (nextProps === lastProps) {
+        return;
+      }
+      lastProps = nextProps;
+      if (this.state.failed) {
+        this.reported = false;
+        this.setState({failed: false});
+      }
+    });
   }
 
   override componentDidCatch(error: unknown): void {

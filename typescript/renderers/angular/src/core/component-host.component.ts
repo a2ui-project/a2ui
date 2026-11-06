@@ -166,14 +166,7 @@ export class ComponentHostComponent implements DoCheck {
   protected readonly componentType = signal<Type<CatalogComponentInstance> | null>(null);
   protected readonly props = signal<Record<string, BoundProperty>>({});
   protected readonly metadata = signal<A2uiMetadata | undefined>(undefined);
-  private readonly trackedNode = signal<AngularNode | undefined>(undefined);
-  protected readonly isHostEmpty = computed(() => {
-    const node = this.trackedNode();
-    if (node) {
-      getValue(node.props);
-    }
-    return !this.componentType();
-  });
+  protected readonly isHostEmpty = computed(() => !this.componentType());
   protected readonly acceptsMetadata = computed(() => {
     const type = this.componentType();
     if (!type) return false;
@@ -307,7 +300,6 @@ export class ComponentHostComponent implements DoCheck {
       return;
     }
     this.resolvedNode = node;
-    this.trackedNode.set(node);
     this.resolvedDataContextPath = node.dataPath;
 
     // Entries from `createComponentImplementation` carry both an Angular component and a Custom
@@ -509,7 +501,6 @@ export class ComponentHostComponent implements DoCheck {
     this.stopAccessibility = undefined;
 
     this.resolvedNode = undefined;
-    this.trackedNode.set(undefined);
     this.activeSurface = undefined;
 
     this.mountedComponentRef = null;

@@ -524,34 +524,39 @@ export abstract class A2uiLitElement<
     if (!this._controller) {
       return;
     }
+    const self = this as unknown as {render?: () => unknown};
+    const hadOwnRender = Object.prototype.hasOwnProperty.call(this, 'render');
+    const originalRender = self.render;
+    if (originalRender) {
+      self.render = () => {
+        try {
+          const result = originalRender.call(this);
+          if (this._renderFailed) {
+            this._renderFailed = false;
+            this.style.display = this._savedDisplay ?? '';
+            this._savedDisplay = undefined;
+          }
+          return result;
+        } catch (err) {
+          if (!this._renderFailed) {
+            this._savedDisplay = this.style.display;
+            this._renderFailed = true;
+            this.style.display = 'none';
+            this.reportRenderError(err);
+          } else {
+            this.style.display = 'none';
+          }
+          return nothing;
+        }
+      };
+    }
     try {
       super.update(changedProperties);
-      if (this._renderFailed) {
-        this._renderFailed = false;
-        this.style.display = this._savedDisplay ?? '';
-        this._savedDisplay = undefined;
-      }
-    } catch (err) {
-      const self = this as unknown as {render?: () => unknown};
-      const hadOwnRender = Object.prototype.hasOwnProperty.call(this, 'render');
-      const ownRender = self.render;
-      self.render = () => nothing;
-      try {
-        super.update(changedProperties);
-      } finally {
-        if (hadOwnRender) {
-          self.render = ownRender;
-        } else {
-          delete self.render;
-        }
-      }
-      if (!this._renderFailed) {
-        this._savedDisplay = this.style.display;
-        this._renderFailed = true;
-        this.style.display = 'none';
-        this.reportRenderError(err);
+    } finally {
+      if (hadOwnRender) {
+        self.render = originalRender;
       } else {
-        this.style.display = 'none';
+        delete self.render;
       }
     }
   }
