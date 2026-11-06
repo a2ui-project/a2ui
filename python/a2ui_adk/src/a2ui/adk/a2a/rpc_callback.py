@@ -12,15 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Module for `a2ui_rpc_callback`, which answers agent function calls in ADK.
+"""Module for `a2ui_rpc_callback`, which answers A2UI RPC messages in ADK.
 
-From v1.0, a renderer sends `callAgentFunction` to run a function on the agent.
-Answering it is deterministic, and the renderer shows a pending value until
-the answer arrives, so it shouldn't wait for a model turn.
-`a2ui_rpc_callback` returns a `before_agent_callback` that answers a request
-holding only such calls, through a `RendererToAgentMessageProcessor` built
-from the agent's catalogs, and skips the agent. The renderer's other messages
-(`action`, `error`, `rendererFunctionResponse`) go to the agent's turn.
+From v1.0, a renderer sends `callAgentFunction` to run a function on the agent,
+and `rendererFunctionResponse` to answer the agent's `callRendererFunction`.
+Answering them is deterministic, and the renderer shows a pending value until
+the answer arrives, so they shouldn't wait for a model turn.
+`a2ui_rpc_callback` returns a `before_agent_callback` that handles a request
+holding only such messages, through a `RendererToAgentMessageProcessor`, and
+skips the agent. The renderer's other messages (`action`, `error`), and
+responses to calls the session's `RendererFunctionCalls` didn't make, go to
+the agent's turn.
 
 It works with ADK's `A2aAgentExecutor`. The executor turns each A2UI
 `DataPart` of the request into a GenAI part, and the callback turns it back
@@ -32,6 +34,7 @@ Usage Example:
 
   ```python
   processors = A2uiProcessorStore()
+  renderer_calls = A2uiRendererCallsStore()
 
   def active_catalogs(ctx: ReadonlyContext) -> list[CatalogApi] | None:
       processor = processors.get(ctx)
@@ -39,14 +42,15 @@ Usage Example:
 
   agent = LlmAgent(
       ...,
-      before_agent_callback=a2ui_rpc_callback(catalogs=active_catalogs),
+      before_agent_callback=a2ui_rpc_callback(
+          catalogs=active_catalogs, renderer_calls=renderer_calls.get
+      ),
   )
   ```
 """
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 import inspect
 import logging
@@ -62,9 +66,14 @@ from google.genai import types as genai_types
 from a2ui.a2a import create_a2ui_parts
 from a2ui.core import A2uiValidationError, CatalogApi
 from a2ui.core.schema.v1_0 import AgentToRendererMessage
-from a2ui.rpc import RendererToAgentMessageProcessor
+from a2ui.rpc import RendererFunctionCalls, RendererToAgentMessageProcessor
 
-from ._rpc import CALL_AGENT_FUNCTION, genai_part_a2ui_messages, message_kind
+from ._rpc import (
+    CALL_AGENT_FUNCTION,
+    RENDERER_FUNCTION_RESPONSE,
+    genai_part_a2ui_messages,
+    message_kind,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -74,32 +83,54 @@ CatalogsProvider: TypeAlias = Callable[
 ]
 """Returns the agent's catalogs for a context, or None for none."""
 
+RendererFunctionCallsProvider: TypeAlias = Callable[
+    [ReadonlyContext],
+    RendererFunctionCalls | None | Awaitable[RendererFunctionCalls | None],
+]
+"""Returns the session's `RendererFunctionCalls`, such as `A2uiRendererCallsStore.get`."""
+
 A2uiRpcCallback: TypeAlias = Callable[
     [CallbackContext], Awaitable[genai_types.Content | None]
 ]
-"""A `before_agent_callback` that answers A2UI agent function calls."""
+"""A `before_agent_callback` that answers A2UI RPC messages."""
 
 
 @experimental
 def a2ui_rpc_callback(
     *,
-    catalogs: Iterable[CatalogApi] | CatalogsProvider,
+    catalogs: Iterable[CatalogApi] | CatalogsProvider | None = None,
+    renderer_calls: RendererFunctionCallsProvider | None = None,
     agent_function_timeout: float | None = None,
 ) -> A2uiRpcCallback:
-    """Returns a `before_agent_callback` that answers agent function calls.
+    """Returns a `before_agent_callback` that answers A2UI RPC messages.
 
-    The callback reads the user content that started the invocation. When
-    every part of it is an A2UI `callAgentFunction` message, it builds a
-    `RendererToAgentMessageProcessor` from `catalogs`, has it run each call's
-    agent function, and returns the `agentFunctionResponse` replies as the
-    agent's response, so the agent doesn't run.
+    The callback reads the user content that started the invocation and
+    processes each A2UI message in it, one at a time, with a
+    `RendererToAgentMessageProcessor` built from `catalogs`, whose
+    `on_renderer_function_response` is the session's
+    `RendererFunctionCalls.resolve`, from `renderer_calls`:
 
-    For any other content it returns None and the agent runs as usual. That
-    includes text, the renderer's `action`, `error` and
-    `rendererFunctionResponse` messages, and a mix of calls and other parts.
-    A `callAgentFunction` that the processor can't answer, such as one
-    without a `functionCallId` or with a `version` other than `"1.0"`, is
-    logged and dropped.
+    1. `callAgentFunction` runs the agent function of `catalogs` and replies
+       with its `agentFunctionResponse`.
+    2. `rendererFunctionResponse` that answers a pending call of the session
+       settles the call and sends no reply. `resolve` declines any other
+       response, such as one to a call the model wrote itself (which the
+       inference formats compile into `callRendererFunction`), so it isn't
+       handled.
+    3. `action` and `error` aren't handled.
+
+    When every part is an A2UI message and every message is handled, the
+    callback returns the replies as the agent's response, so the agent doesn't
+    run. A request holding only responses gets a response with no parts,
+    which `A2aAgentExecutor` ends in the `working` state;
+    `a2ui_rpc_interceptor` ends it `completed` instead. For any other content
+    it returns None and the agent runs as usual, with the whole request.
+    Responses are processed first, so a pending call is always settled, even
+    in a request that goes to the agent, and `callAgentFunction` runs only
+    when the request is answered. A `callAgentFunction` that the
+    processor can't answer, such as one without a `functionCallId` or with a
+    `version` other than `"1.0"`, is logged and dropped. A
+    malformed `rendererFunctionResponse` fails the call it names.
 
     To combine it with a callback of your own, pass both as a list:
     `before_agent_callback=[a2ui_rpc_callback(...), my_callback]`. ADK runs
@@ -109,8 +140,11 @@ def a2ui_rpc_callback(
         catalogs: The catalogs whose agent functions answer
             `callAgentFunction`, or a sync or async provider that returns
             them, or None, per context. A provider can return the session's
-            `A2uiRequestProcessor.active_catalogs`. When it returns None,
-            the calls go to the agent.
+            `A2uiRequestProcessor.active_catalogs`. Without catalogs,
+            `callAgentFunction` goes to the agent.
+        renderer_calls: A sync or async provider of the session's
+            `RendererFunctionCalls`, such as `A2uiRendererCallsStore.get`.
+            Without one, `rendererFunctionResponse` goes to the agent.
         agent_function_timeout: Seconds an agent function may run, as for
             `RendererToAgentMessageProcessor`. None, the default, sets no
             limit.
@@ -119,9 +153,11 @@ def a2ui_rpc_callback(
         The callback, for `before_agent_callback` of an ADK agent.
 
     Raises:
-        ValueError: If `agent_function_timeout` is not a finite positive
-            number.
+        ValueError: If neither `catalogs` nor `renderer_calls` is given, or
+            `agent_function_timeout` is not a finite positive number.
     """
+    if catalogs is None and renderer_calls is None:
+        raise ValueError("Pass catalogs, renderer_calls, or both.")
     if agent_function_timeout is not None and (
         isinstance(agent_function_timeout, bool)
         or not isinstance(agent_function_timeout, (int, float))
@@ -133,35 +169,65 @@ def a2ui_rpc_callback(
     fixed: list[CatalogApi] | None = None
     if callable(catalogs):
         provider = catalogs
-    else:
+    elif catalogs is not None:
         fixed = list(catalogs)
 
     async def callback(callback_context: CallbackContext) -> genai_types.Content | None:
-        messages = _rpc_messages(callback_context.user_content)
-        if not messages or not all(
-            message_kind(message) == CALL_AGENT_FUNCTION for message in messages
+        content = callback_context.user_content
+        if content is None or not content.parts:
+            return None
+        per_part = [genai_part_a2ui_messages(part) for part in content.parts]
+        messages = [message for part in per_part for message in part]
+        if not messages:
+            return None
+        calls_processor = RendererToAgentMessageProcessor([])
+        calls: RendererFunctionCalls | None = None
+        if renderer_calls is not None and any(
+            message_kind(message) == RENDERER_FUNCTION_RESPONSE for message in messages
         ):
+            calls = await _resolve(renderer_calls, callback_context)
+            if calls is not None:
+                calls_processor = RendererToAgentMessageProcessor(
+                    [], on_renderer_function_response=calls.resolve
+                )
+
+        # Everything but agent function calls first: this settles the
+        # session's pending calls whatever happens to the request, and has no
+        # other side effects.
+        handled = [
+            await _process_other(calls_processor, calls, message)
+            for message in messages
+            if message_kind(message) != CALL_AGENT_FUNCTION
+        ]
+        agent_calls = [
+            message
+            for message in messages
+            if message_kind(message) == CALL_AGENT_FUNCTION
+        ]
+        if not all(handled) or not all(per_part):
+            # Text or another part that isn't A2UI, or a message the processor
+            # didn't handle: the agent runs, with the whole request.
             return None
 
-        resolved = (
-            fixed
-            if provider is None
-            else await _resolve_catalogs(provider, callback_context)
-        )
-        if resolved is None:
-            return None
-        # The processor keeps no state, so building one per request is cheap.
-        processor = RendererToAgentMessageProcessor(
-            resolved, agent_function_timeout=agent_function_timeout
-        )
+        replies: list[AgentToRendererMessage] = []
+        if agent_calls:
+            resolved: Iterable[CatalogApi] | None = (
+                fixed
+                if provider is None
+                else await _resolve(provider, callback_context)
+            )
+            if resolved is None:
+                return None
+            # The processor keeps no state, so building one per request is
+            # cheap.
+            processor = RendererToAgentMessageProcessor(
+                resolved, agent_function_timeout=agent_function_timeout
+            )
+            for message in agent_calls:
+                replies.extend(await _process_call(processor, message))
 
-        replies = await asyncio.gather(
-            *(_process(processor, message) for message in messages)
-        )
         parts: list[genai_types.Part] = []
-        for a2a_part in create_a2ui_parts(
-            reply for message_replies in replies for reply in message_replies
-        ):
+        for a2a_part in create_a2ui_parts(replies):
             genai_part = part_converter.convert_a2a_part_to_genai_part(a2a_part)
             if genai_part is not None:
                 parts.append(genai_part)
@@ -170,33 +236,50 @@ def a2ui_rpc_callback(
     return callback
 
 
-def _rpc_messages(content: genai_types.Content | None) -> list[dict[str, Any]]:
-    """The A2UI messages of `content`, or none if any part isn't A2UI."""
-    if content is None or not content.parts:
-        return []
-    messages: list[dict[str, Any]] = []
-    for part in content.parts:
-        part_messages = genai_part_a2ui_messages(part)
-        if not part_messages:
-            return []
-        messages.extend(part_messages)
-    return messages
-
-
-async def _resolve_catalogs(
-    provider: CatalogsProvider, ctx: ReadonlyContext
-) -> Iterable[CatalogApi] | None:
-    """Resolves a sync or async catalogs provider for `ctx`."""
+async def _resolve(
+    provider: Callable[[ReadonlyContext], Any], ctx: ReadonlyContext
+) -> Any:
+    """Calls a sync or async provider for `ctx`."""
     resolved = provider(ctx)
     if inspect.isawaitable(resolved):
         resolved = await resolved
     return resolved
 
 
-async def _process(
+async def _process_other(
+    processor: RendererToAgentMessageProcessor,
+    calls: RendererFunctionCalls | None,
+    message: Mapping[str, Any],
+) -> bool:
+    """Processes a message that isn't an agent function call.
+
+    Returns whether it was handled. A message that can't be processed isn't,
+    except a malformed response that `calls` takes, which fails the pending
+    call it names at once.
+    """
+    try:
+        return (await processor.process_message(message)).handled
+    except A2uiValidationError as e:
+        if (
+            calls is not None
+            and message_kind(message) == RENDERER_FUNCTION_RESPONSE
+            and calls.resolve(message)
+        ):
+            # `resolve` logged the malformed response and failed its call.
+            return True
+        # The error may quote the payload, so the details are logged only at
+        # debug level.
+        logger.warning(
+            "Passing an invalid A2UI message on to the agent: %s", type(e).__name__
+        )
+        logger.debug("Invalid A2UI message error: %s", e)
+        return False
+
+
+async def _process_call(
     processor: RendererToAgentMessageProcessor, message: Mapping[str, Any]
 ) -> list[AgentToRendererMessage]:
-    """Processes one call, logging and dropping one that can't be answered."""
+    """Answers one agent function call, logging and dropping one that can't be."""
     try:
         result = await processor.process_message(message)
     except A2uiValidationError as e:
