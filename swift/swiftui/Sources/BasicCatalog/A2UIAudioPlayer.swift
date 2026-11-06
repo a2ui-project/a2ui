@@ -110,7 +110,6 @@ public struct A2UIAudioPlayer: View {
     .background(Color.gray.opacity(0.12))
     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     .frame(maxWidth: .infinity)
-    .accessibilityIdentifier("A2UIAudioPlayer_\(node.id)")
     .onAppear {
       model.load(urlString: urlString)
     }

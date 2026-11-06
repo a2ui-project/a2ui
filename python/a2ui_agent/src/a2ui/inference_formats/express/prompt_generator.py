@@ -720,21 +720,3 @@ class ExpressPromptGenerator(PromptGenerator):
             result,
             flags=re.DOTALL,
         )
-
-    def generate(self) -> str:
-        """Assembles the prompt snippet for A2UI Express."""
-        parts: list[str] = []
-
-        rules = self.generate_base_rules()
-        if rules:
-            parts.append(f"## Workflow Description:\n{rules}")
-
-        catalog_inst = self.generate_catalog_instructions(include_schema=True)
-        if catalog_inst:
-            parts.append(catalog_inst)
-
-        examples = self.generate_examples()
-        if examples:
-            parts.append(f"### Examples:\n{examples}")
-
-        return "\n\n".join(parts)

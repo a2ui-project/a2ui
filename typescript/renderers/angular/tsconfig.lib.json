@@ -9,5 +9,5 @@
     "types": []
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["**/*.spec.ts"]
+  "exclude": ["**/*.spec.ts", "src/adapter_harness.ts"]
 }
