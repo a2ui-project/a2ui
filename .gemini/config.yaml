@@ -28,3 +28,7 @@ code_review:
     # These tend to be verbose, and since we expect PR authors to clearly
     # describe their PRs this would be at best duplicative.
     summary: false
+    # Review a pull request only when it is opened ready for review. A draft
+    # usually changes a lot before it is ready, and the review runs only once,
+    # when the pull request opens. Comment `/gemini review` to ask for one later.
+    include_drafts: false
