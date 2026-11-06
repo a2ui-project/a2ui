@@ -34,11 +34,11 @@ from a2ui.core.catalog import FunctionApi
 from a2ui.core.schema import ProtocolVersion
 from a2ui.rpc import RendererFunctionCalls, RendererToAgentMessageProcessor
 
-from .conformance_helpers import load_conformance_yaml
+from .conformance_helpers import case_params, load_conformance_yaml
 
 SUITE = "agent/renderer_function_calls.yaml"
 
-CASES = [pytest.param(case, id=case["name"]) for case in load_conformance_yaml(SUITE)]
+CASES = case_params(SUITE, load_conformance_yaml(SUITE))
 
 
 def test_suite_is_not_empty() -> None:
@@ -250,8 +250,11 @@ def _run_calls(case: Mapping[str, Any]) -> None:
         asyncio.set_event_loop(None)
 
 
-@pytest.mark.parametrize("case", CASES)
-def test_renderer_function_calls_conformance(case: Mapping[str, Any]) -> None:
+@pytest.mark.parametrize("suite, case", CASES)
+def test_renderer_function_calls_conformance(
+    suite: str, case: Mapping[str, Any]
+) -> None:
+    del suite  # Names the suite in the executed-case manifest.
     action = case["action"]
     if action != "call_renderer_function":
         raise ValueError(f"Unhandled conformance action: {action}")

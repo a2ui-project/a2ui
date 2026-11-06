@@ -66,6 +66,9 @@ const Map<String, String> unsupportedAgentSuites = {
   'agent/macros/macros.yaml':
       'The composite macro suite targets the Python macro API, which '
       'a2ui_agent for Dart does not implement.',
+  'agent/renderer_function_calls.yaml':
+      'a2ui_agent for Dart does not implement calling renderer functions '
+      'yet.',
   'agent/skill.yaml':
       'a2ui_agent for Dart does not implement the skill generation API.',
 };
