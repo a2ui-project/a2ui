@@ -128,13 +128,19 @@ jobs:
             uv run --project conformance python conformance/scripts/check_executed_cases.py \
               --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
               --corpus adapter \
-              --harness "$h"
+              --harness "$h" \
+              --exclude adapter/markdown_subset.yaml="renderers render components, not raw markdown"
           done
           uv run --project conformance python conformance/scripts/check_executed_cases.py \
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --corpus adapter \
             --harness web_core_universal \
             --only core/accessibility.yaml
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --corpus adapter \
+            --harness markdown-it \
+            --only adapter/markdown_subset.yaml
       - name: Check TS agent executed cases
         run: |
           uv run --project conformance python conformance/scripts/check_executed_cases.py \
