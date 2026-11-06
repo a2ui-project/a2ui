@@ -72,6 +72,10 @@ jobs:
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --harness swiftui \
             --corpus adapter
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --harness swiftui \
+            --corpus e2e
 
   ios-build:
     # `swift test` above builds for macOS only, so `#if os(iOS)` and UIKit code
