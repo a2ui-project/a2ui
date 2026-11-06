@@ -92,9 +92,6 @@ export type {
  */
 export type RendererCapabilities = V10RendererCapabilities;
 
-// ./validation
-export {PayloadValidator} from '@a2ui/web_core/validation';
-
 // ./validating
 export {
   validateRecursionAndPaths,
