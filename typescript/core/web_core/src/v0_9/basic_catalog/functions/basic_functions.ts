@@ -47,7 +47,7 @@ import {
   ContainsApi,
   StartsWithApi,
   EndsWithApi,
-} from './non_spec_functions_api.js';
+} from './legacy_functions_api.js';
 import {
   createAndImplementation,
   createOrImplementation,
@@ -66,19 +66,19 @@ import {
 } from '../../../common/basic_functions.js';
 
 export {isSafeRegex, type SafeRegexOptions} from './safe_regex.js';
-export * from './non_spec_functions_api.js';
+export * from './legacy_functions_api.js';
 
-// Non-spec 0.9.x arithmetic, comparison, and string functions. See
-// `non_spec_functions_api.ts` for why they are kept.
+// Legacy arithmetic, comparison, and string functions. See
+// `legacy_functions_api.ts` for why they are kept.
 /**
- * Implementation of the non-spec 0.9.x `add` function.
+ * Implementation of the legacy `add` function.
  *
  * @deprecated Define `add` in your own catalog instead; the v0.9 basic
  *   catalog document does not include it.
  */
 export const AddImplementation = createFunctionImplementation(AddApi, args => args.a + args.b);
 /**
- * Implementation of the non-spec 0.9.x `subtract` function.
+ * Implementation of the legacy `subtract` function.
  *
  * @deprecated Define `subtract` in your own catalog instead; the v0.9 basic
  *   catalog document does not include it.
@@ -88,7 +88,7 @@ export const SubtractImplementation = createFunctionImplementation(
   args => args.a - args.b,
 );
 /**
- * Implementation of the non-spec 0.9.x `multiply` function.
+ * Implementation of the legacy `multiply` function.
  *
  * @deprecated Define `multiply` in your own catalog instead; the v0.9 basic
  *   catalog document does not include it.
@@ -98,7 +98,7 @@ export const MultiplyImplementation = createFunctionImplementation(
   args => args.a * args.b,
 );
 /**
- * Implementation of the non-spec 0.9.x `divide` function.
+ * Implementation of the legacy `divide` function.
  *
  * @deprecated Define `divide` in your own catalog instead; the v0.9 basic
  *   catalog document does not include it.
@@ -116,7 +116,7 @@ export const DivideImplementation = createFunctionImplementation(DivideApi, args
 });
 
 /**
- * Implementation of the non-spec 0.9.x `equals` function.
+ * Implementation of the legacy `equals` function.
  *
  * @deprecated Define `equals` in your own catalog instead; the v0.9 basic
  *   catalog document does not include it.
@@ -126,7 +126,7 @@ export const EqualsImplementation = createFunctionImplementation(
   args => args.a === args.b,
 );
 /**
- * Implementation of the non-spec 0.9.x `not_equals` function.
+ * Implementation of the legacy `not_equals` function.
  *
  * @deprecated Define `not_equals` in your own catalog instead; the v0.9 basic
  *   catalog document does not include it.
@@ -136,7 +136,7 @@ export const NotEqualsImplementation = createFunctionImplementation(
   args => args.a !== args.b,
 );
 /**
- * Implementation of the non-spec 0.9.x `greater_than` function.
+ * Implementation of the legacy `greater_than` function.
  *
  * @deprecated Define `greater_than` in your own catalog instead; the v0.9 basic
  *   catalog document does not include it.
@@ -146,7 +146,7 @@ export const GreaterThanImplementation = createFunctionImplementation(
   args => args.a > args.b,
 );
 /**
- * Implementation of the non-spec 0.9.x `less_than` function.
+ * Implementation of the legacy `less_than` function.
  *
  * @deprecated Define `less_than` in your own catalog instead; the v0.9 basic
  *   catalog document does not include it.
@@ -157,7 +157,7 @@ export const LessThanImplementation = createFunctionImplementation(
 );
 
 /**
- * Implementation of the non-spec 0.9.x `contains` function.
+ * Implementation of the legacy `contains` function.
  *
  * @deprecated Define `contains` in your own catalog instead; the v0.9 basic
  *   catalog document does not include it.
@@ -166,7 +166,7 @@ export const ContainsImplementation = createFunctionImplementation(ContainsApi, 
   args.string.includes(args.substring),
 );
 /**
- * Implementation of the non-spec 0.9.x `starts_with` function.
+ * Implementation of the legacy `starts_with` function.
  *
  * @deprecated Define `starts_with` in your own catalog instead; the v0.9 basic
  *   catalog document does not include it.
@@ -175,7 +175,7 @@ export const StartsWithImplementation = createFunctionImplementation(StartsWithA
   args.string.startsWith(args.prefix),
 );
 /**
- * Implementation of the non-spec 0.9.x `ends_with` function.
+ * Implementation of the legacy `ends_with` function.
  *
  * @deprecated Define `ends_with` in your own catalog instead; the v0.9 basic
  *   catalog document does not include it.
@@ -185,12 +185,12 @@ export const EndsWithImplementation = createFunctionImplementation(EndsWithApi, 
 );
 
 /**
- * The non-spec 0.9.x function implementations, in the order `@a2ui/web_core` 0.9.x
+ * The legacy function implementations, in the order `@a2ui/web_core` 0.9.x
  * listed them.
  *
- * @deprecated See `non_spec_functions_api.ts`.
+ * @deprecated See `legacy_functions_api.ts`.
  */
-export const V09_NON_SPEC_FUNCTIONS: FunctionImplementation[] = [
+export const LEGACY_V09_FUNCTIONS: FunctionImplementation[] = [
   AddImplementation,
   SubtractImplementation,
   MultiplyImplementation,
@@ -203,13 +203,6 @@ export const V09_NON_SPEC_FUNCTIONS: FunctionImplementation[] = [
   StartsWithImplementation,
   EndsWithImplementation,
 ];
-
-/**
- * Former name of {@link V09_NON_SPEC_FUNCTIONS}.
- *
- * @deprecated Use `V09_NON_SPEC_FUNCTIONS`.
- */
-export const LEGACY_V09_FUNCTIONS = V09_NON_SPEC_FUNCTIONS;
 
 // Logical
 export const AndImplementation = createAndImplementation(AndApi);
@@ -304,16 +297,16 @@ export const V09_SPEC_FUNCTIONS: FunctionImplementation[] = createV09SpecFunctio
 /**
  * Creates standard function implementations for the Basic Catalog.
  *
- * Includes the non-spec functions of `@a2ui/web_core` 0.9.x ahead of the ones
+ * Includes the legacy functions of `@a2ui/web_core` 0.9.x ahead of the ones
  * the v0.9 specification defines, so a catalog composed from this list
- * behaves as it did before 1.0. The non-spec entries are deprecated; a catalog
+ * behaves as it did before 1.0. The legacy entries are deprecated; a catalog
  * that should match the published document uses {@link createV09SpecFunctions}.
  *
  * @param options Configuration options containing optional locale.
  * @returns Array of function implementations.
  */
 export function createBasicCatalogFunctions(options?: {locale?: string}): FunctionImplementation[] {
-  return [...V09_NON_SPEC_FUNCTIONS, ...createV09SpecFunctions(options)];
+  return [...LEGACY_V09_FUNCTIONS, ...createV09SpecFunctions(options)];
 }
 
 /**
@@ -321,7 +314,7 @@ export function createBasicCatalogFunctions(options?: {locale?: string}): Functi
  *
  * Includes arithmetic, comparison, string, logical, validation, formatting,
  * and action functions. The arithmetic, comparison, and string entries are
- * the deprecated non-spec functions of 0.9.x; {@link V09_SPEC_FUNCTIONS} holds
+ * the deprecated legacy functions of 0.9.x; {@link V09_SPEC_FUNCTIONS} holds
  * only the functions the v0.9 specification defines.
  */
 export const BASIC_FUNCTIONS: FunctionImplementation[] = createBasicCatalogFunctions();

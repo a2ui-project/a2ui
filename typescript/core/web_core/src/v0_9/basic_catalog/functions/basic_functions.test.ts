@@ -23,12 +23,11 @@ import path from 'node:path';
 import {
   BASIC_FUNCTIONS,
   LEGACY_V09_FUNCTIONS,
-  V09_NON_SPEC_FUNCTIONS,
   V09_SPEC_FUNCTIONS,
   createBasicCatalogFunctions,
 } from './basic_functions.js';
 import {BASIC_FUNCTION_APIS} from './basic_functions_api.js';
-import {LEGACY_V09_FUNCTION_APIS, V09_NON_SPEC_FUNCTION_APIS} from './non_spec_functions_api.js';
+import {LEGACY_V09_FUNCTION_APIS} from './legacy_functions_api.js';
 import {basicCatalog} from '../catalog.js';
 import {DataModel} from '../../../state/data-model.js';
 import {DataContext} from '../../../resolution/data-context.js';
@@ -53,8 +52,8 @@ describe('BASIC_FUNCTION_APIS Spec Parity', () => {
     }
   });
 
-  it('keeps the non-spec 0.9.x functions in BASIC_FUNCTIONS but out of basicCatalog', () => {
-    const nonSpecNames = [
+  it('keeps the legacy 0.9.x functions in BASIC_FUNCTIONS but out of basicCatalog', () => {
+    const legacyNames = [
       'add',
       'subtract',
       'multiply',
@@ -68,25 +67,20 @@ describe('BASIC_FUNCTION_APIS Spec Parity', () => {
       'ends_with',
     ];
     assert.deepStrictEqual(
-      V09_NON_SPEC_FUNCTION_APIS.map(f => f.name),
-      nonSpecNames,
+      LEGACY_V09_FUNCTION_APIS.map(f => f.name),
+      legacyNames,
     );
     assert.deepStrictEqual(
-      V09_NON_SPEC_FUNCTIONS.map(f => f.name),
-      nonSpecNames,
+      LEGACY_V09_FUNCTIONS.map(f => f.name),
+      legacyNames,
     );
     assert.deepStrictEqual(
       BASIC_FUNCTIONS.map(f => f.name),
-      [...nonSpecNames, ...V09_SPEC_FUNCTIONS.map(f => f.name)],
+      [...legacyNames, ...V09_SPEC_FUNCTIONS.map(f => f.name)],
     );
-    for (const name of nonSpecNames) {
+    for (const name of legacyNames) {
       assert.ok(!basicCatalog.functions.has(name), `${name} must not be in basicCatalog`);
     }
-  });
-
-  it('keeps the deprecated LEGACY_V09_* names as aliases of the V09_NON_SPEC_* arrays', () => {
-    assert.strictEqual(LEGACY_V09_FUNCTIONS, V09_NON_SPEC_FUNCTIONS);
-    assert.strictEqual(LEGACY_V09_FUNCTION_APIS, V09_NON_SPEC_FUNCTION_APIS);
   });
 });
 
@@ -112,7 +106,7 @@ describe('BASIC_FUNCTIONS', () => {
   const dataModel = new DataModel({a: 10, b: 20});
   const context = createTestDataContext(dataModel, '/');
 
-  describe('Non-spec 0.9.x functions', () => {
+  describe('Legacy 0.9.x functions', () => {
     it('arithmetic', () => {
       assert.strictEqual(invoke('add', {a: 1, b: 2}, context), 3);
       assert.strictEqual(invoke('subtract', {a: 5, b: 2}, context), 3);

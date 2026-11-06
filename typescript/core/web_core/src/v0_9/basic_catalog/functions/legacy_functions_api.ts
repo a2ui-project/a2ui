@@ -35,7 +35,7 @@ const stringArg = () =>
 const anyRequired = () => z.any().refine(v => v !== undefined, 'Required');
 
 /**
- * API of the non-spec 0.9.x `add` function.
+ * API of the legacy `add` function.
  *
  * @deprecated Define `add` in your own catalog instead; the v0.9 basic
  *   catalog document does not include it.
@@ -47,7 +47,7 @@ export const AddApi = {
 };
 
 /**
- * API of the non-spec 0.9.x `subtract` function.
+ * API of the legacy `subtract` function.
  *
  * @deprecated Define `subtract` in your own catalog instead; the v0.9 basic
  *   catalog document does not include it.
@@ -59,7 +59,7 @@ export const SubtractApi = {
 };
 
 /**
- * API of the non-spec 0.9.x `multiply` function.
+ * API of the legacy `multiply` function.
  *
  * @deprecated Define `multiply` in your own catalog instead; the v0.9 basic
  *   catalog document does not include it.
@@ -71,7 +71,7 @@ export const MultiplyApi = {
 };
 
 /**
- * API of the non-spec 0.9.x `divide` function.
+ * API of the legacy `divide` function.
  *
  * @deprecated Define `divide` in your own catalog instead; the v0.9 basic
  *   catalog document does not include it.
@@ -83,7 +83,7 @@ export const DivideApi = {
 };
 
 /**
- * API of the non-spec 0.9.x `equals` function.
+ * API of the legacy `equals` function.
  *
  * @deprecated Define `equals` in your own catalog instead; the v0.9 basic
  *   catalog document does not include it.
@@ -95,7 +95,7 @@ export const EqualsApi = {
 };
 
 /**
- * API of the non-spec 0.9.x `not_equals` function.
+ * API of the legacy `not_equals` function.
  *
  * @deprecated Define `not_equals` in your own catalog instead; the v0.9 basic
  *   catalog document does not include it.
@@ -107,7 +107,7 @@ export const NotEqualsApi = {
 };
 
 /**
- * API of the non-spec 0.9.x `greater_than` function.
+ * API of the legacy `greater_than` function.
  *
  * @deprecated Define `greater_than` in your own catalog instead; the v0.9 basic
  *   catalog document does not include it.
@@ -119,7 +119,7 @@ export const GreaterThanApi = {
 };
 
 /**
- * API of the non-spec 0.9.x `less_than` function.
+ * API of the legacy `less_than` function.
  *
  * @deprecated Define `less_than` in your own catalog instead; the v0.9 basic
  *   catalog document does not include it.
@@ -131,7 +131,7 @@ export const LessThanApi = {
 };
 
 /**
- * API of the non-spec 0.9.x `contains` function.
+ * API of the legacy `contains` function.
  *
  * @deprecated Define `contains` in your own catalog instead; the v0.9 basic
  *   catalog document does not include it.
@@ -143,7 +143,7 @@ export const ContainsApi = {
 };
 
 /**
- * API of the non-spec 0.9.x `starts_with` function.
+ * API of the legacy `starts_with` function.
  *
  * @deprecated Define `starts_with` in your own catalog instead; the v0.9 basic
  *   catalog document does not include it.
@@ -155,7 +155,7 @@ export const StartsWithApi = {
 };
 
 /**
- * API of the non-spec 0.9.x `ends_with` function.
+ * API of the legacy `ends_with` function.
  *
  * @deprecated Define `ends_with` in your own catalog instead; the v0.9 basic
  *   catalog document does not include it.
@@ -167,11 +167,11 @@ export const EndsWithApi = {
 };
 
 /**
- * The non-spec 0.9.x function APIs, in the order `@a2ui/web_core` 0.9.x listed them.
+ * The legacy function APIs, in the order `@a2ui/web_core` 0.9.x listed them.
  *
  * @deprecated See the module documentation.
  */
-export const V09_NON_SPEC_FUNCTION_APIS = [
+export const LEGACY_V09_FUNCTION_APIS = [
   AddApi,
   SubtractApi,
   MultiplyApi,
@@ -184,10 +184,3 @@ export const V09_NON_SPEC_FUNCTION_APIS = [
   StartsWithApi,
   EndsWithApi,
 ];
-
-/**
- * Former name of {@link V09_NON_SPEC_FUNCTION_APIS}.
- *
- * @deprecated Use `V09_NON_SPEC_FUNCTION_APIS`.
- */
-export const LEGACY_V09_FUNCTION_APIS = V09_NON_SPEC_FUNCTION_APIS;
