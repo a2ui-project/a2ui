@@ -124,6 +124,152 @@ void main() {
     clientErrors = [];
   });
 
+  group('agent call cache', () {
+    late SurfaceModel<ComponentApi> surface;
+    late DataContext context;
+
+    void setUpSurface(int maxEntries) {
+      surface = SurfaceModel<ComponentApi>(
+        'surf',
+        defaultCatalog: _catalog(),
+        protocolVersion: '1.0',
+        callAgentFunction: callAgent,
+        maxAgentCallCacheEntries: maxEntries,
+      );
+      surface.onError.subscribe(clientErrors.add);
+      addTearDown(surface.dispose);
+      context = ComponentContext(surface, ComponentModel('root', 'Text', {}))
+          .dataContext;
+    }
+
+    Map<String, Object?> call(int n) => {
+          '@call': 'lookup',
+          'args': {'n': n},
+        };
+
+    /// Mounts call [n] and tells whether it was sent rather than answered
+    /// from the cache.
+    bool sends(int n) {
+      final int before = agentCalls.length;
+      mount(context, call(n));
+      return agentCalls.length > before;
+    }
+
+    Future<void> settle(int n, {bool fail = false}) async {
+      final _AgentCall agentCall = agentCalls.lastWhere(
+        (c) => c.call.args['n'] == n && !c.completer.isCompleted,
+      );
+      if (fail) {
+        agentCall.completer.completeError(
+          A2uiRpcError('no', RpcErrorCode.executionError),
+        );
+      } else {
+        agentCall.completer.complete('answer $n');
+      }
+      await _flush();
+    }
+
+    test('defaults to 256 entries', () {
+      setUpSurface(256);
+      expect(
+        SurfaceModel<ComponentApi>('s').maxAgentCallCacheEntries,
+        256,
+      );
+    });
+
+    test('evicts the oldest settled answer first; reads do not refresh it',
+        () async {
+      setUpSurface(2);
+      expect(sends(1), isTrue);
+      expect(sends(2), isTrue);
+      await settle(1);
+      await settle(2);
+      // Reading answer 1 again leaves its place in the order unchanged.
+      expect(sends(1), isFalse);
+      expect(sends(3), isTrue);
+      await settle(3);
+      expect(sends(2), isFalse);
+      expect(sends(3), isFalse);
+      expect(sends(1), isTrue);
+    });
+
+    test('pending calls do not count, and settled ones stay bounded', () async {
+      setUpSurface(2);
+      for (var n = 1; n <= 4; n++) {
+        expect(sends(n), isTrue);
+      }
+      // All four are in flight at once; none evicts another.
+      for (var n = 1; n <= 4; n++) {
+        expect(sends(n), isFalse);
+      }
+      for (var n = 1; n <= 4; n++) {
+        await settle(n);
+      }
+      // Only the two that settled last are kept.
+      expect(sends(3), isFalse);
+      expect(sends(4), isFalse);
+      expect(sends(1), isTrue);
+      expect(sends(2), isTrue);
+    });
+
+    test('a failed call evicts no settled answer', () async {
+      setUpSurface(2);
+      expect(sends(1), isTrue);
+      expect(sends(2), isTrue);
+      await settle(1);
+      await settle(2);
+      expect(sends(3), isTrue);
+      await settle(3, fail: true);
+      expect(clientErrors, isNotEmpty);
+      expect(sends(1), isFalse);
+      expect(sends(2), isFalse);
+    });
+
+    test('a limit below 1 is an ArgumentError', () {
+      for (final limit in [0, -1]) {
+        expect(
+          () => SurfaceModel<ComponentApi>(
+            's',
+            maxAgentCallCacheEntries: limit,
+          ),
+          throwsArgumentError,
+        );
+        expect(
+          () => MessageProcessor<ComponentApi>(
+            catalogs: const [],
+            maxAgentCallCacheEntries: limit,
+          ),
+          throwsArgumentError,
+        );
+      }
+    });
+
+    test('MessageProcessor passes the limit to its surfaces', () {
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [_catalog()],
+        outboundListener: (_) {},
+        maxAgentCallCacheEntries: 2,
+      );
+      addTearDown(processor.dispose);
+      expect(processor.maxAgentCallCacheEntries, 2);
+      processor.processMessages([
+        {
+          'version': '1.0',
+          'createSurface': {'surfaceId': 'one', 'catalogId': 'cat'},
+        },
+      ]);
+      expect(
+        processor.model.getSurface('one')!.maxAgentCallCacheEntries,
+        2,
+      );
+      expect(
+        MessageProcessor<ComponentApi>(catalogs: const [])
+            .maxAgentCallCacheEntries,
+        256,
+      );
+    });
+  });
+
   group('DataContext agent fallback', () {
     test('dispatches an unknown function to the agent and updates', () async {
       final SurfaceModel<ComponentApi> surface = makeSurface();
