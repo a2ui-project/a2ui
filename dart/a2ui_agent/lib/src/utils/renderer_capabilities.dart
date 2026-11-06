@@ -37,7 +37,7 @@ A2uiRendererCapabilities? readRendererCapabilities(
 ]) {
   if (metadata == null) return null;
 
-  final String metadataKey = version == A2uiProtocolVersion.v1_0
+  final String metadataKey = version.isAtLeast(A2uiProtocolVersion.v1_0)
       ? a2uiRendererCapabilitiesKey
       : a2uiClientCapabilitiesKey;
   if (!metadata.containsKey(metadataKey) || metadata[metadataKey] == null) {
@@ -51,7 +51,7 @@ A2uiRendererCapabilities? readRendererCapabilities(
     );
   }
 
-  final entryKey = version == A2uiProtocolVersion.v1_0 ? '1.0' : 'v0.9';
+  final entryKey = version.isAtLeast(A2uiProtocolVersion.v1_0) ? '1.0' : 'v0.9';
   if (!raw.containsKey(entryKey) || raw[entryKey] == null) {
     return null;
   }
