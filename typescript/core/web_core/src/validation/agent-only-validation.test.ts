@@ -42,8 +42,8 @@ function fn(name: string, allowedCallers: string): Record<string, unknown> {
         properties: {date: {$ref: 'common_types.json#/$defs/DynamicString'}},
         additionalProperties: false,
       },
-      returnType: {const: 'string'},
     },
+    returnType: 'string',
     required: ['@call'],
   };
 }

@@ -31,6 +31,8 @@ import {
   STRICT_VALIDATION,
   SurfaceModel,
   ValidationConfig,
+  validateRecursionAndPaths,
+  validateReservedDirectives,
 } from '../internal/web-core.js';
 import {checkParserCatalogs} from './catalog-checks.js';
 import {validateEnvelope} from './envelope-validation.js';
@@ -939,22 +941,35 @@ export class RendererState {
    * A payload state assumes a surface the payload never named before, as it does for an
    * update, since an earlier payload may have created it.
    *
+   * A call nested in the arguments that names no catalog runs in the default catalog of the
+   * surface the call names, or in the catalog of the call when it names no surface; see
+   * `NestedHome`.
+   *
+   * Everything the processor would check is checked here, so that `RendererState.of` never
+   * holds back a call that the processor then rejects after the state's changes are final.
+   *
    * @throws {A2uiValidationError} If the renderer would refuse the call.
    */
   private checkRendererFunctionCall(payload: Message[], index: number): void {
     // `checkMessage` has checked the envelope against the message schema.
+    asValidationError(() => validateRecursionAndPaths(payload[index]));
     const body = payload[index].callRendererFunction as Message;
     const surfaceId = body.surfaceId;
-    if (
-      typeof surfaceId === 'string' &&
-      !this.processor.model.getSurface(surfaceId) &&
-      !this.assumes(surfaceId, payload, index)
-    ) {
-      throw new A2uiValidationError(
-        `Function call '${String(body.functionCallId)}' names surface '${surfaceId}', which does not exist.`,
+    let home: NestedHome | undefined;
+    if (typeof surfaceId === 'string') {
+      const surface = this.processor.model.getSurface(surfaceId);
+      if (!surface && !this.assumes(surfaceId, payload, index)) {
+        throw new A2uiValidationError(
+          `Function call '${String(body.functionCallId)}' names surface '${surfaceId}', which does not exist.`,
+        );
+      }
+      home = surfaceHome(
+        this._catalogs,
+        surfaceId,
+        this.assumed.has(surfaceId) ? undefined : surface,
       );
     }
-    checkFunctionCall(this._catalogs, body);
+    checkFunctionCall(this._catalogs, body, home);
   }
 
   /**
@@ -1077,24 +1092,89 @@ function isObjectIterable(value: unknown): value is Iterable<unknown> {
   return typeof value === 'object' && value !== null && Symbol.iterator in value;
 }
 
+/** The keys a function call may hold. */
+const CALL_KEYS: ReadonlySet<string> = new Set(['@call', 'catalogId', 'args']);
+
+/**
+ * Where a call nested in a `callRendererFunction`'s arguments runs when it names no catalog.
+ *
+ * - `catalog`: in that catalog. It is the default catalog of the surface the call names, or
+ *   the catalog of the call when it names no surface.
+ * - `none`: nowhere, since the surface the call names has no default catalog.
+ * - `unknown`: in the default catalog of a surface the state only assumes, which the state
+ *   can't tell. Such a call is accepted if some catalog would run it.
+ */
+type NestedHome =
+  | {kind: 'catalog'; catalog: CatalogApi}
+  | {kind: 'none'; surfaceId: string}
+  | {kind: 'unknown'};
+
+/**
+ * Returns where a nested call that names no catalog runs on a surface.
+ *
+ * @param catalogs The active catalogs.
+ * @param surfaceId The surface the `callRendererFunction` names.
+ * @param surface The surface, or `undefined` if the state only assumes it.
+ */
+function surfaceHome(
+  catalogs: CatalogApi[],
+  surfaceId: string,
+  surface: SurfaceModel<ComponentApi> | undefined,
+): NestedHome {
+  if (!surface) return {kind: 'unknown'};
+  const defaultCatalog = surface.defaultCatalog;
+  if (!defaultCatalog) return {kind: 'none', surfaceId};
+  const catalog =
+    catalogs.find(c => c.id === defaultCatalog.id) ?? (defaultCatalog as unknown as CatalogApi);
+  return {kind: 'catalog', catalog};
+}
+
+/** What `checkNestedCalls` needs to check a nested call. */
+interface NestedCallContext {
+  /** The active catalogs. */
+  catalogs: CatalogApi[];
+  /** The catalog of the `callRendererFunction`, which states the protocol version. */
+  catalog: CatalogApi;
+  /** Where a nested call that names no catalog runs. */
+  home: NestedHome;
+  /** How errors name the `callRendererFunction`. */
+  subject: string;
+}
+
 /**
  * Checks the call of a `callRendererFunction` against the catalogs.
  *
- * The catalog the call names must be one of the catalogs, and it must declare the
- * function. The agent may call a function whose `allowedCallers` is `agentOnly` or
- * `rendererOrAgent`, and never one that requires a user activation, since a call from the
- * agent has no user gesture. The arguments are checked as written, as a component's nested
- * calls are, rather than resolved against the data model first, which only the renderer
- * holds. A call nested in the arguments is checked by `checkNestedCalls`.
+ * The call must name the function in a string `@call`, hold no field but `@call`,
+ * `catalogId` and `args`, and pass an object for `args`, if any. The catalog the call names
+ * must be one of the catalogs, and it must declare the function. The agent may call a
+ * function whose `allowedCallers` is `agentOnly` or `rendererOrAgent`, and never one that
+ * requires a user activation, since a call from the agent has no user gesture. The
+ * arguments are checked as written, as a component's nested calls are, rather than
+ * resolved against the data model first, which only the renderer holds. A call nested in
+ * the arguments is checked by `checkNestedCalls`, since the argument schema admits any
+ * function call where it admits one.
  *
  * @param catalogs The active catalogs.
  * @param body The `callRendererFunction` body, which matches the message schema.
+ * @param home Where a nested call that names no catalog runs, when the `callRendererFunction`
+ *   names a surface. When it names none, such a call runs in the catalog of the call.
  * @throws {A2uiValidationError} If a renderer holding the catalogs would refuse the call.
  */
-function checkFunctionCall(catalogs: CatalogApi[], body: Message): void {
+function checkFunctionCall(catalogs: CatalogApi[], body: Message, home?: NestedHome): void {
   const subject = `Function call '${String(body.functionCallId)}'`;
   const call = body.callFunction as Message;
-  const name = String(call['@call']);
+  const name = call['@call'];
+  if (typeof name !== 'string') {
+    throw new A2uiValidationError(`${subject} is missing a string '@call' field.`);
+  }
+  for (const key of Object.keys(call)) {
+    if (!CALL_KEYS.has(key)) {
+      throw new A2uiValidationError(`${subject} has unrecognized field '${key}' on callFunction.`);
+    }
+  }
+  if (call.args !== undefined && !isPlainObject(call.args)) {
+    throw new A2uiValidationError(`${subject} must pass an object for 'args'.`);
+  }
   const catalog = heldCatalog(catalogs, call.catalogId, subject);
   const fn = catalog.functions.get(name);
   if (!fn) {
@@ -1114,7 +1194,15 @@ function checkFunctionCall(catalogs: CatalogApi[], body: Message): void {
     );
   }
   checkArgs(catalog, name, call.args, subject);
-  checkNestedCalls(catalogs, catalog, call.args, subject);
+  checkNestedCalls(
+    {catalogs, catalog, home: home ?? {kind: 'catalog', catalog}, subject},
+    call.args,
+  );
+}
+
+/** Whether a value is a JSON object: not `null` and not an array. */
+function isPlainObject(value: unknown): value is Message {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** Returns the catalog with the id, or throws if it isn't one of them. */
@@ -1147,58 +1235,120 @@ function checkArgs(catalog: CatalogApi, name: string, args: unknown, subject: st
 /**
  * Checks the function calls nested in a `callRendererFunction`'s arguments.
  *
- * The renderer resolves each one as it resolves the arguments, as a renderer call: one that
- * names a catalog runs in it, which must be one of the catalogs, and one that names none
- * runs in `home`, the catalog of the `callRendererFunction`. The renderer can't run an
- * `agentOnly` function there. A reserved `@` system function belongs to no catalog, so it
- * must not name one.
+ * The renderer resolves each one as it resolves the arguments, as a renderer call. Every
+ * object in the arguments, a call or not, must hold no unrecognized reserved `@` directive.
+ * A call must hold no field but `@call`, `catalogId` and `args`, a string `catalogId` and an
+ * object `args`, if any; see `checkNestedCall`. An object whose `@call` is not a string is no
+ * call, and the renderer resolves its values, so they are checked too.
  *
  * @throws {A2uiValidationError} If a nested call is one the renderer can't make.
  */
-function checkNestedCalls(
-  catalogs: CatalogApi[],
-  home: CatalogApi,
-  value: unknown,
-  subject: string,
-): void {
+function checkNestedCalls(context: NestedCallContext, value: unknown): void {
   if (Array.isArray(value)) {
-    for (const item of value) checkNestedCalls(catalogs, home, item, subject);
+    for (const item of value) checkNestedCalls(context, item);
     return;
   }
-  if (!value || typeof value !== 'object') return;
-  const record = value as Message;
-  const name = record['@call'];
-  if (typeof name === 'string') {
-    const where = `${subject} holds a call to '${name}' that`;
-    if (name.startsWith('@')) {
-      if ('catalogId' in record) {
-        throw new A2uiValidationError(
-          `${where} names a catalogId, but system functions belong to no catalog.`,
-        );
-      }
-      try {
-        new PayloadValidator(home as never, STRICT_VALIDATION).validateFunction(
-          name,
-          record.args as Record<string, unknown> | undefined,
-        );
-      } catch (e) {
-        if (!(e instanceof A2uiValidationError)) throw e;
-        throw new A2uiValidationError(`${where} is invalid: ${e.message}`, e.details);
-      }
-    } else {
-      const catalog =
-        record.catalogId === undefined ? home : heldCatalog(catalogs, record.catalogId, where);
-      if (catalog.functions.get(name)?.allowedCallers === 'agentOnly') {
-        throw new A2uiValidationError(
-          `${where} the renderer can't make: Function '${name}' cannot be called by renderer (allowedCallers is agentOnly).`,
-        );
-      }
-      checkArgs(catalog, name, record.args, where);
+  if (!isPlainObject(value)) return;
+  asValidationError(() =>
+    validateReservedDirectives(Object.keys(value), context.catalog.protocolVersion),
+  );
+  const name = value['@call'];
+  if (typeof name === 'string') checkNestedCall(context, value, name);
+  for (const item of Object.values(value)) checkNestedCalls(context, item);
+}
+
+/**
+ * Checks one call nested in a `callRendererFunction`'s arguments.
+ *
+ * A call that names a catalog runs in it, which must be one of the catalogs. One that names
+ * none runs where `context.home` says. The renderer can't run an `agentOnly` function there,
+ * nor one that requires a user activation, since the agent's call has none. A reserved `@`
+ * system function belongs to no catalog, so it must not name one.
+ */
+function checkNestedCall(context: NestedCallContext, record: Message, name: string): void {
+  const {catalogs, home, subject} = context;
+  const holds = `${subject} holds a call to '${name}'`;
+  const where = `${holds} that`;
+  for (const key of Object.keys(record)) {
+    if (!CALL_KEYS.has(key)) {
+      throw new A2uiValidationError(`${holds} with unrecognized field '${key}'.`);
     }
   }
-  for (const [key, item] of Object.entries(record)) {
-    if (key !== '@call') checkNestedCalls(catalogs, home, item, subject);
+  const args = record.args;
+  if (Object.hasOwn(record, 'args') && !isPlainObject(args)) {
+    throw new A2uiValidationError(`${holds} whose 'args' must be an object.`);
   }
+  if (name.startsWith('@')) {
+    if (Object.hasOwn(record, 'catalogId')) {
+      throw new A2uiValidationError(
+        `${where} names a catalogId, but system functions belong to no catalog.`,
+      );
+    }
+    try {
+      new PayloadValidator(context.catalog as never, STRICT_VALIDATION).validateFunction(
+        name,
+        args as Record<string, unknown> | undefined,
+      );
+    } catch (e) {
+      if (!(e instanceof A2uiValidationError)) throw e;
+      throw new A2uiValidationError(`${where} is invalid: ${e.message}`, e.details);
+    }
+    return;
+  }
+  if (Object.hasOwn(record, 'catalogId')) {
+    if (typeof record.catalogId !== 'string') {
+      throw new A2uiValidationError(`${holds} whose 'catalogId' must be a string.`);
+    }
+    checkRendererCall(heldCatalog(catalogs, record.catalogId, where), name, args, where);
+    return;
+  }
+  switch (home.kind) {
+    case 'catalog':
+      checkRendererCall(home.catalog, name, args, where);
+      return;
+    case 'none':
+      throw new A2uiValidationError(
+        `${holds} without a catalogId, and surface '${home.surfaceId}' has no default catalog.`,
+      );
+    case 'unknown': {
+      const declaring = catalogs.filter(c => c.functions.has(name));
+      if (declaring.length === 0) {
+        throw new A2uiValidationError(
+          `${where} does not match the arguments of '${name}': Unrecognized function '${name}'`,
+        );
+      }
+      const refusals: A2uiValidationError[] = [];
+      for (const catalog of declaring) {
+        try {
+          checkRendererCall(catalog, name, args, where);
+          return;
+        } catch (e) {
+          if (!(e instanceof A2uiValidationError)) throw e;
+          refusals.push(e);
+        }
+      }
+      throw refusals[0];
+    }
+  }
+}
+
+/**
+ * Checks that the renderer may make a call to a function in a catalog, as one the agent's
+ * `callRendererFunction` started, and that its arguments match.
+ */
+function checkRendererCall(catalog: CatalogApi, name: string, args: unknown, where: string): void {
+  const fn = catalog.functions.get(name);
+  if (fn?.allowedCallers === 'agentOnly') {
+    throw new A2uiValidationError(
+      `${where} the renderer can't make: Function '${name}' cannot be called by renderer (allowedCallers is agentOnly).`,
+    );
+  }
+  if (fn?.requiresUserActivation) {
+    throw new A2uiValidationError(
+      `${where} the renderer can't make: Function '${name}' requires a user activation, and a call from the agent has none.`,
+    );
+  }
+  checkArgs(catalog, name, args, where);
 }
 
 /** Normalizes a payload into a list of message objects, each a copy of the original. */

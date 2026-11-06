@@ -86,6 +86,9 @@ export type {ValidationConfig} from '@a2ui/web_core/validating';
 // reachable through the ./catalog subpath.
 export type {ComponentRefMap} from '@a2ui/web_core/validating';
 
+// ./resolution
+export {validateReservedDirectives} from '@a2ui/web_core/resolution';
+
 // ./state
 export {ComponentModel, DataModel, SurfaceModel} from '@a2ui/web_core/state';
 
