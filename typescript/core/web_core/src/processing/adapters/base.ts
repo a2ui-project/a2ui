@@ -197,21 +197,26 @@ function selectActionUnionError(
     return error;
   }
   const rootIssue = error.issues[0];
-  if (rootIssue.code !== z.ZodIssueCode.invalid_union || rootIssue.path.length !== 0) {
+  if (rootIssue.code !== 'invalid_union' || rootIssue.path.length !== 0) {
     return error;
   }
-  const matchingBranches = rootIssue.unionErrors.filter(
+  const unionIssue = rootIssue as z.ZodInvalidUnionIssue & {errors?: z.ZodIssue[][]};
+  const branchErrors: z.ZodError[] =
+    unionIssue.unionErrors ??
+    (unionIssue.errors ? unionIssue.errors.map(issues => new z.ZodError(issues)) : []);
+  const matchingBranches = branchErrors.filter(
     branchErr =>
       !branchErr.issues.some(
         issue =>
-          (issue.code === z.ZodIssueCode.unrecognized_keys &&
+          (issue.code === 'unrecognized_keys' &&
             issue.path.length === 0 &&
-            issue.keys.includes(actionKey)) ||
-          (issue.code === z.ZodIssueCode.invalid_type &&
+            (issue as z.ZodUnrecognizedKeysIssue).keys.includes(actionKey)) ||
+          (issue.code === 'invalid_type' &&
             issue.path.length === 1 &&
             issue.path[0] !== actionKey &&
             nativeActionKeys.includes(String(issue.path[0])) &&
-            issue.received === 'undefined'),
+            ((issue as z.ZodInvalidTypeIssue).received === 'undefined' ||
+              (issue as z.ZodInvalidTypeIssue).received === undefined)),
       ),
   );
   return matchingBranches.length === 1 ? matchingBranches[0] : error;
@@ -300,7 +305,7 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
         presentNativeKeys[0],
         nativeActionKeys,
       );
-      const formattedErrors = scopedError.errors.map(formatZodIssue).join('; ');
+      const formattedErrors = scopedError.issues.map(formatZodIssue).join('; ');
       const envCtx = extractEnvelopeErrorContext(msgObj, this.version);
       const preliminaryErr = new A2uiValidationError(
         `Invalid ${this.version} message: ${formattedErrors}`,
