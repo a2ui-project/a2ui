@@ -151,30 +151,41 @@ struct AgentOnlyFunctionTests {
     ).eraseToAnyCatalog()
   }
 
-  /// A `Button` whose `property` calls `function`: a binding, a check's condition or an
-  /// action's `functionCall`.
+  /// A `Button` whose `property` calls `function`: a binding, a check's condition, an
+  /// action's `functionCall`, or, for `onClickContext`, a value in the context of an
+  /// `onClick` event.
   private func button(
     calling function: String,
     in property: String,
     callKey: String = "@call"
   ) -> [String: JSONValue] {
     let call: JSONValue = .object([callKey: .string(function)])
+    let key: String
     let value: JSONValue
     switch property {
     case "checks":
+      key = property
       value = .array([.object(["condition": call, "message": .string("Blocked")])])
     case "onClick":
+      key = property
       value = .object(["functionCall": call])
+    case "onClickContext":
+      key = "onClick"
+      value = .object([
+        "event": .object(["name": .string("submit"), "context": .object(["flag": call])])
+      ])
     default:
+      key = property
       value = call
     }
-    return ["id": .string("root"), "component": .string("Button"), property: value]
+    return ["id": .string("root"), "component": .string("Button"), key: value]
   }
 
   /// A call held in a component is a renderer call, so validation rejects one to an
   /// `agentOnly` function at the call's location, before any binding is evaluated.
   @Test(arguments: [
     ("label", "label"), ("checks", "checks/0/condition"), ("onClick", "onClick/functionCall"),
+    ("onClickContext", "onClick/event/context/flag"),
   ])
   func validationRejectsAgentOnlyFunctionInComponent(property: String, path: String) throws {
     let validator = PayloadValidator(
