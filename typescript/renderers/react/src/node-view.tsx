@@ -137,7 +137,12 @@ export const UnresolvedChildReference: React.FC<{
     const key = JSON.stringify([id, requestedPath]);
     if (!seen.has(key)) {
       seen.add(key);
-      void surface.dispatchError({code: 'UNRESOLVED_CHILD_REFERENCE', message});
+      void surface.dispatchError({
+        code: 'UNRESOLVED_CHILD_REFERENCE',
+        message,
+        componentId: id,
+        componentType: surface.componentsModel.get(id)?.type,
+      });
     }
   }, [surface, id, requestedPath, message]);
   return null;
