@@ -23,11 +23,15 @@
  */
 
 // ./catalog
-export {Catalog} from '@a2ui/web_core/catalog';
+export {AgentFunction, Catalog, isAgentFunction} from '@a2ui/web_core/catalog';
 export type {
+  AgentFunctionContext,
+  AgentFunctionHandler,
+  AgentFunctionInit,
   CatalogApi,
   CatalogInterface,
   ComponentApi,
+  CopyWithCatalogOptions,
   FunctionApi,
   FunctionImplementation,
 } from '@a2ui/web_core/catalog';
@@ -53,6 +57,9 @@ export {
   DeleteSurfaceMessageSchema as V10DeleteSurfaceMessageSchema,
   CallRendererFunctionMessageSchema as V10CallRendererFunctionMessageSchema,
   AgentFunctionResponseMessageSchema as V10AgentFunctionResponseMessageSchema,
+  RendererFunctionResponseMessageSchema as V10RendererFunctionResponseMessageSchema,
+  ActionMessageSchema as V10ActionMessageSchema,
+  ErrorMessageSchema as V10ErrorMessageSchema,
   AgentToRendererMessageSchema,
   RendererToAgentMessageSchema,
   Schemas as V10Schemas,
@@ -60,11 +67,27 @@ export {
   V10_STANDARD_DEFS,
 } from '@a2ui/web_core/v1_0';
 import type {
+  ActionMessage,
+  AgentFunctionResponseMessage,
   AgentToRendererMessage,
+  CallAgentFunctionMessage,
+  CallRendererFunctionMessage,
+  ErrorMessage,
+  RendererFunctionResponseMessage,
   RendererToAgentMessage,
   V10RendererCapabilities,
 } from '@a2ui/web_core/v1_0';
-export type {AgentToRendererMessage, RendererToAgentMessage, V10RendererCapabilities};
+export type {
+  ActionMessage,
+  AgentFunctionResponseMessage,
+  AgentToRendererMessage,
+  CallAgentFunctionMessage,
+  CallRendererFunctionMessage,
+  ErrorMessage,
+  RendererFunctionResponseMessage,
+  RendererToAgentMessage,
+  V10RendererCapabilities,
+};
 
 /**
  * Version-neutral alias for renderer capabilities across protocol versions.
@@ -109,6 +132,8 @@ export {
   A2uiStateError,
   A2uiIntegrityError,
   A2uiRecursionError,
+  A2uiRpcError,
+  RpcErrorCode,
 } from '@a2ui/web_core/errors';
 
 // ./adapters

@@ -247,6 +247,10 @@
   and the bare `protocolVersion` (for example `'1.0'`) on each inline catalog
   even when the source catalog document omits them.
   [#3382](https://github.com/a2ui-project/a2ui/pull/3382)
+- (v1_0) Add `RpcErrorCode.TOO_MANY_PENDING`, for an agent's call to a
+  renderer function refused because too many are pending
+  ([#3535](https://github.com/a2ui-project/a2ui/issues/3535),
+  [#3939](https://github.com/a2ui-project/a2ui/pull/3939)).
 
 ## 0.4.0 (2026-10-17)
 

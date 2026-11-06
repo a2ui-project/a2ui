@@ -171,9 +171,15 @@ class MessageProcessor<T extends ComponentApi> {
   /// without rethrowing [A2uiError]s.
   final bool reportErrorsOnly;
 
+  /// How many settled agent call answers each surface keeps; see
+  /// [SurfaceModel.maxAgentCallCacheEntries].
+  final int maxAgentCallCacheEntries;
+
   /// [outboundListener] receives every message the RPC layer sends to the
   /// agent, and [defaultTimeout] bounds how long [callAgentFunction] waits
-  /// for an answer; see [RpcHandler].
+  /// for an answer; see [RpcHandler]. [maxAgentCallCacheEntries] is passed
+  /// to each surface (see [SurfaceModel.maxAgentCallCacheEntries]); it must
+  /// be at least 1, or the constructor throws [ArgumentError].
   MessageProcessor({
     required List<Catalog<T, FunctionImplementation>> catalogs,
     this.defaultVersion,
@@ -185,11 +191,19 @@ class MessageProcessor<T extends ComponentApi> {
     OutboundMessageListener? outboundListener,
     Duration defaultTimeout = const Duration(seconds: 30),
     this.reportErrorsOnly = false,
+    this.maxAgentCallCacheEntries = 256,
   })  : catalogs = List.unmodifiable(catalogs),
         adapterRegistry = adapterRegistry ?? VersionAdapterRegistry.standard(),
         model = SurfaceGroupModel<T>(),
         _outboundListener = outboundListener,
         _defaultTimeout = defaultTimeout {
+    if (maxAgentCallCacheEntries < 1) {
+      throw ArgumentError.value(
+        maxAgentCallCacheEntries,
+        'maxAgentCallCacheEntries',
+        'Must be at least 1.',
+      );
+    }
     final A2uiProtocolVersion? target = validationConfig?.targetVersion;
     final A2uiProtocolVersion? defaultVersion = this.defaultVersion;
     if (target != null && defaultVersion != null && target != defaultVersion) {
@@ -1040,6 +1054,7 @@ class MessageProcessor<T extends ComponentApi> {
       protocolVersion: operation.version.jsonValue,
       rootId: _config?.rootId ?? 'root',
       metadata: operation.metadata,
+      maxAgentCallCacheEntries: maxAgentCallCacheEntries,
       // Only a v1.0 surface routes calls to the agent, and only when this
       // processor can send it messages. Once the surface is deleted, a call
       // that was waiting on a local argument is cancelled instead of sent.
