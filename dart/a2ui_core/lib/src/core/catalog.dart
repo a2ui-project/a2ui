@@ -515,9 +515,11 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// Throws [A2uiCatalogError] when two components or two functions share a
   /// name, when a component is named [reservedComponentName], when a
   /// function name starts with `@`, which the protocol reserves for its own
-  /// functions, or when a function declares [A2uiReturnType.validationResult]
+  /// functions, when a function declares [A2uiReturnType.validationResult]
   /// on a catalog whose effective protocol version is below 1.0 (an omitted
-  /// [protocolVersion] is pre-v1.0).
+  /// [protocolVersion] is pre-v1.0), or when an [AgentFunction]'s local
+  /// `$defs` defines a name differently from [definitions] or from another
+  /// agent function's local `$defs`. Identical definitions are accepted.
   ///
   /// [toJson] writes [protocolVersion] as the document's `protocolVersion`
   /// unless [declaresProtocolVersion] is false, as for a catalog published
@@ -697,6 +699,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     final bool allowsV1Features =
         protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
     final byName = <String, T>{};
+    // Each local `$defs` name an agent function declared so far, with the
+    // definition and the function that declared it.
+    final localDefOwners = <String, (Object?, String)>{};
     for (final item in items) {
       if (item.name.startsWith('@')) {
         throw A2uiCatalogError(
@@ -731,6 +736,13 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         } on A2uiCatalogError catch (error) {
           throw A2uiCatalogError(error.message, catalogId: catalogId);
         }
+        _checkLocalDefs(
+          catalogId,
+          item.name,
+          _localDefs(item.argumentSchema.value),
+          definitions,
+          localDefOwners,
+        );
       }
       if (!allowsV1Features &&
           item.returnType == A2uiReturnType.validationResult) {
@@ -746,6 +758,71 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     return Map.unmodifiable(byName);
   }
 
+  /// Throws [A2uiCatalogError] when agent function [functionName] declares a
+  /// local `$defs` entry, in [localDefs], whose name the catalog's
+  /// [definitions] or an earlier agent function, in [owners], defines
+  /// differently.
+  ///
+  /// A local `#/$defs/<name>` resolves against the catalog's definitions and
+  /// the function's own, and [toJson] writes them all to one `$defs`, so a
+  /// name may have only one definition. Records [localDefs] in [owners].
+  static void _checkLocalDefs(
+    String catalogId,
+    String functionName,
+    Map<String, Object?> localDefs,
+    Map<String, Object?> definitions,
+    Map<String, (Object?, String)> owners,
+  ) {
+    for (final MapEntry<String, Object?> entry in localDefs.entries) {
+      final String defName = entry.key;
+      if (definitions.containsKey(defName) &&
+          !_jsonEquals(definitions[defName], entry.value)) {
+        throw A2uiCatalogError(
+          "Agent function '$functionName' defines \$defs '$defName' "
+          'differently from the catalog.',
+          catalogId: catalogId,
+        );
+      }
+      if (owners[defName] case (final Object? other, final String owner)
+          when owner != functionName && !_jsonEquals(other, entry.value)) {
+        throw A2uiCatalogError(
+          "Agent function '$functionName' defines \$defs '$defName' "
+          "differently from agent function '$owner'.",
+          catalogId: catalogId,
+        );
+      }
+      owners.putIfAbsent(defName, () => (entry.value, functionName));
+    }
+  }
+
+  /// The local `$defs` of an agent function's [schema]: those of the
+  /// function definition, when [schema] is one, and those of its `args`,
+  /// which take precedence.
+  static Map<String, Object?> _localDefs(Object? schema) {
+    final Object? args = _agentFunctionArgs(schema);
+    return <String, Object?>{
+      if (schema case {r'$defs': final Map<Object?, Object?> outer})
+        ...outer.cast<String, Object?>(),
+      if (!identical(args, schema))
+        if (args case {r'$defs': final Map<Object?, Object?> inner})
+          ...inner.cast<String, Object?>(),
+    };
+  }
+
+  /// The `args` schema of an agent function's [schema], which is either that
+  /// schema itself or a whole function definition.
+  static Object? _agentFunctionArgs(Object? schema) {
+    if (schema case {'properties': final Map<Object?, Object?> properties}
+        when (properties.containsKey('@call') ||
+                properties.containsKey('call')) &&
+            properties['args'] is Map) {
+      return properties['args'];
+    } else if (schema case {'parameters': final Map<Object?, Object?> params}) {
+      return params;
+    }
+    return schema;
+  }
+
   /// The parameter names an agent function's [schema] declares.
   ///
   /// [schema] is the schema of the function's `args`, or a whole function
@@ -759,24 +836,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     Object? schema,
     Map<String, Object?> definitions,
   ) {
-    var args = schema;
-    if (schema case {'properties': final Map<Object?, Object?> properties}
-        when (properties.containsKey('@call') ||
-                properties.containsKey('call')) &&
-            properties['args'] is Map) {
-      args = properties['args'];
-    } else if (schema case {'parameters': final Map<Object?, Object?> params}) {
-      args = params;
-    }
+    final Object? args = _agentFunctionArgs(schema);
     // A local reference resolves against the function's own `$defs`, then
     // those of its `args`, over the catalog's.
-    final defs = <String, Object?>{
-      ...definitions,
-      if (schema case {r'$defs': final Map<Object?, Object?> outer})
-        ...outer.cast<String, Object?>(),
-      if (args case {r'$defs': final Map<Object?, Object?> inner})
-        ...inner.cast<String, Object?>(),
-    };
+    final defs = <String, Object?>{...definitions, ..._localDefs(schema)};
     final names = <String>{};
     final visited = <String>{};
 
@@ -3048,7 +3111,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// catalog; any other is appended and must have a name of its own. So
   /// `copyWith(agentFunctions: const [])` gives back the catalog without its
   /// agent functions. Throws [A2uiCatalogError] when [agentFunctions] breaks
-  /// these rules.
+  /// these rules, or when an agent function's local `$defs` defines a name
+  /// differently from the catalog's [definitions] or another agent function.
   Catalog<C, F> copyWith({
     Iterable<C>? components,
     Iterable<F>? functions,

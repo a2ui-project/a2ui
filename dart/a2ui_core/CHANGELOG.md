@@ -170,6 +170,9 @@
   catalog functions that run on the agent, with `Catalog.agentFunctions`,
   `Catalog.rendererFunctions`, `Catalog.copyWith(agentFunctions: ...)` and
   `A2uiRpcError.custom` ([#3536](https://github.com/a2ui-project/a2ui/issues/3536), [#3861](https://github.com/a2ui-project/a2ui/pull/3861)).
+  A catalog with agent functions throws `A2uiCatalogError` when an agent
+  function's local `$defs` defines a name differently from the catalog's
+  `$defs` or from another agent function's local `$defs`.
 - Added `MessageErrorMapper`, `SurfaceGroupModel.onError`, and
   `MessageProcessor.processMessagesWithErrors` for mapping `A2uiError`
   exceptions into structured wire-format `ErrorMessage` envelopes, and

@@ -952,7 +952,7 @@ void main() {
                 'memo': {'type': 'string'},
               },
             },
-            'Shadowed': {
+            'Shared': {
               'type': 'object',
               'properties': {
                 'note': {'type': 'string'},
@@ -961,7 +961,7 @@ void main() {
           },
           'allOf': [
             {r'$ref': r'#/$defs/MemoArgs'},
-            {r'$ref': r'#/$defs/Shadowed'},
+            {r'$ref': r'#/$defs/Shared'},
             {r'$ref': r'#/$defs/MoneyArgs'},
           ],
           'unevaluatedProperties': false,
@@ -991,10 +991,10 @@ void main() {
             },
             'required': ['amount'],
           },
-          'Shadowed': {
+          'Shared': {
             'type': 'object',
             'properties': {
-              'bad-shadowed': {'type': 'string'},
+              'note': {'type': 'string'},
             },
           },
           'DroppedArgs': {
@@ -1212,6 +1212,122 @@ void main() {
         ),
         throwsA(isA<A2uiCatalogError>()),
       );
+    });
+
+    group('local \$defs collisions', () {
+      const money = <String, Object?>{
+        'type': 'object',
+        'properties': {
+          'amount': {'type': 'number'},
+        },
+      };
+      const otherMoney = <String, Object?>{
+        'type': 'object',
+        'properties': {
+          'cents': {'type': 'integer'},
+        },
+      };
+      AgentFunction withLocalMoney(String name, Map<String, Object?> def) =>
+          AgentFunction(
+            name: name,
+            argumentSchema: Schema.fromMap({
+              r'$defs': {'Money': def},
+              r'$ref': r'#/$defs/Money',
+            }),
+            handler: _noopHandler,
+          );
+      CatalogApi build({
+        Map<String, Object?> definitions = const {},
+        List<FunctionApi> functions = const [],
+      }) =>
+          Catalog(
+            id: 'cat',
+            protocolVersion: A2uiProtocolVersion.v1_0,
+            components: const <ComponentApi>[],
+            definitions: definitions,
+            functions: functions,
+          );
+      Matcher rejects(List<String> parts) => throwsA(
+            isA<A2uiCatalogError>()
+                .having(
+                    (e) => e.message, 'message', stringContainsInOrder(parts))
+                .having((e) => e.catalogId, 'catalogId', 'cat'),
+          );
+
+      test('a local def that differs from a catalog def is rejected', () {
+        expect(
+          () => build(
+            definitions: {'Money': otherMoney},
+            functions: [withLocalMoney('pay', money)],
+          ),
+          rejects(["'pay'", "'Money'", 'differently from the catalog']),
+        );
+      });
+
+      test('copyWith applies the same rule', () {
+        final CatalogApi base = build(definitions: {'Money': otherMoney});
+        expect(
+          () => base.copyWith(agentFunctions: [withLocalMoney('pay', money)]),
+          rejects(["'pay'", "'Money'", 'differently from the catalog']),
+        );
+      });
+
+      test('a local def equal to a catalog def is accepted', () {
+        final CatalogApi catalog = build(
+          definitions: {
+            'Money': {
+              'properties': {
+                'amount': {'type': 'number'},
+              },
+              'type': 'object',
+            },
+          },
+          functions: [withLocalMoney('pay', money)],
+        );
+        expect(catalog.agentFunctions.keys, ['pay']);
+      });
+
+      test('two agent functions with differing local defs are rejected', () {
+        expect(
+          () => build(
+            functions: [
+              withLocalMoney('refund', money),
+              withLocalMoney('pay', otherMoney),
+            ],
+          ),
+          rejects([
+            "'pay'",
+            "'Money'",
+            "differently from agent function 'refund'",
+          ]),
+        );
+      });
+
+      test('two agent functions with equal local defs are accepted', () {
+        final CatalogApi catalog = build(
+          functions: [
+            withLocalMoney('refund', money),
+            withLocalMoney('pay', money),
+          ],
+        );
+        expect(catalog.agentFunctions.keys, ['refund', 'pay']);
+      });
+
+      test('local defs of renderer functions are not compared', () {
+        final CatalogApi catalog = build(
+          definitions: {'Money': otherMoney},
+          functions: [
+            FunctionApi(
+              name: 'format',
+              argumentSchema: Schema.fromMap({
+                r'$defs': {'Money': money},
+                r'$ref': r'#/$defs/Money',
+              }),
+            ),
+          ],
+        );
+        expect(catalog.functions.keys, ['format']);
+      });
     });
   });
 
