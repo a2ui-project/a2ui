@@ -1,12 +1,19 @@
-<!DOCTYPE html><html lang="en" data-theme="dark"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>A2UI — Give your agents UI on every surface</title><meta name="description" content="A2UI (Agent to User Interface) is the open protocol and SDK suite that lets AI agents respond with stateful, native user interfaces across the entire Generative UI Spectrum."><link rel="icon" type="image/svg+xml" href="/preview/assets/favicon.svg"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"><script>
-      // Sync theme with Starlight's localStorage key ('starlight-theme')
-      (function () {
-        const stored = typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme');
-        const theme = stored === 'light' || stored === 'dark' ? stored : 'dark';
-        document.documentElement.setAttribute('data-theme', theme);
+<!DOCTYPE html><html lang="en" data-theme="light" class="astro-j7pv25f6"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>A2UI — Give agents a way to build the screen each customer actually needs</title><meta name="description" content="The open declarative UI protocol for AI agents. Agents compose native, per-customer screens from components you already approved — rendered in React, Lit, Angular, Flutter, SwiftUI, and Jetpack Compose."><link rel="icon" type="image/svg+xml" href="/preview/assets/favicon.svg"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Playfair+Display:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet"><script>
+      (() => {
+        try {
+          const saved =
+            localStorage.getItem('starlight-theme') || localStorage.getItem('a2ui-theme');
+          if (saved === 'dark' || saved === 'light') {
+            document.documentElement.setAttribute('data-theme', saved);
+          } else {
+            document.documentElement.setAttribute('data-theme', 'light');
+          }
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
       })();
-    </script><link rel="stylesheet" href="/preview/_astro/index.CHS94orr.css">
-<link rel="stylesheet" href="/preview/_astro/index.D761y9db.css"><script type="module" src="/preview/_astro/page.B1D-nYk3.js"></script></head> <body> <!-- Unified Header Navigation (StarlightHeader.astro) --> <header class="a2-nav"> <div class="a2-nav__inner"> <div class="a2-sl-header astro-wtntqkmy"> <div class="a2-sl-header__left astro-wtntqkmy"> <a href="/preview/" class="a2-sl-brand astro-wtntqkmy" aria-label="A2UI Home"> <svg class="a2-sl-logo astro-wtntqkmy" width="26" height="26" viewBox="12 11 48 47" fill="none" aria-hidden="true"> <path d="M52 44C55.866 44 59 47.134 59 51C59 54.866 55.866 58 52 58H44C40.134 58 37 54.866 37 51C37 47.134 40.134 44 44 44H52ZM52 47C49.7909 47 48 48.7909 48 51C48 53.2091 49.7909 55 52 55C54.2091 55 56 53.2091 56 51C56 48.7909 54.2091 47 52 47Z" fill="currentColor" class="astro-wtntqkmy"></path> <path d="M27 41C22.85 41 19.3 39.55 16.35 36.65C13.45 33.7 12 30.15 12 26C12 21.85 13.45 18.325 16.35 15.425C19.3 12.475 22.85 11 27 11H45C49.15 11 52.675 12.475 55.575 15.425C58.525 18.325 60 21.85 60 26C60 30.15 58.525 33.7 55.575 36.65C52.675 39.55 49.15 41 45 41H27ZM27 36.5H45C47.9 36.5 50.375 35.475 52.425 33.425C54.475 31.375 55.5 28.9 55.5 26C55.5 23.1 54.475 20.625 52.425 18.575C50.375 16.525 47.9 15.5 45 15.5H27C24.1 15.5 21.625 16.525 19.575 18.575C17.525 20.625 16.5 23.1 16.5 26C16.5 28.9 17.525 31.375 19.575 33.425C21.625 35.475 24.1 36.5 27 36.5ZM27 28.25C27.65 28.25 28.175 28.05 28.575 27.65C29.025 27.2 29.25 26.65 29.25 26C29.25 25.35 29.025 24.825 28.575 24.425C28.175 23.975 27.65 23.75 27 23.75C26.35 23.75 25.8 23.975 25.35 24.425C24.95 24.825 24.75 25.35 24.75 26C24.75 26.65 24.95 27.2 25.35 27.65C25.8 28.05 26.35 28.25 27 28.25ZM45 28.25C45.65 28.25 46.175 28.05 46.575 27.65C47.025 27.2 47.25 26.65 47.25 26C47.25 25.35 47.025 24.825 46.575 24.425C46.175 23.975 45.65 23.75 45 23.75C44.35 23.75 43.8 23.975 43.35 24.425C42.95 24.825 42.75 25.35 42.75 26C42.75 26.65 42.95 27.2 43.35 27.65C43.8 28.05 44.35 28.25 45 28.25Z" fill="currentColor" class="astro-wtntqkmy"></path> <path d="M32.5 53C33.8807 53 35 54.1193 35 55.5C35 56.8807 33.8807 58 32.5 58H22.5C21.1193 58 20 56.8807 20 55.5C20 54.1193 21.1193 53 22.5 53H32.5Z" fill="currentColor" class="astro-wtntqkmy"></path> <path d="M14.5 53C15.8807 53 17 54.1193 17 55.5C17 56.8807 15.8807 58 14.5 58C13.1193 58 12 56.8807 12 55.5C12 54.1193 13.1193 53 14.5 53Z" fill="currentColor" class="astro-wtntqkmy"></path> <path d="M32.5 44C33.8807 44 35 45.1193 35 46.5C35 47.8807 33.8807 49 32.5 49C31.1193 49 30 47.8807 30 46.5C30 45.1193 31.1193 44 32.5 44Z" fill="currentColor" class="astro-wtntqkmy"></path> <path d="M24.5 44C25.8807 44 27 45.1193 27 46.5C27 47.8807 25.8807 49 24.5 49H17.5C16.1193 49 15 47.8807 15 46.5C15 45.1193 16.1193 44 17.5 44H24.5Z" fill="currentColor" class="astro-wtntqkmy"></path> </svg> <span class="astro-wtntqkmy">A2UI</span> </a> <span class="a2-sl-header__slash astro-wtntqkmy" aria-hidden="true">/</span> <nav class="a2-sl-header__tabs astro-wtntqkmy" aria-label="Primary section navigation"> <a href="/preview/" class="a2-sl-tab is-active astro-wtntqkmy" aria-current="page">Overview</a> <a href="/preview/quickstart/" class="a2-sl-tab astro-wtntqkmy">Docs</a> <a href="/preview/specification/v1.0-a2ui/" class="a2-sl-tab astro-wtntqkmy">Specification</a> </nav> </div> <div class="a2-sl-header__right print:hidden astro-wtntqkmy"> <a2-site-search> <button type="button" data-open-modal class="a2-sl-search-btn astro-wtntqkmy" aria-label="Search docs" aria-keyshortcuts="Meta+K Control+K" title="Search documentation (⌘K / Ctrl+K)"> <span class="a2-sl-search-btn__lead astro-wtntqkmy"> <svg class="a2-sl-search-icon astro-wtntqkmy" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"> <path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5" class="astro-wtntqkmy"></path> </svg> <span class="a2-sl-search-label astro-wtntqkmy">Search docs</span> </span> <kbd class="a2-sl-search-kbd astro-wtntqkmy" aria-hidden="true"> <span data-platform-key class="astro-wtntqkmy">⌘</span><span class="astro-wtntqkmy">K</span> </kbd> </button> <dialog class="a2-sl-search-dialog astro-wtntqkmy" aria-label="Search docs"> <div class="a2-sl-dialog-frame astro-wtntqkmy"> <button type="button" data-close-modal class="a2-sl-search-cancel astro-wtntqkmy">Cancel</button> <div class="a2-sl-search-container astro-wtntqkmy"> <div id="starlight__search" class="astro-wtntqkmy"></div> </div> </div> </dialog> </a2-site-search> <div class="a2-sl-header__controls astro-wtntqkmy"> <a class="a2-sl-icon-btn astro-wtntqkmy" href="https://github.com/a2ui-project/a2ui" target="_blank" rel="noopener" aria-label="GitHub Repository" title="GitHub"> <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="astro-wtntqkmy"> <path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.08-.73.08-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z" class="astro-wtntqkmy"></path> </svg> </a> <a class="a2-sl-icon-btn astro-wtntqkmy" href="https://discord.gg/6fS2326966" target="_blank" rel="noopener" aria-label="Discord Community" title="Discord"> <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="astro-wtntqkmy"> <path d="M20.32 4.37a19.8 19.8 0 0 0-4.89-1.52.07.07 0 0 0-.08.04c-.2.38-.44.87-.61 1.25a18.27 18.27 0 0 0-5.48 0 12.64 12.64 0 0 0-.62-1.25.08.08 0 0 0-.08-.04 19.74 19.74 0 0 0-4.89 1.52.07.07 0 0 0-.03.03C.53 9.05-.32 13.58.09 18.06a.08.08 0 0 0 .03.05 19.9 19.9 0 0 0 5.99 3.03.08.08 0 0 0 .08-.03c.46-.63.87-1.3 1.22-2a.08.08 0 0 0-.04-.11 13.1 13.1 0 0 1-1.87-.9.08.08 0 0 1-.01-.12c.13-.09.25-.19.37-.29a.08.08 0 0 1 .08-.01c3.93 1.8 8.18 1.8 12.07 0a.08.08 0 0 1 .08.01c.12.1.24.2.37.29a.08.08 0 0 1 0 .12c-.6.35-1.22.65-1.87.9a.08.08 0 0 0-.04.11c.36.7.77 1.37 1.22 2a.08.08 0 0 0 .08.03 19.83 19.83 0 0 0 6-3.03.08.08 0 0 0 .03-.05c.5-5.18-.84-9.68-3.55-13.66a.06.06 0 0 0-.03-.03ZM8.02 15.33c-1.18 0-2.16-1.08-2.16-2.42 0-1.33.96-2.42 2.16-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.34-.96 2.42-2.16 2.42Zm7.97 0c-1.18 0-2.16-1.08-2.16-2.42 0-1.33.96-2.42 2.16-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.34-.95 2.42-2.16 2.42Z" class="astro-wtntqkmy"></path> </svg> </a> <button type="button" class="a2-sl-icon-btn a2-sl-theme-btn astro-wtntqkmy" id="a2-sl-theme-toggle" title="Toggle color theme" aria-label="Toggle color theme"> <svg class="a2-theme-icon a2-theme-icon--dark astro-wtntqkmy" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"> <path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z" class="astro-wtntqkmy"></path> </svg> <svg class="a2-theme-icon a2-theme-icon--light astro-wtntqkmy" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"> <path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z" class="astro-wtntqkmy"></path> </svg> </button> </div> </div> </div> <script>
+    </script><link rel="stylesheet" href="/preview/_astro/index.DenfuD84.css">
+<link rel="stylesheet" href="/preview/_astro/index.CDYDLjlR.css"><script type="module" src="/preview/_astro/page.B1D-nYk3.js"></script></head> <body class="a2-page astro-j7pv25f6"> <!-- Unified Sticky Navigation --> <header class="a2-topbar astro-j7pv25f6"> <div class="a2-topbar__inner astro-j7pv25f6"> <div class="a2-sl-header astro-wtntqkmy"> <div class="a2-sl-header__left astro-wtntqkmy"> <a href="/preview/" class="a2-sl-brand astro-wtntqkmy" aria-label="A2UI Home" aria-current="page"> <svg class="a2-sl-logo astro-wtntqkmy" width="26" height="26" viewBox="12 11 48 47" fill="none" aria-hidden="true"> <path d="M52 44C55.866 44 59 47.134 59 51C59 54.866 55.866 58 52 58H44C40.134 58 37 54.866 37 51C37 47.134 40.134 44 44 44H52ZM52 47C49.7909 47 48 48.7909 48 51C48 53.2091 49.7909 55 52 55C54.2091 55 56 53.2091 56 51C56 48.7909 54.2091 47 52 47Z" fill="currentColor" class="astro-wtntqkmy"></path> <path d="M27 41C22.85 41 19.3 39.55 16.35 36.65C13.45 33.7 12 30.15 12 26C12 21.85 13.45 18.325 16.35 15.425C19.3 12.475 22.85 11 27 11H45C49.15 11 52.675 12.475 55.575 15.425C58.525 18.325 60 21.85 60 26C60 30.15 58.525 33.7 55.575 36.65C52.675 39.55 49.15 41 45 41H27ZM27 36.5H45C47.9 36.5 50.375 35.475 52.425 33.425C54.475 31.375 55.5 28.9 55.5 26C55.5 23.1 54.475 20.625 52.425 18.575C50.375 16.525 47.9 15.5 45 15.5H27C24.1 15.5 21.625 16.525 19.575 18.575C17.525 20.625 16.5 23.1 16.5 26C16.5 28.9 17.525 31.375 19.575 33.425C21.625 35.475 24.1 36.5 27 36.5ZM27 28.25C27.65 28.25 28.175 28.05 28.575 27.65C29.025 27.2 29.25 26.65 29.25 26C29.25 25.35 29.025 24.825 28.575 24.425C28.175 23.975 27.65 23.75 27 23.75C26.35 23.75 25.8 23.975 25.35 24.425C24.95 24.825 24.75 25.35 24.75 26C24.75 26.65 24.95 27.2 25.35 27.65C25.8 28.05 26.35 28.25 27 28.25ZM45 28.25C45.65 28.25 46.175 28.05 46.575 27.65C47.025 27.2 47.25 26.65 47.25 26C47.25 25.35 47.025 24.825 46.575 24.425C46.175 23.975 45.65 23.75 45 23.75C44.35 23.75 43.8 23.975 43.35 24.425C42.95 24.825 42.75 25.35 42.75 26C42.75 26.65 42.95 27.2 43.35 27.65C43.8 28.05 44.35 28.25 45 28.25Z" fill="currentColor" class="astro-wtntqkmy"></path> <path d="M32.5 53C33.8807 53 35 54.1193 35 55.5C35 56.8807 33.8807 58 32.5 58H22.5C21.1193 58 20 56.8807 20 55.5C20 54.1193 21.1193 53 22.5 53H32.5Z" fill="currentColor" class="astro-wtntqkmy"></path> <path d="M14.5 53C15.8807 53 17 54.1193 17 55.5C17 56.8807 15.8807 58 14.5 58C13.1193 58 12 56.8807 12 55.5C12 54.1193 13.1193 53 14.5 53Z" fill="currentColor" class="astro-wtntqkmy"></path> <path d="M32.5 44C33.8807 44 35 45.1193 35 46.5C35 47.8807 33.8807 49 32.5 49C31.1193 49 30 47.8807 30 46.5C30 45.1193 31.1193 44 32.5 44Z" fill="currentColor" class="astro-wtntqkmy"></path> <path d="M24.5 44C25.8807 44 27 45.1193 27 46.5C27 47.8807 25.8807 49 24.5 49H17.5C16.1193 49 15 47.8807 15 46.5C15 45.1193 16.1193 44 17.5 44H24.5Z" fill="currentColor" class="astro-wtntqkmy"></path> </svg> <span class="astro-wtntqkmy">A2UI</span> <span class="a2-sl-brand__ver astro-wtntqkmy">v1.0</span> </a> <span class="a2-sl-header__slash astro-wtntqkmy" aria-hidden="true">/</span> <nav class="a2-sl-header__tabs astro-wtntqkmy" aria-label="Primary section navigation"> <a href="/preview/#custom-ui" class="a2-sl-tab a2-sl-tab--desk-only astro-wtntqkmy">Examples</a> <a href="/preview/quickstart/" class="a2-sl-tab astro-wtntqkmy">Docs</a> <a href="/preview/specification/v1.0-a2ui/" class="a2-sl-tab astro-wtntqkmy">Spec<span class="a2-sl-tab__long astro-wtntqkmy">ification</span></a> </nav> </div> <div class="a2-sl-header__right print:hidden astro-wtntqkmy"> <a2-site-search> <button type="button" data-open-modal class="a2-sl-search-btn astro-wtntqkmy" aria-label="Search docs" aria-keyshortcuts="Meta+K Control+K" title="Search documentation (⌘K / Ctrl+K)"> <span class="a2-sl-search-btn__lead astro-wtntqkmy"> <svg class="a2-sl-search-icon astro-wtntqkmy" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"> <path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5" class="astro-wtntqkmy"></path> </svg> <span class="a2-sl-search-label astro-wtntqkmy">Search docs</span> </span> <kbd class="a2-sl-search-kbd astro-wtntqkmy" aria-hidden="true"> <span data-platform-key class="astro-wtntqkmy">⌘</span><span class="astro-wtntqkmy">K</span> </kbd> </button> <dialog class="a2-sl-search-dialog astro-wtntqkmy" aria-label="Search docs"> <div class="a2-sl-dialog-frame astro-wtntqkmy"> <button type="button" data-close-modal class="a2-sl-search-cancel astro-wtntqkmy">Cancel</button> <div class="a2-sl-search-container astro-wtntqkmy"> <div id="starlight__search" class="astro-wtntqkmy"></div> </div> </div> </dialog> </a2-site-search> <div class="a2-sl-header__controls astro-wtntqkmy"> <a class="a2-sl-icon-btn astro-wtntqkmy" href="https://github.com/a2ui-project/a2ui" target="_blank" rel="noopener" aria-label="GitHub Repository" title="GitHub"> <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="astro-wtntqkmy"> <path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.08-.73.08-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z" class="astro-wtntqkmy"></path> </svg> </a> <a class="a2-sl-icon-btn astro-wtntqkmy" href="https://discord.gg/6fS2326966" target="_blank" rel="noopener" aria-label="Discord Community" title="Discord"> <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="astro-wtntqkmy"> <path d="M20.32 4.37a19.8 19.8 0 0 0-4.89-1.52.07.07 0 0 0-.08.04c-.2.38-.44.87-.61 1.25a18.27 18.27 0 0 0-5.48 0 12.64 12.64 0 0 0-.62-1.25.08.08 0 0 0-.08-.04 19.74 19.74 0 0 0-4.89 1.52.07.07 0 0 0-.03.03C.53 9.05-.32 13.58.09 18.06a.08.08 0 0 0 .03.05 19.9 19.9 0 0 0 5.99 3.03.08.08 0 0 0 .08-.03c.46-.63.87-1.3 1.22-2a.08.08 0 0 0-.04-.11 13.1 13.1 0 0 1-1.87-.9.08.08 0 0 1-.01-.12c.13-.09.25-.19.37-.29a.08.08 0 0 1 .08-.01c3.93 1.8 8.18 1.8 12.07 0a.08.08 0 0 1 .08.01c.12.1.24.2.37.29a.08.08 0 0 1 0 .12c-.6.35-1.22.65-1.87.9a.08.08 0 0 0-.04.11c.36.7.77 1.37 1.22 2a.08.08 0 0 0 .08.03 19.83 19.83 0 0 0 6-3.03.08.08 0 0 0 .03-.05c.5-5.18-.84-9.68-3.55-13.66a.06.06 0 0 0-.03-.03ZM8.02 15.33c-1.18 0-2.16-1.08-2.16-2.42 0-1.33.96-2.42 2.16-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.34-.96 2.42-2.16 2.42Zm7.97 0c-1.18 0-2.16-1.08-2.16-2.42 0-1.33.96-2.42 2.16-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.34-.95 2.42-2.16 2.42Z" class="astro-wtntqkmy"></path> </svg> </a> <button type="button" class="a2-sl-icon-btn a2-sl-theme-btn astro-wtntqkmy" id="a2-sl-theme-toggle" title="Toggle color theme" aria-label="Toggle color theme"> <svg class="a2-theme-icon a2-theme-icon--dark astro-wtntqkmy" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"> <path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z" class="astro-wtntqkmy"></path> </svg> <svg class="a2-theme-icon a2-theme-icon--light astro-wtntqkmy" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"> <path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z" class="astro-wtntqkmy"></path> </svg> </button> </div> </div> </div> <script>
   (() => {
     const platformKey = document.querySelector('[data-platform-key]');
     if (platformKey && !/(Mac|iPhone|iPod|iPad)/i.test(navigator.platform)) {
@@ -43,885 +50,341 @@
       window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme: next } }));
     });
   })();
-</script> <script type="module" src="/preview/_astro/StarlightHeader.astro_astro_type_script_index_0_lang.BM_-ybh1.js"></script> <script type="module" src="/preview/_astro/StarlightHeader.astro_astro_type_script_index_1_lang.BCABbwel.js"></script>   </div> </header> <main> <!-- =====================================================================
-           1. HERO: GIVE YOUR AGENTS UI ON EVERY SURFACE
-           ===================================================================== --> <section class="a2-hero" id="hero"> <div class="a2-container"> <div class="a2-hero__header"> <h1 class="a2-h1">Give your agents UI on every surface.</h1> <p class="a2-lead">
-Chat is a great input, but walls of prose are a terrible output. <strong>A2UI</strong> is the open protocol and SDK suite that lets AI agents respond with stateful, interactive user interfaces—spanning the entire Generative UI Spectrum and rendering natively on Web, Flutter, SwiftUI, and Jetpack Compose.
-</p> <div class="a2-cta-row"> <a class="a2-btn a2-btn--primary" href="/preview/quickstart/">Run 5-Minute Quickstart →</a> <button type="button" class="a2-btn a2-btn--code" id="a2-copy-prompt">📋 Copy Agent Prompt</button> </div> </div> <!-- First Visual Aid: Incremental UI Generation in Mobile Chat --> <div class="hc-shell astro-awthgajc" id="hero-chat-visual" role="region" aria-label="How A2UI streams interactive mobile chat interfaces"> <div class="hc-stage astro-awthgajc"> <!-- LEFT: Quiet, Soft-Toned A2UI Express Stream + Single-Line Local dataModel Strip --> <div class="hc-left-col astro-awthgajc"> <div class="hc-agent astro-awthgajc"> <div class="hc-agent__head astro-awthgajc"> <div class="hc-agent__title-group astro-awthgajc"> <span class="hc-live-dot astro-awthgajc" data-hc-el="agent-dot" aria-hidden="true"></span> <span class="hc-agent__title astro-awthgajc">A2UI Express stream</span> <code class="hc-surface-id astro-awthgajc">kyoto_trip</code> </div> <button type="button" class="hc-restart-btn astro-awthgajc" id="hc-restart-btn" title="Restart stream" aria-label="Restart UI generation stream"> <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="astro-awthgajc"> <path d="M3 12a9 9 0 1 0 3-6.7L3 8" class="astro-awthgajc"></path> <path d="M3 3v5h5" class="astro-awthgajc"></path> </svg> </button> </div> <!-- Streaming Express Viewport --> <div class="hc-stream-viewport astro-awthgajc" data-hc-el="stream-viewport"> <pre class="hc-code astro-awthgajc" id="hc-code-express" tabindex="0" aria-label="A2UI Express stream"><span class="hc-chunk astro-awthgajc" data-chunk="0"><span class="hc-kw astro-awthgajc">&lt;a2ui&gt;</span>
-<span class="hc-fn astro-awthgajc">surface</span>(<span class="hc-str astro-awthgajc">"kyoto_trip"</span>)
-<span class="hc-comp astro-awthgajc">root</span> = <span class="hc-fn astro-awthgajc">Column</span>([<span class="hc-comp astro-awthgajc">hero</span>, <span class="hc-comp astro-awthgajc">options</span>, <span class="hc-comp astro-awthgajc">summary</span>])
+</script> <script type="module" src="/preview/_astro/StarlightHeader.astro_astro_type_script_index_0_lang.BM_-ybh1.js"></script> <script type="module" src="/preview/_astro/StarlightHeader.astro_astro_type_script_index_1_lang.BCABbwel.js"></script>   </div> </header> <main class="astro-j7pv25f6"> <!-- =================================================================
+           HERO: ARCHITECTURAL MASTHEAD + FREESTANDING ARTIFACT STAGE
+           ================================================================= --> <section class="a2-hero astro-j7pv25f6" id="hero"> <div class="a2-hero__grid-bg astro-j7pv25f6" aria-hidden="true"></div> <div class="a2-wrap astro-j7pv25f6"> <div class="a2-masthead astro-j7pv25f6"> <div class="a2-masthead__split astro-j7pv25f6"> <div class="a2-masthead__copy astro-j7pv25f6"> <h1 class="a2-h1 a2-h1--long astro-j7pv25f6">
+Give agents a way to build the screen <span class="a2-h-accent astro-j7pv25f6">each customer actually&nbsp;needs.</span> </h1> <p class="a2-lead astro-j7pv25f6">
+Empower your agents to compose native, per-customer screens from components your
+                  team already approved. Same app, a different composition for every person and
+                  every intent.
+</p> <div class="a2-hero__actions astro-j7pv25f6"> <a href="/preview/quickstart/" class="a2-btn a2-btn--primary astro-j7pv25f6"> <span class="astro-j7pv25f6">Run in 5 Minutes</span> <span aria-hidden="true" class="astro-j7pv25f6">→</span> </a> </div> </div> <!-- One message, every form factor --> <div class="a2-masthead__visual astro-j7pv25f6"> <div class="ff astro-5yoew3gg" id="hero-form-factors" role="img" aria-label="One A2UI message rendering natively on a TV, a desktop browser, a tablet, a phone and a watch — the same content laid out for each screen"> <div class="ff-box astro-5yoew3gg" aria-hidden="true"> <!-- Wires: message → each device --> <svg class="ff-wires astro-5yoew3gg" viewBox="0 0 600 400" preserveAspectRatio="none"> <g class="ff-wire-base astro-5yoew3gg"> <path d="M300 108 C300 170 95 180 95 245" class="astro-5yoew3gg"></path> <path d="M300 108 C300 180 280 190 280 260" class="astro-5yoew3gg"></path> <path d="M300 108 C300 166 421 166 421 231" class="astro-5yoew3gg"></path> <path d="M300 108 C300 170 510 172 510 238" class="astro-5yoew3gg"></path> <path d="M300 108 C300 196 573 200 573 284" class="astro-5yoew3gg"></path> </g> <g class="ff-wire-pkt astro-5yoew3gg"> <path style="--d:0s" d="M300 108 C300 170 95 180 95 245" class="astro-5yoew3gg"></path> <path style="--d:.35s" d="M300 108 C300 180 280 190 280 260" class="astro-5yoew3gg"></path> <path style="--d:.7s" d="M300 108 C300 166 421 166 421 231" class="astro-5yoew3gg"></path> <path style="--d:1.05s" d="M300 108 C300 170 510 172 510 238" class="astro-5yoew3gg"></path> <path style="--d:1.4s" d="M300 108 C300 196 573 200 573 284" class="astro-5yoew3gg"></path> </g> <rect class="ff-wire-src astro-5yoew3gg" x="297" y="105" width="6" height="6"></rect> </svg> <!-- The message --> <div class="ff-src astro-5yoew3gg" style="--x:165;--y:0;--w:270;--h:108"> <div class="ff-src__hd astro-5yoew3gg"> <span class="astro-5yoew3gg">A2UI MESSAGE</span> </div> <div class="ff-src__body astro-5yoew3gg"> <p class="ff-ln is-on astro-5yoew3gg"><b class="astro-5yoew3gg">createSurface</b><span class="astro-5yoew3gg">"home"</span></p> <p class="ff-ln is-on astro-5yoew3gg"><b class="astro-5yoew3gg">Card</b><span class="astro-5yoew3gg">"Order #7731"</span></p> <p class="ff-ln is-on astro-5yoew3gg"><b class="astro-5yoew3gg">Text</b><span class="astro-5yoew3gg">"Arrives 8:12am"</span></p> <p class="ff-ln is-on astro-5yoew3gg"><b class="astro-5yoew3gg">Button</b><span class="astro-5yoew3gg">"Reorder"</span><i class="ff-caret astro-5yoew3gg"></i></p> </div> </div> <!-- TV --> <div class="ff-dev ff-tv astro-5yoew3gg" data-ff-dev="tv" style="--x:0;--y:245;--w:190;--h:107"> <div class="ff-scr astro-5yoew3gg"> <div class="ff-skel astro-5yoew3gg"><i style="width:58%" class="astro-5yoew3gg"></i><i style="width:84%" class="astro-5yoew3gg"></i><i style="width:40%" class="astro-5yoew3gg"></i></div> <div class="ff-view is-on astro-5yoew3gg" data-ff-v="1"> <div class="ff-row astro-5yoew3gg"> <i class="tb astro-5yoew3gg" style="width:40%"></i> <div class="ff-col astro-5yoew3gg"><i class="t astro-5yoew3gg" style="width:72%"></i><i class="t astro-5yoew3gg" style="width:48%"></i><i class="t astro-5yoew3gg" style="width:60%"></i><i class="b astro-5yoew3gg" style="width:44%"></i></div> </div> </div> <div class="ff-view astro-5yoew3gg" data-ff-v="2"> <i class="t astro-5yoew3gg" style="width:34%"></i> <div class="ff-row astro-5yoew3gg"> <div class="ff-ch astro-5yoew3gg" style="flex:1.4"><i style="height:45%" class="astro-5yoew3gg"></i><i style="height:70%" class="astro-5yoew3gg"></i><i style="height:52%" class="astro-5yoew3gg"></i><i style="height:64%" class="astro-5yoew3gg"></i><i class="hi astro-5yoew3gg" style="height:88%"></i><i style="height:58%" class="astro-5yoew3gg"></i></div> <div class="ff-col astro-5yoew3gg"><i class="t astro-5yoew3gg" style="width:80%"></i><i class="t astro-5yoew3gg" style="width:55%"></i><i class="b astro-5yoew3gg" style="width:70%"></i></div> </div> </div> <div class="ff-view astro-5yoew3gg" data-ff-v="3"> <i class="t astro-5yoew3gg" style="width:38%"></i> <div class="ff-row astro-5yoew3gg"> <div class="ff-col astro-5yoew3gg"> <div class="ff-op on astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:60%"></i></div> <div class="ff-op astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:48%"></i></div> <div class="ff-op astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:54%"></i></div> </div> <div class="ff-col astro-5yoew3gg"><i class="b astro-5yoew3gg" style="width:70%"></i></div> </div> </div> </div> <i class="ff-tv__neck astro-5yoew3gg"></i> <i class="ff-tv__base astro-5yoew3gg"></i> </div> <!-- Desktop browser --> <div class="ff-dev ff-lap astro-5yoew3gg" data-ff-dev="lap" style="--x:205;--y:260;--w:150;--h:94"> <div class="ff-scr astro-5yoew3gg"> <div class="ff-skel astro-5yoew3gg"><i style="width:58%" class="astro-5yoew3gg"></i><i style="width:84%" class="astro-5yoew3gg"></i><i style="width:40%" class="astro-5yoew3gg"></i></div> <div class="ff-view is-on astro-5yoew3gg" data-ff-v="1"> <div class="ff-row astro-5yoew3gg"> <div class="ff-sb astro-5yoew3gg"><i class="t astro-5yoew3gg" style="width:90%"></i><i class="t astro-5yoew3gg" style="width:70%"></i><i class="t astro-5yoew3gg" style="width:80%"></i></div> <div class="ff-col astro-5yoew3gg"><i class="tb astro-5yoew3gg" style="height:40%"></i><i class="t astro-5yoew3gg" style="width:70%"></i><i class="t astro-5yoew3gg" style="width:50%"></i><i class="b astro-5yoew3gg" style="width:56%"></i></div> </div> </div> <div class="ff-view astro-5yoew3gg" data-ff-v="2"> <div class="ff-row astro-5yoew3gg"> <div class="ff-sb astro-5yoew3gg"><i class="t astro-5yoew3gg" style="width:90%"></i><i class="t astro-5yoew3gg" style="width:70%"></i><i class="t astro-5yoew3gg" style="width:80%"></i></div> <div class="ff-col astro-5yoew3gg"><i class="t astro-5yoew3gg" style="width:46%"></i><div class="ff-ch astro-5yoew3gg"><i style="height:45%" class="astro-5yoew3gg"></i><i style="height:70%" class="astro-5yoew3gg"></i><i style="height:52%" class="astro-5yoew3gg"></i><i style="height:64%" class="astro-5yoew3gg"></i><i class="hi astro-5yoew3gg" style="height:88%"></i></div><i class="b astro-5yoew3gg" style="width:56%"></i></div> </div> </div> <div class="ff-view astro-5yoew3gg" data-ff-v="3"> <div class="ff-row astro-5yoew3gg"> <div class="ff-sb astro-5yoew3gg"><i class="t astro-5yoew3gg" style="width:90%"></i><i class="t astro-5yoew3gg" style="width:70%"></i><i class="t astro-5yoew3gg" style="width:80%"></i></div> <div class="ff-col astro-5yoew3gg"> <i class="t astro-5yoew3gg" style="width:46%"></i> <div class="ff-op on astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:62%"></i></div> <div class="ff-op astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:50%"></i></div> <div class="ff-op astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:56%"></i></div> <i class="b astro-5yoew3gg" style="width:56%"></i> </div> </div> </div> </div> <i class="ff-lap__base astro-5yoew3gg"></i> </div> <!-- Tablet --> <div class="ff-dev ff-tab astro-5yoew3gg" data-ff-dev="tab" style="--x:370;--y:231;--w:102;--h:131"> <div class="ff-scr astro-5yoew3gg"> <div class="ff-skel astro-5yoew3gg"><i style="width:58%" class="astro-5yoew3gg"></i><i style="width:84%" class="astro-5yoew3gg"></i><i style="width:40%" class="astro-5yoew3gg"></i></div> <div class="ff-view is-on astro-5yoew3gg" data-ff-v="1"> <i class="tb astro-5yoew3gg" style="height:36%"></i><i class="t astro-5yoew3gg" style="width:74%"></i><i class="t astro-5yoew3gg" style="width:52%"></i><i class="t astro-5yoew3gg" style="width:64%"></i><i class="b astro-5yoew3gg" style="width:62%"></i> </div> <div class="ff-view astro-5yoew3gg" data-ff-v="2"> <i class="t astro-5yoew3gg" style="width:50%"></i><div class="ff-ch astro-5yoew3gg"><i style="height:45%" class="astro-5yoew3gg"></i><i style="height:70%" class="astro-5yoew3gg"></i><i style="height:52%" class="astro-5yoew3gg"></i><i style="height:64%" class="astro-5yoew3gg"></i><i class="hi astro-5yoew3gg" style="height:88%"></i></div><i class="t astro-5yoew3gg" style="width:60%"></i><i class="b astro-5yoew3gg" style="width:62%"></i> </div> <div class="ff-view astro-5yoew3gg" data-ff-v="3"> <i class="t astro-5yoew3gg" style="width:54%"></i> <div class="ff-op on astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:66%"></i></div> <div class="ff-op astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:52%"></i></div> <div class="ff-op astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:58%"></i></div> <i class="b astro-5yoew3gg" style="width:62%"></i> </div> </div> </div> <!-- Phone --> <div class="ff-dev ff-ph astro-5yoew3gg" data-ff-dev="ph" style="--x:478;--y:238;--w:64;--h:124"> <i class="ff-ph__island astro-5yoew3gg"></i> <div class="ff-scr astro-5yoew3gg"> <div class="ff-skel astro-5yoew3gg"><i style="width:58%" class="astro-5yoew3gg"></i><i style="width:84%" class="astro-5yoew3gg"></i><i style="width:40%" class="astro-5yoew3gg"></i></div> <div class="ff-view is-on astro-5yoew3gg" data-ff-v="1"> <i class="tb astro-5yoew3gg" style="height:32%"></i><i class="t astro-5yoew3gg" style="width:80%"></i><i class="t astro-5yoew3gg" style="width:56%"></i><i class="t astro-5yoew3gg" style="width:68%"></i><i class="b astro-5yoew3gg" style="width:100%"></i> </div> <div class="ff-view astro-5yoew3gg" data-ff-v="2"> <i class="t astro-5yoew3gg" style="width:60%"></i><div class="ff-ch astro-5yoew3gg"><i style="height:45%" class="astro-5yoew3gg"></i><i style="height:70%" class="astro-5yoew3gg"></i><i style="height:52%" class="astro-5yoew3gg"></i><i class="hi astro-5yoew3gg" style="height:88%"></i></div><i class="t astro-5yoew3gg" style="width:70%"></i><i class="b astro-5yoew3gg" style="width:100%"></i> </div> <div class="ff-view astro-5yoew3gg" data-ff-v="3"> <i class="t astro-5yoew3gg" style="width:64%"></i> <div class="ff-op on astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:70%"></i></div> <div class="ff-op astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:54%"></i></div> <div class="ff-op astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:62%"></i></div> <i class="b astro-5yoew3gg" style="width:100%"></i> </div> </div> </div> <!-- Watch --> <div class="ff-dev ff-w astro-5yoew3gg" data-ff-dev="w" style="--x:548;--y:293;--w:50;--h:60"> <i class="ff-w__band ff-w__band--top astro-5yoew3gg"></i> <i class="ff-w__band ff-w__band--bot astro-5yoew3gg"></i> <i class="ff-w__crown astro-5yoew3gg"></i> <div class="ff-scr astro-5yoew3gg"> <div class="ff-skel astro-5yoew3gg"><i style="width:70%" class="astro-5yoew3gg"></i><i style="width:50%" class="astro-5yoew3gg"></i></div> <div class="ff-view is-on astro-5yoew3gg" data-ff-v="1"> <i class="tb astro-5yoew3gg" style="height:40%"></i><i class="t astro-5yoew3gg" style="width:80%"></i><i class="b astro-5yoew3gg" style="width:100%"></i> </div> <div class="ff-view astro-5yoew3gg" data-ff-v="2"> <div class="ff-ch astro-5yoew3gg"><i style="height:45%" class="astro-5yoew3gg"></i><i style="height:70%" class="astro-5yoew3gg"></i><i class="hi astro-5yoew3gg" style="height:90%"></i></div><i class="b astro-5yoew3gg" style="width:100%"></i> </div> <div class="ff-view astro-5yoew3gg" data-ff-v="3"> <div class="ff-op on astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:70%"></i></div> <div class="ff-op astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:55%"></i></div> <i class="b astro-5yoew3gg" style="width:100%"></i> </div> </div> </div> <!-- Floor + labels --> <i class="ff-floor astro-5yoew3gg"></i> <div class="ff-lbl astro-5yoew3gg" style="--y:374;--x:0;--w:190"><b class="astro-5yoew3gg">TV</b></div> <div class="ff-lbl astro-5yoew3gg" style="--y:374;--x:196;--w:168"><b class="astro-5yoew3gg">DESKTOP</b></div> <div class="ff-lbl astro-5yoew3gg" style="--y:374;--x:370;--w:102"><b class="astro-5yoew3gg">TABLET</b></div> <div class="ff-lbl astro-5yoew3gg" style="--y:374;--x:478;--w:64"><b class="astro-5yoew3gg">PHONE</b></div> <div class="ff-lbl astro-5yoew3gg" style="--y:374;--x:548;--w:50"><b class="astro-5yoew3gg">WATCH</b></div> </div> </div> <script>
+  (() => {
+    const root = document.getElementById('hero-form-factors');
+    if (!root) return;
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const devs = Array.from(root.querySelectorAll('.ff-dev'));
+    const lines = Array.from(root.querySelectorAll('.ff-ln'));
+    if (reduce || !devs.length || !lines.length) return;
 
-<span class="hc-comp astro-awthgajc">hero</span> = <span class="hc-fn astro-awthgajc">Card</span>(<span class="hc-fn astro-awthgajc">Column</span>([
-  <span class="hc-fn astro-awthgajc">Image</span>(<span class="hc-str astro-awthgajc">"https://example.com/kyoto.jpg"</span>, variant=<span class="hc-str astro-awthgajc">"header"</span>),
-  <span class="hc-fn astro-awthgajc">Text</span>(<span class="hc-str astro-awthgajc">"Kyoto Weekend Escape · Oct 16–18"</span>)
-]))
-</span><span class="hc-chunk astro-awthgajc" data-chunk="1"><span class="hc-path astro-awthgajc">$/cabin</span> = [<span class="hc-str astro-awthgajc">"reserved"</span>]
-<span class="hc-path astro-awthgajc">$/guests</span> = <span class="hc-num astro-awthgajc">2</span>
-<span class="hc-path astro-awthgajc">$/onsen</span> = <span class="hc-num astro-awthgajc">true</span>
-<span class="hc-comp astro-awthgajc">options</span> = <span class="hc-fn astro-awthgajc">Card</span>(<span class="hc-fn astro-awthgajc">Column</span>([
-  <span class="hc-fn astro-awthgajc">Row</span>([<span class="hc-fn astro-awthgajc">Icon</span>(<span class="hc-str astro-awthgajc">"arrowForward"</span>), <span class="hc-fn astro-awthgajc">Text</span>(<span class="hc-str astro-awthgajc">"Shinkansen · Tokyo → Kyoto"</span>)]),
-  <span class="hc-fn astro-awthgajc">ChoicePicker</span>(
-    options=[
-      &#123;label: <span class="hc-str astro-awthgajc">"Reserved"</span>, value: <span class="hc-str astro-awthgajc">"reserved"</span>&#125;,
-      &#123;label: <span class="hc-str astro-awthgajc">"Green Car"</span>, value: <span class="hc-str astro-awthgajc">"green"</span>&#125;
-    ],
-    value=<span class="hc-path astro-awthgajc">$/cabin</span>, displayStyle=<span class="hc-str astro-awthgajc">"chips"</span>
-  ),
-  <span class="hc-fn astro-awthgajc">Slider</span>(<span class="hc-str astro-awthgajc">"Guests"</span>, <span class="hc-num astro-awthgajc">1</span>, <span class="hc-num astro-awthgajc">4</span>, <span class="hc-path astro-awthgajc">$/guests</span>, <span class="hc-num astro-awthgajc">3</span>),
-  <span class="hc-fn astro-awthgajc">CheckBox</span>(<span class="hc-str astro-awthgajc">"Private Onsen (+$95)"</span>, <span class="hc-path astro-awthgajc">$/onsen</span>)
-]))
-</span><span class="hc-chunk astro-awthgajc" data-chunk="2"><span class="hc-path astro-awthgajc">$/total</span> = <span class="hc-num astro-awthgajc">1090</span>
-<span class="hc-comp astro-awthgajc">summary</span> = <span class="hc-fn astro-awthgajc">Card</span>(<span class="hc-fn astro-awthgajc">Column</span>([
-  <span class="hc-fn astro-awthgajc">Row</span>(
-    [<span class="hc-fn astro-awthgajc">Text</span>(<span class="hc-str astro-awthgajc">"Estimated Total"</span>), <span class="hc-fn astro-awthgajc">Text</span>(<span class="hc-fn astro-awthgajc">formatCurrency</span>(<span class="hc-path astro-awthgajc">$/total</span>, <span class="hc-str astro-awthgajc">"USD"</span>, <span class="hc-num astro-awthgajc">0</span>))],
-    <span class="hc-str astro-awthgajc">"spaceBetween"</span>
-  ),
-  <span class="hc-fn astro-awthgajc">Button</span>(
-    <span class="hc-fn astro-awthgajc">Text</span>(<span class="hc-str astro-awthgajc">"Hold Itinerary"</span>), <span class="hc-str astro-awthgajc">"primary"</span>,
-    <span class="hc-kw astro-awthgajc">Event</span>(<span class="hc-str astro-awthgajc">"confirm_trip"</span>, &#123;guests: <span class="hc-path astro-awthgajc">$/guests</span>, cabin: <span class="hc-path astro-awthgajc">$/cabin</span>, onsen: <span class="hc-path astro-awthgajc">$/onsen</span>&#125;)
-  )
-]))
-<span class="hc-kw astro-awthgajc">&lt;/a2ui&gt;</span></span><span class="hc-caret astro-awthgajc" data-hc-el="caret-express" aria-hidden="true"></span></pre> </div> <!-- Subtle Single-Line Local dataModel Footer --> <div class="hc-datamodel astro-awthgajc" id="hc-datamodel-box" aria-label="Local client dataModel"> <span class="hc-datamodel__label astro-awthgajc">dataModel</span> <div class="hc-datamodel__pills astro-awthgajc"> <span class="hc-dm-kv astro-awthgajc" data-dm-stage="1" id="hc-dm-cabin"> <code class="astro-awthgajc">/cabin</code>: <strong id="hc-dm-cabin-val" class="astro-awthgajc">["reserved"]</strong> </span> <span class="hc-dm-kv astro-awthgajc" data-dm-stage="1" id="hc-dm-guests"> <code class="astro-awthgajc">/guests</code>: <strong id="hc-dm-guests-val" class="astro-awthgajc">2</strong> </span> <span class="hc-dm-kv astro-awthgajc" data-dm-stage="1" id="hc-dm-onsen"> <code class="astro-awthgajc">/onsen</code>: <strong id="hc-dm-onsen-val" class="astro-awthgajc">true</strong> </span> <span class="hc-dm-kv hc-dm-kv--accent astro-awthgajc" data-dm-stage="2" id="hc-dm-total"> <code class="astro-awthgajc">/total</code>: <strong id="hc-dm-total-val" class="astro-awthgajc">1090</strong> </span> </div> </div> </div> </div> <!-- CENTER: Slim, Minimal Stream Connector --> <div class="hc-bridge astro-awthgajc" aria-hidden="true"> <div class="hc-bridge__pills astro-awthgajc"> <div class="hc-wire-pill astro-awthgajc" data-hc-el="wire-stream"> <span class="hc-wire-pill__name astro-awthgajc">stream</span> <span class="hc-wire-pill__dir hc-dir-desk astro-awthgajc">→</span> <span class="hc-wire-pill__dir hc-dir-stack astro-awthgajc">↑</span> </div> <div class="hc-wire-pill hc-wire-pill--return astro-awthgajc" data-hc-el="wire-action"> <span class="hc-wire-pill__dir hc-dir-desk astro-awthgajc">←</span> <span class="hc-wire-pill__dir hc-dir-stack astro-awthgajc">↓</span> <span class="hc-wire-pill__name astro-awthgajc">action</span> </div> </div> </div> <!-- RIGHT: Spacious, Prominent Mobile Chat UI (100% 1-to-1 with Express) --> <div class="hc-device-col astro-awthgajc"> <div class="hc-phone astro-awthgajc"> <div class="hc-phone__screen astro-awthgajc"> <!-- Minimal Chat Header --> <div class="hc-appbar astro-awthgajc"> <div class="hc-appbar__avatar astro-awthgajc" aria-hidden="true"> <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="astro-awthgajc"> <path d="M12 3l2.2 5.8L20 11l-5.8 2.2L12 19l-2.2-5.8L4 11l5.8-2.2L12 3z" class="astro-awthgajc"></path> </svg> </div> <div class="hc-appbar__name astro-awthgajc">Travel Concierge</div> </div> <!-- Chat Conversation (Fixed-Height Container: No Expansion Jumps) --> <div class="hc-chat astro-awthgajc"> <!-- User Prompt Bubble --> <div class="hc-msg-user astro-awthgajc"> <div class="hc-msg-user__bubble astro-awthgajc">
-Plan a weekend in Kyoto for 2 with bullet train and a ryokan stay.
-</div> </div> <!-- Agent Response + 1-to-1 Streamed A2UI Surface --> <div class="hc-msg-agent astro-awthgajc" id="hc-agent-reply"> <div class="hc-msg-agent__lead astro-awthgajc" data-hc-el="agent-lead">
-Here's a customizable weekend itinerary:
-</div> <!-- Root Column([hero, options, summary]) with Fixed Height --> <div class="hc-surface astro-awthgajc" data-hc-el="surface-card"> <!-- CARD 1: hero = Card(Column([Image(..., variant="header"), Text("Kyoto Weekend Escape · Oct 16–18")])) --> <div class="hc-ui-stage hc-card hc-card--hero astro-awthgajc" data-ui-stage="0"> <div class="hc-hero-img astro-awthgajc" aria-hidden="true"> <svg class="hc-hero-art astro-awthgajc" viewBox="0 0 400 94" preserveAspectRatio="xMaxYMid slice"> <defs class="astro-awthgajc"> <linearGradient id="hc-kyoto-sky" x1="0" y1="0" x2="1" y2="1" class="astro-awthgajc"> <stop offset="0%" stop-color="#1e1714" class="astro-awthgajc"></stop> <stop offset="52%" stop-color="#4e2d23" class="astro-awthgajc"></stop> <stop offset="100%" stop-color="#c86d51" class="astro-awthgajc"></stop> </linearGradient> <linearGradient id="hc-sun-glow" x1="0" y1="0" x2="0" y2="1" class="astro-awthgajc"> <stop offset="0%" stop-color="#fed7aa" stop-opacity="0.78" class="astro-awthgajc"></stop> <stop offset="100%" stop-color="#ea580c" stop-opacity="0" class="astro-awthgajc"></stop> </linearGradient> </defs> <rect width="400" height="94" fill="url(#hc-kyoto-sky)" class="astro-awthgajc"></rect> <circle cx="318" cy="36" r="24" fill="url(#hc-sun-glow)" class="astro-awthgajc"></circle> <circle cx="318" cy="32" r="10" fill="#fef3c7" opacity="0.92" class="astro-awthgajc"></circle> <path d="M0 70 Q65 42 135 58 T275 52 T400 60 L400 94 L0 94 Z" fill="#2d1f1a" opacity="0.88" class="astro-awthgajc"></path> <path d="M0 78 Q100 58 195 72 T400 66 L400 94 L0 94 Z" fill="#1b1310" class="astro-awthgajc"></path> <!-- Pagoda silhouette --> <g fill="#120c0a" transform="translate(268, 22)" class="astro-awthgajc"> <rect x="11" y="0" width="2" height="9" class="astro-awthgajc"></rect> <path d="M3 12 L12 7 L21 12 Z" class="astro-awthgajc"></path> <path d="M1 20 L12 14 L23 20 Z" class="astro-awthgajc"></path> <path d="M-1 29 L12 22 L25 29 Z" class="astro-awthgajc"></path> <rect x="7" y="29" width="10" height="24" class="astro-awthgajc"></rect> </g> <!-- Torii gate --> <g transform="translate(326, 38)" class="astro-awthgajc"> <path d="M2 8 Q18 4 34 8 L33 12 Q18 9 3 12 Z" fill="#d45b3e" class="astro-awthgajc"></path> <rect x="6" y="15" width="24" height="3" rx="1" fill="#e06d4f" class="astro-awthgajc"></rect> <rect x="9" y="11" width="3.2" height="34" fill="#d45b3e" class="astro-awthgajc"></rect> <rect x="23.8" y="11" width="3.2" height="34" fill="#d45b3e" class="astro-awthgajc"></rect> </g> </svg> </div> <div class="hc-hero-title astro-awthgajc">Kyoto Weekend Escape · Oct 16–18</div> </div> <!-- CARD 2: options = Card(Column([Row([Icon("arrowForward"), Text(...)]), ChoicePicker(...), Slider(...), CheckBox(...)])) --> <div class="hc-ui-stage hc-card astro-awthgajc" data-ui-stage="1"> <!-- Row([Icon("arrowForward"), Text("Shinkansen · Tokyo → Kyoto")]) --> <div class="hc-row-inline astro-awthgajc"> <span class="hc-icon-arrow astro-awthgajc" aria-hidden="true">→</span> <span class="hc-card__title astro-awthgajc">Shinkansen · Tokyo → Kyoto</span> </div> <!-- ChoicePicker(options=[...], value=$/cabin, displayStyle="chips") --> <div class="hc-chips astro-awthgajc" role="radiogroup" aria-label="Shinkansen cabin class"> <button type="button" role="radio" aria-checked="true" tabindex="0" class="hc-chip is-selected astro-awthgajc" data-cabin="reserved">
-Reserved
-</button> <button type="button" role="radio" aria-checked="false" tabindex="-1" class="hc-chip astro-awthgajc" data-cabin="green" id="hc-green-chip">
-Green Car
-</button> </div> <!-- Slider("Guests", 1, 4, $/guests, 3) --> <div class="hc-slider-row astro-awthgajc"> <label class="hc-slider-row__lbl astro-awthgajc" for="hc-guest-slider"> <span class="astro-awthgajc">Guests</span> <strong id="hc-guests-label" class="astro-awthgajc">2</strong> </label> <input type="range" id="hc-guest-slider" class="hc-guest-slider astro-awthgajc" min="1" max="4" step="1" value="2" aria-valuetext="2"> </div> <!-- CheckBox("Private Onsen (+$95)", $/onsen) --> <button type="button" role="checkbox" aria-checked="true" class="hc-checkbox is-checked astro-awthgajc" id="hc-onsen-btn"> <span class="hc-checkbox__box astro-awthgajc" aria-hidden="true">✓</span> <span class="hc-checkbox__label astro-awthgajc">Private Onsen (+$95)</span> </button> </div> <!-- CARD 3: summary = Card(Column([Row([Text("Estimated Total"), Text(formatCurrency(...))], "spaceBetween"), Button(...)])) --> <div class="hc-ui-stage hc-card hc-card--summary astro-awthgajc" data-ui-stage="2"> <div class="hc-total-row astro-awthgajc"> <span class="hc-total-row__label astro-awthgajc">Estimated Total</span> <strong class="hc-total-row__val astro-awthgajc" id="hc-total-price">$1,090</strong> </div> <button type="button" class="hc-cta-btn astro-awthgajc" id="hc-hold-btn"> <span id="hc-hold-btn-label" class="astro-awthgajc">Hold Itinerary</span> </button> </div> <!-- Streaming Skeleton Placeholder (Fills remaining height while surface is building) --> <div class="hc-skeleton astro-awthgajc" data-hc-el="skeleton" hidden aria-hidden="true"> <div class="hc-skeleton__bar hc-skeleton__bar--w60 astro-awthgajc"></div> <div class="hc-skeleton__bar hc-skeleton__bar--w90 astro-awthgajc"></div> </div> </div> <!-- Subtle Action Sent Pill (Appears below surface when Hold Itinerary is clicked) --> <div class="hc-chat-confirm astro-awthgajc" id="hc-chat-confirm" hidden>
-✓ Sent <code class="astro-awthgajc">confirm_trip</code> (<span data-hc-el="confirm-total" class="astro-awthgajc">$1,090</span>)
-</div> </div> </div> </div> </div> </div> </div> <!-- Hidden Machine-Readable Diagram Spec --> <script type="text/vnd.mermaid" data-agent-diagram="spec" style="display: none;">sequenceDiagram
-  actor User as Mobile Chat User
-  participant App as Mobile Renderer SDK
-  participant Agent as Agent + A2UI Agent SDK
-  User->>Agent: "Plan a weekend in Kyoto for 2 with bullet train and a ryokan stay."
-  Agent-->>App: Stream <a2ui> Express (surface "kyoto_trip": hero, options, summary)
-  App-->>User: Progressively mounts native UI cards bound to local dataModel
-  User->>App: Adjusts cabin chips, Guests slider, Private Onsen checkbox (0ms local dataModel sync)
-  User->>App: Taps Hold Itinerary
-  App->>Agent: Event("confirm_trip", {guests, cabin, onsen})</script> </div>  <script>
-  (function () {
+    /* Three payloads — the devices repaint the same message in their own layout */
+    const payloads = [
+      [['createSurface', '"home"'], ['Card', '"Order #7731"'], ['Text', '"Arrives 8:12am"'], ['Button', '"Reorder"']],
+      [['updateComponents', ''], ['Card', '"Weekly spend"'], ['BarChart', '/spend'], ['Button', '"Set a $90 cap"']],
+      [['updateComponents', ''], ['Card', '"Delivery slot"'], ['ChoiceGroup', '/slots'], ['Button', '"Book Sat 10am"']],
+    ];
+
+    let v = 0;
+    let timers = [];
+    let visible = true;
+    const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+    const clear = () => { timers.forEach(clearTimeout); timers = []; };
+
+    const showView = (dev, n) => {
+      dev.querySelectorAll('[data-ff-v]').forEach((el) => el.classList.toggle('is-on', el.getAttribute('data-ff-v') === String(n)));
+    };
+
+    const cycle = () => {
+      clear();
+      const p = payloads[v];
+      // 1. a new message starts streaming: the surfaces wait
+      devs.forEach((d) => d.classList.add('is-wait'));
+      lines.forEach((ln) => ln.classList.remove('is-on'));
+      p.forEach((pair, i) => {
+        later(() => {
+          const ln = lines[i];
+          if (!ln) return;
+          ln.querySelector('b').textContent = pair[0];
+          ln.querySelector('span').textContent = pair[1];
+          ln.classList.add('is-on');
+        }, 100 + i * 150);
+      });
+      // 2. each renderer paints it — same payload, its own layout
+      devs.forEach((d, i) => {
+        later(() => {
+          showView(d, v + 1);
+          d.classList.remove('is-wait');
+          d.classList.remove('is-paint');
+          void d.offsetWidth;
+          d.classList.add('is-paint');
+        }, 920 + i * 90);
+      });
+      // 3. hold, then the next message
+      later(() => {
+        v = (v + 1) % payloads.length;
+        if (visible) cycle();
+      }, 4150);
+    };
+
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver((entries) => {
+        entries.forEach((e) => {
+          const was = visible;
+          visible = e.isIntersecting;
+          if (visible && !was) cycle();
+          if (!visible) clear();
+        });
+      }, { threshold: 0.2 }).observe(root);
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { clear(); } else if (visible) { cycle(); }
+    });
+
+    later(() => { v = 1; cycle(); }, 2100);
+  })();
+</script>  </div> </div> <!-- Renderer strip: the same stream renders natively in each of these --> <div class="a2-renderers astro-j7pv25f6"> <span class="a2-renderers__lbl astro-j7pv25f6">RENDERS NATIVELY IN</span> <ul class="a2-renderers__list astro-j7pv25f6" aria-label="A2UI renderers"> <li class="astro-j7pv25f6"> <a href="/preview/concepts/renderer-sdks/" class="astro-j7pv25f6"><svg class="rmark astro-j7pv25f6 astro-tdxwluyp" width="20" height="20" viewBox="0 0 24 24" role="img" aria-label="React" style="--brand: #61DAFB"> <path fill="currentColor" d="M14.23 12.004a2.236 2.236 0 0 1-2.235 2.236 2.236 2.236 0 0 1-2.236-2.236 2.236 2.236 0 0 1 2.235-2.236 2.236 2.236 0 0 1 2.236 2.236zm2.648-10.69c-1.346 0-3.107.96-4.888 2.622-1.78-1.653-3.542-2.602-4.887-2.602-.41 0-.783.093-1.106.278-1.375.793-1.683 3.264-.973 6.365C1.98 8.917 0 10.42 0 12.004c0 1.59 1.99 3.097 5.043 4.03-.704 3.113-.39 5.588.988 6.38.32.187.69.275 1.102.275 1.345 0 3.107-.96 4.888-2.624 1.78 1.654 3.542 2.603 4.887 2.603.41 0 .783-.09 1.106-.275 1.374-.792 1.683-3.263.973-6.365C22.02 15.096 24 13.59 24 12.004c0-1.59-1.99-3.097-5.043-4.032.704-3.11.39-5.587-.988-6.38-.318-.184-.688-.277-1.092-.278zm-.005 1.09v.006c.225 0 .406.044.558.127.666.382.955 1.835.73 3.704-.054.46-.142.945-.25 1.44-.96-.236-2.006-.417-3.107-.534-.66-.905-1.345-1.727-2.035-2.447 1.592-1.48 3.087-2.292 4.105-2.295zm-9.77.02c1.012 0 2.514.808 4.11 2.28-.686.72-1.37 1.537-2.02 2.442-1.107.117-2.154.298-3.113.538-.112-.49-.195-.964-.254-1.42-.23-1.868.054-3.32.714-3.707.19-.09.4-.127.563-.132zm4.882 3.05c.455.468.91.992 1.36 1.564-.44-.02-.89-.034-1.345-.034-.46 0-.915.01-1.36.034.44-.572.895-1.096 1.345-1.565zM12 8.1c.74 0 1.477.034 2.202.093.406.582.802 1.203 1.183 1.86.372.64.71 1.29 1.018 1.946-.308.655-.646 1.31-1.013 1.95-.38.66-.773 1.288-1.18 1.87-.728.063-1.466.098-2.21.098-.74 0-1.477-.035-2.202-.093-.406-.582-.802-1.204-1.183-1.86-.372-.64-.71-1.29-1.018-1.946.303-.657.646-1.313 1.013-1.954.38-.66.773-1.286 1.18-1.868.728-.064 1.466-.098 2.21-.098zm-3.635.254c-.24.377-.48.763-.704 1.16-.225.39-.435.782-.635 1.174-.265-.656-.49-1.31-.676-1.947.64-.15 1.315-.283 2.015-.386zm7.26 0c.695.103 1.365.23 2.006.387-.18.632-.405 1.282-.66 1.933-.2-.39-.41-.783-.64-1.174-.225-.392-.465-.774-.705-1.146zm3.063.675c.484.15.944.317 1.375.498 1.732.74 2.852 1.708 2.852 2.476-.005.768-1.125 1.74-2.857 2.475-.42.18-.88.342-1.355.493-.28-.958-.646-1.956-1.1-2.98.45-1.017.81-2.01 1.085-2.964zm-13.395.004c.278.96.645 1.957 1.1 2.98-.45 1.017-.812 2.01-1.086 2.964-.484-.15-.944-.318-1.37-.5-1.732-.737-2.852-1.706-2.852-2.474 0-.768 1.12-1.742 2.852-2.476.42-.18.88-.342 1.356-.494zm11.678 4.28c.265.657.49 1.312.676 1.948-.64.157-1.316.29-2.016.39.24-.375.48-.762.705-1.158.225-.39.435-.788.636-1.18zm-9.945.02c.2.392.41.783.64 1.175.23.39.465.772.705 1.143-.695-.102-1.365-.23-2.006-.386.18-.63.406-1.282.66-1.933zM17.92 16.32c.112.493.2.968.254 1.423.23 1.868-.054 3.32-.714 3.708-.147.09-.338.128-.563.128-1.012 0-2.514-.807-4.11-2.28.686-.72 1.37-1.536 2.02-2.44 1.107-.118 2.154-.3 3.113-.54zm-11.83.01c.96.234 2.006.415 3.107.532.66.905 1.345 1.727 2.035 2.446-1.595 1.483-3.092 2.295-4.11 2.295-.22-.005-.406-.05-.553-.132-.666-.38-.955-1.834-.73-3.703.054-.46.142-.944.25-1.438zm4.56.64c.44.02.89.034 1.345.034.46 0 .915-.01 1.36-.034-.44.572-.895 1.095-1.345 1.565-.455-.47-.91-.993-1.36-1.565z" class="astro-tdxwluyp"></path> </svg> <span class="astro-j7pv25f6">React</span></a> </li> <li class="astro-j7pv25f6"> <a href="/preview/concepts/renderer-sdks/" class="astro-j7pv25f6"><svg class="rmark astro-j7pv25f6 astro-tdxwluyp" width="20" height="20" viewBox="0 0 24 24" role="img" aria-label="Lit" style="--brand: #324FFF"> <path fill="currentColor" d="M2.4 9.6l4.8 4.8V24l-4.8-4.8V9.6zm4.8-4.8v9.6L12 9.6V0L7.2 4.8zM12 9.6v9.6l4.8-4.8V4.8L12 9.6zm4.8 4.8V24l4.8-4.8V9.6l-4.8 4.8z" class="astro-tdxwluyp"></path> </svg> <span class="astro-j7pv25f6">Lit</span></a> </li> <li class="astro-j7pv25f6"> <a href="/preview/concepts/renderer-sdks/" class="astro-j7pv25f6"><svg class="rmark astro-j7pv25f6 astro-tdxwluyp" width="20" height="20" viewBox="0 0 24 24" role="img" aria-label="Angular" style="--brand: #DD0031"> <path fill="currentColor" d="M16.712 17.711H7.288l-1.204 2.916L12 24l5.916-3.373-1.204-2.916ZM14.692 0l7.832 16.855.814-12.856L14.692 0ZM9.308 0 .662 3.999l.814 12.856L9.308 0Zm-.405 13.93h6.198L12 6.396 8.903 13.93Z" class="astro-tdxwluyp"></path> </svg> <span class="astro-j7pv25f6">Angular</span></a> </li> <li class="astro-j7pv25f6"> <a href="/preview/concepts/renderer-sdks/" class="astro-j7pv25f6"><svg class="rmark astro-j7pv25f6 astro-tdxwluyp" width="20" height="20" viewBox="0 0 24 24" role="img" aria-label="Flutter" style="--brand: #02569B"> <path fill="currentColor" d="M14.314 0L2.3 12 6 15.7 21.684.013h-7.357zm.014 11.072L7.857 17.53l6.47 6.47H21.7l-6.46-6.468 6.46-6.46h-7.37z" class="astro-tdxwluyp"></path> </svg> <span class="astro-j7pv25f6">Flutter</span></a> </li> <li class="astro-j7pv25f6"> <a href="/preview/concepts/renderer-sdks/" class="astro-j7pv25f6"><svg class="rmark astro-j7pv25f6 astro-tdxwluyp" width="20" height="20" viewBox="0 0 24 24" role="img" aria-label="SwiftUI" style="--brand: #F05138"> <path fill="currentColor" d="M7.508 0c-.287 0-.573 0-.86.002-.241.002-.483.003-.724.01-.132.003-.263.009-.395.015A9.154 9.154 0 0 0 4.348.15 5.492 5.492 0 0 0 2.85.645 5.04 5.04 0 0 0 .645 2.848c-.245.48-.4.972-.495 1.5-.093.52-.122 1.05-.136 1.576a35.2 35.2 0 0 0-.012.724C0 6.935 0 7.221 0 7.508v8.984c0 .287 0 .575.002.862.002.24.005.481.012.722.014.526.043 1.057.136 1.576.095.528.25 1.02.495 1.5a5.03 5.03 0 0 0 2.205 2.203c.48.244.97.4 1.498.495.52.093 1.05.124 1.576.138.241.007.483.009.724.01.287.002.573.002.86.002h8.984c.287 0 .573 0 .86-.002.241-.001.483-.003.724-.01a10.523 10.523 0 0 0 1.578-.138 5.322 5.322 0 0 0 1.498-.495 5.035 5.035 0 0 0 2.203-2.203c.245-.48.4-.972.495-1.5.093-.52.124-1.05.138-1.576.007-.241.009-.481.01-.722.002-.287.002-.575.002-.862V7.508c0-.287 0-.573-.002-.86a33.662 33.662 0 0 0-.01-.724 10.5 10.5 0 0 0-.138-1.576 5.328 5.328 0 0 0-.495-1.5A5.039 5.039 0 0 0 21.152.645 5.32 5.32 0 0 0 19.654.15a10.493 10.493 0 0 0-1.578-.138 34.98 34.98 0 0 0-.722-.01C17.067 0 16.779 0 16.492 0H7.508zm6.035 3.41c4.114 2.47 6.545 7.162 5.549 11.131-.024.093-.05.181-.076.272l.002.001c2.062 2.538 1.5 5.258 1.236 4.745-1.072-2.086-3.066-1.568-4.088-1.043a6.803 6.803 0 0 1-.281.158l-.02.012-.002.002c-2.115 1.123-4.957 1.205-7.812-.022a12.568 12.568 0 0 1-5.64-4.838c.649.48 1.35.902 2.097 1.252 3.019 1.414 6.051 1.311 8.197-.002C9.651 12.73 7.101 9.67 5.146 7.191a10.628 10.628 0 0 1-1.005-1.384c2.34 2.142 6.038 4.83 7.365 5.576C8.69 8.408 6.208 4.743 6.324 4.86c4.436 4.47 8.528 6.996 8.528 6.996.154.085.27.154.36.213.085-.215.16-.437.224-.668.708-2.588-.09-5.548-1.893-7.992z" class="astro-tdxwluyp"></path> </svg> <span class="astro-j7pv25f6">SwiftUI</span></a> </li> <li class="astro-j7pv25f6"> <a href="/preview/concepts/renderer-sdks/" class="astro-j7pv25f6"><svg class="rmark astro-j7pv25f6 astro-tdxwluyp" width="20" height="20" viewBox="0 0 24 24" role="img" aria-label="Jetpack Compose" style="--brand: #4285F4"> <path fill="currentColor" d="M12.135.003a2.577 2.577 0 0 0-1.42.344L2.55 5.06a2.577 2.577 0 0 0-.953.967l3.957 2.17a1.765 1.765 0 0 1 .603-.588l4.951-2.86a1.761 1.761 0 0 1 1.76 0l4.951 2.86a1.753 1.753 0 0 1 .526.46l3.921-2.265a2.577 2.577 0 0 0-.816-.744L13.291.347a2.577 2.577 0 0 0-1.152-.34Zm-.145 4.912a1.36 1.36 0 0 0-.68.182L6.36 7.953a1.345 1.345 0 0 0-.454.435l1.92 1.055a1.05 1.05 0 0 1 .31-.275l3.34-1.928a1.054 1.054 0 0 1 1.051 0l3.336 1.928a1.066 1.066 0 0 1 .238.199l.018-.01-.002-.002 1.877-1.08a1.353 1.353 0 0 0-.373-.322l-4.95-2.86a1.357 1.357 0 0 0-.68-.178Zm10.432 1.149-3.92 2.26a1.757 1.757 0 0 1 .2.812v5.715c0 .627-.332 1.21-.88 1.528l-4.95 2.86a1.761 1.761 0 0 1-.64.214v4.524a2.577 2.577 0 0 0 1.059-.313l8.162-4.713a2.577 2.577 0 0 0 1.289-2.23V7.297a2.577 2.577 0 0 0-.318-1.228Zm-20.937.238a2.577 2.577 0 0 0-.227.99v9.43c0 .918.491 1.767 1.293 2.229l8.162 4.713a2.57 2.57 0 0 0 1.225.336v-4.531a1.761 1.761 0 0 1-.833-.235L6.156 16.38a1.765 1.765 0 0 1-.877-1.528V9.136a1.776 1.776 0 0 1 .131-.676Zm16.67 2.223-1.89 1.092a1.058 1.058 0 0 1 .124.46v3.856c0 .378-.2.72-.526.907l-3.336 1.93a1.04 1.04 0 0 1-.295.107v2.17c.152-.027.304-.078.44-.157l4.949-2.859a1.36 1.36 0 0 0 .68-1.18V9.136a1.36 1.36 0 0 0-.147-.607Zm-12.387.13a1.36 1.36 0 0 0-.088.481v5.715a1.36 1.36 0 0 0 .68 1.18l4.95 2.86c.194.112.412.166.627.177v-2.174a1.054 1.054 0 0 1-.46-.123L8.14 14.843a1.054 1.054 0 0 1-.532-.908v-3.853a.99.99 0 0 1 .077-.38l-.034-.013z" class="astro-tdxwluyp"></path> </svg> <span class="astro-j7pv25f6">Jetpack Compose</span></a> </li> <li class="a2-renderers__more astro-j7pv25f6"> <a href="/preview/ecosystem/renderers/" title="Vue, Svelte, React Native and other community renderers" class="astro-j7pv25f6"><span class="astro-j7pv25f6">and more community renderers</span><span aria-hidden="true" class="astro-j7pv25f6">→</span></a> </li> </ul> </div> </div> </div> </section> <!-- =================================================================
+           THE IDEA — SCROLL STAGE (own section, alternate tone)
+           ================================================================= --> <section class="a2-section a2-section--alt a2-section--stage astro-j7pv25f6" id="custom-ui"> <div class="a2-wrap astro-j7pv25f6"> <div class="a2-chapter a2-chapter--stage astro-j7pv25f6"> <div class="a2-chapter__split astro-j7pv25f6"> <h2 class="a2-h2 astro-j7pv25f6">
+Custom UI for <span class="a2-h-accent astro-j7pv25f6">each user’s intent.</span> </h2> </div> </div> <!-- Intent → Composed Screen Stage --> <div class="a2-hero__stage astro-j7pv25f6"> <div class="ic-root astro-awthgajc" id="hero-chat-visual" role="region" aria-label="One app screen whose surface is composed differently for each customer intent"> <div class="ic-split astro-awthgajc"> <!-- =================================================================
+         INTENTS — four requests, one screen. Auto-plays; click/swipe to pick.
+         ================================================================= --> <div class="ic-picker astro-awthgajc"> <div class="ic-steps astro-awthgajc" id="ic-steps"> <button type="button" class="ic-step is-active astro-awthgajc" data-ic="dinner" aria-pressed="true"> <span class="ic-step__idx astro-awthgajc">01 <em class="astro-awthgajc">PLAN</em></span> <span class="ic-step__q astro-awthgajc">“Dinner for four tonight, one vegetarian, under $40.”</span> <span class="ic-step__desc astro-awthgajc">A recipe that fits the diet and the budget, a basket built from it, pantry items skipped, and the 5:30 slot booked — as one screen.</span> <span class="ic-step__bar astro-awthgajc" aria-hidden="true"></span> </button> <button type="button" class="ic-step astro-awthgajc" data-ic="bill" aria-pressed="false"> <span class="ic-step__idx astro-awthgajc">02 <em class="astro-awthgajc">EXPLAIN</em></span> <span class="ic-step__q astro-awthgajc">“Why was last week’s order $23 more than usual?”</span> <span class="ic-step__desc astro-awthgajc">Same screen, different shape: a comparison, the three lines that moved, and a switch that stops it happening again.</span> <span class="ic-step__bar astro-awthgajc" aria-hidden="true"></span> </button> <button type="button" class="ic-step astro-awthgajc" data-ic="party" aria-pressed="false"> <span class="ic-step__idx astro-awthgajc">03 <em class="astro-awthgajc">HOST</em></span> <span class="ic-step__q astro-awthgajc">“Hosting twelve kids Saturday afternoon — help me not forget anything.”</span> <span class="ic-step__desc astro-awthgajc">Now it’s a plan: a timeline to the party, a checklist seeded from the RSVPs, and the two nut allergies already flagged.</span> <span class="ic-step__bar astro-awthgajc" aria-hidden="true"></span> </button> <button type="button" class="ic-step astro-awthgajc" data-ic="eggs" aria-pressed="false"> <span class="ic-step__idx astro-awthgajc">04 <em class="astro-awthgajc">FIX</em></span> <span class="ic-step__q astro-awthgajc">“Half the eggs arrived cracked.”</span> <span class="ic-step__desc astro-awthgajc">No form, no ticket. The item is already found, you say how many, pick refund or replace, done.</span> <span class="ic-step__bar astro-awthgajc" aria-hidden="true"></span> </button> </div> </div> <!-- =================================================================
+         RIGHT: STICKY STAGE — THE SAME ASSIST SCREEN
+         ================================================================= --> <!-- The phone, on its own --> <div class="ic-stage astro-awthgajc"> <div class="ic-device astro-awthgajc" inert aria-hidden="true"> <div class="ic-device__status astro-awthgajc" aria-hidden="true"> <span class="astro-awthgajc">9:41</span> <span class="ic-device__sig astro-awthgajc"><i class="astro-awthgajc"></i><i class="astro-awthgajc"></i><i class="astro-awthgajc"></i></span> </div> <!-- Constant app header --> <div class="ic-shell-hdr astro-awthgajc" aria-hidden="true"> <span class="ic-shell-brand astro-awthgajc"> <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" class="astro-awthgajc"><path d="M2.5 6.5h11l-1.2 6.5h-8.6z" class="astro-awthgajc"></path><path d="M5.5 6.5 8 2.5l2.5 4" class="astro-awthgajc"></path></svg>
+Marigold Market
+</span> <svg class="ic-shell-bell astro-awthgajc" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 11h8l-1-1.4V7a3 3 0 0 0-6 0v2.6L4 11z" class="astro-awthgajc"></path><path d="M6.8 13a1.3 1.3 0 0 0 2.4 0" class="astro-awthgajc"></path></svg> </div> <!-- Chat thread: the sent prompt rises to the top, the composed surface answers below --> <div class="ic-thread astro-awthgajc"> <div class="ic-sent astro-awthgajc" id="ic-sent" aria-live="polite"> <p id="ic-sent-text" class="astro-awthgajc">Dinner for four tonight, one vegetarian, under $40.</p> </div> <!-- The one surface slot that A2UI composes --> <div class="ic-zone astro-awthgajc"> <span class="ic-zone__tag astro-awthgajc" aria-hidden="true">A2UI SURFACE · assist_zone</span> <div class="ic-zone__skel astro-awthgajc" aria-hidden="true"> <span class="ic-zone__skel-lbl astro-awthgajc">COMPOSING FROM INTENT…</span> <i style="width: 58%" class="astro-awthgajc"></i> <i style="width: 100%; height: 72px" class="astro-awthgajc"></i> <i style="width: 100%; height: 40px" class="astro-awthgajc"></i> </div> <!-- 01 · PLAN: one recipe, one action --> <div class="ic-screen is-active astro-awthgajc" data-ic-screen="dinner"> <header class="ic-greet astro-awthgajc"> <strong class="astro-awthgajc">Tonight · 4 servings</strong> <span class="astro-awthgajc">Vegetarian · under $40 · 5:30pm slot open</span> </header> <div class="ic-recipe astro-awthgajc"> <span class="ic-lbl astro-awthgajc">PICKED FOR YOU</span> <strong class="astro-awthgajc">Sheet-pan gnocchi &amp; peppers</strong> <span class="ic-recipe__meta astro-awthgajc">32 min · 5 items · $24.92</span> </div> <button type="button" class="ic-cta astro-awthgajc" data-ic-cta data-done="✓ Added · arrives 5:30pm"> <span class="astro-awthgajc">Add 5 items · $24.92</span><span aria-hidden="true" class="astro-awthgajc">→</span> </button> </div> <!-- 02 · EXPLAIN: the comparison, one action --> <div class="ic-screen astro-awthgajc" data-ic-screen="bill"> <header class="ic-greet astro-awthgajc"> <strong class="astro-awthgajc">Last week vs. usual</strong> <span class="astro-awthgajc">Salmon was up 18% · raspberries out of season</span> </header> <div class="ic-bars2 astro-awthgajc" aria-hidden="true"> <div class="astro-awthgajc"><span class="astro-awthgajc">USUAL</span><div class="ic-bars2__track astro-awthgajc"><i style="width: 79%" class="astro-awthgajc"></i></div><b class="astro-awthgajc">$86</b></div> <div class="is-hi astro-awthgajc"><span class="astro-awthgajc">LAST WK</span><div class="ic-bars2__track astro-awthgajc"><i style="width: 100%" class="astro-awthgajc"></i></div><b class="astro-awthgajc">$109</b></div> </div> <button type="button" class="ic-cta astro-awthgajc" data-ic-cta data-done="✓ Weekly cap set · $90"> <span class="astro-awthgajc">Set a $90 weekly cap</span><span aria-hidden="true" class="astro-awthgajc">→</span> </button> </div> <!-- 03 · HOST: a short checklist, one action --> <div class="ic-screen astro-awthgajc" data-ic-screen="party"> <header class="ic-greet astro-awthgajc"> <strong class="astro-awthgajc">Saturday · 12 kids</strong> <span class="astro-awthgajc">2 nut allergies flagged from your list</span> </header> <div class="ic-checklist astro-awthgajc" id="ic-pt-list" role="group" aria-label="Party checklist"> <button type="button" class="ic-ck is-done astro-awthgajc"><i class="astro-awthgajc"></i><span class="astro-awthgajc">Cake · ordered Tuesday</span></button> <button type="button" class="ic-ck astro-awthgajc"><i class="astro-awthgajc"></i><span class="astro-awthgajc">Nut-free snacks ×2 <b class="astro-awthgajc">ALLERGY</b></span></button> <button type="button" class="ic-ck astro-awthgajc"><i class="astro-awthgajc"></i><span class="astro-awthgajc">Ice · pick up Sat 1pm</span></button> </div> <button type="button" class="ic-cta astro-awthgajc" id="ic-pt-cta" data-ic-cta data-done="✓ Added · Sat 10am delivery"> <span class="astro-awthgajc">Add the 2 missing · Sat 10am</span><span aria-hidden="true" class="astro-awthgajc">→</span> </button> </div> <!-- 04 · FIX: refund or replace, one action --> <div class="ic-screen astro-awthgajc" data-ic-screen="eggs"> <header class="ic-greet astro-awthgajc"> <strong class="astro-awthgajc">Organic eggs · 6 of 12 cracked</strong> <span class="astro-awthgajc">Order #7731 · delivered 8:12am</span> </header> <div class="ic-choice2 astro-awthgajc" role="group" aria-label="Resolution"> <button type="button" class="ic-choice is-on astro-awthgajc" data-eg-choice="refund"><span class="astro-awthgajc">REFUND</span><strong class="astro-awthgajc">$3.25</strong><em class="astro-awthgajc">back on card today</em></button> <button type="button" class="ic-choice astro-awthgajc" data-eg-choice="replace"><span class="astro-awthgajc">REPLACE</span><strong class="astro-awthgajc">Tomorrow</strong><em class="astro-awthgajc">7–9am · free</em></button> </div> <button type="button" class="ic-cta astro-awthgajc" id="ic-eg-cta" data-ic-cta data-done="✓ Done · sorry about that"> <span class="astro-awthgajc">Refund $3.25 now</span><span aria-hidden="true" class="astro-awthgajc">→</span> </button> </div> </div> </div> <!-- Constant composer: where the intent is typed, then sent --> <div class="ic-composer astro-awthgajc" id="ic-composer" aria-hidden="true"> <span class="ic-composer__ico astro-awthgajc"></span> <span class="ic-composer__txt astro-awthgajc"><span id="ic-composer-text" data-placeholder="Ask Marigold anything…" class="astro-awthgajc"></span><i class="ic-caret astro-awthgajc"></i></span> <span class="ic-composer__send astro-awthgajc">↑</span> </div> <!-- Constant tab bar --> <nav class="ic-tabbar astro-awthgajc" aria-hidden="true"> <span class="astro-awthgajc"><i class="ic-tab-ico ic-tab-ico--shop astro-awthgajc"></i>Shop</span> <span class="is-on astro-awthgajc"><i class="ic-tab-ico ic-tab-ico--assist astro-awthgajc"></i>Assist</span> <span class="astro-awthgajc"><i class="ic-tab-ico ic-tab-ico--orders astro-awthgajc"></i>Orders</span> <span class="astro-awthgajc"><i class="ic-tab-ico ic-tab-ico--you astro-awthgajc"></i>You</span> </nav> </div> </div> </div> <!-- ===================================================================
+       WHAT THE AGENT COMPOSES FROM — THREE OPEN COLUMNS, LINE ILLUSTRATIONS
+       =================================================================== --> <div class="ic-sources astro-awthgajc"> <div class="ic-sources__grid astro-awthgajc"> <!-- 01 · Customer intent: a sentence on a plane, the parts that matter drawn out into structure --> <div class="ic-source astro-awthgajc"> <svg class="ic-art astro-awthgajc" viewBox="0 0 320 160" preserveAspectRatio="xMinYMid meet" aria-hidden="true"> <path class="ln mark astro-awthgajc" d="M20 26h8M24 22v8M286 136h8M290 132v8"></path> <polygon class="plane astro-awthgajc" points="96,56 236,56 190,114 50,114"></polygon> <circle class="ln astro-awthgajc" cx="236" cy="56" r="2"></circle> <line class="ln ln-strong astro-awthgajc" x1="85" y1="70" x2="140" y2="70"></line> <line class="acc w2 astro-awthgajc" x1="148" y1="70" x2="196" y2="70"></line> <line class="ln ln-strong astro-awthgajc" x1="74" y1="84" x2="130" y2="84"></line> <line class="acc w2 astro-awthgajc" x1="138" y1="84" x2="178" y2="84"></line> <line class="ln ln-strong astro-awthgajc" x1="63" y1="98" x2="120" y2="98"></line> <rect class="acc-fill ic-art__caret astro-awthgajc" x="123" y="93" width="1.5" height="10"></rect> <path class="ln dash astro-awthgajc" d="M196 70 C 222 70, 236 48, 262 48"></path> <path class="ln dash astro-awthgajc" d="M178 84 L 262 84"></path> <path class="ln dash astro-awthgajc" d="M120 98 C 170 98, 215 120, 262 120"></path> <line class="ln astro-awthgajc" x1="262" y1="40" x2="262" y2="128"></line> <rect class="acc-fill astro-awthgajc" x="265" y="45" width="6" height="6"></rect> <rect class="acc-fill astro-awthgajc" x="265" y="81" width="6" height="6"></rect> <rect class="node astro-awthgajc" x="265" y="117" width="6" height="6"></rect> </svg> <h3 class="astro-awthgajc">Built for personalization</h3> <p class="astro-awthgajc">Your agent constructs UI that adapts to each user's unique needs and preferences.</p> </div> <!-- 02 · Your catalog: a locked isometric grid; three parts lifted into the surface --> <div class="ic-source astro-awthgajc"> <svg class="ic-art astro-awthgajc" viewBox="0 0 320 160" preserveAspectRatio="xMinYMid meet" aria-hidden="true"> <path class="ln mark astro-awthgajc" d="M286 136h8M290 132v8"></path> <path class="ln astro-awthgajc" d="M24 140l6 6M30 140l-6 6"></path> <!-- floor grid --> <polygon class="plane astro-awthgajc" points="160,44 298,95 160,146 22,95"></polygon> <path class="ln astro-awthgajc" d="M206 61L68 112M252 78L114 129"></path> <path class="ln astro-awthgajc" d="M114 61L252 112M68 78L206 129"></path> <!-- picked cells --> <polygon class="soft-fill acc astro-awthgajc" points="114,61 160,78 114,95 68,78"></polygon> <polygon class="soft-fill acc astro-awthgajc" points="160,78 206,95 160,112 114,95"></polygon> <polygon class="soft-fill acc astro-awthgajc" points="252,78 298,95 252,112 206,95"></polygon> <!-- risers into the composed layer --> <path class="ln dash astro-awthgajc" d="M114 78V34M160 95V51M252 95V51"></path> <path class="ln dash astro-awthgajc" d="M114 34L160 51L252 51"></path> <rect class="acc-fill astro-awthgajc" x="111" y="31" width="6" height="6"></rect> <rect class="acc-fill astro-awthgajc" x="157" y="48" width="6" height="6"></rect> <rect class="acc-fill astro-awthgajc" x="249" y="48" width="6" height="6"></rect> <!-- lock --> <rect class="ln ln-strong astro-awthgajc" x="26" y="34" width="11" height="8" rx="1"></rect> <path class="ln ln-strong astro-awthgajc" d="M28 34v-2.5a3.5 3.5 0 0 1 7 0V34"></path> </svg> <h3 class="astro-awthgajc">Your catalog</h3> <p class="astro-awthgajc">Your design system, locked. Agents place only components you registered.</p> </div> <!-- 03 · Swappable formats: Express, direct JSON or your own DSL all compile to one wire message --> <div class="ic-source astro-awthgajc"> <svg class="ic-art astro-awthgajc" viewBox="0 0 320 160" preserveAspectRatio="xMinYMid meet" aria-hidden="true"> <path class="ln mark astro-awthgajc" d="M20 26h8M24 22v8M286 136h8M290 132v8"></path> <!-- three ways the model can write the UI --> <rect class="plane astro-awthgajc" x="24" y="30" width="92" height="26" rx="3"></rect> <rect class="plane astro-awthgajc" x="24" y="67" width="92" height="26" rx="3"></rect> <rect class="plane astro-awthgajc" x="24" y="104" width="92" height="26" rx="3"></rect> <text class="lbl astro-awthgajc" x="34" y="47">&#123; "json" &#125;</text> <text class="lbl astro-awthgajc" x="34" y="84">&lt;a2ui&gt; express</text> <text class="lbl astro-awthgajc" x="34" y="121">your format</text> <!-- all of them meet at the compiler --> <path class="ln dash astro-awthgajc" d="M116 43 C146 43 150 80 176 80"></path> <path class="ln dash astro-awthgajc" d="M116 80 H176"></path> <path class="ln dash astro-awthgajc" d="M116 117 C146 117 150 80 176 80"></path> <rect class="node astro-awthgajc" x="170" y="74" width="12" height="12" transform="rotate(45 176 80)"></rect> <rect class="acc-fill ic-art__blink astro-awthgajc" x="173.5" y="77.5" width="5" height="5" transform="rotate(45 176 80)"></rect> <!-- one wire message out --> <line class="acc ic-art__flow astro-awthgajc" x1="183" y1="80" x2="226" y2="80"></line> <path class="acc astro-awthgajc" d="M222 76l4 4-4 4"></path> <text class="lbl lbl--tiny astro-awthgajc" x="184" y="98">ONE WIRE</text> <!-- the same component, whichever way it was written --> <rect class="plane astro-awthgajc" x="232" y="50" width="68" height="60" rx="3"></rect> <path class="ln-strong ln astro-awthgajc" d="M242 63h36"></path> <path class="ln astro-awthgajc" d="M242 72h26M242 80h30"></path> <rect class="acc-fill astro-awthgajc" x="242" y="92" width="48" height="9" rx="1"></rect> </svg> <h3 class="astro-awthgajc">Swappable formats</h3> <p class="astro-awthgajc">Let the model write A2UI Express, direct JSON, or a format of your own — every one compiles to the same wire messages.</p> </div> </div> </div> </div> <script>
+  (() => {
     const root = document.getElementById('hero-chat-visual');
     if (!root) return;
 
-    const DURATION_MS = 4200;
-
-    // 3 synchronized stages matching the 3 Express cards (hero, options, summary)
-    const STAGES = [
-      { idx: 0, codeStart: 80, codeEnd: 1250, uiAppear: 1250 },
-      { idx: 1, codeStart: 1350, codeEnd: 2850, uiAppear: 2850 },
-      { idx: 2, codeStart: 2950, codeEnd: 4120, uiAppear: 4120 },
-    ];
-
-    function q(sel) {
-      return root.querySelector(sel);
-    }
-
-    function qa(sel) {
-      return Array.from(root.querySelectorAll(sel));
-    }
-
-    function indexCodeContainer(preEl) {
-      return Array.from(preEl.querySelectorAll('.hc-chunk')).map((chunkEl) => {
-        const nodes = [];
-        let total = 0;
-        const walker = document.createTreeWalker(chunkEl, NodeFilter.SHOW_TEXT);
-        let current = walker.nextNode();
-        while (current) {
-          const full = current.nodeValue || '';
-          nodes.push({ node: current, full, start: total, end: total + full.length });
-          total += full.length;
-          current = walker.nextNode();
-        }
-        return { el: chunkEl, nodes, total };
-      });
-    }
-
-    const expressPre = q('#hc-code-express');
-    const expressChunks = indexCodeContainer(expressPre);
-
-    const caretExpress = q('[data-hc-el="caret-express"]');
-    const agentDot = q('[data-hc-el="agent-dot"]');
-    const agentLead = q('[data-hc-el="agent-lead"]');
-    const surfaceCard = q('[data-hc-el="surface-card"]');
-    const skeleton = q('[data-hc-el="skeleton"]');
-    const restartBtn = q('#hc-restart-btn');
-    const chatConfirm = q('#hc-chat-confirm');
-
-    const wireStream = q('[data-hc-el="wire-stream"]');
-    const wireAction = q('[data-hc-el="wire-action"]');
-
-    const uiStageEls = qa('[data-ui-stage]');
-    const dmEls = qa('[data-dm-stage]');
-
-    const INITIAL_EST_USD = 1090;
-    const model = {
-      guests: 2,
-      cabin: 'reserved',
-      onsen: true,
-      estUsd: INITIAL_EST_USD,
-      held: false,
+    const intents = {
+      dinner: {
+        idx: '01',
+        quote: 'Dinner for four tonight, one vegetarian, under $40.',
+      },
+      bill: {
+        idx: '02',
+        quote: 'Why was last week’s order $23 more than usual?',
+      },
+      party: {
+        idx: '03',
+        quote: 'Hosting twelve kids Saturday afternoon — help me not forget anything.',
+      },
+      eggs: {
+        idx: '04',
+        quote: 'Half the eggs arrived cracked.',
+      },
     };
 
-    const flashTimers = new Map();
-    let actionPulseTimer = 0;
+    const steps = root.querySelectorAll('[data-ic]');
+    const screens = root.querySelectorAll('[data-ic-screen]');
+    const zone = root.querySelector('.ic-zone');
+    const composer = document.getElementById('ic-composer');
+    const composerText = document.getElementById('ic-composer-text');
+    const sentBubble = document.getElementById('ic-sent');
+    const sentText = document.getElementById('ic-sent-text');
+    const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const narrow = window.matchMedia ? window.matchMedia('(max-width: 920px)') : { matches: false };
 
-    const visibleUiSet = new Set([0, 1, 2]);
+    /* --- Intent -> typed into the composer -> surface composes -> renders --- */
+    let timers = [];
+    let current = 'dinner';
+    const clearTimers = () => { timers.forEach(clearTimeout); timers = []; };
 
-    let elapsedMs = DURATION_MS;
-    let isPlaying = false;
-    let hasUserOrAutoStarted = false;
-    let rafId = 0;
-    let lastTs = 0;
+    const showScreen = (key) => {
+      screens.forEach((s) => s.classList.toggle('is-active', s.getAttribute('data-ic-screen') === key));
+    };
 
-    function computeTotalUsd() {
-      const railPerGuest = model.cabin === 'green' ? 167 : 135;
-      const railCost = railPerGuest * model.guests;
-      const extraGuestStay = Math.max(0, model.guests - 2) * 140;
-      const stayCost = 725 + extraGuestStay + (model.onsen ? 95 : 0);
-      return railCost + stayCost;
-    }
+    const composeZone = (key) => {
+      if (!zone || reduceMotion) { showScreen(key); return; }
+      zone.classList.add('is-composing');
+      timers.push(setTimeout(() => {
+        showScreen(key);
+        zone.classList.remove('is-composing');
+      }, 760));
+    };
 
-    function applyCodeProgress(chunks, caretEl, ms) {
-      let activeChunkEl = null;
-      chunks.forEach((chunk, i) => {
-        const cfg = STAGES[i];
-        if (ms < cfg.codeStart) {
-          chunk.el.hidden = true;
-          chunk.el.classList.remove('is-streaming', 'is-done');
-          return;
-        }
-        chunk.el.hidden = false;
-        const ratio = Math.min(1, (ms - cfg.codeStart) / (cfg.codeEnd - cfg.codeStart));
-        const charBudget = ratio >= 1 ? chunk.total : Math.floor(ratio * chunk.total);
-
-        for (let k = 0; k < chunk.nodes.length; k++) {
-          const item = chunk.nodes[k];
-          if (charBudget >= item.end) {
-            if (item.node.nodeValue !== item.full) item.node.nodeValue = item.full;
-          } else if (charBudget <= item.start) {
-            if (item.node.nodeValue !== '') item.node.nodeValue = '';
-          } else {
-            item.node.nodeValue = item.full.slice(0, charBudget - item.start);
-          }
-        }
-
-        const streamingThis = ratio < 1 && ms < DURATION_MS;
-        chunk.el.classList.toggle('is-streaming', streamingThis);
-        chunk.el.classList.toggle('is-done', ratio >= 1);
-        if (streamingThis) activeChunkEl = chunk.el;
-      });
-
-      if (activeChunkEl && isPlaying) {
-        activeChunkEl.appendChild(caretEl);
-        caretEl.classList.add('is-visible');
-      } else {
-        caretEl.classList.remove('is-visible');
+    /* The typed prompt leaves the composer and rises into the thread as a sent message */
+    const sendPrompt = (text) => {
+      if (sentText) sentText.textContent = text;
+      if (composerText) composerText.textContent = '';
+      if (sentBubble && !reduceMotion) {
+        sentBubble.classList.remove('is-fly');
+        void sentBubble.offsetWidth;
+        sentBubble.classList.add('is-fly');
       }
-    }
+    };
 
-    function syncActionFeedback(clamped) {
-      const showHeld = model.held && clamped >= STAGES[2].uiAppear;
-      chatConfirm.hidden = !showHeld;
-      wireAction.classList.toggle('is-sent', showHeld);
-      if (!showHeld) {
-        wireAction.classList.remove('is-pulsing');
-      }
-    }
-
-    function renderTimeline(ms) {
-      const clamped = Math.max(0, Math.min(DURATION_MS, ms));
-      const streaming = clamped < DURATION_MS;
-
-      agentDot.classList.toggle('is-streaming', streaming && isPlaying);
-
-      applyCodeProgress(expressChunks, caretExpress, clamped);
-
-      agentLead.classList.toggle('is-hidden-stage', clamped < 120);
-      surfaceCard.classList.toggle('is-hidden-stage', clamped < 240);
-      surfaceCard.classList.toggle('is-streaming', streaming && clamped >= 240);
-
-      uiStageEls.forEach((el) => {
-        const idx = Number(el.getAttribute('data-ui-stage'));
-        const cfg = STAGES[idx];
-        const show = clamped >= cfg.uiAppear;
-        if (show) {
-          el.classList.remove('is-hidden-stage');
-          if (!visibleUiSet.has(idx)) {
-            visibleUiSet.add(idx);
-            el.classList.remove('is-entering');
-            void el.offsetWidth;
-            el.classList.add('is-entering');
-          }
-        } else {
-          visibleUiSet.delete(idx);
-          el.classList.remove('is-entering');
-          el.classList.add('is-hidden-stage');
-        }
-      });
-
-      skeleton.hidden = !(clamped >= 240 && clamped < STAGES[2].uiAppear);
-
-      dmEls.forEach((el) => {
-        const reqStage = Number(el.getAttribute('data-dm-stage'));
-        const ready = clamped >= STAGES[reqStage].codeEnd;
-        el.classList.toggle('is-pending', !ready);
-      });
-
-      wireStream.classList.toggle('is-pulsing', streaming && clamped >= 80);
-      wireStream.classList.toggle('is-sent', clamped >= 80);
-
-      syncActionFeedback(clamped);
-    }
-
-    function tick(now) {
-      if (!isPlaying) return;
-      if (!lastTs) lastTs = now;
-      const dt = Math.min(now - lastTs, 100);
-      lastTs = now;
-      elapsedMs = Math.min(DURATION_MS, elapsedMs + dt);
-      renderTimeline(elapsedMs);
-      if (elapsedMs >= DURATION_MS) {
-        isPlaying = false;
-        renderTimeline(DURATION_MS);
+    const typeIntoComposer = (text, done) => {
+      if (!composer || !composerText || reduceMotion) {
+        done();
         return;
       }
-      rafId = requestAnimationFrame(tick);
-    }
-
-    function resetModelState() {
-      model.guests = 2;
-      model.cabin = 'reserved';
-      model.onsen = true;
-      model.estUsd = INITIAL_EST_USD;
-      model.held = false;
-      if (actionPulseTimer) {
-        clearTimeout(actionPulseTimer);
-        actionPulseTimer = 0;
-      }
-      flashTimers.forEach((tid) => clearTimeout(tid));
-      flashTimers.clear();
-      dmEls.forEach((el) => el.classList.remove('is-flash'));
-      wireAction.classList.remove('is-pulsing', 'is-sent');
-      renderMobileDataModel();
-    }
-
-    function startPlayback() {
-      hasUserOrAutoStarted = true;
-      cancelAnimationFrame(rafId);
-      resetModelState();
-      elapsedMs = 0;
-      visibleUiSet.clear();
-      isPlaying = true;
-      lastTs = 0;
-      renderTimeline(elapsedMs);
-      rafId = requestAnimationFrame(tick);
-    }
-
-    restartBtn.addEventListener('click', () => {
-      startPlayback();
-    });
-
-    function flashDataModelPill(id) {
-      const el = q(`#${id}`);
-      if (!el) return;
-      if (flashTimers.has(id)) {
-        clearTimeout(flashTimers.get(id));
-      }
-      el.classList.remove('is-flash');
-      void el.offsetWidth;
-      el.classList.add('is-flash');
-      const tid = setTimeout(() => {
-        el.classList.remove('is-flash');
-        flashTimers.delete(id);
-      }, 450);
-      flashTimers.set(id, tid);
-    }
-
-    function renderMobileDataModel() {
-      const guestSlider = q('#hc-guest-slider');
-      guestSlider.value = String(model.guests);
-      guestSlider.setAttribute('aria-valuetext', String(model.guests));
-      q('#hc-guests-label').textContent = String(model.guests);
-
-      const onsenBtn = q('#hc-onsen-btn');
-      onsenBtn.classList.toggle('is-checked', model.onsen);
-      onsenBtn.setAttribute('aria-checked', String(model.onsen));
-
-      qa('[data-cabin]').forEach((btn) => {
-        const sel = btn.getAttribute('data-cabin') === model.cabin;
-        btn.classList.toggle('is-selected', sel);
-        btn.setAttribute('aria-checked', String(sel));
-        btn.tabIndex = sel ? 0 : -1;
-      });
-
-      model.estUsd = computeTotalUsd();
-      q('#hc-total-price').textContent = `$${model.estUsd.toLocaleString('en-US')}`;
-
-      const holdBtn = q('#hc-hold-btn');
-      const holdLbl = q('#hc-hold-btn-label');
-      holdBtn.classList.toggle('is-confirmed', model.held);
-      holdLbl.textContent = model.held ? '✓ Itinerary Held' : 'Hold Itinerary';
-
-      syncActionFeedback(elapsedMs);
-
-      q('#hc-dm-guests-val').textContent = String(model.guests);
-      q('#hc-dm-cabin-val').textContent = `["${model.cabin}"]`;
-      q('#hc-dm-onsen-val').textContent = String(model.onsen);
-      q('#hc-dm-total-val').textContent = String(model.estUsd);
-    }
-
-    function markLocalEdit(pillId) {
-      model.held = false;
-      if (actionPulseTimer) {
-        clearTimeout(actionPulseTimer);
-        actionPulseTimer = 0;
-      }
-      wireAction.classList.remove('is-pulsing', 'is-sent');
-      renderMobileDataModel();
-      flashDataModelPill(pillId);
-      flashDataModelPill('hc-dm-total');
-    }
-
-    qa('[role="radiogroup"]').forEach((group) => {
-      group.addEventListener('keydown', (e) => {
-        if (
-          e.key !== 'ArrowRight' &&
-          e.key !== 'ArrowDown' &&
-          e.key !== 'ArrowLeft' &&
-          e.key !== 'ArrowUp'
-        ) {
-          return;
+      composer.classList.remove('is-sent');
+      composer.classList.add('is-typing');
+      composerText.textContent = '';
+      const chars = Array.from(text);
+      let i = 0;
+      const step = () => {
+        i += 1;
+        composerText.textContent = chars.slice(0, i).join('');
+        if (i < chars.length) {
+          timers.push(setTimeout(step, 12));
+        } else {
+          composer.classList.remove('is-typing');
+          composer.classList.add('is-sent');
+          timers.push(setTimeout(() => composer.classList.remove('is-sent'), 700));
+          done();
         }
-        const radios = Array.from(group.querySelectorAll('[role="radio"]'));
-        const idx = radios.indexOf(document.activeElement);
-        if (idx === -1) return;
-        e.preventDefault();
-        const dir = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : -1;
-        const next = radios[(idx + dir + radios.length) % radios.length];
-        next.focus();
-        next.click();
+      };
+      step();
+    };
+
+    const setIntent = (key, animate, force) => {
+      const d = intents[key];
+      if (!d || (key === current && animate && !force)) return;
+      current = key;
+      clearTimers();
+      steps.forEach((s) => {
+        const on = s.getAttribute('data-ic') === key;
+        s.classList.toggle('is-active', on);
+        s.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+
+      if (!animate) {
+        if (sentText) sentText.textContent = d.quote;
+        if (composerText) composerText.textContent = '';
+        showScreen(key);
+        return;
+      }
+      typeIntoComposer(d.quote, () => {
+        sendPrompt(d.quote);
+        composeZone(key);
+      });
+    };
+
+    /* --- Autoplay: the four intents take turns on the same screen; click or swipe to pick one --- */
+    const order = Array.from(steps).map((st) => st.getAttribute('data-ic') || 'dinner');
+    const strip = document.getElementById('ic-steps');
+    const HOLD = 5100;            // ms per intent: typing + composing + reading time
+    let holdTimer = 0;
+    let inView = true;
+    root.style.setProperty('--ic-hold', `${HOLD}ms`);
+
+    const stripScrollTo = (st, smooth) => {
+      if (!strip || !narrow.matches) return;
+      const left = st.offsetLeft - (strip.clientWidth - st.offsetWidth) / 2;
+      strip.scrollTo({ left: Math.max(0, left), behavior: smooth && !reduceMotion ? 'smooth' : 'auto' });
+    };
+
+    const restartBar = () => {
+      const live = root.querySelector('.ic-step.is-active .ic-step__bar');
+      if (!live) return;
+      live.style.animation = 'none';
+      void live.offsetWidth;
+      live.style.removeProperty('animation');
+    };
+
+    const armNext = () => {
+      clearTimeout(holdTimer);
+      if (reduceMotion || !inView || document.hidden) return;
+      holdTimer = setTimeout(() => {
+        const i = order.indexOf(current);
+        go(order[(i + 1) % order.length], true);
+      }, HOLD);
+    };
+
+    const go = (key, animate) => {
+      setIntent(key, animate);
+      const st = root.querySelector(`.ic-step[data-ic="${key}"]`);
+      if (st) stripScrollTo(st, true);
+      restartBar();
+      armNext();
+    };
+
+    // click (desktop list / narrow cards) selects and restarts the clock
+    steps.forEach((st) => {
+      st.addEventListener('click', () => {
+        const key = st.getAttribute('data-ic') || 'dinner';
+        if (key === current) return;
+        go(key, true);
       });
     });
 
-    qa('[data-cabin]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        model.cabin = btn.getAttribute('data-cabin');
-        markLocalEdit('hc-dm-cabin');
-      });
+    // narrow: a manual swipe selects whichever card snaps to the centre
+    if (strip) {
+      let scrollEndTimer = 0;
+      const onSettle = () => {
+        if (!narrow.matches) return;
+        const mid = strip.scrollLeft + strip.clientWidth / 2;
+        let best = null;
+        let bestDist = Infinity;
+        steps.forEach((st) => {
+          const c = st.offsetLeft + st.offsetWidth / 2;
+          const dist = Math.abs(c - mid);
+          if (dist < bestDist) { bestDist = dist; best = st; }
+        });
+        if (!best) return;
+        const key = best.getAttribute('data-ic') || 'dinner';
+        if (key !== current) go(key, true);
+      };
+      strip.addEventListener('scroll', () => {
+        clearTimeout(scrollEndTimer);
+        scrollEndTimer = setTimeout(onSettle, 140);
+      }, { passive: true });
+    }
+
+    // only run while the section is on screen and the tab is visible
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver((entries) => {
+        entries.forEach((e) => {
+          const was = inView;
+          inView = e.isIntersecting;
+          if (inView && !was) { restartBar(); armNext(); }
+          if (!inView) clearTimeout(holdTimer);
+        });
+      }, { threshold: 0.25 }).observe(root);
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) clearTimeout(holdTimer); else { restartBar(); armNext(); }
+    });
+    if (narrow.addEventListener) narrow.addEventListener('change', () => {
+      const st = root.querySelector('.ic-step.is-active');
+      if (st) stripScrollTo(st, false);
     });
 
-    q('#hc-guest-slider').addEventListener('input', (e) => {
-      model.guests = Math.max(1, Math.min(4, Number(e.target.value)));
-      markLocalEdit('hc-dm-guests');
-    });
-
-    q('#hc-onsen-btn').addEventListener('click', () => {
-      model.onsen = !model.onsen;
-      markLocalEdit('hc-dm-onsen');
-    });
-
-    q('#hc-hold-btn').addEventListener('click', () => {
-      model.held = true;
-      renderMobileDataModel();
-      flashDataModelPill('hc-dm-total');
-      q('[data-hc-el="confirm-total"]').textContent = `$${model.estUsd.toLocaleString('en-US')}`;
-      if (actionPulseTimer) clearTimeout(actionPulseTimer);
-      wireAction.classList.add('is-pulsing', 'is-sent');
-      actionPulseTimer = setTimeout(() => {
-        wireAction.classList.remove('is-pulsing');
-        actionPulseTimer = 0;
-      }, 900);
-    });
-
-    renderMobileDataModel();
-
-    const prefersReducedMotion =
-      typeof window.matchMedia === 'function' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-    if (prefersReducedMotion) {
-      renderTimeline(DURATION_MS);
-    } else if ('IntersectionObserver' in window) {
-      const observer = new IntersectionObserver(
-        (entries) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-              observer.disconnect();
-              if (!hasUserOrAutoStarted) {
-                startPlayback();
-              }
-            }
-          });
-        },
-        { threshold: 0.25 },
-      );
-      observer.observe(root);
+    // the first request plays itself once the section is reached
+    if (!reduceMotion && 'IntersectionObserver' in window) {
+      let kicked = false;
+      const kick = new IntersectionObserver((entries) => {
+        entries.forEach((e) => {
+          if (kicked || !e.isIntersecting) return;
+          kicked = true;
+          setIntent(current, true, true);
+          restartBar();
+          armNext();
+          kick.disconnect();
+        });
+      }, { threshold: 0.35 });
+      kick.observe(root);
     } else {
-      startPlayback();
+      armNext();
     }
+
   })();
-</script> </div> </section> <!-- =====================================================================
-           2. THE GENERATIVE UI SPECTRUM
-           ===================================================================== --> <section class="a2-section a2-section--alt" id="spectrum"> <div class="a2-container"> <div class="a2-section-intro"> <span class="a2-eyebrow">01 · THE GENERATIVE UI SPECTRUM</span> <h2 class="a2-h2">No single Generative UI pattern fits every screen. A2UI gives you the entire spectrum.</h2> <p class="a2-lead">
-Across production agentic apps, UI needs live along a spectrum—from <strong>full developer control over every pixel</strong> to <strong>full agent autonomy over the rendered surface</strong>. Picking a single band for your entire product is the most common architectural mistake. With A2UI, one protocol and one renderer investment covers every band.
-</p> </div> <div class="a2-spectrum-shell" id="spectrum-explorer"> <div class="a2-spectrum-bar"> <span>◀ Fully Controlled · Developer Holds the Brush</span> <div class="a2-spectrum-bar__track"></div> <span>Fully Open · Agent Owns the Canvas ▶</span> </div> <div class="a2-spectrum-bands" role="tablist" aria-label="Generative UI Spectrum Bands"> <button type="button" role="tab" aria-selected="false" class="a2-band-card" data-band="prebuilt"> <span class="a2-band-card__tag">BAND 1 · DETERMINISTIC SDUI</span> <h3 class="a2-band-card__title">Prebuilt &amp; Fixed Schema</h3> <p class="a2-band-card__sub">Server code emits exact UI structures and streams live <code>updateDataModel</code> updates with zero LLM latency.</p> </button> <button type="button" role="tab" aria-selected="true" class="a2-band-card is-active" data-band="controlled"> <span class="a2-band-card__tag">BAND 2 · CONTROLLED GEN UI</span> <h3 class="a2-band-card__title">Controlled &amp; Server Macros</h3> <p class="a2-band-card__sub">The workhorse band: register domain <code>@macro</code> templates so the agent picks the component and fills typed data.</p> </button> <button type="button" role="tab" aria-selected="false" class="a2-band-card" data-band="declarative"> <span class="a2-band-card__tag">BAND 3 · DECLARATIVE GEN UI</span> <h3 class="a2-band-card__title">Composable Catalogs</h3> <p class="a2-band-card__sub">Where the long tail lives: declare a catalog of Lego-like building blocks that the agent assembles on demand.</p> </button> <button type="button" role="tab" aria-selected="false" class="a2-band-card" data-band="open"> <span class="a2-band-card__tag">BAND 4 · MCP APPS &amp; OPEN</span> <h3 class="a2-band-card__title">MCP Apps &amp; Sandboxes</h3> <p class="a2-band-card__sub">Inject 3rd-party <code>ui://</code> MCP App iframes inside A2UI surfaces, or ship A2UI surfaces inside Claude &amp; ChatGPT.</p> </button> </div> <div class="a2-spectrum-detail"> <div class="a2-spectrum-meta-box"> <div> <div class="a2-meta-kv"> <span class="a2-meta-kv__label">Selected Spectrum Band</span> <h4 style="margin: 0 0 8px 0; font-size: 18px;" id="band-title">Band 2: Controlled Generative UI &amp; Server Macros</h4> </div> <div class="a2-meta-kv"> <span class="a2-meta-kv__label">Who Holds the Brush?</span> <p class="a2-meta-kv__val" id="band-brush">Developer defines pixel-perfect domain templates (<code>@macro</code>); the agent chooses which template fits the moment and populates typed parameters.</p> </div> <div class="a2-meta-kv"> <span class="a2-meta-kv__label">Best For</span> <p class="a2-meta-kv__val" id="band-bestfor">High-traffic, brand-critical surfaces (flight tickets, checkout cards, approval widgets) where predictability and zero layout drift are mandatory.</p> </div> </div> <div style="padding-top: 12px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-muted);">
-✓ Mix all 4 bands in a single conversation using the same A2UI wire protocol &amp; client renderers.
-</div> </div> <div class="a2-code-window"> <div class="a2-code-window__header"> <span class="a2-code-window__title" id="band-code-title">Controlled GenUI with A2UI Server @macros</span> <span class="a2-code-window__badge" id="band-code-badge">Predictable · Zero Layout Drift</span> </div> <pre class="a2-code-pre"><code id="band-code-body"># Register a developer-defined @macro treatment; prune raw layout primitives
-from a2ui.transformers.macros import MacroExpander, macro
-from a2ui.catalog_transformers import ComponentPruningTransformer
-
-@macro(description="Standardized airline boarding &amp; fare card")
-def flight_ticket(flight: str, origin: str, dest: str, price_eur: int) -&gt; Card:
-    return Card(Column([
-        Row([Icon("flight_takeoff"), Text(flight), Text(f"€{price_eur}")]),
-        Row([Text(origin), Text("→"), Text(dest)]),
-    ]))</code></pre> </div> </div> </div> </div> </section> <!-- =====================================================================
-           3. REAL USE CASES (PLACEHOLDER LOGOS + PLACEHOLDER UI SCREENSHOTS)
-           ===================================================================== --> <section class="a2-section" id="use-cases"> <div class="a2-container"> <div class="a2-section-intro"> <span class="a2-eyebrow">02 · BATTLE-TESTED IN PRODUCTION</span> <h2 class="a2-h2">Real use cases across consumer and enterprise products.</h2> <p class="a2-lead">
-From smart home device controls and AI research workspaces to enterprise data catalogs and IDE copilots, teams use A2UI to ship generative interfaces in production.
-</p> </div> <!-- Interactive Placeholder Logo Bar --> <div class="a2-logos-strip" role="tablist" aria-label="Production Use Cases"> <button type="button" role="tab" aria-selected="true" class="a2-logo-tab is-active" data-usecase="app-01"> <div class="a2-logo-placeholder-box">[ LOGO 01 ]</div> <span class="a2-logo-tab__name">App Example 01</span> <span class="a2-logo-tab__role">Smart Home Controls</span> </button> <button type="button" role="tab" aria-selected="false" class="a2-logo-tab" data-usecase="app-02"> <div class="a2-logo-placeholder-box">[ LOGO 02 ]</div> <span class="a2-logo-tab__name">App Example 02</span> <span class="a2-logo-tab__role">Research Synthesis</span> </button> <button type="button" role="tab" aria-selected="false" class="a2-logo-tab" data-usecase="app-03"> <div class="a2-logo-placeholder-box">[ LOGO 03 ]</div> <span class="a2-logo-tab__name">App Example 03</span> <span class="a2-logo-tab__role">IDE Agentic Surfaces</span> </button> <button type="button" role="tab" aria-selected="false" class="a2-logo-tab" data-usecase="app-04"> <div class="a2-logo-placeholder-box">[ LOGO 04 ]</div> <span class="a2-logo-tab__name">App Example 04</span> <span class="a2-logo-tab__role">Data Intelligence UI</span> </button> <button type="button" role="tab" aria-selected="false" class="a2-logo-tab" data-usecase="app-05"> <div class="a2-logo-placeholder-box">[ LOGO 05 ]</div> <span class="a2-logo-tab__name">App Example 05</span> <span class="a2-logo-tab__role">Native Mobile GenUI</span> </button> </div> <!-- Active Use Case Stage (Placeholder Text & UI Screenshot Frame) --> <div class="a2-usecase-stage" id="usecase-stage"> <div class="a2-usecase-info"> <div> <span class="a2-eyebrow" id="uc-eyebrow">APP EXAMPLE 01 · CONSUMER HARDWARE &amp; IOT</span> <h3 style="font-size: 24px; font-weight: 700; margin: 0 0 12px 0;" id="uc-title">Dynamic Smart Home Automation &amp; Device Control Cards</h3> <p style="font-size: 14.5px; color: var(--text-secondary); margin: 0 0 18px 0; line-height: 1.65;" id="uc-desc">
-Placeholder description for App Example 01: Instead of returning a paragraph of text when a user asks to configure an automation routine, the agent streams an interactive A2UI surface with device sliders, status tiles, and 1-tap triggers.
-</p> <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--text-secondary);" id="uc-bullets"> <div>✓ <strong>Spectrum Band:</strong> Controlled Macros + Declarative Device Catalog</div> <div>✓ <strong>Renderer:</strong> Native Mobile (Flutter / Android Jetpack Compose / SwiftUI)</div> <div>✓ <strong>Key Capability:</strong> Two-way <code>updateDataModel</code> bindings for live controls</div> </div> </div> <div style="margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-muted);" id="uc-footer">
-Placeholder slot — replace with approved partner logo and product surface screenshot.
-</div> </div> <div class="a2-usecase-preview"> <div class="a2-screenshot-window"> <div class="a2-screenshot-chrome"> <div class="a2-screenshot-dots"><span></span><span></span><span></span></div> <span id="uc-window-title">example-app-01 · screenshot_placeholder.png</span> <span class="a2-code-window__badge" id="uc-window-badge">UI Placeholder</span> </div> <div class="a2-screenshot-body" id="uc-screenshot-body"> <div class="a2-ui-placeholder-frame"> <div style="display: flex; justify-content: space-between; align-items: center;"> <span style="font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; color: var(--accent);">[ UI SCREENSHOT PLACEHOLDER · APP EXAMPLE 01 ]</span> <span class="a2-flight-badge">16:10 Surface Capture</span> </div> <div class="a2-ui-placeholder-wireframe"> <div class="a2-wire-box"> <div class="a2-wire-bar" style="width: 48%;"></div> <div class="a2-wire-bar" style="width: 82%; height: 18px;"></div> <div class="a2-wire-bar" style="width: 100%;"></div> <div class="a2-wire-bar" style="width: 65%;"></div> </div> <div style="display: flex; flex-direction: column; gap: 10px;"> <div class="a2-wire-box"> <div class="a2-wire-bar" style="width: 60%;"></div> <div class="a2-wire-bar" style="width: 40%;"></div> </div> <div class="a2-wire-box"> <div class="a2-wire-bar" style="width: 70%;"></div> <div class="a2-wire-bar" style="width: 50%;"></div> </div> </div> </div> <div style="font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); text-align: center;">
-Drop screenshot asset into <code>docs/site/public/assets/use-cases/app-01.png</code> </div> </div> </div> </div> </div> </div> </div> </section> <!-- =====================================================================
-           4. WHY A2UI? (UNIFIED 3-PILLAR PERSUASIVE SECTION)
-           ===================================================================== --> <section class="a2-section a2-section--alt" id="why-a2ui"> <div class="a2-container"> <div class="a2-section-intro"> <span class="a2-eyebrow">03 · WHY A2UI?</span> <h2 class="a2-h2">Built for model speed, developer control, and native feel.</h2> <p class="a2-lead">
-Other agent UI approaches force a painful trade-off: raw HTML/code generation is slow and unpredictable, while rigid tool-call cards lock you into a handful of hardcoded views. <strong>A2UI gives you all three advantages in one protocol.</strong> </p> </div> <!-- Three Major Points Side-by-Side --> <div class="a2-why-pillars" role="tablist" aria-label="Why A2UI Pillars"> <button type="button" role="tab" aria-selected="true" class="a2-why-card is-active" data-why-tab="inference"> <div> <div class="a2-why-card__num"> <span>01 · SPEED &amp; FLEXIBILITY</span> <span class="a2-code-window__badge">~3x Faster</span> </div> <h3 class="a2-why-card__title">Swappable inference formats</h3> <p class="a2-why-card__desc">
-JSON is the universal wire protocol, while the Agent SDK lets you swap what the LLM generates—like <strong>A2UI Express</strong> for ~3x faster token streaming and 77% fewer characters.
-</p> </div> <div class="a2-why-card__cta">Inspect Express vs. Wire JSON ↓</div> </button> <button type="button" role="tab" aria-selected="false" class="a2-why-card" data-why-tab="macros"> <div> <div class="a2-why-card__num"> <span>02 · HYBRID SDUI + GEN UI</span> <span class="a2-code-window__badge">Zero Drift</span> </div> <h3 class="a2-why-card__title">Macros: Give the model bigger words</h3> <p class="a2-why-card__desc">
-Define rich domain UI treatments (<code>@macro</code>) in server code and expose a single high-level call to the LLM—shipping brand-new UIs without client binary or App Store updates.
-</p> </div> <div class="a2-why-card__cta">Inspect 3-Stage Macro Expansion ↓</div> </button> <button type="button" role="tab" aria-selected="false" class="a2-why-card" data-why-tab="native"> <div> <div class="a2-why-card__num"> <span>03 · EVERY CLIENT SURFACE</span> <span class="a2-code-window__badge">6 SDKs</span> </div> <h3 class="a2-why-card__title">Native rendering everywhere</h3> <p class="a2-why-card__desc">
-Agents describe the UI once; official SDKs render genuine 60fps host widgets on <strong>SwiftUI</strong>, <strong>Jetpack Compose</strong>, <strong>Flutter</strong>, <strong>React</strong>, <strong>Angular</strong>, and <strong>Lit</strong>.
-</p> </div> <div class="a2-why-card__cta">Inspect 6 Native Platform SDKs ↓</div> </button> </div> <!-- Interactive Proof Deck Inside the Same Unified Section --> <div class="a2-why-deck"> <!-- PILLAR 1 PANEL: SWAPPABLE INFERENCE FORMATS --> <div class="a2-why-panel is-active" data-why-panel="inference" id="express"> <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;"> <div> <span class="a2-eyebrow" style="margin-bottom: 4px;">PILLAR 01 · SWAPPABLE INFERENCE FORMATS</span> <h3 style="font-size: 20px; font-weight: 800; margin: 0;">Decouple LLM token generation from the JSON wire contract.</h3> </div> <span style="font-size: 13px; color: var(--text-secondary);">Swap between JSON, A2UI Express, or custom formats in 1 line of SDK config.</span> </div> <div class="a2-express-grid"> <div class="a2-code-window"> <div class="a2-code-window__header"> <span class="a2-code-window__title">What the LLM generates · A2UI Express Format</span> <span class="a2-code-window__badge">13 lines · 397 chars (−77%)</span> </div> <pre class="a2-code-pre"><code><span class="a2-tok-path">$/description</span> = <span class="a2-tok-str">"Get alerts for order status changes"</span>
-<span class="a2-tok-path">$/icon</span> = <span class="a2-tok-str">"check"</span>
-<span class="a2-tok-path">$/title</span> = <span class="a2-tok-str">"Enable notification"</span>
-root = <span class="a2-tok-comp">Card</span>(main_column)
-main_column = <span class="a2-tok-comp">Column</span>([icon, title, description, actions], _, <span class="a2-tok-str">"center"</span>)
-icon = <span class="a2-tok-comp">Icon</span>(<span class="a2-tok-path">$/icon</span>)
-title = <span class="a2-tok-comp">Text</span>(<span class="a2-tok-path">$/title</span>)
-description = <span class="a2-tok-comp">Text</span>(<span class="a2-tok-path">$/description</span>, <span class="a2-tok-str">"body"</span>)
-actions = <span class="a2-tok-comp">Row</span>([yes_btn, no_btn], <span class="a2-tok-str">"center"</span>)
-yes_btn_text = <span class="a2-tok-comp">Text</span>(<span class="a2-tok-str">"Yes"</span>)
-yes_btn = <span class="a2-tok-comp">Button</span>(yes_btn_text, _, <span class="a2-tok-kw">Event</span>(<span class="a2-tok-str">"accept"</span>))
-no_btn_text = <span class="a2-tok-comp">Text</span>(<span class="a2-tok-str">"No"</span>)
-no_btn = <span class="a2-tok-comp">Button</span>(no_btn_text, _, <span class="a2-tok-kw">Event</span>(<span class="a2-tok-str">"decline"</span>))</code></pre> </div> <div class="a2-code-window"> <div class="a2-code-window__header"> <span class="a2-code-window__title">What the SDK sends on the wire · Standard A2UI v1.0 JSON</span> <span class="a2-code-window__badge" style="background: rgba(148,163,184,0.18); color: #cbd5e1;">104 lines · 1,780 chars</span> </div> <pre class="a2-code-pre"><code>&#123;
-  <span class="a2-tok-path">"version"</span>: <span class="a2-tok-str">"1.0"</span>,
-  <span class="a2-tok-path">"updateComponents"</span>: &#123;
-    <span class="a2-tok-path">"surfaceId"</span>: <span class="a2-tok-str">"gallery-notification-permission"</span>,
-    <span class="a2-tok-path">"components"</span>: [
-      &#123; <span class="a2-tok-path">"id"</span>: <span class="a2-tok-str">"root"</span>, <span class="a2-tok-path">"component"</span>: <span class="a2-tok-str">"Card"</span>, <span class="a2-tok-path">"child"</span>: <span class="a2-tok-str">"main_column"</span> &#125;,
-      &#123; <span class="a2-tok-path">"id"</span>: <span class="a2-tok-str">"main_column"</span>, <span class="a2-tok-path">"component"</span>: <span class="a2-tok-str">"Column"</span>, <span class="a2-tok-path">"align"</span>: <span class="a2-tok-str">"center"</span>,
-        <span class="a2-tok-path">"children"</span>: [<span class="a2-tok-str">"icon"</span>, <span class="a2-tok-str">"title"</span>, <span class="a2-tok-str">"description"</span>, <span class="a2-tok-str">"actions"</span>] &#125;,
-      &#123; <span class="a2-tok-path">"id"</span>: <span class="a2-tok-str">"yes_btn"</span>, <span class="a2-tok-path">"component"</span>: <span class="a2-tok-str">"Button"</span>, <span class="a2-tok-path">"child"</span>: <span class="a2-tok-str">"yes_btn_text"</span>,
-        <span class="a2-tok-path">"action"</span>: &#123; <span class="a2-tok-path">"event"</span>: &#123; <span class="a2-tok-path">"name"</span>: <span class="a2-tok-str">"accept"</span>, <span class="a2-tok-path">"context"</span>: &#123;&#125; &#125; &#125; &#125;
-      <span class="a2-tok-comment">// ... + 78 additional lines of component &amp; dataModel JSON</span>
-    ]
-  &#125;
-&#125;</code></pre> </div> </div> <div class="a2-bench-card" style="background: var(--surface-subtle);"> <div style="margin-bottom: 12px;"> <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 600;"> <span>A2UI Express Inference Format (LLM Output)</span> <span style="color: var(--accent); font-family: var(--font-mono);">397 chars · ~3x faster generation · 55–70% fewer tokens across spec</span> </div> <div class="a2-bench-track"> <div class="a2-bench-fill" style="width: 22.3%; min-width: 155px; background: var(--accent);">397 chars (−77%)</div> </div> </div> <div> <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 600;"> <span>Raw JSON Inference Baseline</span> <span style="color: var(--text-muted); font-family: var(--font-mono);">1,780 chars · 1.0x baseline</span> </div> <div class="a2-bench-track"> <div class="a2-bench-fill" style="width: 100%; background: #475569;">1,780 chars (100% wire JSON)</div> </div> </div> </div> </div> <!-- PILLAR 2 PANEL: MACROS --> <div class="a2-why-panel" data-why-panel="macros" id="macros"> <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;"> <div> <span class="a2-eyebrow" style="margin-bottom: 4px;">PILLAR 02 · SERVER-DEFINED @MACROS</span> <h3 style="font-size: 20px; font-weight: 800; margin: 0;">Write rich UI treatments on the server; give the LLM a single domain call.</h3> </div> <span style="font-size: 13px; color: var(--text-secondary);">Ship new domain cards instantaneously without client binary updates.</span> </div> <div class="a2-macro-grid"> <div class="a2-macro-stage"> <div class="a2-macro-stage__head"> <span>1. MODEL WRITES MACRO</span> <span style="color: var(--text-muted);">Inference Catalog</span> </div> <div class="a2-macro-stage__body"> <div class="a2-code-window" style="margin-bottom: 12px;"> <pre class="a2-code-pre"><code><span class="a2-tok-comment"># High-level domain call:</span>
-root = <span class="a2-tok-comp">FlightCard</span>(
-  flight=<span class="a2-tok-str">"OS 87"</span>,
-  date=<span class="a2-tok-str">"Mon, Dec 15"</span>,
-  origin=<span class="a2-tok-str">"Vienna"</span>,
-  dest=<span class="a2-tok-str">"New York"</span>,
-  departs=<span class="a2-tok-str">"10:15 AM"</span>,
-  arrives=<span class="a2-tok-str">"2:30 PM"</span>,
-  status=<span class="a2-tok-str">"On Time"</span>
-)</code></pre> </div> <p style="font-size: 12.5px; color: var(--text-secondary); margin: 0;"> <strong>Simple inputs, zero layout drift:</strong> The model passes domain arguments without inventing layout boxes.
-</p> </div> </div> <div class="a2-macro-stage"> <div class="a2-macro-stage__head"> <span>2. SERVER EXPANDS</span> <span style="color: var(--text-muted);">@macro Decorator</span> </div> <div class="a2-macro-stage__body"> <div class="a2-code-window" style="margin-bottom: 12px;"> <pre class="a2-code-pre"><code><span class="a2-tok-kw">@macro</span>(description=<span class="a2-tok-str">"Flight status card"</span>)
-<span class="a2-tok-kw">def</span> <span class="a2-tok-comp">flight_card</span>(
-  flight: str, date: str, origin: str,
-  dest: str, departs: str,
-  arrives: str, status: str
-) -&gt; Card:
-  <span class="a2-tok-kw">return</span> <span class="a2-tok-comp">Card</span>(<span class="a2-tok-comp">Column</span>([
-    <span class="a2-tok-comp">Row</span>([<span class="a2-tok-comp">Icon</span>(<span class="a2-tok-str">"send"</span>), <span class="a2-tok-comp">Text</span>(flight)]),
-    <span class="a2-tok-comp">Row</span>([<span class="a2-tok-comp">Text</span>(origin), <span class="a2-tok-comp">Text</span>(<span class="a2-tok-str">"→"</span>), <span class="a2-tok-comp">Text</span>(dest)]),
-    <span class="a2-tok-comp">Divider</span>(),
-    <span class="a2-tok-comp">Row</span>([<span class="a2-tok-comp">Text</span>(departs), <span class="a2-tok-comp">Text</span>(status)]),
-  ]))</code></pre> </div> <p style="font-size: 12.5px; color: var(--text-secondary); margin: 0;"> <strong>Server-defined UI treatment:</strong> Generates the LLM schema and expands calls into standard primitives.
-</p> </div> </div> <div class="a2-macro-stage"> <div class="a2-macro-stage__head"> <span>3. EXPANDED PRIMITIVES</span> <span style="color: var(--text-muted);">Rendering Catalog</span> </div> <div class="a2-macro-stage__body"> <div style="background: var(--surface-subtle); border: 1px solid var(--border-strong); border-radius: 8px; padding: 14px; margin-bottom: 12px;"> <div style="display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 700; margin-bottom: 8px;"> <span style="color: var(--accent);">✈️ OS 87</span> <span style="color: var(--text-muted);">Mon, Dec 15</span> </div> <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: 800; padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 8px;"> <span>Vienna</span> <span style="color: var(--accent);">→</span> <span>New York</span> </div> <div style="display: flex; justify-content: space-between; font-size: 11.5px; font-family: var(--font-mono);"> <span>10:15 AM</span> <span style="color: var(--success); font-weight: 700;">On Time</span> <span>2:30 PM</span> </div> </div> <div style="display: flex; flex-wrap: wrap; gap: 5px;"> <span class="a2-flight-badge">Card(root)</span> <span class="a2-flight-badge">Column(main)</span> <span class="a2-flight-badge">Row(header)</span> <span class="a2-flight-badge">Icon("send")</span> <span class="a2-flight-badge">Text($/flight)</span> <span class="a2-flight-badge">Row(route)</span> <span class="a2-flight-badge">Divider()</span> <span class="a2-flight-badge">Row(times)</span> </div> </div> </div> </div> </div> <!-- PILLAR 3 PANEL: NATIVE RENDERING --> <div class="a2-why-panel" data-why-panel="native" id="native-rendering"> <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;"> <div> <span class="a2-eyebrow" style="margin-bottom: 4px;">PILLAR 03 · MULTI-PLATFORM NATIVE SDKS</span> <h3 style="font-size: 20px; font-weight: 800; margin: 0;">Render genuine host widgets on Mobile, Desktop, and Web.</h3> </div> <span style="font-size: 13px; color: var(--text-secondary);">Inherits system dark mode, Dynamic Type, and VoiceOver / TalkBack accessibility.</span> </div> <div class="a2-platform-tabs" role="tablist" aria-label="Native Platform Renderers"> <button type="button" role="tab" aria-selected="true" class="a2-plat-tab is-active" data-plat="swiftui">🍎 SwiftUI (iOS / macOS)</button> <button type="button" role="tab" aria-selected="false" class="a2-plat-tab" data-plat="compose">🤖 Jetpack Compose</button> <button type="button" role="tab" aria-selected="false" class="a2-plat-tab" data-plat="flutter">💙 Flutter (Multi-Platform)</button> <button type="button" role="tab" aria-selected="false" class="a2-plat-tab" data-plat="react">⚛️ React (@a2ui/react)</button> <button type="button" role="tab" aria-selected="false" class="a2-plat-tab" data-plat="angular">🅰️ Angular (@a2ui/angular)</button> <button type="button" role="tab" aria-selected="false" class="a2-plat-tab" data-plat="lit">🔥 Lit (@a2ui/lit)</button> </div> <div class="a2-platform-showcase"> <div style="background: var(--surface-subtle); border: 1px solid var(--border-strong); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; justify-content: space-between;"> <div> <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--border);"> <strong style="font-size: 12.5px;" id="plat-chrome-label">iOS 18 / macOS Sequoia · Native SwiftUI Views</strong> <span class="a2-flight-badge" id="plat-pkg-label">A2UISwiftUI · BasicCatalogSwiftUI</span> </div> <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px;"> <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;"> <div> <div style="font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase;">Rendered Native Widget Tree</div> <div style="font-size: 15.5px; font-weight: 700;">Cloud Production Cluster Upgrade</div> </div> <span class="a2-status-tag a2-status-tag--good">Native 60fps</span> </div> <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 12px 0;">
-Mapped directly to host toolkit views—inheriting system dark mode, Dynamic Type / font scaling, and platform accessibility.
-</p> <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 12px;"> <div style="padding: 8px; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 6px;"> <span style="color: var(--text-muted); display: block;">Region</span> <strong>us-central1</strong> </div> <div style="padding: 8px; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 6px;"> <span style="color: var(--text-muted); display: block;">Nodes</span> <strong>12 → 18 replicas</strong> </div> <div style="padding: 8px; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 6px;"> <span style="color: var(--text-muted); display: block;">Est. Delta</span> <strong>+$140/mo</strong> </div> </div> </div> </div> <div style="margin-top: 14px; display: flex; justify-content: space-between; font-size: 12.5px; color: var(--text-muted);"> <span>All renderers pass the shared A2UI Conformance Suite</span> <a href="/preview/quickstart/" style="color: var(--accent-strong); font-weight: 600; text-decoration: none;">Explore Quickstart →</a> </div> </div> <div class="a2-code-window"> <div class="a2-code-window__header"> <span class="a2-code-window__title" id="plat-code-title">SwiftUI Native Renderer (iOS &amp; macOS)</span> <span class="a2-code-window__badge" id="plat-code-badge">Cupertino &amp; SwiftUI</span> </div> <pre class="a2-code-pre"><code id="plat-code-pre">import SwiftUI
-import A2UISwiftCore
-import A2UISwiftUI
-
-struct AgentSurfaceScreen: View &#123;
-  @ObservedObject var processor: A2UIMessageProcessor
-  var body: some View &#123;
-    A2UISurfaceView(surfaceId: "travel-booking", processor: processor)
-  &#125;
-&#125;</code></pre> </div> </div> </div> </div> <!-- Seamless Bridge to Documentation & Specification --> <div class="a2-docs-bridge"> <div> <span class="a2-eyebrow" style="margin-bottom: 6px;">READY TO BUILD?</span> <h3 style="font-size: 24px; font-weight: 800; margin: 0 0 6px 0; letter-spacing: -0.02em;">Explore the A2UI Documentation &amp; Protocol Specification.</h3> <p style="font-size: 14.5px; color: var(--text-secondary); margin: 0;">
-Run a working Gemini + A2UI agent in 5 minutes or inspect the full v1.0 protocol schema.
-</p> </div> <div style="display: flex; gap: 12px; flex-wrap: wrap;"> <a class="a2-btn a2-btn--primary" href="/preview/quickstart/">Open 5-Minute Quickstart →</a> <a class="a2-btn a2-btn--secondary" href="/preview/specification/v1.0-a2ui/">Read v1.0 Specification →</a> </div> </div> </div> </section> </main> <script>
-      (function () {
-        // 1. Copy Prompt & Tablist Keyboard Navigation
-        const copyBtn = document.getElementById('a2-copy-prompt');
-        if (copyBtn) {
-          const placeholderPrompt = [
-            'Integrate A2UI (the open Agent to User Interface protocol) into this application so our AI agent can stream stateful, native UI surfaces.',
-            '',
-            'Guidelines:',
-            '- Always use the official A2UI Agent and Renderer SDKs (Python/TypeScript agent SDKs; Lit, React, Angular, Flutter, SwiftUI, or Jetpack Compose client renderers) rather than hand-rolling wire messages.',
-            '- Consult the official A2UI documentation and specifications before writing code:',
-            '  - Documentation & Quickstart: https://a2ui.org/quickstart/',
-            '  - Protocol Specification (v1.0): https://a2ui.org/specification/v1.0-a2ui/',
-            '  - LLM Context Reference: https://a2ui.org/llms.txt',
-            '  - Official Repository & SDKs: https://github.com/a2ui-project/a2ui',
-          ].join('\n');
-
+</script>  </div> </div> </section> <!-- =================================================================
+           CLOSING ARCHITECTURAL BANNER
+           ================================================================= --> <section class="a2-closing astro-j7pv25f6"> <div class="a2-wrap astro-j7pv25f6"> <div class="a2-closing__inner astro-j7pv25f6"> <div class="a2-closing__copy astro-j7pv25f6"> <h2 class="a2-closing__title astro-j7pv25f6">
+Stop building chatbots that render <span class="a2-closing__hi astro-j7pv25f6">walls of text.</span> </h2> <div class="a2-closing__btns astro-j7pv25f6"> <a href="/preview/quickstart/" class="a2-btn a2-closing__primary astro-j7pv25f6"> <span class="astro-j7pv25f6">Run the 5-Min Quickstart</span> <span aria-hidden="true" class="astro-j7pv25f6">→</span> </a> <a href="/preview/specification/v1.0-a2ui/" class="a2-btn a2-closing__ghost astro-j7pv25f6">
+Read v1.0 Specification
+</a> </div> </div> </div> </div> </section> </main> <footer class="a2-footer astro-j7pv25f6"> <div class="a2-wrap a2-footer__inner astro-j7pv25f6"> <div class="a2-footer__brand astro-j7pv25f6"> <strong class="astro-j7pv25f6">A2UI</strong> <span class="astro-j7pv25f6">/</span> <span class="astro-j7pv25f6">Apache 2.0 Open Source Project</span> </div> <nav class="a2-footer__links astro-j7pv25f6" aria-label="Footer links"> <a href="/preview/quickstart/" class="astro-j7pv25f6">Quickstart</a> <a href="/preview/concepts/overview/" class="astro-j7pv25f6">Concepts</a> <a href="/preview/concepts/renderer-sdks/" class="astro-j7pv25f6">Renderers</a> <a href="/preview/specification/v1.0-a2ui/" class="astro-j7pv25f6">Specification</a> <a href="https://github.com/a2ui-project/a2ui" target="_blank" rel="noopener" class="astro-j7pv25f6">GitHub</a> <a href="https://discord.gg/6fS2326966" target="_blank" rel="noopener" class="astro-j7pv25f6">Discord</a> </nav> </div> </footer> <script>
+      (() => {
+        /* Hero Copy Command */
+        const copyBtn = document.getElementById('hero-copy-clone');
+        const copyAct = document.getElementById('hero-copy-act');
+        if (copyBtn && copyAct) {
           copyBtn.addEventListener('click', async () => {
+            const cmd = copyBtn.getAttribute('data-copy') || '';
             try {
-              await navigator.clipboard.writeText(placeholderPrompt);
-              const originalText = copyBtn.textContent;
-              copyBtn.textContent = '✓ Copied Agent Prompt!';
+              await navigator.clipboard.writeText(cmd);
+              copyAct.textContent = 'COPIED ✓';
+              copyBtn.classList.add('is-copied');
               setTimeout(() => {
-                copyBtn.textContent = originalText;
-              }, 2000);
-            } catch (_) {}
+                copyAct.textContent = 'COPY';
+                copyBtn.classList.remove('is-copied');
+              }, 1800);
+            } catch (e) {}
           });
         }
-
-        document.querySelectorAll('[role="tablist"]').forEach((tablist) => {
-          tablist.addEventListener('keydown', (e) => {
-            if (e.defaultPrevented) return;
-            if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-            const tabs = Array.from(tablist.querySelectorAll('[role="tab"]'));
-            const idx = tabs.indexOf(document.activeElement);
-            if (idx === -1) return;
-            e.preventDefault();
-            const nextIdx = e.key === 'ArrowRight' ? (idx + 1) % tabs.length : (idx - 1 + tabs.length) % tabs.length;
-            tabs[nextIdx].focus();
-            tabs[nextIdx].click();
-          });
-        });
-
-        // 2. Generative UI Spectrum Switcher
-        const bands = {
-          prebuilt: {
-            title: 'Band 1: Prebuilt UIs & Fixed Schema (Deterministic SDUI)',
-            brush: 'Developer holds 100% of the brush. Server code emits exact component trees and streams reactive data updates.',
-            bestfor: 'Zero-latency status cards, live progress meters, and deterministic checkout summaries.',
-            codeTitle: 'Mode 1: Deterministic Server-Driven UI (Python SDK)',
-            codeBadge: '0 LLM Tokens · Instant',
-            code: `from a2ui.schema.common_modifiers import Surface
-from a2ui.basic_catalog.builder import Card, Column, Text
-
-surface = Surface(
-    surface_id="order-tracker",
-    root=Card(child=Column(children=[Text(text="$/status"), Text(text="$/eta")])),
-    initial_data={"status": "Out for delivery", "eta": "14:20"},
-)`,
-          },
-          controlled: {
-            title: 'Band 2: Controlled Generative UI & Server Macros',
-            brush: 'Developer defines pixel-perfect domain templates (@macro); the agent chooses which template fits the moment and populates typed parameters.',
-            bestfor: 'High-traffic, brand-critical surfaces (flight tickets, checkout cards, approval widgets) where predictability and zero layout drift are mandatory.',
-            codeTitle: 'Controlled GenUI with A2UI Server @macros',
-            codeBadge: 'Predictable · Zero Layout Drift',
-            code: `# Register a developer-defined @macro treatment; prune raw layout primitives
-from a2ui.transformers.macros import MacroExpander, macro
-from a2ui.catalog_transformers import ComponentPruningTransformer
-
-@macro(description="Standardized airline boarding & fare card")
-def flight_ticket(flight: str, origin: str, dest: str, price_eur: int) -> Card:
-    return Card(Column([
-        Row([Icon("flight_takeoff"), Text(flight), Text(f"€{price_eur}")]),
-        Row([Text(origin), Text("→"), Text(dest)]),
-    ]))`,
-          },
-          declarative: {
-            title: 'Band 3: Declarative Generative UI (Composable Catalogs)',
-            brush: 'Developer declares an allowlisted catalog of Lego-like building blocks; the agent dynamically assembles them into bespoke UI trees at runtime.',
-            bestfor: 'The long tail of secondary consumer workflows and internal enterprise tools where coverage and speed beat hand-coding every screen.',
-            codeTitle: 'Declarative Catalog Composition (A2UI Express)',
-            codeBadge: 'Dynamic Long-Tail Composition',
-            code: `# Agent dynamically composes forms, sliders & cards from your catalog:
-$/claim/item = "Black Carry-On Suitcase"
-$/claim/flight = "LH 454"
-root = Card(Column([
-  Text("Lost Baggage Claim · BER Airport", "h3"),
-  TextField("Item Description", $/claim/item),
-  DateTimeInput("Date Lost", $/claim/date),
-  Button(Text("Submit Baggage Trace"), "primary", Event("submit_claim"))
-]))`,
-          },
-          open: {
-            title: 'Band 4: MCP Apps & Open-Ended Sandboxed Surfaces',
-            brush: '3rd-party MCP servers or autonomous agents deliver complete interactive applets inside a secure sandboxed iframe.',
-            bestfor: 'Embedding 3rd-party ecosystem tools (Excalidraw, interactive maps, BI canvases) or shipping A2UI surfaces inside Claude, ChatGPT, and Cursor.',
-            codeTitle: 'Two-Way MCP Apps Integration (catalogs/mcp)',
-            codeBadge: 'Sandboxed ui:// Handshake',
-            code: `{
-  "version": "1.0",
-  "updateComponents": {
-    "surfaceId": "interactive-seat-map",
-    "components": [{
-      "id": "root",
-      "component": "McpApp",
-      "resourceUri": "ui://airline-tools/seat-selector",
-      "allowedTools": ["select_seat", "confirm_upgrade"]
-    }]
-  }
-}`,
-          },
-        };
-
-        document.querySelectorAll('[data-band]').forEach((card) => {
-          card.addEventListener('click', () => {
-            const key = card.getAttribute('data-band');
-            const data = bands[key];
-            if (!data) return;
-            document.querySelectorAll('[data-band]').forEach((c) => {
-              const active = c === card;
-              c.classList.toggle('is-active', active);
-              c.setAttribute('aria-selected', String(active));
-            });
-            document.getElementById('band-title').textContent = data.title;
-            document.getElementById('band-brush').textContent = data.brush;
-            document.getElementById('band-bestfor').textContent = data.bestfor;
-            document.getElementById('band-code-title').textContent = data.codeTitle;
-            document.getElementById('band-code-badge').textContent = data.codeBadge;
-            document.getElementById('band-code-body').textContent = data.code;
-          });
-        });
-
-        // 3. Placeholder App Examples Tabs (Scrubbed Names + Placeholder UIs)
-        function buildPlaceholderHtml(label, assetFile) {
-          return `<div class="a2-ui-placeholder-frame">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; color: var(--accent);">[ UI SCREENSHOT PLACEHOLDER · ${label} ]</span>
-              <span class="a2-flight-badge">16:10 Surface Capture</span>
-            </div>
-            <div class="a2-ui-placeholder-wireframe">
-              <div class="a2-wire-box">
-                <div class="a2-wire-bar" style="width: 48%;"></div>
-                <div class="a2-wire-bar" style="width: 82%; height: 18px;"></div>
-                <div class="a2-wire-bar" style="width: 100%;"></div>
-                <div class="a2-wire-bar" style="width: 65%;"></div>
-              </div>
-              <div style="display: flex; flex-direction: column; gap: 10px;">
-                <div class="a2-wire-box">
-                  <div class="a2-wire-bar" style="width: 60%;"></div>
-                  <div class="a2-wire-bar" style="width: 40%;"></div>
-                </div>
-                <div class="a2-wire-box">
-                  <div class="a2-wire-bar" style="width: 70%;"></div>
-                  <div class="a2-wire-bar" style="width: 50%;"></div>
-                </div>
-              </div>
-            </div>
-            <div style="font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); text-align: center;">
-              Drop screenshot asset into <code>docs/site/public/assets/use-cases/${assetFile}</code>
-            </div>
-          </div>`;
-        }
-
-        const useCases = {
-          'app-01': {
-            eyebrow: 'APP EXAMPLE 01 · CONSUMER HARDWARE & IOT',
-            title: 'Dynamic Smart Home Automation & Device Control Cards',
-            desc: 'Placeholder description for App Example 01: Instead of returning a paragraph of text when a user asks to configure an automation routine, the agent streams an interactive A2UI surface with device sliders, status tiles, and 1-tap triggers.',
-            bullets: [
-              '✓ <strong>Spectrum Band:</strong> Controlled Macros + Declarative Device Catalog',
-              '✓ <strong>Renderer:</strong> Native Mobile (Flutter / Android Jetpack Compose / SwiftUI)',
-              '✓ <strong>Key Capability:</strong> Two-way <code>updateDataModel</code> bindings for live controls',
-            ],
-            winTitle: 'example-app-01 · screenshot_placeholder.png',
-            winBadge: 'UI Placeholder',
-            html: buildPlaceholderHtml('APP EXAMPLE 01', 'app-01.png'),
-          },
-          'app-02': {
-            eyebrow: 'APP EXAMPLE 02 · INTERACTIVE RESEARCH SYNTHESIS',
-            title: 'Bespoke Study Guides, Source Matrices & Interactive Quizzes',
-            desc: 'Placeholder description for App Example 02: Instead of dumping static text summaries, research agents assemble custom study surfaces, source-grounded comparison tables, and verification cards tailored to the uploaded corpus.',
-            bullets: [
-              '✓ <strong>Spectrum Band:</strong> Declarative Generative UI + Bespoke Mini-Apps',
-              '✓ <strong>Renderer:</strong> Web (Lit / Angular / React) with streaming Express format',
-              '✓ <strong>Key Capability:</strong> Dynamic table & flashcard composition grounded in citations',
-            ],
-            winTitle: 'example-app-02 · screenshot_placeholder.png',
-            winBadge: 'UI Placeholder',
-            html: buildPlaceholderHtml('APP EXAMPLE 02', 'app-02.png'),
-          },
-          'app-03': {
-            eyebrow: 'APP EXAMPLE 03 · IDE-NATIVE AGENTIC WORKFLOWS',
-            title: 'Interactive Refactoring Previews & Dependency Upgrade Surfaces',
-            desc: 'Placeholder description for App Example 03: Inside developer IDEs, coding agents render native tool-window surfaces for multi-module refactoring plans, test failure matrices, and 1-click selective patch application.',
-            bullets: [
-              '✓ <strong>Spectrum Band:</strong> Controlled Domain Macros + Declarative Inspection Trees',
-              '✓ <strong>Renderer:</strong> Desktop / JVM & Multiplatform Compose Renderer',
-              '✓ <strong>Key Capability:</strong> Client-to-server <code>actionResponse</code> RPC for diff approval',
-            ],
-            winTitle: 'example-app-03 · screenshot_placeholder.png',
-            winBadge: 'UI Placeholder',
-            html: buildPlaceholderHtml('APP EXAMPLE 03', 'app-03.png'),
-          },
-          'app-04': {
-            eyebrow: 'APP EXAMPLE 04 · ENTERPRISE DATA INTELLIGENCE',
-            title: 'Self-Service Data Discovery, Lineage & Stewardship Approvals',
-            desc: 'Placeholder description for App Example 04: Enterprise data agents guide analysts through governed datasets—rendering interactive schema cards, SQL parameter builders, and compliance sign-off forms directly in the workspace.',
-            bullets: [
-              '✓ <strong>Spectrum Band:</strong> Declarative Enterprise Catalog + Controlled Approval Forms',
-              '✓ <strong>Renderer:</strong> React (<code>@a2ui/react</code>) + AG-UI / CopilotKit transport',
-              '✓ <strong>Key Capability:</strong> Schema-validated form inputs bound to governance workflows',
-            ],
-            winTitle: 'example-app-04 · screenshot_placeholder.png',
-            winBadge: 'UI Placeholder',
-            html: buildPlaceholderHtml('APP EXAMPLE 04', 'app-04.png'),
-          },
-          'app-05': {
-            eyebrow: 'APP EXAMPLE 05 · HIGH-PERFORMANCE CROSS-PLATFORM GEN UI',
-            title: '60fps Dual-Threaded Agentic Surfaces on Mobile',
-            desc: 'Placeholder description for App Example 05: Cross-platform mobile rendering engines integrate A2UI to deliver instant, native-feel agentic cards across consumer super-app surfaces without WebView jank.',
-            bullets: [
-              '✓ <strong>Spectrum Band:</strong> Controlled & Declarative Mobile Commerce Catalogs',
-              '✓ <strong>Renderer:</strong> Cross-Platform Native Mobile Widget Trees',
-              '✓ <strong>Key Capability:</strong> Progressive streaming updates rendered on a dedicated UI thread',
-            ],
-            winTitle: 'example-app-05 · screenshot_placeholder.png',
-            winBadge: 'UI Placeholder',
-            html: buildPlaceholderHtml('APP EXAMPLE 05', 'app-05.png'),
-          },
-        };
-
-        document.querySelectorAll('[data-usecase]').forEach((tab) => {
-          tab.addEventListener('click', () => {
-            const key = tab.getAttribute('data-usecase');
-            const data = useCases[key];
-            if (!data) return;
-            document.querySelectorAll('[data-usecase]').forEach((t) => {
-              const active = t === tab;
-              t.classList.toggle('is-active', active);
-              t.setAttribute('aria-selected', String(active));
-            });
-            document.getElementById('uc-eyebrow').textContent = data.eyebrow;
-            document.getElementById('uc-title').textContent = data.title;
-            document.getElementById('uc-desc').textContent = data.desc;
-            document.getElementById('uc-bullets').innerHTML = data.bullets.map((b) => `<div>${b}</div>`).join('');
-            document.getElementById('uc-window-title').textContent = data.winTitle;
-            document.getElementById('uc-window-badge').textContent = data.winBadge;
-            document.getElementById('uc-screenshot-body').innerHTML = data.html;
-          });
-        });
-
-        // 4. Consolidated "Why A2UI?" 3-Pillar Switcher
-        document.querySelectorAll('[data-why-tab]').forEach((card) => {
-          card.addEventListener('click', () => {
-            const target = card.getAttribute('data-why-tab');
-            document.querySelectorAll('[data-why-tab]').forEach((c) => {
-              const active = c === card;
-              c.classList.toggle('is-active', active);
-              c.setAttribute('aria-selected', String(active));
-            });
-            document.querySelectorAll('[data-why-panel]').forEach((panel) => {
-              panel.classList.toggle('is-active', panel.getAttribute('data-why-panel') === target);
-            });
-          });
-        });
-
-        // 5. Native Platform Renderer Switcher
-        const platforms = {
-          swiftui: {
-            chrome: 'iOS 18 / macOS Sequoia · Native SwiftUI Views',
-            pkg: 'A2UISwiftUI · BasicCatalogSwiftUI',
-            title: 'SwiftUI Native Renderer (iOS & macOS)',
-            badge: 'Cupertino & SwiftUI',
-            code: `import SwiftUI
-import A2UISwiftCore
-import A2UISwiftUI
-
-struct AgentSurfaceScreen: View {
-  @ObservedObject var processor: A2UIMessageProcessor
-  var body: some View {
-    A2UISurfaceView(surfaceId: "travel-booking", processor: processor)
-  }
-}`,
-          },
-          compose: {
-            chrome: 'Android 15 · Jetpack Compose Material 3',
-            pkg: 'com.google.a2ui.compose',
-            title: 'Jetpack Compose Renderer (AndroidX)',
-            badge: 'Material You · Kotlin',
-            code: `@Composable
-fun AgentSurfaceScreen(processor: A2uiMessageProcessor) {
-  A2uiSurface(
-    surfaceId = "travel-booking",
-    processor = processor,
-    catalog = BasicComposeCatalog.default()
-  )
-}`,
-          },
-          flutter: {
-            chrome: 'Flutter Impeller · iOS, Android, Desktop & Web',
-            pkg: 'package:genui / a2ui_flutter',
-            title: 'Flutter GenUI SDK (Multi-Platform)',
-            badge: 'Material 3 & Cupertino',
-            code: `class AgentSurfacePanel extends StatelessWidget {
-  final GenUiSurfaceController controller;
-  @override
-  Widget build(BuildContext context) {
-    return GenUiSurface(surfaceId: 'travel-booking', controller: controller);
-  }
-}`,
-          },
-          react: {
-            chrome: 'React 19 · Next.js / Vite / CopilotKit',
-            pkg: '@a2ui/react · @a2ui/web_core',
-            title: 'React Native-DOM Renderer (@a2ui/react)',
-            badge: 'React 18/19 & AG-UI',
-            code: `${'import'} { A2UISurface } from '@a2ui/react';
-${'import'} { basicCatalog } from '@a2ui/react/catalogs/basic';
-
-export function AgentPanel({ stream }) {
-  return <A2UISurface surfaceId="travel-booking" stream={stream} catalog={basicCatalog} />;
-}`,
-          },
-          angular: {
-            chrome: 'Angular 19 · Signals & Standalone Components',
-            pkg: '@a2ui/angular',
-            title: 'Angular Renderer (@a2ui/angular)',
-            badge: 'Standalone Signals',
-            code: `@Component({
-  selector: 'app-agent-surface',
-  standalone: true,
-  imports: [A2uiSurfaceComponent],
-  template: \`<a2ui-surface surfaceId="travel-booking" [messages]="messages()" />\`
-})
-export class AgentSurfaceHostComponent {}`,
-          },
-          lit: {
-            chrome: 'Standards-Based Web Components · Custom Elements',
-            pkg: '@a2ui/lit · <a2ui-surface>',
-            title: 'Lit Web Components Renderer (@a2ui/lit)',
-            badge: 'Zero-Framework Custom Elements',
-            code: `${'import'} '@a2ui/lit/surface.js';
-${'import'} { html } from 'lit';
-
-export const renderSurface = (processor) => html\`
-  <a2ui-surface surfaceId="travel-booking" .processor=\${processor}></a2ui-surface>
-\`;`,
-          },
-        };
-
-        document.querySelectorAll('[data-plat]').forEach((tab) => {
-          tab.addEventListener('click', () => {
-            const key = tab.getAttribute('data-plat');
-            const data = platforms[key];
-            if (!data) return;
-            document.querySelectorAll('[data-plat]').forEach((t) => {
-              const active = t === tab;
-              t.classList.toggle('is-active', active);
-              t.setAttribute('aria-selected', String(active));
-            });
-            document.getElementById('plat-chrome-label').textContent = data.chrome;
-            document.getElementById('plat-pkg-label').textContent = data.pkg;
-            document.getElementById('plat-code-title').textContent = data.title;
-            document.getElementById('plat-code-badge').textContent = data.badge;
-            document.getElementById('plat-code-pre').textContent = data.code;
-          });
-        });
       })();
-    </script> </body> </html>
+    </script>  </body> </html>
