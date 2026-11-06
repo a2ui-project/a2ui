@@ -42,7 +42,11 @@ from a2ui.processor import InMemoryCatalogProvider
 from a2ui.rpc import RendererToAgentMessageProcessor
 from a2ui.utils import validate_payload
 
-from .conformance_helpers import load_conformance_json, load_conformance_yaml
+from .conformance_helpers import (
+    case_params,
+    load_conformance_json,
+    load_conformance_yaml,
+)
 
 SUITE = "agent/agent_functions.yaml"
 
@@ -58,8 +62,7 @@ REJECTED_CALL_CODES = frozenset({"INVALID_FUNCTION_CALL", "UNKNOWN_FUNCTION"})
 
 
 def _load_cases() -> list[Any]:
-    cases = load_conformance_yaml(SUITE)
-    return [pytest.param(case, id=case["name"]) for case in cases]
+    return case_params(SUITE, load_conformance_yaml(SUITE))
 
 
 CASES = _load_cases()
@@ -387,8 +390,9 @@ RUNNERS: dict[str, Callable[[Mapping[str, Any]], None]] = {
 }
 
 
-@pytest.mark.parametrize("case", CASES)
-def test_agent_function_conformance(case: Mapping[str, Any]) -> None:
+@pytest.mark.parametrize("suite, case", CASES)
+def test_agent_function_conformance(suite: str, case: Mapping[str, Any]) -> None:
+    del suite  # Names the suite in the executed-case manifest.
     action = case["action"]
     runner = RUNNERS.get(action)
     if runner is None:

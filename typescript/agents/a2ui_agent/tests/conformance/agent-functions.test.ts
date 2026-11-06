@@ -14,34 +14,34 @@
  * limitations under the License.
  */
 
-import {describe, expect, test} from 'vitest';
+import {expect, test} from 'vitest';
 
 import {classify, loadCases} from './loader.js';
-import {conformancePath} from './suite-helpers.js';
+import {conformancePath, describeSuite} from './suite-helpers.js';
 
 /**
  * `agent_functions.yaml` covers agent functions and the routing of renderer messages,
  * which this SDK does not implement yet. Every case is registered as skipped with the reason
- * `classify` gives, so the gap shows in the test report, and a case with an action that has
- * no reason fails instead of passing without running.
+ * `classify` gives, and recorded so in the executed-case manifest, so the gap shows in the
+ * test report. A case with an action that has no reason fails instead of passing without
+ * running.
  */
-describe('Conformance: agent_functions.yaml', () => {
-  const cases = loadCases([conformancePath('agent/agent_functions.yaml')]);
+const cases = loadCases([conformancePath('agent/agent_functions.yaml')]);
 
-  test('suite is not empty', () => {
-    expect(cases.length).toBeGreaterThan(0);
-  });
-
-  for (const testCase of cases) {
-    const title = `${testCase.action} · ${testCase.name}`;
-    const verdict = classify(testCase);
-    const run = () => {
-      throw new Error(`Unhandled conformance action: ${testCase.action}`);
-    };
-    if (verdict.runnable) {
-      test(title, run);
-    } else {
-      test.skip(`${title} (${verdict.reason})`, run);
-    }
-  }
+test('agent_functions.yaml is not empty', () => {
+  expect(cases.length).toBeGreaterThan(0);
 });
+
+describeSuite(
+  'Conformance: agent_functions.yaml',
+  cases,
+  testCase => {
+    throw new Error(`Unhandled conformance action: ${testCase.action}`);
+  },
+  {
+    skipReason: testCase => {
+      const verdict = classify(testCase);
+      return verdict.runnable ? undefined : verdict.reason;
+    },
+  },
+);
