@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add `readRendererCapabilities(metadata, version)`, `a2uiClientCapabilitiesKey`,
+  and `a2uiRendererCapabilitiesKey` to extract and validate
+  `A2uiRendererCapabilities` from transport metadata.
+  [#4013](https://github.com/a2ui-project/a2ui/pull/4013)
 - `DirectJsonPromptGenerator.generate()` follows the prompt layout
   the other SDKs use: the rules without the `## Workflow Description:` heading,
   then a schema block with the protocol schemas, then one schema block per

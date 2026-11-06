@@ -1,5 +1,9 @@
 ## Unreleased
 
+- Add `renderer_capabilities_from_message(message, version)` to read and
+  validate A2UI renderer capabilities from an inbound A2A `Message` across
+  `message.metadata`, `DataPart.metadata`, and legacy `DataPart.data["metadata"]`.
+  [#4013](https://github.com/a2ui-project/a2ui/pull/4013)
 - `create_a2ui_part` labels a part with the message's own `version` field when
   no `version` is passed, so a v0.9.1 or v1.0 message gets the current A2UI MIME
   type. [#3299](https://github.com/a2ui-project/a2ui/pull/3299)

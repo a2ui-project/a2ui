@@ -1,6 +1,7 @@
 ## Unreleased
 
 - **BREAKING CHANGE**: Prompt snippets (`PromptGenerator.generate()` and `promptSnippet`) follow one layout across formats and SDKs: the base rules, then the catalog instructions, then the examples under `### Examples:` followed by a blank line. `DirectJsonPromptGenerator` no longer overrides `generate()`, so its snippet loses the `## Workflow Description:` heading; add your own heading around the snippet if you want one. `DirectJsonPromptGenerator.generateBaseRules()` now returns the rules followed by a schema block with the protocol schemas (the agent-to-renderer schema and the common types schema), and `generateCatalogInstructions()` returns one schema block per catalog with only the catalog schema, so output that combines several catalogs' instructions holds the protocol schemas once ([#3562](https://github.com/a2ui-project/a2ui/issues/3562)). [#3567](https://github.com/a2ui-project/a2ui/pull/3567)
+- Add `readRendererCapabilities(metadata, version)`, `A2UI_CLIENT_CAPABILITIES_KEY`, and `A2UI_RENDERER_CAPABILITIES_KEY` to extract and validate version-keyed renderer capabilities from transport metadata. [#4013](https://github.com/a2ui-project/a2ui/pull/4013)
 - `ExpressPromptGenerator` teaches `Event(name, context?, userMessage=...)` in rule 8 for v1.0+ catalogs, while keeping the two-argument `Event(name, context)` rule for pre-v1.0 catalogs ([#3690](https://github.com/a2ui-project/a2ui/issues/3690), [#3867](https://github.com/a2ui-project/a2ui/pull/3867)).
 
 ## 0.1.0
