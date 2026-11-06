@@ -179,6 +179,61 @@ struct OpenURLFunctionTests {
     }
   }
 
+  // MARK: - Catalog factories
+
+  @Test(arguments: A2UIProtocolVersion.allCases)
+  func makeCatalogPassesOpenURLHandlerToOpenURLFunction(version: A2UIProtocolVersion) throws {
+    let handler = MockOpenURLHandler()
+    let catalog = BasicCatalog.makeCatalog(
+      version: version, openURLHandler: handler)
+    let function = try #require(catalog.functions["openUrl"])
+
+    _ = try function.evaluate(arguments: ["url": .string("https://example.com")], context: context)
+
+    #expect(handler.openedURL?.absoluteString == "https://example.com")
+    #expect(function.api.requiresUserActivation == (version == .v10))
+  }
+
+  @Test(arguments: A2UIProtocolVersion.allCases)
+  func makeCatalogDoesNotPassDisallowedURLToOpenURLHandler(version: A2UIProtocolVersion) throws {
+    let handler = MockOpenURLHandler()
+    let catalog = BasicCatalog.makeCatalog(
+      version: version, openURLHandler: handler)
+    let function = try #require(catalog.functions["openUrl"])
+
+    #expect(throws: FunctionError.self) {
+      try function.evaluate(
+        arguments: ["url": .string("javascript:alert('xss')")], context: context)
+    }
+    #expect(handler.openedURL == nil)
+  }
+
+  @Test(arguments: A2UIProtocolVersion.allCases)
+  func makeCatalogHoldsOpenURLHandlerWeakly(version: A2UIProtocolVersion) throws {
+    weak var releasedHandler: MockOpenURLHandler?
+    let catalog: AnyCatalog
+    do {
+      let handler = MockOpenURLHandler()
+      releasedHandler = handler
+      catalog = BasicCatalog.makeCatalog(
+        version: version, openURLHandler: handler)
+    }
+    let function = try #require(catalog.functions["openUrl"] as? OpenURLFunction)
+
+    #expect(releasedHandler == nil)
+    #expect(function.handler == nil)
+  }
+
+  @Test(arguments: A2UIProtocolVersion.allCases)
+  func sharedCatalogOpenURLOnlyValidates(version: A2UIProtocolVersion) throws {
+    let function = try #require(BasicCatalog.makeCatalog(version: version).functions["openUrl"])
+
+    let result = try function.evaluate(
+      arguments: ["url": .string("https://example.com")], context: context)
+
+    #expect(result == .null)
+  }
+
   // MARK: - Security Constraints
 
   @Test func throwsErrorWhenUsingJavascriptScheme() {

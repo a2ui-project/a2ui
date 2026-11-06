@@ -22,7 +22,7 @@ executed and the host app keeps its design system.
 
 - Docs: https://a2ui.org (LLM index: https://a2ui.org/llms.txt)
 - Repo: https://github.com/a2ui-project/a2ui
-- Current protocol: **v0.9.1** (v1.0 is a release candidate; v0.8 is legacy).
+- Current protocol: **v1.0** (v0.8 is deprecated).
 
 ## When to use A2UI (decision rules)
 

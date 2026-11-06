@@ -12,9 +12,9 @@ A2UI lets an AI agent describe an interactive UI as a stream of JSON messages th
 
 ## Generating UI
 
-On the server, you configure the [A2UI Agent SDK](/concepts/agent-sdks/) with a [component catalog](/concepts/catalogs/) (`catalog.json`) that describes the UI components and functions available to render on your client. From that catalog, the SDK's skill generator produces an A2UI skill containing prompt instructions and grammar rules. Your agent code and LLM runtime sit outside the SDK: they take the generated A2UI skill alongside your domain tools (such as a flight search API), call the model, and pass its UI output to the SDK's compiler. The compiler parses and validates the content against the catalog, then sends layout ([`updateComponents`](/concepts/messages/)) and data ([`updateDataModel`](/concepts/messages/)) messages over a transport such as AG-UI, A2A, MCP, or WebSockets.
+On the server, you configure the [A2UI Agent SDK](/concepts/sdks/#agent-sdk) with a [component catalog](/concepts/catalogs/) (`catalog.json`) that describes the UI components and functions available to render on your client. From that catalog, the SDK's skill generator produces an A2UI skill containing prompt instructions and grammar rules. Your agent code and LLM runtime sit outside the SDK: they take the generated A2UI skill alongside your domain tools (such as a flight search API), call the model, and pass its UI output to the SDK's compiler. The compiler parses and validates the content against the catalog, then sends layout ([`updateComponents`](/concepts/messages/)) and data ([`updateDataModel`](/concepts/messages/)) messages over a transport such as AG-UI, A2A, MCP, or WebSockets.
 
-On the client, your app hosts an [A2UI Renderer](/concepts/renderer-sdks/), which draws the UI with native platform widgets inside a region of your screen called a surface. Controls bound to the surface's [data model](/concepts/data-binding/) update state locally as the user interacts with them, and user triggers such as button taps send [`action`](/concepts/actions-and-functions/) messages back to the agent.
+On the client, your app hosts an [A2UI Renderer](/concepts/sdks/#renderer-sdk), which draws the UI with native platform widgets inside a region of your screen called a surface. Controls bound to the surface's [data model](/concepts/data-binding/) update state locally as the user interacts with them, and user triggers such as button taps send [`action`](/concepts/actions-and-functions/) messages back to the agent.
 
 While this page focuses on generating UI at request time, A2UI content can also be authored in advance and sent as a static payload (for example, returned from an MCP server via an agent to a client), following a traditional server-driven UI pattern.
 
@@ -33,7 +33,7 @@ The rest of this page traces a flight-booking request through each stage of the 
 You define the components and functions your client can render in `catalog.json`. A travel app might pair the basic catalog with domain components such as `FlightCard`. Each component declares its properties with JSON Schema, so the Agent SDK can validate that the model only emits components and properties the client knows how to draw:
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 {/* prettier-ignore */}
 ```jsonc
@@ -60,7 +60,7 @@ You define the components and functions your client can render in `catalog.json`
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
+  <TabItem label="v0.9.1">
 
 {/* prettier-ignore */}
 ```jsonc
@@ -170,7 +170,7 @@ The Agent SDK compiler processes the stream as it arrives:
 The tabs below show the `createSurface`, `updateComponents`, and `updateDataModel` messages for this example. Component IDs are chosen by the compiler; the ones here are for readability.
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 Surface creation message, defined by [`CreateSurfaceMessage`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage) (shown separately from `updateComponents` and `updateDataModel` below to illustrate each message type; in v1.0, the compiler can also inline initial `components` and `dataModel` inside `createSurface`):
 
@@ -254,7 +254,7 @@ Data message, defined by [`UpdateDataModelMessage`](/specification/v1.0/schemas/
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
+  <TabItem label="v0.9.1">
 
 Surface creation message, defined by [`CreateSurfaceMessage`](/specification/v0.9.1/schemas/#server_to_client.json/$defs/CreateSurfaceMessage):
 
@@ -385,7 +385,7 @@ Once the surface is rendered, the renderer handles local state edits on the clie
 The action message for this example, after the user raised the outbound count to `2`:
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 Defined by [`renderer_to_agent.json`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action):
 
@@ -403,7 +403,7 @@ Defined by [`renderer_to_agent.json`](/specification/v1.0/schemas/#renderer_to_a
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
+  <TabItem label="v0.9.1">
 
 Defined by [`client_to_server.json`](/specification/v0.9.1/schemas/#client_to_server.json/properties/action):
 
