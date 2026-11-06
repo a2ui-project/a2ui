@@ -33,7 +33,48 @@ void main() {
   });
 }
 
+/// How many times a handler built by [_handler] ran in the current case.
+int _handlerCalls = 0;
+
+/// The reply error codes for a call the processor refuses before the
+/// handler runs.
+const Set<String> _rejectedCallCodes = {
+  'INVALID_FUNCTION_CALL',
+  'UNKNOWN_FUNCTION',
+};
+
+/// Whether [testCase] expects the processor to refuse the call, or to
+/// throw, so that no handler may run.
+bool _expectsRejection(Map<String, Object?> testCase) {
+  if (testCase.containsKey('expect_error')) return true;
+  final Object? expected = testCase['expect'];
+  if (expected is! Map) return false;
+  final Object? replies = expected['replies'];
+  final List<Object?> errors = [
+    if (expected['error'] case {'code': final Object? code}) code,
+    if (replies is List)
+      for (final Object? reply in replies)
+        if (reply case {
+          'agentFunctionResponse': {'error': {'code': final Object? code}},
+        })
+          code,
+  ];
+  return errors.any(_rejectedCallCodes.contains);
+}
+
 Future<void> _runCase(Map<String, Object?> testCase) async {
+  _handlerCalls = 0;
+  await _runAction(testCase);
+  if (_expectsRejection(testCase)) {
+    expect(
+      _handlerCalls,
+      0,
+      reason: 'No handler runs for a call that is refused or fails',
+    );
+  }
+}
+
+Future<void> _runAction(Map<String, Object?> testCase) async {
   final action = testCase['action']! as String;
   switch (action) {
     case 'declare_agent_functions':
@@ -49,7 +90,16 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
   }
 }
 
+/// A handler for [behavior] that counts its runs in [_handlerCalls].
 AgentFunctionHandler _handler(Map<String, Object?> behavior) {
+  final AgentFunctionHandler handler = _behaviorHandler(behavior);
+  return (Map<String, dynamic> args, AgentFunctionContext context) {
+    _handlerCalls++;
+    return handler(args, context);
+  };
+}
+
+AgentFunctionHandler _behaviorHandler(Map<String, Object?> behavior) {
   if (behavior.containsKey('returns')) {
     final Object? value = behavior['returns'];
     return (Map<String, dynamic> args, AgentFunctionContext context) async =>
@@ -99,6 +149,7 @@ AgentFunction _agentFunction(
   final String name = (declaration['name'] as String?) ?? key;
   final behavior = declaration['behavior']! as Map<String, Object?>;
   final description = declaration['description'] as String?;
+  final requiresUserActivation = declaration['requiresUserActivation'] as bool?;
   if (declaration['from_api'] == true) {
     final FunctionApi api =
         base.functions[name] ??
@@ -112,6 +163,7 @@ AgentFunction _agentFunction(
             (declaration['returnType'] as String?) ?? 'any',
           ),
           description: description,
+          requiresUserActivation: requiresUserActivation,
         );
     return AgentFunction.fromApi(api, _handler(behavior));
   }
@@ -123,6 +175,7 @@ AgentFunction _agentFunction(
       declaration['args']! as Map<String, Object?>,
     ),
     description: description,
+    requiresUserActivation: requiresUserActivation,
   );
 }
 
@@ -221,17 +274,18 @@ void _runDeclare(Map<String, Object?> testCase) {
 Future<void> _runHandle(Map<String, Object?> testCase) async {
   final args = testCase['args']! as Map<String, Object?>;
   final rawCatalogs = args['catalogs']! as List<Object?>;
-  final processor = RendererToAgentMessageProcessor(
-    catalogs: [
-      for (final Object? entry in rawCatalogs)
-        _catalog(entry! as Map<String, Object?>),
-    ],
-  );
+  RendererToAgentMessageProcessor buildProcessor() =>
+      RendererToAgentMessageProcessor(
+        catalogs: [
+          for (final Object? entry in rawCatalogs)
+            _catalog(entry! as Map<String, Object?>),
+        ],
+      );
 
   if (testCase['expect_error'] case final Map<String, Object?> expectedError) {
     Object? caught;
     try {
-      await processor.processMessage(args['message']);
+      await buildProcessor().processMessage(args['message']);
     } on Object catch (e) {
       caught = e;
     }
@@ -240,7 +294,9 @@ Future<void> _runHandle(Map<String, Object?> testCase) async {
     return;
   }
 
-  final ProcessResult result = await processor.processMessage(args['message']);
+  final ProcessResult result = await buildProcessor().processMessage(
+    args['message'],
+  );
   expect(result.handled, isTrue);
   expect(result.replies, hasLength(1));
   final Map<String, dynamic> dumped = result.replies.single.toJson();
@@ -267,13 +323,13 @@ Future<void> _runHandle(Map<String, Object?> testCase) async {
 void _runValidate(Map<String, Object?> testCase) {
   final args = testCase['args']! as Map<String, Object?>;
   final rawCatalogs = args['catalogs']! as List<Object?>;
-  final catalogs = <CatalogApi>[
-    for (final Object? entry in rawCatalogs)
-      _catalog(entry! as Map<String, Object?>),
-  ];
   final rawMessages = args['messages']! as List<Object?>;
 
   void runValidation() {
+    final catalogs = <CatalogApi>[
+      for (final Object? entry in rawCatalogs)
+        _catalog(entry! as Map<String, Object?>),
+    ];
     final messages = <AgentToRendererMessage>[
       for (final Object? msg in rawMessages)
         AgentToRendererMessage.fromJson(msg! as Map<String, Object?>),
