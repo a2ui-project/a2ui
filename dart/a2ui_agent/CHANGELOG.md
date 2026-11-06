@@ -23,6 +23,14 @@
   catalog, then the examples under `### Examples:` followed by a blank line.
   Add your own heading around the snippet if you want one.
   [#3567](https://github.com/a2ui-project/a2ui/pull/3567)
+- (v1_0) Added `RendererToAgentMessageProcessor`, whose `processMessage` takes
+  one v1.0 message a renderer sent and returns a `ProcessResult` (`handled`,
+  `replies`). It answers `callAgentFunction` with the catalogs' agent
+  functions, and passes `action`, `error` and `rendererFunctionResponse` to the
+  `onAction`, `onError` and `onRendererFunctionResponse` callbacks, which may
+  return `false` to decline a message. The library re-exports the agent
+  function and renderer-to-agent message types from `a2ui_core`
+  ([#3536](https://github.com/a2ui-project/a2ui/issues/3536), [#3861](https://github.com/a2ui-project/a2ui/pull/3861)).
 
 ## 0.1.0
 
