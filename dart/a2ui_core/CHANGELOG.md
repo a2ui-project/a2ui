@@ -3,7 +3,8 @@
 ## Unreleased
 
 - Rename `Catalog.toLegacyInlineCatalog()` to `Catalog.toV09InlineCatalog()`.
-  `toLegacyInlineCatalog()` remains as a deprecated alias.
+  `toLegacyInlineCatalog()` remains as a deprecated alias
+  ([#4006](https://github.com/a2ui-project/a2ui/pull/4006)).
 - (v0_9) Restore `listStyle` property to basic catalog `List` component schema ([#3956](https://github.com/a2ui-project/a2ui/pull/3956)).
 
 ## 0.5.0
