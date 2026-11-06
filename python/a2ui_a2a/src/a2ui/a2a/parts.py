@@ -24,10 +24,16 @@ from a2a.types import Part
 from a2a.types import TextPart as A2aTextPart
 from pydantic import BaseModel
 
+from a2ui.constants import A2UI_CLOSE_TAG
+from a2ui.constants import A2UI_OPEN_TAG
 from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats import to_message_dicts
+from a2ui.inference_formats.direct_json import read_json
 from a2ui.parser import A2uiPart
+from a2ui.parser import BlockLexer
+from a2ui.parser import JSON_PAYLOAD_START_RE
 from a2ui.parser import Parser
+from a2ui.parser import RawA2uiPart
 from a2ui.parser import ResponsePart
 from a2ui.parser import ResponseStream
 from a2ui.parser import TextPart
@@ -39,6 +45,18 @@ logger = logging.getLogger(__name__)
 MIME_TYPE_KEY = "mimeType"
 A2UI_MIME_TYPE = "application/a2ui+json"
 DEPRECATED_A2UI_MIME_TYPE = "application/json+a2ui"
+
+_BLOCK_LEXER = BlockLexer(
+    open_tag=A2UI_OPEN_TAG,
+    close_tag=A2UI_CLOSE_TAG,
+    # JSON strings are double-quoted only and JSON has no comments, so an
+    # apostrophe or `#` in a block never hides its close tag.
+    string_delimiters={'"'},
+    single_line_comments=set(),
+    # When the open tag is missing, the block starts at the first line that
+    # opens a JSON array or object.
+    payload_start_pattern=JSON_PAYLOAD_START_RE,
+)
 
 
 def create_a2ui_part(
@@ -229,6 +247,59 @@ def parse_content_to_parts(
     except Exception as e:
         # The error may quote the response, so its text is only logged at
         # debug level.
+        logger.warning("Failed to parse A2UI response: %s", type(e).__name__)
+        logger.debug("A2UI response parse error: %s", e)
+
+    if not parts and fallback_text:
+        parts.append(Part(root=A2aTextPart(text=fallback_text)))
+
+    return parts
+
+
+def extract_a2ui_json_to_parts(
+    content: str,
+    fallback_text: str | None = None,
+    version: ProtocolVersion | str | None = None,
+) -> list[Part]:
+    """Extracts conversational text and `<a2ui-json>` blocks into A2A Parts.
+
+    Splits `<a2ui-json>` blocks from an LLM response without requiring a
+    configured `Catalog` or `Parser`, wrapping each JSON message dictionary in
+    an A2A `DataPart` without schema or surface-state validation. A block that
+    is unclosed, is not JSON, or is not a JSON object or array of objects is
+    logged and skipped. Use `parse_content_to_parts` when a `Parser` is
+    available.
+
+    Args:
+        content: The LLM response content, potentially containing `<a2ui-json>`
+            delimiters.
+        fallback_text: Optional text to return if no parts are successfully
+            created.
+        version: The A2UI version, as for `create_a2ui_part`.
+
+    Returns:
+        A list of A2A Part objects (TextPart and/or DataPart).
+    """
+    parts: list[Part] = []
+    try:
+        for raw_part in _BLOCK_LEXER.tokenize(content):
+            if isinstance(raw_part.part, TextPart):
+                if raw_part.part.text:
+                    parts.append(Part(root=A2aTextPart(text=raw_part.part.text)))
+            elif isinstance(raw_part.part, RawA2uiPart):
+                if not raw_part.is_final:
+                    logger.warning("Skipping unclosed A2UI JSON block.")
+                    continue
+                try:
+                    data = read_json(raw_part.part.a2ui_raw)
+                    for message in to_message_dicts(data):
+                        parts.append(create_a2ui_part(message, version=version))
+                except Exception as e:
+                    logger.warning(
+                        "Failed to parse A2UI block JSON: %s", type(e).__name__
+                    )
+                    logger.debug("A2UI block JSON parse error: %s", e)
+    except Exception as e:
         logger.warning("Failed to parse A2UI response: %s", type(e).__name__)
         logger.debug("A2UI response parse error: %s", e)
 
