@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,8 +30,7 @@
   --a2-font-display: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --a2-font-serif: 'Playfair Display', Georgia, Cambria, 'Times New Roman', serif;
   --a2-font-sans: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --a2-font-mono:
-    'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --a2-font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
   /* --- Typographic Scale & Tracking --- */
   --a2-tracking-display: -0.044em;
