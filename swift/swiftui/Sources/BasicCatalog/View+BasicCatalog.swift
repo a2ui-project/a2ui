@@ -29,11 +29,8 @@ extension View {
   public func a2uiBasicCatalog(
     locale: Locale = BasicFunctions.defaultLocale
   ) -> some View {
-    let catalogs = A2UIProtocolVersion.allCases.map {
-      BasicCatalogImplementation.makeCatalog(version: $0, locale: locale)
-    }
-    return a2uiCatalogs(
-      catalogs,
+    a2uiCatalogs(
+      BasicCatalogCache.catalogs(for: locale),
       defaultCatalogID: BasicCatalog.catalogURI(version: .v091)
     )
   }
@@ -52,13 +49,29 @@ extension Surface {
     basicCatalogViewModel viewModel: SurfaceViewModel,
     locale: Locale = BasicFunctions.defaultLocale
   ) {
+    self.init(
+      viewModel: viewModel,
+      catalogs: BasicCatalogCache.catalogs(for: locale),
+      defaultCatalogID: viewModel.defaultCatalogID ?? BasicCatalog.catalogURI(version: .v091)
+    )
+  }
+}
+
+@MainActor
+private enum BasicCatalogCache {
+  private static var cache: [Locale: [Catalog<ComponentImplementation>]] = [:]
+
+  static func catalogs(for locale: Locale) -> [Catalog<ComponentImplementation>] {
+    if locale == BasicFunctions.defaultLocale {
+      return BasicCatalogImplementation.allCatalogs
+    }
+    if let cached = cache[locale] {
+      return cached
+    }
     let catalogs = A2UIProtocolVersion.allCases.map {
       BasicCatalogImplementation.makeCatalog(version: $0, locale: locale)
     }
-    self.init(
-      viewModel: viewModel,
-      catalogs: catalogs,
-      defaultCatalogID: viewModel.defaultCatalogID ?? BasicCatalog.catalogURI(version: .v091)
-    )
+    cache[locale] = catalogs
+    return catalogs
   }
 }
