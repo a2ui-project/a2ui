@@ -261,6 +261,9 @@ export enum RpcErrorCode {
 
   /** Missing outbound message listener required to transmit agent function calls. */
   NO_LISTENER = 'NO_LISTENER',
+
+  /** Pending renderer function call limit reached. */
+  TOO_MANY_PENDING = 'TOO_MANY_PENDING',
 }
 
 /**
