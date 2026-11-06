@@ -97,6 +97,18 @@ package final class NodeBox: Observable {
     }
   }
 
+  enum ChildSlot: Sendable {
+    case direct(property: String)
+    case listElement(property: String, index: Int)
+    case nested(property: String)
+  }
+
+  struct ChildSlotReplacement {
+    let slots: [ChildSlot]
+    let oldBox: NodeBox
+    let newNode: Node
+  }
+
   /// Updates the box's metadata in-place without re-resolving properties or child subtrees.
   func updateMetadata(_ newMetadata: [String: JSONValue]?) {
     guard !MetadataValidator.areEqual(_metadata, newMetadata) else { return }
@@ -104,6 +116,124 @@ package final class NodeBox: Observable {
       _metadata = newMetadata
     }
     revision &+= 1
+  }
+
+  /// Replaces references to replaced child boxes in-place without re-resolving sibling children.
+  func replaceChildSlots(_ replacements: [ChildSlotReplacement]) {
+    guard
+      replacements.contains(where: {
+        $0.oldBox !== $0.newNode.box && slotsHold($0.oldBox, in: $0.slots)
+      })
+    else {
+      return
+    }
+    registrar.withMutation(of: self, keyPath: \.properties) {
+      for replacement in replacements where replacement.oldBox !== replacement.newNode.box {
+        for slot in replacement.slots {
+          applySlotReplacement(slot, from: replacement.oldBox, to: replacement.newNode)
+        }
+      }
+    }
+    propsRevision &+= 1
+    revision &+= 1
+  }
+
+  private func applySlotReplacement(_ slot: ChildSlot, from oldBox: NodeBox, to newNode: Node) {
+    switch slot {
+    case .direct(let property):
+      if let existing = _properties[property] as? Node, existing.box === oldBox {
+        _properties[property] = newNode
+      }
+    case .listElement(let property, let index):
+      guard _properties[property] is [Node],
+        var nodes = _properties.removeValue(forKey: property) as? [Node]
+      else {
+        return
+      }
+      if nodes.indices.contains(index), nodes[index].box === oldBox {
+        nodes[index] = newNode
+      }
+      _properties[property] = nodes
+    case .nested(let property):
+      guard let existing = _properties.removeValue(forKey: property) else { return }
+      _properties[property] = Self.replacingNode(in: existing, from: oldBox, to: newNode).value
+    }
+  }
+
+  private func slotsHold(_ target: NodeBox, in slots: [ChildSlot]) -> Bool {
+    slots.contains { slot in
+      switch slot {
+      case .direct(let property):
+        return (_properties[property] as? Node)?.box === target
+      case .listElement(let property, let index):
+        guard let nodes = _properties[property] as? [Node], nodes.indices.contains(index) else {
+          return false
+        }
+        return nodes[index].box === target
+      case .nested(let property):
+        guard let existing = _properties[property] else { return false }
+        return Self.containsNode(target, in: existing)
+      }
+    }
+  }
+
+  private static func containsNode(_ target: NodeBox, in value: any Resolved) -> Bool {
+    if let node = value as? Node {
+      return node.box === target
+    }
+    if let nodes = value as? [Node] {
+      return nodes.contains { $0.box === target }
+    }
+    if let dict = value as? ResolvedDictionary {
+      return dict.storage.values.contains { containsNode(target, in: $0) }
+    }
+    if let arr = value as? ResolvedArray {
+      return arr.elements.contains { containsNode(target, in: $0) }
+    }
+    return false
+  }
+
+  private static func replacingNode(
+    in value: any Resolved,
+    from oldBox: NodeBox,
+    to newNode: Node
+  ) -> (value: any Resolved, changed: Bool) {
+    if let node = value as? Node {
+      return node.box === oldBox ? (newNode, true) : (value, false)
+    }
+    if var nodes = value as? [Node] {
+      var changed = false
+      for index in nodes.indices where nodes[index].box === oldBox {
+        nodes[index] = newNode
+        changed = true
+      }
+      return (nodes, changed)
+    }
+    if let dict = value as? ResolvedDictionary {
+      var updated = dict.storage
+      var changed = false
+      for (key, elem) in dict.storage {
+        let result = replacingNode(in: elem, from: oldBox, to: newNode)
+        if result.changed {
+          updated[key] = result.value
+          changed = true
+        }
+      }
+      return changed ? (ResolvedDictionary(updated), true) : (value, false)
+    }
+    if let arr = value as? ResolvedArray {
+      var updated = arr.elements
+      var changed = false
+      for index in arr.elements.indices {
+        let result = replacingNode(in: arr.elements[index], from: oldBox, to: newNode)
+        if result.changed {
+          updated[index] = result.value
+          changed = true
+        }
+      }
+      return changed ? (ResolvedArray(updated), true) : (value, false)
+    }
+    return (value, false)
   }
 
   private static func arePropertiesShallowEqual(
