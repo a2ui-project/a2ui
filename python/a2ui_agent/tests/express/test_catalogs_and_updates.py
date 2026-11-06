@@ -856,9 +856,10 @@ def test_single_catalog_prompt_rules_are_the_base_rules() -> None:
     rules = fmt.prompt_generator.generate_base_rules()
     # Rule 15's example names a component of the catalog. `_primary` has no
     # component with a single child reference, so it names the first one.
-    assert rules == EXPRESS_RULES.replace(
-        "root = ComponentA(...)", "root = Column(...)"
-    )
+    # From v1.0 the rules end with the protocol's system functions.
+    base, _, system_functions = rules.partition("\n\n## System Functions\n\n")
+    assert base == EXPRESS_RULES.replace("root = ComponentA(...)", "root = Column(...)")
+    assert "• @index(offset?)" in system_functions
     assert "surface(" in rules
     assert "`Event(name, context?, userMessage=...)`" in rules
     assert "userMessage=" in rules

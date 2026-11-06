@@ -81,6 +81,59 @@ def _find_enum(s: Any) -> list[Any] | None:
     return None
 
 
+def system_function_schemas(common_types: Any) -> dict[str, dict[str, Any]]:
+    """Returns the system functions that a common types schema defines.
+
+    A system function is defined by the protocol rather than by a catalog: it
+    is a common types `$defs` entry whose `@call` property is a constant name
+    starting with `@`, such as `@index` from v1.0. It has the same shape as a
+    catalog function, so the same code reads its arguments.
+
+    Args:
+        common_types: The common types JSON schema of a protocol version.
+
+    Returns:
+        The system function schemas keyed by their `@` name, which is empty for
+        a version that defines none.
+    """
+    if not isinstance(common_types, dict):
+        return {}
+    defs = common_types.get("$defs") or common_types.get("definitions")
+    if not isinstance(defs, dict):
+        return {}
+    found: dict[str, dict[str, Any]] = {}
+    for schema in defs.values():
+        if not isinstance(schema, dict):
+            continue
+        props = schema.get("properties")
+        call = props.get("@call") if isinstance(props, dict) else None
+        name = call.get("const") if isinstance(call, dict) else None
+        if isinstance(name, str) and name.startswith("@"):
+            found[name] = schema
+    return found
+
+
+def _function_signature(schema: Any) -> tuple[list[str], list[str]]:
+    """Returns a function schema's argument names in order, and the required ones."""
+    sub_schemas = [schema]
+    if isinstance(schema, dict) and "allOf" in schema:
+        sub_schemas.extend(schema["allOf"])
+
+    props: dict[str, Any] = {}
+    reqs: list[str] = []
+    for sub in sub_schemas:
+        if not isinstance(sub, dict):
+            continue
+        if "properties" in sub:
+            args_obj = sub["properties"].get("args", {})
+            if isinstance(args_obj, dict):
+                if "properties" in args_obj:
+                    props.update(args_obj["properties"])
+                if "required" in args_obj:
+                    reqs.extend(args_obj["required"])
+    return list(props.keys()), reqs
+
+
 def _ordered_component_sub_schemas(schema: Any) -> list[dict[str, Any]]:
     """Returns component sub-schemas with specific definitions before common mixins.
 
@@ -129,6 +182,10 @@ class CatalogSchemaHelper:
         catalog: The parsed catalog JSON dictionary.
         components: A dictionary mapping component names to their catalog schemas.
         functions: A dictionary mapping function names to their catalog schemas.
+        system_functions: A dictionary mapping the names of the system
+            functions that the catalog's protocol version defines, such as
+            `@index`, to their common types schemas. The function getters
+            read them as well as the catalog's own functions.
     """
 
     def __init__(
@@ -159,6 +216,7 @@ class CatalogSchemaHelper:
         except (A2uiCatalogError, ValueError):
             self.common_types = {}
             self.common_types_loaded = False
+        self.system_functions = system_function_schemas(self.common_types)
         self.components = dict(self.catalog.get("components", {}))
         self.functions = dict(self.catalog.get("functions", {}))
         self.component_properties: dict[str, list[str]] = {}
@@ -229,24 +287,23 @@ class CatalogSchemaHelper:
         self.function_required = {}
 
         for name, schema in self.functions.items():
-            sub_schemas = [schema]
-            if "allOf" in schema:
-                sub_schemas.extend(schema["allOf"])
-
-            props = {}
-            reqs = []
-            for sub in sub_schemas:
-                if not isinstance(sub, dict):
-                    continue
-                if "properties" in sub:
-                    args_obj = sub["properties"].get("args", {})
-                    if isinstance(args_obj, dict):
-                        if "properties" in args_obj:
-                            props.update(args_obj["properties"])
-                        if "required" in args_obj:
-                            reqs.extend(args_obj["required"])
-            self.function_properties[name] = list(props.keys())
+            props_list, reqs = _function_signature(schema)
+            self.function_properties[name] = props_list
             self.function_required[name] = reqs
+
+        # System function names start with `@`, which no catalog function
+        # name can, so they share the lookups without shadowing anything.
+        self._system_function_properties: dict[str, list[str]] = {}
+        self._system_function_required: dict[str, list[str]] = {}
+        for name, schema in self.system_functions.items():
+            props_list, reqs = _function_signature(schema)
+            self._system_function_properties[name] = props_list
+            self._system_function_required[name] = reqs
+
+    def _function_schema(self, name: str) -> Any:
+        """Returns the schema of a catalog or system function, or None."""
+        schema = self.functions.get(name)
+        return schema if schema is not None else self.system_functions.get(name)
 
     def get_component_properties(self, name: str) -> list[str]:
         """Returns the ordered properties of the specified component."""
@@ -261,12 +318,16 @@ class CatalogSchemaHelper:
         return self.component_is_checkable.get(name, False)
 
     def get_function_properties(self, name: str) -> list[str]:
-        """Returns the ordered properties of the specified function's arguments."""
-        return self.function_properties.get(name, [])
+        """Returns the ordered properties of a catalog or system function's arguments."""
+        if name in self.function_properties:
+            return self.function_properties[name]
+        return self._system_function_properties.get(name, [])
 
     def get_function_required(self, name: str) -> list[str]:
-        """Returns the list of required argument properties for the function."""
-        return self.function_required.get(name, [])
+        """Returns the required argument properties of a catalog or system function."""
+        if name in self.function_required:
+            return self.function_required[name]
+        return self._system_function_required.get(name, [])
 
     def get_function_property_schema(
         self, fn_name: str, prop_name: str
@@ -280,7 +341,7 @@ class CatalogSchemaHelper:
         Returns:
             The JSON schema dictionary for the property, or None.
         """
-        fn_schema = self.functions.get(fn_name, {})
+        fn_schema = self._function_schema(fn_name)
         if not fn_schema or not isinstance(fn_schema, dict):
             return None
 
@@ -326,8 +387,8 @@ class CatalogSchemaHelper:
         return None
 
     def get_function_description(self, name: str) -> str | None:
-        """Retrieves the description of the function from its catalog schema."""
-        schema = self.functions.get(name)
+        """Retrieves the description of a catalog or system function."""
+        schema = self._function_schema(name)
         if not schema or not isinstance(schema, dict):
             return None
         desc = schema.get("description")

@@ -69,24 +69,37 @@ class ExpressPromptGenerator extends PromptGenerator {
     final decompiler = ExpressDecompiler(catalogs);
     final A2uiProtocolVersion version = catalogsProtocolVersion(catalogs);
     final bool v1 = version.isAtLeast(A2uiProtocolVersion.v1_0);
+    final List<String> allowed = resolveAllowedMessages(
+      allowedMessages,
+      version,
+    );
     final buffer = StringBuffer(
       _rules(
-        resolveAllowedMessages(allowedMessages, version),
+        allowed,
         v1: v1,
         callable: v1 ? _agentCallable(catalogs) : const [],
       ),
     );
+    // System functions belong to the protocol, not a catalog, so they are
+    // listed once, after the rules for the catalogs.
+    final String systemFunctions =
+        allowed.contains('createSurface') ||
+            allowed.contains('updateComponents')
+        ? _systemFunctionSignatures(CatalogSchemaHelper(catalogs.first))
+        : '';
     String section(CatalogApi catalog, String heading) => _catalogSection(
       CatalogSchemaHelper(catalog),
       heading,
       instructions: v1 ? _instructions(catalog, decompiler, version) : null,
     );
     if (catalogs.length == 1) {
+      if (systemFunctions.isNotEmpty) buffer.write('\n\n$systemFunctions');
       buffer
         ..write('\n\n')
         ..write(section(catalogs.single, '##'));
     } else {
       buffer.write(v1 ? _catalogsV1(catalogs) : _catalogsV0_9(catalogs));
+      if (systemFunctions.isNotEmpty) buffer.write('\n\n$systemFunctions');
       for (final CatalogApi catalog in catalogs) {
         buffer
           ..write('\n\n## Catalog `${catalog.id}`\n\n')
@@ -326,9 +339,32 @@ String _keys(Map<Object?, Object?> properties) => [
     },
 ].join('\n');
 
-String _functionSignatures(CatalogSchemaHelper helper) {
+String _functionSignatures(CatalogSchemaHelper helper) =>
+    _formatFunctionSignatures(
+      helper,
+      helper.catalog.functions.keys.toList()..sort(),
+    );
+
+/// The system functions of the catalogs' version, such as `@index`, in the
+/// same signature format as catalog functions, or an empty string for a
+/// version that defines none.
+String _systemFunctionSignatures(CatalogSchemaHelper helper) {
+  if (helper.systemFunctions.isEmpty) return '';
+  final List<String> names = helper.systemFunctions.keys.toList()..sort();
+  return '## System Functions\n\n'
+      'These functions are defined by the A2UI protocol, not by a catalog. '
+      'Call them by their `@` name, like any function, and never add a '
+      '`catalogId` to them:\n'
+      '${_formatFunctionSignatures(helper, names)}';
+}
+
+/// One signature, with its descriptions, for each function in [names].
+String _formatFunctionSignatures(
+  CatalogSchemaHelper helper,
+  List<String> names,
+) {
   final signatures = <String>[];
-  for (final String name in helper.catalog.functions.keys.toList()..sort()) {
+  for (final name in names) {
     final List<String> required = helper.requiredParameters(name);
     final arguments = <String>[];
     final details = <String>[];
@@ -342,8 +378,7 @@ String _functionSignatures(CatalogSchemaHelper helper) {
     signatures.add(
       [
         '• $name(${arguments.join(', ')})',
-        if (helper.catalog.functions[name]!.description
-            case final String description)
+        if (helper.functionDescription(name) case final String description)
           '  - Description: ${_indent(description)}',
         ...details,
       ].join('\n'),

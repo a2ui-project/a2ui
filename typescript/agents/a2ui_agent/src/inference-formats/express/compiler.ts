@@ -2475,6 +2475,28 @@ export class ExpressCompiler {
     const fnArgs = callVal.args;
     const fnKwargs = {...callVal.kwargs};
 
+    if (fnName.startsWith('@')) {
+      if (allowCallId) {
+        throw new ExpressValidationError(
+          `System function '${fnName}' cannot be called as a standalone statement, since a` +
+            ' renderer function call names a catalog function.',
+        );
+      }
+      return [
+        this.compileSystemCall(
+          fnName,
+          fnArgs,
+          fnKwargs,
+          rawSymbols,
+          compIds,
+          ctx,
+          targetMajorMinor,
+          isAction,
+        ),
+        undefined,
+      ];
+    }
+
     const explicitCatalogId = fnKwargs.catalogId;
     delete fnKwargs.catalogId;
 
@@ -2497,6 +2519,96 @@ export class ExpressCompiler {
       targetMajorMinor,
     );
 
+    const compiledArgs = this.compileCallArgs(
+      fnHelper,
+      fnName,
+      fnArgs,
+      fnKwargs,
+      rawSymbols,
+      compIds,
+      ctx,
+      targetMajorMinor,
+      isAction,
+    );
+
+    const res: Record<string, unknown> = {
+      [fnHelper.keys.call]: fnName,
+    };
+    if (resolvedCatalogId !== undefined) {
+      res.catalogId = resolvedCatalogId;
+    }
+    res.args = compiledArgs;
+
+    return [res, explicitCallId];
+  }
+
+  /**
+   * Compiles a call to a system function, such as `@index(offset=1)`.
+   *
+   * A system function is defined by the protocol, not a catalog, so it is looked
+   * up in the protocol version's common types before any catalog, and the compiled
+   * call never carries a `catalogId`. An empty argument list is left out, since a
+   * system function's `args` are optional.
+   *
+   * @throws {ExpressValidationError} If the target version defines no system
+   *   function of that name, or the call names a `catalogId`.
+   */
+  private compileSystemCall(
+    fnName: string,
+    fnArgs: ExpressValue[],
+    fnKwargs: Record<string, ExpressValue>,
+    rawSymbols: Record<string, unknown>,
+    compIds: Map<string, string>,
+    ctx: CompileContext,
+    targetMajorMinor: [number, number],
+    isAction: boolean,
+  ): Record<string, unknown> {
+    const helper = this.helpers.values().next().value!;
+    if (!helper.systemFunctions.has(fnName)) {
+      const known = [...helper.systemFunctions.keys()].sort();
+      throw new ExpressValidationError(
+        `Unknown system function '${fnName}' in A2UI ${this.version}.` +
+          ` System functions: ${known.length ? known.join(', ') : 'none'}.`,
+      );
+    }
+    if ('catalogId' in fnKwargs) {
+      throw new ExpressValidationError(
+        `System function '${fnName}' is defined by the protocol, not a catalog, so it` +
+          ' takes no catalogId.',
+      );
+    }
+    const compiledArgs = this.compileCallArgs(
+      helper,
+      fnName,
+      fnArgs,
+      fnKwargs,
+      rawSymbols,
+      compIds,
+      ctx,
+      targetMajorMinor,
+      isAction,
+    );
+    const res: Record<string, unknown> = {[helper.keys.call]: fnName};
+    if (Object.keys(compiledArgs).length > 0) {
+      res.args = compiledArgs;
+    }
+    return res;
+  }
+
+  /**
+   * Maps a function call's positional and keyword arguments to its parameters.
+   */
+  private compileCallArgs(
+    fnHelper: CatalogSchemaHelper,
+    fnName: string,
+    fnArgs: ExpressValue[],
+    fnKwargs: Record<string, ExpressValue>,
+    rawSymbols: Record<string, unknown>,
+    compIds: Map<string, string>,
+    ctx: CompileContext,
+    targetMajorMinor: [number, number],
+    isAction: boolean,
+  ): Record<string, unknown> {
     const fnProps = fnHelper.getFunctionProperties(fnName);
     const compiledArgs: Record<string, unknown> = {};
     for (let idx = 0; idx < fnArgs.length; idx++) {
@@ -2534,16 +2646,7 @@ export class ExpressCompiler {
         compiledArgs[k] = valItem;
       }
     }
-
-    const res: Record<string, unknown> = {
-      [fnHelper.keys.call]: fnName,
-    };
-    if (resolvedCatalogId !== undefined) {
-      res.catalogId = resolvedCatalogId;
-    }
-    res.args = compiledArgs;
-
-    return [res, explicitCallId];
+    return compiledArgs;
   }
 
   /**

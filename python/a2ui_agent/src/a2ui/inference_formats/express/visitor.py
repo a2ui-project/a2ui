@@ -179,8 +179,9 @@ class ExpressAstVisitor(ExpressVisitor):  # type: ignore[misc]
         return k, v
 
     def visitCall(self, ctx: ExpressParser.CallContext) -> CallNode:
-        # call : identifier '(' (arg (',' arg)*)? ','? ')' ;
-        name = ctx.identifier().getText()
+        # call : function_name '(' (arg (',' arg)*)? ','? ')' ;
+        # function_name : identifier | SYSTEM_IDENTIFIER ;
+        name = ctx.function_name().getText()
         args = []
         kwargs = {}
         for arg_ctx in ctx.arg():

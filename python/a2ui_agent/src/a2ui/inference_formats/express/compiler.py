@@ -1876,6 +1876,12 @@ class ExpressCompiler:
                 )
             function_call_id = explicit_id
             node = replace(node, kwargs=kwargs)
+        if node.name.startswith("@"):
+            raise ExpressValidationError(
+                f"System function '{node.name}' cannot be called as a standalone"
+                " statement, since a renderer function call names a catalog"
+                " function."
+            )
         raw_syms = unit.scope.raw_symbols if unit.scope else {}
         compiled_val = self._compile_value(node, raw_syms, ctx)
         if not isinstance(compiled_val, dict) or ctx.call_key not in compiled_val:
@@ -2495,6 +2501,11 @@ class ExpressCompiler:
         if fn_name == "Event":
             return self._compile_event_call(val, raw_symbols, ctx)
 
+        if fn_name.startswith("@"):
+            return self._compile_system_call(
+                fn_name, fn_args, raw_kwargs, raw_symbols, ctx, is_action
+            )
+
         call_cat_id = raw_kwargs.pop("catalogId", None)
         if self._defines_component(fn_name, call_cat_id):
             if parent_id and parent_prop:
@@ -2527,9 +2538,74 @@ class ExpressCompiler:
         call_helper, write_cat_id = self._resolve(
             "function", fn_name, call_cat_id, ctx, f"Call '{fn_name}'", "function"
         )
+        compiled_args = self._compile_call_args(
+            call_helper, fn_name, fn_args, raw_kwargs, raw_symbols, ctx, is_action
+        )
 
-        fn_props = call_helper.get_function_properties(fn_name)
-        compiled_args = {}
+        res_expr: dict[str, Any] = {ctx.call_key: fn_name}
+        if write_cat_id is not None:
+            res_expr["catalogId"] = write_cat_id
+        res_expr["args"] = compiled_args
+
+        # Wrap in functionCall only if inside an action field
+        if is_action:
+            return {"functionCall": res_expr}
+        return res_expr
+
+    def _compile_system_call(
+        self,
+        fn_name: str,
+        fn_args: list[Any],
+        raw_kwargs: dict[str, Any],
+        raw_symbols: dict[str, Any],
+        ctx: _CompileContext,
+        is_action: bool,
+    ) -> dict[str, Any]:
+        """Compiles a call to a system function, such as `@index(offset=1)`.
+
+        A system function is defined by the protocol, not a catalog, so it is
+        looked up in the protocol version's common types before any catalog,
+        and the compiled call never carries a `catalogId`. An empty argument
+        list is left out, since a system function's `args` are optional.
+
+        Raises:
+            ExpressValidationError: If the target version defines no system
+                function of that name, or the call names a `catalogId`.
+        """
+        helper = next(iter(self.helpers.values()))
+        if fn_name not in helper.system_functions:
+            raise ExpressValidationError(
+                f"Unknown system function '{fn_name}' in A2UI {ctx.version}."
+                f" System functions: {sorted(helper.system_functions) or 'none'}."
+            )
+        if "catalogId" in raw_kwargs:
+            raise ExpressValidationError(
+                f"System function '{fn_name}' is defined by the protocol, not a"
+                " catalog, so it takes no catalogId."
+            )
+        compiled_args = self._compile_call_args(
+            helper, fn_name, fn_args, raw_kwargs, raw_symbols, ctx, is_action
+        )
+        res_expr: dict[str, Any] = {ctx.call_key: fn_name}
+        if compiled_args:
+            res_expr["args"] = compiled_args
+        if is_action:
+            return {"functionCall": res_expr}
+        return res_expr
+
+    def _compile_call_args(
+        self,
+        helper: CatalogSchemaHelper,
+        fn_name: str,
+        fn_args: list[Any],
+        raw_kwargs: dict[str, Any],
+        raw_symbols: dict[str, Any],
+        ctx: _CompileContext,
+        is_action: bool,
+    ) -> dict[str, Any]:
+        """Maps a function call's positional and keyword arguments to its parameters."""
+        fn_props = helper.get_function_properties(fn_name)
+        compiled_args: dict[str, Any] = {}
         for idx, arg in enumerate(fn_args):
             if idx >= len(fn_props):
                 continue
@@ -2549,13 +2625,4 @@ class ExpressCompiler:
             val_item = self._compile_value(v, raw_symbols, ctx, is_action)
             if val_item is not None:
                 compiled_args[k] = val_item
-
-        res_expr: dict[str, Any] = {ctx.call_key: fn_name}
-        if write_cat_id is not None:
-            res_expr["catalogId"] = write_cat_id
-        res_expr["args"] = compiled_args
-
-        # Wrap in functionCall only if inside an action field
-        if is_action:
-            return {"functionCall": res_expr}
-        return res_expr
+        return compiled_args
