@@ -40,6 +40,7 @@
 # does: a surface that the block updates without creating is assumed to exist.
 
 - name: test_decompile_json_messages
+  features: [F-AGT-19]
   description: Messages are written back out as the JSON a model would have emitted, and compiling that returns them.
   action: decompile
   args:
@@ -63,6 +64,7 @@
   expect_round_trip: true
 
 - name: test_decompile_json_update_data_model
+  features: [F-AGT-19]
   description: A data model update writes back out with its path and value, so an example that changes state can be authored from messages.
   action: decompile
   args:
@@ -80,6 +82,7 @@
   expect_round_trip: true
 
 - name: test_decompile_json_delete_surface
+  features: [F-AGT-19]
   description: A surface deletion writes back out as its own message, which is the envelope most likely to be dropped by a decompiler that only walks components.
   action: decompile
   args:

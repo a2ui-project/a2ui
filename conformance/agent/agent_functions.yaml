@@ -26,6 +26,7 @@
 # --- Declaring agent functions ---
 
 - name: test_declare_agent_function_lists_it_with_the_catalog_functions
+  features: [F-AGT-41]
   description: >-
     An agent function is one of the catalog's functions, so validation, prompts and compilers see it, and the catalog document lists it like any declared function.
   action: declare_agent_functions
@@ -367,6 +368,7 @@
 # --- Answering callAgentFunction ---
 
 - name: test_handle_agent_function_returns_the_value_and_copies_the_call_id
+  features: [F-AGT-42, F-AGT-60]
   description: >-
     The response carries the handler's value and copies the call's functionCallId verbatim, however it is spelled.
   action: handle_agent_function
@@ -1261,6 +1263,7 @@
 # --- Validating model output that calls agent functions ---
 
 - name: test_validate_payload_with_a_call_to_a_declared_agent_function
+  features: [F-AGT-41, F-AGT-63]
   description: >-
     Model output that calls an agent function the catalog declares validates like a call to any other declared function.
   action: validate_payload
@@ -1291,6 +1294,7 @@
   expect_valid: true
 
 - name: test_validate_payload_with_a_call_to_an_undeclared_function
+  features: [F-AGT-63]
   description: >-
     Declaring agent functions does not open the catalog: a call to a function that is neither declared nor an agent function is still rejected.
   action: validate_payload
@@ -1323,6 +1327,7 @@
     message: fetchFarewell
 
 - name: test_validate_payload_with_invalid_arguments_to_an_agent_function
+  features: [F-AGT-63]
   description: Model output that calls an agent function with arguments its schema rejects is invalid.
   action: validate_payload
   args:
@@ -1355,6 +1360,7 @@
 # --- Routing renderer messages ---
 
 - name: test_process_action_with_its_callback
+  features: [F-AGT-57]
   description: >-
     With on_action set, an action is validated, handed to the callback, and handled with no replies.
   action: process_renderer_message
@@ -1399,6 +1405,7 @@
     handled: false
 
 - name: test_process_error_with_its_callback
+  features: [F-AGT-58]
   description: With on_error set, an error message is validated, handed to the callback, and handled with no replies.
   action: process_renderer_message
   args:
@@ -1434,6 +1441,7 @@
     handled: false
 
 - name: test_process_renderer_function_response_with_its_callback
+  features: [F-AGT-42, F-AGT-61]
   description: >-
     With on_renderer_function_response set, a rendererFunctionResponse is validated, handed to the callback, and handled with no replies.
   action: process_renderer_message
