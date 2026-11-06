@@ -57,7 +57,7 @@
     "gts": "^7.0.0",
     "jsdom": "^29.1.1",
     "prettier": "^3.8.4",
-    "typescript": "5.9.3",
+    "typescript": "6.0.3",
     "wireit": "^0.15.0-pre.2"
   },
   "peerDependencies": {

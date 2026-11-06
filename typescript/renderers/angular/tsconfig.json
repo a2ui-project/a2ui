@@ -1,7 +1,6 @@
 {
   "compileOnSave": false,
   "compilerOptions": {
-    "baseUrl": ".",
     "strict": true,
     "noImplicitOverride": true,
     "noPropertyAccessFromIndexSignature": true,
@@ -18,6 +17,7 @@
     "moduleResolution": "bundler",
     "types": ["jasmine"],
     "paths": {
+      "src/*": ["./src/*"],
       "@a2ui/angular": ["./src/public-api.ts"],
       "@a2ui/angular/v0_8": ["./src/v0_8/index.ts"],
       "@a2ui/angular/v0_9": ["./src/v0_9/index.ts"],

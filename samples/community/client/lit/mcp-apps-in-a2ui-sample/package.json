@@ -71,7 +71,7 @@
   "devDependencies": {
     "dotenv": "^17.4.2",
     "eslint": "^10.4.1",
-    "typescript": "5.9.3",
+    "typescript": "6.0.3",
     "uuid": "^14.0.0",
     "vite": "^8.0.16",
     "wireit": "^0.15.0-pre.2"
