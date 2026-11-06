@@ -1,0 +1,1714 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Agent functions (v1.0): functions an agent declares on its copy of a catalog
+# and runs when a renderer sends `callAgentFunction`, and how the agent's
+# `RendererToAgentMessageProcessor` routes the messages a renderer sends.
+#
+# A case declares each agent function with the JSON Schema of its `args` (or
+# `from_api: true` to wrap the catalog's own declaration) and a scripted
+# behaviour in place of a handler, so every SDK runs the same function: it
+# returns a fixed value, returns the arguments it received, returns the
+# context of the call, or fails.
+# See "Writing cases for the agent function suite" in conformance/README.md.
+
+# --- Declaring agent functions ---
+
+- name: test_declare_agent_function_lists_it_with_the_catalog_functions
+  description: >-
+    An agent function is one of the catalog's functions, so validation, prompts and compilers see it, and the catalog document lists it like any declared function.
+  action: declare_agent_functions
+  args:
+    catalog:
+      catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      agent_functions:
+        fetchFxRate:
+          description: Current exchange rate from base to target.
+          returnType: number
+          args:
+            type: object
+            properties:
+              base: {type: string}
+              target: {type: string, default: USD}
+            required: [base]
+            additionalProperties: false
+          behavior: {returns: 1.08}
+  expect:
+    functions: [required, formatString, openUrl, fetchFxRate]
+    agent_functions: [fetchFxRate]
+    document_functions: [required, formatString, openUrl, fetchFxRate]
+
+- name: test_declare_agent_function_with_a_taken_name_is_a_catalog_error
+  description: >-
+    An agent function may not take the name of a function the catalog already declares, since a renderer would then run its own function and never send the call to the agent.
+  action: declare_agent_functions
+  args:
+    catalog:
+      catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      agent_functions:
+        formatString:
+          returnType: string
+          args:
+            type: object
+            properties:
+              value: {type: string}
+            required: [value]
+          behavior: {returns: "formatted"}
+  expect_error:
+    category: CatalogError
+    message: "formatString"
+
+- name: test_declare_agent_function_from_the_catalog_declaration
+  description: >-
+    An agent function built from a function the catalog declares (from_api) replaces that declaration, keeps its allowedCallers (here rendererOrAgent), and leaves the catalog document as it was.
+  action: declare_agent_functions
+  args:
+    catalog:
+      catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+      agent_functions:
+        notify:
+          from_api: true
+          behavior: {returns: null}
+  expect:
+    functions: [notify]
+    agent_functions: [notify]
+    document_functions: [notify]
+
+- name: test_declare_agent_function_from_an_undeclared_function_is_a_catalog_error
+  description: >-
+    An agent function built from a declaration (from_api) that the catalog does not have is refused, so a foreign declaration can't leak into the catalog.
+  action: declare_agent_functions
+  args:
+    catalog:
+      catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      agent_functions:
+        fetchFxRate:
+          from_api: true
+          returnType: number
+          args:
+            type: object
+            properties:
+              base: {type: string}
+            required: [base]
+          behavior: {returns: 1.08}
+  expect_error:
+    category: CatalogError
+    message: "fetchFxRate"
+
+- name: test_declare_agent_function_from_an_agent_only_declaration_is_a_catalog_error
+  description: >-
+    A function whose allowedCallers is agentOnly is never called by a renderer, so it can't become an agent function.
+  action: declare_agent_functions
+  args:
+    catalog:
+      catalog:
+        catalogId: conformance/agent_only
+        protocolVersion: "1.0"
+        components: {}
+        functions:
+          resetLedger:
+            type: object
+            description: Clears the ledger.
+            returnType: void
+            allowedCallers: agentOnly
+            properties:
+              "@call": {const: resetLedger}
+              args: {type: object, properties: {}}
+            required: ["@call", "args"]
+      agent_functions:
+        resetLedger:
+          from_api: true
+          behavior: {returns: null}
+  expect_error:
+    category: CatalogError
+    message: "resetLedger"
+
+- name: test_declare_two_agent_functions_with_one_name_is_a_catalog_error
+  description: >-
+    Two agent functions may not share a name. The second entry uses `name` to give itself the first one's name.
+  action: declare_agent_functions
+  args:
+    catalog:
+      catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      agent_functions:
+        fetchFxRate:
+          returnType: number
+          args: {type: object, properties: {base: {type: string}}}
+          behavior: {returns: 1.08}
+        fetchFxRateAgain:
+          name: fetchFxRate
+          returnType: number
+          args: {type: object, properties: {base: {type: string}}}
+          behavior: {returns: 1.09}
+  expect_error:
+    category: CatalogError
+    message: "fetchFxRate"
+
+- name: test_declare_agent_function_from_a_user_activation_declaration_for_the_agent_is_a_catalog_error
+  description: >-
+    A v1.0 catalog allows requiresUserActivation only on rendererOnly functions, so an agent function built (from_api) from a rendererOrAgent declaration that requires user activation is refused.
+  action: declare_agent_functions
+  args:
+    catalog:
+      catalog:
+        catalogId: conformance/user_activation
+        protocolVersion: "1.0"
+        components: {}
+        functions:
+          confirmPayment:
+            type: object
+            description: Confirms a payment.
+            returnType: boolean
+            allowedCallers: rendererOrAgent
+            requiresUserActivation: true
+            properties:
+              "@call": {const: confirmPayment}
+              args: {type: object, properties: {}}
+            required: ["@call", "args"]
+      agent_functions:
+        confirmPayment:
+          from_api: true
+          behavior: {returns: true}
+  expect_error:
+    category: CatalogError
+
+- name: test_declare_agent_function_with_an_invalid_parameter_name_is_a_catalog_error
+  description: >-
+    On a v1.0 catalog, the parameter names of an agent function must be UAX #31 identifiers, as for a function loaded from a catalog document.
+  action: declare_agent_functions
+  args:
+    catalog:
+      catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      agent_functions:
+        fetchFxRate:
+          returnType: number
+          args:
+            type: object
+            properties:
+              target-currency: {type: string}
+          behavior: {returns: 1.08}
+  expect_error:
+    category: CatalogError
+    message: "target-currency"
+
+- name: test_declare_agent_function_with_an_invalid_parameter_name_in_catalog_defs_is_a_catalog_error
+  description: >-
+    Parameter names referenced through the catalog's own $defs are checked against UAX #31 even when the agent function's args schema also declares local $defs.
+  action: declare_agent_functions
+  args:
+    catalog:
+      catalog:
+        catalogId: conformance/defs_uax31
+        protocolVersion: "1.0"
+        components: {}
+        $defs:
+          CatalogArgs:
+            type: object
+            properties:
+              bad-amount: {type: number}
+      agent_functions:
+        pay:
+          returnType: object
+          args:
+            $defs:
+              MemoArgs:
+                type: object
+                properties:
+                  memo: {type: string}
+            allOf:
+              - $ref: "#/$defs/MemoArgs"
+              - $ref: "#/$defs/CatalogArgs"
+          behavior: {returns_args: true}
+  expect_error:
+    category: CatalogError
+    message: "bad-amount"
+
+- name: test_declare_agent_function_follows_a_deep_defs_pointer
+  description: >-
+    A local $ref is followed as a JSON Pointer, so `#/$defs/Bundle/allOf/0` reaches only that member: its invalid parameter name is a catalog error, and the name in the rest of Bundle is not reached.
+  action: declare_agent_functions
+  args:
+    catalog:
+      catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      agent_functions:
+        pay:
+          returnType: object
+          args:
+            $defs:
+              Bundle:
+                properties:
+                  other-name: {type: string}
+                allOf:
+                  - type: object
+                    properties:
+                      bad-amount: {type: number}
+            $ref: "#/$defs/Bundle/allOf/0"
+          behavior: {returns_args: true}
+  expect_error:
+    category: CatalogError
+    message: "bad-amount"
+
+- name: test_declare_agent_function_with_a_local_def_that_differs_from_a_catalog_def_is_a_catalog_error
+  description: >-
+    An agent function's local $defs merge with the catalog's root $defs, and the catalog document keeps one definition per name, so a local definition that differs from the catalog's is refused: the agent and the renderer would otherwise validate one call against different schemas.
+  action: declare_agent_functions
+  args:
+    catalog:
+      catalog:
+        catalogId: conformance/defs_collision
+        protocolVersion: "1.0"
+        components: {}
+        $defs:
+          Money:
+            type: object
+            properties:
+              amount: {type: number}
+              currency: {type: string, default: USD}
+            required: [amount]
+      agent_functions:
+        pay:
+          returnType: object
+          args:
+            $defs:
+              Money:
+                type: object
+                properties:
+                  amount: {type: number}
+                  currency: {type: string, default: EUR}
+                required: [amount]
+            type: object
+            properties:
+              total: {$ref: "#/$defs/Money"}
+            required: [total]
+          behavior: {returns_args: true}
+  expect_error:
+    category: CatalogError
+    message: "Money"
+
+- name: test_declare_agent_function_with_a_local_def_equal_to_a_catalog_def
+  description: >-
+    A local $defs entry that is identical to the catalog's entry of that name is accepted, since hoisting it into the catalog document loses nothing.
+  action: declare_agent_functions
+  args:
+    catalog:
+      catalog:
+        catalogId: conformance/defs_equal
+        protocolVersion: "1.0"
+        components: {}
+        $defs:
+          Money:
+            type: object
+            properties:
+              amount: {type: number}
+              currency: {type: string, default: USD}
+            required: [amount]
+      agent_functions:
+        pay:
+          returnType: object
+          args:
+            $defs:
+              Money:
+                type: object
+                properties:
+                  amount: {type: number}
+                  currency: {type: string, default: USD}
+                required: [amount]
+            type: object
+            properties:
+              total: {$ref: "#/$defs/Money"}
+            required: [total]
+          behavior: {returns_args: true}
+  expect:
+    functions: [pay]
+    agent_functions: [pay]
+    document_functions: [pay]
+
+- name: test_declare_two_agent_functions_with_differing_local_defs_of_one_name_is_a_catalog_error
+  description: >-
+    Two agent functions on one catalog may not define one local $defs name differently, since the catalog document would keep only one of them.
+  action: declare_agent_functions
+  args:
+    catalog:
+      catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      agent_functions:
+        pay:
+          returnType: object
+          args:
+            $defs:
+              Money: {type: number}
+            type: object
+            properties:
+              total: {$ref: "#/$defs/Money"}
+          behavior: {returns_args: true}
+        refund:
+          returnType: object
+          args:
+            $defs:
+              Money: {type: string}
+            type: object
+            properties:
+              total: {$ref: "#/$defs/Money"}
+          behavior: {returns_args: true}
+  expect_error:
+    category: CatalogError
+    message: "Money"
+
+# --- Answering callAgentFunction ---
+
+- name: test_handle_agent_function_returns_the_value_and_copies_the_call_id
+  description: >-
+    The response carries the handler's value and copies the call's functionCallId verbatim, however it is spelled.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchFxRate:
+            returnType: number
+            args:
+              type: object
+              properties:
+                base: {type: string}
+                target: {type: string, default: USD}
+              required: [base]
+              additionalProperties: false
+            behavior: {returns: 1.08}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: "fx call/ü 42"
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: conformance/simplified
+          args: {base: EUR}
+  expect:
+    functionCallId: "fx call/ü 42"
+    value: 1.08
+
+- name: test_handle_agent_function_sends_a_null_value
+  description: >-
+    A handler that returns null still answers with a value, so the renderer can tell the answer from a missing one.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          lookupNickname:
+            returnType: string
+            args:
+              type: object
+              properties:
+                userId: {type: string}
+              required: [userId]
+            behavior: {returns: null}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: nick-1
+        callFunction:
+          "@call": lookupNickname
+          catalogId: conformance/simplified
+          args: {userId: u1}
+  expect:
+    functionCallId: nick-1
+    value: null
+
+- name: test_handle_agent_function_applies_schema_defaults
+  description: >-
+    The arguments are validated against the function's schema before the handler runs, and the handler receives them with the schema's defaults applied.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchFxRate:
+            returnType: object
+            args:
+              type: object
+              properties:
+                base: {type: string}
+                target: {type: string, default: USD}
+              required: [base]
+              additionalProperties: false
+            behavior: {returns_args: true}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: fx-1
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: conformance/simplified
+          args: {base: EUR}
+  expect:
+    functionCallId: fx-1
+    value: {base: EUR, target: USD}
+
+- name: test_handle_agent_function_passes_the_call_context
+  description: >-
+    The handler learns the catalog the call resolved to, the surface it was made on, and its functionCallId.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          whereAmI:
+            returnType: object
+            args: {type: object, properties: {}}
+            behavior: {returns_context: true}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: checkout
+        functionCallId: ctx-1
+        callFunction:
+          "@call": whereAmI
+          catalogId: conformance/simplified
+          args: {}
+  expect:
+    functionCallId: ctx-1
+    value:
+      catalogId: conformance/simplified
+      surfaceId: checkout
+      functionCallId: ctx-1
+
+- name: test_handle_agent_function_that_requires_user_activation
+  description: >-
+    A rendererOnly agent function may require user activation. The renderer enforces it by sending the call only after a user gesture, so the agent answers the call like any other.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          confirmPayment:
+            returnType: boolean
+            requiresUserActivation: true
+            args:
+              type: object
+              properties:
+                amount: {type: number}
+              required: [amount]
+            behavior: {returns: true}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: ua-1
+        callFunction:
+          "@call": confirmPayment
+          catalogId: conformance/simplified
+          args: {amount: 25}
+  expect:
+    functionCallId: ua-1
+    value: true
+
+- name: test_handle_agent_function_with_an_argument_of_the_wrong_type
+  description: Arguments that fail the function's schema get INVALID_FUNCTION_CALL, and the handler does not run.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchFxRate:
+            returnType: number
+            args:
+              type: object
+              properties:
+                base: {type: string}
+                target: {type: string, default: USD}
+              required: [base]
+              additionalProperties: false
+            behavior: {returns: 1.08}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: fx-2
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: conformance/simplified
+          args: {base: 3}
+  expect:
+    functionCallId: fx-2
+    error:
+      code: INVALID_FUNCTION_CALL
+      message: fetchFxRate
+
+- name: test_handle_agent_function_with_a_missing_required_argument
+  description: A call that leaves out a required argument gets INVALID_FUNCTION_CALL.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchFxRate:
+            returnType: number
+            args:
+              type: object
+              properties:
+                base: {type: string}
+                target: {type: string, default: USD}
+              required: [base]
+              additionalProperties: false
+            behavior: {returns: 1.08}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: fx-3
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: conformance/simplified
+          args: {target: GBP}
+  expect:
+    functionCallId: fx-3
+    error:
+      code: INVALID_FUNCTION_CALL
+
+- name: test_handle_agent_function_with_an_undeclared_argument
+  description: A call with an argument that a closed schema does not declare gets INVALID_FUNCTION_CALL.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchFxRate:
+            returnType: number
+            args:
+              type: object
+              properties:
+                base: {type: string}
+                target: {type: string, default: USD}
+              required: [base]
+              additionalProperties: false
+            behavior: {returns: 1.08}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: fx-4
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: conformance/simplified
+          args: {base: EUR, precision: 4}
+  expect:
+    functionCallId: fx-4
+    error:
+      code: INVALID_FUNCTION_CALL
+
+- name: test_handle_agent_function_resolves_catalog_and_local_defs_and_applies_defaults
+  description: >-
+    An agent function whose args schema combines local $defs with the catalog's $defs validates against both and passes both sets of defaults to the handler.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog:
+          catalogId: conformance/defs_pay
+          protocolVersion: "1.0"
+          components: {}
+          $defs:
+            MoneyArgs:
+              type: object
+              properties:
+                amount: {type: number, exclusiveMinimum: 0}
+                currency: {type: string, default: USD}
+              required: [amount]
+        agent_functions:
+          pay:
+            returnType: object
+            args:
+              $defs:
+                MemoArgs:
+                  type: object
+                  properties:
+                    memo: {type: string, default: standard}
+              allOf:
+                - $ref: "#/$defs/MemoArgs"
+                - $ref: "#/$defs/MoneyArgs"
+              unevaluatedProperties: false
+            behavior: {returns_args: true}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: pay-1
+        callFunction:
+          "@call": pay
+          catalogId: conformance/defs_pay
+          args: {amount: 25}
+  expect:
+    functionCallId: pay-1
+    value:
+      amount: 25
+      currency: USD
+      memo: standard
+
+- name: test_handle_agent_function_validates_constraints_in_catalog_defs
+  description: >-
+    A call whose arguments violate a constraint inside the catalog's $defs gets INVALID_FUNCTION_CALL even when the agent function also declares local $defs.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog:
+          catalogId: conformance/defs_pay
+          protocolVersion: "1.0"
+          components: {}
+          $defs:
+            MoneyArgs:
+              type: object
+              properties:
+                amount: {type: number, exclusiveMinimum: 0}
+                currency: {type: string, default: USD}
+              required: [amount]
+        agent_functions:
+          pay:
+            returnType: object
+            args:
+              $defs:
+                MemoArgs:
+                  type: object
+                  properties:
+                    memo: {type: string, default: standard}
+              allOf:
+                - $ref: "#/$defs/MemoArgs"
+                - $ref: "#/$defs/MoneyArgs"
+              unevaluatedProperties: false
+            behavior: {returns_args: true}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: pay-2
+        callFunction:
+          "@call": pay
+          catalogId: conformance/defs_pay
+          args: {amount: -5}
+  expect:
+    functionCallId: pay-2
+    error:
+      code: INVALID_FUNCTION_CALL
+
+- name: test_handle_agent_function_rejects_undeclared_argument_across_catalog_and_local_defs
+  description: >-
+    A closed agent function schema composed from local $defs and catalog $defs rejects arguments declared in neither.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog:
+          catalogId: conformance/defs_pay
+          protocolVersion: "1.0"
+          components: {}
+          $defs:
+            MoneyArgs:
+              type: object
+              properties:
+                amount: {type: number, exclusiveMinimum: 0}
+                currency: {type: string, default: USD}
+              required: [amount]
+        agent_functions:
+          pay:
+            returnType: object
+            args:
+              $defs:
+                MemoArgs:
+                  type: object
+                  properties:
+                    memo: {type: string, default: standard}
+              allOf:
+                - $ref: "#/$defs/MemoArgs"
+                - $ref: "#/$defs/MoneyArgs"
+              unevaluatedProperties: false
+            behavior: {returns_args: true}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: pay-3
+        callFunction:
+          "@call": pay
+          catalogId: conformance/defs_pay
+          args: {amount: 25, extra: true}
+  expect:
+    functionCallId: pay-3
+    error:
+      code: INVALID_FUNCTION_CALL
+
+- name: test_handle_agent_function_does_not_let_a_default_satisfy_required
+  description: >-
+    Defaults are applied after validation, so a call that leaves out a required argument gets INVALID_FUNCTION_CALL even when the schema gives that argument a default.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchFxRate:
+            returnType: number
+            args:
+              type: object
+              properties:
+                base: {type: string, default: EUR}
+              required: [base]
+            behavior: {returns: 1.08}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: fx-req-default
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: conformance/simplified
+          args: {}
+  expect:
+    functionCallId: fx-req-default
+    error:
+      code: INVALID_FUNCTION_CALL
+
+- name: test_handle_agent_function_accepts_at_keys_in_resolved_values
+  description: >-
+    The arguments of callAgentFunction are resolved JSON, not expressions, so a nested object whose keys start with `@` is ordinary data.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          saveRecord:
+            returnType: object
+            args:
+              type: object
+              properties:
+                record: {type: object}
+              required: [record]
+            behavior: {returns_args: true}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: rec-1
+        callFunction:
+          "@call": saveRecord
+          catalogId: conformance/simplified
+          args:
+            record: {"@type": Person, "@id": p-1, name: Ada}
+  expect:
+    functionCallId: rec-1
+    value:
+      record: {"@type": Person, "@id": p-1, name: Ada}
+
+- name: test_handle_agent_function_accepts_keys_matched_by_pattern_properties
+  description: >-
+    A closed args schema accepts the keys its `patternProperties` match, validating them against the pattern's schema.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          setTags:
+            returnType: object
+            args:
+              type: object
+              patternProperties:
+                "^tag_": {type: string}
+              additionalProperties: false
+            behavior: {returns_args: true}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: tags-1
+        callFunction:
+          "@call": setTags
+          catalogId: conformance/simplified
+          args: {tag_color: red}
+  expect:
+    functionCallId: tags-1
+    value: {tag_color: red}
+
+- name: test_handle_agent_function_rejects_keys_pattern_properties_do_not_match
+  description: >-
+    A closed args schema with `patternProperties` still rejects a key no pattern matches with INVALID_FUNCTION_CALL.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          setTags:
+            returnType: object
+            args:
+              type: object
+              patternProperties:
+                "^tag_": {type: string}
+              additionalProperties: false
+            behavior: {returns_args: true}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: tags-2
+        callFunction:
+          "@call": setTags
+          catalogId: conformance/simplified
+          args: {color: red}
+  expect:
+    functionCallId: tags-2
+    error:
+      code: INVALID_FUNCTION_CALL
+
+- name: test_handle_agent_function_with_an_unknown_name
+  description: A call to a name no catalog registers as an agent function gets UNKNOWN_FUNCTION.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchFxRate:
+            returnType: number
+            args: {type: object, properties: {base: {type: string}}}
+            behavior: {returns: 1.08}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: u-1
+        callFunction:
+          "@call": fetchStockPrice
+          catalogId: conformance/simplified
+          args: {}
+  expect:
+    functionCallId: u-1
+    error:
+      code: UNKNOWN_FUNCTION
+
+- name: test_handle_agent_function_in_an_unknown_catalog
+  description: A call that names a catalog the agent does not have gets UNKNOWN_FUNCTION, even when another catalog registers the name.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchFxRate:
+            returnType: number
+            args: {type: object, properties: {base: {type: string}}}
+            behavior: {returns: 1.08}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: u-2
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: https://example.com/other/catalog.json
+          args: {base: EUR}
+  expect:
+    functionCallId: u-2
+    error:
+      code: UNKNOWN_FUNCTION
+
+- name: test_handle_agent_function_for_a_renderer_function
+  description: >-
+    A function the catalog declares for the renderer to run is not an agent function, so a call to it gets UNKNOWN_FUNCTION.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchFxRate:
+            returnType: number
+            args: {type: object, properties: {base: {type: string}}}
+            behavior: {returns: 1.08}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: u-3
+        callFunction:
+          "@call": formatString
+          catalogId: conformance/simplified
+          args: {value: Hello}
+  expect:
+    functionCallId: u-3
+    error:
+      code: UNKNOWN_FUNCTION
+
+- name: test_handle_agent_function_whose_handler_fails
+  description: >-
+    A handler that fails gets EXECUTION_ERROR. The message of an ordinary failure is SDK-defined and may be redacted, so the case does not check it.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchFxRate:
+            returnType: number
+            args: {type: object, properties: {base: {type: string}}}
+            behavior:
+              raises: {message: "rate service unavailable"}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: e-1
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: conformance/simplified
+          args: {base: EUR}
+  expect:
+    functionCallId: e-1
+    error:
+      code: EXECUTION_ERROR
+
+- name: test_handle_agent_function_whose_handler_fails_with_a_validation_error
+  description: >-
+    A handler that fails with the SDK's validation error has failed like any other handler: the call gets EXECUTION_ERROR with the error's message, not INVALID_FUNCTION_CALL, which is only for arguments that fail the function's schema.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchFxRate:
+            returnType: number
+            args: {type: object, properties: {base: {type: string}}}
+            behavior:
+              raises: {validation: true, message: "unsupported currency pair EUR/XYZ"}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: e-3
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: conformance/simplified
+          args: {base: EUR}
+  expect:
+    functionCallId: e-3
+    error:
+      code: EXECUTION_ERROR
+      message: "unsupported currency pair EUR/XYZ"
+
+- name: test_handle_agent_function_whose_handler_fails_with_its_own_code
+  description: >-
+    A handler that fails with an RPC error code of its choosing sends that code instead of EXECUTION_ERROR.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchFxRate:
+            returnType: number
+            args: {type: object, properties: {base: {type: string}}}
+            behavior:
+              raises: {code: PROVIDER_NOT_FOUND, message: "no rate provider for EUR"}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: e-2
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: conformance/simplified
+          args: {base: EUR}
+  expect:
+    functionCallId: e-2
+    error:
+      code: PROVIDER_NOT_FOUND
+      message: "no rate provider for EUR"
+
+- name: test_handle_agent_function_picks_the_catalog_the_call_names
+  description: >-
+    Two catalogs may each register an agent function of the same name, and a call runs the one in the catalog it names.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          lookup:
+            returnType: string
+            args: {type: object, properties: {}}
+            behavior: {returns: "from simplified"}
+      - catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+        agent_functions:
+          lookup:
+            returnType: string
+            args: {type: object, properties: {}}
+            behavior: {returns: "from agent_functions"}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: m-1
+        callFunction:
+          "@call": lookup
+          catalogId: conformance/agent_functions
+          args: {}
+  expect:
+    functionCallId: m-1
+    value: "from agent_functions"
+
+- name: test_handle_agent_function_without_catalog_id_runs_the_only_match
+  description: >-
+    Renderers name the catalog on every call. A call that names none runs the agent function of that name if exactly one catalog registers it.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          lookup:
+            returnType: string
+            args: {type: object, properties: {}}
+            behavior: {returns: "from simplified"}
+      - catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+        agent_functions: {}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: m-2
+        callFunction:
+          "@call": lookup
+          args: {}
+  expect:
+    functionCallId: m-2
+    value: "from simplified"
+
+- name: test_handle_agent_function_without_catalog_id_and_no_match
+  description: A call that names no catalog, to a name no catalog registers, gets UNKNOWN_FUNCTION.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          lookup:
+            returnType: string
+            args: {type: object, properties: {}}
+            behavior: {returns: "from simplified"}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: m-3
+        callFunction:
+          "@call": search
+          args: {}
+  expect:
+    functionCallId: m-3
+    error:
+      code: UNKNOWN_FUNCTION
+
+- name: test_handle_agent_function_without_catalog_id_and_several_matches
+  description: >-
+    A call that names no catalog, to a name several catalogs register, is ambiguous and gets INVALID_FUNCTION_CALL rather than running either function.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          lookup:
+            returnType: string
+            args: {type: object, properties: {}}
+            behavior: {returns: "from simplified"}
+      - catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+        agent_functions:
+          lookup:
+            returnType: string
+            args: {type: object, properties: {}}
+            behavior: {returns: "from agent_functions"}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: m-4
+        callFunction:
+          "@call": lookup
+          args: {}
+  expect:
+    functionCallId: m-4
+    error:
+      code: INVALID_FUNCTION_CALL
+
+- name: test_handle_agent_function_with_a_malformed_message
+  description: >-
+    A message that carries a functionCallId but fails the callAgentFunction schema is answered with INVALID_FUNCTION_CALL.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchFxRate:
+            returnType: number
+            args: {type: object, properties: {base: {type: string}}}
+            behavior: {returns: 1.08}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: bad-1
+  expect:
+    functionCallId: bad-1
+    error:
+      code: INVALID_FUNCTION_CALL
+
+- name: test_handle_agent_function_with_a_message_without_call_id
+  description: >-
+    A message without a functionCallId cannot be answered, since a response must copy it, so handling it fails instead.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchFxRate:
+            returnType: number
+            args: {type: object, properties: {base: {type: string}}}
+            behavior: {returns: 1.08}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: conformance/simplified
+          args: {base: EUR}
+  expect_error:
+    category: ValidationError
+
+- name: test_handle_agent_function_built_from_the_catalog_declaration
+  description: >-
+    An agent function built from the catalog's own declaration (from_api) validates the call against that declaration and runs.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+        agent_functions:
+          notify:
+            from_api: true
+            behavior: {returns_args: true}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: n-1
+        callFunction:
+          "@call": notify
+          catalogId: conformance/agent_functions
+          args: {message: Saved}
+  expect:
+    functionCallId: n-1
+    value: {message: Saved}
+
+- name: test_handle_agent_function_with_an_empty_name
+  description: A call whose function name is empty is answered with INVALID_FUNCTION_CALL.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchFxRate:
+            returnType: number
+            args: {type: object, properties: {base: {type: string}}}
+            behavior: {returns: 1.08}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: x-1
+        callFunction:
+          "@call": ""
+          catalogId: conformance/simplified
+          args: {}
+  expect:
+    functionCallId: x-1
+    error:
+      code: INVALID_FUNCTION_CALL
+
+- name: test_handle_agent_function_with_return_type_on_wire_call
+  description: >-
+    In v1.0, returnType belongs only on catalog function definitions, not on wire FunctionCall envelopes, so a callAgentFunction.callFunction carrying returnType gets INVALID_FUNCTION_CALL.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchFxRate:
+            returnType: number
+            args: {type: object, properties: {base: {type: string}}}
+            behavior: {returns: 1.08}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: x-2
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: conformance/simplified
+          args: {base: EUR}
+          returnType: number
+  expect:
+    functionCallId: x-2
+    error:
+      code: INVALID_FUNCTION_CALL
+
+# --- Validating model output that calls agent functions ---
+
+- name: test_validate_payload_with_a_call_to_a_declared_agent_function
+  description: >-
+    Model output that calls an agent function the catalog declares validates like a call to any other declared function.
+  action: validate_payload
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchGreeting:
+            returnType: string
+            args:
+              type: object
+              properties:
+                name: {type: string}
+              required: [name]
+              additionalProperties: false
+            behavior: {returns: "Hello"}
+    messages:
+      - version: "1.0"
+        createSurface:
+          surfaceId: s1
+          catalogId: conformance/simplified
+          components:
+            - id: root
+              component: Text
+              text:
+                "@call": fetchGreeting
+                args: {name: Ada}
+  expect_valid: true
+
+- name: test_validate_payload_with_a_call_to_an_undeclared_function
+  description: >-
+    Declaring agent functions does not open the catalog: a call to a function that is neither declared nor an agent function is still rejected.
+  action: validate_payload
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchGreeting:
+            returnType: string
+            args:
+              type: object
+              properties:
+                name: {type: string}
+              required: [name]
+              additionalProperties: false
+            behavior: {returns: "Hello"}
+    messages:
+      - version: "1.0"
+        createSurface:
+          surfaceId: s1
+          catalogId: conformance/simplified
+          components:
+            - id: root
+              component: Text
+              text:
+                "@call": fetchFarewell
+                args: {name: Ada}
+  expect_error:
+    category: ValidationError
+    message: fetchFarewell
+
+- name: test_validate_payload_with_invalid_arguments_to_an_agent_function
+  description: Model output that calls an agent function with arguments its schema rejects is invalid.
+  action: validate_payload
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchGreeting:
+            returnType: string
+            args:
+              type: object
+              properties:
+                name: {type: string}
+              required: [name]
+              additionalProperties: false
+            behavior: {returns: "Hello"}
+    messages:
+      - version: "1.0"
+        createSurface:
+          surfaceId: s1
+          catalogId: conformance/simplified
+          components:
+            - id: root
+              component: Text
+              text:
+                "@call": fetchGreeting
+                args: {nickname: Ada}
+  expect_error:
+    category: ValidationError
+
+# --- Routing renderer messages ---
+
+- name: test_process_action_with_its_callback
+  description: >-
+    With on_action set, an action is validated, handed to the callback, and handled with no replies.
+  action: process_renderer_message
+  args:
+    callbacks: [action]
+    message:
+      version: "1.0"
+      action:
+        name: submit
+        surfaceId: s1
+        sourceComponentId: b1
+        timestamp: "2026-01-01T00:00:00Z"
+        context: {}
+  expect:
+    handled: true
+    callback:
+      kind: action
+      message:
+        version: "1.0"
+        action:
+          name: submit
+          surfaceId: s1
+          sourceComponentId: b1
+          timestamp: "2026-01-01T00:00:00Z"
+          context: {}
+
+- name: test_process_action_without_its_callback
+  description: >-
+    Without on_action, an action is not handled, so a framework passes it on to the model's turn.
+  action: process_renderer_message
+  args:
+    callbacks: [error, rendererFunctionResponse]
+    message:
+      version: "1.0"
+      action:
+        name: submit
+        surfaceId: s1
+        sourceComponentId: b1
+        timestamp: "2026-01-01T00:00:00Z"
+        context: {}
+  expect:
+    handled: false
+
+- name: test_process_error_with_its_callback
+  description: With on_error set, an error message is validated, handed to the callback, and handled with no replies.
+  action: process_renderer_message
+  args:
+    callbacks: [error]
+    message:
+      version: "1.0"
+      error:
+        code: EXPRESSION_ERROR
+        message: formatDate failed
+        surfaceId: s1
+  expect:
+    handled: true
+    callback:
+      kind: error
+      message:
+        version: "1.0"
+        error:
+          code: EXPRESSION_ERROR
+          message: formatDate failed
+          surfaceId: s1
+
+- name: test_process_error_without_its_callback
+  description: Without on_error, an error message is not handled.
+  action: process_renderer_message
+  args:
+    message:
+      version: "1.0"
+      error:
+        code: EXPRESSION_ERROR
+        message: formatDate failed
+        surfaceId: s1
+  expect:
+    handled: false
+
+- name: test_process_renderer_function_response_with_its_callback
+  description: >-
+    With on_renderer_function_response set, a rendererFunctionResponse is validated, handed to the callback, and handled with no replies.
+  action: process_renderer_message
+  args:
+    callbacks: [rendererFunctionResponse]
+    message:
+      version: "1.0"
+      rendererFunctionResponse:
+        functionCallId: r-1
+        value: "12:00"
+  expect:
+    handled: true
+    callback:
+      kind: rendererFunctionResponse
+      message:
+        version: "1.0"
+        rendererFunctionResponse:
+          functionCallId: r-1
+          value: "12:00"
+
+- name: test_process_renderer_function_response_without_its_callback
+  description: Without on_renderer_function_response, a rendererFunctionResponse is not handled.
+  action: process_renderer_message
+  args:
+    callbacks: [action]
+    message:
+      version: "1.0"
+      rendererFunctionResponse:
+        functionCallId: r-1
+        value: "12:00"
+  expect:
+    handled: false
+
+- name: test_process_malformed_action_with_its_callback
+  description: >-
+    With on_action set, an action that fails its schema is a validation error, and the callback does not run.
+  action: process_renderer_message
+  args:
+    callbacks: [action]
+    message:
+      version: "1.0"
+      action:
+        name: submit
+  expect_error:
+    category: ValidationError
+
+- name: test_process_malformed_action_without_its_callback
+  description: >-
+    Without on_action, an action body is not schema-validated, so one missing required fields is left unhandled rather than rejected.
+  action: process_renderer_message
+  args:
+    callbacks: [error, rendererFunctionResponse]
+    message:
+      version: "1.0"
+      action:
+        name: submit
+  expect:
+    handled: false
+
+- name: test_process_message_with_an_unknown_key
+  description: A message that is none of the renderer-to-agent messages is a validation error.
+  action: process_renderer_message
+  args:
+    callbacks: [action, error, rendererFunctionResponse]
+    message:
+      version: "1.0"
+      updateComponents:
+        surfaceId: s1
+        components: []
+  expect_error:
+    category: ValidationError
+
+- name: test_process_message_with_extra_key_without_callback
+  description: >-
+    Every parsed JSON message must have version "1.0" and one message-kind key, so an extra top-level key is a validation error even when no callback is set.
+  action: process_renderer_message
+  args:
+    message:
+      version: "1.0"
+      action:
+        name: submit
+        surfaceId: s1
+        sourceComponentId: b1
+        timestamp: "2026-01-01T00:00:00Z"
+        context: {}
+      extra: true
+  expect_error:
+    category: ValidationError
+
+- name: test_process_call_agent_function_is_always_handled
+  description: >-
+    A callAgentFunction is handled without any callback, with exactly one agentFunctionResponse.
+  action: process_renderer_message
+  args:
+    catalog:
+      catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      agent_functions:
+        fetchFxRate:
+          returnType: number
+          args: {type: object, properties: {base: {type: string}}}
+          behavior: {returns: 1.08}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: p-1
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: conformance/simplified
+          args: {base: EUR}
+  expect:
+    handled: true
+    replies:
+      - version: "1.0"
+        agentFunctionResponse:
+          functionCallId: p-1
+          value: 1.08
+
+- name: test_process_call_agent_function_with_an_empty_call_id
+  description: >-
+    A callAgentFunction with an empty functionCallId can't be answered, so processing it is a validation error.
+  action: process_renderer_message
+  args:
+    catalog:
+      catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      agent_functions:
+        fetchFxRate:
+          returnType: number
+          args: {type: object, properties: {base: {type: string}}}
+          behavior: {returns: 1.08}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: ""
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: conformance/simplified
+          args: {base: EUR}
+  expect_error:
+    category: ValidationError
+
+- name: test_process_call_agent_function_with_an_empty_surface_id
+  description: >-
+    A callAgentFunction with an empty surfaceId is answered with INVALID_FUNCTION_CALL, and the handler does not run.
+  action: process_renderer_message
+  args:
+    catalog:
+      catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      agent_functions:
+        fetchFxRate:
+          returnType: number
+          args: {type: object, properties: {base: {type: string}}}
+          behavior: {returns: 1.08}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: ""
+        functionCallId: p-2
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: conformance/simplified
+          args: {base: EUR}
+  expect:
+    handled: true
+    replies:
+      - version: "1.0"
+        agentFunctionResponse:
+          functionCallId: p-2
+          error:
+            code: INVALID_FUNCTION_CALL
+
+- name: test_process_message_without_a_version
+  description: >-
+    Parsed JSON must have version "1.0", as renderer_to_agent.json requires, so a message without one is a validation error even when no callback would take it.
+  action: process_renderer_message
+  args:
+    message:
+      action:
+        name: submit
+        surfaceId: s1
+        sourceComponentId: b1
+        timestamp: "2026-01-01T00:00:00Z"
+        context: {}
+  expect_error:
+    category: ValidationError
+
+- name: test_process_message_with_another_version
+  description: A message whose version is "v1.0" rather than "1.0" is a validation error, and its callback does not run.
+  action: process_renderer_message
+  args:
+    callbacks: [action]
+    message:
+      version: "v1.0"
+      action:
+        name: submit
+        surfaceId: s1
+        sourceComponentId: b1
+        timestamp: "2026-01-01T00:00:00Z"
+        context: {}
+  expect_error:
+    category: ValidationError
+
+- name: test_process_call_agent_function_with_another_version
+  description: >-
+    The version check comes first for every kind of message, so a callAgentFunction whose version is "0.9" is a validation error, not answered with INVALID_FUNCTION_CALL.
+  action: process_renderer_message
+  args:
+    catalog:
+      catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      agent_functions:
+        fetchFxRate:
+          returnType: number
+          args: {type: object, properties: {base: {type: string}}}
+          behavior: {returns: 1.08}
+    message:
+      version: "0.9"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: v-1
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: conformance/simplified
+          args: {base: EUR}
+  expect_error:
+    category: ValidationError
+
+- name: test_process_action_declined_by_its_callback
+  description: >-
+    A callback may decline a message (by returning false), which then is not handled and has no replies, so it goes on to the model's turn.
+  action: process_renderer_message
+  args:
+    callbacks:
+      - {kind: action, declines: true}
+    message:
+      version: "1.0"
+      action:
+        name: chat
+        surfaceId: s1
+        sourceComponentId: b1
+        timestamp: "2026-01-01T00:00:00Z"
+        context: {}
+  expect:
+    handled: false
+    callback:
+      kind: action
+      message:
+        version: "1.0"
+        action:
+          name: chat
+          surfaceId: s1
+          sourceComponentId: b1
+          timestamp: "2026-01-01T00:00:00Z"
+          context: {}
+
+- name: test_process_with_two_catalogs_of_one_id
+  description: Building the processor from two catalogs with the same id is a catalog error.
+  action: process_renderer_message
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchFxRate:
+            returnType: number
+            args: {type: object, properties: {base: {type: string}}}
+            behavior: {returns: 1.08}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: d-1
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: conformance/simplified
+          args: {base: EUR}
+  expect_error:
+    category: CatalogError
