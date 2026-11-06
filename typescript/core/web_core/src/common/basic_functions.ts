@@ -457,18 +457,18 @@ function adaptAstPartForV10(part: any, catalogId?: string): any {
   if (
     Object.hasOwn(part, 'path') &&
     typeof part.path === 'string' &&
+    !Object.hasOwn(part, 'componentId') &&
     !Object.hasOwn(part, '@path')
   ) {
     return {'@path': part.path};
   }
-  if (
-    Object.hasOwn(part, 'call') &&
-    typeof part.call === 'string' &&
-    !Object.hasOwn(part, '@call')
-  ) {
-    const callName = part.call;
+  const hasCall = Object.hasOwn(part, 'call') && typeof part.call === 'string';
+  const hasAtCall = Object.hasOwn(part, '@call') && typeof part['@call'] === 'string';
+  const callName: string | undefined =
+    hasCall && !hasAtCall ? part.call : hasAtCall ? part['@call'] : undefined;
+  if (callName !== undefined) {
     const args: Record<string, unknown> = {};
-    if (part.args && typeof part.args === 'object') {
+    if (part.args && typeof part.args === 'object' && !Array.isArray(part.args)) {
       for (const [k, v] of Object.entries(part.args)) {
         args[k] = adaptAstPartForV10(v, catalogId);
       }
@@ -476,9 +476,10 @@ function adaptAstPartForV10(part: any, catalogId?: string): any {
     const adapted: Record<string, unknown> = {
       '@call': callName,
       args,
-      returnType: part.returnType,
     };
-    if (catalogId !== undefined && !callName.startsWith('@')) {
+    if (Object.hasOwn(part, 'catalogId') && part.catalogId !== undefined) {
+      adapted['catalogId'] = part.catalogId;
+    } else if (catalogId !== undefined && !callName.startsWith('@')) {
       adapted['catalogId'] = catalogId;
     }
     return adapted;
