@@ -144,7 +144,8 @@ export function nestedCallRunsInCatalog(
  * system functions belong to no catalog: they are always validated fully, and
  * a `catalogId` on one is rejected. A call held in a component is a renderer
  * call, so a fully checked call may not call an `agentOnly` function (see
- * `assertRendererMayCall`).
+ * `assertRendererMayCall`). Below v1.0, which has no `allowedCallers`, that
+ * check is skipped.
  *
  * A component that names no `catalogId` is taken to be in the surface's
  * default catalog, where calls that name none run, so its catalogless calls
@@ -405,7 +406,8 @@ export class PayloadValidator {
     const rawArgs = record['args'];
     const argsDict = (rawArgs !== undefined ? rawArgs : {}) as Record<string, unknown>;
     if (!this.enforceIdentifiers) {
-      assertRendererMayCall(this.catalog, rawName);
+      // `allowedCallers` arrived in v1.0, so below it a binding may call any
+      // function the catalog declares.
       this.validateFunction(rawName, argsDict);
       return;
     }

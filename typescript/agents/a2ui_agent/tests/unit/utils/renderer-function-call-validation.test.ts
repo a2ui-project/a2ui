@@ -260,7 +260,6 @@ describe('callRendererFunction validation', () => {
   it.each([
     ['same catalog', {'@call': 'scrollTo', args: {id: 'x'}}],
     ['another catalog', {'@call': 'formatString', catalogId: BASIC_ID, args: {value: 'hi'}}],
-    ['system function in a list', [{'@call': '@index'}]],
   ])('accepts a call nested in untyped arguments: %s', (_, value) => {
     expect(() => validatePayload(CATALOGS, [call('echo', {args: {value}})])).not.toThrow();
   });
@@ -288,8 +287,32 @@ describe('callRendererFunction validation', () => {
       /system functions belong to no catalog/,
     ],
     ['unknown system function', {'@call': '@nope'}, /holds a call to '@nope' that is invalid/],
+    [
+      '@index outside a list template',
+      {'@call': '@index'},
+      /holds a call to '@index', but the arguments are resolved outside any list template/,
+    ],
+    ['@index in a list', [{'@call': '@index'}], /outside any list template/],
+    ['@index with null args', {'@call': '@index', args: null}, /'args' must be an object/],
+    [
+      'binding with a non-string @path',
+      {'@path': 5},
+      /holds a data binding whose '@path' must be a string/,
+    ],
+    [
+      'binding with an extra field',
+      {'@path': '/user/name', bogus: 1},
+      /holds a data binding with unrecognized field 'bogus'/,
+    ],
   ])('checks a call nested in the arguments: %s', (_, value, match) => {
     expect(() => validatePayload(CATALOGS, [call('echo', {args: {value}})])).toThrow(match);
+  });
+
+  it.each([
+    ['absolute path', {'@path': '/user/name'}],
+    ['relative path', {'@path': 'name'}],
+  ])('accepts a data binding in the arguments: %s', (_, value) => {
+    expect(() => validatePayload(CATALOGS, [call('echo', {args: {value}})])).not.toThrow();
   });
 
   it('does not run the function', async () => {
@@ -569,10 +592,7 @@ describe('callRendererFunction validation', () => {
       );
       const named = {...formatString, catalogId: BASIC_ID};
       expect(() =>
-        validatePayload(CATALOGS, [
-          bare,
-          call('echo', {args: {label: named, index: {'@call': '@index'}}, surfaceId: 's'}),
-        ]),
+        validatePayload(CATALOGS, [bare, call('echo', {args: {label: named}, surfaceId: 's'})]),
       ).not.toThrow();
     });
 

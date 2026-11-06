@@ -1338,7 +1338,10 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     currentPath: string,
   ): void {
     try {
-      assertRendererMayCall(target, name);
+      // `allowedCallers` arrived in v1.0, as `PayloadValidator` also assumes.
+      if (isAtLeastVersion(target.protocolVersion, '1.0')) {
+        assertRendererMayCall(target, name);
+      }
       new PayloadValidator(target, this.validationConfig).validateFunction(
         name,
         (rawArgs ?? {}) as Record<string, unknown>,

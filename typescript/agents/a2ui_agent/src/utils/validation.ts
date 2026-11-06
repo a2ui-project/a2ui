@@ -49,8 +49,11 @@ class PayloadState extends RendererState {
  * surface passes if one such catalog accepts it.
  *
  * A v1.0 `callRendererFunction` is checked against the catalogs, never run: its catalog must
- * be active and declare the function, the agent must be allowed to call the function, and
- * its arguments must match the function's schema. A surface it names must exist when it
+ * be active and declare the function, the agent must be allowed to call the function, which
+ * must not require a user activation, its arguments must match the function's schema, and
+ * the calls nested in them must be calls the renderer can make. The arguments are resolved
+ * outside any list template, so they may not call `@index`, and each data binding in them
+ * must hold a string `@path` and nothing else. A surface it names must exist when it
  * arrives, or be one the payload never named before, which an earlier payload may have
  * created.
  *

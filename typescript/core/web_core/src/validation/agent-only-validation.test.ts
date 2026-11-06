@@ -204,3 +204,59 @@ describe('agentOnly functions of another catalog in components', () => {
     );
   });
 });
+
+describe('agentOnly functions in v0.9 components', () => {
+  it('accepts one in a property binding, since allowedCallers is a v1.0 feature', () => {
+    const catalog = Catalog.fromJson({
+      catalogId: ARCANA_ID,
+      protocolVersion: '0.9',
+      components: {
+        Label: {
+          type: 'object',
+          properties: {
+            component: {const: 'Label'},
+            text: {$ref: 'common_types.json#/$defs/DynamicString'},
+          },
+          required: ['component', 'text'],
+        },
+      },
+      functions: {
+        getMoonPhase: {
+          type: 'object',
+          allowedCallers: 'agentOnly',
+          returnType: 'string',
+          properties: {
+            call: {const: 'getMoonPhase'},
+            args: {
+              type: 'object',
+              properties: {date: {type: 'string'}},
+              additionalProperties: false,
+            },
+          },
+          required: ['call'],
+        },
+      },
+    });
+    const processor = new MessageProcessor<ComponentApi>([catalog as never], undefined, {
+      validationConfig: STRICT_VALIDATION,
+    });
+    assert.doesNotThrow(() =>
+      processor.processMessages([
+        {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: ARCANA_ID}},
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's',
+            components: [
+              {
+                id: 'root',
+                component: 'Label',
+                text: {call: 'getMoonPhase', args: {date: 'today'}},
+              },
+            ] as never,
+          },
+        },
+      ] as never),
+    );
+  });
+});

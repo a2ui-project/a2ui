@@ -315,7 +315,8 @@ export class RendererState {
    * its catalog must be active and declare the function, the agent must be allowed to call
    * the function, which must not require a user activation, its arguments must match the
    * function's schema as written, and the calls nested in them must be calls the renderer
-   * can make.
+   * can make. The arguments are resolved outside any list template, so they may not call
+   * `@index`, and each data binding in them must hold a string `@path` and nothing else.
    *
    * The call is atomic: if a message is rejected, none of them is applied. Being atomic
    * costs what the messages change, not the size of the surfaces they touch.
@@ -1237,11 +1238,14 @@ function checkArgs(catalog: CatalogApi, name: string, args: unknown, subject: st
  *
  * The renderer resolves each one as it resolves the arguments, as a renderer call. Every
  * object in the arguments, a call or not, must hold no unrecognized reserved `@` directive.
- * A call must hold no field but `@call`, `catalogId` and `args`, a string `catalogId` and an
- * object `args`, if any; see `checkNestedCall`. An object whose `@call` is not a string is no
- * call, and the renderer resolves its values, so they are checked too.
+ * An object with `@path` is a data binding, so it must hold a string `@path` and nothing
+ * else; a relative path is allowed. A call must hold no field but `@call`, `catalogId` and
+ * `args`, a string `catalogId` and an object `args`, if any; see `checkNestedCall`. An object
+ * whose `@call` is not a string is no call, and the renderer resolves its values, so they
+ * are checked too.
  *
- * @throws {A2uiValidationError} If a nested call is one the renderer can't make.
+ * @throws {A2uiValidationError} If a nested call is one the renderer can't make, or a data
+ *     binding is malformed.
  */
 function checkNestedCalls(context: NestedCallContext, value: unknown): void {
   if (Array.isArray(value)) {
@@ -1252,9 +1256,32 @@ function checkNestedCalls(context: NestedCallContext, value: unknown): void {
   asValidationError(() =>
     validateReservedDirectives(Object.keys(value), context.catalog.protocolVersion),
   );
+  if (Object.hasOwn(value, '@path')) {
+    checkDataBinding(context.subject, value);
+    return;
+  }
   const name = value['@call'];
   if (typeof name === 'string') checkNestedCall(context, value, name);
   for (const item of Object.values(value)) checkNestedCalls(context, item);
+}
+
+/**
+ * Checks a data binding in a `callRendererFunction`'s arguments: a string `@path` and no
+ * other field, as the `DataBinding` schema requires.
+ */
+function checkDataBinding(subject: string, binding: Message): void {
+  if (typeof binding['@path'] !== 'string') {
+    throw new A2uiValidationError(
+      `${subject} holds a data binding whose '@path' must be a string.`,
+    );
+  }
+  for (const key of Object.keys(binding)) {
+    if (key !== '@path') {
+      throw new A2uiValidationError(
+        `${subject} holds a data binding with unrecognized field '${key}'.`,
+      );
+    }
+  }
 }
 
 /**
@@ -1263,7 +1290,8 @@ function checkNestedCalls(context: NestedCallContext, value: unknown): void {
  * A call that names a catalog runs in it, which must be one of the catalogs. One that names
  * none runs where `context.home` says. The renderer can't run an `agentOnly` function there,
  * nor one that requires a user activation, since the agent's call has none. A reserved `@`
- * system function belongs to no catalog, so it must not name one.
+ * system function belongs to no catalog, so it must not name one. The renderer resolves the
+ * arguments outside any list template, so `@index` has no item to report and is refused.
  */
 function checkNestedCall(context: NestedCallContext, record: Message, name: string): void {
   const {catalogs, home, subject} = context;
@@ -1282,6 +1310,11 @@ function checkNestedCall(context: NestedCallContext, record: Message, name: stri
     if (Object.hasOwn(record, 'catalogId')) {
       throw new A2uiValidationError(
         `${where} names a catalogId, but system functions belong to no catalog.`,
+      );
+    }
+    if (name === '@index') {
+      throw new A2uiValidationError(
+        `${holds}, but the arguments are resolved outside any list template, where '@index' fails.`,
       );
     }
     try {
