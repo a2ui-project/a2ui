@@ -21,10 +21,38 @@ import 'package:test/test.dart';
 
 const String _catId = 'https://example.com/finance.json';
 
+final class _ScrollImpl extends FunctionImplementation {
+  final List<Map<String, dynamic>> seenCalls = <Map<String, dynamic>>[];
+
+  _ScrollImpl()
+    : super(
+        name: 'scrollIntoView',
+        returnType: A2uiReturnType.boolean,
+        allowedCallers: AllowedCallers.rendererOrAgent,
+        argumentSchema: Schema.fromMap({
+          'type': 'object',
+          'properties': {
+            'elementId': {'type': 'string'},
+          },
+          'required': ['elementId'],
+        }),
+      );
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) {
+    seenCalls.add(args);
+    return true;
+  }
+}
+
 void main() {
-  group('End-to-end agent functions', () {
-    test('round-trips callAgentFunction between MessageProcessor and '
-        'RendererToAgentMessageProcessor', () async {
+  group('End-to-end agent and renderer functions', () {
+    test('round-trips callAgentFunction and callRendererFunction between '
+        'MessageProcessor and RendererToAgentMessageProcessor', () async {
       final quote = AgentFunction(
         name: 'fetchQuote',
         returnType: A2uiReturnType.string,
@@ -37,7 +65,10 @@ void main() {
         }),
         handler: (args, ctx) => '${args['symbol']}: \$175.00',
       );
-      // The agent catalog holds the AgentFunction.
+      final scrollImpl = _ScrollImpl();
+
+      // The agent catalog holds the AgentFunction and the schema for
+      // scrollIntoView.
       final CatalogApi agentCatalog = Catalog(
         id: _catId,
         protocolVersion: A2uiProtocolVersion.v1_0,
@@ -53,19 +84,23 @@ void main() {
             }),
           ),
         ],
-        functions: [quote],
+        functions: [scrollImpl, quote],
       );
 
-      // The renderer catalog doesn't implement fetchQuote, so the renderer
-      // forwards it via callAgentFunction.
+      // The renderer catalog implements only scrollIntoView; it doesn't
+      // implement fetchQuote, so the renderer forwards it via
+      // callAgentFunction.
       final rendererCatalog = Catalog<ComponentApi, FunctionImplementation>(
         id: _catId,
         protocolVersion: A2uiProtocolVersion.v1_0,
         components: agentCatalog.components.values.toList(),
+        functions: [scrollImpl],
       );
 
+      final rendererCalls = RendererFunctionCalls();
       final agentProcessor = RendererToAgentMessageProcessor(
         catalogs: [agentCatalog],
+        onRendererFunctionResponse: rendererCalls.resolve,
       );
 
       late MessageProcessor rendererProcessor;
@@ -122,6 +157,24 @@ void main() {
           rootNode.props.value['text']! as ResolvedBinding<Object?>;
       expect(textBinding.value, 'GOOG: \$175.00');
       resolver.dispose();
+
+      // 3. Agent initiates callRendererFunction -> renderer executes
+      // scrollIntoView -> the processor resolves the Future.
+      final (
+        CallRendererFunctionMessage callMsg,
+        Future<Object?> resultFut,
+      ) = rendererCalls.call(
+        catalogId: _catId,
+        name: 'scrollIntoView',
+        args: const {'elementId': 'row-42'},
+        surfaceId: 'main',
+        functionCallId: 'rcall-e2e',
+      );
+      await rendererProcessor.processMessagesAsync([callMsg]);
+      expect(await resultFut, isTrue);
+      expect(scrollImpl.seenCalls, [
+        {'elementId': 'row-42'},
+      ]);
     });
   });
 }

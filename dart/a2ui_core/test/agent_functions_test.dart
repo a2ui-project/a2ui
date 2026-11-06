@@ -1349,6 +1349,14 @@ void main() {
       expect(contextualized.functionCallId, 'call-1');
     });
 
+    test('RpcErrorCode.tooManyPending reads TOO_MANY_PENDING', () {
+      expect(RpcErrorCode.tooManyPending.wireValue, 'TOO_MANY_PENDING');
+      expect(
+        RpcErrorCode.tryParse('TOO_MANY_PENDING'),
+        RpcErrorCode.tooManyPending,
+      );
+    });
+
     test('a custom code the protocol defines sets rpcCode', () {
       final known = A2uiRpcError.custom('Bad call', 'INVALID_FUNCTION_CALL');
       expect(known.code, 'INVALID_FUNCTION_CALL');

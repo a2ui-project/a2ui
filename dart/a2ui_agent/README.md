@@ -258,6 +258,49 @@ message that isn't a v1.0 renderer-to-agent message (its `version` must be
 `'1.0'`), or a `callAgentFunction` without a `functionCallId`, throws
 `A2uiValidationError`.
 
+### Calling renderer functions
+
+An agent that keeps a connection to the renderer open, such as a WebSocket,
+can call a renderer function and wait for its result with
+`RendererFunctionCalls`. Its `resolve` settles each call from the renderer's
+`rendererFunctionResponse`, and returns `false` for a response to a call it
+doesn't track, such as one the model wrote, so the processor declines that
+response and it reaches the model:
+
+```dart
+final calls = RendererFunctionCalls();
+final processor = RendererToAgentMessageProcessor(
+  catalogs: catalogs,
+  onRendererFunctionResponse: calls.resolve,
+);
+final (CallRendererFunctionMessage message, Future<Object?> result) = calls
+    .call(catalogId: catalogId, name: 'scrollIntoView', args: {'id': 'row-4'});
+sendToRenderer([message]);
+final Object? value = await result; // or throws A2uiRpcError
+```
+
+A call times out after 30 seconds unless given another timeout; give the
+tracker `defaultTimeout: null` for calls that never time out. `dispose`
+cancels the calls still pending, for example when the connection closes.
+
+`call` checks the call before sending anything and throws `A2uiRpcError`
+with `INVALID_FUNCTION_CALL` for an empty `functionCallId`, an empty name or
+catalog id, a name that isn't a UAX #31 identifier, or `args` whose keys
+aren't identifiers or whose values aren't JSON values (`NaN` and infinity
+included). Nested `@call` and `@path` objects in `args` are passed on as they
+are, for the renderer to check.
+
+Give `RendererFunctionCalls` the renderer's catalogs, as in
+`RendererFunctionCalls(catalogs: catalogs)`, and `call` refuses a call the
+renderer would refuse, throwing `A2uiRpcError` before anything is sent:
+`UNKNOWN_FUNCTION` when the catalog id names none of the catalogs or its
+catalog has no such renderer function (an agent function in the catalog runs
+on the agent, so it doesn't count), and `INVALID_FUNCTION_CALL` when the
+function's `allowedCallers` is `rendererOnly` (the default) or the function
+requires a user activation, which an agent's call doesn't have. Two catalogs
+with the same id throw `A2uiCatalogError`. Without catalogs, calls aren't
+checked.
+
 ## Tests
 
 [test/conformance](test/conformance) runs every shared agent suite this API
