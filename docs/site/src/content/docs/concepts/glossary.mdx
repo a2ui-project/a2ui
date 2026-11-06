@@ -41,7 +41,7 @@ The top-level coordinator class in an [Agent SDK](#agent-sdk) that holds the age
 
 For each session or request, calling `createProcessor` (in TypeScript and Dart) or `create_processor` (in Python) with the renderer's [capabilities](#capabilities) negotiates the active [catalogs](#catalog) and returns an `A2uiRequestProcessor` that generates system prompt instructions and parses and validates model responses against `RendererState`.
 
-See [Agent SDK](/concepts/sdks/#agent-sdk) and [How to Integrate with My Agent Server](../../guides/agent-integration/).
+See [Agent SDK](/concepts/sdks/#agent-sdk) and [How to Integrate A2UI into an Agent](../../guides/agent-integration/).
 
 ### Action
 
@@ -63,7 +63,7 @@ The application or service that emits [`agent_to_renderer`](#agent_to_renderer) 
 
 To decide what UI and data to emit, an agent typically calls a large language model (LLM), coordinates specialized subagents behind an orchestrator, or runs deterministic application logic (for example, in regulated workflows or automated tests). An agent can run on a server over transports such as AG-UI, Agent-to-Agent (A2A), Model Context Protocol (MCP), Server-Sent Events (SSE), or WebSockets, or inside the same client process as the renderer. Agents may be stateful (retaining negotiated [catalogs](#catalog) and `RendererState` across turns) or stateless (receiving renderer [capabilities](#capabilities) and surface [data model](#data-model) metadata on every request).
 
-See [Overview: How A2UI Works](../overview/) and [How to Integrate with My Agent Server](../../guides/agent-integration/).
+See [Overview: How A2UI Works](../overview/) and [How to Integrate A2UI into an Agent](../../guides/agent-integration/).
 
 ### Agent SDK
 
