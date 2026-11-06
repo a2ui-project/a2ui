@@ -408,5 +408,17 @@ describe('extractRefFields', () => {
     const emptyRecordRefs = extractRefFields(emptyAndStringRecord);
     assert.deepStrictEqual(emptyRecordRefs.get('child'), {kind: 'single'});
     assert.strictEqual(emptyRecordRefs.has('children'), false);
+
+    // Standalone template object on a non-`children` key is recognized as `list`,
+    // and array element classification respects pipelines and incompatible intersections.
+    const standaloneTemplateAndArrayElements = z.object({
+      itemsTemplate: z.object({componentId: z.string(), path: z.string()}),
+      pipedIds: z.array(ComponentIdSchema.pipe(z.string())),
+      invalidIntersectedIds: z.array(ComponentIdSchema.and(z.number())),
+    });
+    const elementParityRefs = extractRefFields(standaloneTemplateAndArrayElements);
+    assert.deepStrictEqual(elementParityRefs.get('itemsTemplate'), {kind: 'list'});
+    assert.deepStrictEqual(elementParityRefs.get('pipedIds'), {kind: 'list'});
+    assert.strictEqual(elementParityRefs.has('invalidIntersectedIds'), false);
   });
 });

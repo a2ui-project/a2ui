@@ -149,35 +149,14 @@ function checkJsonSchemaRef(
   return {isChild: false, isChildList: false};
 }
 
-function isArrayOfChild(
-  unwrappedOpt: z.ZodTypeAny,
-  options: ChildRefAnalysisOptions,
-  path: Set<unknown>,
-): boolean {
-  if (unwrappedOpt?._def?.typeName === 'ZodArray') {
-    return analyzeChildRefSchemaOnPath(unwrappedOpt._def.type, options, path).isChild;
-  }
-  return false;
-}
-
 function analyzeUnionOptions(
   options: z.ZodTypeAny[],
   analysisOptions: ChildRefAnalysisOptions,
   path: Set<unknown>,
 ): ChildRefAnalysis {
-  let hasTemplate = false;
-  let hasArrayOfChild = false;
   let hasChildRef = false;
 
   for (const opt of options) {
-    const unwrappedOpt = unwrapZodField(opt).schema;
-    if (isTemplateRefObject(unwrappedOpt)) {
-      hasTemplate = true;
-    }
-    if (isArrayOfChild(unwrappedOpt, analysisOptions, path)) {
-      hasArrayOfChild = true;
-    }
-
     const optRes = analyzeChildRefSchemaOnPath(opt, analysisOptions, path);
     if (optRes.isChildList) {
       return {isChild: false, isChildList: true};
@@ -187,9 +166,6 @@ function analyzeUnionOptions(
     }
   }
 
-  if (hasTemplate || hasArrayOfChild) {
-    return {isChild: false, isChildList: true};
-  }
   if (hasChildRef) {
     return {isChild: true, isChildList: false};
   }
@@ -359,6 +335,12 @@ function analyzeSchemaNode(
   }
 
   const field = unwrapZodField(schema as z.ZodTypeAny);
+  for (const s of field.traversed) {
+    if (s !== schema && path.has(s)) {
+      return {isChild: false, isChildList: false};
+    }
+  }
+
   const explicitMatch: ChildRefAnalysis | null = field.refs.has('child-list')
     ? {isChild: false, isChildList: true}
     : field.refs.has('component-id')
@@ -374,13 +356,19 @@ function analyzeSchemaNode(
     return {isChild: false, isChildList: false};
   }
 
+  const nextPath = new Set(path);
+  for (const s of field.traversed) {
+    nextPath.add(s);
+  }
+  nextPath.add(current);
+
   const typeName = current._def.typeName as string;
 
   // Zod's `.and()` copies the left operand's `description` onto the `ZodIntersection`,
   // so verify compatibility against both sides before trusting an outer marker.
   if (typeName === 'ZodIntersection') {
     const def = current._def as {left: z.ZodTypeAny; right: z.ZodTypeAny};
-    return analyzeIntersectedSchemas(def.left, def.right, options, path, explicitMatch);
+    return analyzeIntersectedSchemas(def.left, def.right, options, nextPath, explicitMatch);
   }
 
   if (explicitMatch?.isChildList) {
@@ -391,7 +379,7 @@ function analyzeSchemaNode(
   // so inspect all union branches before settling on `isChild: true`.
   const unionOptions = getUnionOptions(current);
   if (unionOptions) {
-    const unionRes = analyzeUnionOptions(unionOptions, options, path);
+    const unionRes = analyzeUnionOptions(unionOptions, options, nextPath);
     if (unionRes.isChildList) {
       return unionRes;
     }
@@ -406,7 +394,7 @@ function analyzeSchemaNode(
   }
 
   if (typeName === 'ZodArray') {
-    return analyzeZodArray(current._def.type as z.ZodTypeAny, options, path);
+    return analyzeZodArray(current._def.type as z.ZodTypeAny, options, nextPath);
   }
 
   if (typeName === 'ZodPipeline') {
@@ -415,11 +403,11 @@ function analyzeSchemaNode(
     const pipeOut = def['out'];
     const inField = unwrapZodField(pipeIn);
     if (inField.hasTransform) {
-      const inRes = analyzeChildRefSchemaOnPath(pipeIn, options, path);
+      const inRes = analyzeChildRefSchemaOnPath(pipeIn, options, nextPath);
       if (inRes.isChild || inRes.isChildList) {
         return inRes;
       }
-      const outRes = analyzeChildRefSchemaOnPath(pipeOut, options, path);
+      const outRes = analyzeChildRefSchemaOnPath(pipeOut, options, nextPath);
       if (outRes.isChildList && canSchemaHoldListRef(pipeIn, options)) {
         return {isChild: false, isChildList: true};
       }
@@ -428,7 +416,7 @@ function analyzeSchemaNode(
       }
       return {isChild: false, isChildList: false};
     }
-    return analyzeIntersectedSchemas(pipeIn, pipeOut, options, path);
+    return analyzeIntersectedSchemas(pipeIn, pipeOut, options, nextPath);
   }
 
   if (isTemplateRefObject(current)) {

@@ -50,7 +50,6 @@ export {
 } from './component-node.js';
 export * from './node-resolver.js';
 export {
-  extractRefDefName,
   extractRefFields,
   type ChildRefAnalysisOptions,
   type RefFields,

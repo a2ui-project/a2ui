@@ -39,6 +39,7 @@ import {MAX_DYNAMIC_VALUE_DEPTH} from './data-context.js';
 import {resolveSignalKeepingPending} from './data-context-internal.js';
 import {
   type UnwrappedZodField,
+  canSchemaHoldListRef,
   extractRefFields,
   getUnionOptions,
   isTemplateRefObject,
@@ -318,16 +319,10 @@ function isDynamicDef(defName: string, typeName?: string): boolean {
 }
 
 function isBooleanOrNullishOption(option: z.ZodTypeAny): boolean {
-  const field = unwrapZodField(option);
-  if (field.schema?._def?.typeName === 'ZodPipeline') {
-    const def = field.schema._def as {in: z.ZodTypeAny; out: z.ZodTypeAny};
-    if (unwrapZodField(def['in']).hasTransform) {
-      return isBooleanOrNullishOption(def['in']);
-    }
-    return isBooleanOrNullishOption(def['in']) || isBooleanOrNullishOption(def['out']);
-  }
-  const typeName = field.schema?._def?.typeName as string | undefined;
-  return typeName === 'ZodBoolean' || typeName === 'ZodNull' || typeName === 'ZodUndefined';
+  return somePipelineLeaf(option, leaf => {
+    const typeName = leaf?._def?.typeName as string | undefined;
+    return typeName === 'ZodBoolean' || typeName === 'ZodNull' || typeName === 'ZodUndefined';
+  });
 }
 
 function matchUnionBehavior(options: z.ZodTypeAny[]): BehaviorNode | undefined {
@@ -476,9 +471,10 @@ function getFieldBehavior(type: z.ZodTypeAny, visited = new Set<z.ZodTypeAny>())
   }
 
   if (
-    field.refs.has('child-list') ||
-    hasChildRefKind(type, 'child-list') ||
-    defName === 'ChildList'
+    (field.refs.has('child-list') ||
+      hasChildRefKind(type, 'child-list') ||
+      defName === 'ChildList') &&
+    canSchemaHoldListRef(type)
   ) {
     return {type: 'STRUCTURAL'};
   }
@@ -497,18 +493,24 @@ function getFieldBehavior(type: z.ZodTypeAny, visited = new Set<z.ZodTypeAny>())
     if (inField.hasTransform) {
       return getFieldBehavior(def['in'], nextVisited);
     }
-    return mergeIntersectedBehaviors(
+    const merged = mergeIntersectedBehaviors(
       getFieldBehavior(def['in'], nextVisited),
       getFieldBehavior(def['out'], nextVisited),
     );
+    return merged.type === 'STRUCTURAL' && !canSchemaHoldListRef(current)
+      ? {type: 'STATIC'}
+      : merged;
   }
 
   if (typeName === 'ZodIntersection') {
     const def = current._def as {left: z.ZodTypeAny; right: z.ZodTypeAny};
-    return mergeIntersectedBehaviors(
+    const merged = mergeIntersectedBehaviors(
       getFieldBehavior(def.left, nextVisited),
       getFieldBehavior(def.right, nextVisited),
     );
+    return merged.type === 'STRUCTURAL' && !canSchemaHoldListRef(current)
+      ? {type: 'STATIC'}
+      : merged;
   }
 
   // Structural matching for A2UI primitives and variant unions using typeName to avoid dual-module instanceof issues

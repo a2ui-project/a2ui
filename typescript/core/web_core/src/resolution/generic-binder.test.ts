@@ -1835,10 +1835,33 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       assert.deepStrictEqual(scrapedObj.shape.label, {type: 'DYNAMIC'});
       assert.deepStrictEqual(scrapedObj.shape.next, {type: 'STATIC'});
     }
+
+    const RecPipe: z.ZodTypeAny = z.lazy(() => RecPipe.pipe(z.boolean()));
+    const scrapedRecPipe = scrapeSchemaBehavior(
+      z.object({flag: z.union([CommonSchemas.DataBinding, RecPipe])}),
+    );
+    assert.strictEqual(scrapedRecPipe.type, 'OBJECT');
+    if (scrapedRecPipe.type === 'OBJECT') {
+      assert.deepStrictEqual(scrapedRecPipe.shape.flag, {type: 'DYNAMIC', isBoolean: true});
+    }
   });
 
   it('binds dynamic, action, and structural properties across ZodIntersection, ZodPipeline, ZodCatch, and object-variant unions', () => {
     const componentIdSchema = z.string().describe('REF:common_types.json#/$defs/ComponentId');
+    assert.deepStrictEqual(scrapeSchemaBehavior(CommonSchemas.ChildList.and(z.number())), {
+      type: 'STATIC',
+    });
+    assert.deepStrictEqual(scrapeSchemaBehavior(CommonSchemas.ChildList.pipe(z.number())), {
+      type: 'STATIC',
+    });
+    assert.deepStrictEqual(
+      scrapeSchemaBehavior(z.union([componentIdSchema, CommonSchemas.ChildList]).and(z.string())),
+      {type: 'STATIC'},
+    );
+    assert.deepStrictEqual(scrapeSchemaBehavior(CommonSchemas.ChildList.and(z.array(z.string()))), {
+      type: 'STRUCTURAL',
+    });
+
     const variantUnionSchema = z.discriminatedUnion('mode', [
       z.object({
         mode: z.literal('card'),

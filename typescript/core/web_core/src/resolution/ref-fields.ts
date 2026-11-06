@@ -753,7 +753,11 @@ function classifyExplicitProperty(
     return classifyIntersectedProperty(def.left, def.right, nextVisited, options, field);
   }
 
-  if (marksChildList(field, options) || isChildListUnion(field.schema)) {
+  if (
+    marksChildList(field, options) ||
+    isChildListUnion(field.schema) ||
+    isTemplateRefObject(field.schema)
+  ) {
     return {kind: 'list'};
   }
 
@@ -777,10 +781,12 @@ function classifyExplicitProperty(
 
   if (typeName === 'ZodArray') {
     const rawElement = field.schema._def.type as z.ZodTypeAny;
-    const element = unwrapZodField(rawElement);
-    // A plain array of component ids: the marker sits on the element
-    // rather than the property (z.array(ComponentIdSchema)).
-    if (marksComponentId(element, options) || marksChildList(element, options)) {
+    // A plain array of component ids or child lists: classify the element
+    // recursively so pipelines (`ComponentIdSchema.pipe(z.string())`) and
+    // incompatible intersections (`ComponentIdSchema.and(z.number())`) are
+    // handled consistently.
+    const elementKind = classifyExplicitProperty(rawElement, new Set(nextVisited), options);
+    if (elementKind?.kind === 'single' || elementKind?.kind === 'list') {
       return {kind: 'list'};
     }
     const elementAnalysis = analyzeSchema(rawElement, nextVisited, options);

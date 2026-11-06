@@ -557,4 +557,51 @@ describe('reference-map schema introspection', () => {
       isChildList: true,
     });
   });
+
+  it('terminates cleanly on wrapped recursive z.lazy arrays and unions in analyzeChildRefSchema', () => {
+    const childSchema = z.string().describe('REF:#/$defs/Child');
+    const childListSchema = z.array(childSchema).describe('REF:#/$defs/ChildList');
+
+    const RecursiveOptionalArray: z.ZodTypeAny = z.lazy(() =>
+      z.array(RecursiveOptionalArray.optional()),
+    );
+    assert.deepStrictEqual(analyzeChildRefSchema(RecursiveOptionalArray, V10_CHILD_REF_OPTIONS), {
+      isChild: false,
+      isChildList: false,
+    });
+
+    const RecursiveNullableUnion: z.ZodTypeAny = z.lazy(() =>
+      z.union([z.string(), RecursiveNullableUnion.nullable()]),
+    );
+    assert.deepStrictEqual(analyzeChildRefSchema(RecursiveNullableUnion, V10_CHILD_REF_OPTIONS), {
+      isChild: false,
+      isChildList: false,
+    });
+
+    const RecursiveUnionWithChild: z.ZodTypeAny = z.lazy(() =>
+      z.union([RecursiveUnionWithChild.optional(), childSchema]),
+    );
+    assert.deepStrictEqual(analyzeChildRefSchema(RecursiveUnionWithChild, V10_CHILD_REF_OPTIONS), {
+      isChild: true,
+      isChildList: false,
+    });
+
+    const RecursiveUnionWithChildList: z.ZodTypeAny = z.lazy(() =>
+      z.union([RecursiveUnionWithChildList.optional(), childListSchema]),
+    );
+    assert.deepStrictEqual(
+      analyzeChildRefSchema(RecursiveUnionWithChildList, V10_CHILD_REF_OPTIONS),
+      {
+        isChild: false,
+        isChildList: true,
+      },
+    );
+
+    // Sibling union branches reusing the same schema instance remain analyzed.
+    const sharedChild = childSchema.optional();
+    assert.deepStrictEqual(
+      analyzeChildRefSchema(z.union([sharedChild, sharedChild]), V10_CHILD_REF_OPTIONS),
+      {isChild: true, isChildList: false},
+    );
+  });
 });
