@@ -470,6 +470,26 @@
   expect:
     - text: "No interface this turn, just an answer."
 
+- name: test_parse_response_express_tags_remain_plain_text
+  description: Express <a2ui> tags inside a Direct JSON session are not recognized as payload sentinels and remain conversational text.
+  action: parse_response
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    Do not emit Express blocks in this session:
+    <a2ui>
+    surface("s1")
+    root = Text("Hello")
+    </a2ui>
+  expect:
+    - text: |-
+        Do not emit Express blocks in this session:
+        <a2ui>
+        surface("s1")
+        root = Text("Hello")
+        </a2ui>
+
 - name: test_parse_response_unwrapped_compiles_the_whole_body
   features: [F-AGT-19]
   description: A response the case declares unwrapped is handed to the compiler whole, with no tags to look for.
@@ -496,3 +516,21 @@
     <a2ui-json>here is your surface</a2ui-json>
   expect_error:
     category: "ParseError"
+
+- name: test_parse_response_call_renderer_function_renderer_or_agent_succeeds
+  description: A callRendererFunction message calling a rendererOrAgent function succeeds through the response parser.
+  action: parse_response
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '<a2ui-json>[{"version": "1.0", "callRendererFunction": {"functionCallId": "call_1", "callFunction": {"catalogId": "conformance/agent_functions", "@call": "notify", "args": {"message": "Saved"}}}}]</a2ui-json>'
+  expect:
+    - a2ui:
+        - version: "1.0"
+          callRendererFunction:
+            functionCallId: "call_1"
+            callFunction:
+              catalogId: "conformance/agent_functions"
+              "@call": "notify"
+              args:
+                message: "Saved"

@@ -523,6 +523,101 @@
                     component: "Text"
                     text: "Second"
 
+- name: test_express_stream_rootless_scope_updates_existing_surface_without_update_flag
+  description: Updating an existing surface via a rootless surface() scope without update=true holds pending variable references and flushes updateComponents and updateDataModel on close, matching single-shot parsing.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Card(body)\nbody = Text(\"Initial\")\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Card"
+                    child: "body"
+                  - id: "body"
+                    component: "Text"
+                    text: "Initial"
+    - input: "<a2ui>\nsurface(\"s1\")\nbody = Text(label)\n"
+      expect: []
+    - input: "label = \"Updated\"\n$/title = \"Menu\"\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              updateComponents:
+                surfaceId: "s1"
+                components:
+                  - id: "body"
+                    component: "Text"
+                    text: "Updated"
+            - version: "1.0"
+              updateDataModel:
+                surfaceId: "s1"
+                path: "/title"
+                value: "Menu"
+  expect_matches_single_shot: true
+
+- name: test_express_stream_two_rootless_surface_scopes_in_block
+  description: Two rootless surface() scopes in a single block flush updateComponents for each existing surface in order, matching single-shot parsing.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Card(header)\nheader = Text(\"Old top\")\nsurface(\"s2\")\nroot = Card(footer)\nfooter = Text(\"Old bottom\")\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Card"
+                    child: "header"
+                  - id: "header"
+                    component: "Text"
+                    text: "Old top"
+            - version: "1.0"
+              createSurface:
+                surfaceId: "s2"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Card"
+                    child: "footer"
+                  - id: "footer"
+                    component: "Text"
+                    text: "Old bottom"
+    - input: "<a2ui>\nsurface(\"s1\")\nheader = Text(top)\n"
+      expect: []
+    - input: "top = \"Top\"\nsurface(\"s2\")\nfooter = Text(\"Bottom\")\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              updateComponents:
+                surfaceId: "s1"
+                components:
+                  - id: "header"
+                    component: "Text"
+                    text: "Top"
+            - version: "1.0"
+              updateComponents:
+                surfaceId: "s2"
+                components:
+                  - id: "footer"
+                    component: "Text"
+                    text: "Bottom"
+  expect_matches_single_shot: true
+
 - name: test_express_stream_comment_with_apostrophe_before_close_tag
   description: A single-line comment with an apostrophe or quote before the closing tag does not swallow the closing tag.
   action: parse_chunk
@@ -593,6 +688,33 @@
     progressive_keys: []
   steps:
     - input: "<a2ui>\nsurface(\"s1\")\nroot = UnknownWidget(\"Hello\")\n"
+      expect_error:
+        category: "ValidationError"
+
+- name: test_express_stream_rootless_scope_on_uncreated_surface_raises_validation_error_on_close
+  description: A rootless scope on a surface not yet created holds its updates while streaming, compiles them as incremental updates on block close, and fails surface validation with ValidationError rather than ParseError.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s0\")\nroot = Text(\"Seed\")\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "s0"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Seed"
+    - input: "<a2ui>\nsurface(\"s1\")\n$/title = \"Menu\"\n"
+      expect: []
+    - input: "body = Text($/title)\n"
+      expect: []
+    - input: "</a2ui>"
       expect_error:
         category: "ValidationError"
 
