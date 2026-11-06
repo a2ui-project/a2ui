@@ -285,15 +285,15 @@
   }
 
   .db-pill--amber {
-    background: rgba(249, 171, 0, 0.12);
-    color: #fdd663;
-    border: 1px solid rgba(249, 171, 0, 0.28);
+    background: var(--a2-amber-soft);
+    color: var(--a2-amber);
+    border: 1px solid var(--a2-amber-border);
   }
 
   :root[data-theme='light'] .db-pill--amber {
-    background: #fef7e0;
-    color: #b06000;
-    border-color: #fde293;
+    background: var(--a2-amber-soft);
+    color: var(--a2-amber-strong);
+    border-color: var(--a2-amber-border);
   }
 
   /* 2-Column Layout */
@@ -409,12 +409,12 @@
   }
 
   .db-v-amber {
-    color: #fdd663;
+    color: var(--a2-amber);
     font-weight: 600;
   }
 
   :root[data-theme='light'] .db-v-amber {
-    color: #b06000;
+    color: var(--a2-amber-strong);
   }
 
   .db-bindings-list {
@@ -443,11 +443,11 @@
   }
 
   .db-binding-item--amber {
-    border-left: 3px solid #f9ab00;
+    border-left: 3px solid var(--a2-amber);
   }
 
   .db-binding-item--blue {
-    border-left: 3px solid #4ecde6;
+    border-left: 3px solid var(--a2-cyan);
   }
 
   .db-binding-item__top {
@@ -489,23 +489,23 @@
   }
 
   .db-mini-badge--amber {
-    background: rgba(249, 171, 0, 0.16);
-    color: #fdd663;
+    background: color-mix(in srgb, var(--a2-amber) 16%, transparent);
+    color: var(--a2-amber);
   }
 
   :root[data-theme='light'] .db-mini-badge--amber {
-    background: #fef7e0;
-    color: #b06000;
+    background: var(--a2-amber-soft);
+    color: var(--a2-amber-strong);
   }
 
   .db-mini-badge--blue {
-    background: rgba(78, 205, 230, 0.16);
-    color: #4ecde6;
+    background: color-mix(in srgb, var(--a2-cyan) 16%, transparent);
+    color: var(--a2-cyan);
   }
 
   :root[data-theme='light'] .db-mini-badge--blue {
-    background: #e4f7fb;
-    color: #098591;
+    background: var(--a2-cyan-soft);
+    color: var(--a2-cyan-strong);
   }
 
   .db-binding-expr {

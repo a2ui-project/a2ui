@@ -80,8 +80,15 @@
 
   /* --- Semantic (Google Yellow / Red / Green, 300 tones on dark) --- */
   --a2-amber: #fdd663;
+  --a2-amber-strong: #fde293;
   --a2-amber-soft: rgba(253, 214, 99, 0.12);
   --a2-amber-border: rgba(253, 214, 99, 0.28);
+
+  /* Google Cyan: secondary diagram category (distinct from the blue accent) */
+  --a2-cyan: #4ecde6;
+  --a2-cyan-strong: #78d9ec;
+  --a2-cyan-soft: rgba(78, 205, 230, 0.12);
+  --a2-cyan-border: rgba(78, 205, 230, 0.28);
 
   --a2-coral: #f28b82;
   --a2-coral-soft: rgba(242, 139, 130, 0.12);
@@ -136,6 +143,8 @@
   --blue-soft: var(--a2-blue-soft);
   --amber: var(--a2-amber);
   --amber-soft: var(--a2-amber-soft);
+  --cyan: var(--a2-cyan);
+  --cyan-soft: var(--a2-cyan-soft);
   --success: var(--a2-success);
   --success-soft: var(--a2-success-soft);
   --shadow-sm: var(--a2-shadow-sm);
@@ -182,8 +191,14 @@
   --a2-blue-border: rgba(26, 115, 232, 0.22);
 
   --a2-amber: #e37400;
-  --a2-amber-soft: rgba(227, 116, 0, 0.09);
-  --a2-amber-border: rgba(227, 116, 0, 0.26);
+  --a2-amber-strong: #b06000;
+  --a2-amber-soft: #fef7e0;
+  --a2-amber-border: #fde293;
+
+  --a2-cyan: #12b5cb;
+  --a2-cyan-strong: #098591;
+  --a2-cyan-soft: #e4f7fb;
+  --a2-cyan-border: #a1e4f2;
 
   --a2-coral: #d93025;
   --a2-coral-soft: rgba(217, 48, 37, 0.08);

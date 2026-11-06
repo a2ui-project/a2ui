@@ -291,27 +291,27 @@
   }
 
   .ip-pill--blue {
-    background: rgba(78, 205, 230, 0.15);
-    color: #78d9ec;
-    border: 1px solid rgba(78, 205, 230, 0.35);
+    background: color-mix(in srgb, var(--a2-cyan) 15%, transparent);
+    color: var(--a2-cyan-strong);
+    border: 1px solid var(--a2-cyan-border);
   }
 
   :root[data-theme='light'] .ip-pill--blue {
-    background: #e4f7fb;
-    color: #098591;
-    border-color: #78d9ec;
+    background: var(--a2-cyan-soft);
+    color: var(--a2-cyan-strong);
+    border-color: var(--a2-cyan-border);
   }
 
   .ip-pill--amber {
-    background: rgba(249, 171, 0, 0.15);
-    color: #fde293;
-    border: 1px solid rgba(249, 171, 0, 0.35);
+    background: color-mix(in srgb, var(--a2-amber) 15%, transparent);
+    color: var(--a2-amber-strong);
+    border: 1px solid var(--a2-amber-border);
   }
 
   :root[data-theme='light'] .ip-pill--amber {
-    background: #fef7e0;
-    color: #b06000;
-    border-color: #fde293;
+    background: var(--a2-amber-soft);
+    color: var(--a2-amber-strong);
+    border-color: var(--a2-amber-border);
   }
 
   .ip-grid {
@@ -339,7 +339,7 @@
   }
 
   .ip-stage--purple {
-    border-top: 2px solid var(--a2-blue, #4ecde6);
+    border-top: 2px solid var(--a2-cyan);
   }
 
   .ip-stage--teal {
@@ -347,7 +347,7 @@
   }
 
   .ip-stage--amber {
-    border-top: 2px solid var(--a2-amber, #fdd663);
+    border-top: 2px solid var(--a2-amber, var(--a2-amber));
   }
 
   .ip-stage__head {
@@ -370,15 +370,15 @@
   }
 
   .ip-step-num--purple {
-    background: var(--a2-blue-soft, rgba(78, 205, 230, 0.14));
-    color: var(--a2-blue, #4ecde6);
-    border: 1px solid var(--a2-blue-border, rgba(78, 205, 230, 0.3));
+    background: var(--a2-blue-soft, var(--a2-cyan-soft));
+    color: var(--a2-cyan);
+    border: 1px solid var(--a2-blue-border, var(--a2-cyan-border));
   }
 
   :root[data-theme='light'] .ip-step-num--purple {
-    background: #e4f7fb;
-    color: #098591;
-    border-color: #78d9ec;
+    background: var(--a2-cyan-soft);
+    color: var(--a2-cyan-strong);
+    border-color: var(--a2-cyan-border);
   }
 
   .ip-step-num--teal {
@@ -394,15 +394,15 @@
   }
 
   .ip-step-num--amber {
-    background: rgba(249, 171, 0, 0.2);
-    color: #fde293;
-    border: 1px solid rgba(249, 171, 0, 0.4);
+    background: color-mix(in srgb, var(--a2-amber) 20%, transparent);
+    color: var(--a2-amber-strong);
+    border: 1px solid color-mix(in srgb, var(--a2-amber) 40%, transparent);
   }
 
   :root[data-theme='light'] .ip-step-num--amber {
-    background: #fef7e0;
-    color: #b06000;
-    border-color: #fde293;
+    background: var(--a2-amber-soft);
+    color: var(--a2-amber-strong);
+    border-color: var(--a2-amber-border);
   }
 
   .ip-stage__titles {
@@ -465,15 +465,15 @@
     font-size: 0.62rem;
     padding: 0.1rem 0.38rem;
     border-radius: 4px;
-    background: var(--a2-blue-soft, rgba(78, 205, 230, 0.12));
-    color: var(--a2-blue, #4ecde6);
-    border: 1px solid var(--a2-blue-border, rgba(78, 205, 230, 0.28));
+    background: var(--a2-blue-soft, var(--a2-cyan-soft));
+    color: var(--a2-cyan);
+    border: 1px solid var(--a2-blue-border, var(--a2-cyan-border));
   }
 
   :root[data-theme='light'] .ip-chip {
-    background: #e4f7fb;
-    color: #098591;
-    border-color: #a1e4f2;
+    background: var(--a2-cyan-soft);
+    color: var(--a2-cyan-strong);
+    border-color: var(--a2-cyan-border);
   }
 
   .ip-arrow-down {
@@ -538,23 +538,23 @@
   }
 
   .ip-tag--blue {
-    background: rgba(78, 205, 230, 0.16);
-    color: #78d9ec;
+    background: color-mix(in srgb, var(--a2-cyan) 16%, transparent);
+    color: var(--a2-cyan-strong);
   }
 
   :root[data-theme='light'] .ip-tag--blue {
-    background: #e4f7fb;
-    color: #098591;
+    background: var(--a2-cyan-soft);
+    color: var(--a2-cyan-strong);
   }
 
   .ip-tag--amber {
-    background: rgba(249, 171, 0, 0.18);
-    color: #fde293;
+    background: color-mix(in srgb, var(--a2-amber) 18%, transparent);
+    color: var(--a2-amber-strong);
   }
 
   :root[data-theme='light'] .ip-tag--amber {
-    background: #fef7e0;
-    color: #b06000;
+    background: var(--a2-amber-soft);
+    color: var(--a2-amber-strong);
   }
 
   .ip-code {
@@ -578,12 +578,12 @@
   }
 
   .ip-fn {
-    color: #4ecde6;
+    color: var(--a2-cyan);
     font-weight: 700;
   }
 
   :root[data-theme='light'] .ip-fn {
-    color: #098591;
+    color: var(--a2-cyan-strong);
   }
 
   .ip-p {
@@ -611,12 +611,12 @@
   }
 
   .ip-sentinel {
-    color: #f9ab00;
+    color: var(--a2-amber);
     font-weight: 700;
   }
 
   :root[data-theme='light'] .ip-sentinel {
-    color: #b06000;
+    color: var(--a2-amber-strong);
   }
 
   .ip-alt-card {
@@ -668,11 +668,11 @@
   .ip-check code {
     font-family: var(--sl-font-mono);
     font-size: 0.62rem;
-    color: #fde293;
+    color: var(--a2-amber-strong);
   }
 
   :root[data-theme='light'] .ip-check code {
-    color: #b06000;
+    color: var(--a2-amber-strong);
   }
 
   @media (max-width: 960px) {

@@ -189,15 +189,15 @@
     letter-spacing: 0.08em;
     padding: 0.18rem 0.5rem;
     border-radius: 4px;
-    background: var(--a2-blue-soft, rgba(78, 205, 230, 0.12));
-    color: var(--a2-blue, #4ecde6);
-    border: 1px solid var(--a2-blue-border, rgba(78, 205, 230, 0.28));
+    background: var(--a2-blue-soft, var(--a2-cyan-soft));
+    color: var(--a2-cyan);
+    border: 1px solid var(--a2-blue-border, var(--a2-cyan-border));
   }
 
   :root[data-theme='light'] .cs-badge {
-    background: #e4f7fb;
-    color: #098591;
-    border-color: #78d9ec;
+    background: var(--a2-cyan-soft);
+    color: var(--a2-cyan-strong);
+    border-color: var(--a2-cyan-border);
   }
 
   .cs-title {
@@ -209,11 +209,11 @@
   .cs-title code {
     font-family: var(--sl-font-mono);
     font-size: 0.78rem;
-    color: var(--a2-blue, #4ecde6);
+    color: var(--a2-cyan);
   }
 
   :root[data-theme='light'] .cs-title code {
-    color: #098591;
+    color: var(--a2-cyan-strong);
   }
 
   .cs-expr {
@@ -276,11 +276,11 @@
   .cs-card__head code {
     font-family: var(--sl-font-mono);
     font-size: 0.68rem;
-    color: var(--a2-blue, #4ecde6);
+    color: var(--a2-cyan);
   }
 
   :root[data-theme='light'] .cs-card__head code {
-    color: #098591;
+    color: var(--a2-cyan-strong);
   }
 
   .cs-code {
@@ -311,12 +311,12 @@
   }
 
   .cs-p {
-    color: var(--a2-blue, #4ecde6);
+    color: var(--a2-cyan);
     font-weight: 600;
   }
 
   :root[data-theme='light'] .cs-p {
-    color: #098591;
+    color: var(--a2-cyan-strong);
   }
 
   .cs-s {

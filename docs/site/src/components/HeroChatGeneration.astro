@@ -436,7 +436,6 @@
     // narrow: a manual swipe selects whichever card snaps to the centre
     if (strip) {
       let scrollEndTimer = 0;
-      let programmatic = false;
       const onSettle = () => {
         if (!narrow.matches) return;
         const mid = strip.scrollLeft + strip.clientWidth / 2;

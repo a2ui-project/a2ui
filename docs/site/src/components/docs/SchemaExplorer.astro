@@ -499,13 +499,13 @@ const githubBlobBase = 'https://github.com/a2ui-project/a2ui/blob/main';
   }
 
   .a2-se-pointer-bar.is-warning {
-    border-color: rgba(249, 171, 0, 0.4);
-    background: rgba(249, 171, 0, 0.1);
-    color: #f9ab00;
+    border-color: color-mix(in srgb, var(--a2-amber) 40%, transparent);
+    background: var(--a2-amber-soft);
+    color: var(--a2-amber);
   }
 
   :root[data-theme='light'] .a2-se-pointer-bar.is-warning {
-    color: #b06000;
+    color: var(--a2-amber-strong);
   }
 
   .a2-se-pointer-bar__text {
