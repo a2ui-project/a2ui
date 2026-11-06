@@ -651,3 +651,97 @@
     ]
   expect_error:
     category: ValidationError
+
+# A call nested in the arguments of a callRendererFunction runs in the catalog
+# it names. One that names none runs in the default catalog of the surface the
+# callRendererFunction names, or in the catalog of the call when it names no
+# surface.
+
+- name: test_direct_json_compile_call_renderer_function_nested_call_to_another_catalog
+  description: A call nested in a typed argument of a callRendererFunction that names another active catalog is checked against that catalog, not the catalog of the call.
+  action: compile
+  args:
+    format: direct_json
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "notify", "catalogId": "conformance/agent_functions", "args": {"message": {"@call": "formatString", "catalogId": "conformance/simplified", "args": {"value": "Saved"}}}}}}]'
+  expect:
+    - version: "1.0"
+      callRendererFunction:
+        functionCallId: "c1"
+        callFunction:
+          "@call": "notify"
+          catalogId: "conformance/agent_functions"
+          args:
+            message:
+              "@call": "formatString"
+              catalogId: "conformance/simplified"
+              args:
+                value: "Saved"
+
+- name: test_direct_json_compile_call_renderer_function_nested_call_runs_in_surface_catalog
+  description: A call nested in the arguments of a callRendererFunction on a surface, naming no catalog, runs in the surface's default catalog rather than the catalog of the call.
+  action: compile
+  args:
+    format: direct_json
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "surfaceId": "s1", "callFunction": {"@call": "notify", "catalogId": "conformance/agent_functions", "args": {"message": {"@call": "formatString", "args": {"value": "Saved"}}}}}}]'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+    - version: "1.0"
+      callRendererFunction:
+        functionCallId: "c1"
+        surfaceId: "s1"
+        callFunction:
+          "@call": "notify"
+          catalogId: "conformance/agent_functions"
+          args:
+            message:
+              "@call": "formatString"
+              args:
+                value: "Saved"
+
+- name: test_direct_json_compile_call_renderer_function_nested_call_on_surface_without_catalog_fails
+  description: A call nested in the arguments of a callRendererFunction on a surface created without a default catalog must name its catalog, or the renderer has nowhere to run it.
+  action: compile
+  args:
+    format: direct_json
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "createSurface": {"surfaceId": "s1"}}, {"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "surfaceId": "s1", "callFunction": {"@call": "notify", "catalogId": "conformance/agent_functions", "args": {"message": {"@call": "formatString", "args": {"value": "Saved"}}}}}}]'
+  expect_error:
+    category: ValidationError
+    message: "default catalog"
+
+- name: test_direct_json_compile_call_renderer_function_nested_call_requiring_user_activation_fails
+  description: A call nested in the arguments of a callRendererFunction to a function that requires a user activation fails validation, since a call from the agent has none.
+  action: compile
+  args:
+    format: direct_json
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "record", "catalogId": "conformance/agent_functions", "args": {"value": {"@call": "openUrl", "catalogId": "conformance/simplified", "args": {"url": "https://example.com"}}}}}}]'
+  expect_error:
+    category: ValidationError
+    message: "user activation"
+
+- name: test_direct_json_compile_call_renderer_function_nested_agent_only_call_in_named_catalog_fails
+  description: A call nested in the arguments of a callRendererFunction on a surface whose default catalog is another one, naming the catalog of an agentOnly function, fails validation, since the renderer makes nested calls.
+  action: compile
+  args:
+    format: direct_json
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "surfaceId": "s1", "callFunction": {"@call": "record", "catalogId": "conformance/agent_functions", "args": {"value": {"@call": "peek", "catalogId": "conformance/agent_functions", "args": {"key": "mood"}}}}}}]'
+  expect_error:
+    category: ValidationError
+    message: "agentOnly"
