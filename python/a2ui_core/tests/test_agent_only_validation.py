@@ -45,6 +45,7 @@ def _function(name: str, allowed_callers: str) -> dict[str, Any]:
     return {
         "type": "object",
         "allowedCallers": allowed_callers,
+        "returnType": "string",
         "properties": {
             "@call": {"const": name},
             "args": {
@@ -52,7 +53,6 @@ def _function(name: str, allowed_callers: str) -> dict[str, Any]:
                 "properties": {"date": {"type": "string"}},
                 "additionalProperties": False,
             },
-            "returnType": {"const": "string"},
         },
         "required": ["@call"],
     }

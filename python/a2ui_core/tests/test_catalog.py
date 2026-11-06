@@ -1539,3 +1539,49 @@ def test_v10_catalog_accepts_ref_and_combiner_parameters():
                 },
             },
         })
+
+
+def test_v10_validate_function_checks_nested_call_envelope_only():
+    """A nested call in a v1.0 Dynamic* argument may name another catalog.
+
+    It runs in the catalog it names, so the argument schema checks only its
+    envelope; the caller's nested-call walk checks it against that catalog.
+    """
+    cat = Catalog.from_json({
+        "catalogId": "https://example.com/describe.json",
+        "protocolVersion": "1.0",
+        "functions": {
+            "describe": {
+                "type": "object",
+                "returnType": "string",
+                "properties": {
+                    "@call": {"const": "describe"},
+                    "args": {
+                        "type": "object",
+                        "properties": {
+                            "text": {"$ref": "common_types.json#/$defs/DynamicString"}
+                        },
+                        "additionalProperties": False,
+                    },
+                },
+                "required": ["@call"],
+            },
+        },
+    })
+    validator = PayloadValidator(cat)
+    validator.validate_function(
+        "describe",
+        {
+            "text": {
+                "@call": "formatString",
+                "catalogId": (
+                    "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+                ),
+                "args": {"value": "hi"},
+            }
+        },
+    )
+    with pytest.raises(A2uiValidationError):
+        validator.validate_function(
+            "describe", {"text": {"@call": "formatString", "bogus": 1}}
+        )

@@ -39,6 +39,7 @@ _CUSTOM = Catalog.from_json({
         "getMoonPhase": {
             "type": "object",
             "allowedCallers": "agentOnly",
+            "returnType": "string",
             "properties": {
                 "@call": {"const": "getMoonPhase"},
                 "args": {
@@ -46,23 +47,23 @@ _CUSTOM = Catalog.from_json({
                     "properties": {"date": {"type": "string"}},
                     "additionalProperties": False,
                 },
-                "returnType": {"const": "string"},
             },
             "required": ["@call"],
         },
         "echo": {
             "type": "object",
             "allowedCallers": "rendererOrAgent",
+            "returnType": "any",
             "properties": {
                 "@call": {"const": "echo"},
                 "args": {"type": "object"},
-                "returnType": {"const": "any"},
             },
             "required": ["@call"],
         },
         "describe": {
             "type": "object",
             "allowedCallers": "rendererOrAgent",
+            "returnType": "string",
             "properties": {
                 "@call": {"const": "describe"},
                 "args": {
@@ -72,13 +73,13 @@ _CUSTOM = Catalog.from_json({
                     },
                     "additionalProperties": False,
                 },
-                "returnType": {"const": "string"},
             },
             "required": ["@call"],
         },
         "scrollTo": {
             "type": "object",
             "allowedCallers": "rendererOrAgent",
+            "returnType": "void",
             "properties": {
                 "@call": {"const": "scrollTo"},
                 "args": {
@@ -87,7 +88,6 @@ _CUSTOM = Catalog.from_json({
                     "required": ["id"],
                     "additionalProperties": False,
                 },
-                "returnType": {"const": "void"},
             },
             "required": ["@call"],
         },
@@ -264,15 +264,22 @@ def test_arguments_are_checked_as_written():
     [
         {"@path": "/name"},
         {"@call": "scrollTo", "args": {"id": "x"}},
+        {
+            "@call": "formatString",
+            "catalogId": _BASIC.catalog_id,
+            "args": {"value": "hi"},
+        },
     ],
-    ids=["data_binding", "call"],
+    ids=["data_binding", "call", "call_to_another_catalog"],
 )
 def test_argument_the_renderer_resolves_is_accepted(text):
     validate_payload(_CATALOGS, [_call("describe", args={"text": text})])
 
 
 def test_argument_schema_checks_the_calls_it_admits():
-    with pytest.raises(A2uiValidationError, match="not valid under any of the given"):
+    with pytest.raises(
+        A2uiValidationError, match="Unrecognized function 'summonDragon'"
+    ):
         validate_payload(
             _CATALOGS, [_call("describe", args={"text": {"@call": "summonDragon"}})]
         )
@@ -337,6 +344,238 @@ def test_call_nested_in_untyped_arguments_is_accepted(value):
 def test_call_nested_in_the_arguments_is_checked(text, match):
     with pytest.raises(A2uiValidationError, match=match):
         validate_payload(_CATALOGS, [_call("echo", args={"value": text})])
+
+
+@pytest.mark.parametrize(
+    ("value", "match"),
+    [
+        (
+            {"@call": {"@call": "getMoonPhase"}},
+            r"holds a call to 'getMoonPhase' that the renderer can't make: Function"
+            r" 'getMoonPhase' cannot be called by renderer \(allowedCallers is"
+            r" agentOnly\)",
+        ),
+        (
+            {"@call": [{"@call": "getMoonPhase"}]},
+            "holds a call to 'getMoonPhase' that the renderer can't make",
+        ),
+    ],
+    ids=["in_an_object", "in_a_list"],
+)
+def test_call_under_a_non_string_call_key_is_checked(value, match):
+    with pytest.raises(A2uiValidationError, match=match):
+        validate_payload(_CATALOGS, [_call("echo", args={"value": value})])
+
+
+@pytest.mark.parametrize(
+    ("value", "match"),
+    [
+        ({"@bogus": 1}, "Unrecognized reserved protocol directive '@bogus'"),
+        (
+            {"inner": {"@calls": "getMoonPhase"}},
+            "Unrecognized reserved protocol directive '@calls'",
+        ),
+        (
+            {"@call": "scrollTo", "args": {"id": "x"}, "bogus": 1},
+            "holds a call to 'scrollTo' with unrecognized field 'bogus'",
+        ),
+        (
+            {"@call": "scrollTo", "catalogId": None, "args": {"id": "x"}},
+            "holds a call to 'scrollTo' whose 'catalogId' must be a string",
+        ),
+        (
+            {"@call": "scrollTo", "catalogId": 7, "args": {"id": "x"}},
+            "holds a call to 'scrollTo' whose 'catalogId' must be a string",
+        ),
+        (
+            {"@call": "getMoonPhase", "catalogId": _CUSTOM_ID, "args": None},
+            "holds a call to 'getMoonPhase' whose 'args' must be an object",
+        ),
+        (
+            {"@call": "scrollTo", "args": ["x"]},
+            "holds a call to 'scrollTo' whose 'args' must be an object",
+        ),
+        (
+            {"@call": "@index", "args": None},
+            "holds a call to '@index' whose 'args' must be an object",
+        ),
+    ],
+    ids=[
+        "unknown_directive",
+        "misspelled_call_directive",
+        "extra_call_field",
+        "null_catalog_id",
+        "non_string_catalog_id",
+        "null_args",
+        "list_args",
+        "system_function_null_args",
+    ],
+)
+def test_argument_the_renderer_cant_resolve_is_rejected(value, match):
+    with pytest.raises(A2uiValidationError, match=match):
+        validate_payload(_CATALOGS, [_call("echo", args={"value": value})])
+
+
+def test_nested_call_that_requires_user_activation_is_rejected():
+    value = {
+        "@call": "openUrl",
+        "catalogId": _BASIC.catalog_id,
+        "args": {"url": "https://example.com"},
+    }
+    with pytest.raises(
+        A2uiValidationError,
+        match=(
+            "holds a call to 'openUrl' that the renderer can't make: Function"
+            " 'openUrl' requires a user activation, and a call from the agent has"
+            " none"
+        ),
+    ):
+        validate_payload(_CATALOGS, [_call("echo", args={"value": value})])
+
+
+_CATALOGLESS_FORMAT = {"@call": "formatString", "args": {"value": "hi"}}
+
+
+def test_nested_call_without_a_catalog_runs_in_the_call_catalog():
+    with pytest.raises(
+        A2uiValidationError, match="Unrecognized function 'formatString'"
+    ):
+        validate_payload(
+            _CATALOGS, [_call("echo", args={"label": _CATALOGLESS_FORMAT})]
+        )
+
+
+def test_nested_call_without_a_catalog_runs_in_the_surface_default_catalog():
+    validate_payload(
+        _CATALOGS,
+        [
+            _create(),
+            _call("echo", args={"label": _CATALOGLESS_FORMAT}, surface_id="s"),
+        ],
+    )
+    with pytest.raises(A2uiValidationError, match="Unrecognized function 'scrollTo'"):
+        validate_payload(
+            _CATALOGS,
+            [
+                _create(),
+                _call(
+                    "echo",
+                    args={"to": {"@call": "scrollTo", "args": {"id": "x"}}},
+                    surface_id="s",
+                ),
+            ],
+        )
+
+
+def test_renderer_state_runs_nested_calls_in_the_surface_default_catalog():
+    state = RendererState(_CATALOGS)
+    state.apply([_create()])
+    state.apply([_call("echo", args={"label": _CATALOGLESS_FORMAT}, surface_id="s")])
+
+
+def test_nested_call_without_a_catalog_on_a_surface_without_one_is_rejected():
+    payload = [
+        {"version": "1.0", "createSurface": {"surfaceId": "s"}},
+        _call("echo", args={"label": _CATALOGLESS_FORMAT}, surface_id="s"),
+    ]
+    with pytest.raises(
+        A2uiValidationError,
+        match=(
+            "Function call 'f1' holds a call to 'formatString' without a catalogId,"
+            " and surface 's' has no default catalog"
+        ),
+    ):
+        validate_payload(_CATALOGS, payload)
+
+
+def test_nested_call_on_a_surface_of_a_known_catalog_runs_in_it():
+    message = _call("echo", args={"label": _CATALOGLESS_FORMAT}, surface_id="s")
+    validate_payload(_CATALOGS, [message], surface_catalog_ids={"s": _BASIC.catalog_id})
+    with pytest.raises(
+        A2uiValidationError, match="Unrecognized function 'formatString'"
+    ):
+        validate_payload(_CATALOGS, [message], surface_catalog_ids={"s": _CUSTOM_ID})
+
+
+@pytest.mark.parametrize(
+    "value",
+    [_CATALOGLESS_FORMAT, {"@call": "scrollTo", "args": {"id": "x"}}],
+    ids=["basic_function", "custom_function"],
+)
+def test_nested_call_on_an_assumed_surface_may_run_in_any_catalog(value):
+    validate_payload(_CATALOGS, [_call("echo", args={"value": value}, surface_id="s")])
+
+
+@pytest.mark.parametrize(
+    ("value", "match"),
+    [
+        ({"@call": "summonDragon"}, "Unrecognized function 'summonDragon'"),
+        (
+            {"@call": "getMoonPhase"},
+            r"cannot be called by renderer \(allowedCallers is agentOnly\)",
+        ),
+        (
+            {"@call": "openUrl", "args": {"url": "https://example.com"}},
+            "requires a user activation",
+        ),
+        (
+            {"@call": "scrollTo", "args": {}},
+            "holds a call to 'scrollTo' that does not match the arguments",
+        ),
+    ],
+    ids=["undeclared", "agent_only", "requires_user_activation", "bad_args"],
+)
+def test_nested_call_on_an_assumed_surface_is_still_checked(value, match):
+    with pytest.raises(A2uiValidationError, match=match):
+        validate_payload(
+            _CATALOGS, [_call("echo", args={"value": value}, surface_id="s")]
+        )
+
+
+@pytest.mark.parametrize(
+    ("call_function", "match"),
+    [
+        ({"@call": 1, "catalogId": _CUSTOM_ID}, "@call"),
+        (
+            {"@call": "scrollTo", "catalogId": _CUSTOM_ID, "args": {}, "bogus": 1},
+            "bogus",
+        ),
+        ({"@call": "getMoonPhase", "catalogId": _CUSTOM_ID, "args": None}, "args"),
+        ({"@call": "getMoonPhase", "catalogId": _CUSTOM_ID, "args": []}, "args"),
+        ({"@call": "getMoonPhase", "catalogId": None}, "catalogId"),
+        (
+            {
+                "@call": "echo",
+                "catalogId": _CUSTOM_ID,
+                "args": {"v": {"@path": "a/~3"}},
+            },
+            "Invalid path syntax",
+        ),
+    ],
+    ids=[
+        "non_string_call",
+        "extra_field",
+        "null_args",
+        "list_args",
+        "null_catalog_id",
+        "bad_path",
+    ],
+)
+def test_call_envelope_the_renderer_would_refuse_is_rejected(call_function, match):
+    message = {
+        "version": "1.0",
+        "callRendererFunction": {"functionCallId": "f1", "callFunction": call_function},
+    }
+    with pytest.raises(A2uiValidationError, match=match):
+        validate_payload(_CATALOGS, [message])
+
+
+def test_deeply_nested_arguments_are_rejected():
+    value: Any = 1
+    for _ in range(60):
+        value = {"a": value}
+    with pytest.raises(A2uiValidationError, match="recursion limit"):
+        validate_payload(_CATALOGS, [_call("echo", args={"value": value})])
 
 
 def test_validation_does_not_run_the_function():

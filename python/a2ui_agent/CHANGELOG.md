@@ -6,11 +6,15 @@
   when the call arrives, a catalog that isn't active, a function the catalog
   doesn't declare, a `rendererOnly` function (the default) or one that
   requires user activation, arguments that don't match the function's schema,
-  and a nested call to an `agentOnly` function. They also reject an `agentOnly`
-  function bound into a component. Recommended migration: declare the
-  functions an agent calls with `allowedCallers` set to `agentOnly` or
-  `rendererOrAgent` in the catalog the call names
-  ([#3534](https://github.com/a2ui-project/a2ui/issues/3534)).
+  and a nested call the renderer can't make (to an `agentOnly` function or one
+  that requires user activation, malformed, or naming no catalog on a surface
+  without a default one). A nested call that names no catalog is checked
+  against the default catalog of the surface the call names. They also reject
+  an `agentOnly` function bound into a component. Recommended migration:
+  declare the functions an agent calls with `allowedCallers` set to
+  `agentOnly` or `rendererOrAgent` in the catalog the call names
+  ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
+  [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
 - **BREAKING CHANGE**: `PromptGenerator.generate()` is now final and returns
   `assemble_instructions(self)`, which `SkillGenerator.generate_skill()` also
   uses, so a monolithic skill for a format's own catalogs holds its prompt

@@ -1129,8 +1129,17 @@ class PayloadValidator:
         fn_schema: dict[str, Any],
         base_schema: dict[str, Any],
     ) -> dict[str, Any] | None:
-        """Constructs a JSON Schema object for function parameter validation."""
-        defs = self._extract_schema_defs(fn_schema, base_schema)
+        """Constructs a JSON Schema object for function parameter validation.
+
+        From v1.0 a call nested in the arguments is checked against its
+        envelope only, as in `_validate_dict_component`: it runs in the catalog
+        it names, or else the surface default, not necessarily this one, so
+        the caller's nested-call walk checks it against that catalog.
+        """
+        defs = dict(self._extract_schema_defs(fn_schema, base_schema))
+        ver = getattr(self.catalog, "protocol_version", None)
+        if ver and is_at_least_version(ver, ProtocolVersion.V1_0):
+            defs["FunctionCall"] = _function_call_envelope(to_protocol_version(ver))
         raw_schema = self._extract_raw_param_schema(fn_schema, defs)
         return self._attach_catalog_context(raw_schema, base_schema)
 
