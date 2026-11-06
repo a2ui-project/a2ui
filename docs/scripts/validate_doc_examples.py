@@ -308,7 +308,10 @@ def _errors_for(payload: Any, version: str) -> list[str] | None:
     validator = schema_set(version).validator_for(payload)
     if validator is None:
         return None
-    errors = sorted(validator.iter_errors(payload), key=lambda e: list(e.absolute_path))
+    errors = sorted(
+        validator.iter_errors(payload),
+        key=lambda e: tuple(str(x) for x in e.absolute_path),
+    )
     return [
         f"v{version}: {'/'.join(map(str, e.absolute_path)) or '<root>'}:"
         f" {e.message[:200]}"

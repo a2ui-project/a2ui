@@ -16,6 +16,9 @@ import os
 import pathlib
 import sys
 
+from unittest import mock
+
+import jsonschema
 import pytest
 
 # Add the script's directory to the path so the test can import it.
@@ -24,6 +27,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from validate_doc_examples import (
     V0_9_1,
     V1_0,
+    _errors_for,
     extract_examples_from_text,
     main,
     validate,
@@ -180,6 +184,21 @@ def test_ignores_v08_tabs_and_unrelated_json():
 def test_invalid_json_in_version_tab_is_an_error():
     examples = extract_examples_from_text(DOC, _astro_tabs("{not json", V091_TEXT))
     assert validate(examples[0]) != []
+
+
+def test_sorts_errors_with_mixed_str_and_int_paths():
+    fake_validator = mock.Mock()
+    fake_validator.iter_errors.return_value = [
+        jsonschema.ValidationError("object key error", path=["surfaceId"]),
+        jsonschema.ValidationError("array index error", path=[0, "id"]),
+    ]
+    with mock.patch("validate_doc_examples.schema_set") as mock_schema_set:
+        mock_schema_set.return_value.validator_for.return_value = fake_validator
+        errors = _errors_for({"version": "1.0"}, V1_0)
+    assert errors == [
+        "v1.0: 0/id: array index error",
+        "v1.0: surfaceId: object key error",
+    ]
 
 
 def test_main_exit_codes(tmp_path):
