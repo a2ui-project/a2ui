@@ -434,7 +434,7 @@
   input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "formatString", "catalogId": "conformance/simplified", "args": {"value": "Saved"}}}}]'
   expect_error:
     category: "ValidationError"
-    message: "formatString"
+    message: "rendererOnly"
 
 - name: test_compile_json_call_renderer_function_nested_call_is_accepted
   description: A call nested in the arguments of a callRendererFunction that names no surface runs in the catalog of the call, so a call there to a function the renderer may make compiles.
@@ -510,3 +510,138 @@
   input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "record", "catalogId": "conformance/agent_functions", "args": {"value": {"@call": "@index", "args": null}}}}}]'
   expect_error:
     category: "ValidationError"
+    message: "args"
+
+- name: test_compile_json_call_renderer_function_agent_only_target_compiles
+  description: A callRendererFunction naming a function whose allowedCallers is agentOnly compiles, since the agent is the caller.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "peek", "catalogId": "conformance/agent_functions", "args": {"key": "mood"}}}}]'
+  expect:
+    - version: "1.0"
+      callRendererFunction:
+        functionCallId: "c1"
+        callFunction:
+          "@call": "peek"
+          catalogId: "conformance/agent_functions"
+          args:
+            key: "mood"
+
+- name: test_compile_json_call_renderer_function_nested_agent_only_call_is_a_validation_error
+  description: A call nested in the arguments of a callRendererFunction is made by the renderer while it resolves them, so a nested call to a function whose allowedCallers is agentOnly is a validation error.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "record", "catalogId": "conformance/agent_functions", "args": {"value": {"@call": "peek", "args": {"key": "mood"}}}}}}]'
+  expect_error:
+    category: "ValidationError"
+    message: "agentOnly"
+
+- name: test_compile_json_call_renderer_function_catalog_not_held_is_a_validation_error
+  description: A callRendererFunction naming a catalog that isn't one of the agent's catalogs is a validation error.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "notify", "catalogId": "conformance/missing", "args": {"message": "Saved"}}}}]'
+  expect_error:
+    category: "ValidationError"
+    message: "conformance/missing"
+
+- name: test_compile_json_call_renderer_function_unknown_function_is_a_validation_error
+  description: A callRendererFunction naming a function its catalog doesn't declare is a validation error.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "castSpell", "catalogId": "conformance/agent_functions", "args": {}}}}]'
+  expect_error:
+    category: "ValidationError"
+    message: "castSpell"
+
+- name: test_compile_json_call_renderer_function_extra_argument_is_a_validation_error
+  description: A callRendererFunction passing an argument the function doesn't declare is a validation error.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "notify", "catalogId": "conformance/agent_functions", "args": {"message": "Saved", "volume": 11}}}}]'
+  expect_error:
+    category: "ValidationError"
+    message: "volume"
+
+- name: test_compile_json_call_renderer_function_on_surface_deleted_earlier_is_a_validation_error
+  description: A callRendererFunction naming a surface the same payload deleted earlier is a validation error.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/agent_functions"}}, {"version": "1.0", "deleteSurface": {"surfaceId": "s1"}}, {"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "surfaceId": "s1", "callFunction": {"@call": "notify", "catalogId": "conformance/agent_functions", "args": {"message": "Saved"}}}}]'
+  expect_error:
+    category: "ValidationError"
+    message: "does not exist"
+
+- name: test_compile_json_call_renderer_function_on_surface_created_later_is_a_validation_error
+  description: A callRendererFunction naming a surface the same payload creates only later is a validation error, since the renderer handles the messages in order.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "surfaceId": "s1", "callFunction": {"@call": "notify", "catalogId": "conformance/agent_functions", "args": {"message": "Saved"}}}}, {"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/agent_functions"}}]'
+  expect_error:
+    category: "ValidationError"
+    message: "does not exist"
+
+- name: test_compile_json_call_renderer_function_on_surface_the_payload_never_names_compiles
+  description: A callRendererFunction naming a surface the payload never creates or deletes compiles, since the surface may exist from an earlier turn.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "surfaceId": "s1", "callFunction": {"@call": "notify", "catalogId": "conformance/agent_functions", "args": {"message": "Saved"}}}}]'
+  expect:
+    - version: "1.0"
+      callRendererFunction:
+        functionCallId: "c1"
+        surfaceId: "s1"
+        callFunction:
+          "@call": "notify"
+          catalogId: "conformance/agent_functions"
+          args:
+            message: "Saved"
+
+- name: test_compile_json_call_renderer_function_nested_index_call_is_a_validation_error
+  description: The arguments of a callRendererFunction are resolved outside any list template, so a nested call to the @index system function is a validation error.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "record", "catalogId": "conformance/agent_functions", "args": {"value": {"@call": "@index"}}}}}]'
+  expect_error:
+    category: "ValidationError"
+    message: "@index"
+
+- name: test_compile_json_call_renderer_function_non_string_path_is_a_validation_error
+  description: A data binding in the arguments of a callRendererFunction whose @path is not a string is a validation error.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "record", "catalogId": "conformance/agent_functions", "args": {"value": {"@path": 5}}}}}]'
+  expect_error:
+    category: "ValidationError"
+    message: "@path"
+
+- name: test_compile_json_call_renderer_function_path_with_extra_field_is_a_validation_error
+  description: A data binding in the arguments of a callRendererFunction that holds a field other than @path is a validation error.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "record", "catalogId": "conformance/agent_functions", "args": {"value": {"@path": "/user/name", "bogus": 1}}}}}]'
+  expect_error:
+    category: "ValidationError"
+    message: "bogus"
