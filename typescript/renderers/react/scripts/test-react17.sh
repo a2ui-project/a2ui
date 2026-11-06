@@ -18,6 +18,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REACT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_ROOT="$(cd "${REACT_DIR}/../../.." && pwd)"
+cd "${REPO_ROOT}"
 
 REACT_PKG="${REACT_DIR}/package.json"
 ROOT_LOCK="${REPO_ROOT}/yarn.lock"
@@ -43,15 +44,15 @@ cleanup() {
   echo "=== Restoring original React 19 dependencies ==="
   git -C "${REPO_ROOT}" checkout -- "${SWAPPED_FILES[@]}"
   if [[ "${DEPS_SWAPPED}" == "true" ]]; then
-    yarn --cwd "${REPO_ROOT}" install
-    yarn --cwd "${REACT_DIR}" clean
+    yarn install
+    yarn workspace @a2ui/react clean
   fi
 }
 trap cleanup EXIT INT TERM
 
 # Temporarily swap devDependencies to React 17 before building
 echo "=== Swapping to React 17 dependencies ==="
-yarn --cwd "${REACT_DIR}" add -D \
+yarn workspace @a2ui/react add -D \
   "react@^17.0.2" \
   "react-dom@^17.0.2" \
   "@types/react@^17.0.0" \
@@ -73,10 +74,10 @@ node -e "
 " "${REACT_PKG}"
 
 # Clear wireit cache so tsup + dts and vitest run fresh against @types/react@17 and react@17
-yarn --cwd "${REACT_DIR}" clean
+yarn workspace @a2ui/react clean
 
 echo "=== Building @a2ui/react (including .d.ts type-checking) under React 17 ==="
-yarn --cwd "${REACT_DIR}" build
+yarn workspace @a2ui/react build
 
 # Verify that no automatic JSX runtime imports (react/jsx-runtime) leaked into dist/
 echo "=== Verifying zero react/jsx-runtime imports in dist/ ==="
@@ -212,9 +213,9 @@ echo "=== Smoke-testing packaged dist/ ESM and CJS entry points under React 17 (
 )
 
 echo "=== Running unit tests against src/ under React 17 ==="
-TZ=UTC yarn --cwd "${REACT_DIR}" test:unit
+TZ=UTC yarn workspace @a2ui/react test:unit
 
 echo "=== Running unit tests against packaged dist/ exports under React 17 ==="
-(cd "${REACT_DIR}" && TZ=UTC A2UI_TEST_DIST=1 npx vitest run)
+TZ=UTC A2UI_TEST_DIST=1 yarn workspace @a2ui/react vitest run
 
 echo "=== React 17 test matrix passed successfully! ==="
