@@ -15,6 +15,7 @@
  */
 
 import {CatalogComponent, A2uiRendererService} from '@a2ui/angular/v0_9';
+import {DataContext} from '@a2ui/web_core/v0_9';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -43,21 +44,17 @@ export enum UploadState {
   ERROR = 'error',
 }
 
-export interface UploadedFile {
+/**
+ * A pointer to an uploaded file, as written to the data model path bound to
+ * `value`. Same shape as `FileReference` in the A2UI File Upload catalog.
+ */
+export interface FileReference {
   fileId: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  /** Data URI of the content; only present for `inline://` pointers. */
   inlineData?: string;
-  metadata: {
-    fileName: string;
-    fileSize: number;
-    mimeType: string;
-  };
-}
-
-export interface FileUploadProps {
-  label?: string;
-  accept?: string;
-  maxSize?: number;
-  multiple?: boolean;
 }
 
 @Component({
@@ -86,13 +83,13 @@ export class FileUploadComponent extends CatalogComponent<any> {
   readonly uploadState = signal<UploadState>(UploadState.IDLE);
   readonly progress = signal<number>(0);
   readonly errorMessage = signal<string>('');
-  readonly uploadedFiles = signal<UploadedFile[]>([]);
+  readonly uploadedFiles = signal<FileReference[]>([]);
 
   get isIocMode(): boolean {
     return !!this.config.onUploadFile;
   }
 
-  isInlineFile(file: UploadedFile): boolean {
+  isInlineFile(file: FileReference): boolean {
     return file.fileId.startsWith(INLINE_URI_PREFIX);
   }
 
@@ -136,26 +133,22 @@ export class FileUploadComponent extends CatalogComponent<any> {
     // Fake an initial progress of 15% for immediate UX feedback
     this.progress.set(15);
 
-    // Look up the A2UI Surface and clear the data model to wipe out any stale file pointers
-    const surface = this.rendererService.surfaceGroup.getSurface(this.surfaceId());
-    if (surface) {
-      surface.dataModel.set('/uploaded_files', undefined);
-    }
+    // A new batch replaces the previous one, so clear the bound value first;
+    // checks such as `required` on that path then hold until the upload completes.
+    this.props()['value']?.onUpdate([]);
 
     try {
-      const uploadedFilesContext = [];
+      const uploaded: FileReference[] = [];
 
       for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const context = await this.uploadSingleFile(file, i, files.length);
-        uploadedFilesContext.push(context);
+        uploaded.push(await this.uploadSingleFile(files[i], i, files.length));
       }
 
-      this.uploadedFiles.set(uploadedFilesContext);
+      this.uploadedFiles.set(uploaded);
       this.uploadState.set(UploadState.SUCCESS);
       this.progress.set(100);
 
-      this.dispatchUploadCompleteAction(uploadedFilesContext);
+      await this.publishValue(uploaded);
     } catch (err) {
       this.uploadState.set(UploadState.ERROR);
       this.errorMessage.set(err instanceof Error ? err.message : 'Upload failed');
@@ -166,7 +159,7 @@ export class FileUploadComponent extends CatalogComponent<any> {
     file: File,
     index: number,
     totalFiles: number,
-  ): Promise<UploadedFile> {
+  ): Promise<FileReference> {
     let pointerUri: string;
     let inlineData: string | undefined = undefined;
 
@@ -190,28 +183,30 @@ export class FileUploadComponent extends CatalogComponent<any> {
 
     return {
       fileId: pointerUri,
-      inlineData,
-      metadata: {
-        fileName: file.name,
-        fileSize: file.size,
-        mimeType: file.type || 'text/plain',
-      },
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType: file.type || 'text/plain',
+      ...(inlineData === undefined ? {} : {inlineData}),
     };
   }
 
-  private dispatchUploadCompleteAction(files: UploadedFile[]) {
+  /**
+   * Writes the file references to the data model path bound to `value`, then
+   * dispatches the component's `action` if the agent declared one.
+   */
+  private async publishValue(files: FileReference[]) {
+    this.props()['value']?.onUpdate(files);
+
+    const action = this.props()['action']?.value();
     const surface = this.rendererService.surfaceGroup.getSurface(this.surfaceId());
-    if (surface) {
+    if (!action || !surface) {
+      return;
+    }
+    const dataContext = new DataContext(surface, this.dataContextPath());
+    const resolved = await dataContext.resolveAction(action);
+    if (resolved) {
       surface.dispatchAction(
-        {
-          event: {
-            name: 'upload_complete',
-            context: {
-              files: files,
-              surfaceId: this.surfaceId(),
-            },
-          },
-        },
+        resolved as Parameters<typeof surface.dispatchAction>[0],
         this.componentId(),
       );
     }
@@ -226,7 +221,7 @@ export class FileUploadComponent extends CatalogComponent<any> {
     });
   }
 
-  removeFile(index: number) {
+  async removeFile(index: number) {
     const files = [...this.uploadedFiles()];
     const removed = files.splice(index, 1)[0];
     this.uploadedFiles.set(files);
@@ -235,10 +230,10 @@ export class FileUploadComponent extends CatalogComponent<any> {
       this.config.onRemoveFile(removed.fileId);
     }
 
-    this.dispatchUploadCompleteAction(files);
-
     if (files.length === 0) {
       this.uploadState.set(UploadState.IDLE);
     }
+
+    await this.publishValue(files);
   }
 }
