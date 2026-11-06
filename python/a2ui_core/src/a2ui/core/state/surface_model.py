@@ -47,6 +47,13 @@ from .surface_components_model import SurfaceComponentsModel
 _MAX_AGENT_CALL_CACHE_ENTRIES = 256
 
 
+def _check_max_agent_call_cache_entries(value: Any) -> int:
+    """Returns the cache bound, or raises ValueError if it isn't positive."""
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        raise ValueError("max_agent_call_cache_entries must be a positive integer.")
+    return value
+
+
 @dataclass(frozen=True)
 class AgentFunctionCall:
     """A function call that a surface routes to the agent.
@@ -170,7 +177,22 @@ class SurfaceModel:
         root_id: str = "root",
         protocol_version: ProtocolVersion | str | None = None,
         metadata: A2uiMetadata | None = None,
+        *,
+        max_agent_call_cache_entries: int = _MAX_AGENT_CALL_CACHE_ENTRIES,
     ) -> None:
+        """Initializes the surface.
+
+        Args:
+            max_agent_call_cache_entries: The most settled agent function call
+                answers the surface keeps; the oldest is evicted first.
+
+        Raises:
+            ValueError: If `max_agent_call_cache_entries` isn't a positive
+                integer.
+        """
+        self._max_agent_call_cache_entries = _check_max_agent_call_cache_entries(
+            max_agent_call_cache_entries
+        )
         self.id = surface_id
         # From v1.0 a surface may name no default catalog, so that each
         # component and function call names its own.
@@ -205,10 +227,17 @@ class SurfaceModel:
         self._agent_function_caller: AgentFunctionCaller | None = None
         # Agent function calls awaiting a response, keyed by call.
         self._in_flight_agent_calls: dict[str, asyncio.Future[Any]] = {}
-        # Settled reactive agent function call answers, bounded by LRU order.
+        # Settled reactive agent function call answers, bounded in FIFO order:
+        # the oldest settled entry is evicted first, and reading an entry
+        # doesn't refresh it.
         self._settled_agent_calls: OrderedDict[str, Any] = OrderedDict()
         self._disposed = False
         self.on_metadata_changed = EventSource()
+
+    @property
+    def max_agent_call_cache_entries(self) -> int:
+        """The most settled agent function call answers the surface keeps."""
+        return self._max_agent_call_cache_entries
 
     @property
     def disposed(self) -> bool:
@@ -395,7 +424,6 @@ class SurfaceModel:
         if abort_signal is not None and abort_signal.aborted:
             return _settled_future(None)
         if not bypass_cache and key in self._settled_agent_calls:
-            self._settled_agent_calls.move_to_end(key)
             return _settled_future(copy.deepcopy(self._settled_agent_calls[key]))
         loop = running_loop()
         if loop is None:
@@ -426,7 +454,7 @@ class SurfaceModel:
             ):
                 return
             self._settled_agent_calls.pop(key, None)
-            while len(self._settled_agent_calls) >= _MAX_AGENT_CALL_CACHE_ENTRIES:
+            while len(self._settled_agent_calls) >= self._max_agent_call_cache_entries:
                 self._settled_agent_calls.popitem(last=False)
             self._settled_agent_calls[key] = copy.deepcopy(done.result())
 
@@ -445,7 +473,6 @@ class SurfaceModel:
         key = agent_call_key(call)
         if key is None or key not in self._settled_agent_calls:
             return False, None
-        self._settled_agent_calls.move_to_end(key)
         return True, copy.deepcopy(self._settled_agent_calls[key])
 
     @staticmethod

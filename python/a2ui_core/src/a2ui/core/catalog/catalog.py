@@ -57,6 +57,7 @@ from ..schema.common_types_schema import (
 from ._spec_shape import SpecSchema, SpecShaper, v08_document_schema
 from .components import ComponentApi, ComponentImplementation, ModelComponentApi
 from .functions import (
+    AgentFunction,
     AllowedCallers,
     FunctionApi,
     FunctionImplementation,
@@ -643,6 +644,83 @@ def _reachable_defs(roots: Sequence[Any], defs: Mapping[str, Any]) -> set[str]:
     return reachable
 
 
+def _agent_function_name_taken(catalog_id: str, name: str) -> A2uiCatalogError:
+    """The error for an agent function whose name a declared function has."""
+    return A2uiCatalogError(
+        f"Catalog '{catalog_id}' already declares a function named '{name}',"
+        " so an agent function can't use that name: a renderer that implements"
+        " the declared function would run it instead of calling the agent."
+        " Give the agent function its own name, or build it with"
+        " `AgentFunction.from_api` from the catalog's entry to replace that"
+        " entry."
+    )
+
+
+def _duplicate_agent_function(catalog_id: str, name: str) -> A2uiCatalogError:
+    """The error for two agent functions with one name."""
+    return A2uiCatalogError(
+        f"Catalog '{catalog_id}' was given more than one agent function named"
+        f" '{name}'. Each agent function needs a name of its own."
+    )
+
+
+def _with_agent_functions(
+    catalog_id: str,
+    functions: Sequence[Any],
+    agent_functions: Sequence[AgentFunction] | None,
+) -> list[Any]:
+    """Adds agent functions to a catalog's functions.
+
+    An agent function built with `AgentFunction.from_api` replaces the entry
+    it was built from, in place; any other is appended.
+
+    Raises:
+        A2uiCatalogError: If an entry is not an `AgentFunction`, two entries
+            share a name, an entry's name is already taken by a declared
+            function, or an entry built with `AgentFunction.from_api` has no
+            entry of `functions` to replace.
+    """
+    merged = list(functions)
+    if not agent_functions:
+        return merged
+    positions = {fn.name: i for i, fn in enumerate(merged)}
+    seen: set[str] = set()
+    for agent_function in agent_functions:
+        if not isinstance(agent_function, AgentFunction):
+            raise A2uiCatalogError(
+                f"Catalog '{catalog_id}' was given {agent_function!r} as an"
+                " agent function, which is not an `AgentFunction`."
+            )
+        name = agent_function.name
+        if name in seen:
+            raise _duplicate_agent_function(catalog_id, name)
+        seen.add(name)
+        position = positions.get(name)
+        if position is None:
+            if agent_function.declaration is not None:
+                raise A2uiCatalogError(
+                    f"Catalog '{catalog_id}' has no function named '{name}'"
+                    " for the agent function built with"
+                    " `AgentFunction.from_api` to replace. Build it from this"
+                    " catalog's entry, or build an `AgentFunction` directly."
+                )
+            positions[name] = len(merged)
+            merged.append(agent_function)
+        elif agent_function.declaration is merged[position]:
+            merged[position] = agent_function
+        elif agent_function.declaration is not None:
+            raise A2uiCatalogError(
+                f"Agent function '{name}' was built with"
+                " `AgentFunction.from_api` from a different declaration than"
+                f" the one in catalog '{catalog_id}' (for example, from a"
+                " reloaded or copied catalog); build it from this catalog's"
+                " entry."
+            )
+        else:
+            raise _agent_function_name_taken(catalog_id, name)
+    return merged
+
+
 def _externalize_refs(
     node: Any, common_names: set[str], document: str = _COMMON_TYPES_DOCUMENT
 ) -> Any:
@@ -1073,25 +1151,139 @@ class _ResolvedSchemas:
     theme: dict[str, Any]
 
 
-def _parameter_names(schema: Any) -> list[str]:
-    """Extracts declared parameter names from a function argument schema."""
+def _agent_function_args_schema(fn: AgentFunction) -> Any:
+    """The JSON Schema of an agent function's `args`, as far as it has one."""
+    schema = fn.schema
+    if isinstance(schema, type) and issubclass(schema, BaseModel):
+        return schema.model_json_schema()
+    if not isinstance(schema, dict):
+        return None
+    props = schema.get("properties")
+    if isinstance(props, dict) and isinstance(props.get("args"), dict):
+        return props["args"]
+    for key in ("args", "parameters"):
+        if isinstance(schema.get(key), dict):
+            return schema[key]
+    if isinstance(props, dict) and ("@call" in props or "call" in props):
+        return None
+    return schema
+
+
+def _agent_function_local_defs(fn: AgentFunction) -> dict[str, Any]:
+    """The `$defs` an agent function declares in its own schema.
+
+    These are the function definition's `$defs` and those of its `args`
+    schema. `#/$defs/X` in the function resolves against these merged with the
+    catalog's root `$defs`, and the catalog document hoists them to its root.
+    """
+    local_defs: dict[str, Any] = {}
+    sources: list[Any] = []
+    if isinstance(fn.schema, dict):
+        sources.append(fn.schema)
+    args_schema = _agent_function_args_schema(fn)
+    if isinstance(args_schema, dict) and args_schema is not fn.schema:
+        sources.append(args_schema)
+    for source in sources:
+        defs = source.get("$defs")
+        if isinstance(defs, Mapping):
+            local_defs.update(defs)
+    return local_defs
+
+
+def _check_agent_function_local_defs(
+    fn: AgentFunction,
+    catalog_defs: Mapping[str, Any],
+    seen: dict[str, tuple[str, Any]],
+) -> None:
+    """Rejects a local `$defs` name that another definition gives differently.
+
+    The catalog document keeps one definition per name in its root `$defs`, so
+    a local definition that differs from the catalog's, or from another agent
+    function's, would make the agent and the renderer validate one call
+    against different schemas. Identical definitions are accepted.
+
+    Args:
+        fn: The agent function to check.
+        catalog_defs: The catalog's root `$defs`.
+        seen: The local `$defs` of the agent functions checked so far, by
+            name, with the function that declares each. Updated with `fn`'s.
+
+    Raises:
+        A2uiCatalogError: If a local `$defs` name of `fn` is defined
+            differently in `catalog_defs` or in `seen`.
+    """
+    for def_name, def_schema in _agent_function_local_defs(fn).items():
+        if def_name in catalog_defs and catalog_defs[def_name] != def_schema:
+            raise A2uiCatalogError(
+                f"Agent function '{fn.name}' defines $defs '{def_name}'"
+                " differently from the catalog."
+            )
+        previous = seen.get(def_name)
+        if previous is not None and previous[1] != def_schema:
+            raise A2uiCatalogError(
+                f"Agent function '{fn.name}' defines $defs '{def_name}'"
+                f" differently from agent function '{previous[0]}'."
+            )
+        seen.setdefault(def_name, (fn.name, def_schema))
+
+
+def _follow_defs_pointer(defs: Mapping[str, Any], ref: str) -> Any:
+    """The node a local `#/$defs/...` reference names, followed as a JSON Pointer."""
+    node: Any = defs
+    for token in ref[len("#/$defs/") :].split("/"):
+        key = token.replace("~1", "/").replace("~0", "~")
+        if isinstance(node, Mapping):
+            node = node.get(key)
+        elif isinstance(node, list) and key.isdigit() and int(key) < len(node):
+            node = node[int(key)]
+        else:
+            return None
+    return node
+
+
+def _parameter_names(
+    schema: Any,
+    catalog_defs: Mapping[str, Any] | None = None,
+    outer_defs: Mapping[str, Any] | None = None,
+) -> list[str]:
+    """Extracts declared parameter names from a function argument schema.
+
+    A local `#/$defs/...` reference is followed as a JSON Pointer into the
+    schema's own `$defs`, then `outer_defs` (those of the whole function
+    definition), then the catalog's `catalog_defs`.
+    """
     if not isinstance(schema, dict):
         return []
     names: list[str] = []
+    local_defs = schema.get("$defs")
+    defs: dict[str, Any] = {}
+    for source in (catalog_defs, outer_defs, local_defs):
+        if isinstance(source, Mapping):
+            defs.update(source)
+    visited: set[str] = set()
 
     def _extract_properties(node: Any) -> None:
         if not isinstance(node, dict):
             return
+        ref = node.get("$ref")
+        if isinstance(ref, str) and ref.startswith("#/$defs/") and ref not in visited:
+            visited.add(ref)
+            target = _follow_defs_pointer(defs, ref)
+            if isinstance(target, dict):
+                _extract_properties(target)
         props = node.get("properties")
         if isinstance(props, dict):
             names.extend(str(k) for k in props.keys())
-        all_of = node.get("allOf")
-        if isinstance(all_of, list):
-            for member in all_of:
-                _extract_properties(member)
+        for keyword in ("allOf", "anyOf", "oneOf"):
+            members = node.get(keyword)
+            if isinstance(members, list):
+                for member in members:
+                    _extract_properties(member)
 
-    if isinstance(schema.get("properties"), dict) or isinstance(
-        schema.get("allOf"), list
+    if (
+        isinstance(schema.get("properties"), dict)
+        or isinstance(schema.get("$ref"), str)
+        or any(isinstance(schema.get(k), list) for k in ("allOf", "anyOf", "oneOf"))
     ):
         _extract_properties(schema)
         return names
@@ -1164,7 +1356,9 @@ class Catalog(Generic[TComponent, TFunction]):
             catalog_id: The catalog's ID.
             protocol_version: The A2UI protocol version the catalog targets.
             components: The catalog's components.
-            functions: The catalog's functions.
+            functions: The catalog's functions. `AgentFunction` entries run
+                on the agent (v1.0 and later); to add them to a loaded
+                catalog, use `copy_with(agent_functions=...)`.
             theme_schema: The JSON schema of the catalog's theme. Defaults to
                 the schema of `theme_model`.
             instructions: Instructions for agents that use the catalog.
@@ -1208,7 +1402,11 @@ class Catalog(Generic[TComponent, TFunction]):
 
         Raises:
             A2uiCatalogError: If `protocol_version` is missing, an identifier
-                is invalid or `theme_location` is unknown.
+                is invalid, `theme_location` is unknown, an agent function's
+                name is already taken, an agent function's local `$defs`
+                gives a name a different definition than the catalog's root
+                `$defs` or another agent function, or the catalog has agent
+                functions before v1.0.
         """
         if not protocol_version:
             raise A2uiCatalogError("protocol_version must be provided.")
@@ -1281,6 +1479,7 @@ class Catalog(Generic[TComponent, TFunction]):
             else ()
         )
         self.functions: dict[str, TFunction] = {}
+        agent_local_defs: dict[str, tuple[str, Any]] = {}
         for fn in functions or []:
             if (
                 validate_identifiers
@@ -1290,7 +1489,36 @@ class Catalog(Generic[TComponent, TFunction]):
                 raise A2uiCatalogError(
                     f"Invalid UAX #31 function identifier: '{fn.name}'"
                 )
+            if validate_identifiers and isinstance(fn, AgentFunction):
+                outer_defs = (
+                    fn.schema.get("$defs") if isinstance(fn.schema, dict) else None
+                )
+                for arg_name in _parameter_names(
+                    _agent_function_args_schema(fn), self.defs, outer_defs
+                ):
+                    if not is_valid_uax31_identifier(arg_name):
+                        raise A2uiCatalogError(
+                            f"Invalid UAX #31 argument identifier: '{arg_name}'"
+                            f" in agent function '{fn.name}'"
+                        )
+            existing = self.functions.get(fn.name)
+            if isinstance(fn, AgentFunction) and isinstance(existing, AgentFunction):
+                raise _duplicate_agent_function(catalog_id, fn.name)
+            if existing is not None and (
+                isinstance(fn, AgentFunction) or isinstance(existing, AgentFunction)
+            ):
+                raise _agent_function_name_taken(catalog_id, fn.name)
+            if isinstance(fn, AgentFunction):
+                _check_agent_function_local_defs(fn, self.defs, agent_local_defs)
             self.functions[fn.name] = fn
+        if not is_at_least_version(protocol_version, ProtocolVersion.V1_0) and any(
+            isinstance(fn, AgentFunction) for fn in self.functions.values()
+        ):
+            raise A2uiCatalogError(
+                f"Catalog '{catalog_id}' targets protocol version"
+                f" {protocol_version}, but agent functions need v1.0 or later,"
+                " where renderers send calls to the agent."
+            )
 
         self.theme_model = theme_model
         if theme_schema is None and theme_model is not None:
@@ -1318,12 +1546,39 @@ class Catalog(Generic[TComponent, TFunction]):
         """Symmetrical alias for catalog_id."""
         return self.catalog_id
 
+    @property
+    def agent_functions(self) -> dict[str, AgentFunction]:
+        """The catalog's functions that run on the agent, by name.
+
+        Each is also in `functions`. A copy: changing it leaves the catalog
+        as it is.
+        """
+        return {
+            name: fn
+            for name, fn in self.functions.items()
+            if isinstance(fn, AgentFunction)
+        }
+
+    @property
+    def renderer_functions(self) -> dict[str, TFunction]:
+        """The catalog's functions that are not agent functions, by name.
+
+        Each is also in `functions`. A copy: changing it leaves the catalog
+        as it is.
+        """
+        return {
+            name: fn
+            for name, fn in self.functions.items()
+            if not isinstance(fn, AgentFunction)
+        }
+
     def copy_with(
         self,
         *,
         components: Sequence[ComponentApi] | None = None,
         functions: Sequence[FunctionApi] | None = None,
         defs: Mapping[str, Any] | None = None,
+        agent_functions: Sequence[AgentFunction] | None = None,
     ) -> "CatalogApi":
         """Returns a catalog derived from this one, for catalog transformers.
 
@@ -1335,19 +1590,50 @@ class Catalog(Generic[TComponent, TFunction]):
 
         Args:
             components: The copy's components. None keeps this catalog's.
-            functions: The copy's functions. None keeps this catalog's.
+            functions: The copy's functions. None keeps this catalog's. Agent
+                functions among them stay agent functions, even with
+                `agent_functions`.
             defs: The copy's own `$defs`. None keeps this catalog's, except
                 those that only the dropped entries referenced. Defs given
                 here are treated as defined in code.
+            agent_functions: Agent functions to add. With `functions` omitted,
+                they replace this catalog's agent functions: an agent function
+                built with `AgentFunction.from_api` goes back to the entry it
+                was built from, and any other is dropped. With `functions`
+                given, they are added to those functions. None adds none.
 
         Returns:
             A schema-only catalog.
+
+        Raises:
+            A2uiCatalogError: If an agent function's name is already taken,
+                two agent functions share a name, or an agent function built
+                with `AgentFunction.from_api` has no entry to replace.
         """
+        new_functions: list[Any]
+        if functions is not None:
+            new_functions = list(functions)
+        elif agent_functions is not None:
+            new_functions = [
+                (
+                    cast(FunctionApi, fn.declaration)
+                    if isinstance(fn, AgentFunction)
+                    else fn
+                )
+                for fn in self.functions.values()
+                if not isinstance(fn, AgentFunction) or fn.declaration is not None
+            ]
+        else:
+            new_functions = list(self.functions.values())
+        if agent_functions is not None:
+            new_functions = _with_agent_functions(
+                self.catalog_id, new_functions, agent_functions
+            )
         return cast(
             "CatalogApi",
             self._rebuild(
                 list(self.components.values() if components is None else components),
-                list(self.functions.values() if functions is None else functions),
+                new_functions,
                 defs,
                 catalog_id=self.catalog_id,
                 schema_id=self.schema_id,
@@ -1576,10 +1862,22 @@ class Catalog(Generic[TComponent, TFunction]):
         })
 
         def resolve(node: Any) -> Any:
+            normalized_node = _normalize_external_schema_refs(node)
+            effective_root = root
+            if isinstance(normalized_node, Mapping) and isinstance(
+                normalized_node.get("$defs"), Mapping
+            ):
+                effective_root = {
+                    **root,
+                    "$defs": {
+                        **root.get("$defs", {}),
+                        **normalized_node["$defs"],
+                    },
+                }
             resolved_node = copy.deepcopy(
                 inline_local_refs(
-                    _normalize_external_schema_refs(node),
-                    root,
+                    normalized_node,
+                    effective_root,
                     inline_local_defs=inline_local_defs,
                 )
             )

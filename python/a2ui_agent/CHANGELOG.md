@@ -1,5 +1,23 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v1_0) `validate_payload` and `RendererState.apply`
+  check each `callRendererFunction` against the catalogs instead of running
+  it, and reject one the renderer would refuse: a surface that doesn't exist
+  when the call arrives, a catalog that isn't active, a function the catalog
+  doesn't declare, a `rendererOnly` function (the default) or one that
+  requires user activation, arguments that don't match the function's schema,
+  and a nested call the renderer can't make (to an `agentOnly` function or one
+  that requires user activation, malformed, or naming no catalog on a surface
+  without a default one), a nested `@index` call (the arguments are resolved
+  outside any list template), and a malformed data binding (an `@path` that
+  isn't a string, or a field other than `@path`). Each refusal has the code
+  `INVALID_FUNCTION_CALL`. A nested call that names no catalog is checked
+  against the default catalog of the surface the call names. They also reject
+  an `agentOnly` function bound into a component. Recommended migration:
+  declare the functions an agent calls with `allowedCallers` set to
+  `agentOnly` or `rendererOrAgent` in the catalog the call names
+  ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
+  [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
 - **BREAKING CHANGE**: `PromptGenerator.generate()` is now final and returns
   `assemble_instructions(self)`, which `SkillGenerator.generate_skill()` also
   uses, so a monolithic skill for a format's own catalogs holds its prompt
@@ -14,6 +32,31 @@
   generator through `InferenceFormat.prompt_generator`, and subclass
   `PromptGenerator` to write a format of your own.
   [#3568](https://github.com/a2ui-project/a2ui/pull/3568)
+- `RendererFunctionCalls.call` checks its arguments in a fixed order shared
+  with the TypeScript and Dart SDKs. An empty `function_call_id` is now
+  refused with `INVALID_FUNCTION_CALL` instead of replaced by a generated
+  one, and so are a `name` that isn't a UAX #31 identifier or starts with
+  `@`, and `args` that aren't a mapping with identifier keys and JSON values
+  (no NaN or infinity). `timeout` and `default_timeout` must be finite
+  positive numbers (not bools); only `default_timeout=None` turns the limit
+  off. ([#3939](https://github.com/a2ui-project/a2ui/pull/3939))
+- `RendererFunctionCalls` takes optional `catalogs`. With them, `call` raises
+  `UNKNOWN_FUNCTION` for a catalog they lack or a name that isn't one of its
+  renderer functions (agent functions included), and
+  `INVALID_FUNCTION_CALL` for a `rendererOnly` function or one that requires
+  user activation, before anything is registered. Two catalogs with one ID
+  raise `A2uiCatalogError`.
+  ([#3939](https://github.com/a2ui-project/a2ui/pull/3939))
+- Add `RendererFunctionCalls` to `a2ui.rpc`, which sends v1.0
+  `callRendererFunction` messages for one conversation and settles each call's
+  future from the renderer's `rendererFunctionResponse`, with timeouts (30
+  seconds by default), `max_pending` and `dispose()`. Its `resolve` method is
+  the `on_renderer_function_response` callback of
+  `RendererToAgentMessageProcessor`: it returns `True` when it settles (or, for
+  a malformed response, fails) a pending call and `False` otherwise, so the
+  processor declines responses to calls it didn't make. `is_pending` tells
+  whether a response answers one of its calls. `agent_development.md` describes it
+  ([#3535](https://github.com/a2ui-project/a2ui/issues/3535)).
 - **BREAKING CHANGE**: (v1_0) The `TextField` builder in
   `a2ui.builder.v1_0.catalogs.basic` requires `value`, following the basic
   catalog. Recommended migration: pass `value`, such as
@@ -293,6 +336,22 @@
   that declare none, and a function call given to a property with a static
   type. Elemental output whose top-level element has no `id="root"` is
   rejected, as its prompt requires.
+- Add `a2ui.rpc` with `RendererToAgentMessageProcessor`, which processes the
+  v1.0 messages a renderer sends to the agent. `process_message` returns a
+  `ProcessResult` (`handled`, `replies`). A
+  `callAgentFunction` is always handled: the processor runs the handler of the
+  catalogs' agent function (`Catalog.copy_with(agent_functions=...)` in
+  `a2ui-core`), validates the arguments against the function's schema, and
+  replies with one `agentFunctionResponse`, carrying the value or
+  `UNKNOWN_FUNCTION`, `INVALID_FUNCTION_CALL` or `EXECUTION_ERROR`. Sync
+  handlers run on a worker thread, and `agent_function_timeout` bounds a call.
+  `action`, `error` and `rendererFunctionResponse` go to the `on_action`,
+  `on_error` and `on_renderer_function_response` callbacks, which may return
+  `False` to decline; without one, the message is left unhandled for the
+  agent's turn. `a2ui.rpc` re-exports the v1.0 message classes.
+  `agent_development.md` describes it and what strict renderers need
+  ([#3536](https://github.com/a2ui-project/a2ui/issues/3536),
+  [#3793](https://github.com/a2ui-project/a2ui/pull/3793)).
 - The Express response parser treats only `"` as a string delimiter, as
   Express does, so an apostrophe in a comment (`/* Chef's pick */`) no longer
   swallows the closing `</a2ui>` tag

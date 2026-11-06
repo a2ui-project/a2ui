@@ -4,6 +4,13 @@
   validate A2UI renderer capabilities from an inbound A2A `Message` across
   `message.metadata`, `DataPart.metadata`, and legacy `DataPart.data["metadata"]`.
   [#4013](https://github.com/a2ui-project/a2ui/pull/4013)
+- Add `get_a2ui_messages`, which returns the A2UI messages in an A2A message's
+  A2UI parts, and `create_a2ui_parts`, which wraps A2UI messages, such as the
+  replies of `RendererToAgentMessageProcessor`, as A2UI parts. Models are
+  serialized as `to_message_dicts` serializes them, with only the fields that
+  were set, so an `agentFunctionResponse` keeps a `value` of `None`, and a
+  model's default `version` is written for v0.9 and later.
+  [#3795](https://github.com/a2ui-project/a2ui/pull/3795)
 - `create_a2ui_part` labels a part with the message's own `version` field when
   no `version` is passed, so a v0.9.1 or v1.0 message gets the current A2UI MIME
   type. [#3299](https://github.com/a2ui-project/a2ui/pull/3299)

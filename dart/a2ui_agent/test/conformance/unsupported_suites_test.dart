@@ -22,6 +22,7 @@ import 'suites.dart';
 /// Conformance suites executed in the default test run by the per-suite
 /// `*_conformance_test.dart` files.
 const Set<String> activeAgentSuites = {
+  'agent/agent_functions.yaml',
   'agent/catalog_provider.yaml',
   'agent/catalog_resolution.yaml',
   'agent/catalog_transformer.yaml',
@@ -37,6 +38,7 @@ const Set<String> activeAgentSuites = {
   'agent/express/response_streaming.yaml',
   'agent/multi_catalog_formats.yaml',
   'agent/renderer_capabilities.yaml',
+  'agent/renderer_function_calls.yaml',
   'agent/request_processor.yaml',
   'agent/streamed_answer.yaml',
 };
