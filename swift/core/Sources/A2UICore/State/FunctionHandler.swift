@@ -29,6 +29,12 @@ public protocol FunctionHandler: AnyObject, Sendable {
   /// - Throws: An error, typically `A2UICatalogError`, if the catalog can't be resolved.
   func validateFunctionCatalog(id catalogID: String?, functionName: String) throws
 
+  /// Returns the identifier of the catalog that a v1.0 local function call resolved to.
+  ///
+  /// The default implementation returns `catalogID` unchanged. Surface-backed handlers return
+  /// `catalogID ?? defaultCatalogID`.
+  func resolvedFunctionCatalogID(forCallCatalogID catalogID: String?) -> String?
+
   /// Returns the catalog that a v1.0 call is sent to the agent with, when the renderer has no
   /// local implementation of the function, or `nil` if this handler can't call the agent.
   ///
@@ -58,6 +64,10 @@ extension FunctionHandler {
   public func handleFunctionError(_ error: any Error, functionName: String) {}
 
   public func validateFunctionCatalog(id catalogID: String?, functionName: String) throws {}
+
+  public func resolvedFunctionCatalogID(forCallCatalogID catalogID: String?) -> String? {
+    catalogID
+  }
 
   public func agentFunctionCatalogID(forCallCatalogID catalogID: String?) -> String? {
     nil
