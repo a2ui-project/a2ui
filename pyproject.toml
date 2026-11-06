@@ -32,8 +32,6 @@ members = [
   "eval",
   "samples/agent/adk/custom-components-example",
   "samples/agent/adk/restaurant_finder",
-  "samples/community/agent/adk/gemini_enterprise/agent_engine",
-  "samples/community/agent/adk/gemini_enterprise/cloud_run",
   "samples/community/agent/adk/mcp-apps-in-a2ui-sample",
   "samples/community/agent/adk/mcp_app_proxy",
   "samples/community/agent/adk/file_upload_summarizer",
