@@ -493,6 +493,19 @@ class RpcHandler:
         self._emit_outbound_response(resp.model_dump(by_alias=True, exclude_unset=True))
         return resp
 
+    @staticmethod
+    def _scope_call_context(
+        context: DataContext | None, matched_catalog: Any
+    ) -> DataContext | None:
+        """Returns `context` scoped to `matched_catalog`'s ID when available."""
+        if context is None or matched_catalog is None:
+            return context
+        catalog_id = getattr(matched_catalog, "catalog_id", None)
+        with_catalog = getattr(context, "with_active_catalog_id", None)
+        if isinstance(catalog_id, str) and callable(with_catalog):
+            return cast(DataContext, with_catalog(catalog_id))
+        return context
+
     def _execute_function_safely(
         self,
         fn: Any,
@@ -524,44 +537,32 @@ class RpcHandler:
                 prepared.validated_args if prepared.validated_args is not None else args
             )
             has_pos_context, has_kw_context = self._inspect_call_signature(target_fn)
-            prev_catalog_id = (
-                getattr(effective_context, "_active_catalog_id", None)
-                if effective_context is not None
-                else None
+            call_context = self._scope_call_context(effective_context, matched_catalog)
+            raw_res = (
+                target_fn(fn_args, call_context)
+                if has_pos_context
+                else (
+                    target_fn(fn_args, context=call_context)
+                    if has_kw_context
+                    else target_fn(fn_args)
+                )
             )
-            if effective_context is not None and matched_catalog is not None:
-                effective_context._active_catalog_id = getattr(
-                    matched_catalog, "catalog_id", None
-                )
-            try:
-                raw_res = (
-                    target_fn(fn_args, effective_context)
-                    if has_pos_context
-                    else (
-                        target_fn(fn_args, context=effective_context)
-                        if has_kw_context
-                        else target_fn(fn_args)
-                    )
-                )
-                if inspect.isawaitable(raw_res):
-                    try:
-                        loop = asyncio.get_running_loop()
-                        if loop.is_running():
-                            with concurrent.futures.ThreadPoolExecutor(
-                                max_workers=1
-                            ) as executor:
-                                val = executor.submit(
-                                    asyncio.run, cast(Any, raw_res)
-                                ).result()
-                        else:
-                            val = asyncio.run(cast(Any, raw_res))
-                    except RuntimeError:
+            if inspect.isawaitable(raw_res):
+                try:
+                    loop = asyncio.get_running_loop()
+                    if loop.is_running():
+                        with concurrent.futures.ThreadPoolExecutor(
+                            max_workers=1
+                        ) as executor:
+                            val = executor.submit(
+                                asyncio.run, cast(Any, raw_res)
+                            ).result()
+                    else:
                         val = asyncio.run(cast(Any, raw_res))
-                else:
-                    val = raw_res
-            finally:
-                if effective_context is not None and matched_catalog is not None:
-                    effective_context._active_catalog_id = prev_catalog_id
+                except RuntimeError:
+                    val = asyncio.run(cast(Any, raw_res))
+            else:
+                val = raw_res
             return self._build_success_response(val, call_id, version)
         except Exception as e:
             err_model = self._create_response_error(
@@ -608,33 +609,17 @@ class RpcHandler:
                 prepared.validated_args if prepared.validated_args is not None else args
             )
             has_pos_context, has_kw_context = self._inspect_call_signature(target_fn)
-            prev_catalog_id = (
-                getattr(effective_context, "_active_catalog_id", None)
-                if effective_context is not None
-                else None
+            call_context = self._scope_call_context(effective_context, matched_catalog)
+            raw_res = (
+                target_fn(fn_args, call_context)
+                if has_pos_context
+                else (
+                    target_fn(fn_args, context=call_context)
+                    if has_kw_context
+                    else target_fn(fn_args)
+                )
             )
-            if effective_context is not None and matched_catalog is not None:
-                effective_context._active_catalog_id = getattr(
-                    matched_catalog, "catalog_id", None
-                )
-            try:
-                raw_res = (
-                    target_fn(fn_args, effective_context)
-                    if has_pos_context
-                    else (
-                        target_fn(fn_args, context=effective_context)
-                        if has_kw_context
-                        else target_fn(fn_args)
-                    )
-                )
-                val = (
-                    await cast(Any, raw_res)
-                    if inspect.isawaitable(raw_res)
-                    else raw_res
-                )
-            finally:
-                if effective_context is not None and matched_catalog is not None:
-                    effective_context._active_catalog_id = prev_catalog_id
+            val = await cast(Any, raw_res) if inspect.isawaitable(raw_res) else raw_res
             return self._build_success_response(val, call_id, version)
         except Exception as e:
             err_model = self._create_response_error(
