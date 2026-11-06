@@ -1,4 +1,5 @@
 {
+  "$id": "https://a2ui.org/specification/v0_9_1/client_to_server.json",
   "title": "A2UI Client-to-Server Event Schema",
   "description": "Describes a JSON payload for a client-to-server event message.",
   "type": "object",

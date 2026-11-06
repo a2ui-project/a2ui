@@ -26,6 +26,7 @@ SCHEMA_DIR = os.path.abspath(os.path.join(TEST_DIR, "../json"))
 CASES_DIR = os.path.join(TEST_DIR, "cases")
 TEMP_FILE = os.path.join(TEST_DIR, "temp_data.json")
 TEMP_CATALOG_FILE = os.path.join(TEST_DIR, "catalog.json")
+TEMP_COMMON_TYPES_CATALOG_FILE = os.path.join(TEST_DIR, "common_types_catalog.json")
 
 # Map of schema filenames to their full paths
 # Note: catalog.json is dynamically created from catalogs/basic/catalog.json
@@ -33,14 +34,29 @@ SCHEMAS = {
     "server_to_client.json": os.path.join(SCHEMA_DIR, "server_to_client.json"),
     "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json"),
     "catalog.json": TEMP_CATALOG_FILE,
+    "common_types_catalog.json": TEMP_COMMON_TYPES_CATALOG_FILE,
+    "client_to_server_list.json": os.path.join(
+        SCHEMA_DIR, "client_to_server_list.json"
+    ),
     "client_to_server.json": os.path.join(SCHEMA_DIR, "client_to_server.json"),
 }
+
+# Each schema that refers to "catalog.json", and the catalog alias that serves it.
+# common_types.json keeps v0.9's $id, because the basic catalog (also v0.9's)
+# refers to it by that address, so its "catalog.json" resolves under v0.9.
+CATALOG_ALIASES = {
+    "server_to_client.json": TEMP_CATALOG_FILE,
+    "common_types.json": TEMP_COMMON_TYPES_CATALOG_FILE,
+}
+
+# Schemas that v0.9.1 publishes unchanged from v0.9, under v0.9's $id.
+SHARED_WITH_V0_9 = {"common_types.json"}
 
 
 def setup_catalog_alias():
     """
-    Creates a temporary catalog.json from catalogs/basic/catalog.json
-    with the $id modified to match what server_to_client.json expects.
+    Creates temporary copies of catalogs/basic/catalog.json, each with the
+    $id that "catalog.json" resolves to from one of CATALOG_ALIASES.
     """
     basic_catalog_path = os.path.abspath(
         os.path.join(TEST_DIR, "../catalogs/basic/catalog.json")
@@ -56,23 +72,49 @@ def setup_catalog_alias():
             print(f"Error parsing catalog.json: {e}")
             sys.exit(1)
 
-    # Modify the $id to be the generic catalog reference
-    # This allows server_to_client.json to refer to "catalog.json"
+    # Give each alias the generic catalog reference as its $id
+    # This allows each schema to refer to "catalog.json"
     # and have it resolve to this schema content.
-    if "$id" in catalog:
-        import re
-
-        match = re.match(r"^(https://a2ui\.org/specification/v0_\d+/)", catalog["$id"])
-        if match:
-            catalog["$id"] = match.group(1) + "catalog.json"
-
-    with open(TEMP_CATALOG_FILE, "w") as f:
-        json.dump(catalog, f, indent=2)
+    for schema_name, alias_path in CATALOG_ALIASES.items():
+        with open(SCHEMAS[schema_name], "r") as f:
+            schema_id = json.load(f)["$id"]
+        alias = {**catalog, "$id": schema_id.rsplit("/", 1)[0] + "/catalog.json"}
+        with open(alias_path, "w") as f:
+            json.dump(alias, f, indent=2)
 
 
 def cleanup_catalog_alias():
-    if os.path.exists(TEMP_CATALOG_FILE):
-        os.remove(TEMP_CATALOG_FILE)
+    for alias_path in CATALOG_ALIASES.values():
+        if os.path.exists(alias_path):
+            os.remove(alias_path)
+
+
+def check_schema_ids():
+    """
+    Checks that every schema in json/ declares the $id of the address
+    a2ui.org publishes it at, so that a tool loading schemas by $id can hold
+    v0.9 and v0.9.1 side by side.
+    """
+    print("\nChecking schema $ids")
+
+    passed = 0
+    failed = 0
+
+    for path in sorted(glob.glob(os.path.join(SCHEMA_DIR, "*.json"))):
+        name = os.path.basename(path)
+        version = "v0_9" if name in SHARED_WITH_V0_9 else "v0_9_1"
+        expected = f"https://a2ui.org/specification/{version}/{name}"
+        with open(path, "r") as f:
+            actual = json.load(f).get("$id")
+
+        if actual == expected:
+            passed += 1
+        else:
+            failed += 1
+            print(f"  [FAIL] {name}")
+            print(f"         Expected $id: {expected}, Got: {actual}")
+
+    return passed, failed
 
 
 def validate_ajv(schema_path, data_path, all_schemas):
@@ -211,6 +253,11 @@ def main():
         # 2. Run .jsonl example validation
         example_path = os.path.join(CASES_DIR, "contact_form_example.jsonl")
         p, f = validate_jsonl_example(example_path)
+        total_passed += p
+        total_failed += f
+
+        # 3. Check the $id of each schema
+        p, f = check_schema_ids()
         total_passed += p
         total_failed += f
 
