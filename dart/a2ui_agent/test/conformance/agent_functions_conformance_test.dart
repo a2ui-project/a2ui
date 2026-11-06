@@ -20,8 +20,9 @@ import 'suites.dart';
 ///
 /// The suite covers agent functions and the routing of renderer messages,
 /// which this SDK does not implement yet, so every case is
-/// skipped with the reason [_unimplementedActions] gives. A case whose action
-/// has no reason fails instead of passing without running.
+/// skipped with the reason [_unimplementedActions] gives, and recorded so in
+/// the executed-case manifest. A case whose action has no reason fails
+/// instead of passing without running.
 void main() {
   const path = 'agent/agent_functions.yaml';
   group('conformance $path', () {
@@ -29,11 +30,13 @@ void main() {
     test('suite is not empty', () => expect(cases, isNotEmpty));
     for (final testCase in cases) {
       final action = testCase['action']! as String;
-      test(
-        '$action · ${testCase['name']}',
-        () => fail('Unhandled conformance action: $action'),
-        skip: _unimplementedActions[action],
-      );
+      test(testCase['name']! as String, () {
+        if (_unimplementedActions[action] case final String reason) {
+          markTestSkipped(reason);
+          return;
+        }
+        fail('Unhandled conformance action: $action');
+      });
     }
   });
 }
