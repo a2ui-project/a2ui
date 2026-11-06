@@ -41,6 +41,7 @@ import {
 import {Catalog, createFunctionImplementation} from '../catalog/types.js';
 import {
   FormatStringImplementation,
+  NotImplementation,
   PluralizeImplementation,
 } from '../catalogs/basic/v1/functions/basic_functions.js';
 import {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
@@ -1742,7 +1743,7 @@ describe('DataContext asynchronous function arguments', () => {
       basicId,
       '1.0',
       [],
-      [FormatStringImplementation, PluralizeImplementation],
+      [FormatStringImplementation, NotImplementation, PluralizeImplementation],
     );
     const defaultlessSurface = new SurfaceModel(
       's-no-default',
@@ -1765,11 +1766,12 @@ describe('DataContext asynchronous function arguments', () => {
       '@call': 'formatString',
       catalogId: basicId,
       args: {
-        value: "Row ${@index()}: ${pluralize(value: 2, one: 'drop', other: 'drops')}",
+        value:
+          "Row ${@index()}: ${pluralize(value: 2, one: 'drop', other: 'drops')} (${not(value: not(value: true))})",
       },
     };
-    assert.strictEqual(itemCtx.resolveDynamicValue(callExpr), 'Row 2: drops');
-    assert.strictEqual(getValue(itemCtx.resolveSignal(callExpr)), 'Row 2: drops');
+    assert.strictEqual(itemCtx.resolveDynamicValue(callExpr), 'Row 2: drops (true)');
+    assert.strictEqual(getValue(itemCtx.resolveSignal(callExpr)), 'Row 2: drops (true)');
     assert.strictEqual(errors.length, 0);
   });
 });
