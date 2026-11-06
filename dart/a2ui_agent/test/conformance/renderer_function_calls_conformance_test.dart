@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'dart:io';
-
 import 'package:a2ui_agent/a2ui_agent.dart';
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:fake_async/fake_async.dart';
@@ -26,12 +24,6 @@ const String _suite = 'agent/renderer_function_calls.yaml';
 
 void main() {
   group('conformance $_suite', () {
-    // The suite comes with the renderer function calls follow-up of the
-    // conformance tests; until it is on this branch, there is nothing to run.
-    if (!File('$conformanceRoot/$_suite').existsSync()) {
-      test('suite', () {}, skip: '$_suite is not in this checkout yet.');
-      return;
-    }
     final List<Map<String, Object?>> cases = loadSuite(_suite);
     test('suite is not empty', () => expect(cases, isNotEmpty));
     for (final testCase in cases) {

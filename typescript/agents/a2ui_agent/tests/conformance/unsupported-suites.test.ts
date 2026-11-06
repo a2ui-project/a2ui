@@ -50,6 +50,8 @@ export const ACTIVE_SUITES: ReadonlySet<string> = new Set([
   'agent/legacy/inference_format.yaml',
   'agent/legacy/parser.yaml',
   'agent/multi_catalog_formats.yaml',
+  'agent/renderer_function_calls.yaml',
+  'agent/renderer_state.yaml',
   'agent/request_processor.yaml',
   'agent/skill.yaml',
   'agent/streamed_answer.yaml',
@@ -61,12 +63,12 @@ export const PERFORMANCE_SUITES: ReadonlySet<string> = new Set([
 ]);
 
 export const UNSUPPORTED_SUITES: Readonly<Record<string, string>> = {
+  'agent/atom/compiler.yaml': 'Elemental and Atom are experimental and Python-only',
   'agent/builder/builder.yaml':
     'the fluent builder API is a Python-only helper not implemented in TypeScript',
+  'agent/elemental/compiler.yaml': 'Elemental and Atom are experimental and Python-only',
   'agent/macros/macros.yaml':
     'the composite macro API is a Python-only helper not implemented in TypeScript',
-  'agent/renderer_function_calls.yaml':
-    'this SDK does not implement calling renderer functions yet',
   'agent/legacy/streaming_parser.yaml':
     'superseded by direct_json/response_streaming.yaml and express/response_streaming.yaml',
 };

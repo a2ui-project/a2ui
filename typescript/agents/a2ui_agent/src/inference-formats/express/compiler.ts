@@ -950,7 +950,7 @@ export class ExpressScopeSession {
           'surface() extensions require a surface-creating scope with a root component.',
         );
       }
-      if (compiledData.size > 0 && compiledComponents.length === 0) {
+      if (compiledComponents.length > 0 || compiledData.size > 0) {
         return this.compileIncrementalUpdates(
           scope,
           state,
@@ -1019,7 +1019,7 @@ export class ExpressScopeSession {
 
     const messages: AgentToRendererMessage[] = [];
     if (deltaComponents.length > 0) {
-      if (!scope.hasSurfaceDirective && !state.surfaceCreated && !surfaceExists) {
+      if (!isFinal && !scope.hasSurfaceDirective && !state.surfaceCreated && !surfaceExists) {
         throw new ExpressUndefinedRootError('root');
       }
       messages.push(
