@@ -172,7 +172,7 @@
   action: decompile
   args:
     format: direct_json
-    catalog: "test_data/catalogs/allowed_callers_catalog_v1_0.json"
+    catalog: "test_data/catalogs/agent_allowed_callers_catalog_v1_0.json"
   messages:
     - version: "1.0"
       callRendererFunction:

@@ -23,6 +23,7 @@ import pytest
 
 from a2ui.core import A2uiCatalogError, A2uiValidationError, Catalog
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.catalog import FunctionApi
 from a2ui.core.schema import v1_0
 from a2ui.inference_formats import (
     DirectJsonDecompiler,
@@ -204,29 +205,6 @@ def test_normalize_prompt_example_messages_rejects_empty_or_none_version(
 
 
 def test_direct_json_compile_passes_messages_through_unchanged():
-    from a2ui.processor import InMemoryCatalogProvider
-
-    primary = InMemoryCatalogProvider({
-        "catalogId": PRIMARY,
-        "protocolVersion": "1.0",
-        "components": {},
-        "functions": {
-            "notify": {
-                "type": "object",
-                "allowedCallers": "rendererOrAgent",
-                "properties": {
-                    "@call": {"const": "notify"},
-                    "args": {
-                        "type": "object",
-                        "properties": {"url": {"type": "string"}},
-                        "required": ["url"],
-                        "additionalProperties": False,
-                    },
-                },
-                "required": ["@call", "args"],
-            },
-        },
-    }).load()
     messages = [
         {
             "version": "1.0",
@@ -237,20 +215,32 @@ def test_direct_json_compile_passes_messages_through_unchanged():
             "callRendererFunction": {
                 "functionCallId": "fn-1",
                 "callFunction": {
-                    "catalogId": PRIMARY,
-                    "@call": "notify",
-                    "args": {"url": "https://a2ui.org"},
+                    "catalogId": BasicCatalog("1.0").catalog_id,
+                    "@call": "scrollTo",
+                    "args": {"id": "root"},
                 },
             },
         },
     ]
-    catalog = BasicCatalog("1.0")
-    parser = DirectJsonParser([catalog, primary])
+    # The basic catalog has no function the agent may call, so the test adds one.
+    basic = BasicCatalog("1.0")
+    catalog = basic.copy_with(
+        functions=[
+            *basic.functions.values(),
+            FunctionApi(
+                name="scrollTo",
+                return_type="void",
+                schema={"type": "object", "properties": {"id": {"type": "string"}}},
+                allowed_callers="rendererOrAgent",
+            ),
+        ]
+    )
+    parser = DirectJsonParser([catalog])
     create = {
         "version": "1.0",
         "createSurface": {"surfaceId": "s1", "catalogId": catalog.catalog_id},
     }
-    state = RendererState([catalog, primary])
+    state = RendererState([catalog])
     state.apply(create)
     parts = parser.parse_response(json.dumps(messages), wrapped=False, state=state)
     assert to_message_dicts(parts[0].a2ui) == messages

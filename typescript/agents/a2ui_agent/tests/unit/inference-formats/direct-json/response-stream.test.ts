@@ -15,6 +15,7 @@
  */
 
 import {describe, expect, it} from 'vitest';
+import {z} from 'zod';
 
 import {
   A2uiValidationError,
@@ -32,6 +33,20 @@ const CLOSE = '</a2ui-json>';
 const CUSTOM_ID = 'https://a2ui.org/catalogs/custom';
 const basicV09 = loadBasicCatalog('v0.9');
 const basicV10 = loadBasicCatalog('1.0');
+/** The v1.0 basic catalog with a function the agent may call, which basic lacks. */
+const basicV10WithScrollTo = basicV10.withEntries(
+  [...basicV10.components.values()],
+  [
+    ...basicV10.functions.values(),
+    {
+      name: 'scrollTo',
+      returnType: 'void',
+      allowedCallers: 'rendererOrAgent',
+      schema: z.object({id: z.string()}),
+      execute: () => undefined,
+    },
+  ],
+);
 
 const customV10 = new InMemoryCatalogProvider(
   {
@@ -54,23 +69,6 @@ const customV10 = new InMemoryCatalogProvider(
           child: {$ref: 'common_types.json#/$defs/ComponentId'},
         },
         required: ['id', 'component', 'child'],
-      },
-    },
-    functions: {
-      notify: {
-        type: 'object',
-        returnType: 'void',
-        allowedCallers: 'rendererOrAgent',
-        properties: {
-          '@call': {const: 'notify'},
-          args: {
-            type: 'object',
-            properties: {message: {type: 'string'}},
-            required: ['message'],
-            unevaluatedProperties: false,
-          },
-        },
-        required: ['@call', 'args'],
       },
     },
   },
@@ -256,13 +254,13 @@ describe('DirectJsonResponseStream', () => {
   });
 
   it('passes every v1.0 message type through', () => {
-    const parser = new DirectJsonParser([basicV10, customV10]);
-    const id = basicV10.id;
+    const parser = new DirectJsonParser([basicV10WithScrollTo]);
+    const id = basicV10WithScrollTo.id;
 
     const messages = stream(parser, [
       OPEN +
         `[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "${id}"}}, ` +
-        `{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "notify", "catalogId": "${CUSTOM_ID}", "args": {"message": "Saved"}}}}, ` +
+        `{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "scrollTo", "catalogId": "${id}", "args": {"id": "root"}}}}, ` +
         `{"version": "1.0", "agentFunctionResponse": {"functionCallId": "c2", "value": {"success": true}}}, ` +
         '{"version": "1.0", "deleteSurface": {"surfaceId": "s1"}}]' +
         CLOSE,
@@ -274,7 +272,7 @@ describe('DirectJsonResponseStream', () => {
         version: '1.0',
         callRendererFunction: {
           functionCallId: 'c1',
-          callFunction: {'@call': 'notify', catalogId: CUSTOM_ID, args: {message: 'Saved'}},
+          callFunction: {'@call': 'scrollTo', catalogId: id, args: {id: 'root'}},
         },
       },
       {version: '1.0', agentFunctionResponse: {functionCallId: 'c2', value: {success: true}}},
@@ -333,12 +331,12 @@ describe('DirectJsonResponseStream', () => {
   });
 
   it('holds a callRendererFunction until its object closes, and the messages after it', () => {
-    const parser = new DirectJsonParser([basicV10, customV10]);
-    const id = basicV10.id;
-    const call = `{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "notify", "catalogId": "${CUSTOM_ID}", "args": {"message": "Saved"}}}}`;
+    const parser = new DirectJsonParser([basicV10WithScrollTo]);
+    const id = basicV10WithScrollTo.id;
+    const call = `{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "scrollTo", "catalogId": "${id}", "args": {"id": "root"}}}}`;
     const update =
       '{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hi"}]}}';
-    const state = new RendererState([basicV10, customV10]);
+    const state = new RendererState([basicV10WithScrollTo]);
     state.apply({version: '1.0', createSurface: {surfaceId: 's1', catalogId: id}});
     const opened = parser.openStream({state});
     const cut = call.length - 2;

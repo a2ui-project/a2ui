@@ -33,6 +33,7 @@ import {
 } from './suite-helpers.js';
 
 export const ACTIVE_SUITES: ReadonlySet<string> = new Set([
+  'agent/agent_functions.yaml',
   'agent/catalog_provider.yaml',
   'agent/catalog_resolution.yaml',
   'agent/catalog_transformer.yaml',

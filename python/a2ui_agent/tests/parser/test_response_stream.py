@@ -25,6 +25,7 @@ import pytest
 
 from a2ui.core import A2uiParseError, A2uiValidationError, Catalog
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.catalog import FunctionApi
 from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats.direct_json import DirectJsonParser
 from a2ui.parser import (
@@ -71,23 +72,6 @@ def custom_catalog_v10():
                         "child": {"$ref": "common_types.json#/$defs/ComponentId"},
                     },
                     "required": ["id", "component", "child"],
-                },
-            },
-            "functions": {
-                "notify": {
-                    "type": "object",
-                    "returnType": "void",
-                    "allowedCallers": "rendererOrAgent",
-                    "properties": {
-                        "@call": {"const": "notify"},
-                        "args": {
-                            "type": "object",
-                            "properties": {"message": {"type": "string"}},
-                            "required": ["message"],
-                            "unevaluatedProperties": False,
-                        },
-                    },
-                    "required": ["@call", "args"],
                 },
             },
         },
@@ -616,9 +600,21 @@ def test_v08_surface_update_with_an_unknown_field_fails():
         )
 
 
-def test_v10_message_types(basic_catalog_v10, custom_catalog_v10):
+def test_v10_message_types(basic_catalog_v10):
     """Every v1.0 message type is read, checked and passed through."""
-    parser = DirectJsonParser([basic_catalog_v10, custom_catalog_v10])
+    # The basic catalog has no function the agent may call, so the test adds one.
+    catalog = basic_catalog_v10.copy_with(
+        functions=[
+            *basic_catalog_v10.functions.values(),
+            FunctionApi(
+                name="scrollTo",
+                return_type="void",
+                schema={"type": "object", "properties": {"id": {"type": "string"}}},
+                allowed_callers="rendererOrAgent",
+            ),
+        ]
+    )
+    parser = DirectJsonParser([catalog])
     basic_id = basic_catalog_v10.catalog_id
 
     messages = _stream(
@@ -628,8 +624,8 @@ def test_v10_message_types(basic_catalog_v10, custom_catalog_v10):
             + '[{"version": "1.0", "createSurface": {"surfaceId": "s1",'
             f' "catalogId": "{basic_id}"}}}}, {{"version": "1.0",'
             ' "callRendererFunction": {"functionCallId": "c1",'
-            f' "callFunction": {{"@call": "notify", "catalogId": "{CUSTOM_ID}",'
-            ' "args": {"message": "Saved"}}}}, {"version": "1.0",'
+            f' "callFunction": {{"@call": "scrollTo", "catalogId": "{basic_id}",'
+            ' "args": {"id": "root"}}}}, {"version": "1.0",'
             ' "agentFunctionResponse": {"functionCallId": "c2", "value":'
             ' {"success": true}}}, {"version": "1.0", "deleteSurface":'
             ' {"surfaceId": "s1"}}]'
@@ -647,9 +643,9 @@ def test_v10_message_types(basic_catalog_v10, custom_catalog_v10):
             "callRendererFunction": {
                 "functionCallId": "c1",
                 "callFunction": {
-                    "@call": "notify",
-                    "catalogId": CUSTOM_ID,
-                    "args": {"message": "Saved"},
+                    "@call": "scrollTo",
+                    "catalogId": basic_id,
+                    "args": {"id": "root"},
                 },
             },
         },

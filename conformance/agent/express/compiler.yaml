@@ -2211,7 +2211,7 @@
   action: compile
   args:
     format: express
-    catalog: "test_data/catalogs/allowed_callers_catalog_v1_0.json"
+    catalog: "test_data/catalogs/agent_allowed_callers_catalog_v1_0.json"
   input: 'showToast("Saved")'
   expect:
     - version: "1.0"
@@ -2228,7 +2228,7 @@
   action: compile
   args:
     format: express
-    catalog: "test_data/catalogs/allowed_callers_catalog_v1_0.json"
+    catalog: "test_data/catalogs/agent_allowed_callers_catalog_v1_0.json"
   input: 'notifyAgent("Ping")'
   expect:
     - version: "1.0"
@@ -2245,7 +2245,7 @@
   action: compile
   args:
     format: express
-    catalog: "test_data/catalogs/allowed_callers_catalog_v1_0.json"
+    catalog: "test_data/catalogs/agent_allowed_callers_catalog_v1_0.json"
   input: 'formatValue("abc")'
   expect_error:
     category: "ValidationError"
@@ -2256,7 +2256,7 @@
   action: compile
   args:
     format: express
-    catalog: "test_data/catalogs/allowed_callers_catalog_v1_0.json"
+    catalog: "test_data/catalogs/agent_allowed_callers_catalog_v1_0.json"
   input: 'launch("https://example.com")'
   expect_error:
     category: "ValidationError"
@@ -2267,7 +2267,7 @@
   action: compile
   args:
     format: express
-    catalog: "test_data/catalogs/allowed_callers_catalog_v1_0.json"
+    catalog: "test_data/catalogs/agent_allowed_callers_catalog_v1_0.json"
   input: |-
     root = Button(label, Event("submit"), [?formatValue($/name, "Invalid value")])
     label = Text("Submit")

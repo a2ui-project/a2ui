@@ -300,7 +300,7 @@
   args:
     format: express
     catalogs:
-      - catalog: "test_data/catalogs/allowed_callers_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/agent_allowed_callers_catalog_v1_0.json"
   expect_callable_functions: ["notifyAgent", "showToast"]
   expect_contains: ["Only these functions can be called this way: `notifyAgent`, `showToast`."]
 

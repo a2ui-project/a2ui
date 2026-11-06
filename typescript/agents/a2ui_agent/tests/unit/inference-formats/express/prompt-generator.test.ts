@@ -681,7 +681,7 @@ describe('ExpressPromptGenerator', () => {
     });
 
     it('emits the standalone call rule listing only agent-callable functions in v1.0', () => {
-      const cat = loadConformanceCatalog('allowed_callers_catalog_v1_0.json');
+      const cat = loadConformanceCatalog('agent_allowed_callers_catalog_v1_0.json');
       const rules = new ExpressPromptGenerator([cat]).generateBaseRules();
       expect(rules).toContain(
         'Only these functions can be called this way: `notifyAgent`, `showToast`.',
@@ -697,7 +697,7 @@ describe('ExpressPromptGenerator', () => {
     });
 
     it('numbers multi-catalog rules sequentially alongside standalone function call rules and allowedMessages', () => {
-      const cat1 = loadConformanceCatalog('allowed_callers_catalog_v1_0.json');
+      const cat1 = loadConformanceCatalog('agent_allowed_callers_catalog_v1_0.json');
       const cat2 = loadConformanceCatalog('custom_catalog_v1_0.json');
       const rules = new ExpressPromptGenerator([cat1, cat2]).generateBaseRules();
       const numbers = [...rules.matchAll(/^(\d+)\. /gm)].map(m => Number(m[1]));

@@ -133,6 +133,12 @@ jobs:
       - name: Validate documentation conversion script
         run: uv run pytest docs/scripts/test_convert_docs.py
 
+      - name: Validate documentation example validator
+        run: uv run pytest docs/scripts/test_validate_doc_examples.py
+
+      - name: Validate JSON examples in documentation
+        run: uv run python docs/scripts/validate_doc_examples.py --paths docs/public docs/site/src/content/docs
+
       - name: Copy schemas to documentation
         run: |
           mkdir -p docs/public/specification/

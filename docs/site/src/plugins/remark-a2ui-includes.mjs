@@ -81,9 +81,6 @@ function resolveContentDocSlug(absDocPath) {
  */
 function normalizeSpecAnchor(targetSlug, rawAnchor) {
   if (!rawAnchor) return '';
-  if (targetSlug === 'specification/v0.8-a2ui' && rawAnchor === 'catalog-negotiation') {
-    return '#21-catalog-negotiation';
-  }
   return `#${rawAnchor}`;
 }
 

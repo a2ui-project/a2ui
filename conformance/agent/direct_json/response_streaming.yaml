@@ -4515,7 +4515,7 @@
   action: parse_chunk
   args:
     format: direct_json
-    catalog: "test_data/catalogs/allowed_callers_catalog_v1_0.json"
+    catalog: "test_data/catalogs/agent_allowed_callers_catalog_v1_0.json"
   steps:
     - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "conformance/allowed_callers", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}]</a2ui-json>'
       expect:

@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/conformance/test_data/catalogs/agent_allowed_callers_catalog_v1_0.json",
+  "protocolVersion": "1.0",
+  "title": "Conformance Agent Allowed Callers Catalog (v1.0)",
+  "description": "A catalog whose functions cover each allowedCallers setting and requiresUserActivation, for the cases that check which functions the agent may call directly.",
+  "catalogId": "conformance/allowed_callers",
+  "components": {
+    "Text": {
+      "type": "object",
+      "description": "Displays a run of text.",
+      "properties": {
+        "component": { "const": "Text" },
+        "text": { "$ref": "common_types.json#/$defs/DynamicString" }
+      },
+      "required": ["component", "text"]
+    },
+    "Button": {
+      "type": "object",
+      "description": "A control that emits an action when pressed.",
+      "properties": {
+        "component": { "const": "Button" },
+        "child": { "$ref": "common_types.json#/$defs/Child" },
+        "action": { "$ref": "common_types.json#/$defs/Action" },
+        "checks": {
+          "type": "array",
+          "items": { "$ref": "common_types.json#/$defs/CheckRule" }
+        }
+      },
+      "required": ["component", "child", "action"]
+    }
+  },
+  "functions": {
+    "notifyAgent": {
+      "type": "object",
+      "description": "Sends an agent-triggered notification to the renderer.",
+      "returnType": "void",
+      "allowedCallers": "agentOnly",
+      "properties": {
+        "@call": { "const": "notifyAgent" },
+        "args": {
+          "type": "object",
+          "properties": {
+            "message": { "$ref": "common_types.json#/$defs/DynamicString" }
+          },
+          "required": ["message"],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["@call", "args"]
+    },
+    "showToast": {
+      "type": "object",
+      "description": "Displays a short toast message.",
+      "returnType": "void",
+      "allowedCallers": "rendererOrAgent",
+      "properties": {
+        "@call": { "const": "showToast" },
+        "args": {
+          "type": "object",
+          "properties": {
+            "message": { "$ref": "common_types.json#/$defs/DynamicString" }
+          },
+          "required": ["message"],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["@call", "args"]
+    },
+    "formatValue": {
+      "type": "object",
+      "description": "Formats or checks a value on the renderer.",
+      "returnType": "validationResult",
+      "properties": {
+        "@call": { "const": "formatValue" },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": { "$ref": "common_types.json#/$defs/DynamicString" }
+          },
+          "required": ["value"],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["@call", "args"]
+    },
+    "launch": {
+      "type": "object",
+      "description": "Opens a URL when activated by the user.",
+      "returnType": "void",
+      "allowedCallers": "rendererOnly",
+      "requiresUserActivation": true,
+      "properties": {
+        "@call": { "const": "launch" },
+        "args": {
+          "type": "object",
+          "properties": {
+            "url": { "$ref": "common_types.json#/$defs/DynamicString" }
+          },
+          "required": ["url"],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["@call", "args"]
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [
+        { "$ref": "#/components/Text" },
+        { "$ref": "#/components/Button" }
+      ],
+      "discriminator": { "propertyName": "component" }
+    },
+    "anyFunction": {
+      "oneOf": [
+        { "$ref": "#/functions/notifyAgent" },
+        { "$ref": "#/functions/showToast" },
+        { "$ref": "#/functions/formatValue" },
+        { "$ref": "#/functions/launch" }
+      ],
+      "discriminator": { "propertyName": "@call" }
+    }
+  }
+}
