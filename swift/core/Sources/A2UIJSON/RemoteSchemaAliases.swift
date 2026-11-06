@@ -49,28 +49,22 @@ package enum RemoteSchemaAliases {
   /// Rewrites every `$ref` and `$dynamicRef` that names another document as an absolute URL. A
   /// reference that holds only a fragment points into the same document, so it is left as it is.
   /// Keywords whose values are instance data rather than subschemas are not walked.
-  private static func resolvingRelativeRefs(
-    in value: JSONValue,
-    against base: URL,
-    isSubschemaMap: Bool = false
-  ) -> JSONValue {
+  private static func resolvingRelativeRefs(in value: JSONValue, against base: URL) -> JSONValue {
     switch value {
     case .object(let object):
       var resolved = object
       for (key, child) in object {
-        if isSubschemaMap {
-          resolved[key] = resolvingRelativeRefs(in: child, against: base)
-        } else if key == "$ref" || key == "$dynamicRef",
+        if key == "$ref" || key == "$dynamicRef",
           let ref = child.string, !ref.hasPrefix("#"),
           let absolute = URL(string: ref, relativeTo: base)?.absoluteString
         {
           resolved[key] = .string(absolute)
-        } else if !instanceDataKeywords.contains(key) {
-          resolved[key] = resolvingRelativeRefs(
-            in: child,
-            against: base,
-            isSubschemaMap: subschemaMapKeywords.contains(key)
+        } else if subschemaMapKeywords.contains(key), case .object(let entries) = child {
+          resolved[key] = .object(
+            entries.mapValues { resolvingRelativeRefs(in: $0, against: base) }
           )
+        } else if !instanceDataKeywords.contains(key) {
+          resolved[key] = resolvingRelativeRefs(in: child, against: base)
         }
       }
       return .object(resolved)

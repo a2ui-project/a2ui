@@ -38,6 +38,12 @@ struct RemoteSchemaAliasesTests {
       "patternProperties": [
         entryName: ["$ref": "common_types.json#/$defs/Extensions"]
       ],
+      "definitions": [
+        entryName: [
+          "$ref": "common_types.json#/$defs/ComponentId",
+          "default": ["$ref": "common_types.json#/$defs/UnchangedLiteral"],
+        ]
+      ],
     ]
 
     let result = RemoteSchemaAliases.identifyingAliases(in: [Self.aliasURL: document])
@@ -59,6 +65,15 @@ struct RemoteSchemaAliasesTests {
     #expect(
       alias["patternProperties"]?.object?[entryName]?.object?["$ref"]
         == "https://example.com/schemas/v1/common_types.json#/$defs/Extensions"
+    )
+    let definitionEntry = try #require(alias["definitions"]?.object?[entryName]?.object)
+    #expect(
+      definitionEntry["$ref"]
+        == "https://example.com/schemas/v1/common_types.json#/$defs/ComponentId"
+    )
+    #expect(
+      definitionEntry["default"]
+        == ["$ref": "common_types.json#/$defs/UnchangedLiteral"]
     )
   }
 
