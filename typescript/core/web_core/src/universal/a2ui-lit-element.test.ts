@@ -966,4 +966,109 @@ describe('A2uiLitElement', () => {
     el.remove();
     resolver.dispose();
   });
+
+  it('catches errors thrown in render(), clears stale DOM, and dispatches COMPONENT_RENDER_ERROR to surface.onError', async () => {
+    const ThrowTestApi = {
+      name: 'ThrowTest',
+      schema: z.object({
+        label: z.string().default(''),
+      }),
+    };
+
+    class TestThrowElement extends A2uiLitElement<typeof ThrowTestApi> {
+      protected override readonly api = ThrowTestApi;
+
+      override render() {
+        const label = this.controller.props.label;
+        if (label === 'boom') {
+          throw new RangeError('custom render failed');
+        }
+        return html`<span class="label-text">${label}</span>`;
+      }
+    }
+
+    if (!customElements.get('test-throw-element')) {
+      customElements.define('test-throw-element', TestThrowElement);
+    }
+
+    const catalog = new Catalog<ComponentApi>('throw-test-catalog', '1.0', [ThrowTestApi]);
+    const proc = new MessageProcessor([catalog]);
+    proc.processMessages([
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 'throw-surface',
+          catalogId: catalog.id,
+        },
+      },
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'throw-surface',
+          components: [
+            {
+              id: 'c1',
+              component: 'ThrowTest',
+              label: 'first',
+            },
+          ],
+        },
+      },
+    ]);
+
+    const surf = proc.model.getSurface('throw-surface')!;
+    const errors: unknown[] = [];
+    surf.onError.subscribe(err => {
+      errors.push(err);
+    });
+
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on('unhandledRejection', onUnhandled);
+
+    const el = document.createElement('test-throw-element') as TestThrowElement;
+    document.body.appendChild(el);
+
+    try {
+      await asyncUpdate(el, (e: any) => {
+        e.context = new ComponentContext(surf, 'c1');
+      });
+      assert.strictEqual(el.textContent?.trim(), 'first');
+      assert.strictEqual(errors.length, 0);
+
+      // Trigger a throwing render via component property update.
+      surf.componentsModel.get('c1')!.properties = {label: 'boom'};
+      await asyncUpdate(el, () => {});
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      assert.strictEqual(unhandled.length, 0);
+      assert.strictEqual(el.textContent?.trim(), '');
+      assert.strictEqual(el.style.display, 'none');
+      assert.strictEqual(errors.length, 1);
+      assert.deepStrictEqual(errors[0], {
+        code: 'COMPONENT_RENDER_ERROR',
+        message: 'custom render failed',
+        componentId: 'c1',
+        componentType: 'ThrowTest',
+        details: {
+          componentId: 'c1',
+          componentType: 'ThrowTest',
+        },
+        surfaceId: 'throw-surface',
+      });
+
+      // Subsequent update that recovers restores the rendered content.
+      surf.componentsModel.get('c1')!.properties = {label: 'recovered'};
+      await asyncUpdate(el, () => {});
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      assert.strictEqual(unhandled.length, 0);
+      assert.strictEqual(errors.length, 1);
+      assert.strictEqual(el.style.display, '');
+      assert.strictEqual(el.textContent?.trim(), 'recovered');
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+      el.remove();
+    }
+  });
 });

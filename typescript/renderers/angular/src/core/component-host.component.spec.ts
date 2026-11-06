@@ -604,5 +604,136 @@ describe('ComponentHostComponent', () => {
       expect(testFixture.nativeElement.querySelector('a2ui-ng-testtype')).toBeFalsy();
       testFixture.destroy();
     });
+
+    it('should catch a native Angular component that throws during template evaluation, clear stale DOM, and dispatch COMPONENT_RENDER_ERROR to surface.onError', () => {
+      @Component({
+        selector: 'test-boom-child',
+        template: '<p>{{ label() }}</p>',
+      })
+      class TestBoomComponent {
+        @Input() props: any;
+        @Input() surfaceId?: string;
+        @Input() componentId?: string;
+        @Input() dataContextPath?: string;
+
+        label(): string {
+          const val = this.props?.text?.value();
+          if (val === 'boom') {
+            throw new RangeError('angular template failed');
+          }
+          return val ?? '';
+        }
+      }
+
+      const boomImpl = createComponentImplementation(
+        {name: 'Boom', schema: z.object({text: DynamicStringSchema.optional()})},
+        TestBoomComponent as unknown as Type<CatalogComponentInstance>,
+      );
+      const boomCatalog = useCatalog([boomImpl]);
+      surface.dataModel.set('/label', 'first');
+      surface.componentsModel.addComponent(
+        new ComponentModel('root', 'Boom', {text: {path: '/label'}}, boomCatalog),
+      );
+
+      const errors: unknown[] = [];
+      surface.onError.subscribe(err => {
+        errors.push(err);
+      });
+
+      fixture.destroy();
+      const testFixture = TestBed.createComponent(ComponentHostComponent);
+      testFixture.componentRef.setInput('componentKey', 'root');
+      testFixture.componentRef.setInput('surfaceId', 'surf1');
+      flush(testFixture);
+
+      expect(testFixture.nativeElement.textContent.trim()).toBe('first');
+      expect(testFixture.nativeElement.hasAttribute('data-a2ui-empty')).toBeFalse();
+      expect(errors).toEqual([]);
+
+      surface.dataModel.set('/label', 'boom');
+      expect(() => flush(testFixture)).not.toThrow();
+
+      expect(testFixture.nativeElement.textContent.trim()).toBe('');
+      expect(testFixture.nativeElement.getAttribute('data-a2ui-empty')).toBe('');
+      expect(errors).toEqual([
+        {
+          code: 'COMPONENT_RENDER_ERROR',
+          message: 'angular template failed',
+          componentId: 'root',
+          componentType: 'Boom',
+          details: {
+            componentId: 'root',
+            componentType: 'Boom',
+          },
+          surfaceId: 'surf1',
+        },
+      ]);
+      testFixture.destroy();
+    });
+
+    it('should catch a wrapped Web Component that throws on update when useUniversalComponents is true and dispatch COMPONENT_RENDER_ERROR to surface.onError', () => {
+      @Component({
+        selector: 'test-boom-wc-child',
+        template: '<p>{{ label() }}</p>',
+      })
+      class TestBoomWcComponent {
+        @Input() props: any;
+        @Input() surfaceId?: string;
+        @Input() componentId?: string;
+        @Input() dataContextPath?: string;
+
+        label(): string {
+          const val = this.props?.text?.value();
+          if (val === 'boom') {
+            throw new RangeError('angular wc template failed');
+          }
+          return val ?? '';
+        }
+      }
+
+      const boomWcImpl = createComponentImplementation(
+        {name: 'BoomWc', schema: z.object({text: DynamicStringSchema.optional()})},
+        TestBoomWcComponent as unknown as Type<CatalogComponentInstance>,
+      );
+      const boomWcCatalog = useCatalog([boomWcImpl]);
+      surface.dataModel.set('/label', 'first');
+      surface.componentsModel.addComponent(
+        new ComponentModel('root', 'BoomWc', {text: {path: '/label'}}, boomWcCatalog),
+      );
+      mockRendererConfig.useUniversalComponents = true;
+
+      const errors: unknown[] = [];
+      surface.onError.subscribe(err => {
+        errors.push(err);
+      });
+
+      fixture.destroy();
+      const testFixture = TestBed.createComponent(ComponentHostComponent);
+      testFixture.componentRef.setInput('componentKey', 'root');
+      testFixture.componentRef.setInput('surfaceId', 'surf1');
+      flush(testFixture);
+
+      expect(testFixture.nativeElement.textContent.trim()).toBe('first');
+      expect(errors).toEqual([]);
+
+      surface.dataModel.set('/label', 'boom');
+      expect(() => flush(testFixture)).not.toThrow();
+
+      expect(testFixture.nativeElement.textContent.trim()).toBe('');
+      expect(errors).toEqual([
+        {
+          code: 'COMPONENT_RENDER_ERROR',
+          message: 'angular wc template failed',
+          componentId: 'root',
+          componentType: 'BoomWc',
+          details: {
+            componentId: 'root',
+            componentType: 'BoomWc',
+          },
+          surfaceId: 'surf1',
+        },
+      ]);
+      testFixture.destroy();
+    });
   });
 });

@@ -359,30 +359,100 @@ describe('mixed React and Web Component catalogs', () => {
     ).not.toBeNull();
   });
 
-  it('lets an error boundary above A2uiSurface catch a throw from a component under a Lit parent', async () => {
+  it('catches a throw from a component under a Lit parent, preserves siblings, and reports to surface.onError', async () => {
     // React reports caught render errors through console.error.
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const surface = surfaceWith(
       'boundary-through-lit',
-      new ComponentModel('root', 'Column', {children: ['thrower-1']}, catalog),
+      new ComponentModel('root', 'Column', {children: ['thrower-1', 'badge-1']}, catalog),
       new ComponentModel('thrower-1', 'Thrower', {}, catalog),
+      new ComponentModel('badge-1', 'Badge', {label: 'still here'}, catalog),
     );
+    const errors: unknown[] = [];
+    surface.onError.subscribe(err => {
+      errors.push(err);
+    });
 
-    const {container} = render(
-      <CatchBoundary>
-        <A2uiSurface surface={surface} />
-      </CatchBoundary>,
-    );
+    const {container} = render(<A2uiSurface surface={surface} />);
 
-    expect(await within(container).findByTestId('caught')).toHaveTextContent(
-      'caught: nested component failed',
+    expect(await within(container).findByTestId('badge')).toHaveTextContent('still here');
+    expect(container.querySelector('a2ui-react-thrower')?.innerHTML).toBe('');
+    expect(errors).toEqual([
+      {
+        code: 'COMPONENT_RENDER_ERROR',
+        message: 'nested component failed',
+        componentId: 'thrower-1',
+        componentType: 'Thrower',
+        details: {
+          componentId: 'thrower-1',
+          componentType: 'Thrower',
+        },
+        surfaceId: 'boundary-through-lit',
+      },
+    ]);
+  });
+
+  it('catches a throw from a Lit component on data update, clears stale DOM, preserves siblings, and reports to surface.onError', async () => {
+    const Text = webCoreBasicCatalog.components.get('Text')!;
+    const surface = surfaceWith(
+      'lit-render-throw',
+      new ComponentModel('root', 'Column', {children: ['t1', 'badge-1']}, catalog),
+      new ComponentModel('t1', 'Text', {text: {path: '/label'}}, catalog),
+      new ComponentModel('badge-1', 'Badge', {label: 'sibling'}, catalog),
     );
+    catalog.components.set('Text', Text);
+    surface.dataModel.set('/label', 'first');
+
+    const errors: unknown[] = [];
+    surface.onError.subscribe(err => {
+      errors.push(err);
+    });
+
+    const {container} = render(<A2uiSurface surface={surface} />);
+    expect(await within(container).findByTestId('badge')).toHaveTextContent('sibling');
+    const textEl = container.querySelector('a2ui-basic-text') as HTMLElement & {
+      render: () => unknown;
+      updateComplete: Promise<boolean>;
+    };
+    await waitFor(() => {
+      expect(textEl?.textContent?.trim()).toBe('first');
+    });
+
+    const origRender = textEl.render.bind(textEl);
+    textEl.render = () => {
+      if (surface.dataModel.get('/label') === 'boom') {
+        throw new RangeError('text render failed');
+      }
+      return origRender();
+    };
+
+    await act(async () => {
+      surface.dataModel.set('/label', 'boom');
+      await textEl.updateComplete;
+    });
+
+    expect(textEl.textContent?.trim()).toBe('');
+    expect(within(container).getByTestId('badge')).toHaveTextContent('sibling');
+    expect(errors).toEqual([
+      {
+        code: 'COMPONENT_RENDER_ERROR',
+        message: 'text render failed',
+        componentId: 't1',
+        componentType: 'Text',
+        details: {
+          componentId: 't1',
+          componentType: 'Text',
+        },
+        surfaceId: 'lit-render-throw',
+      },
+    ]);
+    catalog.components.delete('Text');
   });
 });
 
 /**
  * Each React host's content portals the hosts below it, so the React tree
- * nests like the DOM: what a component provides, catches or listens for
+ * nests like the DOM: what a component provides or listens for
  * applies to the components it renders, through any Lit component in between.
  */
 describe('the React tree nests like the DOM', () => {
@@ -432,7 +502,7 @@ describe('the React tree nests like the DOM', () => {
     expect(above).toBe(1);
   });
 
-  it('lets a component that is an error boundary catch a throw from its child', async () => {
+  it('isolates a throwing child component from its parent and reports to surface.onError', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const surface = surfaceWith(
       'boundary-in-component',
@@ -440,13 +510,30 @@ describe('the React tree nests like the DOM', () => {
       new ComponentModel('guard', 'Guarded', {child: 'thrower-1'}, catalog),
       new ComponentModel('thrower-1', 'Thrower', {}, catalog),
     );
+    const errors: unknown[] = [];
+    surface.onError.subscribe(err => {
+      errors.push(err);
+    });
 
     const {container} = render(<A2uiSurface surface={surface} />);
 
-    expect(await within(container).findByTestId('caught')).toHaveTextContent(
-      'caught: nested component failed',
-    );
-    expect(container.querySelector('[data-testid="panel"] [data-testid="caught"]')).not.toBeNull();
+    await waitFor(() => {
+      expect(errors).toEqual([
+        {
+          code: 'COMPONENT_RENDER_ERROR',
+          message: 'nested component failed',
+          componentId: 'thrower-1',
+          componentType: 'Thrower',
+          details: {
+            componentId: 'thrower-1',
+            componentType: 'Thrower',
+          },
+          surfaceId: 'boundary-in-component',
+        },
+      ]);
+    });
+    expect(container.querySelector('[data-testid="panel"]')).not.toBeNull();
+    expect(container.querySelector('a2ui-react-thrower')?.innerHTML).toBe('');
   });
 
   it("mounts a React child's content before its parent's layout effect, as React does", async () => {

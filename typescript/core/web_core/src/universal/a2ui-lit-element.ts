@@ -102,6 +102,8 @@ export abstract class A2uiLitElement<
   private _controller?: A2uiController<Api, Props>;
   private _controllerContext?: ComponentContext;
   private _controllerNode?: ComponentNode;
+  private _renderFailed = false;
+  private _savedDisplay?: string;
   private fallbackDomId?: string;
   private readonly _hostAccessibility = new HostAccessibility(this);
 
@@ -507,6 +509,11 @@ export abstract class A2uiLitElement<
         this.removeController(this._controller);
         this._controller.dispose();
       }
+      if (this._renderFailed) {
+        this._renderFailed = false;
+        this.style.display = this._savedDisplay ?? '';
+        this._savedDisplay = undefined;
+      }
       this._controller = this.createController();
       this._controllerContext = this.context;
       this._controllerNode = this.node;
@@ -517,11 +524,61 @@ export abstract class A2uiLitElement<
     if (!this._controller) {
       return;
     }
-    super.update(changedProperties);
+    try {
+      super.update(changedProperties);
+      if (this._renderFailed) {
+        this._renderFailed = false;
+        this.style.display = this._savedDisplay ?? '';
+        this._savedDisplay = undefined;
+      }
+    } catch (err) {
+      const self = this as unknown as {render?: () => unknown};
+      const hadOwnRender = Object.prototype.hasOwnProperty.call(this, 'render');
+      const ownRender = self.render;
+      self.render = () => nothing;
+      try {
+        super.update(changedProperties);
+      } finally {
+        if (hadOwnRender) {
+          self.render = ownRender;
+        } else {
+          delete self.render;
+        }
+      }
+      if (!this._renderFailed) {
+        this._savedDisplay = this.style.display;
+        this._renderFailed = true;
+        this.style.display = 'none';
+        this.reportRenderError(err);
+      } else {
+        this.style.display = 'none';
+      }
+    }
+  }
+
+  private reportRenderError(err: unknown): void {
+    const surface = this.node?.context?.dataContext?.surface ?? this.context?.dataContext?.surface;
+    if (!surface) return;
+    const componentId = this.node?.componentId ?? this.context?.componentModel?.id ?? '';
+    const componentType = this.node?.type ?? this.context?.componentModel?.type ?? '';
+    const message = err instanceof Error ? err.message : String(err);
+    void surface.dispatchError({
+      code: 'COMPONENT_RENDER_ERROR',
+      message,
+      componentId,
+      componentType,
+      details: {
+        componentId,
+        componentType,
+      },
+    });
   }
 
   protected override updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
+    if (this._renderFailed) {
+      return;
+    }
     const props = this.controller?.props as
       | ({accessibility?: ResolvedAccessibilityAttributes} & CheckableResolvedProps)
       | undefined;
