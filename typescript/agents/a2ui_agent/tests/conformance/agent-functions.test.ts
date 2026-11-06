@@ -17,7 +17,7 @@
 import fs from 'node:fs';
 
 import {type FunctionApi} from '@a2ui/web_core';
-import {describe, expect, test} from 'vitest';
+import {expect, test} from 'vitest';
 
 import {
   A2uiRpcError,
@@ -33,7 +33,7 @@ import {
   validatePayload,
 } from '../../src/index.js';
 import {classify, loadCases, type LoadedCase} from './loader.js';
-import {conformancePath, errorClassFor, registerCase} from './suite-helpers.js';
+import {conformancePath, describeSuite, errorClassFor} from './suite-helpers.js';
 
 const KNOWN_FAILURES = new Map<string, string>();
 
@@ -429,38 +429,38 @@ function normalizeTimestamps(value: unknown): unknown {
   return value;
 }
 
-describe('Conformance: agent_functions.yaml', () => {
-  const cases = loadCases([conformancePath('agent/agent_functions.yaml')]);
+const cases = loadCases([conformancePath('agent/agent_functions.yaml')]);
 
-  test('suite is not empty', () => {
-    expect(cases.length).toBeGreaterThan(0);
-  });
-
-  for (const testCase of cases) {
-    const verdict = classify(testCase);
-    const run = async () => {
-      switch (testCase.action) {
-        case 'declare_agent_functions':
-          runDeclareAgentFunctions(testCase);
-          return;
-        case 'handle_agent_function':
-          await runHandleAgentFunction(testCase);
-          return;
-        case 'validate_payload':
-          runValidatePayload(testCase);
-          return;
-        case 'process_renderer_message':
-          await runProcessRendererMessage(testCase);
-          return;
-        default:
-          throw new Error(`Unhandled conformance action: ${testCase.action}`);
-      }
-    };
-
-    if (verdict.runnable) {
-      registerCase(testCase, KNOWN_FAILURES, run);
-    } else {
-      test.skip(`${testCase.action} · ${testCase.name} (${verdict.reason})`, run);
-    }
-  }
+test('agent_functions.yaml is not empty', () => {
+  expect(cases.length).toBeGreaterThan(0);
 });
+
+describeSuite(
+  'Conformance: agent_functions.yaml',
+  cases,
+  async testCase => {
+    switch (testCase.action) {
+      case 'declare_agent_functions':
+        runDeclareAgentFunctions(testCase);
+        return;
+      case 'handle_agent_function':
+        await runHandleAgentFunction(testCase);
+        return;
+      case 'validate_payload':
+        runValidatePayload(testCase);
+        return;
+      case 'process_renderer_message':
+        await runProcessRendererMessage(testCase);
+        return;
+      default:
+        throw new Error(`Unhandled conformance action: ${testCase.action}`);
+    }
+  },
+  {
+    knownFailures: KNOWN_FAILURES,
+    skipReason: testCase => {
+      const verdict = classify(testCase);
+      return verdict.runnable ? undefined : verdict.reason;
+    },
+  },
+);
