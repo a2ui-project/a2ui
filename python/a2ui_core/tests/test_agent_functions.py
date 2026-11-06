@@ -76,6 +76,20 @@ def _fetch_fx_rate(name: str = "fetchFxRate") -> AgentFunction:
     )
 
 
+def _money_function(name: str, money: dict[str, Any]) -> AgentFunction:
+    """An agent function whose schema defines `Money` locally as `money`."""
+    return AgentFunction(
+        name,
+        handler=_handler,
+        return_type="object",
+        schema={
+            "$defs": {"Money": money},
+            "type": "object",
+            "properties": {"amount": {"$ref": "#/$defs/Money"}},
+        },
+    )
+
+
 def _basic_catalog() -> CatalogApi:
     """The basic catalog as an agent loads it: from its document, schema-only."""
     with warnings.catch_warnings():
@@ -499,6 +513,59 @@ class TestCatalogAgentFunctions:
                 functions=[fn],
             )
 
+    def test_rejects_a_local_def_that_differs_from_a_catalog_def(self):
+        fn = _money_function("pay", {"type": "number"})
+
+        with pytest.raises(A2uiCatalogError, match="'pay'.*'Money'.*the catalog"):
+            Catalog("c", "1.0", defs={"Money": {"type": "string"}}, functions=[fn])
+
+    def test_accepts_a_local_def_equal_to_a_catalog_def(self):
+        fn = _money_function("pay", {"type": "number"})
+
+        catalog = Catalog(
+            "c", "1.0", defs={"Money": {"type": "number"}}, functions=[fn]
+        )
+
+        assert catalog.agent_functions == {"pay": fn}
+        assert catalog.to_json()["$defs"]["Money"] == {"type": "number"}
+
+    def test_rejects_differing_local_defs_of_one_name_in_two_agent_functions(self):
+        pay = _money_function("pay", {"type": "number"})
+        refund = _money_function("refund", {"type": "string"})
+
+        with pytest.raises(
+            A2uiCatalogError, match="'refund'.*'Money'.*agent function 'pay'"
+        ):
+            Catalog("c", "1.0", functions=[pay, refund])
+
+    def test_accepts_equal_local_defs_of_one_name_in_two_agent_functions(self):
+        pay = _money_function("pay", {"type": "number"})
+        refund = _money_function("refund", {"type": "number"})
+
+        catalog = Catalog("c", "1.0", functions=[pay, refund])
+
+        assert set(catalog.agent_functions) == {"pay", "refund"}
+
+    def test_rejects_an_args_local_def_that_differs_from_a_catalog_def(self):
+        fn = AgentFunction(
+            "pay",
+            handler=_handler,
+            return_type="object",
+            schema={
+                "properties": {
+                    "call": {"const": "pay"},
+                    "args": {
+                        "$defs": {"Money": {"type": "number"}},
+                        "type": "object",
+                        "properties": {"amount": {"$ref": "#/$defs/Money"}},
+                    },
+                },
+            },
+        )
+
+        with pytest.raises(A2uiCatalogError, match="'Money'"):
+            Catalog("c", "1.0", defs={"Money": {"type": "string"}}, functions=[fn])
+
     def test_follows_a_deep_defs_pointer_to_the_node_it_names(self):
         fn = AgentFunction(
             "pay",
@@ -637,6 +704,16 @@ class TestCopyWith:
 
         assert copy.agent_functions == {"quote": quote}
         assert "fetchFxRate" not in copy.functions
+
+    def test_rejects_an_agent_function_whose_local_def_differs_from_a_catalog_def(
+        self,
+    ):
+        catalog = Catalog("c", "1.0", defs={"Money": {"type": "string"}})
+
+        with pytest.raises(A2uiCatalogError, match="'Money'"):
+            catalog.copy_with(
+                agent_functions=[_money_function("pay", {"type": "number"})]
+            )
 
     def test_from_api_entry_replaces_the_declaration_in_place(self):
         catalog = _declaring_catalog()

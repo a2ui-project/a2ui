@@ -168,7 +168,9 @@
   `AgentFunction(...)` for a `rendererOnly` function defined in code,
   `AgentFunction.from_api(...)` to bind a catalog declaration, and
   `with_handler`. `Catalog.copy_with(agent_functions=...)` adds them, and
-  `Catalog.agent_functions` and `Catalog.renderer_functions` list them
+  `Catalog.agent_functions` and `Catalog.renderer_functions` list them. An
+  agent function's local `$defs` may not define a name differently from the
+  catalog's root `$defs` or another agent function (`A2uiCatalogError`)
   ([#3536](https://github.com/a2ui-project/a2ui/issues/3536),
   [#3792](https://github.com/a2ui-project/a2ui/pull/3792)).
 - (v1_0) The settled agent function call cache evicts the oldest answer first

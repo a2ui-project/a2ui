@@ -1169,6 +1169,64 @@ def _agent_function_args_schema(fn: AgentFunction) -> Any:
     return schema
 
 
+def _agent_function_local_defs(fn: AgentFunction) -> dict[str, Any]:
+    """The `$defs` an agent function declares in its own schema.
+
+    These are the function definition's `$defs` and those of its `args`
+    schema. `#/$defs/X` in the function resolves against these merged with the
+    catalog's root `$defs`, and the catalog document hoists them to its root.
+    """
+    local_defs: dict[str, Any] = {}
+    sources: list[Any] = []
+    if isinstance(fn.schema, dict):
+        sources.append(fn.schema)
+    args_schema = _agent_function_args_schema(fn)
+    if isinstance(args_schema, dict) and args_schema is not fn.schema:
+        sources.append(args_schema)
+    for source in sources:
+        defs = source.get("$defs")
+        if isinstance(defs, Mapping):
+            local_defs.update(defs)
+    return local_defs
+
+
+def _check_agent_function_local_defs(
+    fn: AgentFunction,
+    catalog_defs: Mapping[str, Any],
+    seen: dict[str, tuple[str, Any]],
+) -> None:
+    """Rejects a local `$defs` name that another definition gives differently.
+
+    The catalog document keeps one definition per name in its root `$defs`, so
+    a local definition that differs from the catalog's, or from another agent
+    function's, would make the agent and the renderer validate one call
+    against different schemas. Identical definitions are accepted.
+
+    Args:
+        fn: The agent function to check.
+        catalog_defs: The catalog's root `$defs`.
+        seen: The local `$defs` of the agent functions checked so far, by
+            name, with the function that declares each. Updated with `fn`'s.
+
+    Raises:
+        A2uiCatalogError: If a local `$defs` name of `fn` is defined
+            differently in `catalog_defs` or in `seen`.
+    """
+    for def_name, def_schema in _agent_function_local_defs(fn).items():
+        if def_name in catalog_defs and catalog_defs[def_name] != def_schema:
+            raise A2uiCatalogError(
+                f"Agent function '{fn.name}' defines $defs '{def_name}'"
+                " differently from the catalog."
+            )
+        previous = seen.get(def_name)
+        if previous is not None and previous[1] != def_schema:
+            raise A2uiCatalogError(
+                f"Agent function '{fn.name}' defines $defs '{def_name}'"
+                f" differently from agent function '{previous[0]}'."
+            )
+        seen.setdefault(def_name, (fn.name, def_schema))
+
+
 def _follow_defs_pointer(defs: Mapping[str, Any], ref: str) -> Any:
     """The node a local `#/$defs/...` reference names, followed as a JSON Pointer."""
     node: Any = defs
@@ -1345,8 +1403,10 @@ class Catalog(Generic[TComponent, TFunction]):
         Raises:
             A2uiCatalogError: If `protocol_version` is missing, an identifier
                 is invalid, `theme_location` is unknown, an agent function's
-                name is already taken, or the catalog has agent functions
-                before v1.0.
+                name is already taken, an agent function's local `$defs`
+                gives a name a different definition than the catalog's root
+                `$defs` or another agent function, or the catalog has agent
+                functions before v1.0.
         """
         if not protocol_version:
             raise A2uiCatalogError("protocol_version must be provided.")
@@ -1419,6 +1479,7 @@ class Catalog(Generic[TComponent, TFunction]):
             else ()
         )
         self.functions: dict[str, TFunction] = {}
+        agent_local_defs: dict[str, tuple[str, Any]] = {}
         for fn in functions or []:
             if (
                 validate_identifiers
@@ -1447,6 +1508,8 @@ class Catalog(Generic[TComponent, TFunction]):
                 isinstance(fn, AgentFunction) or isinstance(existing, AgentFunction)
             ):
                 raise _agent_function_name_taken(catalog_id, fn.name)
+            if isinstance(fn, AgentFunction):
+                _check_agent_function_local_defs(fn, self.defs, agent_local_defs)
             self.functions[fn.name] = fn
         if not is_at_least_version(protocol_version, ProtocolVersion.V1_0) and any(
             isinstance(fn, AgentFunction) for fn in self.functions.values()
