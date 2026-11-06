@@ -9,8 +9,5 @@
   "[dart]": {
     "editor.defaultFormatter": "Dart-Code.dart-code"
   },
-  "markdown.validate.enabled": true,
-  "[astro]": {
-    "editor.defaultFormatter": "astro-build.astro-vscode"
-  }
+  "markdown.validate.enabled": true
 }
