@@ -33,7 +33,7 @@ The rest of this page traces a flight-booking request through each stage of the 
 You define the components and functions your client can render in `catalog.json`. A travel app might pair the basic catalog with domain components such as `FlightCard`. Each component declares its properties with JSON Schema, so the Agent SDK can validate that the model only emits components and properties the client knows how to draw:
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 {/* prettier-ignore */}
 ```jsonc
@@ -60,7 +60,7 @@ You define the components and functions your client can render in `catalog.json`
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
+  <TabItem label="v0.9.1">
 
 {/* prettier-ignore */}
 ```jsonc
@@ -170,7 +170,7 @@ The Agent SDK compiler processes the stream as it arrives:
 The tabs below show the `createSurface`, `updateComponents`, and `updateDataModel` messages for this example. Component IDs are chosen by the compiler; the ones here are for readability.
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 Surface creation message, defined by [`CreateSurfaceMessage`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage) (shown separately from `updateComponents` and `updateDataModel` below to illustrate each message type; in v1.0, the compiler can also inline initial `components` and `dataModel` inside `createSurface`):
 
@@ -254,7 +254,7 @@ Data message, defined by [`UpdateDataModelMessage`](/specification/v1.0/schemas/
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
+  <TabItem label="v0.9.1">
 
 Surface creation message, defined by [`CreateSurfaceMessage`](/specification/v0.9.1/schemas/#server_to_client.json/$defs/CreateSurfaceMessage):
 
@@ -385,7 +385,7 @@ Once the surface is rendered, the renderer handles local state edits on the clie
 The action message for this example, after the user raised the outbound count to `2`:
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 Defined by [`renderer_to_agent.json`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action):
 
@@ -403,7 +403,7 @@ Defined by [`renderer_to_agent.json`](/specification/v1.0/schemas/#renderer_to_a
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
+  <TabItem label="v0.9.1">
 
 Defined by [`client_to_server.json`](/specification/v0.9.1/schemas/#client_to_server.json/properties/action):
 

@@ -28,13 +28,13 @@ Public documentation must read as professional, accurate, and human-authored tec
 
 ---
 
-## 2. Protocol Version Parity in JSON Examples (v1.0 Primary + v0.9 / v0.9.1)
+## 2. Protocol Version Parity in JSON Examples (v1.0 Primary + v0.9.1)
 
-Documentation leads with **v1.0 (Candidate)** while clearly explaining differences from **v0.9 / v0.9.1 (Active)** and including concrete **v0.9 / v0.9.1** samples:
+Documentation leads with **v1.0**, the current protocol version, while clearly explaining differences from **v0.9 / v0.9.1** and including concrete **v0.9 / v0.9.1** samples. Follow the version label rules in [AGENTS.md](../../../AGENTS.md#version-labels) whenever you name a version or its status.
 
 - **Provide Tabbed `v1.0` and `v0.9.1` Examples (`syncKey="protocol-version"`)**:
   Whenever presenting wire format JSON, message payloads (e.g., `createSurface`, `updateDataModel`), transport metadata, or catalog definitions:
-  - Place **v1.0 (Candidate)** in the first tab and **v0.9.1 (Active)** in the second tab using `<Tabs syncKey="protocol-version">`.
+  - List the newest version first (`<Tabs syncKey="protocol-version">` with `v1.0` before `v0.9.1` on the Astro site, and `=== "..."` blocks in MkDocs). Label version tabs with plain version numbers (`v1.0`, `v0.9.1`, `v0.8`), without status words such as "Candidate", "Active", or "Current".
   - Use exact wire `"version"` values: `"1.0"` (no `"v"` prefix) in v1.0 payloads, and `"v0.9"` (or `"v0.9.1"`; standard v0.9.x examples and `$id` URIs use `v0.9` / `v0_9`) in v0.9.1 payloads.
   - Explicitly call out version-specific renames and structural changes (e.g., `agent_to_renderer` / `renderer_to_agent` vs. `server_to_client` / `client_to_server`, `@path` / `@call` vs. `path` / `call`, and transport metadata keys `a2uiRendererCapabilities` / `a2uiRendererDataModel` under `"1.0"` vs. `a2uiClientCapabilities` / `a2uiClientDataModel` under `"v0.9"`).
 - **Express / Wire Mapping**: When contrasting human-readable inference formats (like Express `.a2ui`) with raw JSON, show the resulting compiled JSON for both versions if there are structural differences.
