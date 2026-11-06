@@ -133,6 +133,7 @@ Here is a simple catalog defining a single component.
 
     ```json
     {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "$id": "https://github.com/.../hello_world/v1/catalog.json",
       "catalogId": "https://github.com/.../hello_world/v1/catalog.json",
       "protocolVersion": "1.0",
@@ -141,6 +142,9 @@ Here is a simple catalog defining a single component.
           "type": "object",
           "description": "A simple banner greeting.",
           "properties": {
+            "component": {
+              "const": "HelloWorldBanner"
+            },
             "message": {
               "type": "string",
               "description": "The banner text."
@@ -150,7 +154,20 @@ Here is a simple catalog defining a single component.
               "default": "#f0f0f0"
             }
           },
-          "required": ["message"]
+          "required": ["component", "message"]
+        }
+      },
+      "$defs": {
+        "anyComponent": {
+          "oneOf": [
+            { "$ref": "#/components/HelloWorldBanner" }
+          ],
+          "discriminator": {
+            "propertyName": "component"
+          }
+        },
+        "anyFunction": {
+          "not": {}
         }
       }
     }

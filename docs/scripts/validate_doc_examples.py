@@ -22,7 +22,7 @@ against the JSON Schemas of the protocol version it shows:
   schemas. v0.8 tabs are not checked.
 - Untabbed blocks use the version named by their `"version"` field. An
   untabbed component (an object with `id` and `component`) has no version
-  field and is checked against v1.0, the current version.
+  field and is checked against both v1.0 and v0.9.1.
 
 Messages, renderer events, and single components are checked. Other JSON (for
 example catalog definitions or capabilities) is skipped. To skip a block that
@@ -42,7 +42,7 @@ import json
 import pathlib
 import re
 import sys
-from typing import Any, Iterator
+from typing import Any, Iterator, cast
 
 import jsonschema
 import referencing
@@ -55,25 +55,35 @@ V0_9_1 = "0.9.1"
 
 _SPEC_BASE = "https://a2ui.org/specification"
 
+
+@dataclasses.dataclass(frozen=True)
+class _VersionFiles:
+    json_dir: pathlib.Path
+    catalog: pathlib.Path
+    base: str
+    to_renderer: str
+    from_renderer: str
+
+
 # Per version: the spec JSON directory, the basic catalog, and the URI the
 # message schemas use for `catalog.json` (relative to their own `$id`).
-_VERSION_FILES = {
-    V1_0: {
-        "json_dir": REPO_ROOT / "specification/v1_0/json",
-        "catalog": REPO_ROOT / "catalogs/basic/v1/catalog.json",
-        "base": f"{_SPEC_BASE}/v1_0",
-        "to_renderer": "agent_to_renderer.json",
-        "from_renderer": "renderer_to_agent.json",
-    },
+_VERSION_FILES: dict[str, _VersionFiles] = {
+    V1_0: _VersionFiles(
+        json_dir=REPO_ROOT / "specification/v1_0/json",
+        catalog=REPO_ROOT / "catalogs/basic/v1/catalog.json",
+        base=f"{_SPEC_BASE}/v1_0",
+        to_renderer="agent_to_renderer.json",
+        from_renderer="renderer_to_agent.json",
+    ),
     # The v0.9.1 schemas keep `v0_9` in their `$id`s, so the v0.9 schemas must
     # never be loaded into the same registry.
-    V0_9_1: {
-        "json_dir": REPO_ROOT / "specification/v0_9_1/json",
-        "catalog": REPO_ROOT / "specification/v0_9_1/catalogs/basic/catalog.json",
-        "base": f"{_SPEC_BASE}/v0_9",
-        "to_renderer": "server_to_client.json",
-        "from_renderer": "client_to_server.json",
-    },
+    V0_9_1: _VersionFiles(
+        json_dir=REPO_ROOT / "specification/v0_9_1/json",
+        catalog=REPO_ROOT / "specification/v0_9_1/catalogs/basic/catalog.json",
+        base=f"{_SPEC_BASE}/v0_9",
+        to_renderer="server_to_client.json",
+        from_renderer="client_to_server.json",
+    ),
 }
 
 _TO_RENDERER_KEYS = {
@@ -95,7 +105,7 @@ _SKIP_MARKER = "<!-- example: skip -->"
 _MKDOCS_TAB = re.compile(r'^(?P<indent>\s*)=== "(?P<label>[^"]*)"')
 _ASTRO_TAB_OPEN = re.compile(r'<TabItem\s+label="(?P<label>[^"]*)"')
 _ASTRO_TAB_CLOSE = re.compile(r"</TabItem>")
-_FENCE_OPEN = re.compile(r"^(?P<indent>\s*)```json\s*$")
+_FENCE_OPEN = re.compile(r"^(?P<indent>\s*)```json(?:\s+.*)?$")
 
 
 @dataclasses.dataclass
@@ -134,6 +144,42 @@ def _version_for_field(value: Any) -> str | None:
     return None
 
 
+def _update_tab_state(
+    line: str,
+    mkdocs_tab: tuple[int, str] | None,
+    astro_tab: str | None,
+) -> tuple[tuple[int, str] | None, str | None]:
+    """Updates the active MkDocs or Astro tab state for a non-fence line."""
+    tab_match = _MKDOCS_TAB.match(line)
+    if tab_match:
+        return (len(tab_match.group("indent")), tab_match.group("label")), astro_tab
+    if _ASTRO_TAB_CLOSE.search(line):
+        astro_tab = None
+    open_match = _ASTRO_TAB_OPEN.search(line)
+    if open_match:
+        astro_tab = open_match.group("label")
+    # A MkDocs tab ends at the first non-blank line indented no deeper
+    # than its `===` header.
+    if mkdocs_tab and line.strip():
+        indent = len(line) - len(line.lstrip())
+        if indent <= mkdocs_tab[0]:
+            mkdocs_tab = None
+    return mkdocs_tab, astro_tab
+
+
+def _consume_fenced_block(
+    lines: list[str], start: int, fence_indent: str
+) -> tuple[str, int]:
+    """Reads lines inside a fenced code block and returns `(body, next_index)`."""
+    body: list[str] = []
+    j = start + 1
+    while j < len(lines) and lines[j].strip() != "```":
+        raw = lines[j]
+        body.append(raw[len(fence_indent) :] if raw.startswith(fence_indent) else raw)
+        j += 1
+    return "\n".join(body), j + 1
+
+
 def extract_examples_from_text(path: pathlib.Path, text: str) -> list[Example]:
     """Finds ```json blocks and the version tab (if any) that contains each."""
     lines = text.splitlines()
@@ -143,49 +189,23 @@ def extract_examples_from_text(path: pathlib.Path, text: str) -> list[Example]:
     i = 0
     while i < len(lines):
         line = lines[i]
-        stripped = line.strip()
-        tab_match = _MKDOCS_TAB.match(line)
-        if tab_match:
-            mkdocs_tab = (len(tab_match.group("indent")), tab_match.group("label"))
-            i += 1
-            continue
-        open_match = _ASTRO_TAB_OPEN.search(line)
-        if open_match:
-            astro_tab = open_match.group("label")
-        if _ASTRO_TAB_CLOSE.search(line):
-            astro_tab = None
-        # A MkDocs tab ends at the first non-blank line indented no deeper
-        # than its `===` header.
-        if mkdocs_tab and stripped:
-            indent = len(line) - len(line.lstrip())
-            if indent <= mkdocs_tab[0]:
-                mkdocs_tab = None
+        mkdocs_tab, astro_tab = _update_tab_state(line, mkdocs_tab, astro_tab)
         fence = _FENCE_OPEN.match(line)
         if not fence:
             i += 1
             continue
-        fence_indent = fence.group("indent")
-        body: list[str] = []
-        j = i + 1
-        while j < len(lines) and lines[j].strip() != "```":
-            body.append(
-                lines[j][len(fence_indent) :]
-                if lines[j].startswith(fence_indent)
-                else lines[j]
-            )
-            j += 1
+        body_text, next_i = _consume_fenced_block(lines, i, fence.group("indent"))
         preceding = lines[max(0, i - 2) : i]
-        label = mkdocs_tab[1] if mkdocs_tab else astro_tab
         examples.append(
             Example(
                 path=path,
                 line=i + 1,
-                tab_label=label,
-                text="\n".join(body),
+                tab_label=mkdocs_tab[1] if mkdocs_tab else astro_tab,
+                text=body_text,
                 skipped=any(_SKIP_MARKER in p for p in preceding),
             )
         )
-        i = j + 1
+        i = next_i
     return examples
 
 
@@ -195,7 +215,7 @@ def extract_examples(path: pathlib.Path) -> list[Example]:
 
 
 def _load(path: pathlib.Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
 
 
 def _allow_other_catalogs(catalog: dict[str, Any], call_key: str) -> None:
@@ -210,6 +230,22 @@ def _allow_other_catalogs(catalog: dict[str, Any], call_key: str) -> None:
     defs = catalog["$defs"]
     component_names = sorted(catalog.get("components", {}))
     function_names = sorted(catalog.get("functions", {}))
+    known_functions = (
+        [*function_names, "@index"] if call_key == "@call" else function_names
+    )
+    fallback_function: dict[str, Any] = {
+        "type": "object",
+        "required": [call_key],
+        "properties": {
+            call_key: {"not": {"enum": known_functions}},
+            "args": {"type": "object"},
+        },
+    }
+    if call_key == "call":
+        fallback_function["properties"]["returnType"] = {
+            "$ref": "common_types.json#/$defs/FunctionCall/properties/returnType"
+        }
+        fallback_function["additionalProperties"] = False
     defs["anyComponent"] = {
         "anyOf": [
             defs["anyComponent"],
@@ -221,17 +257,7 @@ def _allow_other_catalogs(catalog: dict[str, Any], call_key: str) -> None:
             },
         ]
     }
-    defs["anyFunction"] = {
-        "anyOf": [
-            defs["anyFunction"],
-            {
-                "type": "object",
-                "required": [call_key],
-                "properties": {call_key: {"not": {"enum": function_names}}},
-                "additionalProperties": True,
-            },
-        ]
-    }
+    defs["anyFunction"] = {"anyOf": [defs["anyFunction"], fallback_function]}
 
 
 class SchemaSet:
@@ -239,9 +265,9 @@ class SchemaSet:
 
     def __init__(self, version: str) -> None:
         files = _VERSION_FILES[version]
-        base = files["base"]
-        resources: list[tuple[str, referencing.Resource]] = []
-        for schema_path in sorted(files["json_dir"].glob("*.json")):
+        base = files.base
+        resources: list[tuple[str, referencing.Resource[Any]]] = []
+        for schema_path in sorted(files.json_dir.glob("*.json")):
             schema = _load(schema_path)
             uri = schema.get("$id") or f"{base}/{schema_path.name}"
             resources.append(
@@ -251,21 +277,21 @@ class SchemaSet:
         # to their own `$id`, which differs from the catalog's `$id`. Register
         # the catalog under the referenced URI, without its `$id`, so its own
         # relative references (such as "common_types.json") resolve against it.
-        catalog = copy.deepcopy(_load(files["catalog"]))
+        catalog = copy.deepcopy(_load(files.catalog))
         catalog.pop("$id", None)
         _allow_other_catalogs(catalog, call_key="@call" if version == V1_0 else "call")
         catalog_uri = f"{base}/catalog.json"
         resources.append(
             (catalog_uri, referencing.jsonschema.DRAFT202012.create_resource(catalog))
         )
-        self.registry = referencing.Registry().with_resources(resources)
-        self.version = version
-        self._to_renderer = self._validator({"$ref": f"{base}/{files['to_renderer']}"})
-        self._from_renderer = self._validator(
-            {"$ref": f"{base}/{files['from_renderer']}"}
+        self.registry: referencing.Registry[Any] = (
+            referencing.Registry().with_resources(resources)
         )
+        self.version = version
+        self._to_renderer = self._validator({"$ref": f"{base}/{files.to_renderer}"})
+        self._from_renderer = self._validator({"$ref": f"{base}/{files.from_renderer}"})
         if version == V1_0:
-            component_ref = f"{base}/{files['to_renderer']}#/$defs/Component"
+            component_ref = f"{base}/{files.to_renderer}#/$defs/Component"
         else:
             component_ref = f"{catalog_uri}#/$defs/anyComponent"
         self._component = self._validator({"$ref": component_ref})
@@ -280,10 +306,10 @@ class SchemaSet:
         keys = set(payload)
         if keys & _TO_RENDERER_KEYS:
             return self._to_renderer
-        if "version" in keys and keys & _FROM_RENDERER_KEYS:
-            return self._from_renderer
         if "id" in keys and "component" in keys:
             return self._component
+        if keys & _FROM_RENDERER_KEYS:
+            return self._from_renderer
         return None
 
 
@@ -319,6 +345,29 @@ def _errors_for(payload: Any, version: str) -> list[str] | None:
     ]
 
 
+_UNTABBED_MESSAGE_KEYS = _TO_RENDERER_KEYS | {
+    "callAgentFunction",
+    "rendererFunctionResponse",
+}
+
+
+def _versions_for_payload(payload: Any, tab_version: str | None) -> list[str]:
+    """Determines which protocol versions apply to a parsed JSON payload."""
+    if tab_version:
+        return [tab_version]
+    if not isinstance(payload, dict):
+        return []
+    if "version" in payload:
+        if payload["version"] == "v0.8":
+            return []
+        return [_version_for_field(payload["version"]) or V1_0]
+    if set(payload) & _UNTABBED_MESSAGE_KEYS:
+        return [V1_0]
+    if "id" in payload and "component" in payload:
+        return [V1_0, V0_9_1]
+    return []
+
+
 def validate(example: Example) -> list[str]:
     """Validates one example and returns error strings (empty when valid)."""
     if example.skipped:
@@ -334,16 +383,7 @@ def validate(example: Example) -> list[str]:
         return [f"invalid JSON: {e}"]
     errors: list[str] = []
     for payload in _payloads(data):
-        if tab_version:
-            versions = [tab_version]
-        elif isinstance(payload, dict) and "version" in payload:
-            field_version = _version_for_field(payload["version"])
-            versions = [field_version] if field_version else []
-        elif isinstance(payload, dict) and "id" in payload and "component" in payload:
-            versions = [V1_0]
-        else:
-            versions = []
-        for version in versions:
+        for version in _versions_for_payload(payload, tab_version):
             errors.extend(_errors_for(payload, version) or [])
     return errors
 

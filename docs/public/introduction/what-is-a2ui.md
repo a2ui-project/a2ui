@@ -42,115 +42,129 @@ A2UI: JSON messages describing UI that:
 
 === "v1.0"
 
-    ```jsonl
-    {
-      "version": "1.0",
-      "createSurface": {
-        "surfaceId": "booking",
-        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-      }
-    }
-    {
-      "version": "1.0",
-      "updateComponents": {
-        "surfaceId": "booking",
-        "components": [
-          {
-            "id": "title",
-            "component": "Text",
-            "text": "# Book Your Table"
-          },
-          {
-            "id": "datetime",
-            "component": "DateTimeInput",
-            "value": { "@path": "/booking/date" },
-            "enableDate": true
-          },
-          {
-            "id": "submit-text",
-            "component": "Text",
-            "text": "Confirm"
-          },
-          {
-            "id": "submit-btn",
-            "component": "Button",
-            "child": "submit-text",
-            "variant": "primary",
-            "action": {
-              "event": { "name": "confirm_booking" }
+    ```json
+    [
+      {
+        "version": "1.0",
+        "createSurface": {
+          "surfaceId": "booking",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        }
+      },
+      {
+        "version": "1.0",
+        "updateComponents": {
+          "surfaceId": "booking",
+          "components": [
+            {
+              "id": "root",
+              "component": "Column",
+              "children": ["title", "datetime", "submit-btn"]
+            },
+            {
+              "id": "title",
+              "component": "Text",
+              "text": "# Book Your Table"
+            },
+            {
+              "id": "datetime",
+              "component": "DateTimeInput",
+              "value": { "@path": "/booking/date" },
+              "enableDate": true
+            },
+            {
+              "id": "submit-text",
+              "component": "Text",
+              "text": "Confirm"
+            },
+            {
+              "id": "submit-btn",
+              "component": "Button",
+              "child": "submit-text",
+              "variant": "primary",
+              "action": {
+                "event": { "name": "confirm_booking" }
+              }
             }
+          ]
+        }
+      },
+      {
+        "version": "1.0",
+        "updateDataModel": {
+          "surfaceId": "booking",
+          "path": "/booking",
+          "value": {
+            "date": "2025-12-16T19:00:00Z"
           }
-        ]
-      }
-    }
-    {
-      "version": "1.0",
-      "updateDataModel": {
-        "surfaceId": "booking",
-        "path": "/booking",
-        "value": {
-          "date": "2025-12-16T19:00:00Z"
         }
       }
-    }
+    ]
     ```
 
-    A2UI messages use `createSurface` to initialize the surface, a flat component structure, and include a `version` field. In v1.0, `createSurface` can also carry the components and data model in one message.
+    A2UI messages use `createSurface` to initialize the surface, a flat component structure rooted at `"id": "root"`, and a `version` field. In v1.0, `createSurface` can also carry the components and data model in one message.
 
 === "v0.9.1"
 
-    ```jsonl
-    {
-      "version": "v0.9.1",
-      "createSurface": {
-        "surfaceId": "booking",
-        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
-      }
-    }
-    {
-      "version": "v0.9.1",
-      "updateComponents": {
-        "surfaceId": "booking",
-        "components": [
-          {
-            "id": "title",
-            "component": "Text",
-            "text": "Book Your Table",
-            "variant": "h1"
-          },
-          {
-            "id": "datetime",
-            "component": "DateTimeInput",
-            "value": { "path": "/booking/date" },
-            "enableDate": true
-          },
-          {
-            "id": "submit-text",
-            "component": "Text",
-            "text": "Confirm"
-          },
-          {
-            "id": "submit-btn",
-            "component": "Button",
-            "child": "submit-text",
-            "variant": "primary",
-            "action": {
-              "event": { "name": "confirm_booking" }
+    ```json
+    [
+      {
+        "version": "v0.9.1",
+        "createSurface": {
+          "surfaceId": "booking",
+          "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+        }
+      },
+      {
+        "version": "v0.9.1",
+        "updateComponents": {
+          "surfaceId": "booking",
+          "components": [
+            {
+              "id": "root",
+              "component": "Column",
+              "children": ["title", "datetime", "submit-btn"]
+            },
+            {
+              "id": "title",
+              "component": "Text",
+              "text": "Book Your Table",
+              "variant": "h1"
+            },
+            {
+              "id": "datetime",
+              "component": "DateTimeInput",
+              "value": { "path": "/booking/date" },
+              "enableDate": true
+            },
+            {
+              "id": "submit-text",
+              "component": "Text",
+              "text": "Confirm"
+            },
+            {
+              "id": "submit-btn",
+              "component": "Button",
+              "child": "submit-text",
+              "variant": "primary",
+              "action": {
+                "event": { "name": "confirm_booking" }
+              }
             }
+          ]
+        }
+      },
+      {
+        "version": "v0.9.1",
+        "updateDataModel": {
+          "surfaceId": "booking",
+          "path": "/booking",
+          "value": {
+            "date": "2025-12-16T19:00:00Z"
           }
-        ]
-      }
-    }
-    {
-      "version": "v0.9.1",
-      "updateDataModel": {
-        "surfaceId": "booking",
-        "path": "/booking",
-        "value": {
-          "date": "2025-12-16T19:00:00Z"
         }
       }
-    }
+    ]
     ```
 
     A2UI messages use `createSurface` to initialize the surface, a flat component structure, and include a `version` field.

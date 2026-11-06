@@ -313,6 +313,9 @@ Include data model references in `action.event.context` to send specific values 
 
 In v1.0, an interactive component such as a submit button can use `action.functionCall` to trigger an agent-side function (`callAgentFunction`) with arguments bound to paths in the data model. This is best when you want to send data model state directly to programmatic code on the agent side:
 
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0">
+
 ```json
 {
   "id": "saveButton",
@@ -328,6 +331,30 @@ In v1.0, an interactive component such as a submit button can use `action.functi
   }
 }
 ```
+
+  </TabItem>
+  <TabItem label="v0.9.1">
+
+Agent-side functions were introduced in v1.0. In v0.9.1, pass bound data model paths in `action.event.context` instead:
+
+```json
+{
+  "id": "saveButton",
+  "component": "Button",
+  "child": "saveLabel",
+  "action": {
+    "event": {
+      "name": "save_reservation",
+      "context": {
+        "email": {"path": "/reservation/guestEmail"}
+      }
+    }
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
 
 ### `sendDataModel: true`
 
