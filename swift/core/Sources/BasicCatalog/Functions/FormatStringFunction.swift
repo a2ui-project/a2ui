@@ -90,10 +90,18 @@ public final class FormatStringFunction: FunctionImplementation, Sendable {
     case .array(let items):
       return .array(items.map { adaptedForV10($0, catalogID: catalogID) })
     case .object(let dict):
-      if let path = dict["path"]?.stringValue, dict["@path"] == nil {
+      if let path = dict["path"]?.stringValue, dict["componentId"] == nil, dict["@path"] == nil {
         return .object(["@path": .string(path)])
       }
-      if let call = dict["call"]?.stringValue, dict["@call"] == nil {
+      let callName: String?
+      if let atCall = dict["@call"]?.stringValue {
+        callName = atCall
+      } else if dict["@call"] == nil, let call = dict["call"]?.stringValue {
+        callName = call
+      } else {
+        callName = nil
+      }
+      if let callName {
         var args: OrderedDictionary<String, JSONValue> = [:]
         if case .object(let rawArgs)? = dict["args"] {
           for (key, value) in rawArgs {
@@ -101,14 +109,13 @@ public final class FormatStringFunction: FunctionImplementation, Sendable {
           }
         }
         var adapted: OrderedDictionary<String, JSONValue> = [
-          "@call": .string(call),
+          "@call": .string(callName),
           "args": .object(args),
         ]
-        if let catalogID, !call.hasPrefix("@") {
+        if let existingCatalogID = dict["catalogId"], existingCatalogID != .null {
+          adapted["catalogId"] = existingCatalogID
+        } else if let catalogID, !callName.hasPrefix("@") {
           adapted["catalogId"] = .string(catalogID)
-        }
-        if let returnType = dict["returnType"] {
-          adapted["returnType"] = returnType
         }
         return .object(adapted)
       }

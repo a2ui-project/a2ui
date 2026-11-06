@@ -425,6 +425,13 @@ private final class RPCArgumentFunctionHandler: FunctionHandler {
       try fallback.validateFunctionCatalog(id: catalogID, functionName: functionName)
     }
   }
+
+  func resolvedFunctionCatalogID(forCallCatalogID catalogID: String?) -> String? {
+    if let delegate {
+      return delegate.resolvedFunctionCatalogID(forCallCatalogID: catalogID)
+    }
+    return fallback.resolvedFunctionCatalogID(forCallCatalogID: catalogID)
+  }
 }
 
 private final class DummyContextFunctionHandler: FunctionHandler {

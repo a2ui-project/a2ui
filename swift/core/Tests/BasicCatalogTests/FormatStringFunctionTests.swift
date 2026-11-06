@@ -219,17 +219,110 @@ struct FormatStringFunctionTests {
       protocolVersion: .v10,
       index: 2
     )
+    let template = """
+      Row ${@index()}: ${pluralize(value: 2, one: 'drop', other: 'drops')} \
+      (${not(value: not(value: true))})
+      """
     let resolved = itemContext.resolveDynamicValue(
       .object([
         "@call": .string("formatString"),
         "catalogId": .string(basicCatalog.id),
         "args": .object([
-          "value": .string(
-            "Row ${@index()}: ${pluralize(value: 2, one: 'drop', other: 'drops')}"
-          )
+          "value": .string(template)
         ]),
       ])
     )
-    #expect(resolved == .string("Row 2: drops"))
+    #expect(resolved == .string("Row 2: drops (true)"))
+  }
+
+  @Test func recordsDefaultCatalogIDWhenFormatStringOmitsCatalogIDOnV10Surface() throws {
+    let customID = "https://example.com/custom.json"
+    let customCatalog = Catalog(
+      id: customID,
+      components: [],
+      functions: [FormatStringFunction(), ActiveCatalogFunction()],
+      version: .v10
+    ).eraseToAnyCatalog()
+    let resolver = NodeResolver(
+      surfaceID: "s-default",
+      catalogs: [customCatalog],
+      defaultCatalogID: customID,
+      protocolVersion: .v10
+    )
+    let ctx = DataContext(
+      dataModel: resolver.dataModel,
+      path: "/",
+      functionHandler: resolver,
+      protocolVersion: .v10
+    )
+    let resolved = ctx.resolveDynamicValue(
+      .object([
+        "@call": .string("formatString"),
+        "args": .object([
+          "value": .string("${activeCat()}")
+        ]),
+      ])
+    )
+    #expect(resolved == .string(customID))
+    #expect(ctx.activeFunctionCatalogID == nil)
+  }
+
+  @Test func preservesOuterCatalogIDWhenNestedCallOmitsCatalogIDOnCustomHandler() throws {
+    let customHandler = PreservingCatalogFunctionHandler()
+    let ctx = DataContext(
+      dataModel: DataModel(),
+      path: "/",
+      functionHandler: customHandler,
+      protocolVersion: .v10
+    )
+    let resolved = ctx.resolveDynamicValue(
+      .object([
+        "@call": .string("outer"),
+        "catalogId": .string("https://example.com/outer.json"),
+        "args": .object([:]),
+      ])
+    )
+    #expect(resolved == .string("https://example.com/outer.json"))
+    #expect(ctx.activeFunctionCatalogID == nil)
+  }
+}
+
+@MainActor
+private final class PreservingCatalogFunctionHandler: FunctionHandler {
+  func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
+    switch name {
+    case "outer":
+      return OuterCatalogFunction()
+    case "activeCat":
+      return ActiveCatalogFunction()
+    default:
+      return nil
+    }
+  }
+}
+
+private struct OuterCatalogFunction: FunctionImplementation, Sendable {
+  let api = FunctionAPI(
+    name: "outer",
+    returnType: .string,
+    schema: try! JSONSchema.Schema(instance: "{}")
+  )
+
+  @MainActor
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+    context.resolveDynamicValue(.object(["@call": .string("activeCat"), "args": .object([:])]))
+  }
+}
+
+private struct ActiveCatalogFunction: FunctionImplementation, Sendable {
+  let api = FunctionAPI(
+    name: "activeCat",
+    returnType: .string,
+    schema: try! JSONSchema.Schema(instance: "{}")
+  )
+
+  @MainActor
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+    .string(context.activeFunctionCatalogID ?? "none")
   }
 }
