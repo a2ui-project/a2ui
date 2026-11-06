@@ -4,28 +4,46 @@ This guide explains how A2UI handles user interactions. Components use the `acti
 
 ## Action Architecture
 
-Actions allow UI components to trigger behavior defined in the [`Action`](../../../specification/v0_9/json/common_types.json#L271-L313) schema in `common_types.json`. Actions can trigger:
+Actions allow UI components to trigger behavior defined in the [`Action`](../../../specification/v1_0/json/common_types.json#L301-L347) schema in `common_types.json`. Actions can trigger:
 
 1.  **Events**: Dispatched to the Agent for processing (executed on Agent, e.g., clicking "Submit").
-2.  **Functions**: Executed entirely on the renderer using [`FunctionCall`](../../../specification/v0_9/json/common_types.json#L200-L242) (executed on Renderer, e.g., opening a URL).
+2.  **Functions**: Executed entirely on the renderer using [`FunctionCall`](../../../specification/v1_0/json/common_types.json#L252-L271) (executed on Renderer, e.g., opening a URL).
 
 ### 1. Functions (Local)
 
 Functions execute immediate behavior on the renderer without a network round-trip. The agent is not informed of local function calls. They use the `functionCall` keyword.
 
-```json
-{
-  "id": "help-btn",
-  "component": "Button",
-  "child": "help-text",
-  "action": {
-    "functionCall": {
-      "call": "openUrl",
-      "args": {"url": "https://a2ui.org/help"}
+=== "v1.0"
+
+    ```json
+    {
+      "id": "help-btn",
+      "component": "Button",
+      "child": "help-text",
+      "action": {
+        "functionCall": {
+          "@call": "openUrl",
+          "args": {"url": "https://a2ui.org/help"}
+        }
+      }
     }
-  }
-}
-```
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "id": "help-btn",
+      "component": "Button",
+      "child": "help-text",
+      "action": {
+        "functionCall": {
+          "call": "openUrl",
+          "args": {"url": "https://a2ui.org/help"}
+        }
+      }
+    }
+    ```
 
 Common uses for Functions include:
 
@@ -38,53 +56,96 @@ Events send data to the agent for processing. They use the `event` keyword.
 
 Components like `Button` expose an `action` property. Here is how an Event is wired:
 
-```json
-{
-  "id": "submit-btn",
-  "component": "Button",
-  "child": "btn-text",
-  "action": {
-    "event": {
-      "name": "submit_reservation",
-      "context": {
-        "time": {"path": "/reservationTime"},
-        "size": {"path": "/partySize"}
+=== "v1.0"
+
+    ```json
+    {
+      "id": "submit-btn",
+      "component": "Button",
+      "child": "btn-text",
+      "action": {
+        "event": {
+          "name": "submit_reservation",
+          "context": {
+            "time": {"@path": "/reservationTime"},
+            "size": {"@path": "/partySize"}
+          }
+        }
       }
     }
-  }
-}
-```
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "id": "submit-btn",
+      "component": "Button",
+      "child": "btn-text",
+      "action": {
+        "event": {
+          "name": "submit_reservation",
+          "context": {
+            "time": {"path": "/reservationTime"},
+            "size": {"path": "/partySize"}
+          }
+        }
+      }
+    }
+    ```
 
 - **`name`**: A stable identifier for the agent to switch on.
-- **`context`**: A map of key-value pairs. Values can be literal or use a `path` to pull from the current state of the data model.
+- **`context`**: A map of key-value pairs. Values can be literal or use a data binding (`@path` in v1.0, `path` in v0.9.1) to pull from the current state of the data model.
 
 NOTE: **Context vs. Data Model**: While the Data Model represents the entire state tree of a surface, the `context` in an action is effectively a hand-picked **"view"** or subset of that state. This simplifies the Agent's job by providing exactly the values needed for a specific event, without requiring the Agent to navigate a potentially large and complex data model.
 
 ### Basic Catalog Function Validation (Checks)
 
-The basic catalog defines a limited set of checks that can be performed on the renderer. Interactive components can define a list of `checks` (using the [`Checkable`](../../../specification/v0_9/json/common_types.json#L258-L270) schema in `common_types.json`). For a `Button`, if any check fails, the button is **automatically disabled** on the renderer.
+The basic catalog defines a limited set of checks that can be performed on the renderer. Interactive components can define a list of `checks` (using the [`Checkable`](../../../specification/v1_0/json/common_types.json#L288-L300) schema in `common_types.json`). For a `Button`, if any check fails, the button is **automatically disabled** on the renderer.
 
 - **UX Focus**: Validation checks are designed to manage **UI State (User Experience)** by preventing invalid interactions before they happen. They are not a replacement for **Data Integrity** checks, which must still be performed on the agent.
 
 This allows the UI to enforce requirements (like a non-empty field) before the user even tries to submit.
 
-```json
-{
-  "id": "submit-button",
-  "component": "Button",
-  "child": "submit-text",
-  "checks": [
+=== "v1.0"
+
+    ```json
     {
-      "condition": {
-        "call": "required",
-        "args": {"value": {"path": "/partySize"}}
-      },
-      "message": "Party size is required"
+      "id": "submit-button",
+      "component": "Button",
+      "child": "submit-text",
+      "checks": [
+        {
+          "condition": {
+            "@call": "required",
+            "args": {"value": {"@path": "/partySize"}}
+          },
+          "message": "Party size is required"
+        }
+      ],
+      "action": {"event": {"name": "submit_booking"}}
     }
-  ],
-  "action": {"event": {"name": "submit_booking"}}
-}
-```
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "id": "submit-button",
+      "component": "Button",
+      "child": "submit-text",
+      "checks": [
+        {
+          "condition": {
+            "call": "required",
+            "args": {"value": {"path": "/partySize"}}
+          },
+          "message": "Party size is required"
+        }
+      ],
+      "action": {"event": {"name": "submit_booking"}}
+    }
+    ```
 
 ## Local State Updates & The "Write" Contract
 
@@ -112,30 +173,48 @@ This separation allows for a robust form submission pattern:
 When a user interacts with a component (e.g., clicks a button):
 
 1.  **Resolve**: The renderer resolves all `path` references in the `context` against the local **Data Model**.
-2.  **Construct**: The renderer builds an `action` payload conforming to [`client_to_server.json`](../../../specification/v0_9/json/client_to_server.json).
+2.  **Construct**: The renderer builds an `action` payload conforming to [`renderer_to_agent.json`](../../../specification/v1_0/json/renderer_to_agent.json) (v1.0) or [`client_to_server.json`](../../../specification/v0_9_1/json/client_to_server.json) (v0.9.1).
 3.  **Dispatch**: The payload is sent via the chosen transport (e.g., A2A, WebSockets).
 
-### Example: The Action Payload (v0.9)
+### Example: The Action Payload
 
 If a user clicks the button above with a data model containing `{"reservationTime": "7:00 PM", "partySize": 4}`, the renderer sends a message using the `action` key:
 
-```json
-{
-  "version": "v0.9",
-  "action": {
-    "name": "submit_reservation",
-    "surfaceId": "booking-surface",
-    "sourceComponentId": "submit-btn",
-    "timestamp": "2026-02-25T10:40:00Z",
-    "context": {
-      "time": "7:00 PM",
-      "size": 4
-    }
-  }
-}
-```
+=== "v1.0"
 
-IMPORTANT: **A Note on Versioning (v0.8 vs v0.9)**: In v0.8, the top-level payload key was `userAction` (e.g., `{"userAction": {...}}`). v0.9 transitioned to the simpler `action` key shown above. Standard protocol parsers expect the key corresponding to the version declared in the payload.
+    ```json
+    {
+      "version": "1.0",
+      "action": {
+        "name": "submit_reservation",
+        "surfaceId": "booking-surface",
+        "sourceComponentId": "submit-btn",
+        "timestamp": "2026-02-25T10:40:00Z",
+        "context": {
+          "time": "7:00 PM",
+          "size": 4
+        }
+      }
+    }
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "version": "v0.9",
+      "action": {
+        "name": "submit_reservation",
+        "surfaceId": "booking-surface",
+        "sourceComponentId": "submit-btn",
+        "timestamp": "2026-02-25T10:40:00Z",
+        "context": {
+          "time": "7:00 PM",
+          "size": 4
+        }
+      }
+    }
+    ```
 
 ## Agent Processing
 
@@ -154,70 +233,123 @@ if action_name == "submit_reservation":
 
 ## Renderer-to-Agent Error Reporting
 
-In addition to Events triggered by the user, the renderer can report system-level errors back to the agent using the `error` payload defined in [`client_to_server.json`](../../../specification/v0_9/json/client_to_server.json).
+In addition to Events triggered by the user, the renderer can report system-level errors back to the agent using the `error` payload defined in [`renderer_to_agent.json`](../../../specification/v1_0/json/renderer_to_agent.json) (v1.0) or [`client_to_server.json`](../../../specification/v0_9_1/json/client_to_server.json) (v0.9.1).
 
 ### Validation Failures
 
 If the agent sends A2UI JSON that violates the catalog schema or protocol rules, the renderer sends a `VALIDATION_FAILED` error. This is a critical feedback loop for agentic systems:
 
-```json
-{
-  "version": "v0.9",
-  "error": {
-    "code": "VALIDATION_FAILED",
-    "surfaceId": "booking-surface",
-    "path": "/components/0/children",
-    "message": "Expected array of strings, got null."
-  }
-}
-```
+=== "v1.0"
+
+    ```json
+    {
+      "version": "1.0",
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "surfaceId": "booking-surface",
+        "path": "/components/0/children",
+        "message": "Expected array of strings, got null."
+      }
+    }
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "version": "v0.9",
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "surfaceId": "booking-surface",
+        "path": "/components/0/children",
+        "message": "Expected array of strings, got null."
+      }
+    }
+    ```
 
 The agent can catch this error, apologize (or self-correct internally), and re-send the corrected UI.
 
-## Data Model Sync (v0.9)
+## Data Model Sync
 
-A2UI v0.9 introduced a powerful "stateless" synchronization feature. This allows the renderer to automatically include the **entire data model** of a surface in the metadata of every message it sends to the agent.
+A2UI supports a "stateless" synchronization feature. This allows the renderer to automatically include the **entire data model** of a surface in the metadata of every message it sends to the agent.
 
 ### Enabling Sync
 
 Synchronization is requested by the agent during surface initialization. By setting `sendDataModel: true` in the `createSurface` message, the agent instructs the renderer to start the sync loop.
 
-```json
-{
-  "version": "v0.9",
-  "createSurface": {
-    "surfaceId": "booking-surface",
-    "catalogId": "https://a2ui.org/catalogs/v1/basic.json",
-    "sendDataModel": true
-  }
-}
-```
+=== "v1.0"
+
+    ```json
+    {
+      "version": "1.0",
+      "createSurface": {
+        "surfaceId": "booking-surface",
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    }
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "booking-surface",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    }
+    ```
 
 ### Sync on the Wire
 
 When sync is enabled, the renderer does not send the data model as a separate message. Instead, it attaches it as **metadata** to the outgoing transport envelope (e.g., an A2A message).
 
-In an A2A (Agent-to-Agent) binding, the data model is placed in an `a2uiClientDataModel` object within the envelope's `metadata` field.
+In an A2A (Agent-to-Agent) binding, the data model is placed in an `a2uiRendererDataModel` object (v1.0) or an `a2uiClientDataModel` object (v0.9.1) within the envelope's `metadata` field.
 
 **Example A2A Envelope with Sync:**
 
-```json
-{
-  "parts": [{"text": "Submit the reservation"}],
-  "metadata": {
-    "a2uiClientDataModel": {
-      "version": "v0.9",
-      "surfaces": {
-        "booking-surface": {
-          "reservationTime": "7:00 PM",
-          "partySize": 4,
-          "notes": "Window seat preferred"
+=== "v1.0"
+
+    ```json
+    {
+      "parts": [{"text": "Submit the reservation"}],
+      "metadata": {
+        "a2uiRendererDataModel": {
+          "version": "1.0",
+          "surfaces": {
+            "booking-surface": {
+              "reservationTime": "7:00 PM",
+              "partySize": 4,
+              "notes": "Window seat preferred"
+            }
+          }
         }
       }
     }
-  }
-}
-```
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "parts": [{"text": "Submit the reservation"}],
+      "metadata": {
+        "a2uiClientDataModel": {
+          "version": "v0.9",
+          "surfaces": {
+            "booking-surface": {
+              "reservationTime": "7:00 PM",
+              "partySize": 4,
+              "notes": "Window seat preferred"
+            }
+          }
+        }
+      }
+    }
+    ```
 
 ### Why use Data Model Sync?
 
@@ -227,23 +359,39 @@ In an A2A (Agent-to-Agent) binding, the data model is placed in an `a2uiClientDa
 
 ## Renderer Metadata & Capabilities
 
-Before an agent can safely send a UI, the renderer must advertise which component catalogs it supports. This is handled via the `a2uiClientCapabilities` object.
+Before an agent can safely send a UI, the renderer must advertise which component catalogs it supports. This is handled via the `a2uiRendererCapabilities` object (`a2uiClientCapabilities` in v0.9.1).
 
 ### Advertising Capabilities
 
-Renderers include an `a2uiClientCapabilities` object in the **metadata** of their messages to the agent (e.g., in the `metadata` field of an A2A `Message`).
+Renderers include this object in the **metadata** of their messages to the agent (e.g., in the `metadata` field of an A2A `Message`).
 
-```json
-{
-  "v0.9": {
-    "supportedCatalogIds": [
-      "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
-      "https://my-company.com/catalogs/v1/custom.json"
-    ],
-    "inlineCatalogs": []
-  }
-}
-```
+=== "v1.0"
+
+    ```json
+    {
+      "1.0": {
+        "supportedCatalogIds": [
+          "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "https://my-company.com/catalogs/v1/custom.json"
+        ],
+        "inlineCatalogs": []
+      }
+    }
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "v0.9": {
+        "supportedCatalogIds": [
+          "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+          "https://my-company.com/catalogs/v1/custom.json"
+        ],
+        "inlineCatalogs": []
+      }
+    }
+    ```
 
 - **`supportedCatalogIds`**: An array of catalog URIs the renderer can render.
 - **`inlineCatalogs`**: (Optional) For development or specialized environments, allows sending the full catalog schema inline.
@@ -264,20 +412,51 @@ The `data` field of the `DataPart` contains a **list** of A2UI messages. This al
 
 NOTE: **A2A Versioning**: The use of a **list** in the `data` field was introduced in **A2A v1.0**. Earlier versions of the A2A protocol expect the `data` field to contain a single JSON object.
 
-```json
-{
-  "kind": "data",
-  "metadata": {
-    "mimeType": "application/a2ui+json"
-  },
-  "data": [
+=== "v1.0"
+
+    ```json
     {
-      "version": "v0.9",
-      "action": { ... }
+      "kind": "data",
+      "metadata": {
+        "mimeType": "application/a2ui+json"
+      },
+      "data": [
+        {
+          "version": "1.0",
+          "action": {
+            "name": "submit_reservation",
+            "surfaceId": "booking-surface",
+            "sourceComponentId": "submit-btn",
+            "timestamp": "2026-02-25T10:40:00Z",
+            "context": {"time": "7:00 PM", "size": 4}
+          }
+        }
+      ]
     }
-  ]
-}
-```
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "kind": "data",
+      "metadata": {
+        "mimeType": "application/a2ui+json"
+      },
+      "data": [
+        {
+          "version": "v0.9",
+          "action": {
+            "name": "submit_reservation",
+            "surfaceId": "booking-surface",
+            "sourceComponentId": "submit-btn",
+            "timestamp": "2026-02-25T10:40:00Z",
+            "context": {"time": "7:00 PM", "size": 4}
+          }
+        }
+      ]
+    }
+    ```
 
 ## Security Considerations
 
@@ -292,7 +471,7 @@ A core selling point of A2UI is security through restriction. By prohibiting arb
 When `sendDataModel: true` is enabled, the renderer includes the surface's entire data model in outgoing messages. Developers must understand the visibility of this data:
 
 - **Point-to-Point Visibility**: Only the backend receiving the transport envelope (the Agent that created the surface, or an intermediate Orchestrator) can read this payload.
-- **The Orchestrator's Responsibility**: In a multi-agent architecture, a central Orchestrator often routes user intents to specialized sub-agents. The Orchestrator must enforce **data isolation**. It is responsible for parsing the `a2uiClientDataModel`, identifying the `surfaceId`, and ensuring that the data model is only passed to the specific sub-agent that owns that surface. Data from one agent's surface must never leak to another agent.
+- **The Orchestrator's Responsibility**: In a multi-agent architecture, a central Orchestrator often routes user intents to specialized sub-agents. The Orchestrator must enforce **data isolation**. It is responsible for parsing the renderer data model metadata (`a2uiRendererDataModel` in v1.0, `a2uiClientDataModel` in v0.9.1), identifying the `surfaceId`, and ensuring that the data model is only passed to the specific sub-agent that owns that surface. Data from one agent's surface must never leak to another agent.
 
 ## Orchestration & Routing
 
@@ -384,7 +563,7 @@ This pattern ensures that the bidirectional communication loop remains intact an
 
 ### Preventing Data Leakage via Metadata Stripping
 
-In a multi-agent environment, the `a2uiClientDataModel` object can contain the state for multiple surfaces owned by different sub-agents. To prevent sensitive data leakage, an orchestrator must **strip** the data model metadata to include only the surfaces owned by the target sub-agent.
+In a multi-agent environment, the renderer data model metadata can contain the state for multiple surfaces owned by different sub-agents. To prevent sensitive data leakage, an orchestrator must **strip** the data model metadata to include only the surfaces owned by the target sub-agent.
 
 You can use the `strip_unowned_surfaces_from_data_model` method in an outbound interceptor to mutate the data model dictionary in place.
 
@@ -410,7 +589,7 @@ class A2UIMetadataInterceptor(ClientCallInterceptor):
 
 By stripping the metadata, the orchestrator ensures that each sub-agent receives only the portion of the data model that it is authorized to see.
 
-WARNING: **Security Risk - State Scraping**: If an orchestrator fails to strip the `a2uiClientDataModel`, a malicious or compromised sub-agent could read the state of other active surfaces. For example, a weather sub-agent could scrape sensitive data from a banking surface if the orchestrator leaks the entire multi-surface data model. Stripping is a mandatory security requirement for multi-agent systems.
+WARNING: **Security Risk - State Scraping**: If an orchestrator fails to strip the renderer data model metadata, a malicious or compromised sub-agent could read the state of other active surfaces. For example, a weather sub-agent could scrape sensitive data from a banking surface if the orchestrator leaks the entire multi-surface data model. Stripping is a mandatory security requirement for multi-agent systems.
 
 ---
 
@@ -422,22 +601,43 @@ This example shows a button that explicitly gathers the data it needs to send.
 
 **Component Definition:**
 
-```json
-{
-  "id": "submit-button",
-  "component": "Button",
-  "child": "submit-text",
-  "action": {
-    "event": {
-      "name": "submit_booking",
-      "context": {
-        "partySize": {"path": "/partySize"},
-        "reservationTime": {"path": "/reservationTime"}
+=== "v1.0"
+
+    ```json
+    {
+      "id": "submit-button",
+      "component": "Button",
+      "child": "submit-text",
+      "action": {
+        "event": {
+          "name": "submit_booking",
+          "context": {
+            "partySize": {"@path": "/partySize"},
+            "reservationTime": {"@path": "/reservationTime"}
+          }
+        }
       }
     }
-  }
-}
-```
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "id": "submit-button",
+      "component": "Button",
+      "child": "submit-text",
+      "action": {
+        "event": {
+          "name": "submit_booking",
+          "context": {
+            "partySize": {"path": "/partySize"},
+            "reservationTime": {"path": "/reservationTime"}
+          }
+        }
+      }
+    }
+    ```
 
 **Resulting Action Payload:**
 The agent receives an `action` object with the `partySize` and `reservationTime` directly in the `context` field.
@@ -449,36 +649,72 @@ In this scenario, the user doesn't click a button. Instead, they say "Okay, subm
 **Initialization:**
 The agent created the surface with `sendDataModel: true`:
 
-```json
-{
-  "version": "v0.9",
-  "createSurface": {
-    "surfaceId": "booking-surface",
-    "catalogId": "...",
-    "sendDataModel": true
-  }
-}
-```
+=== "v1.0"
+
+    ```json
+    {
+      "version": "1.0",
+      "createSurface": {
+        "surfaceId": "booking-surface",
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    }
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "booking-surface",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    }
+    ```
 
 **Renderer Transmission:**
 The renderer sends an A2A message containing the user's text and the data model in the metadata:
 
-```json
-{
-  "parts": [{"text": "Okay, submit the form"}],
-  "metadata": {
-    "a2uiClientDataModel": {
-      "version": "v0.9",
-      "surfaces": {
-        "booking-surface": {
-          "partySize": 4,
-          "reservationTime": "7:00 PM"
+=== "v1.0"
+
+    ```json
+    {
+      "parts": [{"text": "Okay, submit the form"}],
+      "metadata": {
+        "a2uiRendererDataModel": {
+          "version": "1.0",
+          "surfaces": {
+            "booking-surface": {
+              "partySize": 4,
+              "reservationTime": "7:00 PM"
+            }
+          }
         }
       }
     }
-  }
-}
-```
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "parts": [{"text": "Okay, submit the form"}],
+      "metadata": {
+        "a2uiClientDataModel": {
+          "version": "v0.9",
+          "surfaces": {
+            "booking-surface": {
+              "partySize": 4,
+              "reservationTime": "7:00 PM"
+            }
+          }
+        }
+      }
+    }
+    ```
 
 **Agent Processing:**
 The agent sees the user's intent ("submit") and looks at the `metadata` to find the current values of `partySize` and `reservationTime`, allowing it to complete the task without further clarification.

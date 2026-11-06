@@ -19,6 +19,7 @@ import type {z} from 'zod';
 import {zodToJsonSchema} from 'zod-to-json-schema';
 
 import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
+import {isAgentFunction} from './agent_function_brand.js';
 import {exclusiveUnionOverride} from './exclusive_union.js';
 import {loadedDefinition} from './json_entries.js';
 import {getSpecAnnotation, type JsonSchemaObject} from './spec_annotations.js';
@@ -201,7 +202,12 @@ export function retainedDefs(
 ): Readonly<JsonObject> | undefined {
   if (!defs) return defs;
   const definitions = (entries: ReadonlyArray<ComponentApi | FunctionApi>) =>
-    entries.map(entry => entryDefinition(entry, defs)).filter(d => d !== undefined);
+    entries
+      .map(
+        entry =>
+          entryDefinition(entry, defs) ?? (isAgentFunction(entry) ? entry.jsonSchema : undefined),
+      )
+      .filter(d => d !== undefined);
   const reachedBefore = reachableDefs(definitions(before), defs);
   const unconditional = Object.keys(defs).filter(name => !reachedBefore.has(name));
   const reachedAfter = reachableDefs(
@@ -368,16 +374,20 @@ function serializeFunctionModel(
   defs?: Readonly<JsonObject>,
 ): JsonObject {
   const args = zodToUnbundledJson(fn.schema, localDefs, commonTypesUri);
+  // An agent function writes only what its declaration or constructor set,
+  // not its defaults.
+  const allowedCallers = isAgentFunction(fn) ? fn.explicitAllowedCallers : fn.allowedCallers;
+  const requiresUserActivation = isAgentFunction(fn)
+    ? fn.explicitRequiresUserActivation
+    : fn.requiresUserActivation;
   if (asListItem) {
     return {
       name,
       ...(fn.description ? {description: fn.description} : {}),
       returnType: fn.returnType,
       parameters: args,
-      ...(fn.allowedCallers ? {allowedCallers: fn.allowedCallers} : {}),
-      ...(fn.requiresUserActivation !== undefined
-        ? {requiresUserActivation: fn.requiresUserActivation}
-        : {}),
+      ...(allowedCallers ? {allowedCallers} : {}),
+      ...(requiresUserActivation !== undefined ? {requiresUserActivation} : {}),
     };
   }
   closeObjectSchema(args);
@@ -388,17 +398,17 @@ function serializeFunctionModel(
   if (fn.description) result.description = fn.description;
   if (isAtLeastV10) {
     result.returnType = fn.returnType;
-    if (fn.allowedCallers) result.allowedCallers = fn.allowedCallers;
-    if (fn.requiresUserActivation !== undefined) {
-      result.requiresUserActivation = fn.requiresUserActivation;
+    if (allowedCallers) result.allowedCallers = allowedCallers;
+    if (requiresUserActivation !== undefined) {
+      result.requiresUserActivation = requiresUserActivation;
     }
     result.properties = {'@call': {const: name}, args};
     result.required = argsRequired ? ['@call', 'args'] : ['@call'];
     return result;
   }
-  if (fn.allowedCallers) result.allowedCallers = fn.allowedCallers;
-  if (fn.requiresUserActivation !== undefined) {
-    result.requiresUserActivation = fn.requiresUserActivation;
+  if (allowedCallers) result.allowedCallers = allowedCallers;
+  if (requiresUserActivation !== undefined) {
+    result.requiresUserActivation = requiresUserActivation;
   }
   result.properties = {call: {const: name}, args, returnType: {const: fn.returnType}};
   result.required = argsRequired ? ['call', 'args'] : ['call'];

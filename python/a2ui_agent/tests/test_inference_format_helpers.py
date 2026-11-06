@@ -23,6 +23,7 @@ import pytest
 
 from a2ui.core import A2uiCatalogError, A2uiValidationError, Catalog
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.catalog import FunctionApi
 from a2ui.core.schema import v1_0
 from a2ui.inference_formats import (
     DirectJsonDecompiler,
@@ -214,14 +215,26 @@ def test_direct_json_compile_passes_messages_through_unchanged():
             "callRendererFunction": {
                 "functionCallId": "fn-1",
                 "callFunction": {
-                    "catalogId": PRIMARY,
-                    "@call": "openUrl",
-                    "args": {"url": "https://a2ui.org"},
+                    "catalogId": BasicCatalog("1.0").catalog_id,
+                    "@call": "scrollTo",
+                    "args": {"id": "root"},
                 },
             },
         },
     ]
-    catalog = BasicCatalog("1.0")
+    # The basic catalog has no function the agent may call, so the test adds one.
+    basic = BasicCatalog("1.0")
+    catalog = basic.copy_with(
+        functions=[
+            *basic.functions.values(),
+            FunctionApi(
+                name="scrollTo",
+                return_type="void",
+                schema={"type": "object", "properties": {"id": {"type": "string"}}},
+                allowed_callers="rendererOrAgent",
+            ),
+        ]
+    )
     parser = DirectJsonParser([catalog])
     create = {
         "version": "1.0",

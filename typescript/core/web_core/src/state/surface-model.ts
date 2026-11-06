@@ -249,9 +249,37 @@ export class SurfaceModel<
   >();
   /**
    * Settled reactive agent function answers, keyed by canonical call key in
-   * insertion/access order (bounded to {@link MAX_AGENT_CALL_CACHE_ENTRIES}).
+   * insertion (FIFO) order, bounded to `maxAgentCallCacheEntries` by evicting
+   * the oldest entry first. Reading an entry doesn't move it.
    */
   private readonly settledAgentCalls = new Map<string, {value: unknown}>();
+  private _maxAgentCallCacheEntries = DEFAULT_MAX_AGENT_CALL_CACHE_ENTRIES;
+
+  /**
+   * The most settled agent function answers this surface caches (256 by
+   * default). When the cache is full, the oldest answer is evicted first.
+   * Lowering it evicts the oldest answers beyond the new bound.
+   *
+   * @throws {RangeError} On set, if the value isn't a positive integer.
+   */
+  get maxAgentCallCacheEntries(): number {
+    return this._maxAgentCallCacheEntries;
+  }
+
+  set maxAgentCallCacheEntries(value: number) {
+    assertMaxAgentCallCacheEntries(value);
+    this._maxAgentCallCacheEntries = value;
+    while (this.settledAgentCalls.size > value) {
+      this.evictOldestAgentCall();
+    }
+  }
+
+  private evictOldestAgentCall(): void {
+    const oldestKey = this.settledAgentCalls.keys().next().value;
+    if (oldestKey !== undefined) {
+      this.settledAgentCalls.delete(oldestKey);
+    }
+  }
   private isDisposed = false;
 
   /**
@@ -283,6 +311,9 @@ export class SurfaceModel<
    * @param protocolVersion Protocol version of the surface. Defaults to the
    *   default catalog's version; surfaces without a default catalog pass it
    *   explicitly.
+   * @param maxAgentCallCacheEntries The most settled agent function answers
+   *   to cache (256 by default). See {@link maxAgentCallCacheEntries}.
+   * @throws {RangeError} If `maxAgentCallCacheEntries` isn't a positive integer.
    */
   constructor(
     id: string,
@@ -294,6 +325,7 @@ export class SurfaceModel<
     rootId?: string,
     metadata?: A2uiMetadata,
     protocolVersion?: string,
+    maxAgentCallCacheEntries?: number,
   );
   /**
    * Initializes a new `SurfaceModel` with the pre-1.0 argument order.
@@ -327,7 +359,12 @@ export class SurfaceModel<
     /** Optional surface-level metadata for vendor extensions. */
     metadata?: A2uiMetadata,
     protocolVersion?: string,
+    maxAgentCallCacheEntries?: number,
   ) {
+    if (maxAgentCallCacheEntries !== undefined) {
+      assertMaxAgentCallCacheEntries(maxAgentCallCacheEntries);
+      this._maxAgentCallCacheEntries = maxAgentCallCacheEntries;
+    }
     this._metadataSignal = signal<A2uiMetadata | undefined>(cloneMetadata(metadata));
     this.metadataSignal = computed(() => getValue(this._metadataSignal));
     this.protocolVersion = canonicalProtocolVersion(
@@ -472,9 +509,7 @@ export class SurfaceModel<
     if (key !== undefined) {
       const settled = this.settledAgentCalls.get(key);
       if (settled !== undefined) {
-        // Refresh LRU order.
-        this.settledAgentCalls.delete(key);
-        this.settledAgentCalls.set(key, settled);
+        // A hit doesn't move the entry: the oldest is evicted first.
         return Promise.resolve(cloneAnswer(settled.value));
       }
       const inFlight = this.inFlightAgentCalls.get(key);
@@ -516,11 +551,8 @@ export class SurfaceModel<
           // is not cached for the new one.
           if (key !== undefined && !this.isDisposed && this._agentFunctionCaller === caller) {
             this.settledAgentCalls.delete(key);
-            if (this.settledAgentCalls.size >= MAX_AGENT_CALL_CACHE_ENTRIES) {
-              const oldestKey = this.settledAgentCalls.keys().next().value;
-              if (oldestKey !== undefined) {
-                this.settledAgentCalls.delete(oldestKey);
-              }
+            while (this.settledAgentCalls.size >= this._maxAgentCallCacheEntries) {
+              this.evictOldestAgentCall();
             }
             this.settledAgentCalls.set(key, {value: cloneAnswer(val)});
           }
@@ -778,8 +810,15 @@ export class SurfaceModel<
   }
 }
 
-/** Maximum number of settled reactive agent call answers cached per surface. */
-const MAX_AGENT_CALL_CACHE_ENTRIES = 256;
+/** Default number of settled reactive agent call answers cached per surface. */
+const DEFAULT_MAX_AGENT_CALL_CACHE_ENTRIES = 256;
+
+/** Throws a `RangeError` unless `value` is a positive integer. */
+function assertMaxAgentCallCacheEntries(value: number): void {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+    throw new RangeError('maxAgentCallCacheEntries must be a positive integer.');
+  }
+}
 
 /**
  * Copies an agent answer so callers that share it, or read it from the cache,
