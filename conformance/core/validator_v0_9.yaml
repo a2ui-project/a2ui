@@ -1702,6 +1702,9 @@
             additionalProperties: false
         required:
           - call
+    $defs:
+      anyFunction:
+        oneOf: [{$ref: "#/functions/getMoonPhase"}]
   steps:
     - messages:
         - version: "v0.9"
