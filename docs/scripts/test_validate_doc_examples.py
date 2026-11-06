@@ -299,3 +299,34 @@ def test_main_exit_codes(tmp_path: pathlib.Path) -> None:
     bad.write_text(_astro_tabs(V091_TEXT.replace('"v0.9"', '"1.0"'), V091_TEXT))
     assert main(["--paths", str(good)]) == 0
     assert main(["--paths", str(tmp_path)]) == 1
+    with pytest.raises(SystemExit, match="entry not found"):
+        main(["--paths", str(tmp_path / "does_not_exist")])
+
+
+def test_non_json_fenced_blocks_preserve_mkdocs_tab() -> None:
+    text = (
+        '=== "v1.0"\n\n'
+        "    ````markdown\n"
+        '=== "unindented inside non-json fence"\n'
+        "    ````\n\n"
+        "    ~~~~json\n"
+        f"    {V10_TEXT}\n"
+        "    ~~~~\n"
+    )
+    examples = extract_examples_from_text(DOC, text)
+    assert len(examples) == 1
+    assert examples[0].tab_label == "v1.0"
+    assert validate(examples[0]) == []
+
+
+def test_untabbed_broken_message_json_and_action_envelopes() -> None:
+    broken_msg = '```json\n{"version": "1.0", "createSurface": {},}\n```\n'
+    pseudo_json = '```json\n// comment\n{"foo": "bar"}\n```\n'
+    missing_ver_action = '```json\n{"action": {"event": {"name": "go"}}}\n```\n'
+    jsonrpc_err = (
+        '```json\n{"jsonrpc": "2.0", "id": 1, "error": {"code": -32600}}\n```\n'
+    )
+    assert validate(extract_examples_from_text(DOC, broken_msg)[0]) != []
+    assert validate(extract_examples_from_text(DOC, pseudo_json)[0]) == []
+    assert validate(extract_examples_from_text(DOC, missing_ver_action)[0]) != []
+    assert validate(extract_examples_from_text(DOC, jsonrpc_err)[0]) == []

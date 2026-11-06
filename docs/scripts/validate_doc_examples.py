@@ -105,7 +105,8 @@ _SKIP_MARKER = "<!-- example: skip -->"
 _MKDOCS_TAB = re.compile(r'^(?P<indent>\s*)=== "(?P<label>[^"]*)"')
 _ASTRO_TAB_OPEN = re.compile(r'<TabItem\s+label="(?P<label>[^"]*)"')
 _ASTRO_TAB_CLOSE = re.compile(r"</TabItem>")
-_FENCE_OPEN = re.compile(r"^(?P<indent>\s*)```json(?:\s+.*)?$")
+_FENCE_OPEN = re.compile(r"^(?P<indent>\s*)(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
+_JSON_INFO = re.compile(r"^\s*json(?:\s|$)")
 
 
 @dataclasses.dataclass
@@ -167,13 +168,21 @@ def _update_tab_state(
     return mkdocs_tab, astro_tab
 
 
+def _is_closing_fence(line: str, fence_marker: str) -> bool:
+    """Returns True when `line` closes `fence_marker`."""
+    stripped = line.strip()
+    return len(stripped) >= len(fence_marker) and stripped == fence_marker[0] * len(
+        stripped
+    )
+
+
 def _consume_fenced_block(
-    lines: list[str], start: int, fence_indent: str
+    lines: list[str], start: int, fence_indent: str, fence_marker: str
 ) -> tuple[str, int]:
     """Reads lines inside a fenced code block and returns `(body, next_index)`."""
     body: list[str] = []
     j = start + 1
-    while j < len(lines) and lines[j].strip() != "```":
+    while j < len(lines) and not _is_closing_fence(lines[j], fence_marker):
         raw = lines[j]
         body.append(raw[len(fence_indent) :] if raw.startswith(fence_indent) else raw)
         j += 1
@@ -194,17 +203,20 @@ def extract_examples_from_text(path: pathlib.Path, text: str) -> list[Example]:
         if not fence:
             i += 1
             continue
-        body_text, next_i = _consume_fenced_block(lines, i, fence.group("indent"))
-        preceding = lines[max(0, i - 2) : i]
-        examples.append(
-            Example(
-                path=path,
-                line=i + 1,
-                tab_label=mkdocs_tab[1] if mkdocs_tab else astro_tab,
-                text=body_text,
-                skipped=any(_SKIP_MARKER in p for p in preceding),
-            )
+        body_text, next_i = _consume_fenced_block(
+            lines, i, fence.group("indent"), fence.group("fence")
         )
+        if _JSON_INFO.match(fence.group("info")):
+            preceding = lines[max(0, i - 2) : i]
+            examples.append(
+                Example(
+                    path=path,
+                    line=i + 1,
+                    tab_label=mkdocs_tab[1] if mkdocs_tab else astro_tab,
+                    text=body_text,
+                    skipped=any(_SKIP_MARKER in p for p in preceding),
+                )
+            )
         i = next_i
     return examples
 
@@ -351,6 +363,14 @@ _UNTABBED_MESSAGE_KEYS = _TO_RENDERER_KEYS | {
 }
 
 
+def _is_untabbed_message(payload: dict[str, Any]) -> bool:
+    """Returns True when an untabbed object without `version` is a message."""
+    keys = set(payload)
+    return bool(keys & _UNTABBED_MESSAGE_KEYS) or (
+        bool(keys) and keys <= {"action", "error"}
+    )
+
+
 def _versions_for_payload(payload: Any, tab_version: str | None) -> list[str]:
     """Determines which protocol versions apply to a parsed JSON payload."""
     if tab_version:
@@ -361,7 +381,7 @@ def _versions_for_payload(payload: Any, tab_version: str | None) -> list[str]:
         if payload["version"] == "v0.8":
             return []
         return [_version_for_field(payload["version"]) or V1_0]
-    if set(payload) & _UNTABBED_MESSAGE_KEYS:
+    if _is_untabbed_message(payload):
         return [V1_0]
     if "id" in payload and "component" in payload:
         return [V1_0, V0_9_1]
@@ -378,7 +398,10 @@ def validate(example: Example) -> list[str]:
     try:
         data = json.loads(example.text)
     except json.JSONDecodeError as e:
-        if tab_version is None:
+        looks_like_message = any(
+            f'"{k}"' in example.text for k in (*_TO_RENDERER_KEYS, "version")
+        )
+        if tab_version is None and not looks_like_message:
             return []  # Untabbed non-JSON snippets are not protocol examples.
         return [f"invalid JSON: {e}"]
     errors: list[str] = []
@@ -393,6 +416,8 @@ def iter_doc_files(paths: list[pathlib.Path]) -> Iterator[pathlib.Path]:
         if path.is_dir():
             for suffix in ("*.md", "*.mdx"):
                 yield from sorted(path.rglob(suffix))
+        elif not path.exists():
+            raise SystemExit(f"error: --paths entry not found: {path}")
         elif path.suffix in (".md", ".mdx"):
             yield path
 
