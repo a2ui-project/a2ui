@@ -18,21 +18,60 @@ import 'package:flutter/material.dart';
 
 import 'component_implementation.dart';
 import 'component_props.dart';
+import 'fallbacks.dart';
+import 'fallbacks_scope.dart';
 import 'signal_state.dart';
 
 /// Renders one [ComponentNode] and rebuilds when the node's own props change.
 ///
 /// A resolved node renders through its implementation's builder, under the
 /// semantics its `accessibility` attributes give. A pending, unknown-type or
-/// cyclic node renders nothing: the resolver has already reported unknown
-/// types and cycles to the surface, and a pending node is replaced in place
-/// when its component arrives.
+/// cyclic node renders the surface's matching fallback, or nothing: the
+/// resolver has already reported unknown types and cycles to the surface,
+/// and a pending node is replaced in place when its component arrives.
 class NodeView extends StatefulWidget {
-  /// Creates a view of [node], keyed by its instance id.
-  NodeView(this.node) : super(key: NodeKey(node.instanceId));
+  /// Creates a view of [node], keyed by its instance id. [parentComponentType]
+  /// is the type of the node whose child this is, null for the root.
+  NodeView(this.node, {this.parentComponentType})
+    : super(key: NodeKey(node.instanceId));
 
   /// The node to render.
   final ComponentNode<ComponentImplementation> node;
+
+  /// The type of the node whose child [node] is; null for the root.
+  final String? parentComponentType;
+
+  /// The surface's fallback for [node], or null when it shows nothing,
+  /// including when [node] is resolved.
+  Widget? buildFallback(BuildContext context) {
+    final A2uiFallbacks? fallbacks = FallbacksScope.maybeOf(context);
+    if (fallbacks == null) return null;
+    return switch (node.state) {
+      NodeState.resolved => null,
+      NodeState.pending => runFallback(
+        context,
+        fallbacks.pending,
+        A2uiPendingInfo(
+          componentId: node.componentId,
+          parentComponentType: parentComponentType,
+        ),
+      ),
+      NodeState.unknownType || NodeState.cyclic => runFallback(
+        context,
+        fallbacks.error,
+        A2uiErrorInfo(
+          componentId: node.componentId,
+          parentComponentType: parentComponentType,
+          error: A2uiFallbackError(
+            type: node.state.jsonValue,
+            componentType: node.state == NodeState.unknownType
+                ? node.type
+                : null,
+          ),
+        ),
+      ),
+    };
+  }
 
   @override
   State<NodeView> createState() => _NodeViewState();
@@ -113,7 +152,7 @@ class _NodeViewState extends State<NodeView> with SignalState {
     _disposeBuildEffect = null;
     final ComponentNode<ComponentImplementation> node = widget.node;
     if (node.state != NodeState.resolved) {
-      return const SizedBox.shrink();
+      return widget.buildFallback(context) ?? const SizedBox.shrink();
     }
     late final Widget built;
     var isInitialBuild = true;
@@ -126,6 +165,28 @@ class _NodeViewState extends State<NodeView> with SignalState {
       }
     });
     return built;
+  }
+}
+
+/// Runs [builder] on [info], logging what it throws as showing nothing.
+Widget? runFallback<I>(
+  BuildContext context,
+  A2uiFallbackBuilder<I>? builder,
+  I info,
+) {
+  if (builder == null) return null;
+  try {
+    return builder(context, info);
+  } catch (exception, stack) {
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: exception,
+        stack: stack,
+        library: 'a2ui_flutter',
+        context: ErrorDescription('while building the fallback for $info'),
+      ),
+    );
+    return null;
   }
 }
 
@@ -169,7 +230,12 @@ Widget _buildResolved(
       // keys the subtree.
       child: KeyedSubtree(
         key: ObjectKey(node.impl),
-        child: node.impl!.builder(context, node, props, NodeView.new),
+        child: node.impl!.builder(
+          context,
+          node,
+          props,
+          (child) => NodeView(child, parentComponentType: node.type),
+        ),
       ),
     ),
   );

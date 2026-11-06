@@ -20,6 +20,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../component_implementation.dart';
 import '../../component_props.dart';
+import '../../fallbacks.dart';
 import '../../signal_state.dart';
 
 /// The space between the children of a basic Row or Column.
@@ -50,9 +51,10 @@ CrossAxisAlignment alignOf(String? align) => switch (align) {
 /// the rest, wrapping their content. With weighted children, each child
 /// without a weight is at most an equal share of the width wide.
 ///
-/// Children that have not resolved (pending, unknown type or cyclic) take no
-/// part in the layout: they get no slot, no gap and no flex share, so the
-/// container looks as if they were absent until they resolve.
+/// Children that render nothing (unresolved, with no fallback to show) take
+/// no part in the layout: they get no slot, no gap and no flex share, so the
+/// container looks as if they were absent until they resolve. A fallback
+/// takes a slot like any other child.
 Widget flexContainer(
   Axis direction,
   ComponentProps props,
@@ -106,18 +108,17 @@ class _FlexContainer extends StatefulWidget {
 
 class _FlexContainerState extends State<_FlexContainer> with SignalState {
   List<void Function()> _unsubscribes = const [];
-  List<(int, bool)> _slots = const [];
 
-  /// The children that have resolved. Unresolved ones render nothing, so they
-  /// take no slot, gap or flex share.
-  List<ComponentNode<ComponentImplementation>> get _resolved =>
-      widget.children.where((child) => !child.isPlaceholder).toList();
+  /// The children laid out in the last build, those that render something,
+  /// and their slots.
+  List<ComponentNode<ComponentImplementation>> _shown = const [];
+  List<(int, bool)> _slots = const [];
 
   void _subscribe() {
     _unsubscribes = [
       for (final child in widget.children)
         listenAfterFirst(child.props, (_) {
-          if (!listEquals(_resolved.map(_slotOf).toList(), _slots)) {
+          if (!listEquals(_shown.map(_slotOf).toList(), _slots)) {
             signalChanged();
           }
         }),
@@ -154,7 +155,17 @@ class _FlexContainerState extends State<_FlexContainer> with SignalState {
   @override
   Widget build(BuildContext context) {
     final horizontal = widget.direction == Axis.horizontal;
-    final List<ComponentNode<ComponentImplementation>> children = _resolved;
+    final children = <ComponentNode<ComponentImplementation>>[];
+    final built = <Widget>[];
+    for (final ComponentNode<ComponentImplementation> child
+        in widget.children) {
+      if (buildChildOrNull(context, child, widget.buildChild)
+          case final Widget view) {
+        children.add(child);
+        built.add(view);
+      }
+    }
+    _shown = children;
     final List<(int, bool)> slots = _slots = children.map(_slotOf).toList();
     final bool weighted = slots.any((slot) => slot.$1 > 0);
     return LayoutBuilder(
@@ -183,7 +194,7 @@ class _FlexContainerState extends State<_FlexContainer> with SignalState {
                 constraints: BoxConstraints(
                   maxWidth: horizontal && factor == 0 ? share : double.infinity,
                 ),
-                child: widget.buildChild(children[i]),
+                child: built[i],
               ),
             ),
           );

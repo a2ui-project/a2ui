@@ -597,6 +597,146 @@ void main() {
     });
   });
 
+  group('children with a fallback', () {
+    // A fallback is a real child: it takes a slot, with gaps, like any other.
+    const lenient = ValidationConfig(
+      allowDanglingReferences: true,
+      allowUnknownElements: true,
+    );
+    const double fallbackWidth = 50;
+    final skeleton = A2uiFallbacks(
+      pending: (context, info) => SizedBox(
+        key: ValueKey('skeleton ${info.componentId}'),
+        width: fallbackWidth,
+        height: 20,
+      ),
+      error: (context, info) => Text('error ${info.componentId}'),
+    );
+    Finder skeletonOf(String id) => find.byKey(ValueKey('skeleton $id'));
+
+    for (final type in ['Column', 'List']) {
+      testWidgets('take a slot with gaps in a $type, and are replaced in '
+          'place on arrival', (tester) async {
+        final SurfaceHarness harness = await pumpComponents(
+          tester,
+          [
+            _flex('root', type, ['a', 'late', 'weird', 'b']),
+            _text('a', 'A'),
+            {'id': 'weird', 'component': 'StarRating'},
+            _text('b', 'B'),
+          ],
+          catalog: _catalog,
+          validationConfig: lenient,
+          fallbacks: skeleton,
+        );
+
+        expect(
+          tester.getTopLeft(skeletonOf('late')).dy,
+          tester.getBottomLeft(find.text('A')).dy + flexGap,
+        );
+        expect(
+          tester.getTopLeft(find.text('error weird')).dy,
+          tester.getBottomLeft(skeletonOf('late')).dy + flexGap,
+        );
+        expect(
+          tester.getTopLeft(find.text('B')).dy,
+          tester.getBottomLeft(find.text('error weird')).dy + flexGap,
+        );
+        final Element slot = tester.element(
+          find.byKey(const NodeKey('late')).last,
+        );
+
+        await harness.send([
+          updateComponents([_text('late', 'Late')]),
+        ]);
+
+        expect(skeletonOf('late'), findsNothing);
+        expect(
+          tester.getTopLeft(find.text('Late')).dy,
+          tester.getBottomLeft(find.text('A')).dy + flexGap,
+        );
+        expect(
+          tester.element(find.byKey(const NodeKey('late')).last),
+          same(slot),
+        );
+      });
+    }
+
+    testWidgets('take no slot when the builder returns null', (tester) async {
+      await pumpComponents(
+        tester,
+        [
+          _flex('root', 'Column', ['a', 'late', 'weird', 'b']),
+          _text('a', 'A'),
+          {'id': 'weird', 'component': 'StarRating'},
+          _text('b', 'B'),
+        ],
+        catalog: _catalog,
+        validationConfig: lenient,
+        fallbacks: A2uiFallbacks(
+          pending: (context, info) => null,
+          error: (context, info) => null,
+        ),
+      );
+
+      expect(
+        tester.getTopLeft(find.text('B')).dy,
+        tester.getBottomLeft(find.text('A')).dy + flexGap,
+      );
+    });
+
+    testWidgets('leave the weights of the other children in a Row', (
+      tester,
+    ) async {
+      await pumpComponents(
+        tester,
+        [
+          _flex('root', 'Row', ['a', 'late', 'b', 'gone']),
+          _text('a', 'A', weight: 1),
+          _text('b', 'B', weight: 3),
+        ],
+        catalog: _catalog,
+        validationConfig: lenient,
+        fallbacks: A2uiFallbacks(
+          pending: (context, info) => info.componentId == 'late'
+              ? skeleton.pending!(context, info)
+              : null,
+        ),
+      );
+
+      final double free = _width - fallbackWidth - 2 * flexGap;
+      expect(tester.getSize(skeletonOf('late')).width, fallbackWidth);
+      expect(
+        tester.getSize(find.byKey(const NodeKey('a')).first).width,
+        moreOrLessEquals(free / 4, epsilon: 0.01),
+      );
+      expect(
+        tester.getSize(find.byKey(const NodeKey('b')).first).width,
+        moreOrLessEquals(free * 3 / 4, epsilon: 0.01),
+      );
+      expect(
+        tester.getTopLeft(find.byKey(const NodeKey('b')).first).dx,
+        moreOrLessEquals(free / 4 + fallbackWidth + 2 * flexGap, epsilon: 0.01),
+      );
+    });
+
+    testWidgets('take part in justify', (tester) async {
+      await pumpComponents(
+        tester,
+        [
+          _flex('root', 'Row', ['late', 'a'], justify: 'spaceBetween'),
+          _text('a', 'A'),
+        ],
+        catalog: _catalog,
+        validationConfig: lenient,
+        fallbacks: skeleton,
+      );
+
+      expect(tester.getTopLeft(skeletonOf('late')).dx, 0);
+      expect(tester.getTopRight(find.text('A')).dx, _width);
+    });
+  });
+
   group('Column', () {
     testWidgets('keeps the gap between children', (tester) async {
       await pumpComponents(tester, [
