@@ -17,6 +17,18 @@
 # ==============================================================================
 
 - name: tree_hierarchy_declared_order
+  features:
+    - F-RND-02
+    - F-RND-12
+    - F-RND-13
+    - F-RND-14
+    - F-BP-01
+    - F-BP-02
+    - F-BP-03
+    - F-BP-04
+    - F-BP-05
+    - F-BP-13
+    - F-BP-16
   description: Verifies that nested Column, Row, Card, Text, and Button components render in declared hierarchy and order.
   protocolVersion: "1.0"
   catalogPaths:
@@ -82,6 +94,7 @@
       expectOutbound: []
 
 - name: single_message_v10_surface_render
+  features: [F-RND-01, F-RND-04, F-RND-18, F-BP-02, F-BP-09, F-BP-14, F-BP-16]
   description: Verifies that a single v1.0 createSurface message with inline components and dataModel renders immediately without follow-up messages.
   protocolVersion: "1.0"
   catalogPaths:
@@ -115,6 +128,7 @@
         greeting: "Hello Inline v1.0"
 
 - name: progressive_arrival_placeholder_upgrade_in_place
+  features: [F-RND-01, F-RND-17, F-BP-03, F-BP-16]
   description: Verifies that a pending child renders a non-crashing placeholder and upgrades in place when its definition arrives without remounting the parent container.
   protocolVersion: "1.0"
   catalogPaths:
@@ -158,6 +172,7 @@
         - "root"
 
 - name: dynamic_repeater_list_insert_delete_reorder_and_index
+  features: [F-RND-03, F-RND-12, F-BP-04, F-BP-16]
   description: Verifies List repeater rendering, @index evaluation, and item insertion, reordering, and deletion while preserving surviving view identity.
   protocolVersion: "1.0"
   catalogPaths:
@@ -242,6 +257,7 @@
         - "root/children/0"
 
 - name: two_way_binding_control_write_updates_dependents
+  features: [F-RND-04, F-RND-05, F-RND-14, F-BP-05, F-BP-16]
   description: Verifies that user input on a TextField with a writable @path binding mutates the DataModel and reactively updates dependent Text components.
   protocolVersion: "1.0"
   catalogPaths:
@@ -296,6 +312,7 @@
             text: "Grace"
 
 - name: action_execution_event_vs_local_function_call
+  features: [F-RND-06, F-RND-07, F-BP-06, F-BP-16]
   description: Verifies that an event action dispatches an outbound action event with resolved context, whereas a local functionCall action executes locally without emitting an outbound action event.
   protocolVersion: "1.0"
   catalogPaths:
@@ -368,6 +385,7 @@
         counter: 15
 
 - name: user_activation_gated_function_gesture_vs_programmatic
+  features: [F-RND-08, F-BP-06, F-BP-16]
   description: Verifies that a function with requiresUserActivation=true succeeds when triggered by a user gesture (userActivation=true) and is blocked when invoked programmatically (userActivation=false).
   protocolVersion: "1.0"
   catalogPaths:
@@ -414,6 +432,7 @@
               $match: "any"
 
 - name: multi_catalog_mixed_surface_rendering
+  features: [F-RND-19, F-RND-20, F-BP-10, F-BP-11, F-BP-12, F-BP-16]
   description: Verifies that a single v1.0 surface renders components from both the default basic catalog and a secondary custom catalog via component-level catalogId overrides.
   protocolVersion: "1.0"
   catalogPaths:
@@ -461,6 +480,7 @@
             badgeText: "Operational"
 
 - name: validation_results_error_disables_warning_allows
+  features: [F-RND-09, F-RND-10, F-RND-11, F-BP-16]
   description: Verifies that a failing check with severity=error marks the control invalid (isValid=false), whereas severity=warning and severity=info surface diagnostic feedback and hints while keeping the control valid/enabled (isValid=true).
   protocolVersion: "1.0"
   catalogPaths:
@@ -550,6 +570,7 @@
               - "Optional: add a phone number"
 
 - name: accessibility_attributes_and_implicit_label_override
+  features: [F-RND-15, F-BP-07, F-BP-16]
   description: Verifies that explicit AccessibilityAttributes (label, description, live, hidden) and implicit child text label inference are applied and override correctly.
   protocolVersion: "1.0"
   catalogPaths:
@@ -611,6 +632,7 @@
           hidden: true
 
 - name: v10_theme_dropped_in_permissive_mode_renders_like_none
+  features: [F-RND-01, F-RND-18, F-BP-09, F-BP-14, F-BP-16]
   description: "Verifies that when a v1.0 createSurface includes a theme under permissive mode (strictMode: false), the processor drops the theme field and the surface renders identically to a surface created without a theme."
   protocolVersion: "1.0"
   strictMode: false
@@ -644,6 +666,7 @@
       expectErrors: []
 
 - name: fallback_states_unknown_type_and_cyclic_diagnostics
+  features: [F-RND-17, F-BP-03, F-BP-16]
   description: Verifies that unknown component types and same-scope cyclic references render safe fallback placeholders and emit UNKNOWN_COMPONENT_TYPE and CYCLIC_REFERENCE diagnostics on surface.onError.
   protocolVersion: "1.0"
   catalogPaths:
@@ -698,6 +721,7 @@
               $match: "any"
 
 - name: teardown_unmount_releases_subscriptions
+  features: [F-RND-21, F-BP-08, F-BP-16]
   description: Verifies that unmounting the surface view disposes its NodeResolver and releases all active reactive subscriptions on the SurfaceModel and DataModel.
   protocolVersion: "1.0"
   catalogPaths:

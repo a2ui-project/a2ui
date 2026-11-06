@@ -185,6 +185,7 @@
             name: "Alice"
 
 - name: test_v10_get_renderer_capabilities
+  features: [F-CORE-31]
   description: Tests generating v1.0 renderer capabilities structure.
   action: get_renderer_capabilities
   catalogs:
@@ -199,6 +200,7 @@
         - "cat-v10"
 
 - name: test_v10_get_renderer_capabilities_inline_catalogs
+  features: [F-CORE-31]
   description: >-
     Tests that v1.0 inline catalogs list each component as a plain schema, without the v0.9
     ComponentCommon allOf envelope, because v1.0 applies ComponentCommon at the message envelope.
