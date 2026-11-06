@@ -22,10 +22,10 @@ import OrderedJSON
 /// reached as `common_types.json` from a catalog without an `$id`, would otherwise be built
 /// again for every `$ref` through the alias. The relative `$ref`s of each copy are resolved
 /// against the document's own `$id` first, so they keep pointing where they did.
-enum RemoteSchemaAliases {
+package enum RemoteSchemaAliases {
   /// Returns `schemas` with each document under an absolute key other than its `$id` replaced
   /// by a copy identified by that key.
-  static func identifyingAliases(in schemas: [String: JSONValue]) -> [String: JSONValue] {
+  package static func identifyingAliases(in schemas: [String: JSONValue]) -> [String: JSONValue] {
     var result = schemas
     for (key, document) in schemas {
       guard case .object(var object) = document,
@@ -41,11 +41,14 @@ enum RemoteSchemaAliases {
     return result
   }
 
+  private static let instanceDataKeywords: Set<String> = ["const", "default", "enum", "examples"]
+  private static let subschemaMapKeywords: Set<String> = [
+    "$defs", "definitions", "dependentSchemas", "patternProperties", "properties",
+  ]
+
   /// Rewrites every `$ref` and `$dynamicRef` that names another document as an absolute URL. A
   /// reference that holds only a fragment points into the same document, so it is left as it is.
   /// Keywords whose values are instance data rather than subschemas are not walked.
-  private static let instanceDataKeywords: Set<String> = ["const", "default", "enum", "examples"]
-
   private static func resolvingRelativeRefs(in value: JSONValue, against base: URL) -> JSONValue {
     switch value {
     case .object(let object):
@@ -56,6 +59,10 @@ enum RemoteSchemaAliases {
           let absolute = URL(string: ref, relativeTo: base)?.absoluteString
         {
           resolved[key] = .string(absolute)
+        } else if subschemaMapKeywords.contains(key), case .object(let entries) = child {
+          resolved[key] = .object(
+            entries.mapValues { resolvingRelativeRefs(in: $0, against: base) }
+          )
         } else if !instanceDataKeywords.contains(key) {
           resolved[key] = resolvingRelativeRefs(in: child, against: base)
         }

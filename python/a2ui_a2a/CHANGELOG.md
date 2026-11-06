@@ -13,6 +13,13 @@
 - `parse_content_to_parts` logs a parse error, which may quote the response,
   by type at warning level and in full only at debug level.
   [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
+- Add `extract_a2ui_json_to_parts` to extract text and `<a2ui-json>` blocks into
+  A2A parts without requiring a `Catalog` or `Parser`. A block that is unclosed,
+  is not JSON, or is not a JSON object or array of objects is logged and
+  skipped. A block whose open tag is missing starts at the first line that
+  opens a JSON array or object. Requires an `a2ui-agent-sdk` release later than
+  0.10.0.
+  [#3790](https://github.com/a2ui-project/a2ui/pull/3790)
 
 ## 0.1.0 (2026-10-17)
 
