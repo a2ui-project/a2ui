@@ -18,6 +18,8 @@
 
 ## Unreleased
 
+- `NodeView` reads `@accessibility` with a fallback to `accessibility` so v1.0 surfaces resolve `@`-prefixed accessibility attributes alongside custom `accessibility` component properties ([#1376](https://github.com/a2ui-project/a2ui/issues/1376)).
+
 ## 0.1.0
 
 - Requires `a2ui_core` `^0.5.0`.

@@ -171,7 +171,9 @@ export class ComponentBinder {
       const value = props[key];
       bound[key] = this.bindProperty(key, value, context, cleanups);
 
-      if (key === 'checks') {
+      // Below v1.0 a component's check rules are `checks`; from v1.0 the
+      // processor stores them under `@checks`.
+      if (key === 'checks' || key === '@checks') {
         const checkProps = this.bindChecks(value, context, cleanups);
         bound['isValid'] = checkProps.isValid;
         bound['validationErrors'] = checkProps.validationErrors;

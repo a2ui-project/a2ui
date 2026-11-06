@@ -21,6 +21,7 @@ import {
   getValidationErrorId,
   hasAttributeValue,
   renderValidationErrors,
+  resolveAccessibilityProps,
 } from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {DateTimeInputSupportedApis} from './supported_apis.js';
@@ -184,8 +185,8 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
     const timeInputId = `${this.domId}-time`;
     const primaryInputId = enableDate ? dateInputId : timeInputId;
     const hasVisibleLabel = hasAttributeValue(props.label);
-    const a11yLabel = getAccessibilityLabel(props.accessibility);
-    const a11yDescription = getAccessibilityDescription(props.accessibility);
+    const a11yLabel = getAccessibilityLabel(resolveAccessibilityProps(props));
+    const a11yDescription = getAccessibilityDescription(resolveAccessibilityProps(props));
     const errorId = getValidationErrorId(this.domId, props);
 
     return html`

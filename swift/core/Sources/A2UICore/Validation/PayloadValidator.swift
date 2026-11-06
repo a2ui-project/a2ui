@@ -32,8 +32,9 @@ public final class PayloadValidator: Sendable {
   /// The validation configuration controlling strictness and protocol version behavior.
   public let config: ValidationConfig
 
-  /// The component envelope keys that a v1.0 component schema may not declare.
-  private static let envelopeKeys = ["id", "component", "catalogId", "metadata"]
+  /// The structural keys that a v1.0 component schema may not declare. They are left out of the
+  /// instance checked by a schema that doesn't declare them.
+  private static let envelopeKeys = ["id", "component"]
 
   /// The keys that the shared `ComponentCommon` definition declares.
   private static let componentCommonKeys: Set<String> = [
@@ -118,19 +119,30 @@ public final class PayloadValidator: Sendable {
   public func validateComponent(_ component: [String: JSONValue]) throws {
     // Called directly, the validator takes a component that names no catalogId to be in the
     // surface default catalog, and one that names a catalogId to possibly be in another.
-    try validateComponent(component, componentNamesCatalog: component["catalogId"] != nil)
+    try validateComponent(component, componentNamesCatalog: componentNamesCatalog(component))
   }
 
   func validateComponent(
     _ component: [String: JSONValue],
     componentNamesCatalog: Bool
   ) throws {
-    let (_, type) = try extractAndValidateComponentEnvelope(component)
+    let (id, type) = try extractAndValidateComponentEnvelope(component)
+    let componentAPI = catalog.components[type]
+    // Before v1.0 a component has no mixins: bare `catalogId` and `metadata` are properties.
+    let envelope =
+      enforceIdentifiers
+      ? try ComponentEnvelope(
+        component: component,
+        schema: componentAPI?.schema.jsonValue,
+        componentID: id
+      )
+      : nil
 
-    guard let componentAPI = catalog.components[type] else {
+    guard let componentAPI else {
       if config.allowUnknownElements {
         try validateComponentNestedFunctions(
           in: component,
+          envelope: envelope,
           componentNamesCatalog: componentNamesCatalog
         )
         return
@@ -155,9 +167,25 @@ public final class PayloadValidator: Sendable {
 
     try validateComponentNestedFunctions(
       in: component,
+      envelope: envelope,
       componentNamesCatalog: componentNamesCatalog
     )
-    try validateComponentSchema(component, type: type, componentAPI: componentAPI)
+    try validateComponentSchema(
+      component,
+      type: type,
+      componentAPI: componentAPI,
+      envelope: envelope
+    )
+  }
+
+  /// Returns whether a component names a catalog: in v1.0 its `@catalogId`, or its legacy bare
+  /// `catalogId` when its schema doesn't declare a `catalogId` property of its own.
+  private func componentNamesCatalog(_ component: [String: JSONValue]) -> Bool {
+    guard enforceIdentifiers else { return false }
+    let schema = component["component"]?.stringValue.flatMap {
+      catalog.components[$0]?.schema.jsonValue
+    }
+    return ComponentEnvelope.catalogIDEntry(in: component, defaultCatalogSchema: schema) != nil
   }
 
   private func extractAndValidateComponentEnvelope(
@@ -221,43 +249,66 @@ public final class PayloadValidator: Sendable {
       )
     }
 
-    if enforceIdentifiers, component["catalogId"] != nil,
-      component["catalogId"]?.stringValue == nil
-    {
-      throw CatalogResolutionErrors.nonStringCatalogID(
-        path: CatalogResolutionErrors.componentCatalogIDPath
-      )
+    if enforceIdentifiers {
+      try validateComponentCatalogID(component, type: type)
     }
 
     return (id, type)
   }
 
+  /// Checks the catalog a v1.0 component names, under `@catalogId` or legacy `catalogId`.
+  ///
+  /// - Throws: `A2UIValidationError` when the catalog id is not a non-empty string.
+  private func validateComponentCatalogID(_ component: [String: JSONValue], type: String) throws {
+    guard
+      let entry = ComponentEnvelope.catalogIDEntry(
+        in: component,
+        defaultCatalogSchema: catalog.components[type]?.schema.jsonValue
+      )
+    else {
+      return
+    }
+    let path = entry.key == "catalogId" ? CatalogResolutionErrors.componentCatalogIDPath : entry.key
+    guard let catalogID = entry.value.stringValue else {
+      throw CatalogResolutionErrors.nonStringCatalogID(path: path)
+    }
+    guard !catalogID.isEmpty else {
+      let msg = "Field '\(entry.key)' must be a non-empty string"
+      throw A2UIValidationError(
+        msg,
+        details: [A2UIErrorDetail(path: path, code: "invalid_value", message: msg)]
+      )
+    }
+  }
+
   private func validateComponentSchema(
     _ component: [String: JSONValue],
     type: String,
-    componentAPI: any ComponentAPI
+    componentAPI: any ComponentAPI,
+    envelope: ComponentEnvelope?
   ) throws {
-    // `accessibility` comes from `ComponentCommon`, so a component schema need not declare it.
-    // When it doesn't, check it against `AccessibilityAttributes` and leave it out of the
-    // component schema check, so a closed schema doesn't reject it.
-    var schemaTargetDict = component
-    if !Self.schemaDeclaresProperty(
-      "accessibility",
-      in: componentAPI.schema.jsonValue,
-      root: componentAPI.schema.jsonValue,
-      visitedRefs: []
-    ), let accessibility = schemaTargetDict.removeValue(forKey: "accessibility") {
-      try validateAccessibility(accessibility)
-    }
-
-    if enforceIdentifiers {
-      if let rawMeta = component["metadata"] {
-        _ = try MetadataValidator.validate(rawMeta, pathPrefix: "metadata")
-      }
-      let declaredKeys =
-        declaredEnvelopeKeys[type] ?? Self.envelopeKeysDeclared(in: componentAPI.schema.jsonValue)
-      for key in Self.envelopeKeys where !declaredKeys.contains(key) {
-        schemaTargetDict.removeValue(forKey: key)
+    let schemaJSON = componentAPI.schema.jsonValue
+    var schemaTargetDict: [String: JSONValue]
+    if let envelope {
+      schemaTargetDict = try schemaInstance(
+        for: component,
+        envelope: envelope,
+        type: type,
+        schema: schemaJSON
+      )
+    } else {
+      try rejectUndeclaredPrefixedMixins(in: component, type: type, schema: schemaJSON)
+      // `accessibility` comes from `ComponentCommon`, so a component schema need not declare
+      // it. When it doesn't, check it against `AccessibilityAttributes` and leave it out of the
+      // component schema check, so a closed schema doesn't reject it.
+      schemaTargetDict = component
+      if !Self.schemaDeclaresProperty(
+        "accessibility",
+        in: schemaJSON,
+        root: schemaJSON,
+        visitedRefs: []
+      ), let accessibility = schemaTargetDict.removeValue(forKey: "accessibility") {
+        try validateAccessibility(accessibility)
       }
     }
 
@@ -278,6 +329,81 @@ public final class PayloadValidator: Sendable {
     )
     let errorMessage = errorDetails.map(\.message).joined(separator: "; ")
     throw A2UIValidationError(errorMessage, details: errorDetails)
+  }
+
+  /// Builds the instance that a v1.0 component schema checks, after checking the component's
+  /// mixins on their own.
+  ///
+  /// The instance holds the component's own properties, and `id` and `component` when the schema
+  /// declares them. Checks stay in it, under the name the component schema gives them (the shared
+  /// `Checkable` definition calls them `checks`), so the schema checks their rules.
+  ///
+  /// - Throws: `A2UIValidationError` when a mixin is invalid, or when a component that is not
+  ///   checkable carries checks.
+  private func schemaInstance(
+    for component: [String: JSONValue],
+    envelope: ComponentEnvelope,
+    type: String,
+    schema: JSONValue
+  ) throws -> [String: JSONValue] {
+    var instance = envelope.properties
+    let declaredKeys = declaredEnvelopeKeys[type] ?? Self.envelopeKeysDeclared(in: schema)
+    for key in Self.envelopeKeys where declaredKeys.contains(key) {
+      instance[key] = component[key]
+    }
+    if let metadata = envelope[.metadata] {
+      let key = envelope.key(of: .metadata) ?? ComponentEnvelope.Mixin.metadata.prefixedKey
+      _ = try MetadataValidator.validate(metadata, pathPrefix: key)
+    }
+    if let accessibility = envelope[.accessibility] {
+      let key =
+        envelope.key(of: .accessibility) ?? ComponentEnvelope.Mixin.accessibility.prefixedKey
+      try validateAccessibility(accessibility, key: key)
+    }
+    if let checks = envelope[.checks] {
+      let key = envelope.key(of: .checks) ?? ComponentEnvelope.Mixin.checks.prefixedKey
+      guard ComponentEnvelope.isCheckable(schema) else {
+        let msg =
+          "Validation failed for component '\(type)': '\(key)' is not allowed on a "
+          + "component that is not checkable"
+        throw A2UIValidationError(
+          msg,
+          details: [A2UIErrorDetail(path: key, code: "invalid_value", message: msg)]
+        )
+      }
+      let declaresPrefixed = Self.schemaDeclaresProperty(
+        ComponentEnvelope.Mixin.checks.prefixedKey,
+        in: schema,
+        root: schema,
+        visitedRefs: []
+      )
+      instance[declaresPrefixed ? "@checks" : "checks"] = checks
+    }
+    return instance
+  }
+
+  /// Rejects the v1.0 `@`-prefixed component mixins on a component before v1.0, unless its
+  /// schema declares them as properties of its own. They are rejected even when unknown
+  /// properties are allowed, so that a v1.0 payload is not taken for a valid earlier one.
+  ///
+  /// - Throws: `A2UIValidationError` naming the first such key.
+  private func rejectUndeclaredPrefixedMixins(
+    in component: [String: JSONValue],
+    type: String,
+    schema: JSONValue
+  ) throws {
+    for key in ComponentEnvelope.prefixedKeys.sorted() where component[key] != nil {
+      guard !Self.schemaDeclaresProperty(key, in: schema, root: schema, visitedRefs: []) else {
+        continue
+      }
+      let msg =
+        "Validation failed for component '\(type)': '\(key)' is a v1.0 component key "
+        + "and is not allowed before v1.0"
+      throw A2UIValidationError(
+        msg,
+        details: [A2UIErrorDetail(path: key, code: "invalid_value", message: msg)]
+      )
+    }
   }
 
   private func collectComponentLeafErrors(
@@ -642,15 +768,27 @@ public final class PayloadValidator: Sendable {
 
   private func validateComponentNestedFunctions(
     in component: [String: JSONValue],
+    envelope: ComponentEnvelope?,
     componentNamesCatalog: Bool
   ) throws {
-    if enforceIdentifiers {
-      try DataContext.validateReservedDirectives(component.keys)
+    var skippedKeys: Set<String> = ["id", "component"]
+    if let envelope {
+      // The `@`-prefixed mixins are allowed at the root of a v1.0 component only; nested in a
+      // property value they remain unrecognized reserved directives.
+      try DataContext.validateReservedDirectives(
+        component.keys.filter { !ComponentEnvelope.prefixedKeys.contains($0) }
+      )
+      // The catalog id and metadata hold no function calls.
+      skippedKeys.formUnion([
+        ComponentEnvelope.Mixin.catalogID.prefixedKey,
+        ComponentEnvelope.Mixin.metadata.prefixedKey,
+      ])
+      for mixin in [ComponentEnvelope.Mixin.catalogID, .metadata] {
+        if let key = envelope.key(of: mixin) {
+          skippedKeys.insert(key)
+        }
+      }
     }
-    let skippedKeys: Set<String> =
-      enforceIdentifiers
-      ? ["id", "component", "catalogId", "metadata"]
-      : ["id", "component"]
     for (key, propValue) in component where !skippedKeys.contains(key) {
       try validateNestedFunctions(
         in: propValue,
@@ -837,17 +975,48 @@ public final class PayloadValidator: Sendable {
     return !componentNamesCatalog
   }
 
-  /// Returns the component envelope keys that a component schema declares.
+  /// Returns the structural keys (`id`, `component`) that a component schema declares or
+  /// requires.
   ///
   /// A key is declared when the schema lists it under `properties`, directly, through a local
   /// `$ref` into the schema's own definitions, or through `allOf`, `anyOf`, or `oneOf`. A `$ref`
-  /// to another document's `ComponentCommon` declares `id`, `catalogId`, and `metadata`.
+  /// to another document's `ComponentCommon` declares `id`. A key is required when the schema
+  /// lists it under `required` the same ways.
   private static func envelopeKeysDeclared(in schema: JSONValue) -> Set<String> {
     Set(
       envelopeKeys.filter {
         schemaDeclaresProperty($0, in: schema, root: schema, visitedRefs: [])
+          || schemaRequiresProperty($0, in: schema, root: schema, visitedRefs: [])
       }
     )
+  }
+
+  private static func schemaRequiresProperty(
+    _ key: String,
+    in schema: JSONValue,
+    root: JSONValue,
+    visitedRefs: Set<String>
+  ) -> Bool {
+    if schema["required"]?.arrayValue?.contains(.string(key)) == true {
+      return true
+    }
+    var visitedRefs = visitedRefs
+    if let ref = schema["$ref"]?.stringValue, ref.hasPrefix("#"),
+      visitedRefs.insert(ref).inserted, let target = resolveLocalRef(ref, in: root),
+      schemaRequiresProperty(key, in: target, root: root, visitedRefs: visitedRefs)
+    {
+      return true
+    }
+    for combiner in ["allOf", "anyOf", "oneOf"] {
+      if let subSchemas = schema[combiner]?.arrayValue,
+        subSchemas.contains(where: {
+          schemaRequiresProperty(key, in: $0, root: root, visitedRefs: visitedRefs)
+        })
+      {
+        return true
+      }
+    }
+    return false
   }
 
   private static func schemaDeclaresProperty(
@@ -1066,10 +1235,16 @@ public final class PayloadValidator: Sendable {
 
   // MARK: - Helpers
 
-  /// Checks a component's `accessibility` against `AccessibilityAttributes`.
+  /// Checks a component's accessibility attributes against `AccessibilityAttributes`.
   ///
-  /// - Throws: `A2UIValidationError` with a detail per failure, at a path under `accessibility`.
-  private func validateAccessibility(_ accessibility: JSONValue) throws {
+  /// - Parameters:
+  ///   - accessibility: The accessibility attributes.
+  ///   - key: The component key that holds them: `@accessibility`, or legacy `accessibility`.
+  /// - Throws: `A2UIValidationError` with a detail per failure, at a path under `key`.
+  private func validateAccessibility(
+    _ accessibility: JSONValue,
+    key: String = "accessibility"
+  ) throws {
     let version =
       config.protocolVersion
       ?? catalog.a2uiProtocolVersion
@@ -1084,10 +1259,10 @@ public final class PayloadValidator: Sendable {
     let result = schema.validate(accessibility)
     guard !result.isValid else { return }
 
-    let message = "Field 'accessibility' must match AccessibilityAttributes"
+    let message = "Field '\(key)' must match AccessibilityAttributes"
     let details = (result.errors ?? []).flatMap { extractLeafErrors(from: $0) }.map { leaf in
       A2UIErrorDetail(
-        path: "accessibility\(leaf.instanceLocation.jsonPointerString)",
+        path: "\(key)\(leaf.instanceLocation.jsonPointerString)",
         code: "invalid_value",
         message: leaf.message.isEmpty ? message : leaf.message
       )

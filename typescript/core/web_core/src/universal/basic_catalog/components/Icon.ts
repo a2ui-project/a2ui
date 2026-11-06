@@ -15,7 +15,11 @@
  */
 
 import {html, nothing, css} from 'lit';
-import {getAccessibilityDescription, getAccessibilityLabel} from './accessibility.js';
+import {
+  getAccessibilityDescription,
+  getAccessibilityLabel,
+  resolveAccessibilityProps,
+} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {IconSupportedApis} from './supported_apis.js';
 
@@ -81,8 +85,8 @@ export class A2uiIconElement extends BasicCatalogA2uiLitElement<IconSupportedApi
 
     const name = props.name;
     const isSvgPath = typeof name === 'object' && name !== null && 'svgPath' in name;
-    const a11yLabel = getAccessibilityLabel(props.accessibility);
-    const a11yDescription = getAccessibilityDescription(props.accessibility);
+    const a11yLabel = getAccessibilityLabel(resolveAccessibilityProps(props));
+    const a11yDescription = getAccessibilityDescription(resolveAccessibilityProps(props));
     const hasLabel = a11yLabel !== nothing;
     const isDecorative = !hasLabel && a11yDescription === nothing;
 

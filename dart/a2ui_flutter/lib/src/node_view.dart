@@ -60,9 +60,9 @@ class _NodeViewState extends State<NodeView> with SignalState {
   void _subscribeAccessibility() {
     _unsubscribeAccessibility();
     final ComponentContext? context = widget.node.context;
-    final Object? attributes = ComponentProps(
-      widget.node.props.peek(),
-    ).value('accessibility');
+    final props = ComponentProps(widget.node.props.peek());
+    final Object? attributes =
+        props.value('@accessibility') ?? props.value('accessibility');
     if (context == null || attributes is! Map) return;
     for (final Object? raw in attributes.values) {
       final Object? unwrapped = ComponentProps.unwrap(raw);
@@ -140,7 +140,8 @@ Widget _buildResolved(
   ComponentNode<ComponentImplementation> node,
 ) {
   final props = ComponentProps(node.props.peek());
-  final Object? attributes = props.value('accessibility');
+  final Object? attributes =
+      props.value('@accessibility') ?? props.value('accessibility');
   final String? label = _readAccessibilityString(node, attributes, 'label');
   final String? description = _readAccessibilityString(
     node,

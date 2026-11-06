@@ -15,7 +15,11 @@
  */
 
 import {html, nothing, css} from 'lit';
-import {getAccessibilityDescription, getAccessibilityLabel} from './accessibility.js';
+import {
+  getAccessibilityDescription,
+  getAccessibilityLabel,
+  resolveAccessibilityProps,
+} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {CardSupportedApis} from './supported_apis.js';
 
@@ -53,8 +57,8 @@ export class A2uiCardElement extends BasicCatalogA2uiLitElement<CardSupportedApi
     const props = this.controller.props;
     if (!props) return nothing;
 
-    const a11yLabel = getAccessibilityLabel(props.accessibility);
-    const a11yDescription = getAccessibilityDescription(props.accessibility);
+    const a11yLabel = getAccessibilityLabel(resolveAccessibilityProps(props));
+    const a11yDescription = getAccessibilityDescription(resolveAccessibilityProps(props));
 
     return html`
       <div

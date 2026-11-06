@@ -653,25 +653,69 @@ void main() {
       );
     });
 
+    MessageProcessor<ComponentApi> overV1(List<String> ids) =>
+        MessageProcessor<ComponentApi>(
+          catalogs: [
+            for (final String id in ids)
+              rendererCatalog({
+                ...namedCatalogDocument(
+                  id,
+                  id == 'cat1' ? 'Alpha' : 'Beta',
+                ),
+                'protocolVersion': '1.0',
+              }),
+          ],
+          defaultVersion: A2uiProtocolVersion.v1_0,
+          validationConfig: ValidationConfig.strict,
+        );
+
+    List<Map<String, Object?>> renderV1(
+      String surfaceId,
+      String catalogId,
+      Map<String, Object?> component,
+    ) =>
+        [
+          {
+            'version': '1.0',
+            'createSurface': {'surfaceId': surfaceId, 'catalogId': catalogId},
+          },
+          {
+            'version': '1.0',
+            'updateComponents': {
+              'surfaceId': surfaceId,
+              'components': [component],
+            },
+          },
+        ];
+
     test('checks a component against the catalog it names for itself', () {
       // v1.0 lets one surface mix catalogs: a component may override the
-      // surface-level default with a `catalogId` of its own. The component
-      // below is not in the surface's catalog, and passes only because it
-      // names the catalog it does belong to.
+      // surface-level default with a `catalogId` or `@catalogId` of its own.
+      // The component below is not in the surface's catalog, and passes only
+      // because it names the catalog it does belong to.
       expect(
-        () => over(['cat1', 'cat2']).processMessages(
+        () => overV1(['cat1', 'cat2']).processMessages(
           AgentToRendererMessage.parseAll(
-            render('s1', 'cat1', beta(catalogId: 'cat2')),
-            protocolVersion: A2uiProtocolVersion.v0_9,
+            renderV1('s1', 'cat1', beta(catalogId: 'cat2')),
+            protocolVersion: A2uiProtocolVersion.v1_0,
           ),
         ),
         returnsNormally,
       );
       expect(
-        () => over(['cat1', 'cat2']).processMessages(
+        () => overV1(['cat1', 'cat2']).processMessages(
           AgentToRendererMessage.parseAll(
-            render('s1', 'cat1', beta()),
-            protocolVersion: A2uiProtocolVersion.v0_9,
+            renderV1('s1', 'cat1', {...beta(), '@catalogId': 'cat2'}),
+            protocolVersion: A2uiProtocolVersion.v1_0,
+          ),
+        ),
+        returnsNormally,
+      );
+      expect(
+        () => overV1(['cat1', 'cat2']).processMessages(
+          AgentToRendererMessage.parseAll(
+            renderV1('s1', 'cat1', beta()),
+            protocolVersion: A2uiProtocolVersion.v1_0,
           ),
         ),
         throwsA(isA<A2uiValidationError>()),
@@ -695,10 +739,10 @@ void main() {
         ),
       );
       expect(
-        () => over(['cat1']).processMessages(
+        () => overV1(['cat1']).processMessages(
           AgentToRendererMessage.parseAll(
-            render('s1', 'cat1', alpha(catalogId: 'cat2')),
-            protocolVersion: A2uiProtocolVersion.v0_9,
+            renderV1('s1', 'cat1', alpha(catalogId: 'cat2')),
+            protocolVersion: A2uiProtocolVersion.v1_0,
           ),
         ),
         throwsA(isA<A2uiCatalogError>()),
@@ -811,6 +855,7 @@ void v1RulesTests() {
     test('validates an allOf schema that forbids additional properties', () {
       final CatalogApi catalog = Catalog.fromJson({
         'catalogId': 'strict',
+        'protocolVersion': '1.0',
         'components': {
           'Strict': {
             'type': 'object',
@@ -956,6 +1001,54 @@ void v1RulesTests() {
           'accessibility': {'live': 'loudly'},
         }),
         throwsA(isA<A2uiValidationError>()),
+      );
+      expect(
+        () => _versionedValidator('1.0').validateComponent({
+          ..._box('x'),
+          '@accessibility': {'live': 'loudly'},
+        }),
+        throwsA(_validationError(path: '/@accessibility/live')),
+      );
+    });
+
+    test('validates @metadata and rejects conflict with bare metadata', () {
+      expect(
+        () => _versionedValidator('1.0').validateComponent({
+          ..._box('x'),
+          '@metadata': {
+            'extensions': {'valid_key': 1},
+          },
+          '@accessibility': {'label': 'Box'},
+        }),
+        returnsNormally,
+      );
+      expect(
+        () => _versionedValidator('1.0').validateComponent({
+          ..._box('x'),
+          '@metadata': {
+            'extensions': {'bad-key': 1},
+          },
+        }),
+        throwsA(_validationError(path: '/@metadata/extensions/bad-key')),
+      );
+      expect(
+        () => _versionedValidator('1.0').validateComponent({
+          ..._box('x'),
+          '@metadata': {
+            'extensions': {'k': 1},
+          },
+          'metadata': {
+            'extensions': {'k': 1},
+          },
+        }),
+        throwsA(_validationError(path: '/@metadata')),
+      );
+      expect(
+        () => _versionedValidator('1.0').validateComponent({
+          ..._box('x'),
+          '@checks': <Object?>[],
+        }),
+        throwsA(_validationError(path: '/@checks')),
       );
     });
   });

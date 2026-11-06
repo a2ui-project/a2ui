@@ -16,7 +16,11 @@
 
 import {html, nothing, css} from 'lit';
 import {state} from 'lit/decorators.js';
-import {getAccessibilityDescription, getAccessibilityLabel} from './accessibility.js';
+import {
+  getAccessibilityDescription,
+  getAccessibilityLabel,
+  resolveAccessibilityProps,
+} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {ModalSupportedApis} from './supported_apis.js';
 
@@ -110,8 +114,8 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<ModalSupportedApis>
                   class="a2ui-modal-content"
                   role="dialog"
                   aria-modal="true"
-                  aria-label=${getAccessibilityLabel(props.accessibility)}
-                  aria-description=${getAccessibilityDescription(props.accessibility)}
+                  aria-label=${getAccessibilityLabel(resolveAccessibilityProps(props))}
+                  aria-description=${getAccessibilityDescription(resolveAccessibilityProps(props))}
                   @click=${(e: Event) => e.stopPropagation()}
                 >
                   <button

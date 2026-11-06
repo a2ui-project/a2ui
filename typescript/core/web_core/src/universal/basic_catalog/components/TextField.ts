@@ -21,6 +21,7 @@ import {
   getAccessibilityLabel,
   getValidationErrorId,
   renderValidationErrors,
+  resolveAccessibilityProps,
 } from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {TextFieldSupportedApis} from './supported_apis.js';
@@ -101,8 +102,8 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<TextFi
     const placeholder = ('placeholder' in props && props.placeholder) || nothing;
 
     const inputId = `${this.domId}-input`;
-    const a11yLabel = getAccessibilityLabel(props.accessibility);
-    const a11yDescription = getAccessibilityDescription(props.accessibility);
+    const a11yLabel = getAccessibilityLabel(resolveAccessibilityProps(props));
+    const a11yDescription = getAccessibilityDescription(resolveAccessibilityProps(props));
     const errorId = getValidationErrorId(this.domId, props);
 
     return html`

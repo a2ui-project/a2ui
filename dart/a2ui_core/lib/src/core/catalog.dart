@@ -1213,6 +1213,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         final name = entry.key! as String;
         check(name, "component identifier '$name'");
         for (final String property in propertyNames(entry.value)) {
+          if (_v1ComponentEnvelopeKeys.contains(property)) continue;
           check(property, "property identifier '$property' in '$name'");
         }
       }
@@ -1651,6 +1652,30 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         null => null,
       };
 
+  /// The property names that [name]'s own schema declares (excluding
+  /// `ComponentCommon` and `Checkable` mixins and inline envelope stubs).
+  @internal
+  Set<String> customComponentProperties(String name) =>
+      switch (components[name]) {
+        final C component => _flatOf(component).customProperties,
+        null => const <String>{},
+      };
+
+  /// Whether [name]'s schema includes the `Checkable` mixin or a check-rule
+  /// array property.
+  @internal
+  bool isComponentCheckable(String name) => switch (components[name]) {
+        final C component => _flatOf(component).isCheckable,
+        null => false,
+      };
+
+  static const Set<String> _v1ComponentEnvelopeKeys = {
+    '@catalogId',
+    '@accessibility',
+    '@metadata',
+    '@checks',
+  };
+
   /// The flattened schemas computed so far, by component.
   final Map<ComponentApi, _FlatComponent> _flatComponents = Map.identity();
 
@@ -1665,6 +1690,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   _FlatComponent _flatten(String compName, Map<String, Object?> compMap) {
     final Map<String, Object?> rootDoc = _document;
     final bool atLeastV1 = _isAtLeastV1;
+    final (:Set<String> customProperties, :bool isCheckable) =
+        _inspectAuthoredComponent(compMap, rootDoc);
     final subSchemas = <Map<String, Object?>>[];
     final unmerged = <Map<String, Object?>>[];
     _collectComponentSubSchemas(
@@ -1744,7 +1771,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     final String? compDesc = rawCompDesc as String? ?? subSchemaDesc;
 
     // Leave out the envelope keys, which the message carries.
-    const envelope = {'id', 'component', 'catalogId'};
+    final envelope = <String>{
+      'id',
+      'component',
+      '@catalogId',
+      if (!customProperties.contains('catalogId')) 'catalogId',
+    };
     orderedProperties.removeWhere((String key, _) => envelope.contains(key));
     requiredSet.removeAll(envelope);
 
@@ -1785,7 +1817,96 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
             definitions: definitions,
           ),
       },
+      customProperties: Set<String>.unmodifiable(customProperties),
+      isCheckable: isCheckable,
     );
+  }
+
+  static ({Set<String> customProperties, bool isCheckable})
+      _inspectAuthoredComponent(
+    Map<String, Object?> compMap,
+    Map<String, Object?> rootDoc,
+  ) {
+    final customProperties = <String>{};
+    var isCheckable = false;
+    final visitedRefs = <String>{};
+
+    void visit(Object? node) {
+      if (node is! Map) return;
+      final Object? ref = node[r'$ref'] ?? node['commonTypesRef'];
+      if (ref is String) {
+        if (_isComponentCommonRef(ref)) return;
+        if (_isCheckableRef(ref)) {
+          isCheckable = true;
+          return;
+        }
+        if (ref.startsWith('#/') && visitedRefs.add(ref)) {
+          visit(_resolveJsonPointer(rootDoc, ref));
+        }
+        return;
+      }
+      if (node['properties'] case final Map<Object?, Object?> props) {
+        final bool hasInlineId = props.containsKey('id');
+        for (final MapEntry<Object?, Object?> entry in props.entries) {
+          final Object? key = entry.key;
+          if (key is! String || key == 'id' || key == 'component') continue;
+          if (_isProtocolMixinProperty(key, entry.value, hasInlineId)) {
+            if (key == 'checks' || key == '@checks') isCheckable = true;
+            continue;
+          }
+          customProperties.add(key);
+        }
+      }
+      for (final combinator in const ['allOf', 'anyOf', 'oneOf']) {
+        if (node[combinator] case final List<Object?> branches) {
+          branches.forEach(visit);
+        }
+      }
+    }
+
+    visit(compMap);
+    return (customProperties: customProperties, isCheckable: isCheckable);
+  }
+
+  static bool _isProtocolMixinProperty(
+    String key,
+    Object? propSchema,
+    bool hasInlineId,
+  ) {
+    if (key.startsWith('@')) return true;
+    if (key == 'catalogId') return hasInlineId;
+    if (propSchema is! Map) return false;
+    final Object? ref = propSchema['commonTypesRef'] ?? propSchema[r'$ref'];
+    if (key == 'accessibility') {
+      return ref is String && ref.endsWith('/AccessibilityAttributes');
+    }
+    if (key == 'metadata') {
+      return hasInlineId &&
+          propSchema['properties'] is Map &&
+          (propSchema['properties']! as Map).containsKey('extensions');
+    }
+    if (key == 'checks') return _isChecksRuleArraySchema(propSchema, ref);
+    return false;
+  }
+
+  static bool _isChecksRuleArraySchema(
+    Map<Object?, Object?> schema,
+    Object? ref,
+  ) {
+    if (ref is String &&
+        (ref.endsWith('/Checkable/properties/checks') ||
+            ref.endsWith('/CheckRule'))) {
+      return true;
+    }
+    final Object? items = schema['items'];
+    if (items is! Map) return false;
+    final Object? itemRef = items['commonTypesRef'] ?? items[r'$ref'];
+    if (itemRef is String && itemRef.endsWith('/CheckRule')) return true;
+    if (items['properties'] case final Map<Object?, Object?> itemProps) {
+      return itemProps.containsKey('condition') &&
+          itemProps.containsKey('message');
+    }
+    return false;
   }
 
   /// [node] with its local references inlined, except references into a
@@ -2057,13 +2178,15 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
 
     final common = _standardDefsV1_0['ComponentCommon']! as Map;
     final properties = common['properties']! as Map;
-    return externalize(properties['metadata'])! as Map<String, Object?>;
+    final Object? meta = properties['@metadata'] ?? properties['metadata'];
+    return externalize(meta)! as Map<String, Object?>;
   }
 
   /// The description of `Checkable.checks` in the v1.0 common types.
   static String _checksDescriptionV1_0() {
     final checkable = _standardDefsV1_0['Checkable']! as Map;
-    final checks = (checkable['properties']! as Map)['checks']! as Map;
+    final props = checkable['properties']! as Map;
+    final checks = (props['@checks'] ?? props['checks'])! as Map;
     return checks['description']! as String;
   }
 
@@ -3443,6 +3566,8 @@ final class _FlatComponent {
   const _FlatComponent({
     required this.schema,
     required this.propertiesWithDefRefs,
+    required this.customProperties,
+    required this.isCheckable,
   });
 
   /// The flattened schema, with local references inlined.
@@ -3452,6 +3577,15 @@ final class _FlatComponent {
   /// `$defs` kept, which [Catalog.validationSchema] writes so that a shared
   /// definition is bundled once.
   final Map<String, Object?> propertiesWithDefRefs;
+
+  /// The property names explicitly declared by the component's own schema
+  /// (excluding `ComponentCommon` and `Checkable` mixins and inline envelope
+  /// stubs).
+  final Set<String> customProperties;
+
+  /// Whether the component schema includes the `Checkable` mixin or a
+  /// check-rule array property.
+  final bool isCheckable;
 }
 
 /// How [Catalog.toJson] lays out the parts of a catalog document that may be

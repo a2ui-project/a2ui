@@ -214,3 +214,66 @@
             component: CustomCard
             details:
               "@path": "/static/file"
+
+- name: test_disallowed_nested_at_envelope_keys_in_dynamic_object
+  description: >-
+    Verifies that component-level @-prefixed envelope names (@metadata, @catalogId,
+    @accessibility, @checks) remain disallowed as unescaped single-@ keys inside
+    nested dynamic objects such as component property maps or action contexts.
+  catalog:
+    catalogId: custom
+    protocolVersion: "1.0"
+    components:
+      CustomCard:
+        type: object
+        properties:
+          details:
+            $ref: "common_types.json#/$defs/DynamicValue"
+  action: validate
+  payload:
+    - version: "1.0"
+      createSurface:
+        surfaceId: s1
+        catalogId: custom
+        components:
+          - id: root
+            component: CustomCard
+            details:
+              "@metadata":
+                extensions:
+                  com_example_nested: "disallowed"
+  expectError:
+    category: "ValidationError"
+
+- name: test_escaped_doubled_at_metadata_unescaping
+  description: >-
+    Verifies that doubled-@ '@@metadata' inside a nested dynamic object validates
+    and unescapes to literal '@metadata' during dynamic evaluation in v1.0.
+  catalog:
+    catalogId: custom
+    protocolVersion: "1.0"
+    components:
+      CustomCard:
+        type: object
+        properties:
+          details:
+            $ref: "common_types.json#/$defs/DynamicValue"
+  action: process_messages
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: s1
+        catalogId: custom
+        components:
+          - id: root
+            component: CustomCard
+            details:
+              "@@metadata": "literal-value"
+  expect:
+    surfaces:
+      s1:
+        components:
+          - id: root
+            component: CustomCard
+            details:
+              "@metadata": "literal-value"
