@@ -1,14 +1,52 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v1_0) Component validation
+  (`PayloadValidator.validate_component`, and `MessageProcessor` for calls into
+  another catalog) rejects a call to a function whose `allowedCallers` is
+  `agentOnly` in a property binding, a check or an action, since only an
+  agent's `callRendererFunction` may call one. The error matches the one
+  `DataContext` reports when such a call is evaluated. v0.9 catalogs are not
+  affected. `PayloadValidator.validate_function` checks only the envelope of a
+  call nested in an argument, as component validation does, since the call
+  runs in the catalog it names. Recommended migration: bind only
+  `rendererOnly` or `rendererOrAgent` functions in components.
+  `InternalCallRendererFunctionOp` is exported from `a2ui.core.processing`, and
+  `validate_reserved_directives` from `a2ui.core.resolution`
+  ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
+  [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
+- (v0_9) Restore `list_style` (`listStyle`) property to basic catalog `List` component schema ([#3956](https://github.com/a2ui-project/a2ui/pull/3956)).
+- **BREAKING CHANGE**: Basic catalog `regex` function (`v0_9` and `v1_0`) now validates patterns against the A2UI portable regex subset (ECMAScript `Pattern` in Unicode mode with no flags), enforces the 4-rule static ReDoS safety guard (`PATTERN_TOO_LONG` at 256 code points, `NESTED_QUANTIFIER`, `OVERLAPPING_ALTERNATION`, and `ADJACENT_OVERLAP`), translates patterns to Python `re` with exact ECMAScript character class and anchor semantics (`\A`, `\Z`, ASCII `\d`/`\w`/`\b`/`\B`, and `\uXXXX`/`\UXXXXXXXX` bracket classes), raises `A2uiExpressionError` with the rejection token on invalid or unsafe patterns, and returns `False` / `{"valid": False}` without raising when the input value exceeds 4,096 Unicode code points. Recommended migration: rewrite patterns that use lookbehind, backreferences, named groups, `\p{...}`, inline flags, or nested/overlapping unbounded quantifiers to the portable subset. Exports `parse_regex_subset`, `check_regex_safety`, `analyze_regex`, `translate_to_python`, `compile_guarded`, `regex_test`, `RegexNode`, `RegexRejection`, `RegexAnalysisResult`, `RegexSyntaxError`, `MAX_REGEX_PATTERN_CODE_POINTS`, and `MAX_REGEX_VALUE_CODE_POINTS` from `a2ui.core` and `a2ui.core.common` ([#3854](https://github.com/a2ui-project/a2ui/pull/3854)).
 - **BREAKING CHANGE**: (v1_0) The basic catalog `TextField` requires `value`,
   as the other input components do, so a `TextField` without one fails
   validation instead of accepting input that never reaches the data model.
   Recommended migration: bind `value` to a data model path, such as
   `{"@path": "/form/email"}`. The path does not have to exist yet
   ([#3830](https://github.com/a2ui-project/a2ui/issues/3830), [#3868](https://github.com/a2ui-project/a2ui/pull/3868)).
+- **BREAKING CHANGE**: `DynamicBoolean` properties and function arguments now
+  coerce any resolved value to a boolean according to the protocol
+  specification: booleans are kept as is, `ValidationResult` objects coerce to
+  `valid`, strings coerce to `True` only when case-insensitively equal to
+  `"true"` (and `False` for `"false"` and all other strings), numbers coerce to
+  `value != 0` (`NaN` is `False`), and `None`, absent values, other objects,
+  and arrays coerce to `False`. Recommended migration: pass explicit booleans,
+  non-zero/zero numbers, `"true"`/`"false"` strings, or `ValidationResult`
+  dicts rather than relying on Python truthiness or `None` pass-through
+  ([#3850](https://github.com/a2ui-project/a2ui/pull/3850)).
 - (v1_0) The basic catalog `regex` function's `pattern` description now names
   the A2UI regex dialect and its safety limits
   ([#3820](https://github.com/a2ui-project/a2ui/pull/3820)).
+- Add `RpcHandler.cancel_surface_calls` to cancel pending outbound agent
+  function calls with `RpcErrorCode.CANCELLED`.
+- `DataModel` now defensively copies `initial_data` and values passed to `set()`, preventing subsequent caller mutation of input dicts or lists from silently mutating internal state, and `PayloadValidator` now validates component type names against UAX 31 identifier syntax on v1.0+ surfaces.
+- (v1_0) `Catalog.from_json()` now rejects function definitions that set
+  `requiresUserActivation: true` when `allowedCallers` is not `'rendererOnly'`
+  (such as `'agentOnly'` or `'rendererOrAgent'`) by raising `A2uiCatalogError`,
+  matching the v1.0 catalog definition schema
+  ([#3840](https://github.com/a2ui-project/a2ui/pull/3840)).
+- `MessageProcessor` writes an inline `createSurface.dataModel` as one
+  `DataModel.set` per top-level key (`/<escaped_key>`, escaping `~` as `~0` and
+  `/` as `~1` per RFC 6901) before applying inline `createSurface.components`
+  ([#3857](https://github.com/a2ui-project/a2ui/pull/3857)).
 - **BREAKING CHANGE**: `DataContext` refuses a function whose `allowed_callers`
   is `agentOnly`, before running it, so a binding, check or function call
   action that calls one reports an `EXPRESSION_ERROR` instead of running it, as
@@ -139,6 +177,22 @@
   it is standalone.
   [#3232](https://github.com/a2ui-project/a2ui/issues/3232),
   [#3575](https://github.com/a2ui-project/a2ui/pull/3575)
+- (v1_0) Add `AgentFunction`, `AgentFunctionContext` and `AgentFunctionHandler`
+  (exported from `a2ui.core`) for catalog functions that run on the agent:
+  `AgentFunction(...)` for a `rendererOnly` function defined in code,
+  `AgentFunction.from_api(...)` to bind a catalog declaration, and
+  `with_handler`. `Catalog.copy_with(agent_functions=...)` adds them, and
+  `Catalog.agent_functions` and `Catalog.renderer_functions` list them. An
+  agent function's local `$defs` may not define a name differently from the
+  catalog's root `$defs` or another agent function (`A2uiCatalogError`)
+  ([#3536](https://github.com/a2ui-project/a2ui/issues/3536),
+  [#3792](https://github.com/a2ui-project/a2ui/pull/3792)).
+- (v1_0) The settled agent function call cache evicts the oldest answer first
+  (reading an answer no longer keeps it), and its bound (256 by default) is
+  configurable with `MessageProcessorOptions.max_agent_call_cache_entries` or
+  `SurfaceModel(max_agent_call_cache_entries=...)`. `RpcHandler.dispose()`
+  also removes the outbound listener
+  ([#3792](https://github.com/a2ui-project/a2ui/pull/3792)).
 - Add `Catalog.derive`, which builds a catalog with a new `catalog_id` from
   the named `components` and `functions` of an existing one and new entries,
   with the `instructions` it is given, and does not keep the source's `$id`,
@@ -488,7 +542,6 @@
   **Unshimmed Internal Modules & Renames:**
 
   Internal modules were moved without shims; callers should import from the new paths directly:
-
   - `a2ui.core.rendering` (and `.component_context`, `.data_context`, `.generic_binder`): moved to `a2ui.core.resolution` (and matching submodules).
   - `a2ui.core.validating` (and `.integrity_checker`, `.topology_analyzer`): moved to `a2ui.core.validation` (and `a2ui.core.state.validation_helpers`).
   - `validate_component_integrity`: moved to `a2ui.core.validation` as `(components: dict[str, ComponentModel], root_id: str = ROOT_ID, config: ValidationConfig | None = None) -> None`.

@@ -44,6 +44,7 @@ public final class NodeResolver: Sendable {
   private struct ComponentIdentity: Equatable {
     let type: String
     let catalogID: String?
+    let state: NodeState
   }
 
   private struct NodeResolutionRecord {
@@ -54,18 +55,23 @@ public final class NodeResolver: Sendable {
     let index: Int?
     let instanceSuffix: String?
     let visited: Set<String>
-    var componentSnapshot: ComponentModel
+    var componentSnapshot: ComponentModel?
     var childIdentities: [String: ComponentIdentity?]
     var readValues: [String: JSONValue?]
     var templateCounts: [String: Int]
     var directChildInstances: Set<String>
     var agentCalls: Set<AgentFunctionCall>
+    /// The keys in `activeCyclicNodes` of the cyclic placeholders this node references.
+    var cyclicKeys: [String] = []
   }
 
   /// The number of `resolveNode` invocations executed during the most recent `resolveTree()` pass.
   package private(set) var lastResolvedNodeCount = 0
 
   private var activeNodes: [String: Node] = [:]
+  /// Cyclic placeholder nodes, keyed by the referencing node, the property that holds the
+  /// reference, the repeated node and the occurrence of that reference within the property.
+  private var activeCyclicNodes: [String: Node] = [:]
   private var schemaCache: [String: CachedComponentSchema] = [:]
   private var nodeRecords: [String: NodeResolutionRecord] = [:]
   private var nodesByDefinitionID: [String: Set<String>] = [:]
@@ -82,8 +88,16 @@ public final class NodeResolver: Sendable {
   private var currentNodeTemplateCounts: [String: Int]?
   private var currentNodeChildIdentities: [String: ComponentIdentity?]?
   private var currentNodeDirectChildren: Set<String>?
+  /// The cyclic placeholder keys the node being resolved references, in order.
+  private var currentNodeCyclicKeys: [String]?
   private var reportedExpressionErrors: Set<String> = []
-  private var currentPassExpressionErrors: Set<String> = []
+  /// The error keys each node reported in the current pass, by node key. A node shared by several
+  /// parents resolves once per parent, so these are committed to `reportedExpressionErrors` when
+  /// the pass ends rather than after each visit.
+  private var expressionErrorsInCurrentPass: [String: Set<String>] = [:]
+  /// Shared dedupe keys reported in the current pass, so nodes that report the same one in a
+  /// pass report it once.
+  private var sharedErrorsInCurrentPass: Set<String> = []
   private var isResolvingTree = false
   private var currentComponentID: String?
   private var currentPropertyPath: String?
@@ -287,7 +301,9 @@ public final class NodeResolver: Sendable {
     resetResolutionState()
     isResolvingTree = true
     defer {
+      commitExpressionErrorsOfCurrentPass()
       resolvedInCurrentPass.removeAll()
+      sharedErrorsInCurrentPass.removeAll()
       isResolvingTree = false
     }
     return resolveNode(
@@ -303,6 +319,7 @@ public final class NodeResolver: Sendable {
 
   private func resetResolutionState() {
     activeNodes.removeAll()
+    activeCyclicNodes.removeAll()
     nodeRecords.removeAll()
     nodesByDefinitionID.removeAll()
     parentsByChildDefinitionID.removeAll()
@@ -314,8 +331,9 @@ public final class NodeResolver: Sendable {
     dirtyDataPaths.removeAll()
     needsFullResolve = false
     resolvedInCurrentPass.removeAll()
+    sharedErrorsInCurrentPass.removeAll()
     reportedExpressionErrors.removeAll()
-    currentPassExpressionErrors.removeAll()
+    expressionErrorsInCurrentPass.removeAll()
     for call in nodesByAgentCall.keys {
       agentCallHost?.agentCallCache.forgetFailure(call)
     }
@@ -362,14 +380,14 @@ public final class NodeResolver: Sendable {
         for nodeKey in instances {
           guard let record = nodeRecords[nodeKey] else { continue }
           if record.componentSnapshot != currentComp || hadClearedErrors {
-            let previousIdentity = ComponentIdentity(
-              type: record.componentSnapshot.type,
-              catalogID: record.componentSnapshot.catalogID ?? defaultCatalogID
-            )
+            let previousIdentity = record.componentSnapshot.map {
+              componentIdentity(for: $0)
+            }
             if let currentComp,
+              let previousSnap = record.componentSnapshot,
               !hadClearedErrors,
               currentIdentity == previousIdentity,
-              record.componentSnapshot.properties == currentComp.properties
+              previousSnap.properties == currentComp.properties
             {
               var updatedRecord = record
               updatedRecord.componentSnapshot = currentComp
@@ -377,7 +395,9 @@ public final class NodeResolver: Sendable {
               if let existing = activeNodes[nodeKey] {
                 existing.updateMetadata(currentComp.metadata)
               }
-            } else if currentIdentity == previousIdentity || nodeKey == "root" {
+            } else if currentIdentity != nil,
+              currentIdentity == previousIdentity || nodeKey == "root"
+            {
               affectedNodeIDs.insert(nodeKey)
             }
           }
@@ -445,8 +465,11 @@ public final class NodeResolver: Sendable {
 
     isResolvingTree = true
     resolvedInCurrentPass.removeAll()
+    sharedErrorsInCurrentPass.removeAll()
     defer {
+      commitExpressionErrorsOfCurrentPass()
       resolvedInCurrentPass.removeAll()
+      sharedErrorsInCurrentPass.removeAll()
       isResolvingTree = false
     }
 
@@ -478,9 +501,17 @@ public final class NodeResolver: Sendable {
     in components: [String: ComponentModel]
   ) -> ComponentIdentity? {
     guard let comp = components[definitionID] else { return nil }
+    return componentIdentity(for: comp)
+  }
+
+  private func componentIdentity(for comp: ComponentModel) -> ComponentIdentity {
+    let effectiveCatalogID = comp.catalogID ?? defaultCatalogID
+    let targetCatalog = getCatalog(id: effectiveCatalogID)
+    let isRegistered = targetCatalog?.components[comp.type] != nil
     return ComponentIdentity(
       type: comp.type,
-      catalogID: comp.catalogID ?? defaultCatalogID
+      catalogID: effectiveCatalogID,
+      state: isRegistered ? .resolved : .unknownType
     )
   }
 
@@ -496,9 +527,10 @@ public final class NodeResolver: Sendable {
       }
       if var record = nodeRecords[nodeKey],
         let currentComp,
-        record.componentSnapshot.type == currentComp.type,
-        record.componentSnapshot.catalogID == currentComp.catalogID,
-        record.componentSnapshot.properties == currentComp.properties
+        let snapshot = record.componentSnapshot,
+        snapshot.type == currentComp.type,
+        snapshot.catalogID == currentComp.catalogID,
+        snapshot.properties == currentComp.properties
       {
         record.componentSnapshot = currentComp
         nodeRecords[nodeKey] = record
@@ -580,6 +612,9 @@ public final class NodeResolver: Sendable {
       for oldCall in oldRecord.agentCalls where !record.agentCalls.contains(oldCall) {
         unregisterAgentCall(oldCall, for: nodeKey)
       }
+      for oldCyclicKey in Set(oldRecord.cyclicKeys).subtracting(record.cyclicKeys) {
+        activeCyclicNodes.removeValue(forKey: oldCyclicKey)
+      }
 
       removedChildren = oldRecord.directChildInstances.subtracting(record.directChildInstances)
       let addedChildren = record.directChildInstances.subtracting(oldRecord.directChildInstances)
@@ -626,6 +661,7 @@ public final class NodeResolver: Sendable {
     activeNodes.removeValue(forKey: nodeKey)
     let prefix = "\(nodeKey):"
     reportedExpressionErrors = reportedExpressionErrors.filter { !$0.hasPrefix(prefix) }
+    expressionErrorsInCurrentPass.removeValue(forKey: nodeKey)
     guard let record = nodeRecords.removeValue(forKey: nodeKey) else { return }
 
     nodesByDefinitionID[record.definitionID]?.remove(nodeKey)
@@ -646,6 +682,9 @@ public final class NodeResolver: Sendable {
     }
     for call in record.agentCalls {
       unregisterAgentCall(call, for: nodeKey)
+    }
+    for cyclicKey in record.cyclicKeys {
+      activeCyclicNodes.removeValue(forKey: cyclicKey)
     }
 
     for childNodeKey in record.directChildInstances {
@@ -676,6 +715,7 @@ public final class NodeResolver: Sendable {
     nodesByAgentCall.removeAll()
     dirtyAgentCalls.removeAll()
     activeNodes.removeAll()
+    activeCyclicNodes.removeAll()
     nodeRecords.removeAll()
   }
 
@@ -726,12 +766,32 @@ public final class NodeResolver: Sendable {
     recurseIntoChildren: Bool = true
   ) -> Node? {
     let nodeKey = makeNodeKey(instanceID: instanceID, basePath: basePath)
+    let effectiveDataPath = normalizePath(basePath ?? "/")
     if visited.contains(nodeKey) {
-      return nil
+      return resolveCyclicNode(
+        definitionID: definitionID,
+        instanceID: instanceID,
+        nodeKey: nodeKey,
+        parentKey: currentComponentID,
+        basePath: basePath,
+        dataContextPath: effectiveDataPath
+      )
     }
 
     guard let component = components[definitionID] else {
-      return nil
+      guard !(definitionID == "root" && basePath == nil && visited.isEmpty) else {
+        return nil
+      }
+      return resolvePendingNode(
+        definitionID: definitionID,
+        instanceID: instanceID,
+        nodeKey: nodeKey,
+        basePath: basePath,
+        dataContextPath: effectiveDataPath,
+        index: index,
+        instanceSuffix: instanceSuffix,
+        visited: visited
+      )
     }
 
     lastResolvedNodeCount += 1
@@ -745,20 +805,15 @@ public final class NodeResolver: Sendable {
     let previousChildIdentities = currentNodeChildIdentities
     let previousDirectChildren = currentNodeDirectChildren
     let previousAgentCalls = currentNodeAgentCalls
-    let previousPassErrors = currentPassExpressionErrors
+    let previousCyclicKeys = currentNodeCyclicKeys
     currentComponentID = nodeKey
     currentNodeReadValues = [:]
     currentNodeTemplateCounts = [:]
     currentNodeChildIdentities = [:]
     currentNodeDirectChildren = []
     currentNodeAgentCalls = []
-    currentPassExpressionErrors = []
+    currentNodeCyclicKeys = []
     defer {
-      if isResolvingTree {
-        let prefix = "\(nodeKey):"
-        reportedExpressionErrors = reportedExpressionErrors.filter { !$0.hasPrefix(prefix) }
-        reportedExpressionErrors.formUnion(currentPassExpressionErrors)
-      }
       currentComponentID = previousComponentID
       currentPropertyPath = previousPropertyPath
       currentNodeReadValues = previousReadValues
@@ -766,12 +821,23 @@ public final class NodeResolver: Sendable {
       currentNodeChildIdentities = previousChildIdentities
       currentNodeDirectChildren = previousDirectChildren
       currentNodeAgentCalls = previousAgentCalls
-      currentPassExpressionErrors = previousPassErrors
+      currentNodeCyclicKeys = previousCyclicKeys
     }
 
     let type = component.type
     let effectiveCatalogID = component.catalogID ?? defaultCatalogID
     let targetCatalog = getCatalog(id: effectiveCatalogID)
+    let isRegisteredType = targetCatalog?.components[type] != nil
+    let nodeState: NodeState = isRegisteredType ? .resolved : .unknownType
+    if !isRegisteredType {
+      let catalogLabel = targetCatalog?.id ?? effectiveCatalogID ?? "none"
+      reportResolutionError(
+        code: "UNKNOWN_COMPONENT_TYPE",
+        message: "Component '\(definitionID)' has type '\(type)', which is not in catalog "
+          + "'\(catalogLabel)'.",
+        dedupeKey: "UNKNOWN_COMPONENT_TYPE:\(type)"
+      )
+    }
 
     var visited = visited
     visited.insert(nodeKey)
@@ -779,9 +845,13 @@ public final class NodeResolver: Sendable {
     let cached = cachedSchema(for: type, catalogID: effectiveCatalogID, catalog: targetCatalog)
     let propertiesSchema = cached.propertiesSchema
 
+    // An unknown-type node stays inert like the `pending` and `cyclic` placeholders: its
+    // properties are not resolved, so it reads no data, makes no calls and has no children.
+    let resolvesProperties = nodeState == .resolved
     var componentChecks: [ResolvedCheck] = []
     var preResolvedChecksByKey: [String: [ResolvedCheck]] = [:]
-    for (key, val) in component.properties where cached.classifiedTypes[key] == .checks {
+    for (key, val) in component.properties
+    where resolvesProperties && cached.classifiedTypes[key] == .checks {
       currentPropertyPath = key
       let resolved = resolveChecks(val, basePath: basePath, index: index, data: data)
       preResolvedChecksByKey[key] = resolved
@@ -789,7 +859,7 @@ public final class NodeResolver: Sendable {
     }
 
     var resolvedProperties: [String: any Resolved] = [:]
-    for (key, val) in component.properties {
+    for (key, val) in component.properties where resolvesProperties {
       if let preResolved = preResolvedChecksByKey[key] {
         resolvedProperties[key] = preResolved
         continue
@@ -829,12 +899,15 @@ public final class NodeResolver: Sendable {
       readValues: currentNodeReadValues ?? [:],
       templateCounts: currentNodeTemplateCounts ?? [:],
       directChildInstances: currentNodeDirectChildren ?? [],
-      agentCalls: currentNodeAgentCalls ?? []
+      agentCalls: currentNodeAgentCalls ?? [],
+      cyclicKeys: currentNodeCyclicKeys ?? []
     )
     registerNodeDependencies(record)
 
     if let existing = activeNodes[nodeKey],
-      existing.type == type && existing.catalogID == effectiveCatalogID
+      existing.state == nodeState
+        && existing.type == type
+        && existing.catalogID == effectiveCatalogID
     {
       existing.updateProperties(resolvedProperties, metadata: component.metadata)
       return existing
@@ -844,10 +917,80 @@ public final class NodeResolver: Sendable {
       id: instanceID,
       type: type,
       catalogID: effectiveCatalogID,
+      state: nodeState,
+      scopeKey: basePath,
+      dataContextPath: effectiveDataPath,
       properties: resolvedProperties,
       metadata: component.metadata
     )
     activeNodes[nodeKey] = node
+    return node
+  }
+
+  private func resolvePendingNode(
+    definitionID: String,
+    instanceID: String,
+    nodeKey: String,
+    basePath: String?,
+    dataContextPath: String,
+    index: Int?,
+    instanceSuffix: String?,
+    visited: Set<String>
+  ) -> Node {
+    resolvedInCurrentPass.insert(nodeKey)
+    let record = NodeResolutionRecord(
+      nodeKey: nodeKey,
+      definitionID: definitionID,
+      instanceID: instanceID,
+      basePath: basePath,
+      index: index,
+      instanceSuffix: instanceSuffix,
+      visited: visited,
+      componentSnapshot: nil,
+      childIdentities: [:],
+      readValues: [:],
+      templateCounts: [:],
+      directChildInstances: [],
+      agentCalls: []
+    )
+    registerNodeDependencies(record)
+
+    if let existing = activeNodes[nodeKey], existing.state == .pending {
+      return existing
+    }
+    let node = Node.pending(id: instanceID, scopeKey: basePath, dataContextPath: dataContextPath)
+    activeNodes[nodeKey] = node
+    return node
+  }
+
+  private func resolveCyclicNode(
+    definitionID: String,
+    instanceID: String,
+    nodeKey: String,
+    parentKey: String?,
+    basePath: String?,
+    dataContextPath: String
+  ) -> Node {
+    // Every descendant that repeats this ancestor closes the same cycle, so the report is
+    // shared and keyed by the repeated node, as in the other core SDKs.
+    reportResolutionError(
+      code: "CYCLIC_REFERENCE",
+      message: "Component '\(definitionID)' at '\(dataContextPath)' is referenced by one of its "
+        + "own descendants; omitting the reference.",
+      dedupeKey: "CYCLIC_REFERENCE:\(nodeKey)",
+      sharedAcrossNodes: true
+    )
+    // Each reference that closes a cycle gets its own placeholder, so two slots that repeat the
+    // same ancestor never share one node.
+    let slotKey = "\(parentKey ?? "")/\(currentPropertyPath ?? "")->\(nodeKey)"
+    let occurrence = currentNodeCyclicKeys?.filter { $0.hasPrefix("\(slotKey)#") }.count ?? 0
+    let cyclicKey = "\(slotKey)#\(occurrence)"
+    currentNodeCyclicKeys?.append(cyclicKey)
+    if let existing = activeCyclicNodes[cyclicKey] {
+      return existing
+    }
+    let node = Node.cyclic(id: instanceID, scopeKey: basePath, dataContextPath: dataContextPath)
+    activeCyclicNodes[cyclicKey] = node
     return node
   }
 
@@ -866,11 +1009,20 @@ public final class NodeResolver: Sendable {
     currentNodeChildIdentities?.updateValue(childIdentity, forKey: childID)
 
     let childNodeKey = makeNodeKey(instanceID: childInstanceID, basePath: basePath)
-    guard !visited.contains(childNodeKey), let childIdentity else {
-      return nil
+    if visited.contains(childNodeKey) {
+      return resolveCyclicNode(
+        definitionID: childID,
+        instanceID: childInstanceID,
+        nodeKey: childNodeKey,
+        parentKey: currentComponentID,
+        basePath: basePath,
+        dataContextPath: normalizePath(basePath ?? "/")
+      )
     }
 
     let existingRecord = nodeRecords[childNodeKey]
+    let expectedState = childIdentity?.state ?? .pending
+    let expectedType = childIdentity?.type ?? "Placeholder"
     if !recurseIntoChildren,
       let existing = activeNodes[childNodeKey],
       let existingRecord,
@@ -879,7 +1031,8 @@ public final class NodeResolver: Sendable {
       existingRecord.index == index,
       existingRecord.instanceSuffix == instanceSuffix,
       existingRecord.visited == visited,
-      existing.type == childIdentity.type && existing.catalogID == childIdentity.catalogID
+      existing.state == expectedState,
+      existing.type == expectedType && existing.catalogID == childIdentity?.catalogID
     {
       currentNodeDirectChildren?.insert(childNodeKey)
       return existing
@@ -1277,7 +1430,8 @@ public final class NodeResolver: Sendable {
   private func evaluateDynamicValue(
     _ value: JSONValue,
     basePath: String?,
-    index: Int? = nil
+    index: Int? = nil,
+    userActivation: Bool = false
   ) -> JSONValue {
     let currentData = dataModel.data
     let previousReadHook = dataModel.onReadPath
@@ -1294,7 +1448,8 @@ public final class NodeResolver: Sendable {
       path: basePath ?? "",
       functionHandler: self,
       protocolVersion: effectiveProtocolVersion,
-      index: index
+      index: index,
+      isUserActivated: userActivation
     )
     return context.resolveDynamicValue(value)
   }
@@ -1337,7 +1492,7 @@ public final class NodeResolver: Sendable {
       let pathStr = dict[bindingKey]?.stringValue
     {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
-      let resolvedValue = readData(absPath, from: data)?.boolValue
+      let resolvedValue = readData(absPath, from: data)?.coercedDynamicBoolean ?? false
       return DataBinding<Bool>(
         identity: .path(absPath),
         value: resolvedValue,
@@ -1346,7 +1501,9 @@ public final class NodeResolver: Sendable {
         }
       )
     }
-    let resolvedValue = evaluateDynamicValue(value, basePath: basePath, index: index).boolValue
+    let resolvedValue = evaluateDynamicValue(
+      value, basePath: basePath, index: index
+    ).coercedDynamicBoolean
     return DataBinding<Bool>(
       identity: .literal(value),
       value: resolvedValue,
@@ -1711,7 +1868,7 @@ public final class NodeResolver: Sendable {
       dataContextPath: basePath,
       rawUserMessage: userMessageValue,
       metadata: actionMetadata,
-      triggerWithMetadata: { [weak self] callMetadata in
+      triggerWithUserActivation: { [weak self] userActivation, callMetadata in
         guard let self else { return }
         guard self.reportFailedActionChecksIfNeeded(checks, componentID: componentID) else {
           return
@@ -1731,7 +1888,8 @@ public final class NodeResolver: Sendable {
           metadata: mergedMetadata,
           basePath: basePath,
           index: index,
-          componentID: componentID
+          componentID: componentID,
+          isUserActivated: userActivation
         )
       }
     )
@@ -1752,12 +1910,17 @@ public final class NodeResolver: Sendable {
       identity: unresolvedIdentity,
       sourceComponentID: componentID,
       dataContextPath: basePath,
-      trigger: { [weak self] in
+      triggerWithUserActivation: { [weak self] userActivation, _ in
         guard let self else { return }
         guard self.reportFailedActionChecksIfNeeded(checks, componentID: componentID) else {
           return
         }
-        self.runActionFunctionCall(functionCallValue, basePath: basePath, index: index)
+        self.runActionFunctionCall(
+          functionCallValue,
+          basePath: basePath,
+          index: index,
+          isUserActivated: userActivation
+        )
       }
     )
   }
@@ -1844,7 +2007,8 @@ public final class NodeResolver: Sendable {
   /// The `context` entries are resolved one at a time, in the order the `context` object holds
   /// them, then `userMessage`. That is the payload's order unless the JSON decoder reordered the
   /// keys, as Foundation's `JSONDecoder` may. An entry that waits on the agent is awaited before
-  /// the next entry is resolved, so no later entry sends a call before it settles. The first entry that fails stops the action: no later entry is
+  /// the next entry is resolved, so no later entry sends a call before it settles. The first entry
+  /// that fails stops the action: no later entry is
   /// resolved, and the event isn't dispatched. Each run resolves the entries again, reading the
   /// answers already received from `actionCache`.
   ///
@@ -1859,6 +2023,7 @@ public final class NodeResolver: Sendable {
     basePath: String?,
     index: Int?,
     componentID: String,
+    isUserActivated: Bool = true,
     actionCache: AgentCallCache = AgentCallCache()
   ) {
     guard !isDisposed, !actionCache.isStopped else { return }
@@ -1868,7 +2033,7 @@ public final class NodeResolver: Sendable {
       functionHandler: self,
       protocolVersion: effectiveProtocolVersion,
       index: index,
-      isUserActivated: true
+      isUserActivated: isUserActivated
     )
     let resume: @MainActor () -> Void = { [weak self] in
       self?.runEventAction(
@@ -1879,6 +2044,7 @@ public final class NodeResolver: Sendable {
         basePath: basePath,
         index: index,
         componentID: componentID,
+        isUserActivated: isUserActivated,
         actionCache: actionCache
       )
     }
@@ -2015,6 +2181,7 @@ public final class NodeResolver: Sendable {
     _ functionCall: JSONValue,
     basePath: String?,
     index: Int?,
+    isUserActivated: Bool = true,
     actionCache: AgentCallCache = AgentCallCache()
   ) {
     guard !isDisposed, !actionCache.isStopped else { return }
@@ -2024,7 +2191,7 @@ public final class NodeResolver: Sendable {
       functionHandler: self,
       protocolVersion: effectiveProtocolVersion,
       index: index,
-      isUserActivated: true
+      isUserActivated: isUserActivated
     )
     // Run again only once the agent calls in the arguments settle. A call sent to the agent
     // itself, rather than deferred, needs no second run.
@@ -2035,6 +2202,7 @@ public final class NodeResolver: Sendable {
         functionCall,
         basePath: basePath,
         index: index,
+        isUserActivated: isUserActivated,
         actionCache: actionCache
       )
     }
@@ -2297,24 +2465,90 @@ extension NodeResolver: FunctionHandler {
       } else {
         message = String(describing: error)
       }
-      rendererError = .generic(
-        GenericError(
-          code: code,
-          surfaceID: surfaceID,
-          message: message,
-          expression: functionName,
-          version: version
+      if let functionCallID = (error as? FunctionError)?.functionCallID {
+        rendererError = .generic(
+          GenericError(
+            code: code,
+            functionCallID: functionCallID,
+            message: message,
+            expression: functionName,
+            version: version
+          )
         )
-      )
-    }
-    let dedupeKey =
-      "\(currentComponentID ?? ""):\(currentPropertyPath ?? ""):\(functionName):\(rendererError)"
-    if isResolvingTree {
-      let isFirstInPass = currentPassExpressionErrors.insert(dedupeKey).inserted
-      guard isFirstInPass && !reportedExpressionErrors.contains(dedupeKey) else {
-        return
+      } else {
+        rendererError = .generic(
+          GenericError(
+            code: code,
+            surfaceID: surfaceID,
+            message: message,
+            expression: functionName,
+            version: version
+          )
+        )
       }
     }
-    actionHandler?.handle(error: rendererError, from: surfaceID)
+    report(
+      rendererError,
+      dedupeKey: "\(currentPropertyPath ?? ""):\(functionName):\(rendererError)"
+    )
+  }
+}
+
+// MARK: - Error Reporting
+
+extension NodeResolver {
+  /// Replaces the errors recorded for each node resolved in the pass with the ones it reported in
+  /// the pass, so an error is reported again only after its node resolves without it.
+  private func commitExpressionErrorsOfCurrentPass() {
+    for nodeKey in resolvedInCurrentPass {
+      let prefix = "\(nodeKey):"
+      reportedExpressionErrors = reportedExpressionErrors.filter { !$0.hasPrefix(prefix) }
+      reportedExpressionErrors.formUnion(expressionErrorsInCurrentPass[nodeKey] ?? [])
+    }
+    expressionErrorsInCurrentPass.removeAll()
+  }
+
+  /// Reports a `GenericError` for a problem in the component tree.
+  private func reportResolutionError(
+    code: String,
+    message: String,
+    dedupeKey: String,
+    sharedAcrossNodes: Bool = false
+  ) {
+    let error = GenericError(
+      code: code,
+      surfaceID: surfaceID,
+      message: message,
+      version: effectiveProtocolVersion ?? .v09
+    )
+    report(.generic(error), dedupeKey: dedupeKey, sharedAcrossNodes: sharedAcrossNodes)
+  }
+
+  /// Reports an error to the action handler.
+  ///
+  /// While resolving the tree, an error is keyed to the node being resolved and reported once
+  /// until that node resolves without it, so re-renders don't repeat it.
+  ///
+  /// - Parameter sharedAcrossNodes: Whether nodes reporting the same `dedupeKey` share one
+  ///   report. Each node still records the key, so the error is reported again only once no node
+  ///   reports it.
+  private func report(_ error: RendererError, dedupeKey: String, sharedAcrossNodes: Bool = false) {
+    if isResolvingTree {
+      let nodeKey = currentComponentID ?? ""
+      let key = "\(nodeKey):\(dedupeKey)"
+      let isFirstInPass = expressionErrorsInCurrentPass[nodeKey, default: []].insert(key).inserted
+      guard isFirstInPass, !reportedExpressionErrors.contains(key) else {
+        return
+      }
+      if sharedAcrossNodes {
+        let suffix = ":\(dedupeKey)"
+        guard sharedErrorsInCurrentPass.insert(dedupeKey).inserted,
+          !reportedExpressionErrors.contains(where: { $0.hasSuffix(suffix) })
+        else {
+          return
+        }
+      }
+    }
+    actionHandler?.handle(error: error, from: surfaceID)
   }
 }

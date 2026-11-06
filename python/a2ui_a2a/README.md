@@ -32,12 +32,35 @@ This installs `a2ui-agent-sdk` and `a2a-sdk` as dependencies.
   agent passes it the `RendererState` it keeps with `state=`.
   `extract_a2ui_json_to_parts` extracts text and `<a2ui-json>` blocks into
   A2A parts without requiring a `Parser` or `Catalog`.
+- RPC helpers (v1.0): `get_a2ui_messages` returns the A2UI messages in an
+  incoming A2A message's A2UI parts, such as a renderer's `callAgentFunction`
+  or `action`, and `create_a2ui_parts` wraps the replies of
+  `RendererToAgentMessageProcessor` (from `a2ui.rpc`) as A2UI parts.
 
 ```python
 from a2ui.a2a import create_a2ui_part, get_a2ui_agent_extension
 
 extension = get_a2ui_agent_extension(version="0.9")
 part = create_a2ui_part({"version": "v0.9", "deleteSurface": {"surfaceId": "main"}})
+```
+
+In an `AgentExecutor`, answer the renderer's agent function calls before
+running the agent's turn:
+
+```python
+from a2ui.a2a import create_a2ui_parts, get_a2ui_messages
+from a2ui.rpc import RendererToAgentMessageProcessor
+
+processor = RendererToAgentMessageProcessor(request_processor.active_catalogs)
+
+messages = get_a2ui_messages(context.message)
+results = [await processor.process_message(message) for message in messages]
+parts = create_a2ui_parts(reply for result in results for reply in result.replies)
+...  # send `parts` to the client
+if len(messages) < len(context.message.parts) or not all(
+    result.handled for result in results
+):
+    ...  # run the agent's turn for the rest, such as text or an `action`
 ```
 
 The specification of the extension is in

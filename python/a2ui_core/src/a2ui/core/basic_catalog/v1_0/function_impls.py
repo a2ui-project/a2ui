@@ -20,7 +20,9 @@ from typing import Any
 from urllib.parse import urlparse
 
 from ...resolution.data_context import DataContext
+from ...resolution.validation_result_coercion import coerce_dynamic_boolean
 from ...common.events import AbortSignal
+from ...common.regex_subset import regex_test
 from ...exceptions import A2uiExpressionError
 from ...catalog import (
     FunctionImplementation,
@@ -100,11 +102,7 @@ def _regex_execute(
 ) -> dict[str, Any]:
     pattern = _to_str(args.get("pattern", ""))
     val = _to_str(args.get("value", ""))
-    try:
-        valid = bool(re.search(pattern, val))
-    except re.error as e:
-        raise A2uiExpressionError(f"Invalid regex pattern '{pattern}': {e}") from e
-    return {"valid": valid}
+    return {"valid": bool(regex_test(pattern, val))}
 
 
 RegexImplementation = create_function_implementation(RegexApi, _regex_execute)
@@ -466,16 +464,8 @@ OpenUrlImplementation = create_function_implementation(OpenUrlApi, _open_url_exe
 
 
 # Logical
-#
-# The v1.0 validators return a ValidationResult rather than a boolean, so a
-# nested ``and(required(...), or(...))`` receives dicts. A dict with a boolean
-# ``valid`` member is truthy by its validity, not by being a non-empty dict.
 def _is_truthy_or_valid(val: Any) -> bool:
-    if isinstance(val, dict):
-        valid = val.get("valid")
-        if isinstance(valid, bool):
-            return valid
-    return _to_bool(val)
+    return coerce_dynamic_boolean(val)
 
 
 def _and_execute(

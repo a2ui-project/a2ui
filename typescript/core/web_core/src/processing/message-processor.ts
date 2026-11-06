@@ -183,6 +183,7 @@ export interface MessageProcessorOptions {
 
 import {formatZodIssue} from './format-zod-issue.js';
 import {
+  assertRendererMayCall,
   nestedCallRunsInCatalog,
   nonStringCatalogIdMessage,
   PayloadValidator,
@@ -1103,19 +1104,46 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
     this.model.addSurface(surface);
 
-    if (dataModel) {
-      // Assign the whole object at the root rather than building a pointer per
-      // key. Key names are literal property names, so a key containing '/' or
-      // '~' would otherwise be misread as a nested path.
-      surface.dataModel.set('/', dataModel);
-    }
+    try {
+      if (dataModel) {
+        for (const [key, value] of Object.entries(dataModel)) {
+          const escapedKey = key.replace(/~/g, '~0').replace(/\//g, '~1');
+          const path = `/${escapedKey}`;
+          try {
+            if (key === '') {
+              const currentRoot = (surface.dataModel.get('/') ?? {}) as Record<string, unknown>;
+              const nextRoot = {...currentRoot};
+              if (
+                value === undefined ||
+                (value === null && isAtLeastVersion(surface.protocolVersion, '1.0'))
+              ) {
+                delete nextRoot[''];
+              } else {
+                nextRoot[''] = value;
+              }
+              surface.dataModel.set('/', nextRoot);
+            } else {
+              surface.dataModel.set(path, value);
+            }
+          } catch (err: unknown) {
+            if (err instanceof A2uiDataError && !err.surfaceId) {
+              err.surfaceId = surfaceId;
+            }
+            throw err;
+          }
+        }
+      }
 
-    if (components && components.length > 0) {
-      this.processUpdateComponentsOp({
-        type: 'updateComponents',
-        surfaceId,
-        components,
-      });
+      if (components && components.length > 0) {
+        this.processUpdateComponentsOp({
+          type: 'updateComponents',
+          surfaceId,
+          components,
+        });
+      }
+    } catch (err: unknown) {
+      this.model.deleteSurface(surfaceId);
+      throw err;
     }
   }
 
@@ -1242,9 +1270,11 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * the surface's default catalog, whatever catalog an enclosing call or the
    * component names, so a call may run in a catalog other than the
    * component's. This pass resolves every call's catalog and checks the
-   * arguments of the calls that run outside the component's catalog;
-   * component validation, which runs first and walks every nested call, has
-   * already checked the others, as decided by `nestedCallRunsInCatalog`.
+   * calls that run outside the component's catalog: the renderer makes them,
+   * so they may not call an `agentOnly` function, and their arguments must
+   * match the function's definition. Component validation, which runs first
+   * and walks every nested call, has already checked the others, as decided
+   * by `nestedCallRunsInCatalog`.
    * Reserved `@` system functions belong to no catalog and are validated by
    * `PayloadValidator`; their arguments are still walked here.
    *
@@ -1308,6 +1338,10 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     currentPath: string,
   ): void {
     try {
+      // `allowedCallers` arrived in v1.0, as `PayloadValidator` also assumes.
+      if (isAtLeastVersion(target.protocolVersion, '1.0')) {
+        assertRendererMayCall(target, name);
+      }
       new PayloadValidator(target, this.validationConfig).validateFunction(
         name,
         (rawArgs ?? {}) as Record<string, unknown>,

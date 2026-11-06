@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- (v1_0) `validatePayload` accepts a `callRendererFunction` on a surface the
+  payload never named, as it does an update to one, since an earlier payload
+  may have created it. A surface the payload deleted earlier, or creates only
+  later, is still rejected. With `a2ui_core`'s checks, `validatePayload`,
+  `RendererState.apply` and the parsers also reject an `agentOnly` function
+  bound into a component, and one nested in the arguments of a
+  `callRendererFunction`, a nested `@index` call there, and a data binding
+  there that holds a non-string `@path` or a field other than `@path`. A call
+  nested there that names no `catalogId` is checked against the default
+  catalog of the surface the message names; on a surface the payload only
+  assumes, whose default catalog is unknown, it passes if some active catalog
+  declares the function and the renderer may
+  make the call
+  ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
+  [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
+- `DirectJsonPromptGenerator.generate()` follows the prompt layout
+  the other SDKs use: the rules without the `## Workflow Description:` heading,
+  then a schema block with the protocol schemas, then one schema block per
+  catalog, then the examples under `### Examples:` followed by a blank line.
+  Add your own heading around the snippet if you want one.
+  [#3567](https://github.com/a2ui-project/a2ui/pull/3567)
+
+## 0.1.0
+
 - Remove `(Agent to UI)` from the embedded v0.9 `server_to_client.json` and v1.0
   `agent_to_renderer.json` schema descriptions in `DirectJsonPromptGenerator`
   ([#1605](https://github.com/a2ui-project/a2ui/pull/1605)).
@@ -25,7 +49,7 @@
   [#3726](https://github.com/a2ui-project/a2ui/pull/3726)).
 - Support the reserved `extensions=` keyword argument on `surface(...)` and component calls in v1.0 A2UI Express (`ExpressCompiler` and `ExpressDecompiler`), compiling to and decompiling from `metadata.extensions` with UAX 31 extension key validation ([#3708](https://github.com/a2ui-project/a2ui/issues/3708), [#3757](https://github.com/a2ui-project/a2ui/pull/3757)).
 
-- Bumped `a2ui_core` constraint to `^0.4.0`.
+- Requires `a2ui_core` `^0.5.0`.
 
 - Breaking: In `ExpressCompiler`, data path assignments (`$/... = ...`) in
   scopes that update a surface (scopes without a `root` assignment) now emit one
@@ -78,11 +102,6 @@
   and keeps its `parts` in the order the model wrote them: text
   (`AnswerTextPart`), one part per surface it creates (`AnswerSurfacePart`),
   and an `AnswerErrorPart` per rejected block ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
-- Requires the `a2ui_core` release after 0.4.0, whose
-  `MessageProcessor.processMessages` takes a `validationConfig` for one call,
-  which `RendererState.of` uses. The release that publishes this version
-  raises the `a2ui_core` constraint along with that `a2ui_core` release; until
-  then the workspace resolves `a2ui_core` from this repository.
 - Breaking: `Event(...)` in Express no longer accepts the event name as a
   `name=` keyword argument; pass it positionally, as the TypeScript and Python
   compilers require. A keyword `Event` does not define now throws
@@ -93,8 +112,12 @@
   keyword `Event` does not define, where it used to drop them. A function call
   in an action slot nested inside a list item or object property (such as
   `items: [{label, action: openUrl(...)}]`) is now compiled as a
-  `functionCall` action. `ExpressDecompiler` writes `userMessage=` back
-  ([#3598](https://github.com/a2ui-project/a2ui/issues/3598)).
+  `functionCall` action. `ExpressDecompiler` writes `userMessage=` back, and
+  `ExpressPromptGenerator` teaches `Event(name, context?, userMessage=...)` in
+  rule 8 for v1.0+ catalogs
+  ([#3598](https://github.com/a2ui-project/a2ui/issues/3598),
+  [#3690](https://github.com/a2ui-project/a2ui/issues/3690),
+  [#3867](https://github.com/a2ui-project/a2ui/pull/3867)).
 - `DirectJsonParser.unwrap`, `DirectJsonResponseStream`, and
   `ExpressParser.unwrap` remove the backticks left at the edges of a block when
   a model writes the tags as inline code (`` `<a2ui>` ... `</a2ui>` `` or
@@ -128,14 +151,6 @@
   that need exponent notation (`1e-7`, `1e+21`) instead of throwing, and
   throws `A2uiValidationError` only for non-finite values
   ([#3019](https://github.com/a2ui-project/a2ui/issues/3019)).
-- Requires the next release of `a2ui_core`, which adds
-  `SurfaceComponentsModel.insertComponent`, `insertComponents`,
-  `saveReferenceFields` and `restoreReferenceFields` and
-  `SurfaceGroupModel.detachSurface`, and exports
-  `checkPathsAndRecursion` and `checkDuplicateComponentIds`. The release that
-  publishes this version raises the `a2ui_core` constraint to `^0.3.1` along
-  with that `a2ui_core` release; until then the workspace resolves
-  `a2ui_core` from this repository.
 - Breaking: `A2uiGenerator.inferenceFormatFactory` and
   `A2uiRequestProcessor.formatFactory` default to `ExpressFormatFactory`
   instead of `DirectJsonFormatFactory`.
@@ -297,7 +312,6 @@
   string with backslashes as a raw triple-quoted string, and an
   `updateDataModel` below the root as assignments at its path.
 - A check's default message has no trailing period, as in the other SDKs.
-- Bump `a2ui_core` dependency to `^0.3.0`.
 - The Direct JSON prompt lists `description` after `type` in the
   agent-to-renderer and `common_types` schemas it embeds, following the
   reordered specification files.
@@ -370,13 +384,9 @@
   messages, each following the schema, instead of "a single, raw JSON object
   (usually a list of A2UI messages)" that "MUST validate" against it
   ([#3721](https://github.com/a2ui-project/a2ui/pull/3721)).
-
-## 0.0.1-wip005
-
 - Catalogs are typed `CatalogApi`, the new name of `a2ui_core`'s
   `SchemaCatalog`.
 - `ComponentPruningTransformer` and `FunctionPruningTransformer` now accept an optional or null allowlist, treating it as empty.
-
 - Implemented the rest of the agent SDK blueprint API for protocol v0.9:
   - `CatalogProvider`, `FileSystemCatalogProvider`, `InMemoryCatalogProvider`
     and `CatalogConfig.fromPath`. A document's id and version are settled with

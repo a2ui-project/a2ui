@@ -14,13 +14,15 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterable, Sequence
+from collections.abc import AsyncIterable, Iterable, Mapping, Sequence
 import logging
 from typing import Any
 
 from a2a.types import DataPart
+from a2a.types import Message
 from a2a.types import Part
 from a2a.types import TextPart as A2aTextPart
+from pydantic import BaseModel
 
 from a2ui.constants import A2UI_CLOSE_TAG
 from a2ui.constants import A2UI_OPEN_TAG
@@ -113,6 +115,71 @@ def get_a2ui_datapart(part: Part) -> DataPart | None:
     if is_a2ui_part(part) and isinstance(part.root, DataPart):
         return part.root
     return None
+
+
+def get_a2ui_messages(source: Message | Iterable[Part]) -> list[dict[str, Any]]:
+    """Returns the A2UI messages that an A2A message's A2UI parts carry.
+
+    Each A2UI `DataPart` carries one A2UI message, such as a renderer's
+    `action` or `callAgentFunction`. Parts that aren't A2UI are skipped, so
+    compare the count with the message's parts to tell whether it holds
+    anything else.
+
+    Args:
+        source: An A2A `Message`, or its parts.
+
+    Returns:
+        The A2UI messages, in the order of the parts.
+    """
+    parts = source.parts if isinstance(source, Message) else source
+    messages: list[dict[str, Any]] = []
+    for part in parts:
+        data_part = get_a2ui_datapart(part)
+        if data_part is not None:
+            messages.append(data_part.data)
+    return messages
+
+
+def create_a2ui_parts(
+    messages: Iterable[BaseModel | Mapping[str, Any]],
+    version: ProtocolVersion | str | None = None,
+) -> list[Part]:
+    """Wraps A2UI messages, such as the replies of an RPC handler, as A2A parts.
+
+    Use it for the replies of `RendererToAgentMessageProcessor`:
+
+    ```python
+    result = await processor.process_message(message)
+    parts = create_a2ui_parts(result.replies)
+    ```
+
+    Args:
+        messages: The A2UI messages, as schema models or as parsed JSON.
+            Models are serialized as by `to_message_dicts`: JSON-ready, by
+            wire alias, with only the fields that were set (which keeps a
+            `value` of `None` in an `agentFunctionResponse`), plus the
+            model's `version` for v0.9 and later.
+        version: The A2UI version, as for `create_a2ui_part`. Defaults to
+            each message's own `version` field.
+
+    Returns:
+        One A2UI part per message, in order.
+    """
+    parts: list[Part] = []
+    for message in messages:
+        if isinstance(message, BaseModel):
+            # Serialized as `to_message_dicts` does, which takes only
+            # agent-to-renderer models.
+            data = message.model_dump(mode="json", by_alias=True, exclude_unset=True)
+            msg_version = getattr(message, "version", None)
+            if msg_version == "v0.8":
+                data.pop("version", None)
+            elif isinstance(msg_version, str) and "version" not in data:
+                data = {"version": msg_version, **data}
+        else:
+            data = dict(message)
+        parts.append(create_a2ui_part(data, version=version))
+    return parts
 
 
 def to_a2a_parts(
