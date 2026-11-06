@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add `readRendererCapabilities(metadata, version)`, `a2uiClientCapabilitiesKey`,
+  and `a2uiRendererCapabilitiesKey` to extract and validate
+  `A2uiRendererCapabilities` from transport metadata.
+  [#4013](https://github.com/a2ui-project/a2ui/pull/4013)
 - (v1_0) `validatePayload` accepts a `callRendererFunction` on a surface the
   payload never named, as it does an update to one, since an earlier payload
   may have created it. A surface the payload deleted earlier, or creates only
