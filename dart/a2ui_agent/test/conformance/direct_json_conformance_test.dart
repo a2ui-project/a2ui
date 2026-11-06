@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:convert';
+
 import 'package:a2ui_agent/a2ui_agent.dart';
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
@@ -49,6 +51,7 @@ const Map<String, Set<String>> _knownKeys = {
   'case:generate_prompt_snippet': {
     ...caseMetadataKeys,
     'args',
+    'expect_contains',
     'expect_deterministic',
     'expect_error',
     'expect_file',
@@ -137,11 +140,15 @@ void main() {
 /// data model, which only lowering a whole payload can split.
 const Set<String> _v1OnlyCases = {
   'test_compile_json_newline_in_create_surface_data_model_preserved',
+  'test_decompile_json_call_renderer_function',
+  'test_decompile_json_catalog_qualified_components',
+  'test_parse_response_call_renderer_function_renderer_or_agent_succeeds',
   'test_stream_create_surface_inline_components_v10',
   'test_stream_create_surface_inline_components_in_small_chunks_v10',
   'test_stream_multi_catalog_resolution_v10',
   'test_stream_component_catalog_id_arrives_late_v10',
   'test_stream_catalog_id_split_across_chunks_v10',
+  'test_stream_second_block_calling_renderer_only_function_fails_v10',
 };
 
 /// Whether the catalogs of [testCase] target v1.0, as most cases' do.
@@ -165,8 +172,29 @@ String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
       return 'The snippet embeds the schemas of the catalogs\' version, so '
           'the case runs as written in v1.0 only.';
     }
+    if (_sendsCallRendererFunction(testCase)) {
+      return 'Protocol v0.9 has no callRendererFunction message.';
+    }
   }
   return null;
+}
+
+/// Whether a message in the input of [testCase], JSON text of a list of
+/// messages, is a `callRendererFunction`.
+bool _sendsCallRendererFunction(Map<String, Object?> testCase) {
+  final Object? input = testCase['input'];
+  if (input is! String) return false;
+  final Object? messages;
+  try {
+    messages = jsonDecode(input);
+  } on FormatException {
+    return false;
+  }
+  return messages is List &&
+      messages.any(
+        (Object? message) =>
+            message is Map && message.containsKey('callRendererFunction'),
+      );
 }
 
 void _runCase(Map<String, Object?> testCase, SuiteVersion version) {

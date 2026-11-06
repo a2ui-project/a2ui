@@ -28,14 +28,22 @@ import {
   ResponsePart,
 } from '../../src/index.js';
 import {AgentToRendererMessage} from '../../src/internal/web-core.js';
-import {createFileCatalogConfig} from './fixtures.js';
 import {CONFORMANCE_ROOT, loadCases} from './loader.js';
+import {
+  firstCatalogId,
+  injectedCatalogId,
+  liftMessages,
+  liftParts,
+  loadCatalogFromRelativePath,
+  lowerMessages,
+  lowerText,
+} from './lowering.js';
 import {
   assertKnownKeys,
   CASE_METADATA_KEYS,
   compileChecked,
-  describeSuite,
   EXPECT_ERROR_KEYS,
+  forEachSuiteVersion,
   KNOWN_FAILURES,
   UNSUPPORTED,
 } from './suite-helpers.js';
@@ -153,10 +161,13 @@ function assertRawPartsMatch(
 function assertPartsMatch(
   actualParts: ResponsePart[],
   expectedParts: Array<Record<string, unknown>>,
+  lower = false,
+  injId?: string,
 ): void {
-  expect(actualParts.length).toBe(expectedParts.length);
-  for (let i = 0; i < actualParts.length; i++) {
-    const actual = actualParts[i];
+  const liftedActual = lower ? liftParts(actualParts, {injectedCatalogId: injId}) : actualParts;
+  expect(liftedActual.length).toBe(expectedParts.length);
+  for (let i = 0; i < liftedActual.length; i++) {
+    const actual = liftedActual[i];
     const expected = expectedParts[i];
     if (actual.type === 'text') {
       expect(actual.text).toBe(expected.text ?? '');
@@ -166,14 +177,15 @@ function assertPartsMatch(
   }
 }
 
-describeSuite(
+forEachSuiteVersion(
   'Direct JSON Conformance Suite',
   loadCases([
     resolve(CONFORMANCE_ROOT, 'agent/direct_json/compiler.yaml'),
     resolve(CONFORMANCE_ROOT, 'agent/direct_json/decompiler.yaml'),
     resolve(CONFORMANCE_ROOT, 'agent/direct_json/response_parser.yaml'),
   ]),
-  async testCase => {
+  async (testCase, version) => {
+    const isLowered = version === 'v0.9-lowered';
     const {action} = testCase;
     const allowedKeys = DIRECT_JSON_CASE_KEYS[action];
     if (allowedKeys) {
@@ -188,11 +200,13 @@ describeSuite(
     } else {
       catalogPaths.push('test_data/catalogs/simplified_catalog_v1_0.json');
     }
-    const catalogs = catalogPaths.map(p => createFileCatalogConfig(p).catalog);
+    const catalogs = catalogPaths.map(p => loadCatalogFromRelativePath(p, isLowered));
     const parser = new DirectJsonParser(catalogs);
+    const injId = isLowered ? injectedCatalogId(testCase) : undefined;
 
     if (action === 'compile') {
-      const payload = testCase.input as string;
+      const rawInput = testCase.input as string;
+      const payload = isLowered ? lowerText(rawInput, injId) : rawInput;
 
       if (testCase.expect_error) {
         assertThrows(
@@ -204,7 +218,10 @@ describeSuite(
         return;
       }
 
-      const compiled = compileChecked(parser, payload);
+      const rawCompiled = compileChecked(parser, payload);
+      const compiled = isLowered
+        ? liftMessages(rawCompiled, {injectedCatalogId: injId})
+        : rawCompiled;
 
       if (testCase.expect_present) {
         for (const pointer of testCase.expect_present as string[]) {
@@ -216,7 +233,20 @@ describeSuite(
 
       expect(compiled).toEqual(testCase.expect);
     } else if (action === 'decompile') {
-      const messages = testCase.messages as AgentToRendererMessage[];
+      const origMessages = testCase.messages as AgentToRendererMessage[];
+      const hasExplicitCatalogId = origMessages.some(
+        m =>
+          typeof m === 'object' &&
+          m !== null &&
+          'createSurface' in m &&
+          typeof m.createSurface === 'object' &&
+          m.createSurface !== null &&
+          'catalogId' in m.createSurface,
+      );
+      const defaultCatId = firstCatalogId(args);
+      const messages = isLowered
+        ? lowerMessages(origMessages as unknown as Record<string, unknown>[], defaultCatId)
+        : origMessages;
 
       const notation = parser.decompile(messages);
 
@@ -227,7 +257,13 @@ describeSuite(
       }
 
       if (testCase.expect_round_trip) {
-        expect(compileChecked(parser, notation)).toEqual(messages);
+        const recompiled = compileChecked(parser, notation);
+        const lifted = isLowered
+          ? liftMessages(recompiled, {
+              injectedCatalogId: hasExplicitCatalogId ? undefined : defaultCatId,
+            })
+          : recompiled;
+        expect(lifted).toEqual(origMessages);
       }
     } else if (action === 'unwrap') {
       const expected = testCase.expect as Array<Record<string, unknown>>;
@@ -269,19 +305,21 @@ describeSuite(
       }
     } else if (action === 'parse_response') {
       const wrapped = (args.wrapped as boolean) ?? true;
+      const rawInput = testCase.input as string;
+      const payload = isLowered ? lowerText(rawInput, injId) : rawInput;
 
       if (testCase.expect_error) {
         assertThrows(
           () => {
-            parser.parseResponse(testCase.input as string, {wrapped});
+            parser.parseResponse(payload, {wrapped});
           },
           testCase.expect_error as Record<string, unknown>,
         );
         return;
       }
 
-      const parts = parser.parseResponse(testCase.input as string, {wrapped});
-      assertPartsMatch(parts, testCase.expect as Array<Record<string, unknown>>);
+      const parts = parser.parseResponse(payload, {wrapped});
+      assertPartsMatch(parts, testCase.expect as Array<Record<string, unknown>>, isLowered, injId);
     } else {
       throw new Error(`Unsupported action in direct_json conformance: ${action}`);
     }

@@ -31,7 +31,7 @@ from .errors import (
     A2uiCompilationParseError,
     A2uiCompilationValidationError,
 )
-from .lexer import BlockLexer
+from .lexer import JSON_PAYLOAD_START_RE, BlockLexer
 from .messages import (
     normalize_prompt_example_messages,
     to_message_dicts,
@@ -58,6 +58,7 @@ __all__ = [
     "BlockLexer",
     "ErrorPart",
     "DEFAULT_ROOT_ID",
+    "JSON_PAYLOAD_START_RE",
     "MSG_TYPE_AGENT_FUNCTION_RESPONSE",
     "MSG_TYPE_BEGIN_RENDERING",
     "MSG_TYPE_CALL_RENDERER_FUNCTION",

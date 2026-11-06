@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {appendFileSync, mkdirSync} from 'fs';
+import {mkdirSync, writeFileSync} from 'fs';
 import {join} from 'path';
 
 import {afterEach} from 'vitest';
@@ -28,6 +28,7 @@ export interface ActiveCase {
   skipReason?: string;
   unexpectedError?: Error;
   recorded?: boolean;
+  version?: string;
 }
 
 const activeCases = new WeakMap<object, ActiveCase>();
@@ -44,34 +45,92 @@ export function getActiveCase(task: object): ActiveCase | undefined {
   return activeCases.get(task);
 }
 
+interface Outcome {
+  status: CaseStatus;
+  reason?: string;
+}
+
+interface ManifestEntry {
+  suite: string;
+  name: string;
+  outcomes: Map<string, Outcome>;
+}
+
+/** Records per manifest directory, so a test that redirects the directory starts empty. */
+const manifestRecordsByDir = new Map<string, Map<string, ManifestEntry>>();
+
+function combineOutcomes(outcomes: ReadonlyMap<string, Outcome>): Outcome {
+  for (const target of ['failed', 'xfailed'] as const) {
+    for (const outcome of outcomes.values()) {
+      if (outcome.status === target) {
+        return outcome;
+      }
+    }
+  }
+  for (const outcome of outcomes.values()) {
+    if (outcome.status === 'skipped' && !outcome.reason) {
+      return {status: 'skipped'};
+    }
+  }
+  for (const outcome of outcomes.values()) {
+    if (outcome.status === 'passed') {
+      return {status: 'passed'};
+    }
+  }
+  for (const outcome of outcomes.values()) {
+    if (outcome.reason) {
+      return {status: 'skipped', reason: outcome.reason};
+    }
+  }
+  return {status: 'skipped'};
+}
+
 /**
- * Appends one executed-case manifest entry for the TypeScript agent harness when
- * `A2UI_CONFORMANCE_MANIFEST_DIR` is set.
+ * Records one executed-case manifest entry for the TypeScript agent harness when
+ * `A2UI_CONFORMANCE_MANIFEST_DIR` is set, merging outcomes across protocol versions.
  */
 export function recordCase(
   suite: string,
   testCase: string,
   status: CaseStatus,
   reason?: string,
+  versionKey = 'default',
 ): void {
   const manifestDir = process.env['A2UI_CONFORMANCE_MANIFEST_DIR'];
   if (!manifestDir) {
     return;
   }
   mkdirSync(manifestDir, {recursive: true});
-  const record: Record<string, string> = {
-    harness: 'ts-agent',
-    suite,
-    case: testCase,
-    status,
-  };
-  const trimmed = reason?.trim();
-  if (trimmed) {
-    record['reason'] = trimmed;
+  let manifestRecords = manifestRecordsByDir.get(manifestDir);
+  if (!manifestRecords) {
+    manifestRecords = new Map();
+    manifestRecordsByDir.set(manifestDir, manifestRecords);
+  }
+  const key = `${suite}::${testCase}`;
+  let entry = manifestRecords.get(key);
+  if (!entry) {
+    entry = {suite, name: testCase, outcomes: new Map()};
+    manifestRecords.set(key, entry);
+  }
+  entry.outcomes.set(versionKey, {status, reason: reason?.trim() || undefined});
+
+  const lines: string[] = [];
+  for (const item of manifestRecords.values()) {
+    const merged = combineOutcomes(item.outcomes);
+    const record: Record<string, string> = {
+      harness: 'ts-agent',
+      suite: item.suite,
+      case: item.name,
+      status: merged.status,
+    };
+    if (merged.reason) {
+      record['reason'] = merged.reason;
+    }
+    lines.push(JSON.stringify(record));
   }
   const workerId = process.env['VITEST_WORKER_ID'] ?? '0';
   const filePath = join(manifestDir, `ts-agent-${process.pid}-${workerId}.jsonl`);
-  appendFileSync(filePath, `${JSON.stringify(record)}\n`, 'utf8');
+  writeFileSync(filePath, `${lines.join('\n')}\n`, 'utf8');
 }
 
 /**
@@ -88,8 +147,8 @@ export function registerAfterEachManifestRecorder(): void {
     current.recorded = true;
     const state = ctx.task.result?.state;
     if (state === 'skip') {
-      const reason = current.skipReason?.trim() || ctx.task.result?.note?.trim() || 'skipped';
-      recordCase(current.suite, current.name, 'skipped', reason);
+      const reason = current.skipReason?.trim() || ctx.task.result?.note?.trim() || undefined;
+      recordCase(current.suite, current.name, 'skipped', reason, current.version);
       return;
     }
     if (ctx.task.fails) {
@@ -99,6 +158,7 @@ export function registerAfterEachManifestRecorder(): void {
           current.name,
           'failed',
           current.unexpectedError.message.trim() || 'test failed',
+          current.version,
         );
         return;
       }
@@ -109,6 +169,7 @@ export function registerAfterEachManifestRecorder(): void {
           current.name,
           'failed',
           firstError.message?.trim() || 'test failed',
+          current.version,
         );
         return;
       }
@@ -120,17 +181,18 @@ export function registerAfterEachManifestRecorder(): void {
           current.name,
           'xfailed',
           current.knownFailure?.trim() || 'known failure',
+          current.version,
         );
       } else {
-        recordCase(current.suite, current.name, 'failed', 'Expected test to fail');
+        recordCase(current.suite, current.name, 'failed', 'Expected test to fail', current.version);
       }
       return;
     }
     if (state === 'pass') {
-      recordCase(current.suite, current.name, 'passed');
+      recordCase(current.suite, current.name, 'passed', undefined, current.version);
     } else {
       const message = ctx.task.result?.errors?.[0]?.message?.trim() || 'test failed';
-      recordCase(current.suite, current.name, 'failed', message);
+      recordCase(current.suite, current.name, 'failed', message, current.version);
     }
   });
 }
