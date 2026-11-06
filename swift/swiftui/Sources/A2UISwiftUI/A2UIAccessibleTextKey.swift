@@ -22,6 +22,7 @@ import SwiftUI
 /// container such as a `Column` or `Card` both announce their updates without the adapter
 /// knowing any catalog property names. A hidden subtree reports no text, and a live region
 /// reports none to its ancestors, so an update is announced once, by the nearest live region.
+/// Components report text only inside a live region, so the rest of a surface does no extra work.
 public struct A2UIAccessibleTextKey: PreferenceKey {
   public static let defaultValue: [String] = []
 

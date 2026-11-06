@@ -38,6 +38,9 @@ struct LiveRegionTextTests {
   }
 
   /// Hosts a surface and keeps it on screen while the test inspects the reported text.
+  ///
+  /// With `inLiveRegion`, the surface and the recorder sit inside a live region, which is where
+  /// components report their text. The recorder sits below the region, which consumes the text.
   @MainActor
   private final class HostedSurface {
     let recorder = TextRecorder()
@@ -49,15 +52,22 @@ struct LiveRegionTextTests {
       private let window: UIWindow
     #endif
 
-    init(viewModel: SurfaceViewModel) {
+    init(viewModel: SurfaceViewModel, inLiveRegion: Bool = true) {
       let recorder = recorder
-      let rootView = AnyView(
-        Surface(viewModel: viewModel, catalogs: BasicCatalogImplementation.allCatalogs)
-          .frame(width: 400, height: 400)
-          .onPreferenceChange(A2UIAccessibleTextKey.self) { text in
-            MainActor.assumeIsolated { recorder.text = text }
-          }
+      let recorded = Surface(viewModel: viewModel, catalogs: BasicCatalogImplementation.allCatalogs)
+        .frame(width: 400, height: 400)
+        .onPreferenceChange(A2UIAccessibleTextKey.self) { text in
+          MainActor.assumeIsolated { recorder.text = text }
+        }
+      let region = Node(
+        id: "region",
+        type: "Column",
+        properties: ["accessibility": ResolvedDictionary(["live": "polite"])]
       )
+      let rootView =
+        inLiveRegion
+        ? AnyView(recorded.modifier(A2UIAccessibilityModifier(node: region)))
+        : AnyView(recorded)
       let frame = CGRect(x: 0, y: 0, width: 400, height: 400)
       #if canImport(AppKit)
         hostingView = NSHostingView(rootView: rootView)
@@ -182,7 +192,17 @@ struct LiveRegionTextTests {
       ["id": "title", "component": "Text", "text": "**Order** status", "variant": "caption"],
       [
         "id": "body", "component": "Text",
-        "text": "# Shipped\n\nYour order *left* the warehouse.\n\n- Box one\n- Box two",
+        "text": """
+        # Shipped
+
+        Your order *left* the warehouse.
+
+        - Box one
+        - Box two
+
+        1. Unpack
+        2. Check the **contents**
+        """,
       ],
       [
         "id": "secret", "component": "Text", "text": "Internal note",
@@ -200,7 +220,8 @@ struct LiveRegionTextTests {
     #expect(
       host.recorder.text == [
         "Order status",
-        "Shipped\nYour order left the warehouse.\nBox one\nBox two",
+        "Shipped\nYour order left the warehouse.\nBox one\nBox two\n1. Unpack\n"
+          + "2. Check the contents",
       ])
   }
 
@@ -230,6 +251,16 @@ struct LiveRegionTextTests {
     host.flush()
 
     #expect(host.recorder.text == ["Status", "Connected"])
+  }
+
+  @Test func textOutsideLiveRegionsReportsNothing() async throws {
+    let (_, surface) = try await makeSurface(components: [
+      ["id": "root", "component": "Column", "children": ["status"]],
+      ["id": "status", "component": "Text", "text": "Connected"],
+    ])
+    let host = HostedSurface(viewModel: surface, inLiveRegion: false)
+
+    #expect(host.recorder.text?.isEmpty ?? true)
   }
 
   @Test func liveContainerKeepsItsSubtreeText() async throws {

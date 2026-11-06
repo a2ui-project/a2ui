@@ -46,7 +46,7 @@ extension A2UIText {
       if !blocks.isEmpty, run.presentationIntent == currentIntent {
         blocks[blocks.count - 1] += runText
       } else {
-        blocks.append(runText)
+        blocks.append(orderedListNumber(run.presentationIntent) + runText)
       }
       currentIntent = run.presentationIntent
     }
@@ -55,5 +55,23 @@ extension A2UIText {
       .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
       .filter { !$0.isEmpty }
       .joined(separator: "\n")
+  }
+
+  /// The number shown before an ordered list item, such as `"2. "`, or `""` for any other block.
+  /// The numbers are on screen and give the order of the steps, so they are read too.
+  private static func orderedListNumber(_ intent: PresentationIntent?) -> String {
+    // Components run from the innermost block outwards.
+    guard let components = intent?.components,
+      let itemIndex = components.firstIndex(where: {
+        if case .listItem = $0.kind { return true }
+        return false
+      }),
+      case .listItem(let ordinal) = components[itemIndex].kind,
+      itemIndex + 1 < components.count,
+      case .orderedList = components[itemIndex + 1].kind
+    else {
+      return ""
+    }
+    return "\(ordinal). "
   }
 }

@@ -123,6 +123,7 @@ public struct A2UIAccessibilityModifier: ViewModifier {
         .accessibilityHidden(true)
         // Text that assistive technologies can't reach is not announced by a live ancestor.
         .transformPreference(A2UIAccessibleTextKey.self) { $0 = [] }
+        .environment(\.a2uiInLiveRegion, false)
     } else {
       view
     }
@@ -132,6 +133,7 @@ public struct A2UIAccessibilityModifier: ViewModifier {
   private func liveRegion<V: View>(_ view: V) -> some View {
     if isLiveRegion && !isHidden {
       view
+        .environment(\.a2uiInLiveRegion, true)
         .overlayPreferenceValue(A2UIAccessibleTextKey.self) { subtreeText in
           Color.clear
             .accessibilityHidden(true)
