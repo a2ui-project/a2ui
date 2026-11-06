@@ -39,6 +39,7 @@
 
 import type React from 'react';
 import {
+  Component,
   createContext,
   memo,
   useCallback,
@@ -455,6 +456,88 @@ export const HostedChildren: React.FC<{
   );
 };
 
+interface NodeErrorBoundaryProps {
+  node: ComponentNode<ReactCatalogComponent>;
+  surface: SurfaceModel<ReactCatalogComponent>;
+  children: React.ReactNode;
+}
+
+interface NodeErrorBoundaryState {
+  failed: boolean;
+}
+
+class NodeErrorBoundary extends Component<NodeErrorBoundaryProps, NodeErrorBoundaryState> {
+  override state: NodeErrorBoundaryState = {failed: false};
+  private reported = false;
+  private unsubscribe?: () => void;
+
+  static getDerivedStateFromError(): NodeErrorBoundaryState {
+    return {failed: true};
+  }
+
+  override componentDidMount(): void {
+    this.subscribeToNodeProps();
+  }
+
+  override componentDidUpdate(prevProps: NodeErrorBoundaryProps): void {
+    if (prevProps.node !== this.props.node) {
+      this.subscribeToNodeProps();
+      if (this.state.failed) {
+        this.reported = false;
+        this.setState({failed: false});
+      }
+    }
+  }
+
+  override componentWillUnmount(): void {
+    this.unsubscribe?.();
+  }
+
+  private subscribeToNodeProps(): void {
+    this.unsubscribe?.();
+    let lastProps = getValue(this.props.node.props);
+    this.unsubscribe = effect(() => {
+      const nextProps = getValue(this.props.node.props);
+      if (nextProps === lastProps) {
+        return;
+      }
+      lastProps = nextProps;
+      if (this.state.failed) {
+        this.reported = false;
+        this.setState({failed: false});
+      }
+    });
+  }
+
+  override componentDidCatch(error: unknown): void {
+    if (this.reported) {
+      return;
+    }
+    this.reported = true;
+    const {node, surface} = this.props;
+    const componentId = node.componentId;
+    const componentType = node.type;
+    const message = error instanceof Error ? error.message : String(error);
+    void surface.dispatchError({
+      code: 'COMPONENT_RENDER_ERROR',
+      message,
+      componentId,
+      componentType,
+      details: {
+        componentId,
+        componentType,
+      },
+    });
+  }
+
+  override render(): React.ReactNode {
+    if (this.state.failed) {
+      return null;
+    }
+    return this.props.children;
+  }
+}
+
 /**
  * The content of one host: the node's implementation, with children as their
  * elements. Memoized so a registry update, which re-renders `HostedChildren`,
@@ -499,9 +582,14 @@ export const NodeContent = memo(({node}: {node: ComponentNode<ReactCatalogCompon
   }
   const View = impl.view;
 
-  if (!View) {
-    return <RenderFallback node={node} impl={impl} buildChild={buildChild} />;
-  }
-  return <View node={node} buildChild={buildChild} />;
+  return (
+    <NodeErrorBoundary key={node.id} node={node} surface={surface}>
+      {View ? (
+        <View node={node} buildChild={buildChild} />
+      ) : (
+        <RenderFallback node={node} impl={impl} buildChild={buildChild} />
+      )}
+    </NodeErrorBoundary>
+  );
 });
 NodeContent.displayName = 'NodeContent';

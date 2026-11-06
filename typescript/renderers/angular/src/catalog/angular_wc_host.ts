@@ -171,7 +171,7 @@ export class AngularWcHost extends HTMLElement {
       lastProps = nextProps;
       const notify = () => {
         if (this.hasSameBoundKeys(nextProps, node.context?.componentModel.properties)) {
-          this.componentRef?.changeDetectorRef.detectChanges();
+          this.detectChanges();
         } else {
           this.updateContext();
         }
@@ -273,7 +273,50 @@ export class AngularWcHost extends HTMLElement {
     this.componentRef.setInput('componentId', node?.componentId ?? context!.componentModel.id);
     this.componentRef.setInput('dataContextPath', node?.dataPath ?? context!.dataContext.path);
 
-    this.componentRef.changeDetectorRef.detectChanges();
+    this.detectChanges();
+  }
+
+  private detectChanges(): void {
+    if (!this.componentRef) return;
+    try {
+      this.componentRef.changeDetectorRef.detectChanges();
+    } catch (err) {
+      this.handleRenderError(err);
+    }
+  }
+
+  private handleRenderError(err: unknown): void {
+    const node = this._node;
+    const context = this._context ?? node?.context;
+    const surface = context?.dataContext.surface;
+    const componentId = node?.componentId ?? context?.componentModel.id ?? '';
+    const componentType = node?.type ?? context?.componentModel.type ?? '';
+    const message = err instanceof Error ? err.message : String(err);
+
+    this.unbindAccessibility();
+    this.contextSubscription?.unsubscribe();
+    this.contextSubscription = undefined;
+    this.binder?.unbind(this.boundProps);
+    this.boundProps = undefined;
+    const ref = this.componentRef;
+    this.componentRef = undefined;
+    if (ref) {
+      this.appRef?.detachView(ref.hostView);
+      ref.destroy();
+    }
+    this.replaceChildren();
+    this.style.display = 'none';
+
+    void surface?.dispatchError({
+      code: 'COMPONENT_RENDER_ERROR',
+      message,
+      componentId,
+      componentType,
+      details: {
+        componentId,
+        componentType,
+      },
+    });
   }
 
   /** Keeps the ARIA attributes in step with the node while the element is connected. */
@@ -300,13 +343,15 @@ export class AngularWcHost extends HTMLElement {
     this.contextSubscription = undefined;
     this.binder?.unbind(this.boundProps);
     this.boundProps = undefined;
-    if (this.componentRef) {
-      this.appRef?.detachView(this.componentRef.hostView);
-      this.componentRef.destroy();
-      this.componentRef = undefined;
-      this.appRef = undefined;
-      this.binder = undefined;
-      this.ngZone = undefined;
+    const ref = this.componentRef;
+    const appRef = this.appRef;
+    this.componentRef = undefined;
+    this.appRef = undefined;
+    this.binder = undefined;
+    this.ngZone = undefined;
+    if (ref) {
+      appRef?.detachView(ref.hostView);
+      ref.destroy();
     }
   }
 }

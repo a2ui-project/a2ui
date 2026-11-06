@@ -18,10 +18,14 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
+  ComponentRef,
   DestroyRef,
+  DoCheck,
   ElementRef,
   Injector,
   Type,
+  ViewChild,
+  ViewContainerRef,
   computed,
   inject,
   input,
@@ -31,7 +35,6 @@ import {
   untracked,
   NgZone,
 } from '@angular/core';
-import {NgComponentOutlet} from '@angular/common';
 import {
   type A2uiMetadata,
   ComponentContext,
@@ -115,7 +118,7 @@ function findNodeInList(
  * Dynamically renders an A2UI component as defined in the current surface model.
  *
  * This component acts as a bridge between the A2UI surface model and UI components.
- * It can render both native Angular `@Component` implementations (via `NgComponentOutlet`)
+ * It can render both native Angular `@Component` implementations
  * and universal W3C Web Components (by instantiating and appending the custom element tag).
  *
  * The component to render is the resolved `ComponentNode` for `componentKey`: a
@@ -128,30 +131,26 @@ function findNodeInList(
  */
 @Component({
   selector: 'a2ui-v09-component-host',
-  imports: [NgComponentOutlet],
   // The Angular component this host mounts marks its elements in these.
   providers: [provideAccessibilityTargets()],
   host: {
     style: 'display: contents;',
     // Marks a host that renders nothing (its component has not resolved), so a container that
     // wraps each child in an item element can drop that item too (see ListComponent).
-    '[attr.data-a2ui-empty]': 'componentType() ? null : ""',
+    '[attr.data-a2ui-empty]': 'isHostEmpty() ? "" : null',
   },
-  // The quotes around the input keys passed to *ngComponentOutlet are critical to survive Closure
-  // minification. Prettier keeps them (`quoteProps: "preserve"` in the root `.prettierrc`).
-  template: `
-    @if (componentType()) {
-      <ng-container *ngComponentOutlet="componentType()!; inputs: componentInputs()"></ng-container>
-    }
-  `,
+  template: `<ng-container #vc></ng-container>`,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ComponentHostComponent {
+export class ComponentHostComponent implements DoCheck {
   /** The key of the component to render, either an ID string or a child reference. Defaults to 'root'. */
   componentKey = input<ComponentKey>('root');
 
   /** The unique identifier of the surface this component belongs to. */
   surfaceId = input.required<string>();
+
+  @ViewChild('vc', {read: ViewContainerRef, static: true})
+  private readonly vcr!: ViewContainerRef;
 
   private readonly elementRef = inject(ElementRef<HTMLElement>);
   private readonly rendererService = inject(A2uiRendererService);
@@ -167,6 +166,7 @@ export class ComponentHostComponent {
   protected readonly componentType = signal<Type<CatalogComponentInstance> | null>(null);
   protected readonly props = signal<Record<string, BoundProperty>>({});
   protected readonly metadata = signal<A2uiMetadata | undefined>(undefined);
+  protected readonly isHostEmpty = computed(() => !this.componentType());
   protected readonly acceptsMetadata = computed(() => {
     const type = this.componentType();
     if (!type) return false;
@@ -176,10 +176,10 @@ export class ComponentHostComponent {
   protected readonly componentInputs = computed<Record<string, unknown>>(() => {
     const inputs: Record<string, unknown> = {
       // Quoted to prevent property renaming under Closure Compiler.
-      'props': this.props(),
-      'surfaceId': this.surfaceId(),
-      'componentId': this.resolvedComponentId,
-      'dataContextPath': this.resolvedDataContextPath,
+      props: this.props(),
+      surfaceId: this.surfaceId(),
+      componentId: this.resolvedComponentId,
+      dataContextPath: this.resolvedDataContextPath,
     };
     if (this.acceptsMetadata()) {
       inputs['metadata'] = this.metadata();
@@ -192,6 +192,8 @@ export class ComponentHostComponent {
   private resolvedNode?: AngularNode;
   private activeSurface?: SurfaceModel<AngularComponentImplementation>;
   private mountedWcEl: UniversalComponentHostElement | null = null;
+  private mountedComponentRef: ComponentRef<CatalogComponentInstance> | null = null;
+  private availableInputs = new Set<string>();
 
   protected resolvedComponentId: string = '';
   protected resolvedDataContextPath: string = '/';
@@ -327,13 +329,25 @@ export class ComponentHostComponent {
     console.warn(`Component ${id} not found in surface ${surface.id}. Waiting for it...`);
   }
 
+  ngDoCheck(): void {
+    this.syncChildInputs();
+    this.detectChildChanges();
+  }
+
   private setupAngularComponent(
     componentClass: Type<CatalogComponentInstance>,
     node: AngularNode,
   ): void {
+    this.vcr.clear();
+    this.mountedComponentRef = null;
     this.componentType.set(componentClass);
-    this.updateProps();
+    const mirror = reflectComponentType(componentClass);
+    this.availableInputs = new Set(mirror?.inputs.map(i => i.templateName) ?? []);
+    this.mountedComponentRef = this.vcr.createComponent(componentClass, {
+      injector: this.injector,
+    });
     this.metadata.set(getValue(node.metadata));
+    this.updateProps();
     // A Web Component applies its own accessibility attributes; an Angular
     // component gets them on this host.
     this.stopAccessibility = bindHostAccessibility(
@@ -341,6 +355,10 @@ export class ComponentHostComponent {
       node,
       this.accessibilityTargets,
     );
+    this.detectChildChanges();
+    if (!this.mountedComponentRef) {
+      return;
+    }
 
     let lastProps = getValue(node.props);
     this.stopProps = webCoreEffect(() => {
@@ -349,9 +367,11 @@ export class ComponentHostComponent {
       lastProps = nextProps;
       this.ngZone.run(() => {
         if (this.hasSameBoundKeys(nextProps, node.context?.componentModel.properties)) {
+          this.detectChildChanges();
           this.cdr.markForCheck();
         } else {
           this.updateProps();
+          this.detectChildChanges();
         }
       });
     });
@@ -362,6 +382,8 @@ export class ComponentHostComponent {
       lastMeta = nextMeta;
       this.ngZone.run(() => {
         this.metadata.set(nextMeta);
+        this.syncChildInputs();
+        this.detectChildChanges();
         this.cdr.markForCheck();
       });
     });
@@ -376,7 +398,62 @@ export class ComponentHostComponent {
     const nextProps = this.binder.bindNode(this.resolvedNode);
     this.currentBoundProps = nextProps;
     this.props.set(nextProps);
+    this.syncChildInputs();
     this.cdr.markForCheck();
+  }
+
+  private syncChildInputs(): void {
+    if (!this.mountedComponentRef) return;
+    const inputs = this.componentInputs();
+    for (const [name, value] of Object.entries(inputs)) {
+      if (this.availableInputs.has(name)) {
+        this.mountedComponentRef.setInput(name, value);
+      }
+    }
+  }
+
+  private detectChildChanges(): void {
+    if (!this.mountedComponentRef) return;
+    try {
+      this.mountedComponentRef.changeDetectorRef.detectChanges();
+    } catch (err) {
+      this.handleRenderError(err);
+    }
+  }
+
+  private handleRenderError(err: unknown): void {
+    const surface = this.activeSurface;
+    const node = this.resolvedNode;
+    const componentId = node?.componentId ?? this.resolvedComponentId;
+    const componentType = node?.type ?? surface?.componentsModel.get(componentId)?.type ?? '';
+    const message = err instanceof Error ? err.message : String(err);
+
+    this.stopProps?.();
+    this.stopProps = undefined;
+    this.stopMetadata?.();
+    this.stopMetadata = undefined;
+    this.stopAccessibility?.();
+    this.stopAccessibility = undefined;
+    if (this.currentBoundProps) {
+      this.binder.unbind(this.currentBoundProps);
+      this.currentBoundProps = undefined;
+    }
+    this.mountedComponentRef = null;
+    this.availableInputs.clear();
+    this.vcr.clear();
+    this.componentType.set(null);
+    this.cdr.markForCheck();
+
+    void surface?.dispatchError({
+      code: 'COMPONENT_RENDER_ERROR',
+      message,
+      componentId,
+      componentType,
+      details: {
+        componentId,
+        componentType,
+      },
+    });
   }
 
   private hasSameBoundKeys(
@@ -426,6 +503,9 @@ export class ComponentHostComponent {
     this.resolvedNode = undefined;
     this.activeSurface = undefined;
 
+    this.mountedComponentRef = null;
+    this.availableInputs.clear();
+    this.vcr?.clear();
     this.componentType.set(null);
     if (this.currentBoundProps) {
       this.binder.unbind(this.currentBoundProps);
