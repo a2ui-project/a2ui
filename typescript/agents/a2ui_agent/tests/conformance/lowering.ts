@@ -541,7 +541,7 @@ export function v09SkipReason(testCase: LoadedCase): string | undefined {
   if (args && args['format'] === 'direct_json' && testCase.action === 'generate_prompt_snippet') {
     return "The Direct JSON snippet embeds the schemas of the catalogs' version, so the case runs as written in v1.0 only.";
   }
-  if (JSON.stringify(testCase).includes('"callRendererFunction"')) {
+  if (JSON.stringify(testCase).includes('callRendererFunction')) {
     return 'Protocol v0.9 has no callRendererFunction message.';
   }
   return undefined;

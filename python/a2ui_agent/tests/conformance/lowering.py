@@ -557,7 +557,7 @@ def v09_skip_reason(suite: str, case: Mapping[str, Any]) -> str | None:
             "The Direct JSON snippet embeds the schemas of the catalogs'"
             " version, so the case runs as written in v1.0 only."
         )
-    if '"callRendererFunction"' in json.dumps(case):
+    if "callRendererFunction" in json.dumps(case):
         return "Protocol v0.9 has no callRendererFunction message."
     return None
 

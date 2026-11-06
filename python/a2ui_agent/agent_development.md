@@ -898,3 +898,30 @@ payload that calls one depends on its validation settings:
    still routes the calls. A strict renderer can take those declarations from
    the agent's catalog document: `catalog.to_json()` writes agent functions
    like any other function, without the handler.
+
+#### 5d. With A2A and ADK
+
+Over A2A, each A2UI message is one `DataPart` of the A2A message.
+`a2ui-a2a` reads them with `get_a2ui_messages(message)` and wraps the
+processor's replies with `create_a2ui_parts(replies)`, for an `AgentExecutor`
+of your own.
+
+With ADK and its `A2aAgentExecutor`, `a2ui-adk` answers agent function calls
+for you. `a2ui_rpc_callback` returns a `before_agent_callback` that answers a
+request holding only `callAgentFunction` messages, through a
+`RendererToAgentMessageProcessor` built from the agent's catalogs, and skips
+the agent. The renderer's other messages (`action`, `error`,
+`rendererFunctionResponse`) go to the agent's turn:
+
+```python
+from a2ui.adk import a2ui_rpc_callback
+
+agent = LlmAgent(..., before_agent_callback=a2ui_rpc_callback(catalogs=catalogs))
+```
+
+`catalogs` can also be a provider that returns the catalogs per context, such
+as the session's `A2uiRequestProcessor.active_catalogs`. The calls and their
+replies stay in the session's events but not in the model's prompt:
+`SendA2uiToClientToolset` removes them, and agents without it pass
+`exclude_a2ui_rpc_from_prompt` as their `before_model_callback`. See the
+[`a2ui-adk` README](../a2ui_adk/README.md) for details.
