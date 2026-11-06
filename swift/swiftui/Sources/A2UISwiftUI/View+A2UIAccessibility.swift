@@ -74,6 +74,18 @@ extension View {
     }
   }
 
+  /// Reports the text this view shows, so an enclosing live region can announce it when it
+  /// changes. See ``A2UIAccessibleTextKey``.
+  ///
+  /// Call this from a component that renders text, with the text as it reads on screen (for
+  /// example without Markdown syntax). `nil` and empty text report nothing.
+  public func a2uiAccessibleText(_ text: String?) -> some View {
+    preference(
+      key: A2UIAccessibleTextKey.self,
+      value: text.flatMap { $0.isEmpty ? nil : [$0] } ?? []
+    )
+  }
+
   @ViewBuilder
   func a2uiOptionalAccessibilityIdentifier(_ identifier: String?) -> some View {
     if let identifier {

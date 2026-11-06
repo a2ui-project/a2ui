@@ -49,6 +49,7 @@ public struct A2UIText: View {
     textForVariant(textContent, variant: variant)
       .accessibilityIdentifier("a2ui-\(node.id)")
       .a2uiAccessibilityElement(for: node, children: .combine)
+      .a2uiAccessibleText(Self.accessibleText(textContent, variant: variant))
   }
 
   /// Returns the font for a heading level, used by both the `h1`–`h5` variants and Markdown
