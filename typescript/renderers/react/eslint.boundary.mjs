@@ -14,12 +14,20 @@
  * limitations under the License.
  */
 
-/**
- * Declares typings for CSS Modules (*.module.css) files.
- * This allows the TypeScript compiler (tsc) to resolve CSS class imports as a
- * read-only dictionary of string mappings.
- */
-declare module '*.module.css' {
-  const classes: {readonly [key: string]: string};
-  export default classes;
-}
+export const BOUNDARY_RESTRICTED = {
+  names: ['ComponentContext', 'GenericBinder', 'DataContext'],
+  from: [
+    '@a2ui/web_core',
+    '@a2ui/web_core/v0_9',
+    '@a2ui/web_core/v1_0',
+    '@a2ui/web_core/resolution',
+    '@a2ui/web_core/rendering',
+  ],
+};
+
+export const BOUNDARY_ALLOWLIST = [
+  'src/adapter.tsx',
+  'src/catalog/react_host_element.ts',
+  'src/node-view.tsx',
+  'src/react_component_implementation.ts',
+];

@@ -314,6 +314,11 @@ class ListComponent(CatalogComponentCommon):
         description="Defines the alignment of children along the cross axis.",
         json_schema_extra={"default": "stretch"},
     )
+    list_style: Literal["ordered", "unordered", "none"] | None = Field(
+        default=None,
+        alias="listStyle",
+        description="The style of the list (ordered, unordered, or none).",
+    )
 
 
 class CardComponent(CatalogComponentCommon):

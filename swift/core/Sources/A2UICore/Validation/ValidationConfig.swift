@@ -29,10 +29,21 @@ public struct ValidationConfig: Sendable, Equatable, Hashable {
   ///
   /// An unknown function call is accepted so that a renderer can forward it to the agent; its
   /// catalog must still resolve, and from v1.0 an unknown reserved `@` name is always rejected.
+  /// Without this, declare the agent-side functions with ``SchemaOnlyFunction`` for their calls to
+  /// reach the agent.
   /// An unknown property is one rejected by `additionalProperties` or `unevaluatedProperties`;
   /// a key rejected by a schema that also has `patternProperties` breaks a key format instead,
   /// so it is still reported.
   public var allowUnknownElements: Bool
+
+  /// Whether self-references and reference cycles between components are permitted.
+  ///
+  /// When this is on, the graph check accepts a component that references itself or one of its
+  /// ancestors, and the ``NodeResolver`` renders the repeated reference as a `cyclic` placeholder
+  /// node and reports `CYCLIC_REFERENCE` on the surface. The global depth limit and the catalog
+  /// composition constraints still apply. ``relaxed`` leaves this off, so a cycle is rejected
+  /// unless a host opts in.
+  public var allowCyclicReferences: Bool
 
   /// The target protocol version (e.g. `"v0.9.1"`), or `nil` when unspecified.
   public var targetVersion: String?
@@ -52,12 +63,14 @@ public struct ValidationConfig: Sendable, Equatable, Hashable {
     allowDanglingReferences: Bool = false,
     allowMissingRoot: Bool = false,
     allowUnknownElements: Bool = false,
+    allowCyclicReferences: Bool = false,
     targetVersion: String? = nil
   ) {
     self.allowOrphanComponents = allowOrphanComponents
     self.allowDanglingReferences = allowDanglingReferences
     self.allowMissingRoot = allowMissingRoot
     self.allowUnknownElements = allowUnknownElements
+    self.allowCyclicReferences = allowCyclicReferences
     self.targetVersion = targetVersion
   }
 
@@ -67,6 +80,7 @@ public struct ValidationConfig: Sendable, Equatable, Hashable {
     allowDanglingReferences: Bool = false,
     allowMissingRoot: Bool = false,
     allowUnknownElements: Bool = false,
+    allowCyclicReferences: Bool = false,
     protocolVersion: A2UIProtocolVersion
   ) {
     self.init(
@@ -74,6 +88,7 @@ public struct ValidationConfig: Sendable, Equatable, Hashable {
       allowDanglingReferences: allowDanglingReferences,
       allowMissingRoot: allowMissingRoot,
       allowUnknownElements: allowUnknownElements,
+      allowCyclicReferences: allowCyclicReferences,
       targetVersion: protocolVersion.rawValue
     )
   }

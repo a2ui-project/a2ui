@@ -5,7 +5,7 @@ generate rich, interactive user interfaces through declarative JSON.
 
 ## Features
 
-- **v0.9 Native**: Built specifically for the A2UI v0.9 protocol with improved modularity and type safety.
+- **Multi-version**: Renders A2UI v0.9, v0.9.1 and v1.0 surfaces from the same package, with improved modularity and type safety.
 - **Deep Reactivity**: Powered by the A2UI Generic Binder for automatic, fine-grained updates.
 - **Strongly Typed**: Inferred property types from Zod schemas ensure compile-time safety.
 - **Extensible**: Easily define custom component catalogs and logic functions.
@@ -19,14 +19,25 @@ yarn add @a2ui/react @a2ui/web_core
 
 ## Protocol Versioning
 
-A2UI supports multiple protocol versions to ensure backward compatibility. For new projects, it is recommended to use the **v0.9** protocol.
+Import the renderer from the package root (`@a2ui/react`) and the
+`MessageProcessor` from `@a2ui/web_core`. The processor accepts messages for
+every supported protocol version (v0.8, v0.9, v0.9.1 and v1.0).
 
-To use the v0.9 implementation, import from the versioned path:
+Only version-specific pieces, such as the basic catalog and its schemas, are
+imported from a versioned path:
 
 ```typescript
-import {A2uiSurface} from '@a2ui/react/v0_9';
+import {A2uiSurface} from '@a2ui/react';
+import {MessageProcessor} from '@a2ui/web_core';
+
+// Basic catalog for v0.9 / v0.9.1:
 import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+// ...or for v1.0:
+// import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 ```
+
+The `@a2ui/react/v0_9` entry point still works but only re-exports the package
+root. `@a2ui/react/v0_8` is the legacy v0.8 renderer.
 
 ## Quick Start
 
@@ -40,9 +51,9 @@ The example below creates a processor with the `basicCatalog` from `@a2ui/web_co
 
 ```tsx
 import {useState, useEffect} from 'react';
-import {MessageProcessor} from '@a2ui/web_core/v0_9';
+import {MessageProcessor} from '@a2ui/web_core';
 import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
-import {A2uiSurface} from '@a2ui/react/v0_9';
+import {A2uiSurface} from '@a2ui/react';
 
 export default function App() {
   // 1. Create the processor and feed it messages.
@@ -148,7 +159,7 @@ The API can also restrict where the component appears, with `allowedParents` and
 The `createComponentImplementation` factory uses a **Generic Binder** to resolve all dynamic values before your component renders.
 
 ```tsx
-import {createComponentImplementation} from '@a2ui/react/v0_9';
+import {createComponentImplementation} from '@a2ui/react';
 
 export const MyProfile = createComponentImplementation(MyProfileApi, ({props, buildChild}) => {
   // 'props' is strictly inferred from the Zod schema:
@@ -232,7 +243,7 @@ The Generic Binder is a framework-agnostic engine that transforms raw JSON paylo
 For advanced use cases where you need direct access to the `ComponentContext` or want to manage reactivity manually (e.g., for performance-critical animations), use `createBinderlessComponentImplementation`.
 
 ```tsx
-import {createBinderlessComponentImplementation} from '@a2ui/react/v0_9';
+import {createBinderlessComponentImplementation} from '@a2ui/react';
 
 export const RawInspector = createBinderlessComponentImplementation(InspectorApi, ({context}) => {
   // Access the raw, unresolved component model and the data model directly
@@ -253,7 +264,7 @@ export const RawInspector = createBinderlessComponentImplementation(InspectorApi
 Group your components and logic functions into a `Catalog` to be used by the `MessageProcessor`.
 
 ```typescript
-import {Catalog, createFunctionImplementation} from '@a2ui/web_core/v0_9';
+import {Catalog, createFunctionImplementation} from '@a2ui/web_core';
 import {z} from 'zod';
 
 // 1. Implement a custom logic function
@@ -277,7 +288,7 @@ export const myCatalog = new Catalog(
 
 ## Basic Catalog Components
 
-`@a2ui/web_core/v0_9/basic_catalog` provides a `basicCatalog` with the standard components. They are W3C Custom Elements, and the React renderer renders them as elements:
+`@a2ui/web_core/v0_9/basic_catalog` (v0.9) and `@a2ui/web_core/catalogs/basic/v1` (v1.0) each provide a `basicCatalog` with the same standard components. They are W3C Custom Elements, and the React renderer renders them as elements:
 
 - **Layout**: `Row`, `Column`, `List`, `Card`, `Tabs`, `Modal`, `Divider`
 - **Content**: `Text`, `Image`, `Icon`, `Video`, `AudioPlayer`
@@ -288,7 +299,7 @@ export const myCatalog = new Catalog(
 `Text` renders its Markdown with a renderer the app provides. Give `MarkdownContext` a function that returns HTML, such as the one from `@a2ui/markdown-it`, or give `MarkdownComponentContext` a React component:
 
 ```tsx
-import {A2uiSurface, MarkdownComponentContext} from '@a2ui/react/v0_9';
+import {A2uiSurface, MarkdownComponentContext} from '@a2ui/react';
 
 const ChatMarkdown = ({markdown}: {markdown: string}) => <Markdown text={markdown} />;
 
@@ -330,7 +341,7 @@ export const MyComponent = createComponentImplementation(MyComponentApi, ({props
 
 ## Legacy Support (v0.8)
 
-A2UI v0.8 is maintained for backward compatibility. While it remains the default export for the `@a2ui/react` package, it is recommended to transition to v0.9 for new features like type-safe binders and logic functions.
+A2UI v0.8 is deprecated and maintained only for backward compatibility. It is available from the `@a2ui/react/v0_8` entry point. New projects should use the package root, which supports v0.9 and v1.0 with type-safe binders and logic functions.
 
 ### Import and Usage
 
@@ -356,7 +367,7 @@ function LegacyApp() {
 
 ### Key Differences (v0.8 vs v0.9)
 
-| Feature         | v0.8 (Legacy)                           | v0.9 (Current)                                                   |
+| Feature         | v0.8 (Deprecated)                       | v0.9 and later                                                   |
 | :-------------- | :-------------------------------------- | :--------------------------------------------------------------- |
 | **Protocol**    | Uses `BeginRendering`, `SurfaceUpdate`. | Uses `createSurface`, `updateComponents`, `updateDataModel`.     |
 | **Data Flow**   | Unidirectional surface updates.         | Bidirectional synchronization (`sendDataModel`).                 |

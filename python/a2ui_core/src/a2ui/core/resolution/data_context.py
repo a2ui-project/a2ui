@@ -1344,6 +1344,8 @@ class DataContext:
             "message": str(error),
             "expression": name,
         }
+        if isinstance(error, A2uiRpcError) and error.function_call_id:
+            error_payload["functionCallId"] = error.function_call_id
         if hasattr(error, "details") and getattr(error, "details"):
             error_payload["details"] = getattr(error, "details")
         self.surface.dispatch_error(error_payload)
@@ -1359,10 +1361,7 @@ class DataContext:
         """Runs a function on the renderer with its resolved arguments."""
         if resolved_args is None:
             resolved_args = {}
-        elif self.at_least_v10 and isinstance(resolved_args, dict):
-            # From v1.0 a `DynamicBoolean` argument may resolve to the
-            # `ValidationResult` a validation function returns; it is read
-            # by its validity, as the specification defines the type.
+        elif isinstance(resolved_args, dict):
             resolved_args = coerce_validation_results(
                 _function_args_schema(target_catalog, fn), resolved_args
             )

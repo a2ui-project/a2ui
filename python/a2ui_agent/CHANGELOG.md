@@ -1,5 +1,19 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: `PromptGenerator.generate()` is now final and returns
+  `assemble_instructions(self)`, which `SkillGenerator.generate_skill()` also
+  uses, so a monolithic skill for a format's own catalogs holds its prompt
+  snippet. A `PromptGenerator` subclass now implements the abstract `catalogs`
+  property and the three hooks (`generate_base_rules`,
+  `generate_catalog_instructions`, `generate_examples`) instead of overriding
+  `generate()`; built-in snippets are unchanged.
+  [#3568](https://github.com/a2ui-project/a2ui/pull/3568)
+- **BREAKING CHANGE**: `ExpressPromptGenerator`, `DirectJsonPromptGenerator`,
+  `ElementalPromptGenerator` and `AtomPromptGenerator` are no longer exported
+  from `a2ui.inference_formats` or their format packages. Reach a format's
+  generator through `InferenceFormat.prompt_generator`, and subclass
+  `PromptGenerator` to write a format of your own.
+  [#3568](https://github.com/a2ui-project/a2ui/pull/3568)
 - **BREAKING CHANGE**: (v1_0) The `TextField` builder in
   `a2ui.builder.v1_0.catalogs.basic` requires `value`, following the basic
   catalog. Recommended migration: pass `value`, such as
@@ -41,6 +55,20 @@
   `generate_base_rules()` with `schema_to_prompt()` (such as
   `SendA2uiToClientToolset` users) should use `DEFAULT_WORKFLOW_RULES` instead.
   [#3559](https://github.com/a2ui-project/a2ui/pull/3559)
+- Prompt snippets (`PromptGenerator.generate()` and
+  `prompt_snippet`) follow one layout across formats and SDKs: the base rules,
+  then the catalog instructions, then the examples under `### Examples:`
+  followed by a blank line. The `## Workflow Description:` heading before the
+  base rules (and Atom's `## Instructions:`) is gone; add your own heading
+  around the snippet if you want one. A Direct JSON snippet puts the protocol
+  schemas in one schema block after the rules and each catalog schema in a
+  schema block of its own, and `generate_catalog_instructions()` with no
+  catalog returns one block per catalog. `a2ui.constants.EXAMPLES_HEADING` holds
+  the examples heading. [#3567](https://github.com/a2ui-project/a2ui/pull/3567)
+- Add A2UI Protocol v1.0 support to `@macro` and `MacroExpander`:
+  - Synthesize v1.0 schemas (`component` const discriminators, `Child` and `Extensions` `$ref`s, `Annotated` field descriptions, `oneOf` unions, typed `dict[str, V]` `additionalProperties`, and nested Pydantic sub-models such as `TabItem`, `ChoicePickerOption`, `IconNameSvgPath`, and `ActionEvent`) and coerce v1.0 wire directives (`@path`, `@call`, `Action` with `userMessage`, `CheckRule`, `DynamicChildList`, `AccessibilityAttributes`, typed `dict[str, V]` maps, and nested sub-models).
+  - Add `MacroExpander.transform_catalogs(catalogs)`, `protocol_version`, and `on_error="passthrough" | "raise"`, enforce single-version invariants and UAX #31 / reserved `'Surface'` macro name checks, and close `transform_to_transport` over registered `base_catalogs` by rewriting pure macro-sidecar `createSurface.catalogId` defaults and stamping unique owning `catalogId`s onto unannotated lowered primitives.
+  - Export `Extensions` from `a2ui.builder.v1_0` and support `class MyCatalogNode(ComponentBuilderNode, catalog_id=...)` alongside field-default `catalog_id` overrides while preserving wire aliases ([#3776](https://github.com/a2ui-project/a2ui/issues/3776), [#3778](https://github.com/a2ui-project/a2ui/pull/3778)).
 - The Direct JSON prompt rule says the JSON part is a JSON array of A2UI messages, each following the schema, instead of "a single, raw JSON object (usually a list of A2UI messages)" that "MUST validate" against it. [#3721](https://github.com/a2ui-project/a2ui/pull/3721)
 - `open_stream` takes `after_rejected_block="continue"` to read past a
   rejected block. The stream then returns an `ErrorPart` in its place, skips
@@ -83,7 +111,19 @@
   standalone.
   [#3232](https://github.com/a2ui-project/a2ui/issues/3232),
   [#3575](https://github.com/a2ui-project/a2ui/pull/3575)
-- The Express compiler accepts `userMessage=` and `context=` keyword arguments on `Event(...)`, compiling `userMessage` to the v1.0 `event.userMessage` field, and raises `ExpressValidationError` for `userMessage` before v1.0 and for any keyword `Event` does not define, where it used to drop them. A function call in an action slot nested inside a list item or object property (such as `items: [{label, action: openUrl(...)}]`) is now compiled as a `functionCall` action. `ExpressDecompiler` writes `userMessage=` back ([#3598](https://github.com/a2ui-project/a2ui/issues/3598)).
+- `MacroExpander.transform_to_transport` no longer passes component envelope
+  fields (`accessibility`, `catalogId`, `metadata`) to macro functions unless
+  declared as parameters, and merges undeclared `accessibility` and v1.0
+  `metadata` onto the expanded root component without copying the macro
+  invocation's `catalogId` onto emitted primitives
+  ([#3626](https://github.com/a2ui-project/a2ui/issues/3626),
+  [#3777](https://github.com/a2ui-project/a2ui/pull/3777)).
+- `MacroExpander` accepts optional `catalog_id` and `base_catalogs` parameters
+  (plus `register_catalog`) and tracks surface default catalogs across
+  `createSurface`/`deleteSurface` (or a per-call `surface_catalogs` mapping on
+  `transform_to_transport`) to scope macro expansion across mixed-catalog
+  surfaces ([#3777](https://github.com/a2ui-project/a2ui/pull/3777)).
+- The Express compiler accepts `userMessage=` and `context=` keyword arguments on `Event(...)`, compiling `userMessage` to the v1.0 `event.userMessage` field, and raises `ExpressValidationError` for `userMessage` before v1.0 and for any keyword `Event` does not define, where it used to drop them. A function call in an action slot nested inside a list item or object property (such as `items: [{label, action: openUrl(...)}]`) is now compiled as a `functionCall` action. `ExpressDecompiler` writes `userMessage=` back, and `ExpressPromptGenerator` teaches `Event(name, context?, userMessage=...)` in rule 8 for v1.0+ catalogs ([#3598](https://github.com/a2ui-project/a2ui/issues/3598), [#3690](https://github.com/a2ui-project/a2ui/issues/3690), [#3867](https://github.com/a2ui-project/a2ui/pull/3867)).
 - The Express compiler keeps a map literal as written, quoted keys or not, when
   one of its keys shares a name with an Express construct (`variable`, `path`,
   `call`, `check`, `skipped`); before, such a map was read as a variable

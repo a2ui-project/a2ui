@@ -386,7 +386,7 @@ class MessageProcessor:
             if self.model.get_surface(surface_id) is not surface:
                 raise A2uiRpcError(
                     f"Pending calls for surface '{surface_id}' were cancelled.",
-                    code=RpcErrorCode.CANCELLED,
+                    code=RpcErrorCode.CANCELLED.value,
                 )
             return self.rpc.call_agent_function(
                 surface_id,
@@ -773,7 +773,8 @@ class MessageProcessor:
                     f"Catalog not found: {catalog_id}", surface_id=surface_id
                 )
             raise A2uiCatalogError(
-                "No default catalog available for surface.", surface_id=surface_id
+                "No default catalog available for surface.",
+                surface_id=surface_id,
             )
 
         if self.model.get_surface(surface_id):
@@ -835,19 +836,39 @@ class MessageProcessor:
             )
         self.model.add_surface(new_surface)
 
-        if op.data_model is not None:
-            self._process_update_data_model_op(
-                InternalUpdateDataModelOp(
-                    surface_id=surface_id, path="/", value=op.data_model
-                )
-            )
+        try:
+            if op.data_model is not None:
+                for key, value in op.data_model.items():
+                    escaped_key = key.replace("~", "~0").replace("/", "~1")
+                    path = f"/{escaped_key}"
+                    try:
+                        if key == "":
+                            current_root = dict(new_surface.data_model.get("/") or {})
+                            if value is None and is_at_least_version(
+                                surface_proto_ver, ProtocolVersion.V1_0
+                            ):
+                                current_root.pop("", None)
+                            else:
+                                current_root[""] = value
+                            new_surface.data_model.set("/", current_root)
+                        else:
+                            new_surface.data_model.set(path, value)
+                    except A2uiError as err:
+                        if err.path is None:
+                            err.path = path
+                        if err.surface_id is None:
+                            err.surface_id = surface_id
+                        raise
 
-        if op.components is not None:
-            self._process_update_components_op(
-                InternalUpdateComponentsOp(
-                    surface_id=surface_id, components=op.components
+            if op.components is not None:
+                self._process_update_components_op(
+                    InternalUpdateComponentsOp(
+                        surface_id=surface_id, components=op.components
+                    )
                 )
-            )
+        except Exception:
+            self.model.delete_surface(surface_id)
+            raise
 
     def _process_update_components_op(self, op: InternalUpdateComponentsOp) -> None:
         """Processes an updateComponents operation, validating catalog and component consistency."""
@@ -855,7 +876,8 @@ class MessageProcessor:
         surface = self.model.get_surface(surface_id)
         if not surface:
             raise A2uiIntegrityError(
-                f"Surface not found for message: {surface_id}", surface_id=surface_id
+                f"Surface not found for message: {surface_id}",
+                surface_id=surface_id,
             )
 
         components = op.components
@@ -875,9 +897,11 @@ class MessageProcessor:
             comp_dict = (
                 comp
                 if isinstance(comp, dict)
-                else comp.model_dump(by_alias=True, exclude_none=True)
-                if hasattr(comp, "model_dump")
-                else cast(dict[str, Any], comp)
+                else (
+                    comp.model_dump(by_alias=True, exclude_none=True)
+                    if hasattr(comp, "model_dump")
+                    else cast(dict[str, Any], comp)
+                )
             )
             c_id = comp_dict.get("id")
             if not c_id:
@@ -961,7 +985,8 @@ class MessageProcessor:
                             surface_id=surface_id,
                         )
                     raise A2uiCatalogError(
-                        f"Catalog not found: {comp_cat_id}", surface_id=surface_id
+                        f"Catalog not found: {comp_cat_id}",
+                        surface_id=surface_id,
                     )
             elif (
                 existing
@@ -1209,7 +1234,8 @@ class MessageProcessor:
         surface = self.model.get_surface(surface_id)
         if not surface:
             raise A2uiIntegrityError(
-                f"Surface not found for message: {surface_id}", surface_id=surface_id
+                f"Surface not found for message: {surface_id}",
+                surface_id=surface_id,
             )
 
         if (

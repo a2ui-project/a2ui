@@ -31,18 +31,68 @@ const Map<String, String> _v10ExpectedFailures = {};
 const Map<String, String> _reservedKeysExpectedFailures = {};
 
 /// Cases in `core/validation_result.yaml` expected to fail.
-const Map<String, String> _validationResultExpectedFailures = {};
+const Map<String, String> _validationResultExpectedFailures = {
+  'test_validation_result_dynamic_object_return':
+      'NodeResolver does not expose a singular validationResult property on '
+          'resolved component props, and the built-in email function omits the '
+          'INVALID_EMAIL code and example suffix in its default message.',
+  'test_validation_result_boolean_fallback':
+      'NodeResolver does not expose a singular validationResult property on '
+          'resolved component props.',
+  'test_validation_result_multiple_rules_preserve_order':
+      'Built-in email validation function does not set code INVALID_EMAIL on '
+          'its ValidationResult.',
+  'test_validation_result_reactive_recovery_on_data_update':
+      'Built-in email validation function returns "Must be a valid email '
+          'address." rather than the message with the '
+          '"(e.g. user@example.com)" suffix.',
+};
 
 /// Cases in `core/error_responses.yaml` expected to fail.
 const Map<String, String> _errorResponsesExpectedFailures = {};
+
+const Map<String, Set<String>> _knownKeys = {
+  'case:validate': {
+    ...caseMetadataKeys,
+    'catalog',
+    'catalogPath',
+    'catalogPaths',
+    'expect',
+    'expectError',
+    'expect_error',
+    'messages',
+    'payload',
+    'protocolVersion',
+    'steps',
+    'strictMode',
+    'validationConfig',
+  },
+  'step:validate': {
+    'description',
+    'expect',
+    'expectError',
+    'expect_error',
+    'messages',
+    'payload',
+  },
+  'expect:validate': {
+    'surfaces',
+  },
+  'surface:validate': {
+    'components',
+    'isValid',
+    'validationErrors',
+    'validationResult',
+    'validationResults',
+  },
+};
 
 /// Runs the shared validator suites against [MessageProcessor.processMessages],
 /// the entry point for checking a payload on its own: the `validate` cases of
 /// `core/validator_v0_9.yaml`, `core/validator_v1_0.yaml`,
 /// `core/reserved_keys.yaml`, `core/validation_result.yaml` and
 /// `core/error_responses.yaml`. The cases of
-/// `core/composition_constraints.yaml` are all `process_messages` cases, which
-/// the message-processor harness runs.
+/// `core/composition_constraints.yaml` run in the message-processor harness.
 ///
 /// Cases targeting a protocol version this SDK does not implement are skipped
 /// with a reason, so the suite doubles as the implementation checklist.
@@ -86,6 +136,7 @@ void _registerValidatorSuite(
     runConformanceSuite(
       cases,
       _runCase,
+      suite: suite,
       expectedFailures: expectedFailures,
       skipReason: _skipReason,
     );
@@ -102,6 +153,16 @@ String? _skipReason(ConformanceTestCase testCase) {
 }
 
 void _runCase(Map<String, Object?> testCase) {
+  assertKnownKeys(testCase, _knownKeys['case:validate']!, 'case:validate');
+  if (testCase['steps'] case final List<Object?> explicitSteps) {
+    for (final rawStep in explicitSteps) {
+      assertKnownKeys(
+        rawStep! as Map<String, Object?>,
+        _knownKeys['step:validate']!,
+        'step:validate',
+      );
+    }
+  }
   final List<Map<String, Object?>> steps = _steps(testCase);
   final List<Map<String, Object?>> allPayloads = _collectPayloads(steps);
   final String version = _versionOf(testCase, allPayloads);
@@ -203,6 +264,11 @@ void _assertExpectedSurfaces(
   MessageProcessor<ComponentApi> processor,
   Map<String, Object?> expectBlock,
 ) {
+  assertKnownKeys(
+    expectBlock,
+    _knownKeys['expect:validate']!,
+    'expect:validate',
+  );
   final Object? surfaces = expectBlock['surfaces'];
   if (surfaces is! Map<String, Object?>) return;
   for (final MapEntry<String, Object?> entry in surfaces.entries) {
@@ -215,9 +281,41 @@ void _assertExpectedSurfaces(
     final Map<String, ComponentNode<ComponentApi>> nodes =
         _collectSurfaceNodes(resolver.rootNode.peek());
     final expectedSurface = entry.value as Map<String, Object?>?;
-    final Object? expectedComponents = expectedSurface?['components'];
+    if (expectedSurface == null) continue;
+    assertKnownKeys(
+      expectedSurface,
+      _knownKeys['surface:validate']!,
+      'surface:validate',
+    );
+    final Object? expectedComponents = expectedSurface['components'];
     if (expectedComponents is Map<String, Object?>) {
       _assertSurfaceComponentProps(nodes, expectedComponents);
+    }
+    _assertSurfaceFieldMaps(nodes, expectedSurface);
+  }
+}
+
+void _assertSurfaceFieldMaps(
+  Map<String, ComponentNode<ComponentApi>> nodes,
+  Map<String, Object?> expectedSurface,
+) {
+  for (final field in const [
+    'validationResult',
+    'isValid',
+    'validationErrors',
+    'validationResults',
+  ]) {
+    final Object? fieldMap = expectedSurface[field];
+    if (fieldMap is! Map<String, Object?>) continue;
+    for (final MapEntry<String, Object?> entry in fieldMap.entries) {
+      final ComponentNode<ComponentApi>? node = nodes[entry.key];
+      expect(node, isNotNull, reason: 'Component ${entry.key}');
+      final Map<String, dynamic> props = node!.props.peek();
+      expect(
+        _unwrapResolved(props[field]),
+        equals(entry.value),
+        reason: '${entry.key}.$field',
+      );
     }
   }
 }
@@ -371,7 +469,7 @@ Map<String, Object?> _document(Object? value) {
 /// The suite's fixtures name the catalog `standard` in the document but `std`
 /// in the payloads that use it. The processor resolves the catalog a surface
 /// names against the ones it supports, so the mismatch would reject those
-/// payloads outright, which is not what these cases are testing — they are
+/// payloads outright, which is not what these cases are testing: they are
 /// about the component graph. So a case declaring one document has it
 /// registered under every id the payload names, and catalog resolution keeps
 /// its own coverage in `processor_test.dart`.

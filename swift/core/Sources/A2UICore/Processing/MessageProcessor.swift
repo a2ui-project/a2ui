@@ -26,7 +26,21 @@ public final class MessageProcessor: ObservableObject {
   public let surfaceGroupModel: SurfaceGroupModel
 
   /// Listener for outbound messages destined to the agent.
-  public var outboundListener: (@Sendable (RendererToAgentMessage) -> Void)?
+  ///
+  /// While it is set, each v1.0 surface sends calls to functions the renderer does not implement
+  /// to the agent with `callAgentFunction` (see ``SurfaceViewModel/agentFunctionCaller``).
+  /// Without it there is no way to reach the agent, so such calls keep failing locally.
+  public var outboundListener: (@Sendable (RendererToAgentMessage) -> Void)? {
+    didSet {
+      for surface in surfaceGroupModel.surfacesMap.values {
+        installAgentFunctionCaller(on: surface)
+      }
+    }
+  }
+
+  /// The maximum time, in seconds, that a surface waits for the agent to answer a function call
+  /// that it routes to the agent. Defaults to 30 seconds.
+  public var agentFunctionTimeoutSeconds: TimeInterval = 30.0
 
   /// The validation configuration controlling strictness.
   public let validationConfig: ValidationConfig
@@ -236,7 +250,9 @@ public final class MessageProcessor: ObservableObject {
   ///
   /// - Parameter options: Configuration options for capability generation.
   /// - Returns: A `JSONValue` representing the capabilities structure keyed by protocol version.
-  /// - Throws: `A2UIValidationError` if `options.versions` is empty.
+  /// - Throws: `A2UIValidationError` if `options.versions` is empty, or ``A2UICatalogError``
+  ///   if a v1.0 inline catalog has a function that sets `requiresUserActivation` to `true`
+  ///   while `allowedCallers` is not `.rendererOnly`.
   public func getRendererCapabilities(
     options: CapabilitiesOptions
   ) throws -> JSONValue {
@@ -258,6 +274,13 @@ public final class MessageProcessor: ObservableObject {
       ]
 
       if options.includeInlineCatalogs {
+        if version.isAtLeastV10 {
+          // The v1.0 `catalog_definition.json` rejects a function that requires user
+          // activation unless only the renderer may call it, so don't advertise one.
+          for catalog in compatibleCatalogs {
+            try catalog.validateFunctionCallerConstraints()
+          }
+        }
         let inlineCatalogs = compatibleCatalogs.map {
           generateInlineCatalog($0, for: version, options: options)
         }
@@ -881,23 +904,42 @@ public final class MessageProcessor: ObservableObject {
       sendDataModel: op.sendDataModel,
       protocolVersion: op.version ?? targetCatalog?.a2uiProtocolVersion
     )
-
-    if let dataModel = op.dataModel {
-      for (key, value) in dataModel {
-        let escapedKey =
-          key
-          .replacingOccurrences(of: "~", with: "~0")
-          .replacingOccurrences(of: "/", with: "~1")
-        try vm.dataModel.setThrowing("/\(escapedKey)", value: value)
-      }
-    }
+    installAgentFunctionCaller(on: vm)
 
     if let components = op.components {
       try validateComponentsBatch(components, on: vm)
-      applyComponentsBatch(components, to: vm)
     }
 
     surfaceGroupModel.addSurface(vm)
+
+    do {
+      if let dataModel = op.dataModel {
+        for (key, value) in dataModel {
+          if key.isEmpty {
+            var currentRoot = vm.dataModel.get("/")?.objectValue ?? [:]
+            if value == .null {
+              currentRoot.removeValue(forKey: "")
+            } else {
+              currentRoot[""] = value
+            }
+            try vm.dataModel.setThrowing("/", value: .object(currentRoot))
+          } else {
+            let escapedKey =
+              key
+              .replacingOccurrences(of: "~", with: "~0")
+              .replacingOccurrences(of: "/", with: "~1")
+            try vm.dataModel.setThrowing("/\(escapedKey)", value: value)
+          }
+        }
+      }
+
+      if let components = op.components {
+        applyComponentsBatch(components, to: vm)
+      }
+    } catch {
+      surfaceGroupModel.removeSurface(id: op.surfaceID)
+      throw error
+    }
   }
 
   private func processCallRendererFunctionOp(_ op: InternalCallRendererFunctionOp) throws {
@@ -970,6 +1012,9 @@ public final class MessageProcessor: ObservableObject {
     version: A2UIProtocolVersion,
     timeoutSeconds: TimeInterval = 30.0
   ) async throws -> JSONValue {
+    guard !rpcHandler.isDisposed else {
+      throw FunctionError.disposed(callID: functionCallID ?? UUID().uuidString)
+    }
     guard let listener = outboundListener else {
       throw FunctionError.noListener(name: functionName)
     }
@@ -983,6 +1028,35 @@ public final class MessageProcessor: ObservableObject {
       timeoutSeconds: timeoutSeconds,
       sendOutbound: listener
     )
+  }
+
+  /// Lets a v1.0 surface send calls to functions the renderer does not implement to the agent,
+  /// while this processor has an ``outboundListener``; otherwise removes that ability.
+  ///
+  /// The caller dispatches `callAgentFunction` through ``RPCHandler``, waiting up to
+  /// ``agentFunctionTimeoutSeconds`` for the agent's response.
+  private func installAgentFunctionCaller(on surface: SurfaceViewModel) {
+    guard outboundListener != nil, surface.protocolVersion.isAtLeastV10 else {
+      surface.agentFunctionCaller = nil
+      return
+    }
+    let surfaceID = surface.surfaceID
+    let version = surface.protocolVersion
+    surface.agentFunctionCaller = { [weak self, weak surface] call in
+      guard let self else { throw FunctionError.noListener(name: call.name) }
+      // A call resumed after the surface was deleted sends nothing.
+      guard let surface, self.surfaceGroupModel[surfaceID] === surface else {
+        throw FunctionError.surfaceCallsCancelled(surfaceID: surfaceID)
+      }
+      return try await self.callAgentFunction(
+        surfaceID: surfaceID,
+        functionName: call.name,
+        catalogID: call.catalogID,
+        args: call.args,
+        version: version,
+        timeoutSeconds: self.agentFunctionTimeoutSeconds
+      )
+    }
   }
 
   private func payloadValidator(
@@ -1059,6 +1133,7 @@ public final class MessageProcessor: ObservableObject {
     }
     graphBounds[op.surfaceID] = nil
     surfaceGroupModel.removeSurface(id: op.surfaceID)
+    rpcHandler.cancelPendingCalls(forSurfaceID: op.surfaceID)
   }
 
   private func validateComponentsBatch(
@@ -1103,7 +1178,10 @@ public final class MessageProcessor: ObservableObject {
     let held = surface.componentsModel.components
     let catalogs = surface.catalogs
     let defaultCatalogID = surface.defaultCatalogID
-    let checksBatch = config.allowDanglingReferences && config.allowMissingRoot
+    // The bound assumes the graph is acyclic, so a config that admits cycles checks the whole
+    // surface each time.
+    let checksBatch =
+      config.allowDanglingReferences && config.allowMissingRoot && !config.allowCyclicReferences
     var batch: [String: [String: JSONValue]] = [:]
     for component in components {
       guard let id = component["id"]?.stringValue else { continue }
@@ -1580,11 +1658,11 @@ public final class MessageProcessor: ObservableObject {
       task.cancel()
     }
     activeRPCTasks.removeAll()
-    rpcHandler.disposeAllPendingCalls()
     graphBounds.removeAll()
     for surfaceID in Array(surfaceGroupModel.surfacesMap.keys) {
       surfaceGroupModel.removeSurface(id: surfaceID)
     }
+    rpcHandler.disposeAllPendingCalls()
   }
 
   private func resolveRPCDataContext(surfaceID: String?) -> (DataContext?, String?) {
