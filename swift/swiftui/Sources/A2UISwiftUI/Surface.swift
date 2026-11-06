@@ -79,7 +79,8 @@ extension Surface {
   ///   - node: The resolved engine node to render.
   ///   - catalogs: The dictionary of available component catalogs.
   ///   - defaultCatalogID: The fallback default catalog ID.
-  /// - Returns: The rendered `AnyView`, or `nil` if no corresponding view builder was found.
+  /// - Returns: The rendered `AnyView`, or `nil` if no corresponding view builder was found or
+  ///   the node is a placeholder (its state is not `resolved`).
   public static func render(
     node: Node,
     using catalogs: [String: Catalog<ComponentImplementation>],
@@ -98,12 +99,16 @@ extension Surface {
   ///   - node: The resolved engine node.
   ///   - catalogs: The dictionary of available component catalogs.
   ///   - defaultCatalogID: The fallback default catalog ID.
-  /// - Returns: The implementation, or `nil` if no catalog has the node's type.
+  /// - Returns: The implementation, or `nil` if no catalog has the node's type or the node is a
+  ///   placeholder (its state is not `resolved`).
   public static func implementation(
     for node: Node,
     using catalogs: [String: Catalog<ComponentImplementation>],
     defaultCatalogID: String? = nil
   ) -> ComponentImplementation? {
+    if node.state != .resolved || node.type == "Placeholder" {
+      return nil
+    }
     if let catalogID = node.catalogID,
       let component = catalogs[catalogID]?.components[node.type]
     {

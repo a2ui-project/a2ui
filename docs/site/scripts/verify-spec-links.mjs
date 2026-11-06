@@ -99,7 +99,7 @@ function validateSchemaPointer(version, fragment, contextLabel, expectedGuideRou
 
 /** Validates `/specification/<ver>/schemas/#...` and `/<catalog-guide-route>/#<alias>...` links. */
 function validateSchemaPermalink(rawHref, contextLabel) {
-  const schemasMatch = /\/specification\/(v1\.0|v0\.9\.1|v0\.8)\/schemas\/(?:#([^\s"'<>)]+))?/.exec(
+  const schemasMatch = /\/specification\/(v1\.0|v0\.9\.1)\/schemas\/(?:#([^\s"'<>)]+))?/.exec(
     rawHref,
   );
   if (schemasMatch) {
@@ -183,7 +183,7 @@ for (const requiredSpec of Object.keys(SPEC_DOC_ROUTES)) {
 // 3. Scan all docs/site/src/**/*.{md,mdx,astro} for /specification/<ver>/schemas/#... permalinks
 const sourceFiles = walkFiles(srcDir, /\.(?:md|mdx|astro)$/);
 const schemaUrlRegex =
-  /(?:\/specification\/(?:(?:v1\.0|v0\.9\.1|v0\.8)\/schemas\/(?:#[A-Za-z0-9_.$~/%-]+)?|(?:v1\.0|v0\.9\.1)-basic-catalog-implementation-guide\/?#[A-Za-z0-9_.$~/%-]+\.json[A-Za-z0-9_.$~/%-]*))|(?:\/guides\/mcp-catalog\/?#[A-Za-z0-9_.$~/%-]+\.json[A-Za-z0-9_.$~/%-]*)/g;
+  /(?:\/specification\/(?:(?:v1\.0|v0\.9\.1)\/schemas\/(?:#[A-Za-z0-9_.$~/%-]+)?|(?:v1\.0|v0\.9\.1)-basic-catalog-implementation-guide\/?#[A-Za-z0-9_.$~/%-]+\.json[A-Za-z0-9_.$~/%-]*))|(?:\/guides\/mcp-catalog\/?#[A-Za-z0-9_.$~/%-]+\.json[A-Za-z0-9_.$~/%-]*)/g;
 
 for (const file of sourceFiles) {
   const txt = fs.readFileSync(file, 'utf8');
@@ -262,9 +262,7 @@ if (checkDist) {
       }
 
       const schemaPageMatch =
-        /^dist[\\/]specification[\\/](v1\.0|v0\.9\.1|v0\.8)[\\/]schemas[\\/]index\.html$/.exec(
-          relHtml,
-        );
+        /^dist[\\/]specification[\\/](v1\.0|v0\.9\.1)[\\/]schemas[\\/]index\.html$/.exec(relHtml);
       if (schemaPageMatch) {
         const pageVer = schemaPageMatch[1];
         const ids = getHtmlIds(htmlFile);

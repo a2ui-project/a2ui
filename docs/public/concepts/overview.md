@@ -28,36 +28,28 @@ How components connect to application state using JSON Pointer paths. Covers rea
 
 ## Message Types
 
-=== "v0.9 (Stable)"
+=== "v1.0"
 
-    Version 0.9 uses the following message types:
+    Version 1.0 uses the following agent-to-renderer message types:
+
+    - **`createSurface`**: Create a new surface, set its default catalog, and optionally send its initial components and data model
+    - **`updateComponents`**: Add or update UI components in a surface
+    - **`updateDataModel`**: Update application state
+    - **`deleteSurface`**: Remove a UI surface
+    - **`callRendererFunction`**: Ask the renderer to run a catalog function
+    - **`agentFunctionResponse`**: Return the result of a function the renderer called on the agent
+
+    v1.0 adds function calls in both directions: the agent can call renderer functions, and the renderer can call agent functions with `callAgentFunction`.
+
+=== "v0.9.1"
+
+    Version 0.9.1 uses the following message types:
 
     - **`createSurface`**: Create a new surface and specify its catalog
     - **`updateComponents`**: Add or update UI components in a surface
     - **`updateDataModel`**: Update application state
     - **`deleteSurface`**: Remove a UI surface
 
-    v0.9 separates surface creation from rendering — `createSurface` replaces both `beginRendering` and the implicit surface creation in `surfaceUpdate`. All messages include a `version` field.
-
-=== "v1.0 (Candidate)"
-
-    Version 1.0 uses the following message types:
-
-    - **`createSurface`**: Create a new surface and specify its catalog
-    - **`updateComponents`**: Add or update UI components in a surface
-    - **`updateDataModel`**: Update application state
-    - **`deleteSurface`**: Remove a UI surface
-    - **`actionResponse`**: Respond to client-initiated actions
-
-    v1.0 introduces the `actionResponse` message type, enabling robust client-to-server synchronous RPC capabilities.
-
-=== "v0.8 (Legacy)"
-
-    Version 0.8 uses the following message types:
-
-    - **`surfaceUpdate`**: Define or update UI components
-    - **`dataModelUpdate`**: Update application state
-    - **`beginRendering`**: Signal the client to render
-    - **`deleteSurface`**: Remove a UI surface
+    All messages include a `version` field.
 
 For complete technical details, see [Message Reference](../reference/messages.md).

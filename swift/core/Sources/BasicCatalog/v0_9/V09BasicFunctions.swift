@@ -22,8 +22,12 @@ public enum V09BasicFunctions: Sendable {
     makeFunctions(locale: BasicFunctions.defaultLocale)
 
   /// Returns new standard function implementations for A2UI Protocol v0.9 and v0.9.1 whose
-  /// `formatNumber`, `formatCurrency` and `pluralize` use `locale`.
-  public static func makeFunctions(locale: Locale) -> [any FunctionImplementation] {
+  /// `formatNumber`, `formatCurrency` and `pluralize` use `locale`, and whose `openUrl` passes
+  /// the resolved URL to `openURLHandler`, held weakly.
+  public static func makeFunctions(
+    locale: Locale = BasicFunctions.defaultLocale,
+    openURLHandler: (any OpenURLHandler)? = nil
+  ) -> [any FunctionImplementation] {
     [
       AndFunction(),
       EmailFunction(returnValidationResult: false),
@@ -34,7 +38,7 @@ public enum V09BasicFunctions: Sendable {
       LengthFunction(returnValidationResult: false),
       NotFunction(),
       NumericFunction(returnValidationResult: false),
-      OpenURLFunction(),
+      OpenURLFunction(handler: openURLHandler),
       OrFunction(),
       PluralizeFunction(locale: locale),
       RegexFunction(returnValidationResult: false),
