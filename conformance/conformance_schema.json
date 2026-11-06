@@ -40,7 +40,8 @@
       {"$ref": "#/$defs/HandleAgentFunctionTest"},
       {"$ref": "#/$defs/ValidatePayloadTest"},
       {"$ref": "#/$defs/ProcessRendererMessageTest"},
-      {"$ref": "#/$defs/CallRendererFunctionTest"}
+      {"$ref": "#/$defs/CallRendererFunctionTest"},
+      {"$ref": "#/$defs/MarkdownSubsetTest"}
     ]
   },
   "$defs": {
@@ -105,6 +106,7 @@
             "provide_catalog",
             "prune",
             "render",
+            "render_markdown",
             "resolve_catalogs",
             "resolve_path",
             "round_trip",
@@ -3005,6 +3007,7 @@
         "name": {"type": "string"},
         "description": {"type": "string"},
         "protocolVersion": {"$ref": "#/$defs/ProtocolVersion"},
+        "strictMode": {"type": "boolean"},
         "catalogPaths": {"type": "array", "items": {"type": "string"}},
         "catalogs": {"type": "array", "items": {"type": "object"}},
         "action": {"const": "render_surface"},
@@ -3023,23 +3026,94 @@
                   "unmount_surface"
                 ]
               },
-              "messages": {"type": "array", "items": {"type": "object"}},
+              "messages": {
+                "type": "array",
+                "items": {
+                  "anyOf": [{"type": "object"}, {"$ref": "#/$defs/LastCallIdRef"}]
+                }
+              },
               "targetNode": {"type": "string"},
               "inputValue": {},
               "userActivation": {"type": "boolean"},
-              "expectViewTree": {"type": "object"},
+              "expectViewTree": {"$ref": "#/$defs/ViewTreeNode"},
               "expectAccessibilityTree": {"type": "object"},
               "expectDataModel": {"type": "object"},
               "expectActions": {"type": "array", "items": {"type": "object"}},
               "expectErrors": {"type": "array", "items": {"type": "object"}},
               "expectSameViewIdentity": {"type": "array", "items": {"type": "string"}},
-              "expectActiveSubscriptions": {"type": "integer"}
+              "expectNewViewIdentity": {"type": "array", "items": {"type": "string"}},
+              "expectDisposedNodes": {"type": "array", "items": {"type": "string"}},
+              "expectSurfaceRemoved": {"type": "boolean"},
+              "expectThemeAbsent": {"type": "boolean"},
+              "expectActiveSubscriptions": {"type": "integer"},
+              "expectOutbound": {"$ref": "#/$defs/OutboundEnvelopeList"}
             },
             "additionalProperties": false
           }
         }
       },
       "additionalProperties": false
+    },
+    "ViewTreeNode": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "string"},
+        "type": {"type": "string"},
+        "state": {
+          "type": "string",
+          "enum": ["resolved", "pending", "unknown-type", "cyclic"]
+        },
+        "occupiesLayout": {"type": "boolean"},
+        "isValid": {"type": "boolean"},
+        "validationErrors": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "validationResults": {
+          "type": "array",
+          "items": {"type": "object"}
+        },
+        "hints": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "children": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/ViewTreeNode"}
+        }
+      },
+      "additionalProperties": true
+    },
+    "MatchAny": {
+      "type": "object",
+      "required": ["$match"],
+      "properties": {
+        "$match": {"const": "any"}
+      },
+      "additionalProperties": false
+    },
+    "OutboundEnvelopeList": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["version"],
+        "minProperties": 2,
+        "maxProperties": 2,
+        "properties": {
+          "version": {"$ref": "#/$defs/ProtocolVersion"},
+          "action": {"type": "object"},
+          "callAgentFunction": {"type": "object"},
+          "rendererFunctionResponse": {"type": "object"},
+          "error": {"type": "object"}
+        },
+        "oneOf": [
+          {"required": ["action"]},
+          {"required": ["callAgentFunction"]},
+          {"required": ["rendererFunctionResponse"]},
+          {"required": ["error"]}
+        ],
+        "additionalProperties": false
+      }
     },
     "RendererStateTurnsTest": {
       "type": "object",
@@ -3280,6 +3354,43 @@
         },
         "expectError": {"$ref": "#/$defs/ExpectError"},
         "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "additionalProperties": false
+    },
+    "LastCallIdRef": {
+      "type": "object",
+      "properties": {
+        "$ref": {
+          "const": "lastCallId"
+        }
+      },
+      "required": ["$ref"],
+      "additionalProperties": false
+    },
+    "MarkdownSubsetTest": {
+      "type": "object",
+      "required": ["name", "action", "markdown"],
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "features": {"$ref": "#/$defs/FeatureTags"},
+        "action": {"const": "render_markdown"},
+        "markdown": {"type": "string"},
+        "expectVisibleText": {"type": "string"},
+        "expectPresent": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["strong", "emphasis", "heading", "list_item", "code"]
+          }
+        },
+        "expectAbsent": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["html", "image", "link"]
+          }
+        }
       },
       "additionalProperties": false
     }
