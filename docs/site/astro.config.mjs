@@ -186,7 +186,7 @@ export default defineConfig({
               slug: 'guides/client-integration',
             },
             {
-              label: 'How to Integrate with My Agent Server',
+              label: 'How to Integrate A2UI into an Agent',
               slug: 'guides/agent-integration',
             },
             {

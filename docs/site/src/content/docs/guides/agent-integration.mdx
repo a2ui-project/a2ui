@@ -1,11 +1,1618 @@
 ---
-title: 'How to Integrate with My Agent Server'
-description: 'Step-by-step guide to integrating A2UI into Python, TypeScript, and Dart agent servers.'
+title: 'How to Integrate A2UI into an Agent'
+description: 'Step-by-step guide to integrating A2UI UI generation into TypeScript, Python, and Dart agent servers.'
 ---
 
-import {Aside} from '@astrojs/starlight/components';
+import {Aside, Tabs, TabItem} from '@astrojs/starlight/components';
+import SchemaChips from '../../../components/docs/common/SchemaChips.astro';
 
-<Aside type="note" title="Work in Progress">
-  This page is currently being authored. Refer to the site outline in the repository for the
-  specification and planned content.
+Integrate A2UI UI generation into a TypeScript, Python, or Dart [agent](../../concepts/glossary/#agent) server using the [Agent SDKs](../../concepts/sdks/#agent-sdk) to stream validated interactive [surfaces](../../concepts/glossary/#surface) to clients and handle multi-turn user actions.
+
+If you are building the client application instead, see [How to Integrate A2UI into a Client](../../guides/client-integration/). To register custom widgets beyond the built-in [Basic catalog](../../specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json), see [How to Define a Catalog](../../guides/defining-a-catalog/), and for wire vs. compact DSL trade-offs see [Swappable Inference Formats](../../concepts/inference-formats/). Swift and Kotlin target client-side rendering rather than server-side agent generation (see [SDKs](../../concepts/sdks/#agent-sdk)).
+
+---
+
+## Step 1: Install dependencies
+
+Install the Agent SDK and Core SDK packages for your server language:
+
+<Tabs syncKey="sdk-lang">
+  <TabItem label="TypeScript">
+
+```bash
+npm install @a2ui/agent @a2ui/web_core
+```
+
+  </TabItem>
+  <TabItem label="Python">
+
+```bash
+pip install a2ui-agent-sdk
+```
+
+  </TabItem>
+  <TabItem label="Dart">
+
+```bash
+dart pub add a2ui_agent a2ui_core
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Step 2: Initialize A2uiGenerator
+
+The steps below use a sample e-commerce order assistant (`OrderAgentService` in `order-agent.ts` on TypeScript, `order_agent.py` on Python, and `lib/order_agent.dart` on Dart) to keep the snippets concrete, though your agent can serve any domain. Create one [`A2uiGenerator`](../../concepts/glossary/#a2uigenerator) when your server starts inside that service, wired at the server entry point in [Step 5](#step-5-wire-everything-at-the-server-entry-point).
+
+Register the built-in `v1.0` [Basic catalog](../../specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json) inside a `CatalogConfig` wrapper and keep a per-session `RendererState` map so follow-up turns can update existing surfaces in place. By default, `A2uiGenerator` uses `ExpressFormatFactory`, which instructs the language model to write compact `<a2ui>` [inference-format](../../concepts/glossary/#inference-format) blocks and compiles them into validated A2UI JSON messages. To load domain-specific `catalog.json` schemas alongside the Basic catalog, see [How to Define a Catalog](../../guides/defining-a-catalog/).
+
+<Tabs syncKey="sdk-lang">
+  <TabItem label="TypeScript">
+
+```typescript
+import {
+  A2uiGenerator,
+  type A2uiRequestProcessor,
+  type AgentToRendererMessage,
+  CatalogConfig,
+  RendererState,
+} from '@a2ui/agent';
+import {basicCatalog} from '@a2ui/web_core/v1_0';
+
+export class OrderAgentService {
+  readonly generator = new A2uiGenerator([
+    new CatalogConfig(basicCatalog),
+    // Add custom domain catalogs here (see /guides/defining-a-catalog/).
+  ]);
+  private readonly sessions = new Map<string, RendererState>();
+}
+```
+
+  </TabItem>
+  <TabItem label="Python">
+
+```python
+from __future__ import annotations
+
+from collections.abc import AsyncIterable
+import json
+from typing import Any
+
+from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
+from a2ui.inference_formats import to_message_dicts
+from a2ui.parser import A2uiPart
+from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
+from a2ui.utils import RendererState
+
+
+class OrderAgentService:
+
+  def __init__(self) -> None:
+    self.basic = BasicCatalog(ProtocolVersion.V1_0)
+    self.generator = A2uiGenerator(
+        catalogs=[
+            CatalogConfig(catalog=self.basic),
+            # Add custom domain catalogs here (see /guides/defining-a-catalog/).
+        ],
+    )
+    self.sessions: dict[str, RendererState] = {}
+```
+
+  </TabItem>
+  <TabItem label="Dart">
+
+```dart
+import 'dart:convert';
+
+import 'package:a2ui_agent/a2ui_agent.dart';
+import 'package:a2ui_core/a2ui_core.dart';
+
+class OrderAgentService {
+  final basic = BasicCatalog.v1_0();
+  late final A2uiGenerator generator = A2uiGenerator(
+    catalogs: [
+      CatalogConfig(basic),
+      // Add custom domain catalogs here (see /guides/defining-a-catalog/).
+    ],
+  );
+  final Map<String, RendererState> _sessions = {};
+}
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Step 3: Build the system prompt and stream A2UI messages
+
+Add `prepareTurn` (`prepare_turn` in Python) and `streamTurn` (`stream_turn` in Python) to `OrderAgentService`. On each turn, look up or create the session's `RendererState`, create an `A2uiRequestProcessor` bound to that state, and append `processor.promptSnippet` (`processor.prompt_snippet` in Python) to your agent's role instructions. If each chat turn creates an independent surface instead of updating earlier ones, omit `state` so every response validates against an empty `RendererState`.
+
+Pass incoming LLM token chunks into `processor.openStream()` (`processor.open_stream()` in Python). The stream reader heals progressive string properties such as `text` as tokens arrive, applies each emitted message to `RendererState`, and yields [`createSurface`](../../concepts/messages/#createsurface), [`updateComponents`](../../concepts/messages/#updatecomponents), [`updateDataModel`](../../concepts/messages/#updatedatamodel), and [`deleteSurface`](../../concepts/messages/#deletesurface) messages as soon as they are ready:
+
+<Tabs syncKey="sdk-lang">
+  <TabItem label="TypeScript">
+
+```typescript
+prepareTurn(sessionId: string): {processor: A2uiRequestProcessor; systemPrompt: string} {
+  let state = this.sessions.get(sessionId);
+  if (!state) {
+    state = new RendererState([basicCatalog]);
+    this.sessions.set(sessionId, state);
+  }
+
+  const processor = this.generator.createProcessor(
+    {'1.0': {supportedCatalogIds: [basicCatalog.id]}},
+    undefined,
+    {state},
+  );
+  const systemPrompt = [
+    'You are an order assistant. Show order details in an interactive card.',
+    processor.promptSnippet,
+  ].join('\n\n');
+
+  return {processor, systemPrompt};
+}
+
+async *streamTurn(
+  processor: A2uiRequestProcessor,
+  tokenChunks: AsyncIterable<string>,
+): AsyncGenerator<AgentToRendererMessage> {
+  const stream = processor.openStream();
+  for await (const chunk of tokenChunks) {
+    for (const part of stream.feed(chunk)) {
+      if (part.type === 'a2ui') {
+        for (const message of part.a2ui) {
+          yield message;
+        }
+      }
+    }
+  }
+  for (const part of stream.close()) {
+    if (part.type === 'a2ui') {
+      for (const message of part.a2ui) {
+        yield message;
+      }
+    }
+  }
+}
+```
+
+  </TabItem>
+  <TabItem label="Python">
+
+```python
+def prepare_turn(
+    self, session_id: str
+) -> tuple[A2uiRequestProcessor, str]:
+  state = self.sessions.get(session_id)
+  if state is None:
+    state = RendererState([self.basic])
+    self.sessions[session_id] = state
+
+  processor = self.generator.create_processor(
+      {"1.0": {"supportedCatalogIds": [self.basic.catalog_id]}},
+      state=state,
+  )
+  system_prompt = (
+      "You are an order assistant. Show order details in an interactive card.\n\n"
+      f"{processor.prompt_snippet}"
+  )
+  return processor, system_prompt
+
+
+async def stream_turn(
+    self,
+    processor: A2uiRequestProcessor,
+    token_chunks: AsyncIterable[str],
+) -> AsyncIterable[dict[str, Any]]:
+  stream = processor.open_stream()
+  async for chunk in token_chunks:
+    for part in stream.feed(chunk):
+      if isinstance(part, A2uiPart):
+        for message in to_message_dicts(part.a2ui):
+          yield message
+  for part in stream.close():
+    if isinstance(part, A2uiPart):
+      for message in to_message_dicts(part.a2ui):
+        yield message
+```
+
+  </TabItem>
+  <TabItem label="Dart">
+
+```dart
+({A2uiRequestProcessor processor, String systemPrompt}) prepareTurn(
+  String sessionId,
+) {
+  final state = _sessions.putIfAbsent(
+    sessionId,
+    () => RendererState([basic]),
+  );
+
+  final processor = generator.createProcessor(
+    A2uiRendererCapabilities.forCatalogIds(
+      [basic.id],
+      version: A2uiProtocolVersion.v1_0,
+    ),
+    state: state,
+  );
+  final systemPrompt =
+      'You are an order assistant. Show order details in an interactive card.\n\n'
+      '${processor.promptSnippet}';
+
+  return (processor: processor, systemPrompt: systemPrompt);
+}
+
+Stream<Map<String, Object?>> streamTurn(
+  A2uiRequestProcessor processor,
+  Stream<String> tokenChunks,
+) async* {
+  final stream = processor.openStream();
+  await for (final chunk in tokenChunks) {
+    for (final part in stream.feed(chunk)) {
+      if (part is A2uiPart) {
+        for (final message in part.a2ui) {
+          yield message.toJson();
+        }
+      }
+    }
+  }
+  for (final part in stream.close()) {
+    if (part is A2uiPart) {
+      for (final message in part.a2ui) {
+        yield message.toJson();
+      }
+    }
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+<details>
+<summary>Wire format: Express output and compiled messages</summary>
+
+With `ExpressFormatFactory`, the model writes a compact `<a2ui>` block using UAX #31 component identifiers (`confirm_btn`, `confirm_label`) and `$/...` data-model bindings:
+
+```text
+<a2ui>
+surface("order_summary")
+$/orderId = "ORD-4821"
+$/summaryText = "2 items ready for pickup"
+root = Card(col)
+col = Column([headline, confirm_btn])
+headline = Text($/summaryText)
+confirm_btn = Button(confirm_label, _, Event("confirm_order", {orderId: $/orderId}))
+confirm_label = Text("Confirm order")
+</a2ui>
+```
+
+The parser compiles that block into validated JSON messages (`"version": "1.0"` with `{"@path": "..."}` bindings in `v1.0`, or `"version": "v0.9"` with `{"path": "..."}` bindings in `v0.9.1`). During incremental `openStream` / `open_stream` reads across token chunks, `v1.0` emits `createSurface` with the initial `root` subtree and `dataModel` followed by `updateComponents` deltas as remaining components arrive; when parsed in one chunk or via `parseResponse` / `parse_response`, `v1.0` folds all initial components and data into `createSurface`:
+
+<SchemaChips
+  items={[
+    {
+      version: 'v1.0',
+      label: 'agent_to_renderer.json',
+      href: '/specification/v1.0/schemas/#agent_to_renderer.json',
+      title: 'v1.0 Agent-to-Renderer Message Schema',
+    },
+    {
+      version: 'v0.9.1',
+      label: 'server_to_client.json',
+      href: '/specification/v0.9.1/schemas/#server_to_client.json',
+      title: 'v0.9.1 Server-to-Client Message Schema',
+    },
+  ]}
+/>
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0">
+
+```json
+[
+  {
+    "version": "1.0",
+    "createSurface": {
+      "surfaceId": "order_summary",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+      "components": [
+        {"id": "root", "component": "Card", "child": "col"},
+        {"id": "col", "component": "Column", "children": ["headline", "confirm_btn"]},
+        {"id": "headline", "component": "Text", "text": {"@path": "/summaryText"}},
+        {
+          "id": "confirm_btn",
+          "component": "Button",
+          "child": "confirm_label",
+          "action": {
+            "event": {"name": "confirm_order", "context": {"orderId": {"@path": "/orderId"}}}
+          }
+        },
+        {"id": "confirm_label", "component": "Text", "text": "Confirm order"}
+      ],
+      "dataModel": {
+        "orderId": "ORD-4821",
+        "summaryText": "2 items ready for pickup"
+      }
+    }
+  }
+]
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1">
+
+```json
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "order_summary",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "order_summary",
+      "components": [
+        {"id": "root", "component": "Card", "child": "col"},
+        {"id": "col", "component": "Column", "children": ["headline", "confirm_btn"]},
+        {"id": "headline", "component": "Text", "text": {"path": "/summaryText"}},
+        {
+          "id": "confirm_btn",
+          "component": "Button",
+          "child": "confirm_label",
+          "action": {
+            "event": {"name": "confirm_order", "context": {"orderId": {"path": "/orderId"}}}
+          }
+        },
+        {"id": "confirm_label", "component": "Text", "text": "Confirm order"}
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "order_summary",
+      "path": "/",
+      "value": {"orderId": "ORD-4821", "summaryText": "2 items ready for pickup"}
+    }
+  }
+]
+```
+
+  </TabItem>
+</Tabs>
+
+</details>
+
+---
+
+## Step 4: Handle user actions
+
+When a user interacts with a component such as **Confirm order**, the client renderer resolves the action's `context` bindings against its local `DataModel` and sends an [`action`](../../concepts/messages/#action) message back to your server. Add `handleAction` (`handle_action` in Python) to `OrderAgentService` to convert that action envelope into the next turn's prompt so the model can update `"order_summary"` in place:
+
+<Tabs syncKey="sdk-lang">
+  <TabItem label="TypeScript">
+
+```typescript
+handleAction(envelope: Record<string, unknown>): string {
+  const act = envelope.action as
+    | {name: string; surfaceId: string; context: Record<string, unknown>}
+    | undefined;
+  if (!act) {
+    throw new Error('Expected an action message');
+  }
+  return (
+    `User triggered action '${act.name}' on surface '${act.surfaceId}' ` +
+    `with context ${JSON.stringify(act.context)}.`
+  );
+}
+```
+
+  </TabItem>
+  <TabItem label="Python">
+
+```python
+def handle_action(self, envelope: dict[str, Any]) -> str:
+  act = envelope.get("action")
+  if not isinstance(act, dict):
+    raise ValueError("Expected an action message")
+  return (
+      f"User triggered action '{act['name']}' on surface '{act['surfaceId']}' "
+      f"with context {json.dumps(act['context'])}."
+  )
+```
+
+  </TabItem>
+  <TabItem label="Dart">
+
+```dart
+String handleAction(Map<String, Object?> envelope) {
+  final act = envelope['action'];
+  if (act is! Map<String, Object?>) {
+    throw ArgumentError('Expected an action message');
+  }
+  return "User triggered action '${act['name']}' on surface "
+      "'${act['surfaceId']}' with context ${jsonEncode(act['context'])}.";
+}
+```
+
+  </TabItem>
+</Tabs>
+
+<details>
+<summary>Wire format: inbound action message</summary>
+
+When the user clicks **Confirm order**, the client sends the resolved `action` message below (`"version": "1.0"` in `v1.0`, `"version": "v0.9"` in `v0.9.1`):
+
+<SchemaChips
+  items={[
+    {
+      version: 'v1.0',
+      label: 'renderer_to_agent.json',
+      href: '/specification/v1.0/schemas/#renderer_to_agent.json',
+      title: 'v1.0 Renderer-to-Agent Message Schema',
+    },
+    {
+      version: 'v0.9.1',
+      label: 'client_to_server.json',
+      href: '/specification/v0.9.1/schemas/#client_to_server.json',
+      title: 'v0.9.1 Client-to-Server Message Schema',
+    },
+  ]}
+/>
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0">
+
+```json
+{
+  "version": "1.0",
+  "action": {
+    "name": "confirm_order",
+    "surfaceId": "order_summary",
+    "sourceComponentId": "confirm_btn",
+    "timestamp": "2026-05-01T18:30:00.000Z",
+    "context": {
+      "orderId": "ORD-4821"
+    }
+  }
+}
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1">
+
+```json
+{
+  "version": "v0.9",
+  "action": {
+    "name": "confirm_order",
+    "surfaceId": "order_summary",
+    "sourceComponentId": "confirm_btn",
+    "timestamp": "2026-05-01T18:30:00.000Z",
+    "context": {
+      "orderId": "ORD-4821"
+    }
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+</details>
+
+---
+
+## Step 5: Wire everything at the server entry point
+
+Connect `OrderAgentService` at your server entry point (`server.ts` on TypeScript, `server.py` on Python, and `bin/server.dart` on Dart) behind an HTTP endpoint (`POST /api/agent`) that accepts initial user prompts (`{sessionId, prompt}`) and outbound client action envelopes (`{sessionId, message}`) and streams validated A2UI messages over Server-Sent Events (`text/event-stream`). On follow-up turns, the model passes `update=true` in `surface("order_summary", update=true)` to update the surface already tracked in `RendererState`:
+
+<Tabs syncKey="sdk-lang">
+  <TabItem label="TypeScript">
+
+```typescript
+import {createServer, type IncomingMessage, type ServerResponse} from 'node:http';
+import {OrderAgentService} from './order-agent.js';
+
+interface AgentRequestBody {
+  sessionId?: string;
+  prompt?: string;
+  message?: Record<string, unknown>;
+}
+
+const agentService = new OrderAgentService();
+
+async function readJson(req: IncomingMessage): Promise<AgentRequestBody> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return JSON.parse(Buffer.concat(chunks).toString('utf8')) as AgentRequestBody;
+}
+
+async function* callModelStream(systemPrompt: string, userPrompt: string): AsyncGenerator<string> {
+  // Replace with your LLM SDK streaming call (e.g., Gemini, OpenAI, Anthropic).
+  if (userPrompt.startsWith('User triggered action')) {
+    yield '<a2ui>\nsurface("order_summary", update=true)\n';
+    yield '$/summaryText = "Order ORD-4821 confirmed for pickup"\n</a2ui>';
+    return;
+  }
+  yield '<a2ui>\nsurface("order_summary")\n';
+  yield '$/orderId = "ORD-4821"\n$/summaryText = "2 items ready for pickup"\n';
+  yield 'root = Card(col)\ncol = Column([headline, confirm_btn])\n';
+  yield 'headline = Text($/summaryText)\n';
+  yield 'confirm_btn = Button(confirm_label, _, Event("confirm_order", {orderId: $/orderId}))\n';
+  yield 'confirm_label = Text("Confirm order")\n</a2ui>';
+}
+
+createServer(async (req: IncomingMessage, res: ServerResponse) => {
+  if (req.method !== 'POST' || req.url !== '/api/agent') {
+    res.writeHead(404).end();
+    return;
+  }
+
+  const body = await readJson(req);
+  const sessionId = body.sessionId ?? 'default';
+  const turnPrompt = body.message
+    ? agentService.handleAction(body.message)
+    : (body.prompt ?? 'Show my order summary');
+
+  const {processor, systemPrompt} = agentService.prepareTurn(sessionId);
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+  });
+
+  const tokens = callModelStream(systemPrompt, turnPrompt);
+  for await (const msg of agentService.streamTurn(processor, tokens)) {
+    res.write(`data: ${JSON.stringify(msg)}\n\n`);
+  }
+  res.end();
+}).listen(8080);
+```
+
+  </TabItem>
+  <TabItem label="Python">
+
+```python
+from __future__ import annotations
+
+from collections.abc import AsyncIterable
+import json
+from fastapi import FastAPI, Request
+from fastapi.responses import StreamingResponse
+
+from order_agent import OrderAgentService
+
+app = FastAPI()
+agent_service = OrderAgentService()
+
+
+async def call_model_stream(
+    system_prompt: str, user_prompt: str
+) -> AsyncIterable[str]:
+  # Replace with your LLM SDK streaming call (e.g., google-genai, openai, anthropic).
+  if user_prompt.startswith("User triggered action"):
+    yield '<a2ui>\nsurface("order_summary", update=true)\n'
+    yield '$/summaryText = "Order ORD-4821 confirmed for pickup"\n</a2ui>'
+    return
+  yield '<a2ui>\nsurface("order_summary")\n'
+  yield '$/orderId = "ORD-4821"\n$/summaryText = "2 items ready for pickup"\n'
+  yield "root = Card(col)\ncol = Column([headline, confirm_btn])\n"
+  yield "headline = Text($/summaryText)\n"
+  yield 'confirm_btn = Button(confirm_label, _, Event("confirm_order", {orderId: $/orderId}))\n'
+  yield 'confirm_label = Text("Confirm order")\n</a2ui>'
+
+
+@app.post("/api/agent")
+async def handle_agent(request: Request):
+  body = await request.json()
+  session_id = body.get("sessionId", "default")
+  turn_prompt = (
+      agent_service.handle_action(body["message"])
+      if "message" in body
+      else body.get("prompt", "Show my order summary")
+  )
+
+  processor, system_prompt = agent_service.prepare_turn(session_id)
+
+  async def event_stream() -> AsyncIterable[str]:
+    tokens = call_model_stream(system_prompt, turn_prompt)
+    async for msg in agent_service.stream_turn(processor, tokens):
+      yield f"data: {json.dumps(msg)}\n\n"
+
+  return StreamingResponse(event_stream(), media_type="text/event-stream")
+```
+
+  </TabItem>
+  <TabItem label="Dart">
+
+```dart
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:my_agent/order_agent.dart';
+
+Stream<String> callModelStream(
+  String systemPrompt,
+  String userPrompt,
+) async* {
+  // Replace with your LLM SDK streaming call.
+  if (userPrompt.startsWith('User triggered action')) {
+    yield '<a2ui>\nsurface("order_summary", update=true)\n';
+    yield '\$/summaryText = "Order ORD-4821 confirmed for pickup"\n</a2ui>';
+    return;
+  }
+  yield '<a2ui>\nsurface("order_summary")\n';
+  yield '\$/orderId = "ORD-4821"\n\$/summaryText = "2 items ready for pickup"\n';
+  yield 'root = Card(col)\ncol = Column([headline, confirm_btn])\n';
+  yield 'headline = Text(\$/summaryText)\n';
+  yield 'confirm_btn = Button(confirm_label, _, Event("confirm_order", {orderId: \$/orderId}))\n';
+  yield 'confirm_label = Text("Confirm order")\n</a2ui>';
+}
+
+Future<void> main() async {
+  final agentService = OrderAgentService();
+  final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 8080);
+
+  await for (final HttpRequest req in server) {
+    if (req.method != 'POST' || req.uri.path != '/api/agent') {
+      req.response
+        ..statusCode = HttpStatus.notFound
+        ..close();
+      continue;
+    }
+
+    final rawBody = await utf8.decoder.bind(req).join();
+    final body = (jsonDecode(rawBody) as Map).cast<String, Object?>();
+    final sessionId = (body['sessionId'] as String?) ?? 'default';
+    final message = (body['message'] as Map?)?.cast<String, Object?>();
+    final turnPrompt = message != null
+        ? agentService.handleAction(message)
+        : ((body['prompt'] as String?) ?? 'Show my order summary');
+
+    final turn = agentService.prepareTurn(sessionId);
+
+    req.response
+      ..statusCode = HttpStatus.ok
+      ..bufferOutput = false
+      ..headers.set('Content-Type', 'text/event-stream')
+      ..headers.set('Cache-Control', 'no-cache');
+
+    final tokens = callModelStream(turn.systemPrompt, turnPrompt);
+    await for (final msg in agentService.streamTurn(turn.processor, tokens)) {
+      req.response.write('data: ${jsonEncode(msg)}\n\n');
+    }
+    await req.response.close();
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Additional steps
+
+### Negotiate client capabilities
+
+If your team owns both the agent server and the client app, targeting your known catalogs directly as in [Step 3](#step-3-build-the-system-prompt-and-stream-a2ui-messages) avoids runtime capability plumbing. When your agent serves external clients or multiple shipped app versions with different catalog sets, register each supported catalog on `A2uiGenerator`, read `metadata.a2uiRendererCapabilities` (or `metadata.a2uiClientCapabilities` for `v0.9.1` clients) on every request, and check `probe.acceptsState(state)` (`probe.accepts_state(state)` in Python) in case the caller's negotiated [catalogs](../../concepts/catalogs/#catalog-negotiation-and-multi-catalog-surfaces) changed. In TypeScript and Python, all catalogs on one `A2uiGenerator` must target the same protocol version, so keep a separate `v0.9` `A2uiGenerator` when serving both `v1.0` and `v0.9.1` clients (Dart's `A2uiGenerator` groups mixed-version catalogs automatically):
+
+<Tabs syncKey="sdk-lang">
+  <TabItem label="TypeScript">
+
+```typescript
+import type {RendererCapabilities} from '@a2ui/agent';
+
+prepareNegotiatedTurn(
+  sessionId: string,
+  capabilitiesPayload?: Record<string, RendererCapabilities>,
+): {processor: A2uiRequestProcessor; state: RendererState; systemPrompt: string} {
+  const capabilities: Record<string, RendererCapabilities> = capabilitiesPayload ?? {
+    '1.0': {supportedCatalogIds: [basicCatalog.id]},
+  };
+
+  const probe = this.generator.createProcessor(capabilities);
+  let state = this.sessions.get(sessionId);
+  if (!state || !probe.acceptsState(state)) {
+    state = probe.createState();
+    this.sessions.set(sessionId, state);
+  }
+
+  const processor = this.generator.createProcessor(capabilities, undefined, {state});
+  const systemPrompt = [
+    'You are an order assistant. Show order details in an interactive card.',
+    processor.promptSnippet,
+  ].join('\n\n');
+
+  return {processor, state, systemPrompt};
+}
+```
+
+  </TabItem>
+  <TabItem label="Python">
+
+```python
+def prepare_negotiated_turn(
+    self,
+    session_id: str,
+    capabilities_payload: dict[str, Any] | None = None,
+) -> tuple[A2uiRequestProcessor, RendererState, str]:
+  capabilities = capabilities_payload or {
+      "1.0": {"supportedCatalogIds": [self.basic.catalog_id]}
+  }
+
+  probe = self.generator.create_processor(capabilities)
+  state = self.sessions.get(session_id)
+  if state is None or not probe.accepts_state(state):
+    state = probe.create_state()
+    self.sessions[session_id] = state
+
+  processor = self.generator.create_processor(capabilities, state=state)
+  system_prompt = (
+      "You are an order assistant. Show order details in an interactive card.\n\n"
+      f"{processor.prompt_snippet}"
+  )
+  return processor, state, system_prompt
+```
+
+  </TabItem>
+  <TabItem label="Dart">
+
+```dart
+({
+  A2uiRequestProcessor processor,
+  RendererState state,
+  String systemPrompt,
+}) prepareNegotiatedTurn(
+  String sessionId, {
+  Map<String, Object?>? capabilitiesPayload,
+}) {
+  final capabilities = capabilitiesPayload != null
+      ? A2uiRendererCapabilities.fromJson(capabilitiesPayload)
+      : A2uiRendererCapabilities.forCatalogIds(
+          [basic.id],
+          version: A2uiProtocolVersion.v1_0,
+        );
+
+  final probe = generator.createProcessor(capabilities);
+  RendererState? state = _sessions[sessionId];
+  if (state == null || !probe.acceptsState(state)) {
+    state = probe.createState();
+    _sessions[sessionId] = state;
+  }
+
+  final processor = generator.createProcessor(capabilities, state: state);
+  final systemPrompt =
+      'You are an order assistant. Show order details in an interactive card.\n\n'
+      '${processor.promptSnippet}';
+
+  return (processor: processor, state: state, systemPrompt: systemPrompt);
+}
+```
+
+  </TabItem>
+</Tabs>
+
+<details>
+<summary>Wire format: inbound renderer capabilities metadata</summary>
+
+Client renderers attach their supported [capabilities](../../concepts/glossary/#capabilities) in transport [metadata](../../concepts/messages/#metadata) (`a2uiRendererCapabilities` under `"1.0"` in `v1.0`, or `a2uiClientCapabilities` under `"v0.9"` in `v0.9.1`):
+
+<SchemaChips
+  items={[
+    {
+      version: 'v1.0',
+      label: 'renderer_capabilities.json',
+      href: '/specification/v1.0/schemas/#renderer_capabilities.json',
+      title: 'v1.0 Renderer Capabilities Schema',
+    },
+    {
+      version: 'v0.9.1',
+      label: 'client_capabilities.json',
+      href: '/specification/v0.9.1/schemas/#client_capabilities.json',
+      title: 'v0.9.1 Client Capabilities Schema',
+    },
+  ]}
+/>
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0">
+
+```json
+{
+  "metadata": {
+    "a2uiRendererCapabilities": {
+      "1.0": {
+        "supportedCatalogIds": ["https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"]
+      }
+    }
+  }
+}
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1">
+
+```json
+{
+  "metadata": {
+    "a2uiClientCapabilities": {
+      "v0.9": {
+        "supportedCatalogIds": ["https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"]
+      }
+    }
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+</details>
+
+### Synchronize client data models and handle function RPCs
+
+Beyond user `action` messages, clients can send synchronized surface [data models](../../concepts/glossary/#data-model), validation error reports, and `v1.0` remote function calls:
+
+1. When a surface is created with [`sendDataModel: true`](../../concepts/data-binding/#senddatamodel-true) (`surface("order_summary", sendDataModel=true)` in Express), local two-way input edits attach the surface snapshot under `metadata.a2uiRendererDataModel.surfaces[surfaceId]` (`metadata.a2uiClientDataModel.surfaces[surfaceId]` in `v0.9.1`) alongside outbound actions and prompts.
+2. [`callAgentFunction`](../../concepts/messages/#callagentfunction-v10-only) (`v1.0` only) invokes a catalog function hosted on the agent and expects a correlated [`agentFunctionResponse`](../../concepts/messages/#agentfunctionresponse-v10-only) without running an LLM turn. In Python, register handlers on your catalog with `AgentFunction` and `catalog.copy_with(agent_functions=[...])` and dispatch incoming envelopes through `RendererToAgentMessageProcessor` (`from a2ui.rpc import RendererToAgentMessageProcessor`); in TypeScript and Dart, inspect `envelope.callAgentFunction` directly.
+3. [`error`](../../specification/v1.0/schemas/#renderer_to_agent.json/properties/error) reports a client-side `VALIDATION_FAILED` or function failure (`code`, `surfaceId`, `message`) that you can forward into a repair prompt.
+
+<Tabs syncKey="sdk-lang">
+  <TabItem label="TypeScript">
+
+```typescript
+export interface ClientDataModelMetadata {
+  a2uiRendererDataModel?: {
+    version: string;
+    surfaces?: Record<string, Record<string, unknown>>;
+  };
+}
+
+async handleClientEnvelope(
+  envelope: Record<string, unknown>,
+  metadata?: ClientDataModelMetadata,
+): Promise<
+  | {kind: 'rpc'; replies: Record<string, unknown>[]}
+  | {kind: 'prompt'; prompt: string}
+> {
+  if (
+    'callAgentFunction' in envelope &&
+    typeof envelope.callAgentFunction === 'object' &&
+    envelope.callAgentFunction !== null
+  ) {
+    const rpc = envelope.callAgentFunction as {
+      functionCallId: string;
+      callFunction: {'@call': string; args?: Record<string, unknown>};
+    };
+    const fnName = rpc.callFunction['@call'];
+    const args = rpc.callFunction.args ?? {};
+    if (fnName === 'lookupPickupEta') {
+      return {
+        kind: 'rpc',
+        replies: [
+          {
+            version: '1.0',
+            agentFunctionResponse: {
+              functionCallId: rpc.functionCallId,
+              value: {
+                orderId: String(args.orderId ?? 'unknown'),
+                eta: 'Today, 5:30 PM',
+              },
+            },
+          },
+        ],
+      };
+    }
+    return {
+      kind: 'rpc',
+      replies: [
+        {
+          version: '1.0',
+          agentFunctionResponse: {
+            functionCallId: rpc.functionCallId,
+            error: {
+              code: 'UNKNOWN_FUNCTION',
+              message: `Unknown agent function: ${fnName}`,
+            },
+          },
+        },
+      ],
+    };
+  }
+
+  if (
+    'action' in envelope &&
+    typeof envelope.action === 'object' &&
+    envelope.action !== null
+  ) {
+    const act = envelope.action as {
+      name: string;
+      surfaceId: string;
+      context: Record<string, unknown>;
+    };
+    const surfaceData =
+      metadata?.a2uiRendererDataModel?.surfaces?.[act.surfaceId] ?? {};
+    return {
+      kind: 'prompt',
+      prompt:
+        `User triggered action '${act.name}' on surface '${act.surfaceId}' ` +
+        `with context ${JSON.stringify(act.context)} and data model ` +
+        `${JSON.stringify(surfaceData)}.`,
+    };
+  }
+
+  if (
+    'error' in envelope &&
+    typeof envelope.error === 'object' &&
+    envelope.error !== null
+  ) {
+    const err = envelope.error as {
+      code: string;
+      surfaceId: string;
+      message: string;
+    };
+    return {
+      kind: 'prompt',
+      prompt: `Renderer reported ${err.code} on surface '${err.surfaceId}': ${err.message}.`,
+    };
+  }
+
+  throw new Error('Unsupported renderer_to_agent message');
+}
+```
+
+  </TabItem>
+  <TabItem label="Python">
+
+```python
+from a2ui.core import AgentFunction
+from a2ui.rpc import RendererToAgentMessageProcessor
+
+pickup_eta_fn = AgentFunction(
+    "lookupPickupEta",
+    description="Looks up the pickup window for an order.",
+    return_type="object",
+    schema={
+        "type": "object",
+        "properties": {"orderId": {"type": "string"}},
+        "required": ["orderId"],
+    },
+    handler=lambda args: {
+        "orderId": args["orderId"],
+        "eta": "Today, 5:30 PM",
+    },
+)
+
+
+# Register `self.basic.copy_with(agent_functions=[pickup_eta_fn])` on `A2uiGenerator`,
+# then build `self.rpc_processor = RendererToAgentMessageProcessor([agent_catalog])`:
+async def handle_client_envelope(
+    self,
+    envelope: dict[str, Any],
+    metadata: dict[str, Any] | None = None,
+) -> list[dict[str, Any]] | str:
+  if envelope.get("version") == "1.0":
+    result = await self.rpc_processor.process_message(envelope)
+    if result.handled:
+      return [
+          reply.model_dump(by_alias=True, exclude_unset=True)
+          for reply in result.replies
+      ]
+
+  if "action" in envelope:
+    act = envelope["action"]
+    surface_id = act["surfaceId"]
+    data_model_meta = (metadata or {}).get("a2uiRendererDataModel") or (
+        metadata or {}
+    ).get("a2uiClientDataModel", {})
+    surface_data = data_model_meta.get("surfaces", {}).get(surface_id, {})
+    return (
+        f"User triggered action '{act['name']}' on surface '{surface_id}' "
+        f"with context {json.dumps(act['context'])} and data model "
+        f"{json.dumps(surface_data)}."
+    )
+
+  if "error" in envelope:
+    err = envelope["error"]
+    return (
+        f"Renderer reported {err['code']} on surface '{err['surfaceId']}': "
+        f"{err['message']}."
+    )
+
+  raise ValueError("Unsupported renderer_to_agent message")
+```
+
+  </TabItem>
+  <TabItem label="Dart">
+
+```dart
+Future<Object> handleClientEnvelope(
+  Map<String, Object?> envelope, {
+  Map<String, Object?>? metadata,
+}) async {
+  final rpc = envelope['callAgentFunction'];
+  if (rpc is Map<String, Object?>) {
+    final call = (rpc['callFunction'] as Map).cast<String, Object?>();
+    final fnName = call['@call'] as String;
+    final args =
+        (call['args'] as Map?)?.cast<String, Object?>() ?? const {};
+    if (fnName == 'lookupPickupEta') {
+      return <Map<String, Object?>>[
+        {
+          'version': '1.0',
+          'agentFunctionResponse': {
+            'functionCallId': rpc['functionCallId'],
+            'value': {
+              'orderId': args['orderId'] ?? 'unknown',
+              'eta': 'Today, 5:30 PM',
+            },
+          },
+        },
+      ];
+    }
+    return <Map<String, Object?>>[
+      {
+        'version': '1.0',
+        'agentFunctionResponse': {
+          'functionCallId': rpc['functionCallId'],
+          'error': {
+            'code': 'UNKNOWN_FUNCTION',
+            'message': 'Unknown agent function: $fnName',
+          },
+        },
+      },
+    ];
+  }
+
+  final act = envelope['action'];
+  if (act is Map<String, Object?>) {
+    final surfaceId = act['surfaceId'] as String;
+    final dataModelMeta =
+        (metadata?['a2uiRendererDataModel'] as Map?)?.cast<String, Object?>();
+    final surfaces =
+        (dataModelMeta?['surfaces'] as Map?)?.cast<String, Object?>();
+    final surfaceData = surfaces?[surfaceId] ?? const <String, Object?>{};
+    return "User triggered action '${act['name']}' on surface '$surfaceId' "
+        'with context ${jsonEncode(act['context'])} and data model '
+        '${jsonEncode(surfaceData)}.';
+  }
+
+  final err = envelope['error'];
+  if (err is Map<String, Object?>) {
+    return 'Renderer reported ${err['code']} on surface '
+        "'${err['surfaceId']}': ${err['message']}.";
+  }
+
+  throw ArgumentError('Unsupported renderer_to_agent message');
+}
+```
+
+  </TabItem>
+</Tabs>
+
+<details>
+<summary>Wire format: data-model metadata and function RPCs</summary>
+
+Below are the wire envelopes for an inbound [`action`](../../concepts/messages/#action) accompanied by synchronized data-model metadata in `v1.0` and `v0.9.1`, followed by a `v1.0` [`callAgentFunction`](../../concepts/messages/#callagentfunction-v10-only) request and its [`agentFunctionResponse`](../../concepts/messages/#agentfunctionresponse-v10-only) reply:
+
+<SchemaChips
+  items={[
+    {
+      version: 'v1.0',
+      label: 'renderer_to_agent.json',
+      href: '/specification/v1.0/schemas/#renderer_to_agent.json',
+      title: 'v1.0 Renderer-to-Agent Message Schema',
+    },
+    {
+      version: 'v1.0',
+      label: 'renderer_data_model.json',
+      href: '/specification/v1.0/schemas/#renderer_data_model.json',
+      title: 'v1.0 Renderer Data Model Metadata Schema',
+    },
+    {
+      version: 'v1.0',
+      label: 'AgentFunctionResponseMessage',
+      href: '/specification/v1.0/schemas/#agent_to_renderer.json/$defs/AgentFunctionResponseMessage',
+      title: 'v1.0 Agent Function Response Schema',
+    },
+    {
+      version: 'v0.9.1',
+      label: 'client_to_server.json',
+      href: '/specification/v0.9.1/schemas/#client_to_server.json',
+      title: 'v0.9.1 Client-to-Server Message Schema',
+    },
+    {
+      version: 'v0.9.1',
+      label: 'client_data_model.json',
+      href: '/specification/v0.9.1/schemas/#client_data_model.json',
+      title: 'v0.9.1 Client Data Model Metadata Schema',
+    },
+  ]}
+/>
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0">
+
+Inbound `action` request with `a2uiRendererDataModel` transport metadata:
+
+```json
+{
+  "message": {
+    "version": "1.0",
+    "action": {
+      "name": "confirm_order",
+      "surfaceId": "order_summary",
+      "sourceComponentId": "confirm_btn",
+      "timestamp": "2026-05-01T18:30:00.000Z",
+      "context": {
+        "orderId": "ORD-4821"
+      }
+    }
+  },
+  "metadata": {
+    "a2uiRendererDataModel": {
+      "version": "1.0",
+      "surfaces": {
+        "order_summary": {
+          "orderId": "ORD-4821",
+          "summaryText": "2 items ready for pickup"
+        }
+      }
+    }
+  }
+}
+```
+
+Inbound `callAgentFunction` wire message and outbound `agentFunctionResponse` reply:
+
+```json
+{
+  "version": "1.0",
+  "callAgentFunction": {
+    "surfaceId": "order_summary",
+    "functionCallId": "call_01",
+    "callFunction": {
+      "@call": "lookupPickupEta",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+      "args": {
+        "orderId": "ORD-4821"
+      }
+    }
+  }
+}
+```
+
+```json
+{
+  "version": "1.0",
+  "agentFunctionResponse": {
+    "functionCallId": "call_01",
+    "value": {
+      "orderId": "ORD-4821",
+      "eta": "Today, 5:30 PM"
+    }
+  }
+}
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1">
+
+```json
+{
+  "message": {
+    "version": "v0.9",
+    "action": {
+      "name": "confirm_order",
+      "surfaceId": "order_summary",
+      "sourceComponentId": "confirm_btn",
+      "timestamp": "2026-05-01T18:30:00.000Z",
+      "context": {
+        "orderId": "ORD-4821"
+      }
+    }
+  },
+  "metadata": {
+    "a2uiClientDataModel": {
+      "version": "v0.9",
+      "surfaces": {
+        "order_summary": {
+          "orderId": "ORD-4821",
+          "summaryText": "2 items ready for pickup"
+        }
+      }
+    }
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+</details>
+
+### Validate whole responses and customize inference formats
+
+When you prefer atomic validation over incremental token streaming, call `processor.parseResponse(rawText)` (`processor.parse_response(raw_text)` in Python). If the model invents an unknown component, omits `root`, or leaves a dangling child ID, `RendererState` rolls back every change from that turn and throws `A2uiError`, whose message you can feed back to the model for a self-correcting retry.
+
+You can also customize prompt size and output syntax on `CatalogConfig` and `A2uiGenerator`:
+
+1. Prune large catalogs to the exact components and functions your prompt needs with `ComponentPruningTransformer` and `FunctionPruningTransformer`.
+2. Tune `ExpressFormatFactory` options (`allowedMessages` / `allowed_messages`, `progressiveKeys` / `progressive_keys`, and `surfaceId` / `surface_id` in TypeScript and Python), or pass `DirectJsonFormatFactory` if your model or fine-tuned checkpoint writes raw JSON envelopes inside `<a2ui-json>` tags (see [Swappable Inference Formats](../../concepts/inference-formats/)).
+3. In single-process TypeScript or Dart apps that run both the agent and a local `MessageProcessor`, wrap the request processor in `StreamedAnswer` (`new StreamedAnswer(processor, {renderer})` in TypeScript or `StreamedAnswer(processor, renderer: renderer)` in Dart), which binds `RendererState.of(renderer)` directly without JSON serialization.
+4. In Python, compose reusable server-side component templates with `@macro` and expand them into Basic catalog primitives via [`MacroExpander`](../../concepts/glossary/#macroexpander) (`from a2ui.transformers.macros import MacroExpander, macro`) so mobile and web clients render new composite layouts without a client release.
+
+<Tabs syncKey="sdk-lang">
+  <TabItem label="TypeScript">
+
+```typescript
+import {
+  A2uiError,
+  A2uiGenerator,
+  type A2uiRequestProcessor,
+  type AgentToRendererMessage,
+  CatalogConfig,
+  ComponentPruningTransformer,
+  DirectJsonFormatFactory,
+  ExpressFormatFactory,
+} from '@a2ui/agent';
+import {basicCatalog} from '@a2ui/web_core/v1_0';
+
+export const formatFactory = new ExpressFormatFactory({
+  surfaceId: 'order_summary', // Optional (default: 'main')
+  allowedMessages: ['createSurface', 'updateComponents', 'updateDataModel'], // Optional (default: undefined)
+  progressiveKeys: ['text'], // Optional (default: ['text'])
+});
+
+// Or emit raw A2UI JSON inside <a2ui-json> tags:
+export const jsonFormatFactory = new DirectJsonFormatFactory({
+  progressiveKeys: ['text'], // Optional (default: ['text'])
+});
+
+export const prunedGenerator = new A2uiGenerator(
+  [
+    new CatalogConfig(basicCatalog, [
+      new ComponentPruningTransformer(['Card', 'Column', 'Text', 'Button']),
+    ]),
+  ],
+  undefined, // Optional examples (default: undefined)
+  formatFactory, // Optional (default: new ExpressFormatFactory())
+);
+
+export async function generateValidatedTurn(
+  processor: A2uiRequestProcessor,
+  userPrompt: string,
+  callLlm: (prompt: string) => Promise<string>,
+  maxRetries = 2,
+): Promise<AgentToRendererMessage[]> {
+  let prompt = userPrompt;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const rawText = await callLlm(prompt);
+    try {
+      const parts = processor.parseResponse(rawText, {
+        wrapped: true, // Optional (default: true)
+      });
+      const messages: AgentToRendererMessage[] = [];
+      for (const part of parts) {
+        if (part.type === 'a2ui') {
+          messages.push(...part.a2ui);
+        }
+      }
+      return messages;
+    } catch (err) {
+      if (!(err instanceof A2uiError) || attempt === maxRetries) {
+        throw err;
+      }
+      prompt = [
+        userPrompt,
+        `Your previous A2UI block failed validation: ${err.message}`,
+        'Fix the A2UI output so every component and ID matches the catalog.',
+      ].join('\n\n');
+    }
+  }
+  return [];
+}
+```
+
+  </TabItem>
+  <TabItem label="Python">
+
+```python
+from collections.abc import Awaitable, Callable
+from typing import Any
+
+from a2ui.catalog_transformers import ComponentPruningTransformer
+from a2ui.core import A2uiError
+from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
+from a2ui.inference_formats import to_message_dicts
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
+from a2ui.inference_formats.express import ExpressFormatFactory
+from a2ui.parser import A2uiPart
+from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
+
+format_factory = ExpressFormatFactory(
+    allowed_messages=["createSurface", "updateComponents", "updateDataModel"],  # Optional (default: None)
+    surface_id="order_summary",  # Optional (default: "main")
+    progressive_keys={"text"},  # Optional (default: {"text"})
+)
+
+# Or emit raw A2UI JSON inside <a2ui-json> tags:
+json_format_factory = DirectJsonFormatFactory(
+    progressive_keys={"text"},  # Optional (default: frozenset())
+)
+
+pruned_generator = A2uiGenerator(
+    catalogs=[
+        CatalogConfig(
+            catalog=BasicCatalog(ProtocolVersion.V1_0),
+            transformers=[
+                ComponentPruningTransformer(["Card", "Column", "Text", "Button"])
+            ],
+        ),
+    ],
+    examples=None,  # Optional (default: None)
+    inference_format_factory=format_factory,  # Optional (default: ExpressFormatFactory())
+    accepts_inline_catalogs=False,  # Optional (default: False)
+)
+
+
+async def generate_validated_turn(
+    processor: A2uiRequestProcessor,
+    user_prompt: str,
+    call_llm: Callable[[str], Awaitable[str]],
+    max_retries: int = 2,
+) -> list[dict[str, Any]]:
+  prompt = user_prompt
+  for attempt in range(max_retries + 1):
+    raw_text = await call_llm(prompt)
+    try:
+      parts = processor.parse_response(
+          raw_text,
+          wrapped=True,  # Optional (default: True)
+      )
+      return [
+          msg
+          for part in parts
+          if isinstance(part, A2uiPart)
+          for msg in to_message_dicts(part.a2ui)
+      ]
+    except A2uiError as err:
+      if attempt == max_retries:
+        raise
+      prompt = (
+          f"{user_prompt}\n\n"
+          f"Your previous A2UI block failed validation: {err}\n"
+          "Fix the A2UI output so every component and ID matches the catalog."
+      )
+  return []
+```
+
+  </TabItem>
+  <TabItem label="Dart">
+
+```dart
+import 'package:a2ui_agent/a2ui_agent.dart';
+import 'package:a2ui_core/a2ui_core.dart';
+
+const formatFactory = ExpressFormatFactory(
+  allowedMessages: [
+    'createSurface',
+    'updateComponents',
+    'updateDataModel',
+  ], // Optional (default: null)
+  progressiveKeys: {'text'}, // Optional (default: {'text'})
+);
+
+// Or emit raw A2UI JSON inside <a2ui-json> tags:
+const jsonFormatFactory = DirectJsonFormatFactory(
+  progressiveKeys: {'text'}, // Optional (default: const {})
+);
+
+final prunedGenerator = A2uiGenerator(
+  catalogs: [
+    CatalogConfig(
+      BasicCatalog.v1_0(),
+      transformers: [
+        ComponentPruningTransformer(['Card', 'Column', 'Text', 'Button']),
+      ],
+    ),
+  ],
+  examples: const [], // Optional (default: const [])
+  inferenceFormatFactory:
+      formatFactory, // Optional (default: ExpressFormatFactory())
+);
+
+Future<List<Map<String, Object?>>> generateValidatedTurn(
+  A2uiRequestProcessor processor,
+  String userPrompt,
+  Future<String> Function(String prompt) callLlm, {
+  int maxRetries = 2,
+}) async {
+  var prompt = userPrompt;
+  for (var attempt = 0; attempt <= maxRetries; attempt++) {
+    final rawText = await callLlm(prompt);
+    try {
+      final parts = processor.parseResponse(
+        rawText,
+        wrapped: true, // Optional (default: true)
+      );
+      return [
+        for (final part in parts)
+          if (part is A2uiPart)
+            for (final message in part.a2ui) message.toJson(),
+      ];
+    } on A2uiError catch (err) {
+      if (attempt == maxRetries) rethrow;
+      prompt = '$userPrompt\n\n'
+          'Your previous A2UI block failed validation: $err\n'
+          'Fix the A2UI output so every component and ID matches the catalog.';
+    }
+  }
+  return const [];
+}
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Connect to agent frameworks and transports
+
+Instead of writing a custom HTTP route, you can plug `A2uiGenerator` and `A2uiRequestProcessor` into standard agent frameworks and protocols:
+
+### Google ADK
+
+Install `a2ui-adk` (or `"a2ui-adk[a2a]"` when serving ADK over A2A) to bind per-session processors with `A2uiProcessorStore`, inject prompt instructions safely with `A2uiInstruction`, expose the `send_a2ui_json_to_client` tool via `SendA2uiToClientToolset`, answer `v1.0` `callAgentFunction` calls before running the model with `a2ui_rpc_callback`, and convert ADK events into A2A parts with `A2uiEventConverter`:
+
+```bash
+pip install a2ui-adk "a2ui-adk[a2a]"
+```
+
+```python
+from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutorConfig
+from google.adk.agents import LlmAgent
+
+from a2ui.adk import (
+    A2uiEventConverter,
+    A2uiInstruction,
+    A2uiProcessorStore,
+    SendA2uiToClientToolset,
+    a2ui_rpc_callback,
+)
+
+processors = A2uiProcessorStore()
+
+
+def active_catalogs(ctx):
+  processor = processors.get(ctx)
+  return processor.active_catalogs if processor else None
+
+
+order_agent = LlmAgent(
+    model="gemini-2.5-flash",
+    name="order_agent",
+    instruction=A2uiInstruction(
+        "You help customers manage pickup orders in {store_city}.",
+        a2ui_processor=processors.get,
+        a2ui_enabled=processors.is_enabled,
+    ),
+    tools=[
+        SendA2uiToClientToolset(
+            a2ui_enabled=processors.is_enabled,
+            a2ui_processor=processors.get,
+        ),
+    ],
+    before_agent_callback=a2ui_rpc_callback(catalogs=active_catalogs),
+)
+
+executor_config = A2aAgentExecutorConfig(
+    event_converter=A2uiEventConverter(a2ui_processor=processors.get),
+)
+
+# In your request executor before running the session:
+# processors.set(session.id, processor if a2ui_active else None)
+```
+
+<Aside type="caution" title="Avoid raw prompt strings in LlmAgent.instruction">
+  ADK substitutes `{name}` placeholders in plain string instructions from session state.
+  Concatenating `processor.prompt_snippet` into a raw `LlmAgent.instruction` string raises
+  `KeyError` on A2UI braces (such as `${expression}` or `\p{XID_Start}`). Always wrap your
+  instruction in `A2uiInstruction`, which resolves your own `{store_city}` template variables while
+  leaving the A2UI prompt untouched.
 </Aside>
+
+### A2A protocol
+
+Install `a2ui-a2a` to advertise A2UI support on your `AgentCard`, negotiate the [A2A Extension Specification](../../specification/v1.0-a2ui-extension-specification/) per request, wrap validated messages as `application/a2ui+json` `DataPart` payloads (`to_a2a_parts` and `stream_response_to_parts`), and extract or reply to inbound A2UI messages (`get_a2ui_messages` and `create_a2ui_parts`):
+
+```bash
+pip install a2ui-a2a
+```
+
+```python
+from a2a.types import AgentCapabilities, AgentCard
+
+from a2ui.a2a import (
+    create_a2ui_parts,
+    get_a2ui_agent_extension,
+    get_a2ui_messages,
+    stream_response_to_parts,
+    try_activate_a2ui_extension,
+)
+from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
+from a2ui.rpc import RendererToAgentMessageProcessor
+
+basic = BasicCatalog(ProtocolVersion.V1_0)
+
+agent_card = AgentCard(
+    name="Order Agent",
+    description="Streams interactive order summaries with A2UI.",
+    url="http://localhost:10002/",
+    version="1.0.0",
+    default_input_modes=["text/plain"],
+    default_output_modes=["text/plain"],
+    capabilities=AgentCapabilities(
+        streaming=True,
+        extensions=[
+            get_a2ui_agent_extension(
+                ProtocolVersion.V1_0,
+                supported_catalog_ids=[basic.catalog_id],
+            ),
+        ],
+    ),
+    skills=[],
+)
+
+# Inside your A2A AgentExecutor.execute(context, event_queue):
+activated_version = try_activate_a2ui_extension(context, agent_card)
+if activated_version is not None:
+  rpc_processor = RendererToAgentMessageProcessor([basic])
+  inbound = get_a2ui_messages(context.message)
+  results = [await rpc_processor.process_message(msg) for msg in inbound]
+  rpc_reply_parts = create_a2ui_parts(
+      reply for result in results for reply in result.replies
+  )
+  if rpc_reply_parts:
+    await send_parts(event_queue, rpc_reply_parts)
+  else:
+    async for a2a_part in stream_response_to_parts(
+        processor.open_stream(), token_stream, activated_version
+    ):
+      await send_parts(event_queue, [a2a_part])
+```
+
+### AG-UI and CopilotKit
+
+To stream A2UI surfaces over [AG-UI](https://docs.ag-ui.com/), enable the `a2ui` option on `CopilotRuntime` in `@copilotkit/runtime`. CopilotKit injects the A2UI generation tool and translates tool calls and state deltas into AG-UI events across Python and TypeScript backends, including Google ADK (`ag_ui_adk`), LangGraph (`CopilotKitMiddleware`), and AWS Strands (`@ag-ui/aws-strands`). See the [CopilotKit A2UI documentation](https://docs.copilotkit.ai/generative-ui/a2ui) for runtime setup details:
+
+```typescript
+import {CopilotRuntime} from '@copilotkit/runtime';
+
+const runtime = new CopilotRuntime({
+  agents: {
+    order_agent: myOrderAgent,
+  },
+  a2ui: {
+    injectA2UITool: true, // Optional (default: false)
+  },
+});
+```
+
+For Model Context Protocol tool servers that attach interactive UI resources (`ui://`), see [A2UI over MCP](../../guides/a2ui-over-mcp/) and [MCP Integration Overview](../../guides/mcp-overview/).
