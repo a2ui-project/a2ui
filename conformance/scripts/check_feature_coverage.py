@@ -272,7 +272,7 @@ def resolve_anchor(repo_root: Path | str, anchor: str) -> bool:
         return True
     if not fragment:
         return False
-    lines = target_path.read_text(encoding="utf-8").splitlines()
+    lines = target_path.read_text(encoding="utf-8", errors="replace").splitlines()
     line_match = LINE_ANCHOR_RE.match(fragment)
     if line_match:
         start_line = int(line_match.group(1))
@@ -312,17 +312,20 @@ def _validate_registry_schema(registry_path: Path, schema_path: Path) -> list[Fi
         for item in raw_data:
             if not isinstance(item, dict):
                 continue
-            fid = str(item.get("id", ""))
-            if fid in seen_ids:
+            fid = item.get("id")
+            if not fid:
+                continue
+            fid_str = str(fid)
+            if fid_str in seen_ids:
                 findings.append(
                     Finding(
                         kind="schema_error",
-                        feature_id=fid,
-                        message=f"Duplicate feature id '{fid}' in registry.",
+                        feature_id=fid_str,
+                        message=f"Duplicate feature id '{fid_str}' in registry.",
                         location=str(registry_path),
                     )
                 )
-            seen_ids.add(fid)
+            seen_ids.add(fid_str)
     return findings
 
 
@@ -419,13 +422,19 @@ def _load_executed_cases(
     if not manifest_dir.is_dir():
         return executed_refs, executed_ids
     for jsonl_path in sorted(manifest_dir.rglob("*.jsonl")):
-        for raw_line in jsonl_path.read_text(encoding="utf-8").splitlines():
+        for raw_line in jsonl_path.read_text(
+            encoding="utf-8", errors="replace"
+        ).splitlines():
             line = raw_line.strip()
             if not line:
                 continue
-            record = json.loads(line)
+            try:
+                record = json.loads(line)
+            except ValueError:
+                continue
             if (
-                record.get("status") not in ("passed", "executed")
+                not isinstance(record, dict)
+                or record.get("status") not in ("passed", "executed")
                 or str(record.get("harness", "")) not in harness_aliases
             ):
                 continue
@@ -458,10 +467,22 @@ def check_harness(
     corpus_dir: Path | str = CONFORMANCE_DIR,
 ) -> list[Finding]:
     """Checks that every covered feature claimed by `harness` has >= 1 executed case."""
+    manifest_path = Path(manifest_dir)
+    if not manifest_path.is_dir():
+        return [
+            Finding(
+                kind="manifest_error",
+                message=(
+                    f"Manifest directory '{manifest_path}' does not exist or is "
+                    "not a directory."
+                ),
+                location=str(manifest_path),
+            )
+        ]
     aliases = HARNESS_ALIASES.get(harness, frozenset({harness}))
     features = load_registry(registry_path)
     collected_tags = collect_tags(corpus_dir)
-    executed_refs, executed_ids = _load_executed_cases(Path(manifest_dir), aliases)
+    executed_refs, executed_ids = _load_executed_cases(manifest_path, aliases)
 
     findings: list[Finding] = []
     for feature in features:

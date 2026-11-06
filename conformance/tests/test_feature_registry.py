@@ -254,3 +254,143 @@ def test_every_conformance_schema_case_def_accepts_features_array() -> None:
         assert props.get("features") == {
             "$ref": "#/$defs/FeatureTags"
         }, f"$defs/{def_name} is missing features property ref"
+
+
+def test_missing_feature_ids_do_not_emit_duplicate_id_findings(tmp_path: Path) -> None:
+    """Skips missing or empty IDs during duplicate-ID validation while reporting real duplicates."""
+    repo_root, registry_path, corpus_dir = _write_temp_corpus(
+        tmp_path,
+        features=[
+            {
+                "title": "Missing id 1",
+                "specAnchor": "specification/spec.md#spec-heading",
+                "blueprintAnchor": "blueprints/bp.md#blueprint-heading",
+                "claimedBy": ["python-core"],
+                "uncovered": "Tracked gap.",
+            },
+            {
+                "id": "",
+                "title": "Empty id 2",
+                "specAnchor": "specification/spec.md#spec-heading",
+                "blueprintAnchor": "blueprints/bp.md#blueprint-heading",
+                "claimedBy": ["python-core"],
+                "uncovered": "Tracked gap.",
+            },
+            {
+                "id": "F-CORE-01",
+                "title": "Duplicate A",
+                "specAnchor": "specification/spec.md#spec-heading",
+                "blueprintAnchor": "blueprints/bp.md#blueprint-heading",
+                "claimedBy": ["python-core"],
+                "uncovered": "Tracked gap.",
+            },
+            {
+                "id": "F-CORE-01",
+                "title": "Duplicate B",
+                "specAnchor": "specification/spec.md#spec-heading",
+                "blueprintAnchor": "blueprints/bp.md#blueprint-heading",
+                "claimedBy": ["python-core"],
+                "uncovered": "Tracked gap.",
+            },
+        ],
+        cases=[],
+    )
+    findings = cfc.check_static(repo_root, registry_path, corpus_dir)
+    duplicate_findings = [f for f in findings if "Duplicate feature id" in f.message]
+    assert len(duplicate_findings) == 1
+    assert duplicate_findings[0].feature_id == "F-CORE-01"
+
+
+def test_resolve_anchor_tolerates_non_utf8_bytes(tmp_path: Path) -> None:
+    """Verifies `resolve_anchor` handles non-UTF-8 bytes without raising UnicodeDecodeError."""
+    doc_path = tmp_path / "docs" / "binary_mixed.md"
+    doc_path.parent.mkdir(parents=True, exist_ok=True)
+    doc_path.write_bytes(b"# Target Heading\n\nInvalid bytes: \xff\xfe\n")
+    assert cfc.resolve_anchor(tmp_path, "docs/binary_mixed.md#target-heading")
+
+
+def test_load_executed_cases_ignores_malformed_and_non_dict_jsonl_lines(
+    tmp_path: Path,
+) -> None:
+    """Ignores malformed JSON, non-dict JSON values, and invalid UTF-8 bytes in manifests."""
+    _, registry_path, corpus_dir = _write_temp_corpus(
+        tmp_path,
+        features=[{
+            "id": "F-CORE-01",
+            "title": "Executed feature",
+            "specAnchor": "specification/spec.md#spec-heading",
+            "blueprintAnchor": "blueprints/bp.md#blueprint-heading",
+            "claimedBy": ["python-core"],
+        }],
+        cases=[{"id": "case_exec", "features": ["F-CORE-01"]}],
+    )
+    manifest_dir = tmp_path / "manifests"
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+    valid_record = json.dumps({
+        "corpus": "core",
+        "suite": "core/sample_suite.yaml",
+        "id": "case_exec",
+        "harness": "python-core",
+        "status": "executed",
+    }).encode("utf-8")
+    raw_payload = (
+        b'{malformed json\n["not", "a", "dict"]\n123\n"string_line"\n\xff\xfe\n'
+        + valid_record
+        + b"\n"
+    )
+    (manifest_dir / "python-core.jsonl").write_bytes(raw_payload)
+
+    findings = cfc.check_harness(
+        manifest_dir=manifest_dir,
+        harness="python-core",
+        registry_path=registry_path,
+        corpus_dir=corpus_dir,
+    )
+    assert not findings
+
+
+def test_check_harness_reports_missing_manifest_dir(tmp_path: Path) -> None:
+    """Returns a single `manifest_error` finding when `manifest_dir` is missing or a file."""
+    _, registry_path, corpus_dir = _write_temp_corpus(
+        tmp_path,
+        features=[
+            {
+                "id": "F-CORE-01",
+                "title": "Feature A",
+                "specAnchor": "specification/spec.md#spec-heading",
+                "blueprintAnchor": "blueprints/bp.md#blueprint-heading",
+                "claimedBy": ["python-core"],
+            },
+            {
+                "id": "F-CORE-02",
+                "title": "Feature B",
+                "specAnchor": "specification/spec.md#spec-heading",
+                "blueprintAnchor": "blueprints/bp.md#blueprint-heading",
+                "claimedBy": ["python-core"],
+            },
+        ],
+        cases=[
+            {"id": "case_a", "features": ["F-CORE-01"]},
+            {"id": "case_b", "features": ["F-CORE-02"]},
+        ],
+    )
+    missing_dir = tmp_path / "does_not_exist"
+    findings = cfc.check_harness(
+        manifest_dir=missing_dir,
+        harness="python-core",
+        registry_path=registry_path,
+        corpus_dir=corpus_dir,
+    )
+    assert len(findings) == 1
+    assert findings[0].kind == "manifest_error"
+
+    not_a_dir = tmp_path / "manifest_file.jsonl"
+    not_a_dir.write_text("{}\n", encoding="utf-8")
+    file_findings = cfc.check_harness(
+        manifest_dir=not_a_dir,
+        harness="python-core",
+        registry_path=registry_path,
+        corpus_dir=corpus_dir,
+    )
+    assert len(file_findings) == 1
+    assert file_findings[0].kind == "manifest_error"
