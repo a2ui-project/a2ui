@@ -1246,6 +1246,36 @@
     category: CatalogError
     message: "has no default catalogId"
 
+- name: test_evaluate_function_v10_format_string_template_call_inherits_catalog_without_default
+  description: >-
+    Verifies a function call inside a formatString ${...} template expression inherits the catalogId that formatString itself resolved to. Because ${...} has no syntax for naming a catalogId, a template call such as ${pluralize(...)} runs in formatString's catalog even when the surface has no default catalog.
+  action: evaluate_function
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  surface: {}
+  function: formatString
+  catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  args:
+    value: "Count: ${pluralize(value: 2, one: 'drop', other: 'drops')}"
+  expect: "Count: drops"
+
+- name: test_evaluate_function_v10_format_string_template_call_inherits_named_catalog_over_default
+  description: >-
+    Verifies a function call inside a formatString ${...} template expression runs in the catalog that formatString names rather than the surface default catalog. The surface default is the conformance custom catalog, which declares no pluralize; formatString names the basic catalog, so ${pluralize(...)} resolves in the basic catalog.
+  action: evaluate_function
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+    - "conformance/test_data/catalogs/custom_catalog_v1_0.json"
+  surface:
+    catalogId: "conformance/custom"
+  function: formatString
+  catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  args:
+    value: "Count: ${pluralize(value: 2, one: 'drop', other: 'drops')}"
+  expect: "Count: drops"
+
 - name: test_evaluate_function_v09_ignores_call_catalog_id
   description: >-
     Verifies a catalogId on a call is ignored before v1.0. On a v0.9 surface the call runs in the surface catalog, so naming a catalog the client does not have is not an error.
