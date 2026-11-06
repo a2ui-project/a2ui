@@ -1670,7 +1670,7 @@
         category: "ValidationError"
 
 - name: test_v09_allowed_callers_does_not_restrict_bindings
-  description: Tests that a v0.9 component action calling a function that declares allowedCallers agentOnly passes validation, since allowedCallers is a v1.0 feature and v0.9 validation ignores it. The call is in an action so that validation doesn't need to run it.
+  description: Tests that a v0.9 component action calling a function that declares allowedCallers agentOnly passes validation, since allowedCallers is a v1.0 feature and v0.9 validation ignores it. The call is in an action so that validation doesn't need to run it, and the action schema is inline so that it doesn't depend on which version of common_types.json a harness resolves.
   action: validate
   protocolVersion: "v0.9"
   catalog:
@@ -1683,7 +1683,17 @@
           component: {const: Button}
           label: {type: string}
           action:
-            $ref: "common_types.json#/$defs/Action"
+            type: object
+            properties:
+              functionCall:
+                type: object
+                properties:
+                  call: {type: string}
+                  args: {type: object}
+                required:
+                  - call
+            required:
+              - functionCall
         required:
           - component
           - label
