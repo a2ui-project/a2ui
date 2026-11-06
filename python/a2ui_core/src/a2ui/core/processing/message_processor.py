@@ -51,6 +51,7 @@ from ..catalog import (
     CatalogApi,
     get_custom_envelope_properties,
     get_declared_component_properties,
+    is_component_checkable,
     is_system_function_name,
 )
 from ..common.metadata import validate_metadata
@@ -1145,6 +1146,7 @@ class MessageProcessor:
                         ) from e
 
                 properties = {}
+                is_checkable = is_component_checkable(comp_catalog, c_type)
                 for k, v in comp_dict.items():
                     if k in ("id", "component", "@catalogId", "@metadata"):
                         continue
@@ -1154,6 +1156,11 @@ class MessageProcessor:
                         continue
                     if k == "accessibility" and "accessibility" not in custom_props:
                         properties["@accessibility"] = v
+                        continue
+                    # A legacy bare `checks` is the Checkable mixin only on a
+                    # checkable component that declares no `checks` of its own.
+                    if k == "checks" and "checks" not in custom_props and is_checkable:
+                        properties["@checks"] = v
                         continue
                     properties[k] = v
 

@@ -1341,6 +1341,71 @@ def test_v09_preserves_custom_metadata_and_catalog_id_properties_and_rejects_at_
             }])
 
 
+def test_v10_legacy_bare_checks_is_stored_as_at_checks_on_checkable_components():
+    cat = Catalog.from_json(
+        {
+            "catalogId": "https://a2ui.org/test-v10-legacy-checks",
+            "components": {
+                "Input": {
+                    "type": "object",
+                    "allOf": [
+                        {"$ref": "common_types.json#/$defs/Checkable"},
+                        {
+                            "properties": {
+                                "component": {"const": "Input"},
+                                "value": {"type": "string"},
+                            },
+                            "required": ["component"],
+                        },
+                    ],
+                },
+                "Tagged": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "Tagged"},
+                        "checks": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": ["component"],
+                },
+            },
+            "functions": {},
+        },
+        protocol_version="1.0",
+    )
+    processor = MessageProcessor(catalogs=[cat])
+    checks = [{"condition": {"@path": "/accepted"}, "message": "Required"}]
+    processor.process_messages([
+        {
+            "version": "1.0",
+            "createSurface": {"surfaceId": "s10", "catalogId": cat.catalog_id},
+        },
+        {
+            "version": "1.0",
+            "updateComponents": {
+                "surfaceId": "s10",
+                "components": [
+                    {"id": "root", "component": "Input", "checks": checks},
+                    {"id": "tags", "component": "Tagged", "checks": ["a", "b"]},
+                ],
+            },
+        },
+    ])
+    surface = processor.model.get_surface("s10")
+    assert surface is not None
+
+    # On a checkable component, the legacy bare `checks` is the Checkable mixin.
+    root = surface.components_model.get("root")
+    assert root is not None
+    assert root.properties["@checks"] == checks
+    assert "checks" not in root.properties
+
+    # A component that declares its own `checks` keeps it as a property.
+    tags = surface.components_model.get("tags")
+    assert tags is not None
+    assert tags.properties["checks"] == ["a", "b"]
+    assert "@checks" not in tags.properties
+
+
 def test_v10_at_prefixed_mixins_coexistence_and_conflict_detection():
     cat = Catalog.from_json(
         {

@@ -130,8 +130,9 @@ struct ComponentEnvelope {
   ///
   /// A property is the component's own unless its schema has the mixin's shape: an
   /// `AccessibilityAttributes` reference for `accessibility`, a `CheckRule` list for `checks`,
-  /// and an object holding only `extensions` for `metadata`. A shared `ComponentCommon` or
-  /// `Checkable` definition in another document declares no property of the component's own.
+  /// and a `ComponentCommonMetadata` reference or an object holding only `extensions` for
+  /// `metadata`. A shared `ComponentCommon` or `Checkable` definition in another document
+  /// declares no property of the component's own.
   static func declaresOwnProperty(_ mixin: Mixin, in schema: JSONValue?) -> Bool {
     guard let schema,
       let declared = declaredPropertySchema(mixin.bareKey, in: schema, root: schema, visited: [])
@@ -142,6 +143,9 @@ struct ComponentEnvelope {
     case .catalogID:
       return true
     case .metadata:
+      if referencedDefinition(of: declared) == "ComponentCommonMetadata" {
+        return false
+      }
       let keys = declared["properties"]?.objectValue?.keys.map { $0 } ?? []
       return keys != ["extensions"]
     case .accessibility:

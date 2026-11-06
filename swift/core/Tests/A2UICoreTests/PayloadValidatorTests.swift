@@ -553,6 +553,53 @@ struct PayloadValidatorTests {
     ])
   }
 
+  @Test func validateComponentTreatsComponentCommonMetadataRefAsMixinInV10() throws {
+    let cardSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "$defs": {
+            "ComponentCommonMetadata": {
+              "type": "object",
+              "properties": {
+                "extensions": { "$ref": "\(Self.commonTypesURI)#/$defs/Extensions" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "properties": {
+            "id": { "type": "string" },
+            "component": { "const": "Card" },
+            "metadata": { "$ref": "#/$defs/ComponentCommonMetadata" }
+          },
+          "required": ["id", "component"]
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let validator = PayloadValidator(
+      catalog: Catalog(
+        id: "cards",
+        protocolVersion: .v10,
+        components: [AnyComponentAPI(name: "Card", schema: cardSchema)]
+      ).eraseToAnyCatalog(),
+      config: ValidationConfig(protocolVersion: .v10)
+    )
+    let extensions: JSONValue = .object(["extensions": .object([:])])
+
+    // A `metadata` that references `ComponentCommonMetadata` is the standard mixin, not a
+    // property of the component's own, so carrying it under both keys is a conflict.
+    let error = try #require(throws: A2UIValidationError.self) {
+      try validator.validateComponent([
+        "id": .string("card"),
+        "component": .string("Card"),
+        "@metadata": extensions,
+        "metadata": extensions,
+      ])
+    }
+    #expect(error.details.map(\.path) == ["@metadata"])
+  }
+
   @Test(arguments: ["@metadata", "metadata"])
   func validateComponentChecksMixinMetadataExtensionKeysInV10(key: String) throws {
     let validator = PayloadValidator(
