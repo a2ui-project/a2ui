@@ -238,6 +238,7 @@ class _EvaluationScope:
     user_activated: bool
     in_action: bool
     agent_calls: _AgentCallMemory | None
+    active_catalog_id: str | None = None
 
 
 _T = TypeVar("_T")
@@ -433,6 +434,15 @@ class DataContext:
         self._agent_calls: _AgentCallMemory | None = None
         # Set while resolving an agent's callRendererFunction arguments.
         self._agent_disabled = False
+        # The catalog ID of the currently executing catalog function, if any.
+        self._active_catalog_id: str | None = None
+
+    @property
+    def active_catalog_id(self) -> str | None:
+        """The catalog ID of the currently executing catalog function, if any."""
+        if self._active_catalog_id is not None:
+            return self._active_catalog_id
+        return self.parent.active_catalog_id if self.parent is not None else None
 
     @property
     def is_user_activated(self) -> bool:
@@ -454,7 +464,11 @@ class DataContext:
         )
 
     def _capture_scope(
-        self, *, user_activated: bool | None = None, in_action: bool = False
+        self,
+        *,
+        user_activated: bool | None = None,
+        in_action: bool = False,
+        active_catalog_id: str | None = None,
     ) -> _EvaluationScope:
         """Captures the state that a later part of this evaluation runs in."""
         return _EvaluationScope(
@@ -463,14 +477,25 @@ class DataContext:
             ),
             in_action=in_action or self._in_action_execution,
             agent_calls=self._agent_calls,
+            active_catalog_id=(
+                self.active_catalog_id
+                if active_catalog_id is None
+                else active_catalog_id
+            ),
         )
 
     def _run_in_scope(self, scope: _EvaluationScope, run: Callable[[], _T]) -> _T:
         """Runs `run` in `scope`, then restores the current state."""
-        previous = (self._user_activated, self._is_action_execution, self._agent_calls)
+        previous = (
+            self._user_activated,
+            self._is_action_execution,
+            self._agent_calls,
+            self._active_catalog_id,
+        )
         self._user_activated = scope.user_activated
         self._is_action_execution = scope.in_action
         self._agent_calls = scope.agent_calls
+        self._active_catalog_id = scope.active_catalog_id
         try:
             return run()
         finally:
@@ -478,6 +503,7 @@ class DataContext:
                 self._user_activated,
                 self._is_action_execution,
                 self._agent_calls,
+                self._active_catalog_id,
             ) = previous
 
     def _surface_protocol_version(self) -> Any:
@@ -1278,7 +1304,10 @@ class DataContext:
             local_fn = fn
             local_catalog = target_catalog
             scope = self._capture_scope(
-                user_activated=effective_user_activated, in_action=is_action
+                user_activated=effective_user_activated,
+                in_action=is_action,
+                active_catalog_id=getattr(local_catalog, "catalog_id", None)
+                or catalog_id,
             )
 
             def _run_local(args: Any) -> Any:

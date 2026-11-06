@@ -1808,3 +1808,31 @@ async def test_agent_rpc_error_dispatches_expression_error_with_function_call_id
     assert "surfaceId" not in errors[0]
     assert errors[0]["expression"] == "remoteFn"
     binder.dispose()
+
+
+def test_v10_format_string_template_calls_inherit_catalog_and_preserve_index():
+    from a2ui.core.basic_catalog import v1_0
+
+    basic_cat = v1_0.BasicCatalog()
+    surface = SurfaceModel(
+        "s1",
+        default_catalog=None,
+        available_catalogs={basic_cat.catalog_id: basic_cat},
+        protocol_version="1.0",
+    )
+    surface.data_model.set("/", {"items": ["alpha", "beta"]})
+    ctx = DataContext(surface, path="/items/1", index=1)
+    errors: list[dict[str, Any]] = []
+    surface.on_error.subscribe(errors.append)
+
+    res = ctx.resolve_dynamic_value({
+        "@call": "formatString",
+        "catalogId": basic_cat.catalog_id,
+        "args": {
+            "value": (
+                "Item ${@index()}: ${pluralize(value: 2, one: 'drop', other: 'drops')}"
+            )
+        },
+    })
+    assert res == "Item 1: drops"
+    assert errors == []
