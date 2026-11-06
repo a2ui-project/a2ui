@@ -1333,7 +1333,11 @@ struct NodeResolverTests {
 
     // 1. "b" arrives: root keeps its identity and replaces only the placeholder of "b".
     componentsModel.addComponent(
-      ComponentModel(id: "b", type: "Text", properties: ["text": .object(["path": .string("/msg")])])
+      ComponentModel(
+        id: "b",
+        type: "Text",
+        properties: ["text": .object(["path": .string("/msg")])]
+      )
     )
     let rootAfterB = try #require(resolver.resolveTree())
     #expect(resolver.lastResolvedNodeCount == 2)
