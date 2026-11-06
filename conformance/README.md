@@ -37,6 +37,7 @@ The suites that do not depend on an inference format sit directly under `agent/`
 - `agent/skill.yaml`: Generating skill documents and skill sets from a format and its catalogs, and checking that a monolithic skill's body equals the prompt snippet for the same catalogs (`monolithic_skill_equals_prompt_snippet`).
 - `agent/multi_catalog_formats.yaml`: Resolving components and function calls across active catalogs (omitting `createSurface.catalogId` when multiple catalogs are active, resolving un-annotated components and function calls by name when unique across active catalogs, and requiring an explicit `catalogId` override when ambiguous), across `direct_json` (and later `express`): compiling, decompiling (including omitting `catalogId` when name lookup is unambiguous), parsing a response, rendering a prompt snippet, and building a format. Component order inside a message carries no meaning, so a harness may compare the `components` of a compiled message by `id`.
 - `agent/agent_functions.yaml`: Agent functions (v1.0) and the agent's side of the messages a renderer sends. It covers declaring agent functions on the agent's copy of a catalog (including building one from the catalog's own declaration), answering `callAgentFunction` (the response values and error codes, schema defaults, the handler's context, and which catalog a call runs in), validating model output that calls agent functions, and how `RendererToAgentMessageProcessor` routes `action`, `error` and `rendererFunctionResponse` messages to its callbacks. See [Writing cases for the agent function suite](#writing-cases-for-the-agent-function-suite).
+- `agent/renderer_function_calls.yaml`: The agent calling renderer functions with `callRendererFunction` (v1.0): the message it builds, settling calls with responses, ignoring unknown, late and duplicate responses, timeouts, disposal and the limit on pending calls. See [Writing cases for the agent function suite](#writing-cases-for-the-agent-function-suite).
 - `agent/streamed_answer.yaml`: Reading a streamed answer into a renderer's message processor, for an app that is both the agent and the renderer, and keeping the answer's text, surfaces and rejected blocks in the order the model wrote them. It runs on `direct_json`, the format that streams. The suite belongs to the optional `agent_renderer_app` feature, and only an SDK that implements it runs the suite.
 
 A case names its format with `args.format`, an `InferenceFormatName`: `direct_json` (or `express`).
@@ -177,7 +178,33 @@ The suite has four actions:
 
 In all four actions, `expect_error` is an `AgentFunctionExpectError`: a required `category`, `CatalogError` or `ValidationError`, and an optional `message`. The harness checks the error's category, and matches `message` as a literal substring of the error's text, not as a regular expression. A harness fails a case whose `expect_error` has any other key, so that an unrelated exception can't pass it.
 
-The TypeScript and Dart agent SDKs do not implement agent functions yet, so their harnesses skip every case of this suite with that reason.
+`agent/renderer_function_calls.yaml` has one action:
+
+- `call_renderer_function` makes calls to renderer functions and settles them, in `steps`. Each step does one thing: `call` makes a call named by its `label` (with `catalogId`, `name`, and optionally `args`, `surfaceId`, `functionCallId` and `timeout_ms`; `args` may be any JSON value, so a case can check that a non-object is refused), `respond` hands over a `rendererFunctionResponse` for a labelled `call` or a literal `functionCallId`, `advance_ms` moves the clock, and `dispose` disposes the calls with an optional `reason`. `args` may set `default_timeout_ms` (otherwise the SDK's default of 30 seconds applies), `max_pending`, and `catalogs`, the agent's catalogs that each `call` is checked against. A case may have `expect_error` (`RendererCallsBuildError`: a required `category`, which is `CatalogError`, and an optional literal-substring `message`) instead of `steps`, when building the calls helper must fail. A harness that hands responses over through a `RendererToAgentMessageProcessor`, with `resolve` as `on_renderer_function_response`, also checks that a response is handled exactly when its call is pending: `resolve` declines unknown, late and duplicate responses.
+
+A `call_renderer_function` harness runs the calls on a fake clock that only `advance_ms` moves, so the cases never wait on real time and a timer fires exactly when the clock reaches it. After each step it lets pending asynchronous work run, then checks:
+
+- `expect_message`, on a `call` step: the `callRendererFunction` message without its `functionCallId`. Separately, the harness checks that every call in a case got a different, non-empty `functionCallId`.
+- `expect_error`, on a `call` step (`RendererCallError`): the call is refused with that RPC error `code`, and, when `message` is set, a message containing it as a literal substring. No other keys are allowed.
+- `expect_calls`: the state of each labelled call, which is `pending`, `{value}`, or `{error: {code, message?}}` with `message` a substring.
+- `expect_pending_count`: how many calls are waiting for a response.
+
+Each entry of `catalogs` (`RendererCallCatalog` in `conformance_schema.json`) is a v1.0 catalog that the harness builds in code, not from a catalog document, so the catalog schema's rules don't apply to it:
+
+```yaml
+catalogs:
+  - catalogId: conformance/device
+    functions:
+      getLocation: {allowedCallers: rendererOrAgent}
+      vibrate: {allowedCallers: rendererOrAgent, requiresUserActivation: true}
+      formatLocal: {} # allowedCallers omitted, so rendererOnly
+```
+
+Each function takes any object as its arguments (schema `{type: object}`) and returns `any`; `allowedCallers` and `requiresUserActivation` are left unset when the case leaves them out. With `catalogs`, `call` fails with `UNKNOWN_FUNCTION` when `catalogId` names no catalog or the catalog lacks the function, and with `INVALID_FUNCTION_CALL` when the function is `rendererOnly` (or leaves `allowedCallers` out) or requires user activation. Two catalogs with one id make building the helper fail with a `CatalogError`.
+
+Before the catalog checks, `call` checks its own arguments, in this order: an empty given `functionCallId`, then (after the duplicate and pending-limit checks) an empty `name`, an empty `catalogId`, a `name` that isn't a UAX #31 identifier or starts with `@`, and `args` that aren't an object with identifier keys and JSON values. Each is `INVALID_FUNCTION_CALL`. Two cases pin the order with `expect_error.message`: an empty name and catalogId must give a message containing `function name`, and a bad argument key sent to a `rendererOnly` function must give a message containing the key. An SDK's message for a bad argument key names the key. A statically typed SDK whose `call` can't take a non-object `args` (Dart) meets `test_call_renderer_function_with_args_that_are_not_an_object` by showing that such a value can't be passed (a type error), with nothing sent or pending, instead of raising `INVALID_FUNCTION_CALL`.
+
+Only the Python agent harness runs this suite so far: the TypeScript and Dart agent harnesses (`typescript/agents/a2ui_agent` and `dart/a2ui_agent`) don't load it yet.
 
 ### Writing cases for the agent SDK suites
 
