@@ -13,8 +13,8 @@ An **action** is an interaction handler property on an interactive UI component,
 
 An action determines how user interaction is handled:
 
-- An **event** notifies the agent of user intent by sending an outbound [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message. Use an event when the agent needs to decide what happens next and stream UI or data updates back to the client (such as confirming an order or booking a reservation).
-- A **function** invokes a registered catalog operation directly without starting a new agent conversation turn. The function can execute locally on the renderer (such as opening a link with [`openUrl`](/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json/functions/openUrl)) or run remotely on the agent via [`callAgentFunction`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/callAgentFunction) to perform a discrete backend check (such as verifying inventory).
+1. An event notifies the agent of user intent by sending an outbound [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message. Use an event when the agent needs to decide what happens next and stream UI or data updates back to the client (such as confirming an order or booking a reservation).
+2. A function invokes a registered catalog operation directly without starting a new agent conversation turn. The function can execute locally on the renderer (such as opening a link with [`openUrl`](/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json/functions/openUrl)) or run remotely on the agent via [`callAgentFunction`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/callAgentFunction) to perform a discrete backend check (such as verifying inventory).
 
 See [`Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action) in the protocol schema for the action structure.
 
@@ -40,11 +40,11 @@ Events inform the agent that a user interacted with a component and prompt the a
 
 When dispatching an event, the client:
 
-1. **Gathers context**: Reads any values attached to the event (such as the flight number or selected seat) and resolves dynamic bindings against the current surface data model.
-2. **Summarizes user intent**: Resolves an optional human-readable message describing what the user did (for example, `"Confirmed flight reservation for Alex Rivera"`).
-3. **Sends the message**: Delivers an [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message to the agent containing the event name, source component, timestamp, resolved context, and optional user message.
+1. Reads any context values attached to the event (such as the flight number or selected seat) and resolves data bindings against the current surface data model.
+2. Evaluates an optional human-readable `userMessage` describing what the user did (for example, `"Confirmed flight reservation for Alex Rivera"`, formatted with [`formatString`](/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json/functions/formatString)).
+3. Sends an [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message to the agent containing the event name, source component, timestamp, resolved context, and optional user message.
 
-If the surface is configured to share its data model, the client also attaches the full surface state to outbound messages so the agent has complete visibility into what the user sees. See [Data Model and Data Binding](/concepts/data-binding/) for details.
+If the surface is configured to share its data model, the client also attaches the full surface state to outbound messages so the agent has complete visibility into what the user sees. See [Data Model and Data Binding](../data-binding/) for details.
 
 The following example shows a confirmation `Button` declaration and the outbound `action` message the renderer sends when the user clicks it.
 
@@ -62,7 +62,12 @@ The following example shows a confirmation `Button` declaration and the outbound
   "action": {
     "event": {
       "name": "confirmReservation",
-      "userMessage": "Confirmed flight reservation for ${/passenger/fullName}",
+      "userMessage": {
+        "@call": "formatString",
+        "args": {
+          "value": "Confirmed flight reservation for ${/passenger/fullName}"
+        }
+      },
       "context": {
         "flightNumber": "UA-402",
         "seat": {"@path": "/selection/seatNumber"}
@@ -145,7 +150,7 @@ In v0.9.1, data bindings use `path` instead of `@path`, events do not support `u
 
 ## Functions
 
-Functions execute specific logic or calculations on either the client or the server. Unlike events, which start an agent turn to generate or update entire UI surfaces, functions are focused operations that compute a value, validate user input, or perform a local action. Every available function is declared in a [catalog](/concepts/catalogs/), defining its name and expected parameters.
+Functions execute specific logic or calculations on either the client or the server. Unlike events, which start an agent turn to generate or update entire UI surfaces, functions are focused operations that compute a value, validate input, access local state, or trigger a local operation. Every available function is declared in a [catalog](../catalogs/), defining its name and expected parameters.
 
 ### Function types
 
@@ -157,22 +162,22 @@ When evaluating a function call, the client checks whether the function is regis
 
 Renderer functions are implemented locally by the client renderer and registered with its catalog. Some types of renderer functions are:
 
-- **Validation**: Checks input values or form readiness against constraints, such as required fields or email formatting.
-- **Data transformation**: Formats values, dates, currency, or strings, or computes boolean logic before displaying them on screen.
-- **Local data access**: Reads client-side state, device attributes, or template context not stored in the surface data model, such as the current item's position inside a list template or device screen dimensions.
-- **Local actions**: Performs client-side operations in response to user gestures, such as opening a URL in the browser.
+1. Validation functions that check input values or form readiness against constraints, such as required fields or email formatting.
+2. Data transformation functions that format numbers, dates, currency, or strings, or evaluate boolean logic before displaying values on screen.
+3. Local data access functions that read client-side state or template context not stored in the surface data model, such as an item's position inside a list template or device screen dimensions.
+4. Local action functions that perform client-side operations in response to user gestures, such as opening a URL in the browser.
 
 These examples illustrate common functions available in the [Basic Catalog](/specification/v1.0-basic-catalog-implementation-guide/#2-renderer-side-functions). See the [Basic Catalog functions specification](/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json/functions) for the full set of standard renderer functions, or define custom functions in your own catalog.
 
 #### Agent functions
 
-Agent functions run on the server rather than in the client application. They let UI components trigger discrete backend operations—such as checking real-time inventory, validating a coupon code, or calculating shipping rates—without starting a full conversation turn.
+Agent functions run on the server rather than in the client application. They let UI components trigger discrete backend operations (such as checking real-time inventory or validating a coupon code) without starting a full conversation turn.
 
 When a component calls an agent function:
 
-1. **Request**: The client sends a [`callAgentFunction`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/callAgentFunction) request naming the function, its catalog, and any required arguments. While waiting for the server, the client can display a pending or loading state.
-2. **Execution**: The server executes the function logic and returns an [`agentFunctionResponse`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/AgentFunctionResponseMessage) containing either a computed value or an error code.
-3. **Application**: The client applies the returned value directly to the component or data binding. If the call returns an error, property bindings evaluate to empty and validation checks mark the field as invalid.
+1. The client sends a [`callAgentFunction`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/callAgentFunction) request naming the function, its resolved `catalogId`, and its arguments. While waiting for the server, the client can display a pending or loading state.
+2. The server executes the function logic and returns an [`agentFunctionResponse`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/AgentFunctionResponseMessage) containing either a `value` or an `error` object.
+3. The client applies the returned `value` to the component property, validation check, or action. If the call returns an error, property bindings resolve to `null` and report an [`error`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/error) message (`code: "EXPRESSION_ERROR"` with the failed `functionCallId`), validation checks mark the component as invalid, and in-progress component actions stop and report `EXPRESSION_ERROR` with `functionCallId`.
 
 The following example shows an outbound agent function call to verify product stock:
 
@@ -202,12 +207,12 @@ Any function not implemented locally by the client renderer is automatically rou
 
 ### Calling functions
 
-Functions can be invoked in four different contexts:
+Functions can be invoked in four contexts:
 
-1. **Component actions**: When a user clicks or taps a component configured to execute a function directly.
-2. **Property bindings**: When a component property dynamically computes its display value from a function.
-3. **Validation checks**: When an input field or button evaluates rules before allowing user progress.
-4. **Agent requests**: When the agent asks the client to execute a local function on the device.
+1. Component actions, when a user clicks or taps a component configured to execute a function directly.
+2. Property bindings, when a component property computes its display value from a function.
+3. Validation checks, when an input field or button evaluates rules before allowing user progress.
+4. Agent requests, when the agent asks the client to execute a local function on the device.
 
 #### Component actions
 
@@ -258,7 +263,7 @@ A component action can execute a function directly instead of sending an event t
 
 #### Property bindings
 
-Component properties can calculate their value dynamically using a function call. The client automatically re-evaluates the function whenever the underlying bound data changes. In this example, a text component formats an order subtotal into currency:
+Component properties can compute their value from a function call. The client automatically re-evaluates the function whenever the underlying bound data changes. In this example, a text component formats an order subtotal into currency:
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0">
@@ -299,7 +304,7 @@ Component properties can calculate their value dynamically using a function call
 
 #### Validation checks
 
-Interactive components like text fields and buttons can define validation rules. Each rule checks a condition—such as verifying required fields or checking email format—and provides an error message if the check fails. For buttons, failing any validation check automatically disables the button:
+Interactive components like text fields and buttons can define validation rules. Each rule checks a condition (such as verifying required fields or checking email format) and provides an error message if the check fails. For buttons, failing any validation check automatically disables the button:
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0">
@@ -362,7 +367,7 @@ Interactive components like text fields and buttons can define validation rules.
 
 #### Agent requests
 
-The agent can also request the client to execute a function locally via [`callRendererFunction`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CallRendererFunctionMessage), for example to query device screen dimensions. The client runs the local function and returns the result back to the agent:
+The agent can also request the client to execute a function locally via [`callRendererFunction`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CallRendererFunctionMessage), for example to query device screen dimensions. The client runs the local function and always replies with a [`rendererFunctionResponse`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/rendererFunctionResponse) message containing the matching `functionCallId` and either `value` or `error` (even when the function's return type is `void`):
 
 ```json
 {
@@ -382,10 +387,10 @@ The agent can also request the client to execute a function locally via [`callRe
 
 ### Who can call a function
 
-Because functions can trigger sensitive side effects (like opening a browser URL) or access device attributes, a catalog function definition can specify who is permitted to call it and whether it requires a direct user gesture:
+Because functions can trigger sensitive side effects (like opening a browser URL) or access device attributes, a catalog [`FunctionDefinition`](/specification/v1.0/schemas/#catalog_definition.json/$defs/FunctionDefinition) can control who is permitted to call it and whether it requires a direct user gesture:
 
-- **Caller permissions**: A function can restrict callers to the client renderer only, the agent only, or permit both. For example, client-only functions cannot be invoked remotely by the agent.
-- **User activation**: Functions that perform sensitive navigation or external actions (such as `openUrl`) can require user activation. This guarantees the function only runs in direct response to a user tap or click on a component action, preventing background property evaluations or incoming agent messages from triggering browser actions without user intent.
+1. The `allowedCallers` property restricts callers to `"rendererOnly"` (the default), `"agentOnly"`, or `"rendererOrAgent"`. For example, `"rendererOnly"` functions cannot be invoked remotely by the agent via `callRendererFunction`, while `"agentOnly"` functions can only be called by the agent and cannot be used in component properties or actions.
+2. The `requiresUserActivation` property (which defaults to `false` and requires `allowedCallers: "rendererOnly"` when `true`) restricts execution to a direct user tap or click on a component action, such as `openUrl`. This prevents passive property bindings, validation checks, or incoming agent messages from triggering browser navigation without user intent.
 
 <Aside type="note" title="Differences in v0.9.1">
 
