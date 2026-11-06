@@ -14,12 +14,12 @@
     {
       "version": "v0.9",
       "status": "previous",
-      "spec": "https://a2ui.org/specification/v0.9-a2ui/"
+      "spec": "https://github.com/a2ui-project/a2ui/tree/main/specification/v0_9"
     },
     {
       "version": "v0.8",
       "status": "deprecated",
-      "spec": "https://a2ui.org/specification/v0.8-a2ui/"
+      "spec": "https://github.com/a2ui-project/a2ui/tree/main/specification/v0_8"
     }
   ]
 }

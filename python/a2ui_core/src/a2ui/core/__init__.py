@@ -13,6 +13,9 @@
 # limitations under the License.
 
 from a2ui.core.catalog import (
+    AgentFunction as AgentFunction,
+    AgentFunctionContext as AgentFunctionContext,
+    AgentFunctionHandler as AgentFunctionHandler,
     Catalog as Catalog,
     CatalogApi as CatalogApi,
     get_agent_to_renderer_schema_json as get_agent_to_renderer_schema_json,
@@ -101,8 +104,11 @@ __all__ = [
     "A2uiRpcError",
     "A2uiStateError",
     "A2uiValidationError",
+    "AgentFunction",
     "AgentFunctionCall",
     "AgentFunctionCaller",
+    "AgentFunctionContext",
+    "AgentFunctionHandler",
     "CallOptions",
     "CapabilitiesOptions",
     "Catalog",

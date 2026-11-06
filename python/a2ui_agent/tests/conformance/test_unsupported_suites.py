@@ -28,6 +28,7 @@ from .conformance_helpers import (
 )
 
 ACTIVE_SUITES: frozenset[str] = frozenset({
+    "agent/agent_functions.yaml",
     "agent/builder/builder.yaml",
     "agent/catalog_provider.yaml",
     "agent/catalog_resolution.yaml",
@@ -46,6 +47,7 @@ ACTIVE_SUITES: frozenset[str] = frozenset({
     "agent/express/scaling.yaml",
     "agent/macros/macros.yaml",
     "agent/multi_catalog_formats.yaml",
+    "agent/renderer_function_calls.yaml",
     "agent/request_processor.yaml",
     "agent/skill.yaml",
 })

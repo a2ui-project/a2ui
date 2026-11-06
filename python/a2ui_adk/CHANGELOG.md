@@ -1,5 +1,45 @@
 ## Unreleased
 
+- `a2ui_rpc_callback` takes `renderer_calls`, a provider of the session's
+  `RendererFunctionCalls` such as `A2uiRendererCallsStore.get`, and `catalogs`
+  becomes optional (pass one or both). The callback processes each message
+  with a `RendererToAgentMessageProcessor` whose
+  `on_renderer_function_response` is `RendererFunctionCalls.resolve`, and
+  answers the request without running the agent only when every message is
+  handled. A response to a call the session didn't make, such as one the
+  model wrote, is declined and goes to the agent. Responses that answer
+  pending calls always settle them, even in a request that goes to the agent,
+  and a malformed one fails the call it names. It needs the `a2a`
+  extra. [#3535](https://github.com/a2ui-project/a2ui/issues/3535)
+- Add `a2ui_rpc_interceptor`, an `A2aAgentExecutor` interceptor that ends a
+  task `completed` when its request held only `callAgentFunction` and
+  `rendererFunctionResponse` messages and ADK would end it `working` because
+  there was nothing to send back. Other final states are left as they are. It
+  needs the `a2a` extra.
+  [#3535](https://github.com/a2ui-project/a2ui/issues/3535)
+- Add `A2uiRendererCallsStore`, which keeps a `RendererFunctionCalls` for each
+  session. `get` returns the session's instance, creating it on first use, and
+  is the `renderer_calls` provider of `a2ui_rpc_callback`. `remove` disposes a
+  session's instance, which fails its pending calls.
+  [#3535](https://github.com/a2ui-project/a2ui/issues/3535)
+- Add `a2ui_rpc_callback`, which returns a `before_agent_callback` that
+  answers the renderer's A2UI v1.0 `callAgentFunction` messages without
+  running the agent. When the user content holds only such calls, it builds a
+  `RendererToAgentMessageProcessor` from the agent's catalogs (or from the
+  catalogs a provider returns per context, such as the session's
+  `A2uiRequestProcessor.active_catalogs`), and returns the
+  `agentFunctionResponse` replies as the agent's response, which
+  `A2aAgentExecutor` sends as A2UI parts. It reads and writes the parts with
+  ADK's own A2A part converters. Any other content, including the renderer's
+  `action`, `error` and `rendererFunctionResponse` messages, goes to the agent.
+  It needs the `a2a` extra.
+  [#3795](https://github.com/a2ui-project/a2ui/pull/3795)
+- `SendA2uiToClientToolset` removes the `callAgentFunction` and
+  `agentFunctionResponse` messages from the contents sent to the model; the
+  session's events keep them. Add `exclude_a2ui_rpc_from_prompt`, a
+  `before_model_callback` that does the same for agents without the toolset.
+  It needs the `a2a` extra.
+  [#3795](https://github.com/a2ui-project/a2ui/pull/3795)
 - **BREAKING CHANGE**: `GenAIFileResolver` is removed, along with the
   `FileResolver` it extended in `a2ui-agent-sdk`.
   [#3731](https://github.com/a2ui-project/a2ui/pull/3731)

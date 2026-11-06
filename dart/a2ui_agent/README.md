@@ -59,6 +59,9 @@ What v1.0 adds to both formats:
   as [multi_catalog_formats.yaml](../../conformance/agent/multi_catalog_formats.yaml)
   describes. In Express, a name that several catalogs declare takes a
   `catalogId` argument.
+- `RendererToAgentMessageProcessor` processes the messages a renderer sends
+  the agent, as described in
+  [Messages from the renderer](#messages-from-the-renderer).
 - A `callRendererFunction` asks the renderer to run a function.
   A parser and `processor.parseResponse` accept a call only to a function
   whose `allowedCallers` lets the agent call it and that needs no user
@@ -197,6 +200,106 @@ final List<ResponsePart> parts = processor.parseResponse(
   state: canvas,
 );
 ```
+
+### Messages from the renderer
+
+From v1.0, a catalog may declare functions that the agent runs: the renderer
+sends a `callAgentFunction` and waits for the `agentFunctionResponse`. Attach
+a handler to such a declaration with `AgentFunction.fromApi`, or define a new
+function with `AgentFunction`, and add it to the catalog with `copyWith`:
+
+```dart
+final CatalogApi withHandlers = catalog.copyWith(
+  agentFunctions: [
+    AgentFunction.fromApi(
+      catalog.functions['verifyProvider']!,
+      (args, _) => providers.isLicensed(args['providerId']! as String),
+    ),
+  ],
+);
+```
+
+`RendererToAgentMessageProcessor` answers each `callAgentFunction` with
+exactly one reply: the handler's value, `INVALID_FUNCTION_CALL` for arguments
+that break the function's schema, the code of an `A2uiRpcError` the handler
+throws, or `EXECUTION_ERROR` for anything else it throws, an
+`A2uiValidationError` included. It passes the other messages a renderer
+sends, `action`, `error` and `rendererFunctionResponse`, to the callbacks you
+give it. A message without a callback, or whose callback returns `false`, is
+left unhandled, so the agent can pass it on, for example to the model's next
+turn:
+
+```dart
+bool onAction(ActionMessage message) {
+  if (message.action.name != 'refresh') return false; // for the model
+  refresh(message.action.surfaceId);
+  return true;
+}
+
+final processor = RendererToAgentMessageProcessor(
+  catalogs: [withHandlers],
+  onAction: onAction,
+  onError: (message) => log(message.error.message), // void: handled
+);
+for (final Object? message in request.messages) {
+  final ProcessResult result = await processor.processMessage(message);
+  sendToRenderer(result.replies);
+  if (!result.handled) {
+    // Start a model turn with it.
+  }
+}
+```
+
+The processor keeps no state between messages, so one processor can serve
+every conversation, or one can be built per request from the active catalogs.
+It takes one message at a time, which leaves the caller to decide whether
+several run one after another or together, and what to do when one fails. A
+message that isn't a v1.0 renderer-to-agent message (its `version` must be
+`'1.0'`), or a `callAgentFunction` without a `functionCallId`, throws
+`A2uiValidationError`.
+
+### Calling renderer functions
+
+An agent that keeps a connection to the renderer open, such as a WebSocket,
+can call a renderer function and wait for its result with
+`RendererFunctionCalls`. Its `resolve` settles each call from the renderer's
+`rendererFunctionResponse`, and returns `false` for a response to a call it
+doesn't track, such as one the model wrote, so the processor declines that
+response and it reaches the model:
+
+```dart
+final calls = RendererFunctionCalls();
+final processor = RendererToAgentMessageProcessor(
+  catalogs: catalogs,
+  onRendererFunctionResponse: calls.resolve,
+);
+final (CallRendererFunctionMessage message, Future<Object?> result) = calls
+    .call(catalogId: catalogId, name: 'scrollIntoView', args: {'id': 'row-4'});
+sendToRenderer([message]);
+final Object? value = await result; // or throws A2uiRpcError
+```
+
+A call times out after 30 seconds unless given another timeout; give the
+tracker `defaultTimeout: null` for calls that never time out. `dispose`
+cancels the calls still pending, for example when the connection closes.
+
+`call` checks the call before sending anything and throws `A2uiRpcError`
+with `INVALID_FUNCTION_CALL` for an empty `functionCallId`, an empty name or
+catalog id, a name that isn't a UAX #31 identifier, or `args` whose keys
+aren't identifiers or whose values aren't JSON values (`NaN` and infinity
+included). Nested `@call` and `@path` objects in `args` are passed on as they
+are, for the renderer to check.
+
+Give `RendererFunctionCalls` the renderer's catalogs, as in
+`RendererFunctionCalls(catalogs: catalogs)`, and `call` refuses a call the
+renderer would refuse, throwing `A2uiRpcError` before anything is sent:
+`UNKNOWN_FUNCTION` when the catalog id names none of the catalogs or its
+catalog has no such renderer function (an agent function in the catalog runs
+on the agent, so it doesn't count), and `INVALID_FUNCTION_CALL` when the
+function's `allowedCallers` is `rendererOnly` (the default) or the function
+requires a user activation, which an agent's call doesn't have. Two catalogs
+with the same id throw `A2uiCatalogError`. Without catalogs, calls aren't
+checked.
 
 ## Tests
 
