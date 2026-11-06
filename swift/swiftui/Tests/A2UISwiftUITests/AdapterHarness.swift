@@ -851,6 +851,7 @@ enum AdapterHarness {
 
   /// Returns all `Modal` component IDs in `rootNode` whose trigger subtree activates when
   /// `targetID` is pressed, stopping at nested `Modal` boundaries.
+  @MainActor
   static func modalIDsTriggered(
     by targetID: String,
     in rootNode: A2UICore.Node
@@ -870,6 +871,7 @@ enum AdapterHarness {
     return triggeredIDs
   }
 
+  @MainActor
   private static func triggerSubtreeContains(
     componentID: String,
     in node: A2UICore.Node,
@@ -1474,6 +1476,7 @@ enum AdapterHarness {
     }
   }
 
+  @MainActor
   private static func resolveTabChildren(for node: A2UICore.Node) -> [A2UICore.Node] {
     if let array = node.array(for: "tabs") {
       return array.compactMap { element in
@@ -2260,6 +2263,7 @@ enum AdapterHarness {
     return nil
   }
 
+  @MainActor
   private static func semanticRole(for node: A2UICore.Node) -> String {
     switch node.type {
     case "Button":
@@ -2276,11 +2280,13 @@ enum AdapterHarness {
     }
   }
 
+  @MainActor
   private static func checkedState(for node: A2UICore.Node) -> Bool? {
     guard node.type == "CheckBox" else { return nil }
     return node.bool(for: "value") ?? false
   }
 
+  @MainActor
   static func collectNodes(from node: A2UICore.Node, into map: inout [String: A2UICore.Node]) {
     map[node.id] = node
     let baseID = String(node.id.split(separator: ":").first ?? Substring(node.id))
@@ -2290,6 +2296,7 @@ enum AdapterHarness {
     }
   }
 
+  @MainActor
   private static func resolvedValueJSON(for node: A2UICore.Node, key: String) -> JSONValue? {
     if let booleanBinding = node.properties[key] as? DataBinding<Bool> {
       return booleanBinding.value.map { .boolean($0) }
