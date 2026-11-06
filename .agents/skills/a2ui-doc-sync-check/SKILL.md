@@ -1,6 +1,8 @@
 ---
 name: a2ui-doc-sync-check
 description: Auditing codebase implementations for synchronization drift with the user documentation, readmes, and code comments.
+metadata:
+  internal: true
 ---
 
 # A2UI Code and Documentation Synchronization Check Skill

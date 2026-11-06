@@ -233,7 +233,9 @@ public final class MessageProcessor: ObservableObject {
   ///
   /// - Parameter options: Configuration options for capability generation.
   /// - Returns: A `JSONValue` representing the capabilities structure keyed by protocol version.
-  /// - Throws: `A2UIValidationError` if `options.versions` is empty.
+  /// - Throws: `A2UIValidationError` if `options.versions` is empty, or ``A2UICatalogError``
+  ///   if a v1.0 inline catalog has a function that sets `requiresUserActivation` to `true`
+  ///   while `allowedCallers` is not `.rendererOnly`.
   public func getRendererCapabilities(
     options: CapabilitiesOptions
   ) throws -> JSONValue {
@@ -255,6 +257,13 @@ public final class MessageProcessor: ObservableObject {
       ]
 
       if options.includeInlineCatalogs {
+        if version.isAtLeastV10 {
+          // The v1.0 `catalog_definition.json` rejects a function that requires user
+          // activation unless only the renderer may call it, so don't advertise one.
+          for catalog in compatibleCatalogs {
+            try catalog.validateFunctionCallerConstraints()
+          }
+        }
         let inlineCatalogs = compatibleCatalogs.map {
           generateInlineCatalog($0, for: version, options: options)
         }
@@ -986,6 +995,9 @@ public final class MessageProcessor: ObservableObject {
     version: A2UIProtocolVersion,
     timeoutSeconds: TimeInterval = 30.0
   ) async throws -> JSONValue {
+    guard !rpcHandler.isDisposed else {
+      throw FunctionError.disposed(callID: functionCallID ?? UUID().uuidString)
+    }
     guard let listener = outboundListener else {
       throw FunctionError.noListener(name: functionName)
     }
@@ -1149,7 +1161,10 @@ public final class MessageProcessor: ObservableObject {
     let held = surface.componentsModel.components
     let catalogs = surface.catalogs
     let defaultCatalogID = surface.defaultCatalogID
-    let checksBatch = config.allowDanglingReferences && config.allowMissingRoot
+    // The bound assumes the graph is acyclic, so a config that admits cycles checks the whole
+    // surface each time.
+    let checksBatch =
+      config.allowDanglingReferences && config.allowMissingRoot && !config.allowCyclicReferences
     var batch: [String: [String: JSONValue]] = [:]
     for component in components {
       guard let id = component["id"]?.stringValue else { continue }

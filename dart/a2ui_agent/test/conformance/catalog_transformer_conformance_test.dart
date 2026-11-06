@@ -16,6 +16,16 @@ import 'package:test/test.dart';
 
 import 'suites.dart';
 
+const Map<String, Set<String>> _knownKeys = {
+  'case:transform_catalog': {
+    ...caseMetadataKeys,
+    'args',
+    'expect',
+    'expect_error',
+  },
+  'args:transform_catalog': {'catalog', 'transformers'},
+};
+
 /// Runs the shared `conformance/agent/catalog_transformer.yaml` suite, in
 /// each [SuiteVersion].
 void main() {
@@ -26,8 +36,24 @@ void main() {
       test('suite is not empty', () => expect(cases, isNotEmpty));
       for (final testCase in cases) {
         test(testCase['name']! as String, () {
+          switch (testCase['action']) {
+            case 'transform_catalog':
+              assertKnownKeys(
+                testCase,
+                _knownKeys['case:transform_catalog']!,
+                'case:transform_catalog',
+              );
+            default:
+              throw UnsupportedError('Unknown action ${testCase['action']}');
+          }
+          final args = testCase['args']! as Map<String, Object?>;
+          assertKnownKeys(
+            args,
+            _knownKeys['args:transform_catalog']!,
+            'args:transform_catalog',
+          );
           version.expectCatalog(
-            version.catalogConfig(testCase['args']).transformedCatalog,
+            version.catalogConfig(args).transformedCatalog,
             testCase['expect']! as Map<String, Object?>,
           );
         });

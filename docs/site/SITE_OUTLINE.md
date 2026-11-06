@@ -29,14 +29,15 @@ Every agent authoring or editing pages under `docs/site/` must follow these glob
         - **Explorer Routes**: `/specification/v1.0/schemas/`, `/specification/v0.9.1/schemas/`, `/specification/v0.8/schemas/` (prefixed with `import.meta.env.BASE_URL` when constructing links in Astro components).
         - **Whole Schema File**: `/specification/<version>/schemas/#<schema-file>`
             - Examples: `/specification/v1.0/schemas/#agent_to_renderer.json`, `/specification/v0.9.1/schemas/#server_to_client.json`.
-            - Catalogs stored outside `json/` use stable aliases: `#basic_catalog.json` and `#mcp_catalog.json`.
+            - The reference Basic Catalog schema is presented at the end of the versioned Basic Catalog Guide: `/specification/<version>-basic-catalog-implementation-guide/#basic_catalog.json`.
+            - The reference MCP Catalog schema is presented at the end of the MCP Catalog Guide: `/guides/mcp-catalog/#mcp_catalog.json`.
         - **Specific Definition / JSON Pointer**: `/specification/<version>/schemas/#<schema-file>/<json-pointer>`
             - Examples:
                 - `/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage`
                 - `/specification/v0.9.1/schemas/#server_to_client.json/$defs/CreateSurfaceMessage`
                 - `/specification/v1.0/schemas/#renderer_to_agent.json/properties/action` _(note: `renderer_to_agent.json` and `client_to_server.json` define messages under top-level `properties`, not `$defs`)_
                 - `/specification/v1.0/schemas/#common_types.json/$defs/ChildList`
-                - `/specification/v1.0/schemas/#basic_catalog.json/components/Button`
+                - `/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json/components/Button`
     - See [Section 4.2](#42-json-schemas-explorer--permalink-architecture) for how `<SchemaExplorer />` and `remark-a2ui-includes.mjs` implement and validate this contract.
 
 ### Canonical Site Route & Content File Map
@@ -78,7 +79,7 @@ All cross-page links must target these exact Starlight routes (with `docs/site/s
 | **Specification** | `<ver>` JSON Schemas Explorer                    | **P1**   | `content/docs/specification/<ver>-schemas.mdx`                                                   | `/specification/<ver>/schemas/`                                                                 |
 | **Specification** | `<ver>` A2A Extension                            | **P1**   | `content/docs/specification/<ver>-a2ui-extension-specification.md` (and `v0.8-a2a-extension.md`) | `/specification/<ver>-a2ui-extension-specification/` (and `/specification/v0.8-a2a-extension/`) |
 | **Specification** | `<ver>` Evolution Guide / Custom Catalog Changes | **P1**   | `content/docs/specification/<ver>-evolution-guide.md` (and `v0.8-custom-catalog-changes.md`)     | `/specification/<ver>-evolution-guide/` (and `/specification/v0.8-custom-catalog-changes/`)     |
-| **Specification** | `<ver>` Basic Catalog Guide                      | **P1**   | `content/docs/specification/<ver>-basic-catalog-implementation-guide.md`                         | `/specification/<ver>-basic-catalog-implementation-guide/`                                      |
+| **Specification** | `<ver>` Basic Catalog Guide                      | **P1**   | `content/docs/specification/<ver>-basic-catalog-implementation-guide.mdx`                        | `/specification/<ver>-basic-catalog-implementation-guide/`                                      |
 
 _(Where `<ver>` is `v1.0`, `v0.9.1`, or `v0.8`.)_
 
@@ -439,7 +440,7 @@ _(Where `<ver>` is `v1.0`, `v0.9.1`, or `v0.8`.)_
 
 Single-source specification markdown files directly from `specification/` and `catalogs/` via `--8<--` includes (omitting `v0.9`, as `v0.9.1` supersedes it with minor patch refinements):
 
-- **v1.0 (Candidate)** `[Badge: Candidate]`
+- **v1.0 (Current)** `[Badge: Current]`
     - `v1.0 Protocol Specification`: [`specification/v1_0/docs/a2ui_protocol.md`](../../specification/v1_0/docs/a2ui_protocol.md)
     - `v1.0 Custom Functions Guide`: [`specification/v1_0/docs/a2ui_custom_functions.md`](../../specification/v1_0/docs/a2ui_custom_functions.md)
     - `v1.0 SDKs Specification`: [`specification/v1_0/docs/sdks_spec.md`](../../specification/v1_0/docs/sdks_spec.md)
@@ -447,7 +448,7 @@ Single-source specification markdown files directly from `specification/` and `c
     - `v1.0 A2A Extension`: [`specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md`](../../specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md)
     - `v1.0 Evolution Guide`: [`specification/v1_0/docs/evolution_guide.md`](../../specification/v1_0/docs/evolution_guide.md)
     - `v1.0 Basic Catalog Guide`: [`catalogs/basic/v1/basic_catalog_implementation_guide.md`](../../catalogs/basic/v1/basic_catalog_implementation_guide.md)
-- **v0.9.1 (Active / Current)** `[Badge: Active]` _(note briefly that v0.9.1 supersedes v0.9)_
+- **v0.9.1** _(note briefly that v0.9.1 supersedes v0.9)_
     - `v0.9.1 Protocol Specification`: [`specification/v0_9_1/docs/a2ui_protocol.md`](../../specification/v0_9_1/docs/a2ui_protocol.md)
     - `v0.9.1 Custom Functions Guide`: [`specification/v0_9_1/docs/a2ui_custom_functions.md`](../../specification/v0_9_1/docs/a2ui_custom_functions.md)
     - `v0.9.1 SDKs Specification`: [`specification/v0_9_1/docs/sdks_spec.md`](../../specification/v0_9_1/docs/sdks_spec.md)
@@ -455,7 +456,7 @@ Single-source specification markdown files directly from `specification/` and `c
     - `v0.9.1 A2A Extension`: [`specification/v0_9_1/docs/a2ui_extension_specification.md`](../../specification/v0_9_1/docs/a2ui_extension_specification.md)
     - `v0.9.1 Evolution Guide`: [`specification/v0_9_1/docs/evolution_guide.md`](../../specification/v0_9_1/docs/evolution_guide.md)
     - `v0.9.1 Basic Catalog Guide`: [`specification/v0_9_1/docs/basic_catalog_implementation_guide.md`](../../specification/v0_9_1/docs/basic_catalog_implementation_guide.md)
-- **v0.8 (Legacy)**
+- **v0.8 (Deprecated)** `[Badge: Deprecated]`
     - `v0.8 Protocol Specification`: [`specification/v0_8/docs/a2ui_protocol.md`](../../specification/v0_8/docs/a2ui_protocol.md)
     - `v0.8 JSON Schemas Explorer`: `/specification/v0.8/schemas/`
     - `v0.8 A2A Extension`: [`specification/v0_8/docs/a2ui_extension_specification.md`](../../specification/v0_8/docs/a2ui_extension_specification.md)
@@ -473,20 +474,23 @@ Each version's **JSON Schemas Explorer** (`/specification/<ver>/schemas/`, imple
     - **v1.0**:
         - _Wire Messages_: `agent_to_renderer.json`, `renderer_to_agent.json`
         - _Common Types_: `common_types.json`
-        - _Catalogs & Data Model_: `catalog_definition.json`, `renderer_data_model.json`, `basic_catalog.json` (`catalogs/basic/v1/catalog.json`), `mcp_catalog.json` (`catalogs/mcp/v1/catalog.json`)
+        - _Catalog Definition & Data Model_: `catalog_definition.json`, `renderer_data_model.json`
         - _Capabilities_: `agent_capabilities.json`, `renderer_capabilities.json`
         - _Batching & Wrappers_: `agent_to_renderer_list.json`, `renderer_to_agent_list.json`, `agent_to_renderer_list_wrapper.json`, `renderer_to_agent_list_wrapper.json`
+        - _Basic Catalog Schema_: Rendered at the end of the [`v1.0` Basic Catalog Guide](src/content/docs/specification/v1.0-basic-catalog-implementation-guide.mdx) (`/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json`, sourced from [`catalogs/basic/v1/catalog.json`](../../catalogs/basic/v1/catalog.json)).
+        - _MCP Catalog Schema_: Rendered at the end of the [MCP Catalog Guide](src/content/docs/guides/mcp-catalog.mdx) (`/guides/mcp-catalog/#mcp_catalog.json`, sourced from [`catalogs/mcp/v1/catalog.json`](../../catalogs/mcp/v1/catalog.json)).
     - **v0.9.1**:
         - _Wire Messages_: `server_to_client.json`, `client_to_server.json`
         - _Common Types_: `common_types.json`
-        - _Catalogs & Data Model_: `client_data_model.json`, `basic_catalog.json` (`specification/v0_9_1/catalogs/basic/catalog.json`), `mcp_catalog.json` (`catalogs/mcp/catalog.json`)
+        - _Data Model_: `client_data_model.json`
         - _Capabilities_: `server_capabilities.json`, `client_capabilities.json`
         - _Batching & Wrappers_: `server_to_client_list.json`, `client_to_server_list.json`, `server_to_client_list_wrapper.json`, `client_to_server_list_wrapper.json`
+        - _Basic Catalog Schema_: Rendered at the end of the [`v0.9.1` Basic Catalog Guide](src/content/docs/specification/v0.9.1-basic-catalog-implementation-guide.mdx) (`/specification/v0.9.1-basic-catalog-implementation-guide/#basic_catalog.json`, sourced from [`specification/v0_9_1/catalogs/basic/catalog.json`](../../specification/v0_9_1/catalogs/basic/catalog.json)).
     - **v0.8**:
         - _Wire Messages_: `server_to_client.json`, `client_to_server.json`, `server_to_client_with_standard_catalog.json`
         - _Catalogs & Capabilities_: `standard_catalog_definition.json`, `catalog_description_schema.json`, `a2ui_client_capabilities_schema.json`, `minimal_catalog.json` (`specification/v0_8/json/catalogs/minimal/minimal_catalog.json`)
 2. **Utility Bar per Schema**:
-    - Displays the canonical `$id` URI with a 1-click **Copy `$id`** button when `$id` is present (omitted on schemas without `$id`, such as v0.9.1 `client_to_server.json` and v0.8 schemas), a **Raw JSON** link pointing to the exact versioned static file staged in `public/specification/<version_dir>/` by [`prepare-spec-assets.mjs`](scripts/prepare-spec-assets.mjs) (also update `prepare-spec-assets.mjs` to stage `catalogs/mcp/catalog.json` under `v0_9/catalogs/mcp/`), and a **Jump to Definition / Copy Permalink** dropdown.
+    - Displays the canonical `$id` URI with a 1-click **Copy `$id`** button when `$id` is present (omitted on schemas without `$id`, such as v0.9.1 `client_to_server.json` and v0.8 schemas), a **Raw JSON** link pointing to the exact versioned static file staged in `public/specification/<version_dir>/` by [`prepare-spec-assets.mjs`](scripts/prepare-spec-assets.mjs), and a **Jump to Definition / Copy Permalink** dropdown.
 3. **Permalink Contract Implementation**:
     - **Build-Time Pointer-to-Line Index**: At Astro build time, `<SchemaExplorer />` reads each canonical JSON file directly from disk (zero duplication) and parses a JSON AST to emit a `{ "<json-pointer>": [startLine, endLine] }` map indexing top-level keys plus `$defs/*`, `components/*`, `functions/*`, and `properties/*` alongside the Expressive Code block.
     - **Client-Side Fragment Resolution**: On `DOMContentLoaded` and `hashchange`, a client script parses `location.hash` (`#<schema-file>` or `#<schema-file>/<json-pointer>`), activates the matching schema panel, highlights lines `startLine..endLine` in Expressive Code, and scrolls the definition into view.
