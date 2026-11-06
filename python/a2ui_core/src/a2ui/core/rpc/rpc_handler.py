@@ -130,10 +130,15 @@ class RpcHandler:
         return self._is_disposed
 
     def dispose(self, reason: str = "RpcHandler has been disposed.") -> None:
-        """Cancels all pending outbound RPC calls and marks the instance disposed."""
+        """Cancels all pending outbound RPC calls and marks the instance disposed.
+
+        Pending calls fail with `CANCELLED`, later calls with `DISPOSED`, and
+        the outbound listener is removed.
+        """
         if self._is_disposed:
             return
         self._is_disposed = True
+        self.outbound_listener = None
 
         for call_id, pending in list(self._pending_agent_calls.items()):
             pending.reject(

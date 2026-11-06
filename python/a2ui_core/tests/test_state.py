@@ -439,6 +439,7 @@ def test_exception_hierarchy_normalization():
         "DISPOSED",
         "NO_LISTENER",
         "DUPLICATE",
+        "TOO_MANY_PENDING",
     }
     actual_codes = {member.value for member in RpcErrorCode}
     assert actual_codes == expected_codes
