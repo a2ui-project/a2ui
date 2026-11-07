@@ -49,6 +49,13 @@
 - `Image` keeps its `description` when it does not load: the broken-image icon
   is labelled with it, as an `alt` text is on the web
   ([#3412](https://github.com/a2ui-project/a2ui/pull/3412)).
+- The basic `Text` component marks the `h1`–`h5` variants, and a Text that
+  is one Markdown heading line, as headings of their level in the semantics
+  tree, so screen readers announce them as headings and can navigate by them.
+  A `Button` merges the semantics of its child, so a labelled component as
+  its child still gives the button its name, and keeps a heading Text in its
+  child from being marked as a heading, so the button is not announced as one
+  ([#3788](https://github.com/a2ui-project/a2ui/pull/3788)).
 
 ## 0.0.1-wip003
 
