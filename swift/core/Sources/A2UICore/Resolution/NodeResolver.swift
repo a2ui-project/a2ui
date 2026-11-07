@@ -874,7 +874,7 @@ public final class NodeResolver: Sendable {
         basePath: basePath,
         index: index,
         instanceSuffix: instanceSuffix,
-        componentID: instanceID,
+        componentID: definitionID,
         propertyKey: key,
         visited: visited,
         components: components,
