@@ -111,6 +111,7 @@ class DataContext {
 
   final int? _explicitIndex;
   final String? _callCatalogId;
+  final FunctionInvoker? _callCatalogInvoker;
 
   /// Set while an action invokes a function locally, so that
   /// [CatalogInvokerExtension.invoke] marks a failure of the function itself
@@ -164,6 +165,7 @@ class DataContext {
         _invokerForCatalog = invokerForCatalog,
         _explicitIndex = index,
         _callCatalogId = null,
+        _callCatalogInvoker = null,
         _onMissingData = onMissingData ?? parent?._onMissingData,
         _warnedPaths = parent?._warnedPaths ?? <String>{},
         _callAgentFunction = callAgentFunction,
@@ -182,6 +184,7 @@ class DataContext {
     this.parent,
     int? index,
     String? callCatalogId,
+    FunctionInvoker? callCatalogInvoker,
     MissingDataReporter? onMissingData,
     Set<String>? warnedPaths,
   })  : _onError = onError,
@@ -190,11 +193,23 @@ class DataContext {
         _agentCalls = agentCalls,
         _explicitIndex = index,
         _callCatalogId = callCatalogId ?? parent?._callCatalogId,
+        _callCatalogInvoker = callCatalogId != null
+            ? callCatalogInvoker
+            : (callCatalogInvoker ?? parent?._callCatalogInvoker),
         _onMissingData = onMissingData ?? parent?._onMissingData,
         _warnedPaths = warnedPaths ?? parent?._warnedPaths ?? <String>{};
 
   String? get _activeCallCatalogId =>
       _callCatalogId ?? parent?._activeCallCatalogId;
+
+  FunctionInvoker? _activeInvokerFor(String catalogId) {
+    for (DataContext? ctx = this; ctx != null; ctx = ctx.parent) {
+      if (ctx._callCatalogId != null) {
+        return ctx._callCatalogId == catalogId ? ctx._callCatalogInvoker : null;
+      }
+    }
+    return null;
+  }
 
   /// The 0-based iteration index of the nearest enclosing collection
   /// template, or null outside any template.
@@ -834,17 +849,25 @@ class DataContext {
     final String? catalogId = atLeastV10 ? call.catalogId : null;
     if (catalogId == null) return _invoke(name, args, this);
     final CatalogInvokerResolver? invokerForCatalog = _invokerForCatalog;
-    if (invokerForCatalog == null) {
-      throw A2uiCatalogResolutionError(
-        "Function '$name' names catalog '$catalogId', but this context "
-        'has no catalogs to resolve it against.',
-        catalogId: catalogId,
+    if (invokerForCatalog != null) {
+      return invokerForCatalog(catalogId)(
+        name,
+        args,
+        _withCallCatalog(catalogId),
       );
     }
-    return invokerForCatalog(catalogId)(
-      name,
-      args,
-      _withCallCatalogId(catalogId),
+    final FunctionInvoker? activeInvoker = _activeInvokerFor(catalogId);
+    if (activeInvoker != null) {
+      return activeInvoker(
+        name,
+        args,
+        _withCallCatalog(catalogId, activeInvoker),
+      );
+    }
+    throw A2uiCatalogResolutionError(
+      "Function '$name' names catalog '$catalogId', but this context "
+      'has no catalogs to resolve it against.',
+      catalogId: catalogId,
     );
   }
 
@@ -1102,6 +1125,7 @@ class DataContext {
       parent: parent,
       index: _explicitIndex,
       callCatalogId: _callCatalogId,
+      callCatalogInvoker: _callCatalogInvoker,
       onMissingData: _onMissingData,
       warnedPaths: _warnedPaths,
     );
@@ -1533,11 +1557,16 @@ class DataContext {
         parent: parent,
         index: _explicitIndex,
         callCatalogId: _callCatalogId,
+        callCatalogInvoker: _callCatalogInvoker,
         onMissingData: _onMissingData,
         warnedPaths: _warnedPaths,
       );
 
-  DataContext _withCallCatalogId(String catalogId) => DataContext._derived(
+  DataContext _withCallCatalog(
+    String catalogId, [
+    FunctionInvoker? catalogInvoker,
+  ]) =>
+      DataContext._derived(
         dataModel,
         _invoke,
         path,
@@ -1550,6 +1579,10 @@ class DataContext {
         parent: parent,
         index: _explicitIndex,
         callCatalogId: catalogId,
+        callCatalogInvoker: catalogInvoker ??
+            (catalogId == _activeCallCatalogId
+                ? _activeInvokerFor(catalogId)
+                : null),
         onMissingData: _onMissingData,
         warnedPaths: _warnedPaths,
       );
@@ -1932,6 +1965,7 @@ DataContext dataContextWithoutAgentCalls(DataContext context) =>
       parent: context.parent,
       index: context._explicitIndex,
       callCatalogId: context._callCatalogId,
+      callCatalogInvoker: context._callCatalogInvoker,
       onMissingData: context._onMissingData,
       warnedPaths: context._warnedPaths,
     );
@@ -1941,9 +1975,10 @@ DataContext dataContextWithoutAgentCalls(DataContext context) =>
 /// the catalog `formatString` itself resolved to.
 DataContext dataContextWithCallCatalog(
   DataContext context,
-  String catalogId,
-) =>
-    context._withCallCatalogId(catalogId);
+  String catalogId, [
+  FunctionInvoker? catalogInvoker,
+]) =>
+    context._withCallCatalog(catalogId, catalogInvoker);
 
 /// Shared [_AgentCallCache] per [SurfaceModel] so all component contexts on a
 /// surface deduplicate in-flight agent calls.
@@ -2053,10 +2088,11 @@ extension CatalogInvokerExtension
         details: callArgs,
       );
     }
-    final DataContext callContext =
-        context._invokerForCatalog != null && context._callCatalogId != id
-            ? context._withCallCatalogId(id)
-            : context;
+    final DataContext callContext = context.atLeastV10 &&
+            (context._activeCallCatalogId != id ||
+                context._activeInvokerFor(id) == null)
+        ? context._withCallCatalog(id, invoke)
+        : context;
     if (!context._marksExecutionFailures) {
       return fn.execute(callArgs, callContext);
     }

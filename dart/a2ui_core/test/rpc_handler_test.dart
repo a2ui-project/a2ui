@@ -773,5 +773,46 @@ void main() {
         '@index function can only be evaluated inside a collection template',
       );
     });
+
+    test(
+        'resolves formatString template calls in a standalone handler catalog '
+        'when surface lacks that catalog', () async {
+      surface.dataModel.set('/count', 2);
+      final Catalog<ComponentApi, FunctionImplementation> basic =
+          BasicCatalog.v1_0();
+      final FunctionImplementation fs = basic.functions['formatString']!;
+      final FunctionImplementation pluralize = basic.functions['pluralize']!;
+      final Catalog<ComponentApi, FunctionImplementation> standalone = _catalog(
+        'standalone-fmt',
+        [
+          _Fn(
+            'formatString',
+            fs.execute,
+            allowedCallers: AllowedCallers.rendererOrAgent,
+          ),
+          pluralize,
+        ],
+      );
+      final h = RpcHandler(
+        catalogs: [catalog, standalone],
+        outboundListener: sent.add,
+      );
+      addTearDown(h.dispose);
+
+      final A2uiFunctionResponse r = await run(
+        h,
+        _inbound(
+          'formatString',
+          catalogId: 'standalone-fmt',
+          args: {
+            'value': r'Count ${/count}: '
+                r"${pluralize(value: /count, one: 'drop', other: 'drops')}",
+          },
+        ),
+        withSurface: true,
+      );
+      expect(r.error, isNull);
+      expect(r.value, 'Count 2: drops');
+    });
   });
 }
