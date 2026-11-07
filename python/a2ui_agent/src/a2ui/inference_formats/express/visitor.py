@@ -101,6 +101,11 @@ class ExpressAstVisitor(ExpressVisitor):  # type: ignore[misc]
                 stmt = self.visit(stmt_ctx)
                 if stmt is not None:
                     statements.append(stmt)
+            except ExpressParseError:
+                # A literal the visitor rejected on purpose, such as an
+                # out-of-range number: the statement is wrong, not unfinished,
+                # so it is reported rather than dropped.
+                raise
             except Exception:
                 pass
         return statements

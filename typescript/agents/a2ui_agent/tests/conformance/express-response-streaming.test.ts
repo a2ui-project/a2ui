@@ -21,13 +21,14 @@ import {StreamPart} from '../../src/parser/response-part.js';
 import {ResponseStream} from '../../src/parser/response-stream.js';
 import {FileSystemCatalogProvider} from '../../src/processor/catalog-providers.js';
 import {LoadedCase, loadCases} from './loader.js';
+import {SuiteVersion, liftParts, loadCatalogFromRelativePath} from './lowering.js';
 import {
   assertKnownKeys,
   CASE_METADATA_KEYS,
   categoryOf,
   conformancePath,
-  describeSuite,
   EXPECT_ERROR_KEYS,
+  forEachSuiteVersion,
   KNOWN_FAILURES,
 } from './suite-helpers.js';
 
@@ -96,13 +97,11 @@ function declaredVersion(args: StreamingArgs): string | undefined {
   return document.protocolVersion?.replace(/^v/, '');
 }
 
-function makeParser(args: StreamingArgs): ExpressParser {
+function makeParser(args: StreamingArgs, lower = false): ExpressParser {
   if (args.format !== 'express') {
     throw new Error(`Unexpected format '${args.format}'`);
   }
-  const catalogs = catalogPaths(args).map(file =>
-    new FileSystemCatalogProvider(conformancePath(file)).load(),
-  );
+  const catalogs = catalogPaths(args).map(file => loadCatalogFromRelativePath(file, lower));
   return new ExpressParser(
     catalogs,
     'default_surface',
@@ -153,8 +152,13 @@ function mergeAdjacentText(parts: Array<Record<string, unknown>>): Array<Record<
   return merged;
 }
 
-function runCase(testCase: LoadedCase): void {
+function runCase(testCase: LoadedCase, version: SuiteVersion): void {
   assertKnownKeys(testCase, PARSE_CHUNK_CASE_KEYS, 'parse_chunk case');
+  const isLowered = version === 'v0.9-lowered';
+  const toExpected = (parts: StreamPart[]) => {
+    const dicts = parts.map(partToDict);
+    return isLowered ? liftParts(dicts, {join: true}) : dicts;
+  };
   const args = testCase.args as unknown as StreamingArgs;
   assertKnownKeys(
     args as unknown as Record<string, unknown>,
@@ -162,7 +166,7 @@ function runCase(testCase: LoadedCase): void {
     'parse_chunk args',
   );
   const wrapped = args.wrapped ?? true;
-  const parser = makeParser(args);
+  const parser = makeParser(args, isLowered);
   const stream: ResponseStream<StreamPart> = parser.openStream({
     wrapped,
     afterRejectedBlock: args.after_rejected_block ?? 'end',
@@ -181,7 +185,7 @@ function runCase(testCase: LoadedCase): void {
       const error = expectError(() => stream.feed(step.input), step.expect_error);
       if (step.expect_partial_results) {
         const partial = (error as {partialResults?: StreamPart[]}).partialResults ?? [];
-        expect(partial.map(partToDict), `step ${index}: partial results`).toEqual(
+        expect(toExpected(partial), `step ${index}: partial results`).toEqual(
           step.expect_partial_results,
         );
       }
@@ -190,7 +194,7 @@ function runCase(testCase: LoadedCase): void {
       }
       return;
     }
-    const parts = stream.feed(step.input).map(partToDict);
+    const parts = toExpected(stream.feed(step.input));
     expect(parts, `step ${index}: ${step.input}`).toEqual(step.expect);
     if (step.expect_in_block !== undefined) {
       expect(stream.isInBlock, `step ${index}: in block`).toBe(step.expect_in_block);
@@ -203,22 +207,22 @@ function runCase(testCase: LoadedCase): void {
     return;
   }
 
-  const closed = stream.close().map(partToDict);
+  const closed = toExpected(stream.close());
   if (testCase.expect_close) {
     expect(closed, 'close').toEqual(testCase.expect_close);
   }
   yielded.push(...closed);
 
   if (testCase.expect_matches_single_shot) {
-    const singleShot = makeParser(args).parseResponse(chunks.join(''), {wrapped});
-    expect(mergeAdjacentText(yielded)).toEqual(mergeAdjacentText(singleShot.map(partToDict)));
+    const singleShot = makeParser(args, isLowered).parseResponse(chunks.join(''), {wrapped});
+    expect(mergeAdjacentText(yielded)).toEqual(mergeAdjacentText(toExpected(singleShot)));
   }
 }
 
-describeSuite(
+forEachSuiteVersion(
   'Conformance: express/response_streaming.yaml',
   loadCases([conformancePath('agent/express/response_streaming.yaml')]),
-  testCase => runCase(testCase),
+  (testCase, version) => runCase(testCase, version),
   {
     knownFailures: KNOWN_FAILURES,
     skipReason: testCase => {

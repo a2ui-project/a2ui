@@ -53,6 +53,7 @@ const Map<String, Set<String>> _knownKeys = {
     ...caseMetadataKeys,
     'args',
     'expect_absent',
+    'expect_callable_functions',
     'expect_contains',
     'expect_deterministic',
     'expect_error',
@@ -210,6 +211,19 @@ const Map<String, String> _v1OnlyCases = {
       'Surface extensions are only supported in A2UI v1.0 or later.',
   'test_compile_express_empty_extensions_preserved':
       'Surface and component extensions require A2UI v1.0 or later.',
+  'test_compile_express_standalone_call_renderer_or_agent_function':
+      'Protocol v0.9 has no callRendererFunction message.',
+  'test_compile_express_standalone_call_agent_only_function':
+      'Protocol v0.9 has no callRendererFunction message.',
+  'test_compile_express_standalone_call_renderer_only_function'
+          '_is_validation_error':
+      'Protocol v0.9 has no callRendererFunction message.',
+  'test_compile_express_standalone_call_user_activation_function'
+          '_is_validation_error':
+      'Protocol v0.9 has no callRendererFunction message.',
+  'test_express_snippet_names_only_agent_callable_functions'
+          '_for_standalone_calls':
+      'Protocol v0.9 function schema does not support allowedCallers.',
 };
 
 /// Why this SDK cannot run [testCase] in [version], or null if it can.
@@ -493,6 +507,13 @@ void _checkSnippet(
   String snippet,
 ) {
   expectSnippet(snippet, testCase);
+  if (testCase['expect_callable_functions'] case final List<Object?> expected) {
+    final args = testCase['args']! as Map<String, Object?>;
+    expect(agentCallableFunctions(version.catalogs(args)), expected);
+    for (final name in expected) {
+      expect(snippet, contains(name));
+    }
+  }
   if (testCase['expect_deterministic'] == true) {
     expect(_perform(testCase, version), snippet);
   }

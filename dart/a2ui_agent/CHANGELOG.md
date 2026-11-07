@@ -17,6 +17,7 @@
   make the call
   ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
   [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
+- Export `agentCallableFunctions` from `package:a2ui_agent/a2ui_agent.dart` to return the names of functions across active catalogs that the agent may invoke via `callRendererFunction` ([#3864](https://github.com/a2ui-project/a2ui/pull/3864), [#3880](https://github.com/a2ui-project/a2ui/pull/3880)).
 - (v1_0) Express compiles, decompiles and prompts the protocol's system
   functions, which no catalog defines: `@index()` and `@index(offset=1)`
   compile to `{"@call": "@index", ...}` without a `catalogId`, the decompiler
