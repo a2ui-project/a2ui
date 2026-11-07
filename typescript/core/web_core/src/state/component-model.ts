@@ -215,7 +215,7 @@ export class ComponentModel {
       ...this._properties,
       id: this.id,
       component: this.type,
-      ...(metadata !== undefined ? {metadata} : {}),
+      ...(metadata !== undefined ? {'@metadata': metadata} : {}),
     };
   }
 }

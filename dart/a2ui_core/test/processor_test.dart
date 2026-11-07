@@ -966,10 +966,13 @@ void main() {
   });
 
   group('MessageProcessor component envelope', () {
-    Catalog<ComponentApi, FunctionImplementation> alphaCatalog(String id) =>
+    Catalog<ComponentApi, FunctionImplementation> alphaCatalog(
+      String id, {
+      A2uiProtocolVersion version = A2uiProtocolVersion.v1_0,
+    }) =>
         Catalog<ComponentApi, FunctionImplementation>(
           id: id,
-          protocolVersion: A2uiProtocolVersion.v0_9,
+          protocolVersion: version,
           components: [
             ComponentApi(
               name: 'Alpha',
@@ -986,12 +989,12 @@ void main() {
     setUp(() {
       processor = MessageProcessor<ComponentApi>(
         catalogs: [alphaCatalog('cat1'), alphaCatalog('cat2')],
-        defaultVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v1_0,
       );
       processor.processMessages(
         AgentToRendererMessagePayload([
           CreateSurfaceMessage(
-            version: 'v0.9',
+            version: '1.0',
             surfaceId: 's1',
             catalogId: 'cat1',
           ),
@@ -1002,7 +1005,7 @@ void main() {
     void update(Map<String, Object?> component) => processor.processMessages(
           AgentToRendererMessagePayload([
             UpdateComponentsMessage(
-              version: 'v0.9',
+              version: '1.0',
               surfaceId: 's1',
               components: [component],
             ),
@@ -1012,13 +1015,15 @@ void main() {
     SurfaceComponentsModel components() =>
         processor.model.getSurface('s1')!.componentsModel;
 
-    test('keeps catalogId and metadata out of properties', () {
+    test(
+        'keeps v1.0 @catalogId/@metadata and legacy catalogId/metadata out of properties',
+        () {
       update({
         'id': 'root',
         'component': 'Alpha',
         'a': 'x',
-        'catalogId': 'cat2',
-        'metadata': {
+        '@catalogId': 'cat2',
+        '@metadata': {
           'extensions': {'k': 'v'},
         },
       });
@@ -1032,15 +1037,30 @@ void main() {
       expect(root.toJson(), {
         'id': 'root',
         'component': 'Alpha',
-        'catalogId': 'cat2',
-        'metadata': {
+        '@catalogId': 'cat2',
+        '@metadata': {
           'extensions': {'k': 'v'},
         },
         'a': 'x',
       });
+
+      update({
+        'id': 'root',
+        'component': 'Alpha',
+        'a': 'y',
+        'catalogId': 'cat2',
+        'metadata': {
+          'extensions': {'k': 'v2'},
+        },
+      });
+      expect(root.properties, {'a': 'y'});
+      expect(root.catalog, 'cat2');
+      expect(root.metadata, {
+        'extensions': {'k': 'v2'},
+      });
     });
 
-    test('recreates a component whose catalogId changes', () {
+    test('recreates a component whose catalogId changes on v1.0', () {
       update({'id': 'root', 'component': 'Alpha', 'a': 'x'});
       final events = <String>[];
       components().onDeleted.subscribe((id) => events.add('deleted:$id'));
@@ -1050,16 +1070,92 @@ void main() {
         'id': 'root',
         'component': 'Alpha',
         'a': 'y',
-        'catalogId': 'cat2',
+        '@catalogId': 'cat2',
       });
       expect(events, ['deleted:root', 'created:root']);
       expect(components().get('root')!.catalog, 'cat2');
+    });
 
-      // A partial update inherits the catalog rather than changing it.
-      update({'id': 'root', 'a': 'z'});
-      expect(events, ['deleted:root', 'created:root']);
-      expect(components().get('root')!.catalog, 'cat2');
-      expect(components().get('root')!.properties, {'a': 'z'});
+    test('treats bare metadata and catalogId as custom properties on v0.9', () {
+      final v09Processor = MessageProcessor<ComponentApi>(
+        catalogs: [
+          Catalog<ComponentApi, FunctionImplementation>(
+            id: 'v09-table',
+            protocolVersion: A2uiProtocolVersion.v0_9,
+            components: [
+              ComponentApi(
+                name: 'GcbpTable',
+                schema: Schema.object(
+                  properties: {
+                    'a': Schema.string(),
+                    'catalogId': Schema.string(),
+                    'metadata': Schema.object(
+                      properties: {'pageNumber': Schema.number()},
+                    ),
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+        defaultVersion: A2uiProtocolVersion.v0_9,
+      );
+      v09Processor.processMessages([
+        {
+          'version': 'v0.9',
+          'createSurface': {'surfaceId': 's09', 'catalogId': 'v09-table'},
+        },
+        {
+          'version': 'v0.9',
+          'updateComponents': {
+            'surfaceId': 's09',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'GcbpTable',
+                'a': 'initial',
+                'catalogId': 'custom-source',
+                'metadata': {'pageNumber': 1},
+              },
+            ],
+          },
+        },
+      ]);
+
+      final ComponentModel root =
+          v09Processor.model.getSurface('s09')!.componentsModel.get('root')!;
+      expect(root.catalog, isNull);
+      expect(root.metadata, isNull);
+      expect(root.properties, {
+        'a': 'initial',
+        'catalogId': 'custom-source',
+        'metadata': {'pageNumber': 1},
+      });
+
+      // Partial update on v0.9 keeps custom metadata/catalogId in properties.
+      v09Processor.processMessages([
+        {
+          'version': 'v0.9',
+          'updateComponents': {
+            'surfaceId': 's09',
+            'components': [
+              {
+                'id': 'root',
+                'a': 'updated',
+                'catalogId': 'custom-source-2',
+                'metadata': {'pageNumber': 2},
+              },
+            ],
+          },
+        },
+      ]);
+      expect(root.catalog, isNull);
+      expect(root.metadata, isNull);
+      expect(root.properties, {
+        'a': 'updated',
+        'catalogId': 'custom-source-2',
+        'metadata': {'pageNumber': 2},
+      });
     });
   });
 

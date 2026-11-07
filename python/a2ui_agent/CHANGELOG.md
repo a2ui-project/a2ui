@@ -1,5 +1,19 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v1_0) Emit `@catalogId`, `@metadata`, `@accessibility`,
+  and `@checks` on v1.0 components across `ExpressCompiler`,
+  `AtomCompiler`, `ElementalCompiler`, `MacroExpander`, `RendererState`, and the
+  v1.0 Pydantic builder models (`a2ui.builder.v1_0`), while keeping Python
+  builder keyword arguments (`catalog_id=`, `accessibility=`, `extensions=`,
+  `checks=`) and v0.9 wire keys unchanged. `ExpressDecompiler`,
+  `AtomDecompiler`, and `ElementalDecompiler` read both `@`-prefixed and legacy
+  bare component envelope keys on v1.0 payloads when the component schema does
+  not declare a custom property with the same bare name
+  ([#1376](https://github.com/a2ui-project/a2ui/issues/1376),
+  [#3403](https://github.com/a2ui-project/a2ui/issues/3403),
+  [#3466](https://github.com/a2ui-project/a2ui/issues/3466),
+  [#3626](https://github.com/a2ui-project/a2ui/issues/3626),
+  [#4012](https://github.com/a2ui-project/a2ui/issues/4012)).
 - **BREAKING CHANGE**: (v1_0) `validate_payload` and `RendererState.apply`
   check each `callRendererFunction` against the catalogs instead of running
   it, and reject one the renderer would refuse: a surface that doesn't exist

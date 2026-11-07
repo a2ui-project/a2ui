@@ -1167,7 +1167,7 @@ def test_validation_schema_flattens_mixins_and_preserves_extra_keywords() -> Non
 
     assert box["properties"]["label"] == {"type": "string"}
     assert "weight" in box["properties"]
-    assert "accessibility" in box["properties"]
+    assert "@accessibility" in box["properties"]
     assert box["required"] == ["id", "label", "component"]
     assert box["anyOf"] == [{"required": ["a"]}, {"required": ["b"]}]
     assert box["allOf"] == [{"oneOf": [{"required": ["a"]}, {"required": ["b"]}]}]

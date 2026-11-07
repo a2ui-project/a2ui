@@ -42,6 +42,7 @@ from a2ui.inference_formats._shared import (
     surface_catalog_id,
     to_message_models,
 )
+from a2ui.utils.component_envelope import envelope_key
 
 from .constants import SurfaceOperation
 from .errors import (
@@ -1956,12 +1957,14 @@ class ExpressCompiler:
         )
         comp_dict: dict[str, Any] = {"id": comp_id, "component": comp_name}
         if write_cat_id is not None:
-            comp_dict["catalogId"] = write_cat_id
+            comp_dict[envelope_key("catalogId", ctx.at_least_v10)] = write_cat_id
         if raw_extensions is not None:
             compiled_ext = self._compile_extensions(
                 raw_extensions, raw_symbols, f"Component '{comp_name}'", ctx
             )
-            comp_dict["metadata"] = {"extensions": compiled_ext}
+            comp_dict[envelope_key("metadata", ctx.at_least_v10)] = {
+                "extensions": compiled_ext
+            }
 
         sibling_value_path = None
         non_check_properties = [p for p in properties if p != "checks"]
@@ -2116,11 +2119,11 @@ class ExpressCompiler:
                     condition, message = self._compile_check(rc, raw_symbols, ctx)
                     compiled_checks.append({"condition": condition, "message": message})
             if compiled_checks:
-                comp_dict["checks"] = compiled_checks
+                comp_dict[envelope_key("checks", ctx.at_least_v10)] = compiled_checks
 
         ctx.active_value_path = None
         for req_prop in comp_helper.get_component_required(comp_name):
-            if req_prop not in comp_dict and req_prop != "checks":
+            if req_prop not in comp_dict and req_prop not in ("checks", "@checks"):
                 raise ExpressValidationError(
                     f"Component '{comp_name}' missing required property '{req_prop}'."
                 )

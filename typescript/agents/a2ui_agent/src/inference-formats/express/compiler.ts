@@ -54,6 +54,7 @@ import {
 } from './errors.js';
 import {
   CatalogSchemaHelper,
+  envelopeKey,
   expectsOptionObjects,
   isActionSlot,
   type ReservedKeys,
@@ -2097,15 +2098,16 @@ export class ExpressCompiler {
     if (!properties.includes('extensions')) {
       delete rawKwargs.extensions;
     }
+    const atLeastV10 = targetMajorMinor[0] >= 1;
     const compDict: Record<string, unknown> = {
       id: compId,
       component: compName,
     };
     if (resolvedCatalogId !== undefined) {
-      compDict.catalogId = resolvedCatalogId;
+      compDict[envelopeKey('catalogId', atLeastV10)] = resolvedCatalogId;
     }
     if (rawExtensions !== undefined) {
-      if (targetMajorMinor[0] < 1) {
+      if (!atLeastV10) {
         throw new ExpressValidationError(
           `extensions on component '${compName}' is only supported in A2UI v1.0 or later.`,
         );
@@ -2118,7 +2120,7 @@ export class ExpressCompiler {
         targetMajorMinor,
         `component '${compName}'`,
       );
-      compDict.metadata = {extensions: compiledExt};
+      compDict[envelopeKey('metadata', atLeastV10)] = {extensions: compiledExt};
     }
 
     // Sanctioned departure §5.2 item 4: check-rule property
@@ -2293,7 +2295,12 @@ export class ExpressCompiler {
     }
 
     for (const reqProp of requiredProps) {
-      if (reqProp === 'id' || reqProp === 'component') {
+      if (
+        reqProp === 'id' ||
+        reqProp === 'component' ||
+        reqProp === 'checks' ||
+        reqProp === '@checks'
+      ) {
         continue;
       }
       if (!seenProperties.has(reqProp)) {
@@ -2324,7 +2331,9 @@ export class ExpressCompiler {
       }
 
       if (compiledChecks.length > 0) {
-        compDict[checkPropName] = compiledChecks;
+        const wireCheckKey =
+          checkPropName === 'checks' ? envelopeKey('checks', atLeastV10) : checkPropName;
+        compDict[wireCheckKey] = compiledChecks;
       }
     }
 

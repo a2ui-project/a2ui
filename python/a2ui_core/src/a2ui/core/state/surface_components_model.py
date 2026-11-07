@@ -206,7 +206,7 @@ class SurfaceComponentsModel:
             and ver
             and is_at_least_version(ver, ProtocolVersion.V1_0)
         ):
-            comp_dict["catalogId"] = comp.catalog.catalog_id
+            comp_dict["@catalogId"] = comp.catalog.catalog_id
         PayloadValidator(comp.catalog, config=config).validate_component(
             comp_dict,
             component_index=component_index,

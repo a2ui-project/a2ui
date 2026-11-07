@@ -760,6 +760,11 @@ void _checkComponents(
     reason: '$reason: component ids',
   );
 
+  final bool atLeastV1 = A2uiProtocolVersion.tryParse(
+        surface.protocolVersion ?? '',
+      )?.isAtLeast(A2uiProtocolVersion.v1_0) ??
+      false;
+
   for (final entry in expected) {
     final id = entry['id']! as String;
     final ComponentModel? component = surface.componentsModel.get(id);
@@ -773,13 +778,35 @@ void _checkComponents(
             reason: '$reason: $id type');
         return;
       }
-      if (key == 'metadata') {
+      if (key == '@metadata') {
         expect(
           node?.metadata.peek() ?? component!.metadata,
           equals(value),
-          reason: '$reason: $id.metadata',
+          reason: '$reason: $id.@metadata',
         );
         return;
+      }
+      if (key == 'metadata') {
+        if (!atLeastV1) {
+          expect(
+            component?.metadata,
+            isNull,
+            reason: '$reason: $id envelope metadata must be null on pre-1.0',
+          );
+        } else {
+          final bool hasMetadataProp = entry.containsKey('@metadata') ||
+              (node == null || node.state == NodeState.unknownType
+                  ? component!.properties.containsKey('metadata')
+                  : node.props.peek().containsKey('metadata'));
+          if (!hasMetadataProp) {
+            expect(
+              node?.metadata.peek() ?? component!.metadata,
+              equals(value),
+              reason: '$reason: $id.metadata',
+            );
+            return;
+          }
+        }
       }
       final Object? propVal =
           node == null || node.state == NodeState.unknownType

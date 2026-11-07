@@ -32,6 +32,14 @@ export const SUITE_VERSIONS: readonly SuiteVersion[] = ['v1.0', 'v0.9-lowered'];
 
 const RESERVED_KEYS_TO_V09: Record<string, string> = {'@path': 'path', '@call': 'call'};
 const RESERVED_KEYS_TO_V10: Record<string, string> = {path: '@path', call: '@call'};
+// v1.0 component envelope mixins, renamed only at a component's root.
+const MIXIN_KEYS_TO_V09: Record<string, string> = {
+  '@checks': 'checks',
+  '@accessibility': 'accessibility',
+};
+const MIXIN_KEYS_TO_V10: Record<string, string> = Object.fromEntries(
+  Object.entries(MIXIN_KEYS_TO_V09).map(([k, v]) => [v, k]),
+);
 
 const VERSION_FIELD_RE = /([\u201c"]version[\u201d"]\s*:\s*[\u201c"])(v?1\.0|v0\.9)([\u201d"])/g;
 const RESERVED_KEY_FIELD_RE = /"@(path|call)"(?=\s*:)/g;
@@ -75,6 +83,12 @@ export const V1_ONLY_CASES: Readonly<Record<string, string>> = {
     'Surface extensions are only supported in A2UI v1.0 or later.',
   test_compile_express_empty_extensions_preserved:
     'Surface and component extensions require A2UI v1.0 or later.',
+  test_decompile_express_component_metadata_writes_extensions:
+    'Surface and component extensions require A2UI v1.0 or later.',
+  test_decompile_express_legacy_bare_metadata_on_v1_0:
+    'Surface and component extensions require A2UI v1.0 or later.',
+  test_decompile_express_legacy_bare_checks_on_v1_0:
+    'Tests v1.0 reading the legacy bare checks key, which is the v0.9 key, so it runs as written in v1.0 only.',
   test_compile_express_standalone_call_renderer_or_agent_function:
     'Protocol v0.9 has no callRendererFunction message.',
   test_compile_express_standalone_call_agent_only_function:
@@ -311,7 +325,10 @@ function renameKeysIn(node: unknown, lower: boolean): unknown {
   if (node !== null && typeof node === 'object') {
     const map = node as Record<string, unknown>;
     const isTemplate = 'componentId' in map;
-    const keyMap = lower ? RESERVED_KEYS_TO_V09 : RESERVED_KEYS_TO_V10;
+    let keyMap = lower ? RESERVED_KEYS_TO_V09 : RESERVED_KEYS_TO_V10;
+    if ('id' in map && 'component' in map) {
+      keyMap = {...keyMap, ...(lower ? MIXIN_KEYS_TO_V09 : MIXIN_KEYS_TO_V10)};
+    }
     const result: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(map)) {
       const nextKey = isTemplate ? k : (keyMap[k] ?? k);

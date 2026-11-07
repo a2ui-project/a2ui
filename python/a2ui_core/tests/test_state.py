@@ -1066,7 +1066,7 @@ def test_component_model_and_surface_model_metadata_api():
         "id": "c1",
         "component": "Text",
         "text": "Hello",
-        "metadata": {"extensions": {"a": 1}},
+        "@metadata": {"extensions": {"a": 1}},
     }
 
     # Defensive copy check

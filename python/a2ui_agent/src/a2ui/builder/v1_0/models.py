@@ -56,23 +56,44 @@ from ..core.child import Child
 
 _UNSET_CATALOG_ID: Any = object()
 
+# From v1.0 the `ComponentCommon` envelope mixins serialize under `@`-prefixed
+# wire keys. Validation also accepts the bare keys of pre-cutover payloads.
+_CATALOG_ID_SERIALIZATION_ALIAS = "@catalogId"
+
+
+def _catalog_id_validation_alias() -> AliasChoices:
+    return AliasChoices("catalogId", "@catalogId")
+
 
 class ComponentBuilderNode(CoreComponentBuilderNode):
     """Base class for A2UI Protocol v1.0 component builders with envelope attributes.
 
     Custom catalog builders may bind a default ``catalogId`` once on a shared
     base class via ``class FooCatalogNode(ComponentBuilderNode, catalog_id=FOO_CID): ...``.
+
+    The envelope attributes serialize as ``@catalogId``, ``@accessibility`` and
+    ``@metadata``, and validation accepts both those keys and their bare forms.
     """
 
     _default_catalog_id: ClassVar[str | None] = None
 
-    catalog_id: str | None = Field(default=None, alias="catalogId")
-    accessibility: AccessibilityAttributes | None = None
+    catalog_id: str | None = Field(
+        default=None,
+        serialization_alias=_CATALOG_ID_SERIALIZATION_ALIAS,
+        validation_alias=_catalog_id_validation_alias(),
+    )
+    accessibility: AccessibilityAttributes | None = Field(
+        default=None,
+        serialization_alias="@accessibility",
+        validation_alias=AliasChoices("accessibility", "@accessibility"),
+    )
     extensions: Extensions | None = Field(
         default=None,
-        serialization_alias="metadata",
+        serialization_alias="@metadata",
         validation_alias=AliasChoices(
-            "extensions", AliasPath("metadata", "extensions")
+            "extensions",
+            AliasPath("@metadata", "extensions"),
+            AliasPath("metadata", "extensions"),
         ),
     )
 
@@ -113,16 +134,12 @@ class ComponentBuilderNode(CoreComponentBuilderNode):
             needs_rebuild = True
 
         if new_field.alias is None:
-            if (
-                new_field.validation_alias is None
-                and new_field.serialization_alias is None
-            ):
-                new_field.alias = "catalogId"
             if new_field.validation_alias is None:
-                new_field.validation_alias = "catalogId"
+                new_field.validation_alias = _catalog_id_validation_alias()
+                needs_rebuild = True
             if new_field.serialization_alias is None:
-                new_field.serialization_alias = "catalogId"
-            needs_rebuild = True
+                new_field.serialization_alias = _CATALOG_ID_SERIALIZATION_ALIAS
+                needs_rebuild = True
 
         if needs_rebuild:
             cls.model_fields["catalog_id"] = new_field

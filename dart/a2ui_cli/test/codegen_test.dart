@@ -482,5 +482,86 @@ void main() {
         ),
       );
     });
+
+    test(
+      'emits v1.0 @checks with AliasChoices and avoids envelope collisions for '
+      'custom metadata, catalogId, accessibility, and checks properties',
+      () {
+        final json = <String, dynamic>{
+          'catalogId': 'https://a2ui.org/catalogs/test/v1_envelope',
+          'protocolVersion': '1.0',
+          'components': {
+            'CheckInput': {
+              'type': 'object',
+              'allOf': [
+                {r'$ref': r'common_types.json#/$defs/Checkable'},
+                {
+                  'type': 'object',
+                  'properties': {
+                    'component': {'const': 'CheckInput'},
+                    'label': {'type': 'string'},
+                  },
+                  'required': ['component', 'label'],
+                },
+              ],
+            },
+            'CustomProps': {
+              'type': 'object',
+              'allOf': [
+                {r'$ref': r'common_types.json#/$defs/Checkable'},
+                {
+                  'type': 'object',
+                  'properties': {
+                    'component': {'const': 'CustomProps'},
+                    'metadata': {'type': 'string'},
+                    'catalogId': {'type': 'string'},
+                    'accessibility': {'type': 'string'},
+                    'checks': {'type': 'integer'},
+                  },
+                  'required': ['component', 'metadata'],
+                },
+              ],
+            },
+          },
+        };
+        final catalog = CodegenCatalog.fromJson(json);
+        final AnalysedCatalog analysed = CatalogAnalyzer.analyzeCodegen(
+          catalog,
+        );
+        final emitter = PythonEmitter(analysed);
+        final String code = emitter.generate();
+
+        expect(code, contains('from pydantic import AliasChoices, Field'));
+        expect(
+          code,
+          contains(
+            '    checks: Optional[Sequence[CheckRule]] = Field(\n'
+            '        default=None,\n'
+            '        serialization_alias="@checks",\n'
+            '        validation_alias=AliasChoices("checks", "@checks"),\n'
+            '    )',
+          ),
+        );
+        expect(code, contains('    metadata: str'));
+        expect(
+          code,
+          contains(
+            '    catalog_id: Optional[str] = Field(default=None, '
+            'alias="catalogId")',
+          ),
+        );
+        expect(code, contains('    accessibility: Optional[str] = None'));
+        expect(code, contains('    checks: Optional[float] = None'));
+        expect(
+          code,
+          contains(
+            '    checks_2: Optional[Sequence[CheckRule]] = Field(\n'
+            '        default=None, serialization_alias="@checks", '
+            'validation_alias="@checks"\n'
+            '    )',
+          ),
+        );
+      },
+    );
   });
 }

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import {componentPayloadState} from '../catalog/component_envelope.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
 import {A2uiValidationError} from '../errors.js';
 import {
@@ -181,14 +182,17 @@ function batchGraph<T extends ComponentApi>(
 ): BatchGraph<T> | undefined {
   const batch: BatchGraph<T> = {children: new Map(), types: new Map(), catalogs: new Map()};
   for (const comp of newComponents) {
-    const {id, component, ...properties} = comp;
+    const {id, component} = comp;
     if (typeof id !== 'string' || !id) continue;
     const catalog = resolveCatalog(comp, surface);
-    delete properties.catalogId;
-    delete properties.metadata;
     const type =
       (typeof component === 'string' ? component : surface.componentsModel.get(id)?.type) || '';
     if (!type || catalog.components.size === 0) return undefined;
+    const {properties} = componentPayloadState(
+      comp,
+      surface.protocolVersion,
+      catalog.components.get(type)?.schema,
+    );
     const children = Array.from(
       getComponentReferences({...properties, id, component: type}, catalog.componentRefMap),
       ([childId]) => childId,
@@ -586,16 +590,21 @@ export function validateCandidateTopology<T extends ComponentApi>(
   }
 
   for (const comp of newComponents) {
-    const {id, component, ...properties} = comp;
+    const {id, component} = comp;
     if (typeof id !== 'string' || !id) continue;
 
     const targetCatalog = resolveCatalog(comp, surface);
-    delete properties.catalogId;
-    delete properties.metadata;
-
     const existing = candidateModel.get(id);
     const componentType = (typeof component === 'string' ? component : existing?.type) || '';
     if (!componentType) continue;
+    // The properties the component would store: below v1.0 a `metadata` or
+    // `catalogId` is an ordinary property, and from v1.0 the envelope mixins
+    // are split from the component's own properties.
+    const {properties} = componentPayloadState(
+      comp,
+      surface.protocolVersion,
+      targetCatalog.components.get(componentType)?.schema,
+    );
 
     if (existing) {
       if (componentType !== existing.type || existing.catalog.id !== targetCatalog.id) {

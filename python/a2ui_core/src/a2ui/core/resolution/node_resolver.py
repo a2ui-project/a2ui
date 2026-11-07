@@ -53,7 +53,7 @@ _ID_ESCAPE_RE = re.compile(r"[~#\[\]>@]")
 
 _SKIP_BINDER_KEYS = frozenset({
     "weight",
-    "checks",
+    "@checks",
     "isValid",
     "validationErrors",
     "validationResults",
@@ -181,7 +181,12 @@ def _wrap_dynamic_object(
     for key, item in value.items():
         if key in setter_names or key in _SKIP_BINDER_KEYS:
             continue
-        child_behavior = shape.get(key) or BehaviorNode(BehaviorType.STATIC)
+        child_behavior = shape.get(key)
+        if key == "checks" and (
+            child_behavior is None or child_behavior.type == BehaviorType.CHECKABLE
+        ):
+            continue
+        child_behavior = child_behavior or BehaviorNode(BehaviorType.STATIC)
         out[key] = _wrap_dynamic_values(
             item, child_behavior, raw_record.get(key), data_context
         )
@@ -877,11 +882,17 @@ class NodeResolver:
             wrapped: dict[str, Any] = (
                 dict(raw_wrapped)
                 if isinstance(raw_wrapped, dict)
-                else {k: v for k, v in next_props.items() if k not in _SKIP_BINDER_KEYS}
+                else {
+                    k: v
+                    for k, v in next_props.items()
+                    if k not in _SKIP_BINDER_KEYS and k != "checks"
+                }
             )
         else:
             wrapped = {
-                k: v for k, v in next_props.items() if k not in _SKIP_BINDER_KEYS
+                k: v
+                for k, v in next_props.items()
+                if k not in _SKIP_BINDER_KEYS and k != "checks"
             }
         prev = record.node.props
         for k in list(wrapped.keys()):

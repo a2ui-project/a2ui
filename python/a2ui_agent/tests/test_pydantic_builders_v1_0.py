@@ -206,7 +206,9 @@ def test_v1_0_accessibility_attributes_attached_to_component() -> None:
     flat = flatten_component_tree(text)
     assert len(flat) == 1
     assert flat[0]["component"] == "Text"
-    assert flat[0]["accessibility"] == dumped_acc
+    assert flat[0]["@accessibility"] == dumped_acc
+    assert "accessibility" not in flat[0]
+    assert Text.model_validate(flat[0]).accessibility == acc
 
 
 def test_v1_0_component_catalog_id_and_extensions() -> None:
@@ -219,9 +221,11 @@ def test_v1_0_component_catalog_id_and_extensions() -> None:
     )
     flat = flatten_component_tree(text)
     assert len(flat) == 1
-    assert flat[0]["catalogId"] == "https://custom.org/catalog.json"
-    assert flat[0]["metadata"] == {"extensions": {"custom_ext": {"key": "value"}}}
-    meta = ComponentCommonMetadata.model_validate(flat[0]["metadata"])
+    assert flat[0]["@catalogId"] == "https://custom.org/catalog.json"
+    assert flat[0]["@metadata"] == {"extensions": {"custom_ext": {"key": "value"}}}
+    assert "catalogId" not in flat[0]
+    assert "metadata" not in flat[0]
+    meta = ComponentCommonMetadata.model_validate(flat[0]["@metadata"])
     assert meta.extensions == {"custom_ext": {"key": "value"}}
 
     round_tripped = Text.model_validate(flat[0])
@@ -237,7 +241,7 @@ def test_v1_0_component_catalog_id_and_extensions() -> None:
     assert fluent.metadata == {"extensions": {"a": 1, "b": "two"}}
     assert fluent.extensions == {"a": 1, "b": "two"}
     flat_fluent = flatten_component_tree(fluent)
-    assert flat_fluent[0]["metadata"] == {"extensions": {"a": 1, "b": "two"}}
+    assert flat_fluent[0]["@metadata"] == {"extensions": {"a": 1, "b": "two"}}
 
     with pytest.raises(ValidationError):
         fluent.with_extension("bad-key!", 2)
@@ -276,6 +280,42 @@ def test_v1_0_component_catalog_id_and_extensions() -> None:
         )
 
 
+@pytest.mark.parametrize("prefix", ["@", ""], ids=["at-prefixed", "legacy-bare"])
+def test_v1_0_envelope_validation_accepts_at_prefixed_and_bare_keys(
+    prefix: str,
+) -> None:
+    """Verifies builders validate both `@`-prefixed and legacy bare envelope keys."""
+    tf = TextField.model_validate({
+        "component": "TextField",
+        "id": "name",
+        "label": "Name",
+        "value": {"@path": "/name"},
+        f"{prefix}catalogId": "https://custom.org/catalog.json",
+        f"{prefix}accessibility": {"label": "Your name"},
+        f"{prefix}metadata": {"extensions": {"ext": 1}},
+        f"{prefix}checks": [
+            {
+                "condition": {
+                    "@call": "required",
+                    "args": {"value": {"@path": "/name"}},
+                }
+            }
+        ],
+    })
+    assert tf.catalog_id == "https://custom.org/catalog.json"
+    assert tf.accessibility is not None
+    assert tf.accessibility.label == "Your name"
+    assert tf.extensions == {"ext": 1}
+    assert len(tf.checks or []) == 1
+
+    dumped = tf.model_dump(by_alias=True, exclude_none=True)
+    assert dumped["@catalogId"] == "https://custom.org/catalog.json"
+    assert dumped["@accessibility"] == {"label": "Your name"}
+    assert dumped["@metadata"] == {"extensions": {"ext": 1}}
+    assert len(dumped["@checks"]) == 1
+    assert not {"catalogId", "accessibility", "metadata", "checks"} & dumped.keys()
+
+
 def test_v1_0_components_specific_to_v1_0() -> None:
     """Verifies component additions introduced in Protocol v1.0."""
     tf = TextField(
@@ -297,7 +337,8 @@ def test_v1_0_components_specific_to_v1_0() -> None:
     assert len(tf.checks or []) == 2
     dumped_tf = tf.model_dump(by_alias=True, exclude_none=True)
     assert dumped_tf["placeholder"] == "Enter your username"
-    assert dumped_tf["checks"] == [
+    assert "checks" not in dumped_tf
+    assert dumped_tf["@checks"] == [
         {
             "condition": {
                 "@call": "required",
@@ -550,7 +591,7 @@ def test_v1_0_open_enum_validation() -> None:
 
 
 def test_v1_0_custom_subclass_default_catalog_id_preserves_wire_alias() -> None:
-    """Verifies class-level default catalog_id on custom subclasses still serializes as catalogId."""
+    """Verifies class-level default catalog_id on custom subclasses serializes as @catalogId."""
     custom_cid = "https://example.com/catalogs/custom/v1/catalog.json"
 
     class CustomBadge(ComponentBuilderNode):
@@ -562,7 +603,7 @@ def test_v1_0_custom_subclass_default_catalog_id_preserves_wire_alias() -> None:
     assert flat == [{
         "component": "CustomBadge",
         "id": "b1",
-        "catalogId": custom_cid,
+        "@catalogId": custom_cid,
         "label": "NEW",
     }]
     parsed = CustomBadge.model_validate({
@@ -572,6 +613,13 @@ def test_v1_0_custom_subclass_default_catalog_id_preserves_wire_alias() -> None:
         "label": "ALT",
     })
     assert parsed.catalog_id == "https://example.com/other.json"
+    parsed_at = CustomBadge.model_validate({
+        "component": "CustomBadge",
+        "id": "b3",
+        "@catalogId": "https://example.com/at.json",
+        "label": "AT",
+    })
+    assert parsed_at.catalog_id == "https://example.com/at.json"
 
     # Base ComponentBuilderNode FieldInfo remains None and unmutated
     assert ComponentBuilderNode.model_fields["catalog_id"].default is None
@@ -589,7 +637,7 @@ def test_v1_0_custom_subclass_default_catalog_id_preserves_wire_alias() -> None:
     assert flatten_component_tree(tile) == [{
         "component": "FooTile",
         "id": "t1",
-        "catalogId": custom_cid,
-        "metadata": {"extensions": {"analytics": {"view": "tile"}}},
+        "@catalogId": custom_cid,
+        "@metadata": {"extensions": {"analytics": {"view": "tile"}}},
         "subTitle": "sub",
     }]

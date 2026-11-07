@@ -47,6 +47,7 @@ import re
 from typing import Any, Literal
 
 from a2ui.core import CatalogApi
+from a2ui.core.common import is_at_least_version
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats._shared import (
     CatalogSchemaHelper,
@@ -55,6 +56,12 @@ from a2ui.inference_formats._shared import (
     catalogs_defining,
     check_mixed_catalogs,
     coalesce_surface_messages,
+)
+from a2ui.utils.component_envelope import (
+    ENVELOPE_MIXIN_NAMES,
+    envelope_read_key,
+    get_envelope_value,
+    is_envelope_key,
 )
 
 from .compiler import child_props, positional_child_target, ref_kind
@@ -95,6 +102,10 @@ class AtomDecompiler:
         # The single catalog, or None when there are several.
         self._sole_catalog_id: str | None = (
             self._catalogs[0].catalog_id if len(self._catalogs) == 1 else None
+        )
+        # From v1.0 the component envelope mixin keys carry an `@` prefix.
+        self._at_least_v10 = is_at_least_version(
+            self._catalogs[0].protocol_version, "1.0"
         )
 
     @property
@@ -257,6 +268,49 @@ class AtomDecompiler:
     # Components
     # ------------------------------------------------------------------
 
+    def _default_helper(
+        self, comp: Mapping[str, Any], surface_cat: str | None
+    ) -> CatalogSchemaHelper | None:
+        """Returns the helper of a component's catalog, ignoring its `catalogId`.
+
+        That is its surface's catalog, else (with several catalogs) the only
+        catalog that defines its name.
+        """
+        if isinstance(surface_cat, str):
+            return self._helpers.get(surface_cat)
+        found = catalogs_defining(
+            self._helpers, "component", str(comp.get("component", ""))
+        )
+        return self._helpers[found[0]] if len(found) == 1 else None
+
+    def _custom_envelope(
+        self, helper: CatalogSchemaHelper | None, comp: Mapping[str, Any]
+    ) -> frozenset[str]:
+        """Returns the envelope mixin names a component declares as its own."""
+        comp_type = str(comp.get("component", ""))
+        if helper is None or comp_type not in helper.components:
+            return frozenset()
+        return helper.get_custom_envelope_properties(comp_type)
+
+    def _component_catalog(
+        self, comp: Mapping[str, Any], surface_cat: str | None
+    ) -> str | None:
+        """Returns a component's catalog: its `catalogId`, else its surface's.
+
+        From v1.0 the `catalogId` is read from `@catalogId`, else from the
+        legacy bare `catalogId` unless the component declares a property of
+        that name.
+        """
+        cat = get_envelope_value(
+            comp,
+            "catalogId",
+            at_least_v10=self._at_least_v10,
+            custom_properties=self._custom_envelope(
+                self._default_helper(comp, surface_cat), comp
+            ),
+        )
+        return cat if isinstance(cat, str) and cat else surface_cat
+
     def _component_helper(
         self, comp: Mapping[str, Any], surface_cat: str | None
     ) -> CatalogSchemaHelper | None:
@@ -265,13 +319,22 @@ class AtomDecompiler:
         The catalog is the component's `catalogId`, else its surface's, else
         (with several catalogs) the only catalog that defines its name.
         """
-        cat = comp.get("catalogId") or surface_cat
+        cat = self._component_catalog(comp, surface_cat)
         if isinstance(cat, str):
             return self._helpers.get(cat)
-        found = catalogs_defining(
-            self._helpers, "component", str(comp.get("component", ""))
+        return self._default_helper(comp, surface_cat)
+
+    def _is_envelope_key(
+        self, comp: Mapping[str, Any], key: str, surface_cat: str | None
+    ) -> bool:
+        """Returns whether a component key holds an envelope mixin property."""
+        return is_envelope_key(
+            key,
+            at_least_v10=self._at_least_v10,
+            custom_properties=self._custom_envelope(
+                self._component_helper(comp, surface_cat), comp
+            ),
         )
-        return self._helpers[found[0]] if len(found) == 1 else None
 
     def _child_kind(
         self, comp: Mapping[str, Any], key: str, surface_cat: str | None
@@ -298,7 +361,7 @@ class AtomDecompiler:
         refs: set[str] = set()
         for c in components:
             for k, v in c.items():
-                if k in ("id", "component", "catalogId"):
+                if k in ("id", "component") or self._is_envelope_key(c, k, surface_cat):
                     continue
                 kind = self._child_kind(c, k, surface_cat)
                 if isinstance(v, Mapping) and isinstance(v.get("componentId"), str):
@@ -371,11 +434,26 @@ class AtomDecompiler:
         parts = [comp_type]
         if emit_id:
             parts.append(f":id {_q(comp_id)}")
-        comp_cat = comp.get("catalogId") or surface_cat
+        comp_cat = self._component_catalog(comp, surface_cat)
         if self._needs_catalog("component", comp_type, comp_cat, surface_cat):
             parts.append(f":catalogId {_q(comp_cat)}")
 
         helper = self._component_helper(comp, surface_cat)
+        custom_envelope = self._custom_envelope(helper, comp)
+        # The key each envelope mixin property is read from. Its DSL keyword
+        # is the bare name; the `catalogId` was written above.
+        envelope_keys = {
+            name: envelope_read_key(
+                comp,
+                name,
+                at_least_v10=self._at_least_v10,
+                custom_properties=custom_envelope,
+            )
+            for name in ENVELOPE_MIXIN_NAMES
+        }
+        envelope_names = {
+            key: name for name, key in envelope_keys.items() if key is not None
+        }
         if helper is not None and comp_type in helper.components:
             prop_keys, child_list_prop, single_child_prop = child_props(
                 helper, comp_type
@@ -393,7 +471,19 @@ class AtomDecompiler:
 
         child_nodes: list[str] = []
         for k, v in comp.items():
-            if k in ("id", "component", "catalogId"):
+            if k in ("id", "component"):
+                continue
+            if k in envelope_names:
+                if envelope_names[k] != "catalogId":
+                    parts.append(
+                        f":{envelope_names[k]} {self._format_val(v, surface_cat)}"
+                    )
+                continue
+            if is_envelope_key(
+                k, at_least_v10=self._at_least_v10, custom_properties=custom_envelope
+            ):
+                # A legacy duplicate of an envelope property set under its
+                # `@` key.
                 continue
             kind = self._child_kind(comp, k, surface_cat)
             if (

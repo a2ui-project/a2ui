@@ -1314,12 +1314,14 @@ def test_v1_0_catalogs_inline_component_metadata():
     basic_catalog = BasicCatalogV1_0().validation_schema
 
     assert (
-        json_catalog["components"]["Card"]["properties"]["metadata"] == _INLINE_METADATA
+        json_catalog["components"]["Card"]["properties"]["@metadata"]
+        == _INLINE_METADATA
     )
     assert "ComponentCommonMetadata" not in json_catalog["$defs"]
     assert "Extensions" in json_catalog["$defs"]
     # As in the specification, v1.0 basic catalog components leave
     # `ComponentCommon`, and so its metadata, to the message envelope.
+    assert "@metadata" not in basic_catalog["components"]["Text"]["properties"]
     assert "metadata" not in basic_catalog["components"]["Text"]["properties"]
     assert "ComponentCommonMetadata" not in basic_catalog["$defs"]
     # No internal schema-generation marker leaks into a published catalog.

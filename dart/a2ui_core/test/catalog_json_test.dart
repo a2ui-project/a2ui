@@ -127,8 +127,9 @@ void main() {
       final List<Map<String, Object?>> checkable = reader.schemas(
         <String, Object?>{r'$ref': r'common_types.json#/$defs/Checkable'},
       );
+      final Map<String, Object?> checkableProps = reader.properties(checkable);
       final List<Map<String, Object?>> checks = reader.schemas(
-        reader.properties(checkable)['checks'],
+        checkableProps['@checks'] ?? checkableProps['checks'],
       );
       expect(reader.isCheckable(checks), isTrue);
       return reader.schemas(reader.items(checks)).firstWhere(
@@ -2102,11 +2103,12 @@ void main() {
         'Extensions',
       );
       final metadata =
-          (common['properties']! as Map)['metadata'] as Map<String, Object?>;
+          (common['properties']! as Map)['@metadata'] as Map<String, Object?>;
 
-      expect(properties.keys, containsAll(['accessibility', 'metadata']));
+      expect(properties.keys, containsAll(['@accessibility', '@metadata']));
+      expect(properties.containsKey('@catalogId'), isFalse);
       expect(properties.containsKey('catalogId'), isFalse);
-      expect(properties['metadata'], {
+      expect(properties['@metadata'], {
         ...metadata,
         'properties': {
           'extensions': {

@@ -39,7 +39,7 @@ import {
 } from './catalogs.js';
 import {ExpressValidationError} from './errors.js';
 import {assignVariableNames, isExpressIdentifier} from './identifier.js';
-import {CatalogSchemaHelper, commonDefName} from './schema-helper.js';
+import {CatalogSchemaHelper, commonDefName, getEnvelopeValue} from './schema-helper.js';
 
 /**
  * Wrapper for numeric literals that must retain raw formatting (e.g. floats like 1500.0).
@@ -746,6 +746,40 @@ export class ExpressDecompiler {
   }
 
   /**
+   * Returns the catalog override of a component, or undefined when it names none.
+   *
+   * From v1.0 the override is `@catalogId`. A bare `catalogId`, which v1.0
+   * payloads used before the cutover, is read too, unless the component's
+   * surface catalog declares `catalogId` as a property of the component.
+   */
+  private getComponentCatalogId(
+    comp: Record<string, unknown>,
+    surfaceCatalogId: string | undefined,
+  ): unknown {
+    if (!this.isV1) {
+      return comp.catalogId;
+    }
+    if (Object.hasOwn(comp, '@catalogId')) {
+      return comp['@catalogId'];
+    }
+    const legacy = comp.catalogId;
+    if (legacy === undefined) {
+      return undefined;
+    }
+    const home = surfaceCatalogId ? this.helpers.get(surfaceCatalogId) : undefined;
+    const compName = comp.component;
+    if (
+      home &&
+      typeof compName === 'string' &&
+      home.components.has(compName) &&
+      home.getCustomEnvelopeProperties(compName).has('catalogId')
+    ) {
+      return undefined;
+    }
+    return legacy;
+  }
+
+  /**
    * Formats a single component definition into an Express assignment line.
    */
   private formatComponent(
@@ -761,29 +795,48 @@ export class ExpressDecompiler {
     const {helper, catalogId: emitCatalogId} = this.resolveSymbol(
       'component',
       compName,
-      comp.catalogId,
+      this.getComponentCatalogId(comp, surfaceCatalogId),
       surfaceCatalogId,
     );
 
     const properties = helper.getComponentProperties(compName);
+    const customEnvelope = helper.getCustomEnvelopeProperties(compName);
     const checkProp = helper.getCheckRuleProperty(compName);
     const argsReprs: string[] = [];
-    const metaRecord = this.isV1 ? asRecord(comp.metadata) : undefined;
+    const metaRecord = this.isV1
+      ? asRecord(getEnvelopeValue(comp, 'metadata', true, customEnvelope))
+      : undefined;
     const compExtensions = metaRecord ? asRecord(metaRecord.extensions) : undefined;
 
-    for (const propName of properties) {
-      if (propName === 'metadata' && compExtensions !== undefined) {
+    // The `catalogId=` keyword names the component's catalog, so a property the
+    // component declares as `catalogId` is written positionally, along with
+    // every property before it.
+    const positionalUntil =
+      useKeywordArgs && properties.includes('catalogId') && 'catalogId' in comp
+        ? properties.indexOf('catalogId')
+        : -1;
+
+    for (let propIdx = 0; propIdx < properties.length; propIdx++) {
+      const propName = properties[propIdx];
+      const keyword = useKeywordArgs && propIdx > positionalUntil;
+      if (
+        propName === 'metadata' &&
+        !customEnvelope.has('metadata') &&
+        compExtensions !== undefined
+      ) {
         continue;
       }
       const arg =
         checkProp && propName === checkProp
           ? this.formatCheckPropertyArg(
               propName,
-              comp[checkProp],
+              checkProp === 'checks'
+                ? getEnvelopeValue(comp, 'checks', this.isV1, customEnvelope)
+                : comp[checkProp],
               comp,
               varNames,
               surfaceCatalogId,
-              useKeywordArgs,
+              keyword,
             )
           : this.formatRegularPropertyArg(
               comp,
@@ -794,7 +847,7 @@ export class ExpressDecompiler {
               varNames,
               helper,
               surfaceCatalogId,
-              useKeywordArgs,
+              keyword,
             );
       if (arg !== undefined) {
         argsReprs.push(arg);

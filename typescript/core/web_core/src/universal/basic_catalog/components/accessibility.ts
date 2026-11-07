@@ -20,15 +20,18 @@ import {
   type CheckableResolvedProps,
   hasValidationErrors,
   type ResolvedAccessibilityAttributes,
+  resolveAccessibilityProps,
   setHostAccessibilityAttributes,
 } from '../../host_accessibility.js';
 
-// The host-level setter and checkable types live with the host bindings that
-// frameworks share, so that they do not depend on the basic catalog.
+// The host-level setter, the accessibility reader and the checkable types live
+// with the host bindings that frameworks share, so that they do not depend on
+// the basic catalog.
 export {
   type CheckableResolvedProps,
   hasValidationErrors,
   type ResolvedAccessibilityAttributes,
+  resolveAccessibilityProps,
   setHostAccessibilityAttributes,
 };
 

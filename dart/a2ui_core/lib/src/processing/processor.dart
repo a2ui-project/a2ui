@@ -1005,13 +1005,20 @@ class MessageProcessor<T extends ComponentApi> {
     );
   }
 
-  /// The envelope fields of a component message, which a [ComponentModel]
-  /// holds apart from its properties.
-  static const Set<String> _envelopeFields = {
+  /// The envelope fields of a pre-v1.0 component message, which a
+  /// [ComponentModel] holds apart from its properties.
+  static const Set<String> _preV1EnvelopeFields = {
     'id',
     'component',
-    'catalogId',
-    'metadata',
+  };
+
+  /// The normalized envelope fields of a v1.0 component message, which a
+  /// [ComponentModel] holds apart from its properties.
+  static const Set<String> _v1NormalizedEnvelopeFields = {
+    'id',
+    'component',
+    '@catalogId',
+    '@metadata',
   };
 
   /// Creates a surface: its data model first, as one root write, then its
@@ -1206,7 +1213,7 @@ class MessageProcessor<T extends ComponentApi> {
     final ids = <String>{
       if (surface.defaultCatalog case final catalog?) catalog.id,
       for (final Map<String, Object?> component in components)
-        if (component['catalogId'] case final String id) id,
+        if (component['@catalogId'] case final String id) id,
     };
     final Iterable<Catalog<T, FunctionImplementation>> involved =
         ids.map(surface.resolveCatalog);
@@ -1273,7 +1280,7 @@ class MessageProcessor<T extends ComponentApi> {
 
     final List<String?> catalogIds = [
       ...model.catalogIds,
-      for (final Map<String, Object?> c in resolved) c['catalogId'] as String?,
+      for (final Map<String, Object?> c in resolved) c['@catalogId'] as String?,
     ];
     final Map<String, ComponentRefFields> refFields = _refFieldsFor(
       surface,
@@ -1336,7 +1343,10 @@ class MessageProcessor<T extends ComponentApi> {
     final List<Map<String, Object?>> existing = [
       for (final ComponentModel c in model.all)
         if (!resolved.any((Map<String, Object?> r) => r['id'] == c.id))
-          c.toJson(),
+          {
+            ...c.toJson(),
+            if (c.catalog != null) '@catalogId': c.catalog,
+          },
     ];
     checkCompositionConstraints(
       resolved,
@@ -1364,17 +1374,26 @@ class MessageProcessor<T extends ComponentApi> {
   ) {
     final SurfaceComponentsModel model = surface.componentsModel;
     model.refFields = checkedBatch.refFields;
+    final bool atLeastV1 = A2uiProtocolVersion.tryParse(
+          surface.protocolVersion ?? '',
+        )?.isAtLeast(A2uiProtocolVersion.v1_0) ??
+        false;
+    final Set<String> envelopeFields =
+        atLeastV1 ? _v1NormalizedEnvelopeFields : _preV1EnvelopeFields;
     for (final Map<String, Object?> entry in checkedBatch.resolved) {
       final id = entry['id']! as String;
       final type = entry['component']! as String;
-      final catalogId = entry['catalogId'] as String?;
-      final Map<String, Object?>? metadata = switch (entry['metadata']) {
-        final Map<Object?, Object?> map => Map<String, Object?>.from(map),
-        _ => null,
-      };
+      final String? catalogId =
+          atLeastV1 ? entry['@catalogId'] as String? : null;
+      final Map<String, Object?>? metadata = atLeastV1
+          ? switch (entry['@metadata']) {
+              final Map<Object?, Object?> map => Map<String, Object?>.from(map),
+              _ => null,
+            }
+          : null;
       final props = <String, dynamic>{
         for (final MapEntry<String, Object?> e in entry.entries)
-          if (!_envelopeFields.contains(e.key)) e.key: e.value,
+          if (!envelopeFields.contains(e.key)) e.key: e.value,
       };
 
       final Catalog<T, FunctionImplementation> catalog =
@@ -1485,32 +1504,11 @@ class MessageProcessor<T extends ComponentApi> {
       );
     }
     final Object? rawType = entry['component'];
-    final Object? rawCatalog = entry['catalogId'];
-    final Object? rawMetadata = entry['metadata'];
     if (rawType != null && rawType is! String) {
       throw A2uiValidationError(
         "Component '$id' has a 'component' type that is not a string.",
         path: '/component',
       );
-    }
-    if (rawCatalog != null && rawCatalog is! String) {
-      throw A2uiValidationError(
-        "Component '$id' has a non-string 'catalogId'.",
-        path: '/catalogId',
-      );
-    }
-    if (rawMetadata != null &&
-        (rawMetadata is! Map || rawMetadata.keys.any((k) => k is! String))) {
-      // Checked here because a lazy `cast` would let a non-string key escape
-      // later as a `TypeError` rather than a payload error.
-      throw A2uiValidationError(
-        "Component '$id' has 'metadata' that is not an object with string "
-        'keys.',
-        path: '/metadata',
-      );
-    }
-    if (rawMetadata != null) {
-      validateMetadata(rawMetadata);
     }
 
     final bool atLeastV1 = version.isAtLeast(A2uiProtocolVersion.v1_0);
@@ -1533,39 +1531,176 @@ class MessageProcessor<T extends ComponentApi> {
         path: '/component',
       );
     }
-    final String? catalogId =
-        rawCatalog as String? ?? (partial ? existing?.catalog : null);
-    final Object? metadata =
-        rawMetadata ?? (partial ? existing?.metadata : null);
+    if (!atLeastV1) {
+      final full = <String, Object?>{
+        ...entry,
+        'component': type,
+      };
+      final Catalog<T, FunctionImplementation> catalog =
+          surface.resolveCatalog(null, subject: "Component '$id'");
+      validatorFor(catalog, version: version).validateComponent(full);
+      return full;
+    }
+    return _resolveV1Component(entry, id, type, surface, version);
+  }
 
-    final full = <String, Object?>{
-      ...entry,
-      'component': type,
-      if (catalogId != null) 'catalogId': catalogId,
-      if (metadata != null) 'metadata': metadata,
-    };
-
+  Map<String, Object?> _resolveV1Component(
+    Map<String, Object?> entry,
+    String id,
+    String type,
+    SurfaceModel<T> surface,
+    A2uiProtocolVersion version,
+  ) {
+    final String? envCatalogId = _extractV1CatalogId(entry, id, type, surface);
     final Catalog<T, FunctionImplementation> catalog =
-        surface.resolveCatalog(catalogId, subject: "Component '$id'");
+        surface.resolveCatalog(envCatalogId, subject: "Component '$id'");
+    final Set<String> customProps = catalog.customComponentProperties(type);
+    final bool isCheckable = catalog.isComponentCheckable(type);
+
+    final (String? metaKey, Object? rawMetadata) =
+        _extractV1Metadata(entry, customProps, id);
+    if (rawMetadata != null) {
+      if (rawMetadata is! Map || rawMetadata.keys.any((k) => k is! String)) {
+        // Checked here because a lazy `cast` would let a non-string key escape
+        // later as a `TypeError` rather than a payload error.
+        throw A2uiValidationError(
+          "Component '$id' has '$metaKey' that is not an object with string "
+          'keys.',
+          path: '/$metaKey',
+        );
+      }
+      validateMetadata(rawMetadata);
+    }
+
     validatorFor(catalog, version: version).validateComponent(
-      atLeastV1 ? _componentForValidator(full, catalog, surface) : full,
+      _componentForValidator(entry, catalog, surface, customProps),
     );
-    if (atLeastV1) {
-      _validateNestedFunctionCalls(
-        <String, Object?>{
-          for (final MapEntry<String, Object?> entry in full.entries)
-            if (!_envelopeFields.contains(entry.key)) entry.key: entry.value,
-        },
-        home: catalog,
-        homeIsDefault: identical(catalog, surface.defaultCatalog),
-        resolve: (String? catalogId, String subject) =>
-            surface.resolveCatalog(catalogId, subject: subject),
-        version: version,
-        where: "in component '$id'",
-        componentId: id,
+
+    final excludedFromNestedWalk = <String>{
+      'id',
+      'component',
+      '@catalogId',
+      '@metadata',
+      if (!customProps.contains('catalogId')) 'catalogId',
+      if (!customProps.contains('metadata')) 'metadata',
+    };
+    _validateNestedFunctionCalls(
+      <String, Object?>{
+        for (final MapEntry<String, Object?> e in entry.entries)
+          if (!excludedFromNestedWalk.contains(e.key)) e.key: e.value,
+      },
+      home: catalog,
+      homeIsDefault: identical(catalog, surface.defaultCatalog),
+      resolve: (String? catalogId, String subject) =>
+          surface.resolveCatalog(catalogId, subject: subject),
+      version: version,
+      where: "in component '$id'",
+      componentId: id,
+    );
+    return _normalizeV1Component(
+      entry,
+      type: type,
+      customProps: customProps,
+      isCheckable: isCheckable,
+      envCatalogId: envCatalogId,
+      envMetadata: rawMetadata,
+    );
+  }
+
+  String? _extractV1CatalogId(
+    Map<String, Object?> entry,
+    String id,
+    String type,
+    SurfaceModel<T> surface,
+  ) {
+    if (entry.containsKey('@catalogId')) {
+      final Object? raw = entry['@catalogId'];
+      if (raw is! String || raw.isEmpty) {
+        throw A2uiValidationError(
+          "Component '$id' has an invalid '@catalogId'.",
+          path: '/@catalogId',
+        );
+      }
+      return raw;
+    }
+    final bool customCatalogId = surface.defaultCatalog
+            ?.customComponentProperties(type)
+            .contains('catalogId') ??
+        false;
+    if (!customCatalogId && entry.containsKey('catalogId')) {
+      final Object? raw = entry['catalogId'];
+      if (raw != null && raw is! String) {
+        throw A2uiValidationError(
+          "Component '$id' has a non-string 'catalogId'.",
+          path: '/catalogId',
+        );
+      }
+      return raw as String?;
+    }
+    return null;
+  }
+
+  static (String?, Object?) _extractV1Metadata(
+    Map<String, Object?> entry,
+    Set<String> customProps,
+    String id,
+  ) {
+    final bool hasCustomMeta = customProps.contains('metadata');
+    if (!hasCustomMeta &&
+        entry.containsKey('@metadata') &&
+        entry.containsKey('metadata')) {
+      throw A2uiValidationError(
+        "Component '$id' cannot specify both '@metadata' and legacy "
+        "'metadata'.",
+        path: '/@metadata',
       );
     }
-    return full;
+    if (entry.containsKey('@metadata')) {
+      return ('@metadata', entry['@metadata']);
+    }
+    if (!hasCustomMeta && entry.containsKey('metadata')) {
+      return ('metadata', entry['metadata']);
+    }
+    return (null, null);
+  }
+
+  static Map<String, Object?> _normalizeV1Component(
+    Map<String, Object?> entry, {
+    required String type,
+    required Set<String> customProps,
+    required bool isCheckable,
+    required String? envCatalogId,
+    required Object? envMetadata,
+  }) {
+    final Object? envAccessibility = entry.containsKey('@accessibility')
+        ? entry['@accessibility']
+        : (!customProps.contains('accessibility')
+            ? entry['accessibility']
+            : null);
+    final Object? envChecks = entry.containsKey('@checks')
+        ? entry['@checks']
+        : (!customProps.contains('checks') && isCheckable
+            ? entry['checks']
+            : null);
+    final strippedKeys = <String>{
+      '@catalogId',
+      '@metadata',
+      '@accessibility',
+      '@checks',
+      if (!customProps.contains('catalogId')) 'catalogId',
+      if (!customProps.contains('metadata')) 'metadata',
+      if (!customProps.contains('accessibility')) 'accessibility',
+      if (!customProps.contains('checks') && isCheckable) 'checks',
+    };
+    return <String, Object?>{
+      for (final MapEntry<String, Object?> e in entry.entries)
+        if (!strippedKeys.contains(e.key)) e.key: e.value,
+      'component': type,
+      if (envCatalogId != null) '@catalogId': envCatalogId,
+      if (envMetadata != null) '@metadata': envMetadata,
+      if (envAccessibility != null) '@accessibility': envAccessibility,
+      if (envChecks != null) '@checks': envChecks,
+    };
   }
 
   /// [component] as the validator of [catalog], the catalog it resolved to,
@@ -1577,19 +1712,30 @@ class MessageProcessor<T extends ComponentApi> {
   /// to be in that catalog. What decides it is the catalog the component
   /// resolved to, not whether the payload wrote a `catalogId`: one that
   /// explicitly names the surface default is in it, so its catalogless calls
-  /// are checked by the validator. So `catalogId` is set to [catalog]'s id
+  /// are checked by the validator. So `@catalogId` is set to [catalog]'s id
   /// when [catalog] is not the surface default, and left out when it is.
   Map<String, Object?> _componentForValidator(
     Map<String, Object?> component,
     Catalog<T, FunctionImplementation> catalog,
     SurfaceModel<T> surface,
-  ) =>
-      <String, Object?>{
-        for (final MapEntry<String, Object?> entry in component.entries)
-          if (entry.key != 'catalogId') entry.key: entry.value,
-        if (!identical(catalog, surface.defaultCatalog))
-          'catalogId': catalog.id,
-      };
+    Set<String> customProps,
+  ) {
+    final bool hasCatalogConflict = !customProps.contains('catalogId') &&
+        component.containsKey('@catalogId') &&
+        component.containsKey('catalogId');
+    final bool keepBareCatalogId =
+        customProps.contains('catalogId') || hasCatalogConflict;
+    return <String, Object?>{
+      for (final MapEntry<String, Object?> entry in component.entries)
+        if (entry.key != '@catalogId' &&
+            (entry.key != 'catalogId' || keepBareCatalogId))
+          entry.key: entry.value,
+      if (hasCatalogConflict)
+        '@catalogId': component['@catalogId']
+      else if (!identical(catalog, surface.defaultCatalog))
+        '@catalogId': catalog.id,
+    };
+  }
 
   /// The reserved system function that every v1.0 surface provides, whatever
   /// its catalogs. Names in the `@` namespace belong to no catalog.

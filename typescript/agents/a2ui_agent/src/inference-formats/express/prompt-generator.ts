@@ -198,21 +198,27 @@ function getSchemaEnum(propSchema: unknown): string[] | undefined {
   return undefined;
 }
 
-function applyDefaultCatalogToValue(val: unknown, defaultCatalogId: string): unknown {
+function applyDefaultCatalogToValue(
+  val: unknown,
+  defaultCatalogId: string,
+  atLeastV10: boolean,
+): unknown {
   if (val instanceof RawNumber || !val || typeof val !== 'object') {
     return val;
   }
   if (Array.isArray(val)) {
-    return val.map(item => applyDefaultCatalogToValue(item, defaultCatalogId));
+    return val.map(item => applyDefaultCatalogToValue(item, defaultCatalogId, atLeastV10));
   }
   const obj = val as Record<string, unknown>;
   const copy: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj)) {
-    copy[k] = applyDefaultCatalogToValue(v, defaultCatalogId);
+    copy[k] = applyDefaultCatalogToValue(v, defaultCatalogId, atLeastV10);
   }
   const isComponent = typeof copy.component === 'string';
   const isCall = typeof copy.call === 'string' || typeof copy['@call'] === 'string';
-  if ((isComponent || isCall) && !copy.catalogId) {
+  if (isComponent && !copy['@catalogId'] && !copy.catalogId) {
+    copy[atLeastV10 ? '@catalogId' : 'catalogId'] = defaultCatalogId;
+  } else if (isCall && !copy.catalogId) {
     copy.catalogId = defaultCatalogId;
   }
   return copy;
@@ -224,6 +230,7 @@ function applyDefaultCatalogToValue(val: unknown, defaultCatalogId: string): unk
 function withDefaultCatalog(
   messages: AgentToRendererMessage[],
   defaultCatalogId?: string,
+  atLeastV10 = true,
 ): AgentToRendererMessage[] {
   if (!defaultCatalogId) {
     return messages;
@@ -253,14 +260,14 @@ function withDefaultCatalog(
       const sid =
         typeof uc.surfaceId === 'string' && uc.surfaceId ? uc.surfaceId : 'default_surface';
       if (!createdSurfaces.has(sid)) {
-        copy.updateComponents = applyDefaultCatalogToValue(uc, defaultCatalogId);
+        copy.updateComponents = applyDefaultCatalogToValue(uc, defaultCatalogId, atLeastV10);
       }
     } else if (copy.updateDataModel && typeof copy.updateDataModel === 'object') {
       const udm = copy.updateDataModel as Record<string, unknown>;
       const sid =
         typeof udm.surfaceId === 'string' && udm.surfaceId ? udm.surfaceId : 'default_surface';
       if (!createdSurfaces.has(sid)) {
-        copy.updateDataModel = applyDefaultCatalogToValue(udm, defaultCatalogId);
+        copy.updateDataModel = applyDefaultCatalogToValue(udm, defaultCatalogId, atLeastV10);
       }
     } else if (copy.callRendererFunction && typeof copy.callRendererFunction === 'object') {
       const crf = copy.callRendererFunction as Record<string, unknown>;
@@ -740,7 +747,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
    */
   private decompileMessages(messages: AgentToRendererMessage[], catalog?: CatalogApi): string {
     const decompiler = new ExpressDecompiler(this.catalogs, this.version);
-    const normalized = withDefaultCatalog(messages, catalog?.id);
+    const normalized = withDefaultCatalog(messages, catalog?.id, this.version === '1.0');
     return decompiler.wrap([
       {type: 'a2ui', a2uiRaw: decompiler.decompile(normalized), isFinal: true},
     ]);
@@ -761,7 +768,9 @@ export class ExpressPromptGenerator extends PromptGenerator {
         const decompiler = new ExpressDecompiler(this.catalogs, this.version);
         const blocks: string[] = [];
         for (const turn of exampleMessages as AgentToRendererMessage[][]) {
-          const dsl = decompiler.decompile(withDefaultCatalog(turn, catalog.id));
+          const dsl = decompiler.decompile(
+            withDefaultCatalog(turn, catalog.id, this.version === '1.0'),
+          );
           if (dsl) {
             blocks.push(decompiler.wrap([{type: 'a2ui', a2uiRaw: dsl, isFinal: true}]));
           }
