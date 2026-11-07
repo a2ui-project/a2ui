@@ -114,23 +114,6 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
                     <span class="a2-cmd-bar__act" id="hero-copy-act">COPY</span>
                   </button>
                 </div>
-
-                <div class="a2-hero__tools" aria-label="Agent harness skills and visual tools">
-                  <span class="a2-hero__tools-lbl">TOOLS &amp; HARNESSES</span>
-                  <a href={`${base}/get-help/`}>Agent Skills</a>
-                  <span aria-hidden="true">·</span>
-                  <a
-                    href="https://a2ui-editor.ag-ui.com"
-                    target="_blank"
-                    rel="noopener noreferrer">A2UI Composer ↗</a
-                  >
-                  <span aria-hidden="true">·</span>
-                  <a
-                    href="https://go.copilotkit.ai/a2ui-playground"
-                    target="_blank"
-                    rel="noopener noreferrer">Playground ↗</a
-                  >
-                </div>
               </div>
 
               <!-- One message, every form factor -->
@@ -526,38 +509,6 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
       .a2-cmd-bar.is-copied .a2-cmd-bar__act {
         color: var(--a2-success);
-      }
-
-      .a2-hero__tools {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 8px 10px;
-        margin-top: -8px;
-        font-size: 13px;
-        color: var(--a2-text-muted);
-      }
-
-      .a2-hero__tools-lbl {
-        font-family: var(--a2-font-mono);
-        font-size: 10px;
-        font-weight: 700;
-        letter-spacing: 0.09em;
-        color: var(--a2-text-muted);
-        margin-right: 4px;
-      }
-
-      .a2-hero__tools a {
-        color: var(--a2-text-secondary);
-        font-weight: 600;
-        text-decoration: none;
-        transition: color 0.15s ease;
-      }
-
-      .a2-hero__tools a:hover {
-        color: var(--a2-accent-strong);
-        text-decoration: underline;
-        text-underline-offset: 3px;
       }
 
       .a2-hero__stage {
