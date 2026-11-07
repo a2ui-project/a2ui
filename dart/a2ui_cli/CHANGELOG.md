@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Added `a2ui lint` (`LintCommand`, `lintAccessibilityLabels`, and `LabelLintFinding`), which warns when a catalog component that accepts an action or user input declares no text-bearing label property (or no required one under `--strict`) ([#3831](https://github.com/a2ui-project/a2ui/pull/3831)).
+- Added `a2ui lint` (`LintCommand`, `lintCatalog`, `CatalogLintFinding`, and `LintSeverity`) to validate catalog JSON schemas against deterministic protocol rules, including Unicode UAX 31 identifier naming, the reserved `Surface` component name, `requiresUserActivation` caller constraints, and redundant `ComponentCommon` wrapping ([#3831](https://github.com/a2ui-project/a2ui/pull/3831)).
 
 ## 0.2.0
 

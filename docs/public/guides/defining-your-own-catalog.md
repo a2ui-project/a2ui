@@ -47,6 +47,58 @@ It is recommended to create catalogs that directly map to your existing componen
 
     *Detailed Flutter integration guide coming soon.*
 
+## Accessibility
+
+Accessible custom catalogs divide responsibility between the component schema and the native widget implementation. JSON Schema alone cannot tell whether a control gets its screen reader name from a schema property, visible child text, or fixed native code. Design each component schema around how much its meaning varies across instances.
+
+### Generic vs. domain-specific components
+
+Generic, reusable controls such as `TextField`, `CheckBox`, and `Slider` need a `label` property in their component schema because their purpose changes per instance. Without a schema `label` property, the agent has no standard field to name what the user is editing or toggling.
+
+Domain-specific components such as `UsernameInput` or `SearchSubmitButton` already have a fixed purpose. Build their default accessible labels directly into the native widget implementation instead of exposing a schema `label` property. Omitting a redundant `label` property saves model tokens and prevents inconsistent model-generated text across screens.
+
+### Inherited accessibility attributes and renderer mapping
+
+Every component automatically inherits the optional `accessibility` object from `ComponentCommon` (see [Common Properties](../reference/components.md#common-properties)). Do not redeclare `accessibility` inside individual component schemas, and in v1.0 do not wrap component definitions with `ComponentCommon`.
+
+In v0.9.1 and v1.0, `accessibility` provides `label` and `description`, and both accept literal strings, data bindings, or function calls. Version 1.0 also adds `live` (`"off"`, `"polite"`, or `"assertive"`) for live-region announcements and `hidden` for excluding decorative elements from assistive technologies.
+
+Agents can set `accessibility` on any component instance to supply or override assistive text when visual context is missing, such as an icon-only `Button`:
+
+=== "v1.0 (Candidate)"
+
+    ```json
+    {
+      "id": "close_button",
+      "component": "Button",
+      "child": "close_icon",
+      "action": {"event": {"name": "close_dialog"}},
+      "accessibility": {
+        "label": "Close dialog",
+        "description": {"@path": "/dialog/unsavedWarning"}
+      }
+    }
+    ```
+
+=== "v0.9.1 (Current)"
+
+    ```json
+    {
+      "id": "close_button",
+      "component": "Button",
+      "child": "close_icon",
+      "action": {"event": {"name": "close_dialog"}},
+      "accessibility": {
+        "label": "Close dialog",
+        "description": {"path": "/dialog/unsavedWarning"}
+      }
+    }
+    ```
+
+Notice that v1.0 data bindings use `@path`, whereas v0.9.1 bindings use `path`.
+
+In your native component implementation, map resolved `AccessibilityAttributes` and visible child text or titles to platform accessibility APIs. Use WAI-ARIA attributes on the web, `Semantics` widgets in Flutter, and `.accessibilityLabel` or `.accessibilityHint` modifiers in SwiftUI. When an instance sets `accessibility.label` or `accessibility.description`, let those values override any label inferred from visible text (see [Catalog-Agnostic Accessibility Requirements](../../../specification/v1_0/docs/a2ui_protocol.md#catalog-agnostic-accessibility-requirements)).
+
 ## Security Considerations
 
 When defining and registering catalogs:

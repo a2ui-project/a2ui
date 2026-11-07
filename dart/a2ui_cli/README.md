@@ -57,26 +57,25 @@ dart run dart/a2ui_cli/bin/a2ui.dart codegen \
   --out python/a2ui_agent/src/a2ui/builder/v1_0/catalogs/basic.py
 ```
 
-## Linting Catalog Accessibility Labels
+## Linting Catalog Schemas
 
-Use `a2ui lint` to check that interactive components in a catalog declare a text-bearing label property:
+Use `a2ui lint` to check freestanding catalog JSON files against deterministic A2UI protocol schema rules:
 
 ```bash
 dart run dart/a2ui_cli/bin/a2ui.dart lint \
   --catalog catalogs/basic/v1/catalog.json
 ```
 
-### Heuristic
+### Rules
 
-A component is treated as interactive when any of its declared properties references `common_types.json#/$defs/Action` (reported as `accepts action`) or when the component includes `common_types.json#/$defs/Checkable` (reported as `accepts input`).
+`a2ui lint` reports errors and warnings across protocol versions `0.9`, `0.9.1`, and `1.0`:
 
-By default, an interactive component passes when any declared property other than `value` is:
-
-- A string or `DynamicString` property
-- A single child component reference (`Child` or `ComponentId`)
-- An array of objects whose item schema declares such a property
+- Core catalog structure, `catalogId`, `protocolVersion`, `metadata`, and local or external `$ref` targets via `a2ui_core`.
+- Unicode UAX 31 identifier names on components, functions, component properties, and function parameters, plus reserved `@`-prefixed function names.
+- The reserved `Surface` component name, which is permitted only inside `allowedParents`.
+- Functions that set `requiresUserActivation: true` while permitting agent invocation in `allowedCallers`.
+- Warnings when components redundantly wrap `ComponentCommon` or redeclare `ComponentCommon` envelope properties.
 
 ### Options
 
-- `--strict`: Requires the text-bearing label property (and any nested item label property) to be listed in `required`.
-- `--ignore <Component>`: Acknowledges a finding for `<Component>` (may be passed multiple times). Acknowledged components are printed as `ignored: <Component>` and do not cause a non-zero exit code. If an `--ignore` entry has no matching finding, `a2ui lint` emits a warning so allowlists do not go stale.
+Pass `--fatal-warnings` to treat warning findings as fatal and exit with code `1` in CI checks.

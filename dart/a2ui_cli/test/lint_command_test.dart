@@ -45,365 +45,542 @@ Future<({int exitCode, String stdout, String stderr})> _captureCli(
   );
 }
 
-AnalysedCatalog _analyzeSingleComponent(
-  String name,
-  Map<String, Object?> componentSchema,
-) {
-  final catalog = CodegenCatalog.fromJson(<String, Object?>{
-    'catalogId':
-        'https://a2ui.org/specification/v1_0/catalogs/test/single.json',
-    'protocolVersion': '1.0',
-    'components': <String, Object?>{name: componentSchema},
-  });
-  return CatalogAnalyzer.analyzeCodegen(catalog);
-}
+Map<String, Object?> _v1Catalog({
+  Map<String, Object?> components = const {},
+  Object? functions,
+  Map<String, Object?>? defs,
+  Map<String, Object?>? metadata,
+  Map<String, Object?> extraRoot = const {},
+}) => <String, Object?>{
+  'catalogId': 'https://a2ui.org/specification/v1_0/catalogs/test/catalog.json',
+  'protocolVersion': '1.0',
+  'metadata': ?metadata,
+  r'$defs': ?defs,
+  'components': components,
+  'functions': ?functions,
+  ...extraRoot,
+};
 
 void main() {
   final String repoRoot = _findRepoRoot();
-  final String fixturePath = p.join(
-    repoRoot,
-    'dart/a2ui_cli/test/fixtures/catalogs/a11y_labels.json',
-  );
-  final String basicV1CatalogPath = p.join(
-    repoRoot,
+
+  const canonicalCatalogRelPaths = <String>[
     'catalogs/basic/v1/catalog.json',
-  );
+    'catalogs/mcp/v1/catalog.json',
+    'catalogs/mcp/catalog.json',
+    'catalogs/vegachart/v1/catalog.json',
+    'catalogs/vegachart/v0_9/catalog.json',
+    'specification/v0_9/catalogs/basic/catalog.json',
+    'specification/v0_9/catalogs/minimal/catalog.json',
+    'specification/v0_9_1/catalogs/basic/catalog.json',
+    'specification/v1_0/test/testing_catalog.json',
+  ];
 
-  group('lintAccessibilityLabels heuristic', () {
-    test('reports a component with an action and no label property', () {
-      final AnalysedCatalog analysed = _analyzeSingleComponent('IconTap', {
-        'type': 'object',
-        'properties': {
-          'component': {'const': 'IconTap'},
-          'action': {r'$ref': r'common_types.json#/$defs/Action'},
-        },
-        'required': ['component', 'action'],
+  group('canonical repository catalogs', () {
+    for (final relPath in canonicalCatalogRelPaths) {
+      test('$relPath passes with zero errors and zero warnings', () async {
+        final String fullPath = p.join(repoRoot, relPath);
+        final ({int exitCode, String stdout, String stderr}) result =
+            await _captureCli([
+              'lint',
+              '--fatal-warnings',
+              '--catalog',
+              fullPath,
+            ]);
+
+        expect(result.exitCode, equals(0), reason: result.stderr);
+        expect(result.stdout, isEmpty);
+        expect(result.stderr, isEmpty);
       });
+    }
 
-      expect(
-        lintAccessibilityLabels(analysed),
-        equals([
-          const LabelLintFinding(component: 'IconTap', reason: 'action'),
-        ]),
+    test('all a2ui_cli catalog fixtures pass with zero findings', () {
+      final fixturesDir = Directory(
+        p.join(repoRoot, 'dart/a2ui_cli/test/fixtures/catalogs'),
       );
-      expect(
-        lintAccessibilityLabels(analysed, strict: true),
-        equals([
-          const LabelLintFinding(component: 'IconTap', reason: 'action'),
-        ]),
+      final List<File> files =
+          fixturesDir
+              .listSync()
+              .whereType<File>()
+              .where((File f) => f.path.endsWith('.json'))
+              .toList()
+            ..sort((File a, File b) => a.path.compareTo(b.path));
+      expect(files, isNotEmpty);
+      for (final file in files) {
+        final decoded =
+            jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+        expect(lintCatalog(decoded), isEmpty, reason: file.path);
+      }
+    });
+  });
+
+  group('CatalogLintFinding value semantics', () {
+    test('supports equality, hashCode, and toString formatting', () {
+      const a = CatalogLintFinding(
+        severity: LintSeverity.error,
+        code: 'reserved_component_name',
+        message: 'Reserved Surface name.',
       );
+      const b = CatalogLintFinding(
+        severity: LintSeverity.error,
+        code: 'reserved_component_name',
+        message: 'Reserved Surface name.',
+      );
+      const c = CatalogLintFinding(
+        severity: LintSeverity.warning,
+        code: 'redundant_component_common',
+        message: 'Redundant wrapper.',
+      );
+
+      expect(a, equals(b));
+      expect(a.hashCode, equals(b.hashCode));
+      expect(a, isNot(equals(c)));
+      expect(a.toString(), equals('error: Reserved Surface name.'));
+      expect(c.toString(), equals('warning: Redundant wrapper.'));
     });
+  });
 
+  group('lintCatalog deterministic rules', () {
     test(
-      'passes a Checkable component with optional label by default and reports it under strict',
+      'forbids reserved Surface component name while allowing it in allowedParents',
       () {
-        final AnalysedCatalog analysed = _analyzeSingleComponent('RangeInput', {
-          'type': 'object',
-          'allOf': [
-            {r'$ref': r'common_types.json#/$defs/Checkable'},
-            {
-              'type': 'object',
-              'properties': {
-                'component': {'const': 'RangeInput'},
-                'label': {r'$ref': r'common_types.json#/$defs/DynamicString'},
-                'value': {r'$ref': r'common_types.json#/$defs/DynamicNumber'},
-              },
-              'required': ['component', 'value'],
-            },
-          ],
-        });
-
-        expect(lintAccessibilityLabels(analysed), isEmpty);
-        expect(
-          lintAccessibilityLabels(analysed, strict: true),
-          equals([
-            const LabelLintFinding(component: 'RangeInput', reason: 'input'),
-          ]),
-        );
-      },
-    );
-
-    test('passes an interactive component with a required child reference', () {
-      final AnalysedCatalog analysed = _analyzeSingleComponent('ActionButton', {
-        'type': 'object',
-        'properties': {
-          'component': {'const': 'ActionButton'},
-          'child': {r'$ref': r'common_types.json#/$defs/Child'},
-          'action': {r'$ref': r'common_types.json#/$defs/Action'},
-        },
-        'required': ['component', 'child', 'action'],
-      });
-
-      expect(lintAccessibilityLabels(analysed), isEmpty);
-      expect(lintAccessibilityLabels(analysed, strict: true), isEmpty);
-    });
-
-    test(
-      'reports an interactive component whose only string property is value',
-      () {
-        final AnalysedCatalog analysed = _analyzeSingleComponent(
-          'BareTextInput',
-          {
-            'type': 'object',
-            'allOf': [
-              {r'$ref': r'common_types.json#/$defs/Checkable'},
-              {
+        final List<CatalogLintFinding> reservedFindings = lintCatalog(
+          _v1Catalog(
+            components: {
+              'Surface': {
                 'type': 'object',
                 'properties': {
-                  'component': {'const': 'BareTextInput'},
-                  'value': {r'$ref': r'common_types.json#/$defs/DynamicString'},
+                  'component': {'const': 'Surface'},
                 },
-                'required': ['component', 'value'],
               },
-            ],
-          },
+            },
+            defs: {
+              'anyComponent': {'oneOf': <Object?>[]},
+            },
+          ),
+        );
+        expect(
+          reservedFindings,
+          contains(
+            isA<CatalogLintFinding>()
+                .having(
+                  (CatalogLintFinding f) => f.severity,
+                  'severity',
+                  LintSeverity.error,
+                )
+                .having(
+                  (CatalogLintFinding f) => f.code,
+                  'code',
+                  'reserved_component_name',
+                ),
+          ),
         );
 
-        expect(
-          lintAccessibilityLabels(analysed),
-          equals([
-            const LabelLintFinding(component: 'BareTextInput', reason: 'input'),
-          ]),
+        final List<CatalogLintFinding> allowedParentsFindings = lintCatalog(
+          _v1Catalog(
+            components: {
+              'RootShell': {
+                'type': 'object',
+                'allowedParents': ['Surface'],
+                'properties': {
+                  'component': {'const': 'RootShell'},
+                },
+                'required': ['component'],
+              },
+            },
+          ),
         );
-        expect(
-          lintAccessibilityLabels(analysed, strict: true),
-          equals([
-            const LabelLintFinding(component: 'BareTextInput', reason: 'input'),
-          ]),
-        );
+        expect(allowedParentsFindings, isEmpty);
       },
     );
 
     test(
-      'passes an interactive component with an array of objects declaring label',
+      'validates UAX 31 identifiers across components, properties, functions, and parameters',
       () {
-        final AnalysedCatalog analysed = _analyzeSingleComponent('Picker', {
-          'type': 'object',
-          'allOf': [
-            {r'$ref': r'common_types.json#/$defs/Checkable'},
-            {
-              'type': 'object',
-              'properties': {
-                'component': {'const': 'Picker'},
-                'options': {
-                  'type': 'array',
-                  'items': {
+        final List<CatalogLintFinding> validUnicode = lintCatalog(
+          _v1Catalog(
+            components: {
+              'Component_ℓ1': {
+                'type': 'object',
+                'properties': {
+                  'component': {'const': 'Component_ℓ1'},
+                  '_value_1': {'type': 'string'},
+                },
+                'required': ['component'],
+              },
+            },
+            functions: {
+              'format_ℓ': {
+                'type': 'object',
+                'returnType': 'string',
+                'properties': {
+                  '@call': {'const': 'format_ℓ'},
+                  'args': {
                     'type': 'object',
                     'properties': {
-                      'label': {
-                        r'$ref': r'common_types.json#/$defs/DynamicString',
-                      },
-                      'value': {'type': 'string'},
+                      'input_1': {'type': 'string'},
                     },
-                    'required': ['label', 'value'],
                   },
                 },
-                'value': {
-                  r'$ref': r'common_types.json#/$defs/DynamicStringList',
+                'required': ['@call', 'args'],
+              },
+            },
+          ),
+        );
+        expect(validUnicode, isEmpty);
+
+        final List<CatalogLintFinding> invalidIdentifiers = lintCatalog(
+          _v1Catalog(
+            defs: {
+              'SharedMixin': {
+                'type': 'object',
+                'properties': {
+                  'bad-mixin-prop': {'type': 'string'},
                 },
               },
-              'required': ['component', 'options', 'value'],
             },
-          ],
-        });
+            components: {
+              'Bad-Component': {
+                'type': 'object',
+                'allOf': [
+                  {r'$ref': r'#/$defs/SharedMixin'},
+                ],
+                'properties': {
+                  'component': {'const': 'Bad-Component'},
+                  '123prop': {'type': 'string'},
+                },
+              },
+            },
+            functions: {
+              '@index': {'returnType': 'number'},
+              'bad-func': {
+                'type': 'object',
+                'returnType': 'string',
+                'properties': {
+                  '@call': {'const': 'bad-func'},
+                  'args': {
+                    'type': 'object',
+                    'properties': {
+                      'bad-arg!': {'type': 'string'},
+                    },
+                  },
+                },
+                'required': ['@call', 'args'],
+              },
+            },
+          ),
+        );
 
-        expect(lintAccessibilityLabels(analysed), isEmpty);
-        expect(lintAccessibilityLabels(analysed, strict: true), isEmpty);
+        expect(
+          invalidIdentifiers.map((CatalogLintFinding f) => f.code),
+          containsAll(<String>['invalid_identifier', 'reserved_function_name']),
+        );
+        expect(
+          invalidIdentifiers.map((CatalogLintFinding f) => f.message),
+          containsAll(<Matcher>[
+            contains("component identifier 'Bad-Component'"),
+            contains("property identifier '123prop'"),
+            contains("property identifier 'bad-mixin-prop'"),
+            contains("Function name '@index' starts with '@'"),
+            contains("function identifier 'bad-func'"),
+            contains("argument identifier 'bad-arg!'"),
+          ]),
+        );
       },
     );
 
-    test(
-      'reports under strict when an array of objects has only an optional label',
-      () {
-        final AnalysedCatalog analysed = _analyzeSingleComponent(
-          'OptionalItemPicker',
-          {
-            'type': 'object',
-            'allOf': [
-              {r'$ref': r'common_types.json#/$defs/Checkable'},
-              {
-                'type': 'object',
-                'properties': {
-                  'component': {'const': 'OptionalItemPicker'},
-                  'options': {
-                    'type': 'array',
-                    'items': {
-                      'type': 'object',
-                      'properties': {
-                        'label': {
-                          r'$ref': r'common_types.json#/$defs/DynamicString',
-                        },
-                        'value': {'type': 'string'},
-                      },
-                      'required': ['value'],
-                    },
-                  },
-                  'value': {
-                    r'$ref': r'common_types.json#/$defs/DynamicStringList',
-                  },
-                },
-                'required': ['component', 'options', 'value'],
+    test('flags requiresUserActivation: true on agent-callable functions', () {
+      final List<CatalogLintFinding> invalidFindings = lintCatalog(
+        _v1Catalog(
+          functions: {
+            'agentPopup': {
+              'type': 'object',
+              'returnType': 'void',
+              'requiresUserActivation': true,
+              'allowedCallers': 'agentOnly',
+              'properties': {
+                '@call': {'const': 'agentPopup'},
               },
-            ],
+              'required': ['@call'],
+            },
+            'sharedPopup': {
+              'type': 'object',
+              'returnType': 'void',
+              'requiresUserActivation': true,
+              'allowedCallers': 'rendererOrAgent',
+              'properties': {
+                '@call': {'const': 'sharedPopup'},
+              },
+              'required': ['@call'],
+            },
           },
+          defs: {
+            'anyFunction': {'oneOf': <Object?>[]},
+          },
+        ),
+      );
+
+      expect(invalidFindings, hasLength(2));
+      expect(
+        invalidFindings.every(
+          (CatalogLintFinding f) =>
+              f.severity == LintSeverity.error &&
+              f.code == 'user_activation_allows_agent',
+        ),
+        isTrue,
+      );
+
+      final List<CatalogLintFinding> validFindings = lintCatalog(
+        _v1Catalog(
+          functions: {
+            'openUrl': {
+              'type': 'object',
+              'returnType': 'void',
+              'requiresUserActivation': true,
+              'allowedCallers': 'rendererOnly',
+              'properties': {
+                '@call': {'const': 'openUrl'},
+              },
+              'required': ['@call'],
+            },
+            'copyText': {
+              'type': 'object',
+              'returnType': 'void',
+              'requiresUserActivation': true,
+              'properties': {
+                '@call': {'const': 'copyText'},
+              },
+              'required': ['@call'],
+            },
+          },
+        ),
+      );
+      expect(validFindings, isEmpty);
+    });
+
+    test(
+      'warns on redundant ComponentCommon wrapping and property redeclaration in v1.0',
+      () {
+        final List<CatalogLintFinding> findings = lintCatalog(
+          _v1Catalog(
+            components: {
+              'WrappedButton': {
+                'type': 'object',
+                'allOf': [
+                  {r'$ref': r'common_types.json#/$defs/ComponentCommon'},
+                  {
+                    'type': 'object',
+                    'properties': {
+                      'component': {'const': 'WrappedButton'},
+                      'accessibility': {
+                        r'$ref':
+                            r'common_types.json#/$defs/AccessibilityAttributes',
+                      },
+                    },
+                    'required': ['component'],
+                  },
+                ],
+              },
+            },
+          ),
         );
 
-        expect(lintAccessibilityLabels(analysed), isEmpty);
+        expect(findings, hasLength(2));
         expect(
-          lintAccessibilityLabels(analysed, strict: true),
-          equals([
-            const LabelLintFinding(
-              component: 'OptionalItemPicker',
-              reason: 'input',
+          findings.every(
+            (CatalogLintFinding f) =>
+                f.severity == LintSeverity.warning &&
+                f.code == 'redundant_component_common',
+          ),
+          isTrue,
+        );
+        expect(
+          findings.map((CatalogLintFinding f) => f.message),
+          containsAll(<Matcher>[
+            contains("wraps 'ComponentCommon'"),
+            contains(
+              "redeclares 'ComponentCommon' envelope property 'accessibility'",
             ),
           ]),
         );
       },
     );
 
-    test('evaluates the a11y_labels.json fixture across all branches', () {
-      final catalogJson =
-          jsonDecode(File(fixturePath).readAsStringSync())
-              as Map<String, dynamic>;
-      final AnalysedCatalog analysed = CatalogAnalyzer.analyzeCodegen(
-        CodegenCatalog.fromJson(catalogJson),
-      );
+    test(
+      'allows single ComponentCommon in v0.9 and warns on duplicate refs or redeclared properties',
+      () {
+        final List<CatalogLintFinding> cleanV09 = lintCatalog(<String, Object?>{
+          'catalogId': 'https://example.com/v09/catalog.json',
+          'protocolVersion': '0.9.1',
+          r'$defs': {
+            'CatalogComponentCommon': {
+              'type': 'object',
+              'properties': {
+                'weight': {'type': 'number'},
+              },
+            },
+          },
+          'components': {
+            'Badge': {
+              'type': 'object',
+              'allOf': [
+                {
+                  r'$ref':
+                      r'https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon',
+                },
+                {r'$ref': r'#/$defs/CatalogComponentCommon'},
+                {
+                  'type': 'object',
+                  'properties': {
+                    'component': {'const': 'Badge'},
+                    'text': {'type': 'string'},
+                  },
+                  'required': ['component', 'text'],
+                },
+              ],
+            },
+          },
+        });
+        expect(cleanV09, isEmpty);
 
-      expect(
-        lintAccessibilityLabels(analysed),
-        equals([
-          const LabelLintFinding(component: 'IconAction', reason: 'action'),
-          const LabelLintFinding(component: 'ValueOnlyField', reason: 'input'),
-        ]),
-      );
+        final List<CatalogLintFinding> redundantV09 = lintCatalog(
+          <String, Object?>{
+            'catalogId': 'https://example.com/v09/redundant.json',
+            'protocolVersion': '0.9.1',
+            'components': {
+              'DupBadge': {
+                'type': 'object',
+                'allOf': [
+                  {r'$ref': r'common_types.json#/$defs/ComponentCommon'},
+                  {r'$ref': r'common_types.json#/$defs/ComponentCommon'},
+                  {
+                    'type': 'object',
+                    'properties': {
+                      'component': {'const': 'DupBadge'},
+                      'id': {'type': 'string'},
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        );
 
-      expect(
-        lintAccessibilityLabels(analysed, strict: true),
-        equals([
-          const LabelLintFinding(component: 'IconAction', reason: 'action'),
-          const LabelLintFinding(
-            component: 'OptionalLabelInput',
-            reason: 'input',
+        expect(redundantV09, hasLength(2));
+        expect(
+          redundantV09.every(
+            (CatalogLintFinding f) =>
+                f.severity == LintSeverity.warning &&
+                f.code == 'redundant_component_common',
           ),
-          const LabelLintFinding(component: 'ValueOnlyField', reason: 'input'),
-        ]),
-      );
-    });
-  });
-
-  group('a2ui lint CLI command', () {
-    test('exits 1 and prints warnings for unignored findings', () async {
-      final ({int exitCode, String stdout, String stderr}) result =
-          await _captureCli(['lint', '--catalog', fixturePath]);
-
-      expect(result.exitCode, equals(1));
-      expect(result.stdout, isEmpty);
-      expect(
-        result.stderr,
-        contains(
-          'warning: IconAction: accepts action but declares no text-bearing property',
-        ),
-      );
-      expect(
-        result.stderr,
-        contains(
-          'warning: ValueOnlyField: accepts input but declares no text-bearing property',
-        ),
-      );
-      expect(result.stderr, isNot(contains('OptionalLabelInput')));
-    });
-
-    test('--strict reports components whose label is optional', () async {
-      final ({int exitCode, String stdout, String stderr}) result =
-          await _captureCli(['lint', '--catalog', fixturePath, '--strict']);
-
-      expect(result.exitCode, equals(1));
-      expect(
-        result.stderr,
-        contains(
-          'warning: OptionalLabelInput: accepts input but declares no text-bearing property',
-        ),
-      );
-    });
-
-    test('--ignore acknowledges findings and exits 0', () async {
-      final ({int exitCode, String stdout, String stderr}) result =
-          await _captureCli([
-            'lint',
-            '--catalog',
-            fixturePath,
-            '--ignore',
-            'IconAction',
-            '--ignore',
-            'ValueOnlyField',
-          ]);
-
-      expect(result.exitCode, equals(0));
-      expect(result.stderr, isEmpty);
-      expect(result.stdout, contains('ignored: IconAction'));
-      expect(result.stdout, contains('ignored: ValueOnlyField'));
-    });
-
-    test('stale --ignore entry emits warning and exits 0', () async {
-      final ({int exitCode, String stdout, String stderr}) result =
-          await _captureCli([
-            'lint',
-            '--catalog',
-            fixturePath,
-            '--ignore',
-            'IconAction',
-            '--ignore',
-            'ValueOnlyField',
-            '--ignore',
-            'ChildButton',
-          ]);
-
-      expect(result.exitCode, equals(0));
-      expect(result.stdout, contains('ignored: IconAction'));
-      expect(result.stdout, contains('ignored: ValueOnlyField'));
-      expect(
-        result.stderr,
-        contains('warning: ChildButton: listed in --ignore but has no finding'),
-      );
-    });
+          isTrue,
+        );
+      },
+    );
 
     test(
-      'basic v1 catalog passes with zero findings by default and reports DateTimeInput and Slider under --strict',
-      () async {
-        final ({int exitCode, String stdout, String stderr}) defaultResult =
-            await _captureCli(['lint', '--catalog', basicV1CatalogPath]);
-
-        expect(defaultResult.exitCode, equals(0));
-        expect(defaultResult.stdout, isEmpty);
-        expect(defaultResult.stderr, isEmpty);
-
-        final ({int exitCode, String stdout, String stderr}) strictResult =
-            await _captureCli([
-              'lint',
-              '--catalog',
-              basicV1CatalogPath,
-              '--strict',
-            ]);
-
-        expect(strictResult.exitCode, equals(1));
+      r'validates core catalog metadata, external refs, local refs, and leaf $defs',
+      () {
+        final List<CatalogLintFinding> badSchemaFindings = lintCatalog(
+          <String, Object?>{
+            'catalogId': '',
+            'protocolVersion': 'v0.8',
+            'metadata': {'unexpected': true},
+            r'$defs': {
+              'HiddenComp': {
+                'type': 'object',
+                'properties': {
+                  'component': {'const': 'HiddenComp'},
+                },
+              },
+            },
+            'components': {
+              'UnionCard': {
+                'type': 'object',
+                'oneOf': [
+                  {
+                    'type': 'object',
+                    'properties': {
+                      'component': {'const': 'UnionCard'},
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        );
         expect(
-          strictResult.stderr.trim().split('\n'),
-          equals([
-            'warning: DateTimeInput: accepts input but declares no text-bearing property',
-            'warning: Slider: accepts input but declares no text-bearing property',
+          badSchemaFindings.every(
+            (CatalogLintFinding f) => f.severity == LintSeverity.error,
+          ),
+          isTrue,
+        );
+        expect(badSchemaFindings.length, greaterThanOrEqualTo(4));
+
+        final List<CatalogLintFinding> refFindings = lintCatalog(
+          _v1Catalog(
+            extraRoot: {'customRootKey': 'notAllowed'},
+            components: {
+              'ExternalWidget': {
+                'type': 'object',
+                'properties': {
+                  'component': {'const': 'ExternalWidget'},
+                  'other': {r'$ref': 'other_catalog.json#/components/Text'},
+                  'missing': {r'$ref': r'#/$defs/DoesNotExist'},
+                },
+              },
+            },
+          ),
+        );
+        expect(
+          refFindings.map((CatalogLintFinding f) => f.code),
+          containsAll(<String>[
+            'invalid_catalog_schema',
+            'unsupported_external_ref',
+            'unresolved_local_ref',
           ]),
         );
       },
     );
 
+    test(
+      'handles inline list-form functions and pre-v1.0 validationResult checks',
+      () {
+        final List<CatalogLintFinding> findings = lintCatalog(<String, Object?>{
+          'catalogId': 'inline_fn_catalog',
+          'functions': [
+            {
+              'name': 'checkValue',
+              'returnType': 'validationResult',
+              'requiresUserActivation': true,
+              'allowedCallers': 'agentOnly',
+              'parameters': {
+                'bad-param': {'type': 'string'},
+              },
+            },
+          ],
+        });
+
+        expect(
+          findings.map((CatalogLintFinding f) => f.code),
+          containsAll(<String>[
+            'invalid_identifier',
+            'user_activation_allows_agent',
+            'invalid_catalog_schema',
+          ]),
+        );
+      },
+    );
+  });
+
+  group('a2ui lint CLI command', () {
     test('displays lint command help with lint --help', () async {
       final ({int exitCode, String stdout, String stderr}) result =
           await _captureCli(['lint', '--help']);
 
       expect(result.exitCode, equals(0));
       expect(result.stdout, contains('--catalog'));
-      expect(result.stdout, contains('--strict'));
-      expect(result.stdout, contains('--ignore'));
+      expect(result.stdout, contains('--fatal-warnings'));
     });
 
     test('exits 1 when catalog file does not exist', () async {
@@ -414,38 +591,119 @@ void main() {
       expect(result.stderr, contains('Error: Catalog file not found at:'));
     });
 
-    test('exits 1 on malformed JSON or invalid catalog schema', () async {
-      final Directory tmpDir = Directory.systemTemp.createTempSync(
-        'lint-test-bad-',
-      );
-      try {
-        final badJsonFile = File(p.join(tmpDir.path, 'malformed.json'))
-          ..writeAsStringSync('{not valid json');
-        final ({int exitCode, String stdout, String stderr}) badJsonResult =
-            await _captureCli(['lint', '--catalog', badJsonFile.path]);
-        expect(badJsonResult.exitCode, equals(1));
-        expect(
-          badJsonResult.stderr,
-          contains('Error reading or parsing catalog JSON:'),
+    test(
+      'exits 0 on warnings by default and exits 1 with --fatal-warnings',
+      () async {
+        final Directory tmpDir = Directory.systemTemp.createTempSync(
+          'lint-test-warn-',
         );
+        try {
+          final warnFile = File(p.join(tmpDir.path, 'warn_catalog.json'))
+            ..writeAsStringSync(
+              jsonEncode(
+                _v1Catalog(
+                  components: {
+                    'LegacyWrapped': {
+                      'type': 'object',
+                      'allOf': [
+                        {r'$ref': r'common_types.json#/$defs/ComponentCommon'},
+                        {
+                          'type': 'object',
+                          'properties': {
+                            'component': {'const': 'LegacyWrapped'},
+                          },
+                          'required': ['component'],
+                        },
+                      ],
+                    },
+                  },
+                ),
+              ),
+            );
 
-        final badCatalogFile = File(p.join(tmpDir.path, 'bad_catalog.json'))
-          ..writeAsStringSync(
-            jsonEncode(<String, Object?>{
-              'catalogId': 'bad_catalog',
-              'protocolVersion': '1.0',
-              'components': <String, Object?>{
-                'Surface': {'type': 'object'},
-              },
-            }),
+          final ({int exitCode, String stdout, String stderr}) defaultResult =
+              await _captureCli(['lint', '-c', warnFile.path]);
+          expect(defaultResult.exitCode, equals(0));
+          expect(defaultResult.stdout, isEmpty);
+          expect(
+            defaultResult.stderr,
+            contains(
+              "warning: Component 'LegacyWrapped' wraps 'ComponentCommon'",
+            ),
           );
-        final ({int exitCode, String stdout, String stderr}) badCatalogResult =
-            await _captureCli(['lint', '--catalog', badCatalogFile.path]);
-        expect(badCatalogResult.exitCode, equals(1));
-        expect(badCatalogResult.stderr, contains('Error analyzing catalog:'));
-      } finally {
-        tmpDir.deleteSync(recursive: true);
-      }
-    });
+
+          final ({int exitCode, String stdout, String stderr}) fatalResult =
+              await _captureCli([
+                'lint',
+                '--fatal-warnings',
+                '--catalog',
+                warnFile.path,
+              ]);
+          expect(fatalResult.exitCode, equals(1));
+          expect(
+            fatalResult.stderr,
+            contains(
+              "warning: Component 'LegacyWrapped' wraps 'ComponentCommon'",
+            ),
+          );
+        } finally {
+          tmpDir.deleteSync(recursive: true);
+        }
+      },
+    );
+
+    test(
+      'exits 1 on malformed JSON, non-object root, or catalog lint errors',
+      () async {
+        final Directory tmpDir = Directory.systemTemp.createTempSync(
+          'lint-test-bad-',
+        );
+        try {
+          final badJsonFile = File(p.join(tmpDir.path, 'malformed.json'))
+            ..writeAsStringSync('{not valid json');
+          final ({int exitCode, String stdout, String stderr}) badJsonResult =
+              await _captureCli(['lint', '--catalog', badJsonFile.path]);
+          expect(badJsonResult.exitCode, equals(1));
+          expect(
+            badJsonResult.stderr,
+            contains('Error reading or parsing catalog JSON:'),
+          );
+
+          final arrayRootFile = File(p.join(tmpDir.path, 'array_root.json'))
+            ..writeAsStringSync('[]');
+          final ({int exitCode, String stdout, String stderr}) arrayRootResult =
+              await _captureCli(['lint', '--catalog', arrayRootFile.path]);
+          expect(arrayRootResult.exitCode, equals(1));
+          expect(
+            arrayRootResult.stderr,
+            contains('Error: Catalog JSON root must be a JSON object'),
+          );
+
+          final badCatalogFile = File(p.join(tmpDir.path, 'bad_catalog.json'))
+            ..writeAsStringSync(
+              jsonEncode(
+                _v1Catalog(
+                  components: {
+                    'Surface': {'type': 'object'},
+                  },
+                ),
+              ),
+            );
+          final ({int exitCode, String stdout, String stderr})
+          badCatalogResult = await _captureCli([
+            'lint',
+            '--catalog',
+            badCatalogFile.path,
+          ]);
+          expect(badCatalogResult.exitCode, equals(1));
+          expect(
+            badCatalogResult.stderr,
+            contains("error: Component name 'Surface' is reserved"),
+          );
+        } finally {
+          tmpDir.deleteSync(recursive: true);
+        }
+      },
+    );
   });
 }

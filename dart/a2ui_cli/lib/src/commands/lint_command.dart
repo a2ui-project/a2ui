@@ -18,15 +18,15 @@ import 'dart:io' as io;
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
-import '../analyzer/accessibility_lint.dart';
-import '../analyzer/catalog_analyzer.dart';
-import '../analyzer/catalog_reader.dart';
-import '../analyzer/types.dart';
+import '../analyzer/catalog_lint.dart';
 
-/// CLI command that checks catalog components for declared text-bearing
-/// accessibility label properties.
+/// CLI command that validates freestanding A2UI catalog JSON files against
+/// deterministic protocol schema rules.
 class LintCommand extends Command<int> {
+  /// Output sink for usage messages.
   final StringSink outSink;
+
+  /// Error sink for lint diagnostics and I/O errors.
   final StringSink errSink;
 
   @override
@@ -34,8 +34,9 @@ class LintCommand extends Command<int> {
 
   @override
   final String description =
-      'Checks interactive catalog components for text-bearing label properties.';
+      'Validates A2UI catalog JSON schemas against protocol lint rules.';
 
+  /// Creates a [LintCommand].
   LintCommand({StringSink? outSink, StringSink? errSink})
     : outSink = outSink ?? io.stdout,
       errSink = errSink ?? io.stderr {
@@ -47,13 +48,9 @@ class LintCommand extends Command<int> {
         help: 'Path to the catalog JSON Schema file.',
       )
       ..addFlag(
-        'strict',
+        'fatal-warnings',
         negatable: false,
-        help: 'Require text-bearing label properties to be listed in required.',
-      )
-      ..addMultiOption(
-        'ignore',
-        help: 'Component name to acknowledge and ignore when linting.',
+        help: 'Treat warning findings as fatal and exit with code 1.',
       );
   }
 
@@ -65,8 +62,7 @@ class LintCommand extends Command<int> {
   @override
   Future<int> run() async {
     final catalogArg = argResults!['catalog'] as String;
-    final strict = argResults!['strict'] as bool;
-    final ignoredSet = <String>{...(argResults!['ignore'] as List<String>)};
+    final fatalWarnings = argResults!['fatal-warnings'] as bool;
 
     final String catalogPath = p.canonicalize(catalogArg);
     final catalogFile = io.File(catalogPath);
@@ -75,52 +71,43 @@ class LintCommand extends Command<int> {
       return 1;
     }
 
-    Map<String, dynamic> catalogJson;
+    final Object? decoded;
     try {
       final String rawContent = catalogFile.readAsStringSync();
-      catalogJson = jsonDecode(rawContent) as Map<String, dynamic>;
-    } catch (e) {
+      decoded = jsonDecode(rawContent);
+    } on Object catch (e) {
       errSink.writeln('Error reading or parsing catalog JSON: $e');
       return 1;
     }
 
-    final AnalysedCatalog analysed;
-    try {
-      analysed = CatalogAnalyzer.analyzeCodegen(
-        CodegenCatalog.fromJson(catalogJson),
+    if (decoded is! Map) {
+      errSink.writeln(
+        'Error: Catalog JSON root must be a JSON object, got '
+        '${decoded.runtimeType}.',
       );
-    } catch (e) {
-      errSink.writeln('Error analyzing catalog: $e');
       return 1;
     }
 
-    final matchedIgnores = <String>{};
-    var unignoredCount = 0;
+    final catalogJson = <String, Object?>{
+      for (final MapEntry<Object?, Object?> entry in decoded.entries)
+        if (entry.key is String) entry.key! as String: entry.value,
+    };
 
-    for (final LabelLintFinding finding in lintAccessibilityLabels(
-      analysed,
-      strict: strict,
-    )) {
-      if (ignoredSet.contains(finding.component)) {
-        matchedIgnores.add(finding.component);
-        outSink.writeln('ignored: ${finding.component}');
-      } else {
-        unignoredCount++;
-        errSink.writeln(
-          'warning: ${finding.component}: accepts ${finding.reason} but '
-          'declares no text-bearing property',
-        );
+    var hasError = false;
+    var hasWarning = false;
+    for (final CatalogLintFinding finding in lintCatalog(catalogJson)) {
+      errSink.writeln('${finding.severity.name}: ${finding.message}');
+      switch (finding.severity) {
+        case LintSeverity.error:
+          hasError = true;
+        case LintSeverity.warning:
+          hasWarning = true;
       }
     }
 
-    for (final String ignoredName in ignoredSet.toList()..sort()) {
-      if (!matchedIgnores.contains(ignoredName)) {
-        errSink.writeln(
-          'warning: $ignoredName: listed in --ignore but has no finding',
-        );
-      }
+    if (hasError || (fatalWarnings && hasWarning)) {
+      return 1;
     }
-
-    return unignoredCount > 0 ? 1 : 0;
+    return 0;
   }
 }
