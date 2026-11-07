@@ -135,5 +135,102 @@ void main() {
         );
       },
     );
+
+    test(
+      'inherits formatString catalogId for v1.0 template calls '
+      'while keeping @index catalogless',
+      () {
+        final Catalog<ComponentApi, FunctionImplementation> basic =
+            BasicCatalog.v1_0();
+        final surface = SurfaceModel<ComponentApi>(
+          's-no-default',
+          protocolVersion: '1.0',
+          availableCatalogs: [basic],
+        );
+        addTearDown(surface.dispose);
+        final errors = <A2uiRendererError>[];
+        surface.onError.subscribe(errors.add);
+        final root = ComponentModel('root', 'Text', {});
+        final DataContext rootCtx = ComponentContext(
+          surface,
+          root,
+          basePath: '/items/2',
+          index: 2,
+        ).dataContext;
+
+        const template = r'Row ${@index()}: '
+            r"${pluralize(value: 2, one: 'drop', other: 'drops')} "
+            r'(${not(value: not(value: true))})';
+        final Map<String, Object?> callExpr = {
+          '@call': 'formatString',
+          'catalogId': basic.id,
+          'args': {'value': template},
+        };
+        expect(rootCtx.resolveDynamicValue(callExpr), 'Row 2: drops (true)');
+        expect(rootCtx.resolveSignal(callExpr).value, 'Row 2: drops (true)');
+        expect(errors, isEmpty);
+      },
+    );
+
+    test(
+      'resolves v1.0 template calls in formatString catalog even when '
+      'surface defaultCatalog differs, and via standalone Catalog.invoke',
+      () {
+        final Catalog<ComponentApi, FunctionImplementation> basic =
+            BasicCatalog.v1_0();
+        final custom = Catalog<ComponentApi, FunctionImplementation>(
+          id: 'conformance/custom',
+          components: const [],
+          functions: const [],
+          protocolVersion: A2uiProtocolVersion.v1_0,
+        );
+        final surface = SurfaceModel<ComponentApi>(
+          's-custom-default',
+          protocolVersion: '1.0',
+          defaultCatalog: custom,
+          availableCatalogs: [custom, basic],
+        );
+        addTearDown(surface.dispose);
+        final errors = <A2uiRendererError>[];
+        surface.onError.subscribe(errors.add);
+        final root = ComponentModel('root', 'Text', {});
+        final DataContext rootCtx = ComponentContext(
+          surface,
+          root,
+        ).dataContext;
+
+        final Map<String, Object?> callExpr = {
+          '@call': 'formatString',
+          'catalogId': basic.id,
+          'args': {
+            'value':
+                r"Count: ${pluralize(value: 2, one: 'drop', other: 'drops')}",
+          },
+        };
+        expect(rootCtx.resolveDynamicValue(callExpr), 'Count: drops');
+        expect(rootCtx.resolveSignal(callExpr).value, 'Count: drops');
+        expect(errors, isEmpty);
+
+        // Standalone DataContext without invokerForCatalog using basic.invoke:
+        final standaloneCtx = DataContext(
+          DataModel(),
+          basic.invoke,
+          '/',
+          protocolVersion: A2uiProtocolVersion.v1_0,
+        );
+        final Object? standaloneRes = basic.invoke(
+          'formatString',
+          {
+            'value': r'Standalone: '
+                r"${pluralize(value: 1, one: 'item', other: 'items')}",
+          },
+          standaloneCtx,
+        );
+        expect(
+          standaloneRes is ReadonlySignal ? standaloneRes.value : standaloneRes,
+          'Standalone: item',
+        );
+      },
+    );
   });
 }

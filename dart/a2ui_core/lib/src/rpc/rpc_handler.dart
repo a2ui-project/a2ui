@@ -400,7 +400,10 @@ class RpcHandler {
     }
 
     try {
-      Object? result = fn.execute(resolvedArgs, dataContext);
+      Object? result = fn.execute(
+        resolvedArgs,
+        dataContextWithCallCatalog(dataContext, catalog.id, catalog.invoke),
+      );
       if (result is Future) result = await result;
       if (result is ReadonlySignal) result = result.value;
       return A2uiFunctionResponse.value(functionCallId, result);
@@ -459,8 +462,13 @@ class RpcHandler {
             : A2uiProtocolVersion.tryParseSemVer(
                 surface.protocolVersion!,
               ),
-        invokerForCatalog: (catalogId) =>
-            surface.resolveCatalog(catalogId).invoke,
+        invokerForCatalog: (catalogId) {
+          if (catalogId == catalog.id &&
+              !surface.availableCatalogs.containsKey(catalogId)) {
+            return catalog.invoke;
+          }
+          return surface.resolveCatalog(catalogId).invoke;
+        },
         // No agent caller: an agent-initiated call cannot wait for another
         // call to the agent, so an argument naming a function the renderer
         // does not implement fails, as before fallback routing.
