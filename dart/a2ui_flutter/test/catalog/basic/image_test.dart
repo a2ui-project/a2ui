@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:convert';
+
 import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:a2ui_flutter/v0_9/basic_catalog.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
@@ -32,6 +34,12 @@ const String _tall = 'https://images.test/tall.png';
 const String _missing = 'https://images.test/missing.png';
 
 final Map<String, List<int>> _images = {_wide: widePng, _tall: tallPng};
+
+/// A 1x1 PNG.
+const String _pixelPng =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB'
+    '0C8AAAAASUVORK5CYII=';
+const String _pixelDataUrl = 'data:image/png;base64,$_pixelPng';
 
 /// Runs [body] with network images served from [_images] and an empty image
 /// cache.
@@ -190,6 +198,115 @@ void main() {
     expect(find.byIcon(Icons.broken_image), findsOneWidget);
     expect(tester.takeException(), isNull);
     expect(harness.errors, isEmpty);
+  });
+
+  group('data URL', () {
+    _testImages('renders an image/* data URL from its bytes', (
+      tester,
+      server,
+    ) async {
+      final SurfaceHarness harness = await _pumpImages(tester, [
+        _image({'url': _pixelDataUrl, 'fit': 'contain'}),
+      ]);
+
+      final Image image = _imageWidget(tester);
+      expect(image.image, isA<MemoryImage>());
+      expect((image.image as MemoryImage).bytes, base64Decode(_pixelPng));
+      expect(image.fit, BoxFit.contain);
+      expect(server.requested, isEmpty);
+      expect(find.byIcon(Icons.broken_image), findsNothing);
+      expect(tester.takeException(), isNull);
+      expect(harness.errors, isEmpty);
+    });
+
+    _testImages('keeps the natural size', (tester, _) async {
+      expect(await _sizeOf(tester, null, url: _pixelDataUrl), const Size(1, 1));
+    });
+
+    _testImages('accepts an upper-case scheme and MIME type', (
+      tester,
+      _,
+    ) async {
+      await _pumpImages(tester, [
+        _image({'url': 'DATA:IMAGE/PNG;base64,$_pixelPng'}),
+      ]);
+
+      expect(_imageWidget(tester).image, isA<MemoryImage>());
+      expect(find.byIcon(Icons.broken_image), findsNothing);
+    });
+
+    _testImages('labels a data URL image for accessibility', (tester, _) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
+      await _pumpImages(tester, [
+        _image({'url': _pixelDataUrl, 'description': 'A pixel'}),
+      ]);
+
+      expect(_imageWidget(tester).semanticLabel, 'A pixel');
+      expect(_imageWidget(tester).excludeFromSemantics, isFalse);
+      expect(find.bySemanticsLabel('A pixel'), findsOneWidget);
+      semantics.dispose();
+    });
+
+    _testImages('keeps the decoded image when the component rebuilds', (
+      tester,
+      _,
+    ) async {
+      final SurfaceHarness harness = await _pumpImages(
+        tester,
+        [
+          _image({
+            'url': _pixelDataUrl,
+            'description': {'path': '/description'},
+          }),
+        ],
+        data: {'description': 'Before'},
+      );
+      final ImageProvider before = _imageWidget(tester).image;
+
+      await harness.send([updateDataModel('After', path: '/description')]);
+
+      expect(_imageWidget(tester).semanticLabel, 'After');
+      expect(_imageWidget(tester).image, before);
+    });
+
+    for (final (String description, String url) in [
+      ('a non-image MIME type', 'data:text/plain;base64,aGVsbG8='),
+      ('no MIME type', 'data:;base64,$_pixelPng'),
+      ('malformed base64', 'data:image/png;base64,%%%'),
+    ]) {
+      _testImages('shows a placeholder for $description', (
+        tester,
+        server,
+      ) async {
+        final SemanticsHandle semantics = tester.ensureSemantics();
+        await _pumpImages(tester, [
+          _image({'url': url, 'description': 'Not an image'}),
+        ]);
+
+        expect(find.byType(Image), findsNothing);
+        expect(server.requested, isEmpty);
+        expect(find.byIcon(Icons.broken_image), findsOneWidget);
+        expect(
+          tester.getSemantics(find.bySemanticsLabel('Not an image')),
+          matchesSemantics(label: 'Not an image', isImage: true),
+        );
+        expect(tester.takeException(), isNull);
+        semantics.dispose();
+      });
+    }
+
+    _testImages('shows a placeholder for image bytes that do not decode', (
+      tester,
+      _,
+    ) async {
+      final SurfaceHarness harness = await _pumpImages(tester, [
+        _image({'url': 'data:image/png;base64,aGVsbG8='}),
+      ]);
+
+      expect(find.byIcon(Icons.broken_image), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      expect(harness.errors, isEmpty);
+    });
   });
 
   for (final url in ['assets/photo.png', 'file:///tmp/photo.png']) {
