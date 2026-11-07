@@ -213,7 +213,12 @@ def test_reverse_passthrough(suite: str, case: Case) -> None:
 
 def test_suite_covers_every_golden_and_case() -> None:
     """Every golden file is referenced and every case runs in at least one test."""
-    on_disk = {f for f in os.listdir(GOLDEN_DIR) if f.endswith(".json")}
+    on_disk = {
+        os.path.relpath(os.path.join(root, f), GOLDEN_DIR).replace("\\", "/")
+        for root, _, files in os.walk(GOLDEN_DIR)
+        for f in files
+        if f.endswith(".json")
+    }
     declared = {case.golden for case in GOLDEN_CASES}
     assert on_disk == declared
 

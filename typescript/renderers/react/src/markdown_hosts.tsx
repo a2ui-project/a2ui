@@ -28,12 +28,13 @@
  * reads the app's context.
  */
 
-import React, {useCallback, useContext, useSyncExternalStore, type ComponentType} from 'react';
+import React, {type ComponentType, useCallback, useContext} from 'react';
 import {createPortal} from 'react-dom';
 import type {MarkdownRenderer} from '@a2ui/web_core';
 import {getMarkdownRenderer, setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
 import {type HostOwner, ownerAbove} from './host_registry';
 import {MarkdownComponentContext, type MarkdownComponentProps} from './markdown-context';
+import {useSyncExternalStore} from './use_sync_external_store';
 
 const TAG = 'a2ui-react-markdown';
 const ATTRIBUTE = 'data-markdown';

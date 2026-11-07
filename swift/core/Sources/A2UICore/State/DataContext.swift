@@ -229,6 +229,7 @@ public final class DataContext {
         FunctionError.userActivationRequired(name: callName),
         functionName: callName
       )
+      recordFailedCall()
       return .null
     }
 
