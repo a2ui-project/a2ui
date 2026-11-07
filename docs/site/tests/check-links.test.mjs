@@ -201,6 +201,8 @@ test('ignores <template>, <script>, <style>, comments, and code text while handl
       </head>
       <body>
         <!-- <h2 id="commented-out"></h2> <a href="/broken-in-comment/"></a> -->
+        <svg><title/><![CDATA[ raw > bracket <a href="/ignored-in-cdata/">x</a> ]]></svg>
+        <template/>
         <button data-code="<!-- unclosed comment inside attribute">Copy</button>
         <p>Requires mcp<2 and latency < 50ms. See <a href="/broken-after-lt/">link</a> and <h2 id="after-lt">Sec</h2></p>
         <h3 id="quote&#34;hex&#x22;amp&amp;id">Entities</h3>

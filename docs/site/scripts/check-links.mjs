@@ -141,6 +141,13 @@ export function parseHtmlDocument(html) {
       continue;
     }
 
+    // Inline SVG / XML CDATA sections: <![CDATA[ ... ]]>
+    if (html.startsWith('<![CDATA[', lt)) {
+      const cdataEnd = html.indexOf(']]>', lt + 9);
+      i = cdataEnd === -1 ? len : cdataEnd + 3;
+      continue;
+    }
+
     const nextCh = html[lt + 1];
     if (!nextCh) break;
 
@@ -190,9 +197,10 @@ export function parseHtmlDocument(html) {
     if (cursor >= len) break;
 
     const tagInner = html.slice(lt + 1, cursor);
-    // Only treat trailing '/' as self-closing when preceded by whitespace or a closing quote,
-    // preserving trailing slashes in unquoted attributes such as `<a href=/foo/>`.
-    const selfClosing = /(?:^|[\s"'])\/\s*$/.test(tagInner);
+    // Treat trailing '/' as self-closing when it immediately follows the tag name (`<title/>`)
+    // or follows whitespace / a closing quote (`<br />`, `<img src="x"/>`), while preserving
+    // trailing slashes on unquoted attribute values such as `<a href=/foo/>`.
+    const selfClosing = /^(?:[a-zA-Z][a-zA-Z0-9:-]*|[\s\S]*[\s"'])\/\s*$/.test(tagInner);
     const cleanedInner = selfClosing ? tagInner.replace(/\/\s*$/, '') : tagInner;
     const nameMatch = /^([a-zA-Z][a-zA-Z0-9:-]*)([\s\S]*)$/.exec(cleanedInner);
     i = cursor + 1;
@@ -500,6 +508,7 @@ export function checkDistLinks({
         continue;
       }
 
+      // Defense-in-depth: skip single-letter schemes (e.g. `c:/`) or non-local origins
       if (resolvedUrl.origin !== 'https://a2ui.local') {
         continue;
       }
