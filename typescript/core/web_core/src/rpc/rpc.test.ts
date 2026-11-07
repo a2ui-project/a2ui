@@ -237,6 +237,56 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     });
   });
 
+  it('dispose(reason) cancels pending calls with the reason and drops the outbound listener', async () => {
+    const sent: unknown[] = [];
+    const handler = new RpcHandler({
+      catalogs: [mockCatalog],
+      outboundListener: msg => {
+        sent.push(msg);
+      },
+    });
+    const promise = handler.callAgentFunction(
+      'surface-1',
+      {call: 'slowFunc'},
+      {functionCallId: 'pending-reason'},
+    );
+    assert.strictEqual(sent.length, 1);
+
+    handler.dispose('session ended');
+
+    await assert.rejects(promise, (err: any) => {
+      assert.ok(err instanceof A2uiRpcError);
+      assert.strictEqual(err.code, RpcErrorCode.CANCELLED);
+      assert.ok(err.message.endsWith(': session ended'), err.message);
+      assert.ok(err.message.includes("'pending-reason'"));
+      return true;
+    });
+    assert.strictEqual(
+      (handler as unknown as {outboundListener?: unknown}).outboundListener,
+      undefined,
+    );
+    await assert.rejects(handler.callAgentFunction('surface-1', {call: 'test'}), (err: any) => {
+      assert.strictEqual(err.code, RpcErrorCode.DISPOSED);
+      return true;
+    });
+    assert.strictEqual(sent.length, 1);
+  });
+
+  it('dispose() without a reason ends the cancellation message with a period', async () => {
+    const handler = new RpcHandler({catalogs: [mockCatalog], outboundListener: () => {}});
+    const promise = handler.callAgentFunction(
+      'surface-1',
+      {call: 'slowFunc'},
+      {functionCallId: 'p'},
+    );
+    handler.dispose('');
+    await assert.rejects(promise, (err: any) => {
+      assert.strictEqual(err.code, RpcErrorCode.CANCELLED);
+      assert.ok(err.message.endsWith("call 'p' was pending."), err.message);
+      return true;
+    });
+  });
+
   it('fails fast on post-disposal calls', async () => {
     const handler = new RpcHandler({
       catalogs: [mockCatalog],

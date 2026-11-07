@@ -34,6 +34,9 @@ from .components import (
     ModelComponentApi,
 )
 from .functions import (
+    AgentFunction,
+    AgentFunctionContext,
+    AgentFunctionHandler,
     AllowedCallers,
     FunctionApi,
     FunctionImplementation,
@@ -58,6 +61,9 @@ from .system_functions import (
 )
 
 __all__ = [
+    "AgentFunction",
+    "AgentFunctionContext",
+    "AgentFunctionHandler",
     "AllowedCallers",
     "Catalog",
     "CatalogApi",

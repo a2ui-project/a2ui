@@ -1161,7 +1161,10 @@ public final class MessageProcessor: ObservableObject {
     let held = surface.componentsModel.components
     let catalogs = surface.catalogs
     let defaultCatalogID = surface.defaultCatalogID
-    let checksBatch = config.allowDanglingReferences && config.allowMissingRoot
+    // The bound assumes the graph is acyclic, so a config that admits cycles checks the whole
+    // surface each time.
+    let checksBatch =
+      config.allowDanglingReferences && config.allowMissingRoot && !config.allowCyclicReferences
     var batch: [String: [String: JSONValue]] = [:]
     for component in components {
       guard let id = component["id"]?.stringValue else { continue }
@@ -1516,6 +1519,7 @@ public final class MessageProcessor: ObservableObject {
         throw CatalogResolutionErrors.nonObjectArguments(functionName: callName)
       }
       let callValidator = payloadValidator(for: callCatalog, config: config)
+      try callValidator.assertRendererMayCall(callName)
       try callValidator.validateFunctionInternal(
         name: callName,
         args: dict["args"]?.dictionaryValue,
