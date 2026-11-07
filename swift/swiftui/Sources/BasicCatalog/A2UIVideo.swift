@@ -33,7 +33,7 @@ extension BasicCatalogImplementation {
 /// SwiftUI component view for the A2UI Basic Catalog `Video` component.
 public struct A2UIVideo: View {
   public let node: Node
-  @StateObject private var model: A2UIVideoPlayerModel
+  @State private var model: A2UIVideoPlayerModel
   @State private var isShowingPoster: Bool = true
 
   public init(
@@ -41,7 +41,7 @@ public struct A2UIVideo: View {
     model: @autoclosure @escaping () -> A2UIVideoPlayerModel = A2UIVideoPlayerModel()
   ) {
     self.node = node
-    self._model = StateObject(wrappedValue: model())
+    self._model = State(initialValue: model())
   }
 
   private var urlString: String {
@@ -82,7 +82,7 @@ public struct A2UIVideo: View {
           if Self.canHostSystemVideoPlayer {
             VideoPlayer(player: player)
               .frame(minHeight: 220)
-              .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+              .clipShape(.rect(cornerRadius: 8))
           } else {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
               .fill(Color.black.opacity(0.85))
@@ -113,23 +113,17 @@ public struct A2UIVideo: View {
                   .shadow(radius: 4)
               }
               .frame(maxWidth: .infinity, minHeight: 220)
-              .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+              .clipShape(.rect(cornerRadius: 8))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Play video")
           }
         }
       } else {
-        VStack(spacing: 8) {
-          Image(systemName: "video.slash")
-            .font(.largeTitle)
-            .foregroundStyle(.secondary)
-          Text("No video URL provided")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, minHeight: 200)
-        .background(Color.gray.opacity(0.12))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        ContentUnavailableView("No video URL provided", systemImage: "video.slash")
+          .frame(maxWidth: .infinity, minHeight: 200)
+          .background(Color.gray.opacity(0.12))
+          .clipShape(.rect(cornerRadius: 8))
       }
     }
     .onAppear {

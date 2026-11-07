@@ -18,6 +18,7 @@ import A2UISwiftUI
 import AVFoundation
 import BasicCatalog
 import BasicCatalogSwiftUI
+import Observation
 import OrderedJSON
 import SwiftUI
 import Testing
@@ -33,12 +34,13 @@ import Testing
 struct MediaLifecycleTests {
 
   @MainActor
-  private final class HostSwitchState: ObservableObject {
-    @Published var showMedia = true
+  @Observable
+  fileprivate final class HostSwitchState {
+    var showMedia = true
   }
 
   private struct HostedMediaContainer: View {
-    @ObservedObject var state: HostSwitchState
+    var state: HostSwitchState
     let audioNode: Node
     let audioModel: A2UIAudioPlayerModel
 
