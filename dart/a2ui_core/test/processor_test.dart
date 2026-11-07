@@ -1037,8 +1037,8 @@ void main() {
       expect(root.toJson(), {
         'id': 'root',
         'component': 'Alpha',
-        'catalogId': 'cat2',
-        'metadata': {
+        '@catalogId': 'cat2',
+        '@metadata': {
           'extensions': {'k': 'v'},
         },
         'a': 'x',

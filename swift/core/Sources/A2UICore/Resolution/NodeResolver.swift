@@ -741,6 +741,12 @@ public final class NodeResolver: Sendable {
     }
     let schemaJSON = catalog?.components[type]?.schema.jsonValue ?? .object([:])
     var propertiesSchema = extractPropertiesSchema(from: schemaJSON)
+    // The shared v1.0 `Checkable` definition declares only `@checks`. A v0.9 component, or a
+    // v1.0 component sent with the legacy bare key, still carries its checks as `checks`, so a
+    // checkable component that declares no `checks` of its own accepts that key as the mixin.
+    if propertiesSchema["checks"] == nil, let prefixedChecks = propertiesSchema["@checks"] {
+      propertiesSchema["checks"] = prefixedChecks
+    }
     // `accessibility` comes from `ComponentCommon`, so a component schema need not declare it.
     if propertiesSchema["accessibility"] == nil {
       propertiesSchema["accessibility"] = Self.accessibilityMixinSchema

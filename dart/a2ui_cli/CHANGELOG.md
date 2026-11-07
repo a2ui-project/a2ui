@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- (v1_0) Filter `@catalogId`, `@metadata`, and `@accessibility` from component
+  builder properties in `CatalogAnalyzer`, detect checkable components from
+  `@checks`, and emit `serialization_alias="@checks"` and
+  `validation_alias=AliasChoices("checks", "@checks")` on generated Python v1.0
+  checkable component builders while preserving custom component properties
+  named `metadata`, `catalogId`, `accessibility`, or `checks`
+  ([#3466](https://github.com/a2ui-project/a2ui/issues/3466),
+  [#4012](https://github.com/a2ui-project/a2ui/issues/4012)).
+
 ## 0.2.0
 
 - **Breaking:** Bump `a2ui_core` dependency to `^0.5.0` (`a2ui_cli` exposes

@@ -3337,7 +3337,7 @@
               createSurface:
                 surfaceId: "main"
                 catalogId: "https://a2ui.org/catalogs/basic"
-    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": ["t1", "m1"]}, {"id": "t1", "component": "Text", "text": "Users"}, {"id": "m1", "catalogId": "https://a2ui.org/catalogs/custom", "component": "CustomMetric"'
+    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": ["t1", "m1"]}, {"id": "t1", "component": "Text", "text": "Users"}, {"id": "m1", "@catalogId": "https://a2ui.org/catalogs/custom", "component": "CustomMetric"'
       expect: []
     - input: ', "value": 42}'
       expect:
@@ -3347,7 +3347,7 @@
                 surfaceId: "main"
                 components:
                   - id: "m1"
-                    catalogId: "https://a2ui.org/catalogs/custom"
+                    "@catalogId": "https://a2ui.org/catalogs/custom"
                     component: "CustomMetric"
                     value: 42
                   - id: "root"
@@ -3446,7 +3446,7 @@
                 catalogId: "https://a2ui.org/catalogs/basic"
     - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": ["m1"]}, {"id": "m1", "component": "CustomMetric", "value": 42'
       expect: []
-    - input: ', "catalogId": "https://a2ui.org/catalogs/custom"}'
+    - input: ', "@catalogId": "https://a2ui.org/catalogs/custom"}'
       expect:
         - a2ui:
             - version: "1.0"
@@ -3456,7 +3456,7 @@
                   - id: "m1"
                     component: "CustomMetric"
                     value: 42
-                    catalogId: "https://a2ui.org/catalogs/custom"
+                    "@catalogId": "https://a2ui.org/catalogs/custom"
                   - id: "root"
                     component: "Column"
                     children: ["m1"]
@@ -3501,7 +3501,7 @@
               createSurface:
                 surfaceId: "main"
                 catalogId: "https://a2ui.org/catalogs/basic"
-    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "CustomMetric", "value": 42, "catal'
+    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "CustomMetric", "value": 42, "@catal'
       expect: []
     - input: 'ogId"'
       expect: []
@@ -3521,7 +3521,7 @@
                   - id: "root"
                     component: "CustomMetric"
                     value: 42
-                    catalogId: "https://a2ui.org/catalogs/custom"
+                    "@catalogId": "https://a2ui.org/catalogs/custom"
     - input: "]}}]</a2ui-json>"
       expect: []
 

@@ -58,8 +58,8 @@ void main() {
       expect(comp.toJson(), {
         'id': 'c1',
         'component': 'Text',
-        'catalogId': 'cat',
-        'metadata': {
+        '@catalogId': 'cat',
+        '@metadata': {
           'extensions': {'k': 'v'},
         },
         'text': 'a',

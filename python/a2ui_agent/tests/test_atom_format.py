@@ -486,8 +486,8 @@ def test_multi_message_round_trip_in_source_order() -> None:
     # component names the only catalog that defines it.
     assert "catalogId" not in messages[0]["createSurface"]
     assert "catalogId" not in messages[1]["createSurface"]
-    assert {c["catalogId"] for c in _components(messages[0]).values()} == {PRI}
-    assert {c["catalogId"] for c in _components(messages[1]).values()} == {SEC}
+    assert {c["@catalogId"] for c in _components(messages[0]).values()} == {PRI}
+    assert {c["@catalogId"] for c in _components(messages[1]).values()} == {SEC}
     assert _components(messages[1])["root"]["component"] == "Stack"
     decompiled = _round_trip(compiler, decompiler, messages)
     assert ":catalogId" not in decompiled
@@ -508,7 +508,7 @@ def test_secondary_catalog_templates_and_object_lists() -> None:
     assert comps[deck["cards"]["componentId"]]["body"] == {"@path": "item/body"}
     assert pager["pages"][0]["title"] == "P1"
     assert comps[pager["pages"][0]["child"]]["body"] == "x"
-    assert all(c["catalogId"] == SEC for c in comps.values())
+    assert all(c["@catalogId"] == SEC for c in comps.values())
     _round_trip(compiler, decompiler, [message])
 
 
@@ -561,7 +561,7 @@ def test_check_positional_args_skip_implicit_value(
         compiler, f'(TextField :label "Zip" :value $/zip :checks {checks})'
     )
     field = _components(message)["root"]
-    checks_out = field["checks"]
+    checks_out = field["@checks"]
     for check in checks_out:
         check["condition"]["args"] = dict(sorted(check["condition"]["args"].items()))
     assert checks_out == [_ZIP_CHECK]
@@ -574,7 +574,7 @@ def test_check_implicit_value_does_not_depend_on_property_order(
         compiler,
         '(TextField :checks (regex "^[0-9]{5}$" "Bad zip") :label "Zip" :value $/zip)',
     )
-    rule = _components(message)["root"]["checks"][0]
+    rule = _components(message)["root"]["@checks"][0]
     assert rule["message"] == "Bad zip"
     assert rule["condition"]["args"] == {
         "pattern": "^[0-9]{5}$",
@@ -592,7 +592,7 @@ def test_check_without_component_value_maps_positionally(
         '(Button :action (Event "go") :checks (regex $/other "^a$" "Must be a")'
         ' (Text "Go"))',
     )
-    rule = _components(message)["root"]["checks"][0]
+    rule = _components(message)["root"]["@checks"][0]
     assert rule == {
         "condition": {
             "@call": "regex",
@@ -608,7 +608,7 @@ def test_check_rule_object_form_is_kept(compiler: AtomCompiler) -> None:
         '(TextField :label "Zip" :value $/zip'
         ' :checks (:condition (required) :message "Needed"))',
     )
-    assert _components(message)["root"]["checks"] == [{
+    assert _components(message)["root"]["@checks"] == [{
         "condition": {"@call": "required", "args": {"value": {"@path": "/zip"}}},
         "message": "Needed",
     }]
@@ -623,6 +623,74 @@ def test_checks_round_trip(compiler: AtomCompiler, decompiler: AtomDecompiler) -
     text = _round_trip(compiler, decompiler, [message])
     assert ':pattern "^[0-9]{5}$"' in text
     assert ':message "Bad zip"' in text
+
+
+def test_v1_0_envelope_properties_compile_to_at_keys(compiler: AtomCompiler) -> None:
+    message = _compile_one(
+        compiler,
+        '(TextField :label "Zip" :value $/zip :metadata (:note "n")'
+        ' :checks (regex "^[0-9]{5}$" "Bad zip"))',
+    )
+    root = _components(message)["root"]
+    assert root["@metadata"] == {"note": "n"}
+    assert root["@checks"] == [_ZIP_CHECK]
+    assert "metadata" not in root and "checks" not in root
+
+
+def test_v1_0_decompile_accepts_legacy_bare_envelope_keys(
+    compiler: AtomCompiler, decompiler: AtomDecompiler, basic: CatalogApi
+) -> None:
+    legacy = {
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "main",
+            "components": [{
+                "id": "root",
+                "component": "TextField",
+                "catalogId": basic.catalog_id,
+                "metadata": {"note": "n"},
+                "label": "Zip",
+                "value": {"@path": "/zip"},
+                "checks": [_ZIP_CHECK],
+            }],
+        },
+    }
+    text = decompiler.decompile(to_message_models([legacy]))
+    assert ":catalogId" not in text
+    assert ':metadata (:note "n")' in text
+    assert ':message "Bad zip"' in text
+    assert _components(_compile_one(compiler, text))["root"] == {
+        "id": "root",
+        "component": "TextField",
+        "@metadata": {"note": "n"},
+        "label": "Zip",
+        "value": {"@path": "/zip"},
+        "@checks": [_ZIP_CHECK],
+    }
+
+
+def test_v1_0_decompile_prefers_at_keys_over_legacy_bare_keys() -> None:
+    catalogs = [_primary(), _tertiary()]
+    decompiler = AtomDecompiler(catalogs)
+    message = {
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "main",
+            "components": [{
+                "id": "root",
+                "component": "Label",
+                "@catalogId": TER,
+                "catalogId": PRI,
+                "@metadata": {"v": "new"},
+                "metadata": {"v": "old"},
+                "text": "t",
+            }],
+        },
+    }
+    text = decompiler.decompile(to_message_models([message]))
+    assert f':catalogId "{TER}"' in text
+    assert ':metadata (:v "new")' in text
+    assert "old" not in text
 
 
 def test_raw_json_input_is_accepted(compiler: AtomCompiler) -> None:
@@ -666,7 +734,8 @@ def _with_component_catalogs(
     """Rewrites messages to the form the compiler emits with several catalogs.
 
     `createSurface` loses its `catalogId`, and each component without one gets
-    the surface's catalog (or `decompiler_catalog`) instead.
+    the surface's catalog (or `decompiler_catalog`) instead, as `@catalogId`. A
+    component's legacy bare `catalogId` becomes `@catalogId`.
     """
     result = []
     for message in messages:
@@ -675,10 +744,12 @@ def _with_component_catalogs(
         if isinstance(body, dict):
             body = dict(body)
             surface_cat = body.pop("catalogId", decompiler_catalog)
-            body["components"] = [
-                {"catalogId": surface_cat, **c} if "catalogId" not in c else c
-                for c in body.get("components", [])
-            ]
+            components = []
+            for c in body.get("components", []):
+                c = dict(c)
+                cat = c.pop("@catalogId", c.pop("catalogId", surface_cat))
+                components.append({"@catalogId": cat, **c})
+            body["components"] = components
             message["createSurface"] = body
         result.append(message)
     return result
@@ -690,9 +761,9 @@ def test_names_resolve_by_unique_lookup_across_catalogs() -> None:
     message = _compile_one(compiler, text)
     assert "catalogId" not in message["createSurface"]
     comps = _components(message)
-    assert comps["root"]["catalogId"] == PRI
+    assert comps["root"]["@catalogId"] == PRI
     first, second = (comps[cid] for cid in comps["root"]["children"])
-    assert first["catalogId"] == SEC
+    assert first["@catalogId"] == SEC
     assert first["body"] == {
         "@call": "check",
         "catalogId": PRI,
@@ -717,7 +788,7 @@ def test_ambiguous_component_name_needs_catalog_id() -> None:
     assert label == {
         "id": label["id"],
         "component": "Label",
-        "catalogId": TER,
+        "@catalogId": TER,
         "text": "x",
         "tone": "warm",
     }
@@ -757,6 +828,7 @@ def test_header_catalog_allowed_with_a_single_catalog() -> None:
     message = _compile_one(compiler, f'(surface "s" :catalogId "{PRI}")\n(Box)')
     assert message["createSurface"]["catalogId"] == PRI
     assert "catalogId" not in _components(message)["root"]
+    assert "@catalogId" not in _components(message)["root"]
     with pytest.raises(ValueError, match="Unknown catalogId"):
         compiler.compile(f'(surface "s" :catalogId "{SEC}")\n(Box)')
 
@@ -767,7 +839,7 @@ def test_update_components_carry_catalog_ids_with_several_catalogs() -> None:
         compiler,
         '(updateComponents "s")\n(Note :id "n" "x")\n(Label :id "l" "y")',
     )
-    assert {c["id"]: c["catalogId"] for c in _components(message).values()} == {
+    assert {c["id"]: c["@catalogId"] for c in _components(message).values()} == {
         "n": SEC,
         "l": PRI,
     }
@@ -780,7 +852,7 @@ def test_bare_string_child_wraps_in_parent_catalog() -> None:
     assert child == {
         "id": child["id"],
         "component": "Label",
-        "catalogId": PRI,
+        "@catalogId": PRI,
         "text": "hello",
     }
 
@@ -863,6 +935,14 @@ def test_v09_catalog_splits_create_and_update() -> None:
     comps = _components(messages[1])
     assert comps[comps["root"]["children"][0]]["text"] == {"path": "/t"}
     assert messages[2]["updateDataModel"]["value"] == {"t": "x"}
+
+
+def test_v09_envelope_properties_stay_bare() -> None:
+    compiler = AtomCompiler([_primary("v0.9")])
+    messages = _compile(compiler, '(Label :metadata (:note "n") "x")')
+    root = _components(messages[1])["root"]
+    assert root["metadata"] == {"note": "n"}
+    assert not any(k.startswith("@") for k in root)
 
 
 def test_v09_rejects_per_component_catalog() -> None:

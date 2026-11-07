@@ -376,7 +376,7 @@
             label: "Email"
             value:
               "@path": "/email"
-            checks:
+            "@checks":
               - condition:
                   "@call": "required"
                   args:
@@ -402,7 +402,7 @@
             label: "Zip"
             value:
               "@path": "/zip"
-            checks:
+            "@checks":
               - condition:
                   "@call": "regex"
                   args:
@@ -861,7 +861,7 @@
             text: "Hello"
 
 - name: test_compile_express_surface_targeting_names_a_catalog
-  description: With multiple active catalogs, a component resolves against the catalog that defines it and carries its catalogId while createSurface omits catalogId.
+  description: With multiple active catalogs, a component resolves against the catalog that defines it and carries its `@catalogId` while createSurface omits catalogId.
   action: compile
   args:
     format: express
@@ -878,7 +878,7 @@
         components:
           - id: "root"
             component: "Gauge"
-            catalogId: "conformance/custom"
+            "@catalogId": "conformance/custom"
             value: 0.5
 
 - name: test_compile_express_delete_surface
@@ -1193,7 +1193,7 @@
             label: "Zip"
             value:
               "@path": "/zip"
-            checks:
+            "@checks":
               - condition:
                   "@call": "required"
                   args:
@@ -1226,14 +1226,14 @@
             label: "Email"
             value:
               "@path": "/email"
-            checks:
+            "@checks":
               - condition:
                   "@call": "required"
                   args:
                     value:
                       "@path": "/email"
   expect_present:
-    - "/0/createSurface/components/0/checks/0/message"
+    - "/0/createSurface/components/0/@checks/0/message"
 
 - name: test_compile_express_empty_block_is_a_parse_error
   description: A block with no statements is a parse error rather than an empty message list.
@@ -2151,7 +2151,7 @@
     category: "ValidationError"
 
 - name: test_compile_express_empty_extensions_preserved
-  description: Supplying an empty map literal to extensions={} on surface() or a component preserves metadata.extensions as an empty object.
+  description: Supplying an empty map literal to extensions={} on surface() or a component preserves createSurface.metadata.extensions and the component's `@metadata.extensions` as empty objects.
   action: compile
   args:
     format: express
@@ -2170,7 +2170,7 @@
           - id: "root"
             component: "Text"
             text: "Hello"
-            metadata:
+            "@metadata":
               extensions: {}
 
 - name: test_compile_express_extensions_top_level_call_is_validation_error
@@ -2280,7 +2280,7 @@
             label: "Name"
             value:
               "@path": "/name"
-            checks:
+            "@checks":
               - condition:
                   "@call": "required"
                   args:

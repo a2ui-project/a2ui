@@ -778,8 +778,10 @@ describe('Catalog.fromJson & schema_loader', () => {
     assert.ok(!schema.safeParse({size: true}).success, 'top level beats the local definition');
     assert.deepStrictEqual(Object.keys(schema.shape), [
       'checks',
+      '@checks',
       'accessibility',
-      'metadata',
+      '@accessibility',
+      '@metadata',
       'label',
       'size',
     ]);
@@ -798,7 +800,8 @@ describe('Catalog.fromJson & schema_loader', () => {
     const catalog = Catalog.fromJson(precedenceCatalog);
     const schema = catalog.components.get('Toggle')!.schema as z.ZodObject<z.ZodRawShape>;
     assert.ok(!('catalogId' in schema.shape));
-    assert.ok('metadata' in schema.shape);
+    assert.ok(!('@catalogId' in schema.shape));
+    assert.ok('@metadata' in schema.shape);
     new PayloadValidator(catalog, STRICT_VALIDATION).validateComponent({
       id: 'toggle1',
       component: 'Toggle',

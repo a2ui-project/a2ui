@@ -31,8 +31,36 @@ from a2ui.core import (
     inline_local_refs,
     to_protocol_version,
 )
+from a2ui.utils.component_envelope import AT_ENVELOPE_MIXIN_KEYS, ENVELOPE_MIXIN_NAMES
 
 _COMMON_DEF_RE = re.compile(r"(?:^|/)common_types\.json#/(?:\$defs|definitions)/(\w+)$")
+
+_STANDARD_CATALOG_ID_DESCRIPTION = (
+    "The catalog ID for this component, overriding any surface-level default catalogId."
+)
+
+
+def _is_standard_checks_schema(schema: Any) -> bool:
+    """Returns whether a bare `checks` property schema is the `Checkable` mixin's."""
+    if not isinstance(schema, dict):
+        return False
+    ref = schema.get("$ref")
+    if isinstance(ref, str) and ref.endswith("/Checkable"):
+        return True
+    items = schema.get("items")
+    return (
+        isinstance(items, dict)
+        and isinstance(items.get("$ref"), str)
+        and items["$ref"].endswith("/CheckRule")
+    )
+
+
+def _is_standard_catalog_id_schema(schema: Any) -> bool:
+    """Returns whether a bare `catalogId` property schema is `ComponentCommon`'s."""
+    return (
+        isinstance(schema, dict)
+        and schema.get("description") == _STANDARD_CATALOG_ID_DESCRIPTION
+    )
 
 
 def _common_def_name(ref: Any) -> str | None:
@@ -164,6 +192,7 @@ class CatalogSchemaHelper:
         self.component_properties: dict[str, list[str]] = {}
         self.component_required: dict[str, list[str]] = {}
         self.component_is_checkable: dict[str, bool] = {}
+        self.component_custom_envelope: dict[str, frozenset[str]] = {}
         self.component_property_enums: dict[tuple[str, str], list[str]] = {}
         self.function_properties: dict[str, list[str]] = {}
         self.function_required: dict[str, list[str]] = {}
@@ -174,6 +203,7 @@ class CatalogSchemaHelper:
         self.component_properties = {}
         self.component_required = {}
         self.component_is_checkable = {}
+        self.component_custom_envelope = {}
         self.component_property_enums = {}
 
         for name, schema in self.components.items():
@@ -201,9 +231,30 @@ class CatalogSchemaHelper:
                         if r not in reqs:
                             reqs.append(r)
 
-            # Filter out structural properties component, id, and catalogId,
-            # and checks, which a checkable component lists last.
-            excluded = {"component", "id", "catalogId"}
+            # A catalog may also declare the checks mixin inline: as the v1.0
+            # `@checks` key, or as a bare `checks` array of check rules.
+            if "@checks" in props or _is_standard_checks_schema(props.get("checks")):
+                is_checkable = True
+
+            # Bare names of the envelope mixins that the component declares as
+            # its own properties. A checkable component's own `checks` is the
+            # checks slot, and a `catalogId` with the standard mixin schema is
+            # the catalog override.
+            custom_envelope = {k for k in ENVELOPE_MIXIN_NAMES if k in props}
+            if is_checkable:
+                custom_envelope.discard("checks")
+            if "catalogId" in custom_envelope and _is_standard_catalog_id_schema(
+                props["catalogId"]
+            ):
+                custom_envelope.discard("catalogId")
+
+            # Filter out structural properties component, id, and catalogId
+            # (unless the component declares its own catalogId property), the
+            # `@`-prefixed v1.0 envelope mixin keys, which are not DSL
+            # parameters, and checks, which a checkable component lists last.
+            excluded = {"component", "id", *AT_ENVELOPE_MIXIN_KEYS}
+            if "catalogId" not in custom_envelope:
+                excluded.add("catalogId")
             if is_checkable:
                 excluded.add("checks")
             ordered_keys = [k for k in props if k not in excluded]
@@ -224,6 +275,7 @@ class CatalogSchemaHelper:
             self.component_properties[name] = ordered_keys
             self.component_required[name] = reqs
             self.component_is_checkable[name] = is_checkable
+            self.component_custom_envelope[name] = frozenset(custom_envelope)
 
         self.function_properties = {}
         self.function_required = {}
@@ -259,6 +311,15 @@ class CatalogSchemaHelper:
     def is_checkable(self, name: str) -> bool:
         """Returns whether the specified component supports client-side checks."""
         return self.component_is_checkable.get(name, False)
+
+    def get_custom_envelope_properties(self, name: str) -> frozenset[str]:
+        """Returns the envelope mixin names the component declares as its own properties.
+
+        These bare names (`catalogId`, `metadata`, `accessibility`, `checks`)
+        are ordinary catalog properties of the component. A v1.0 reader must
+        not fall back to them when the `@`-prefixed envelope key is absent.
+        """
+        return self.component_custom_envelope.get(name, frozenset())
 
     def get_function_properties(self, name: str) -> list[str]:
         """Returns the ordered properties of the specified function's arguments."""

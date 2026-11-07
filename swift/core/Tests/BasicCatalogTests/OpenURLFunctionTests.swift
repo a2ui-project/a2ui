@@ -70,7 +70,7 @@ struct OpenURLFunctionTests {
       "min": 0,
       "max": 100,
       "steps": 10,
-      "catalogId": "custom",
+      "@catalogId": "custom",
     ]
     #expect(v10Slider.schema.validate(validSlider).isValid)
 

@@ -1265,8 +1265,8 @@ class _SurfaceCompiler {
     final component = <String, Object?>{
       'id': id,
       'component': name,
-      'catalogId': ?catalogId,
-      'metadata': ?componentMetadata,
+      '@catalogId': ?catalogId,
+      '@metadata': ?componentMetadata,
     };
     final hoisted = <Map<String, Object?>>[];
     Map<String, Object?>? valueBinding;
@@ -1315,7 +1315,7 @@ class _SurfaceCompiler {
         valueBinding: valueBinding,
         allowPending: allowPending,
       );
-      component['checks'] = [
+      component[_v1 ? '@checks' : 'checks'] = [
         for (final CheckNode check in checks) _checkRule(check, context),
       ];
     }

@@ -187,8 +187,8 @@ class ComponentModel {
       ..._properties,
       'id': id,
       'component': type,
-      if (catalog != null) 'catalogId': catalog,
-      if (metadata != null) 'metadata': metadata,
+      if (catalog != null) '@catalogId': catalog,
+      if (metadata != null) '@metadata': metadata,
     };
   }
 }

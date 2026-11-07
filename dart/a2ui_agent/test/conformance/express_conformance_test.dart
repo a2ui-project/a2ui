@@ -148,6 +148,10 @@ const String _noUserMessage =
     'The v0.9 Action has no userMessage field, so an event carrying one runs '
     'as written in v1.0 only.';
 
+const String _customEnvelopePropsTestName =
+    'test_decompile_express_custom_metadata_and_catalog_id_properties_'
+    'beside_mixins';
+
 /// Cases that state what v0.9 cannot, or that are already written against a
 /// v0.9 catalog, so they run in [SuiteVersion.v1_0] (as written) only, with
 /// the reason for each.
@@ -208,6 +212,13 @@ const Map<String, String> _v1OnlyCases = {
   'test_express_snippet_names_only_agent_callable_functions'
           '_for_standalone_calls':
       'Protocol v0.9 function schema does not support allowedCallers.',
+  'test_decompile_express_component_metadata_writes_extensions':
+      'Surface and component extensions require A2UI v1.0 or later.',
+  'test_decompile_express_legacy_bare_metadata_on_v1_0':
+      'Surface and component extensions require A2UI v1.0 or later.',
+  'test_decompile_express_legacy_bare_catalog_id_on_v1_0':
+      _oneCatalogPerSurface,
+  _customEnvelopePropsTestName: _oneCatalogPerSurface,
 };
 
 /// Why this SDK cannot run [testCase] in [version], or null if it can.

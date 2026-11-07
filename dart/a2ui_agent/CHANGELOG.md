@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Breaking:** (v1_0) Emit `@catalogId`, `@metadata`, `@accessibility`, and
+  `@checks` on v1.0 components in `ExpressCompiler`, `DirectJsonResponseStream`,
+  `MessageReader`, and `RendererState`, while keeping v0.9 component output
+  bare. `ExpressDecompiler` reads both `@`-prefixed and legacy bare component
+  envelope keys on v1.0 payloads when the component schema does not declare a
+  custom property with the same bare name
+  ([#1376](https://github.com/a2ui-project/a2ui/issues/1376),
+  [#3403](https://github.com/a2ui-project/a2ui/issues/3403),
+  [#3466](https://github.com/a2ui-project/a2ui/issues/3466),
+  [#4012](https://github.com/a2ui-project/a2ui/issues/4012)).
 - (v1_0) `validatePayload` accepts a `callRendererFunction` on a surface the
   payload never named, as it does an update to one, since an earlier payload
   may have created it. A surface the payload deleted earlier, or creates only

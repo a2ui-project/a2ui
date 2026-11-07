@@ -411,7 +411,7 @@ The Jetpack Compose renderer is maintained in AndroidX rather than this reposito
   [Authoring Universal Web Components](../../guides/authoring-universal-components/).
 </Aside>
 
-Once registered on both sides, your agent can combine basic layout components and `StatusBadge` on the same v1.0 surface by tagging the custom component with its `catalogId` (in v0.9.1, each surface binds to a single `catalogId`):
+Once registered on both sides, your agent can combine basic layout components and `StatusBadge` on the same v1.0 surface by tagging the custom component with its catalog ID in `@catalogId` (in v0.9.1, each surface binds to a single `catalogId`):
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0">
@@ -435,7 +435,7 @@ Once registered on both sides, your agent can combine basic layout components an
       },
       {
         "id": "build_badge",
-        "catalogId": "https://example.com/catalogs/status/v1/catalog.json",
+        "@catalogId": "https://example.com/catalogs/status/v1/catalog.json",
         "component": "StatusBadge",
         "label": "All checks passing",
         "status": "success"
@@ -488,7 +488,7 @@ A catalog's `functions` map exposes custom client capabilities to generated surf
 | Device-local data and state    | `"string"`, `"number"`, `"boolean"`, or `"object"` (`"rendererOnly"`) | Reading device timezone, locale, or platform capabilities that are not stored on the server.    |
 | Device-local native actions    | `"void"` (`"rendererOnly"`, `"requiresUserActivation": true`)         | Triggering native share sheets, clipboard writes, or deep links from a user-initiated `Action`. |
 | Local formatting & computation | `"string"`, `"number"`, `"array"`, or `"any"` (`"rendererOrAgent"`)   | Computing derived values reactively from bound data-model fields.                               |
-| Input validation (`checks`)    | `"validationResult"` (`"rendererOnly"`; `"boolean"` in v0.9.1)        | Validating user input synchronously and returning `{"valid": false, "message": "..."}` in v1.0. |
+| Input validation (`@checks`)   | `"validationResult"` (`"rendererOnly"`; `"boolean"` in v0.9.1)        | Validating user input synchronously and returning `{"valid": false, "message": "..."}` in v1.0. |
 
 In v1.0, each [`FunctionDefinition`](../../specification/v1.0/schemas/#catalog_definition.json/$defs/FunctionDefinition) declares `returnType` at the top level of the function object and uses `"@call"` inside `properties`. You can set `allowedCallers` to `"rendererOnly"` (default), `"agentOnly"`, or `"rendererOrAgent"`. Side-effecting device functions can set `"requiresUserActivation": true` so they run only from direct user interactions; functions that require user activation must keep `allowedCallers` set to `"rendererOnly"` (or omit it).
 
@@ -1176,7 +1176,7 @@ The Jetpack Compose renderer is maintained in AndroidX rather than this reposito
 
 ### Interactive actions and input checks
 
-Reference [`Action`](../../specification/v1.0/schemas/#common_types.json/$defs/Action) on interactive properties to let surfaces dispatch server events or run local functions (such as `shareProduct`). When an input component supports client-side validation rules (`checks`), compose [`Checkable`](../../specification/v1.0/schemas/#common_types.json/$defs/Checkable) via `allOf` so the renderer evaluates bound `CheckRule` conditions and exposes `isValid` and `validationErrors` to your widget.
+Reference [`Action`](../../specification/v1.0/schemas/#common_types.json/$defs/Action) on interactive properties to let surfaces dispatch server events or run local functions (such as `shareProduct`). When an input component supports client-side validation rules (`@checks` in v1.0, `checks` in v0.9.1), compose [`Checkable`](../../specification/v1.0/schemas/#common_types.json/$defs/Checkable) via `allOf` so the renderer evaluates bound `CheckRule` conditions and exposes `isValid` and `validationErrors` to your widget.
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0">

@@ -388,7 +388,12 @@ export class PayloadValidator {
     >) {
       const path = `/${mixin.wireKey}`;
       if (key === 'metadata') {
-        this.parseEnvelopeValue(ComponentCommonSchema.shape.metadata, mixin.value, path, subject);
+        this.parseEnvelopeValue(
+          ComponentCommonSchema.shape['@metadata'],
+          mixin.value,
+          path,
+          subject,
+        );
         rethrowAt(path, () => validateMetadata(mixin.value));
       }
       const schemaKey = layout?.schemaKeys.get(key);

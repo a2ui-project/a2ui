@@ -755,7 +755,26 @@ export class RendererState {
     const type = typeof update.component === 'string' ? update.component : existing.type;
     if (type !== existing.type) return true;
     const atLeastV1 = this.releaseLine !== 'v0.9';
-    const catalogId = update.catalogId;
+    let catalogId: unknown;
+    if (atLeastV1 && '@catalogId' in update) {
+      catalogId = update['@catalogId'];
+    } else if ('catalogId' in update) {
+      const compDoc = (
+        surface.defaultCatalog?.toJson().components as
+          | Record<string, Record<string, unknown>>
+          | undefined
+      )?.[type];
+      const props = compDoc?.properties as Record<string, Record<string, unknown>> | undefined;
+      const isCustom =
+        atLeastV1 &&
+        Boolean(props) &&
+        'catalogId' in props! &&
+        props!.catalogId?.description !==
+          'The catalog ID for this component, overriding any surface-level default catalogId.';
+      if (!isCustom) {
+        catalogId = update.catalogId;
+      }
+    }
     if (typeof catalogId === 'string' && (catalogId !== '' || atLeastV1)) {
       return catalogId !== existing.catalog.id;
     }
@@ -1466,7 +1485,14 @@ function componentTypes(messages: Message[]): Set<string> {
   for (const message of messages) {
     for (const components of componentLists(message)) {
       for (const component of components) {
-        if (!component || typeof component !== 'object' || 'catalogId' in component) continue;
+        if (
+          !component ||
+          typeof component !== 'object' ||
+          '@catalogId' in component ||
+          'catalogId' in component
+        ) {
+          continue;
+        }
         const type = (component as Message).component;
         if (typeof type === 'string') types.add(type);
       }

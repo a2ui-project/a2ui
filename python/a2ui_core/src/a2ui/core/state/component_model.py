@@ -256,8 +256,7 @@ class ComponentModel:
             "component": self.type,
         }
         if self._metadata is not None:
-            meta_key = "@metadata" if "metadata" in self._properties else "metadata"
-            tree[meta_key] = clone_metadata(self._metadata)
+            tree["@metadata"] = clone_metadata(self._metadata)
         return tree
 
     def validate(self, config: Any | None = None) -> None:

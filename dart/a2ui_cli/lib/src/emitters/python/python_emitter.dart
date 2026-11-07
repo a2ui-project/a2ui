@@ -256,6 +256,7 @@ class PythonEmitter {
     }
 
     final Iterable<String> pydanticNames = [
+      'AliasChoices',
       'BaseModel',
       'ConfigDict',
       'Field',
@@ -399,7 +400,8 @@ class PythonEmitter {
     PropertyDescriptor prop, [
     Set<String>? seenNames,
   ]) {
-    String pyName = toSnakeCase(rawName);
+    final isAtChecks = rawName == '@checks';
+    String pyName = isAtChecks ? 'checks' : toSnakeCase(rawName);
     if (seenNames != null) {
       var candidate = pyName;
       var suffix = 2;
@@ -421,7 +423,14 @@ class PythonEmitter {
 
     final args = <String>[
       if (!prop.isRequired) 'default=${defaultLiteral ?? 'None'}',
-      'alias=${_pyString(rawName)}',
+      if (isAtChecks) ...[
+        'serialization_alias="@checks"',
+        if (pyName == 'checks')
+          'validation_alias=AliasChoices("checks", "@checks")'
+        else
+          'validation_alias="@checks"',
+      ] else
+        'alias=${_pyString(rawName)}',
     ];
     final annotation = prop.isRequired ? pyType : 'Optional[$pyType]';
     final oneLine = '    $pyName: $annotation = Field(${args.join(', ')})';
