@@ -31,9 +31,11 @@ sequenceDiagram
     participant Agent as Agent server
     participant Expander as MacroExpander
     participant Renderer
+    Agent->>Expander: Add macro schemas to catalog
+    Expander-->>Agent: Inference catalog
     Agent->>Model: System prompt with FlightCard(...) signature
     Model-->>Agent: root = FlightCard("OS 87", ...)
-    Agent->>Expander: transform_to_transport(messages)
+    Agent->>Expander: Expand macro calls in messages
     Expander-->>Agent: Expanded catalog components
     Agent->>Renderer: createSurface with catalog components
 ```
@@ -270,7 +272,7 @@ processor = A2uiRequestProcessor(catalogs=[inference_catalog])
 system_prompt = processor.prompt_snippet  # Append to your model's system instruction.
 ```
 
-`MacroExpander` wraps `A2uiRequestProcessor` rather than plugging into `CatalogConfig.transformers` because it operates both before inference (adding macro schemas to the catalog) and after parsing (expanding macro calls in outgoing messages). `A2uiRequestProcessor` uses the Express inference format by default, and works with any format factory you pass via `format_factory`.
+`MacroExpander` runs alongside `A2uiRequestProcessor` rather than as a `CatalogConfig.transformers` entry because it acts both before inference (adding macro schemas to the catalog) and after parsing (expanding macro calls in outgoing messages). Because `MacroExpander` tracks active surface catalogs across turns, create one `MacroExpander` per session (or pass `surface_catalogs` to `transform_to_transport`) in multi-session servers. `A2uiRequestProcessor` uses the Express inference format by default, and works with any format factory you pass via `format_factory`.
 
 ### Step 4: Parse model output and expand macros
 
@@ -314,7 +316,7 @@ Install the standalone `a2ui` binary using the release installer script. Both sc
 curl -fsSL https://raw.githubusercontent.com/a2ui-project/a2ui/main/scripts/public/install_cli.sh | sh
 ```
 
-Installs `a2ui` into `${XDG_BIN_HOME:-~/.local/bin}`. Make sure that directory is on your `PATH`, or set `A2UI_INSTALL_DIR` (and optionally `A2UI_VERSION`) before running the script.
+Installs `a2ui` into `${XDG_BIN_HOME:-$HOME/.local/bin}`. Make sure that directory is on your `PATH`, or pass `A2UI_INSTALL_DIR` (and optionally `A2UI_VERSION`) to `sh`, as in `curl -fsSL ... | A2UI_INSTALL_DIR="$HOME/bin" sh`.
 
   </TabItem>
   <TabItem label="Windows">
@@ -458,21 +460,22 @@ Parameter annotations control both the JSON Schema shown to the model and whethe
 
 - Plain Python types (`str`, `int`, `float`, `bool`) accept only static literal values, which are baked into the expanded components when the macro runs. Passing a data binding to a plain `str` parameter fails validation.
 - Reactive A2UI types (`DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList`) accept either a literal value or a `@path` / `@call` binding. When you pass that parameter to a child component property, the binding remains live on the renderer.
-- Always treat macro arguments as untrusted model output. Validate identifiers against your backend data rather than trusting arbitrary strings.
+
+Always treat macro arguments as untrusted model output, and validate identifiers against your backend data rather than trusting arbitrary strings.
 
 The table below lists the most common parameter annotations (showing v1.0 schema definitions):
 
-| Python annotation                                  | Schema exposed to the model                                                                               | Value passed to your macro                                             |
-| :------------------------------------------------- | :-------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------- |
-| `str`, `int`, `float`, `bool`                      | `string`, `integer`, `number`, `boolean`                                                                  | Static literal value (data bindings rejected).                         |
-| `Literal[...]` or `Enum`                           | `enum`                                                                                                    | Static enum value.                                                     |
-| `Sequence[V]`, `dict[str, V]`                      | `array`, `object`                                                                                         | List or dict with elements converted to `V`.                           |
-| `DynamicString`, `DynamicNumber`, `DynamicBoolean` | [`DynamicString`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicString) and related types   | Literal value, `DataBinding`, or `FunctionCall`.                       |
-| `Action`                                           | [`Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action)                                   | `Action` built from an event name, event object, or function call.     |
-| `Child` or component class                         | [`Child`](/specification/v1.0/schemas/#common_types.json/$defs/Child) (`ComponentId` in v0.9.1)           | `ComponentRef` pointing to another component ID.                       |
-| `ChildList` or `Sequence[Child]`                   | [`ChildList`](/specification/v1.0/schemas/#common_types.json/$defs/ChildList)                             | List of `ComponentRef` items, or `DynamicChildList` for list bindings. |
-| `CheckRule` or `Sequence[CheckRule]`               | [`CheckRule`](/specification/v1.0/schemas/#common_types.json/$defs/CheckRule)                             | `CheckRule` instance(s) for input validation.                          |
-| `AccessibilityAttributes`                          | [`AccessibilityAttributes`](/specification/v1.0/schemas/#common_types.json/$defs/AccessibilityAttributes) | `AccessibilityAttributes` model.                                       |
+| Python annotation                                                       | Schema exposed to the model                                                                               | Value passed to your macro                                                                                  |
+| :---------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------- |
+| `str`, `int`, `float`, `bool`                                           | `string`, `integer`, `number`, `boolean`                                                                  | Static literal value (data bindings rejected).                                                              |
+| `Literal[...]` or `Enum` (with `str` values)                            | `enum`                                                                                                    | Static literal value (`Enum` parameters arrive as raw `str`, not `Enum` members).                           |
+| `Sequence[V]`, `dict[str, V]`                                           | `array`, `object`                                                                                         | List or dict with elements converted to `V`.                                                                |
+| `DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList` | [`DynamicString`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicString) and related types   | Literal value, `DataBinding`, or `FunctionCall`.                                                            |
+| `Action`                                                                | [`Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action)                                   | `Action` built from an event object or function call.                                                       |
+| `Child` or component class                                              | [`Child`](/specification/v1.0/schemas/#common_types.json/$defs/Child) (`ComponentId` in v0.9.1)           | `ComponentRef` pointing to another component ID.                                                            |
+| `ChildList` or `Sequence[Child]`                                        | [`ChildList`](/specification/v1.0/schemas/#common_types.json/$defs/ChildList)                             | List of `ComponentRef` items; `ChildList` (not `Sequence[Child]`) also accepts `DynamicChildList` bindings. |
+| `CheckRule` or `Sequence[CheckRule]`                                    | [`CheckRule`](/specification/v1.0/schemas/#common_types.json/$defs/CheckRule) (or `array` of `CheckRule`) | `CheckRule` instance(s) for input validation.                                                               |
+| `AccessibilityAttributes`                                               | [`AccessibilityAttributes`](/specification/v1.0/schemas/#common_types.json/$defs/AccessibilityAttributes) | `AccessibilityAttributes` model.                                                                            |
 
 `@macro` reads parameter descriptions from Google-style (`Args:`) docstrings, Sphinx-style (`:param name:`) docstrings, or `typing.Annotated[T, Field(description="...")]`. For additional annotations, including `DynamicValue`, `Extensions`, catalog sub-models (`TabItem`, `ChoicePickerOption`), and union types, see the [parameter type mapping table in the macros README](https://github.com/a2ui-project/a2ui/blob/main/python/a2ui_agent/src/a2ui/transformers/macros/README.md#parameter-type-mapping).
 
@@ -488,7 +491,7 @@ Override the inferred PascalCase component name or docstring description by pass
 
 #### Error handling (`on_error`)
 
-With the default `on_error="passthrough"`, a macro that raises an exception during expansion is logged and left unexpanded in the message. Pass `on_error="raise"` to `MacroExpander` to raise `A2uiValidationError` instead so an agent retry loop can send the error back to the model.
+With the default `on_error="passthrough"`, a macro that raises an argument or runtime exception during expansion is logged and left unexpanded so sibling components still expand (note that client renderers do not implement unexpanded macro components). Pass `on_error="raise"` to `MacroExpander` to raise `A2uiValidationError` on the server so an agent retry loop can send the error back to the model; structural errors (`A2uiRecursionError`, `A2uiCatalogError`, and protocol-version mismatches) always raise.
 
 #### Filtering base components (`passthrough_components`)
 
@@ -496,7 +499,7 @@ By default, all components from your base catalogs remain visible to the model a
 
 #### Explicit `protocol_version`
 
-`MacroExpander` normally infers the protocol version from your macro type hints or registered catalogs. If a v1.0 macro uses only version-neutral Python types (such as `str`, `int`, or `Child`) and you call `expander.to_catalog()` before registering any v1.0 catalogs, pass `protocol_version="1.0"` to `MacroExpander(...)`.
+`MacroExpander` normally infers the protocol version from your macro parameter and return annotations or registered catalogs. If a v1.0 macro uses only version-neutral annotations (such as `str`, `int`, or `Child`, with no v1.0 return type) and you export a standalone macro catalog with `expander.to_catalog()` before registering any v1.0 catalogs, pass `protocol_version="1.0"` to `MacroExpander(...)`.
 
 #### Disambiguating duplicate component names (`catalog_id`)
 
