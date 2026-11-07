@@ -265,6 +265,20 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 </section>
 
 <style>
+  .gs-section {
+    position: relative;
+    padding: 120px 0 140px;
+    background: var(--a2-bg-alt);
+    border-top: 1px solid var(--a2-border-strong);
+    scroll-margin-top: 72px;
+  }
+
+  @media (max-width: 720px) {
+    .gs-section {
+      padding: 88px 0 96px;
+    }
+  }
+
   .gs-wrap {
     width: 100%;
     max-width: 1200px;

@@ -14,352 +14,180 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
 
 <section class="a2-section ps-section" id="customers">
   <div class="ps-wrap">
-    <!-- Chapter header -->
-    <div class="ps-header">
-      <div class="ps-header__title">
-        <span class="ps-eyebrow">IN PRODUCTION · 1P &amp; 3P TEAMS</span>
-        <h2 class="ps-h2">
-          Shipping across <span class="ps-accent">products and platforms.</span>
-        </h2>
-      </div>
-      <p class="ps-sub">
-        Product teams at Google and across the industry use A2UI to render interactive agent
-        surfaces inside enterprise workspaces, mobile apps, and multi-host assistants from a single
-        declarative stream.
-      </p>
+    <!-- Minimal editorial header -->
+    <div class="ps-head">
+      <span class="ps-eyebrow">IN PRODUCTION</span>
+      <h2 class="ps-h2">
+        Shipping across <span class="ps-accent">Google and the industry.</span>
+      </h2>
     </div>
 
-    <!-- Monochrome brand strip -->
-    <ul class="ps-logos" aria-label="Organizations shipping with A2UI">
-      <li>
-        <a href="#customer-alation" class="ps-logo-item">
-          <svg viewBox="0 0 20 20" width="17" height="17" fill="none" aria-hidden="true">
-            <path
-              d="M10 2.4L17.2 17.2H13.7L12.2 13.9H7.8L6.3 17.2H2.8L10 2.4ZM10 7.5L8.9 10.9H11.1L10 7.5Z"
-              fill="currentColor"
-            />
-          </svg>
-          <span>Alation</span>
+    <!-- Architectural 5-cell brand logo & name showcase -->
+    <ul class="ps-brands" aria-label="Teams and products shipping with A2UI">
+      <!-- 1. Alation -->
+      <li class="ps-brand">
+        <a
+          href="https://www.alation.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="ps-brand__inner"
+          aria-label="Alation — Intelligence Operating System"
+        >
+          <div class="ps-brand__lockup">
+            <svg
+              class="ps-wordmark-svg"
+              viewBox="0 0 101 23"
+              height="20"
+              aria-hidden="true"
+            >
+              <path
+                fill="currentColor"
+                d="M61.8149 1.86854L58.2081 2.25317L57.2545 4.67134L61.8149 6.41733V1.86854ZM27.6446 20.8779C27.533 20.6765 27.4784 20.3222 27.4784 19.8174V0L20.3862 0.748628V1.38563L21.6285 1.8103C21.9718 1.95226 22.1987 2.12819 22.3103 2.34053C22.4207 2.55286 22.4765 2.95205 22.4765 3.53809V19.8162C22.4765 20.321 22.4207 20.6752 22.3103 20.8767C22.2205 21.0405 22.0543 21.1909 21.8117 21.328C21.7025 21.3899 21.5812 21.4299 21.4562 21.4481C21.1578 21.4942 20.8532 21.4142 20.6215 21.2237C20.5912 21.197 20.5621 21.1715 20.533 21.1424C20.5184 21.129 20.5039 21.1145 20.4905 21.1011C20.4432 21.0538 20.3983 21.0041 20.3546 20.9519C20.2588 20.8354 20.1654 20.7007 20.0744 20.5466C19.9834 20.3925 19.8948 20.219 19.8099 20.0273C19.6376 19.6439 19.4411 19.1185 19.2191 18.4512L18.7593 17.1444H13.3473L14.0668 19.3903C14.1881 19.815 14.2487 20.1377 14.2487 20.361C14.2487 20.5636 14.2038 20.7456 14.1129 20.907C14.0219 21.0696 13.8447 21.2006 13.5827 21.3013L11.8855 21.8777V22.545H29.5723V21.908L28.33 21.4227C27.9867 21.2613 27.7586 21.0793 27.6482 20.8767L27.6446 20.8779ZM5.691 16.1483L6.09499 14.8245L6.20053 14.4812L6.23086 14.3829L9.27229 4.42746L12.4132 14.2336H17.733L12.9737 0.718295H8.94231C8.63901 1.87096 8.23503 3.13405 7.73034 4.50754L3.39567 16.3303C2.99169 17.4417 2.64229 18.3311 2.34992 18.9984C2.05633 19.6658 1.77366 20.196 1.5007 20.5903C1.22773 20.9846 0.919586 21.3025 0.576258 21.5452L0 21.8789V22.5462H7.72913V21.8789L6.15322 21.3329C5.68857 21.1509 5.36951 20.8888 5.19845 20.5442C5.02618 20.2008 4.94126 19.8162 4.94126 19.3915C4.94126 19.0688 4.991 18.6696 5.0929 18.194C5.16933 17.836 5.26275 17.4866 5.37315 17.1444C5.40954 17.034 5.44715 16.9236 5.48719 16.8144L5.691 16.1471V16.1483ZM43.8902 20.3015C43.7786 20.0795 43.724 19.6755 43.724 19.0894V11.9053C43.724 9.96513 43.2242 8.56615 42.2233 7.70711C41.2237 6.84807 39.6514 6.41855 37.5101 6.41855C36.5396 6.41855 35.5448 6.50955 34.5245 6.69155C33.5042 6.87355 32.1249 7.18659 30.3876 7.63067L32.1758 12.2389H32.8127L33.7517 10.2078C33.9944 9.62176 34.2467 9.13642 34.51 8.75301C34.772 8.36959 35.0801 8.07596 35.4344 7.87334C35.7874 7.67192 36.2169 7.57 36.7228 7.57C37.4507 7.57 37.9748 7.7969 38.2987 8.2519C38.6214 8.7069 38.784 9.40942 38.784 10.3583V13.6889C36.7022 14.0796 35.0243 14.5248 33.7529 15.0272C32.3177 15.5926 31.2975 16.2247 30.6921 16.9224C30.0855 17.6201 29.7822 18.4427 29.7822 19.3928C29.7822 20.5454 30.1813 21.4287 30.9796 22.0451C31.7779 22.6615 32.7933 22.9697 34.0259 22.9697C35.0365 22.9697 35.9755 22.7525 36.8453 22.3181C37.5004 21.9905 38.1737 21.544 38.864 20.981C38.9781 21.476 39.2171 21.8825 39.5883 22.198C40.1233 22.653 40.816 22.8799 41.664 22.8799C42.2706 22.8799 42.9015 22.7937 43.559 22.6227C44.2153 22.4516 44.7965 22.2538 45.3023 22.0318L45.6056 21.8801V21.3038L44.5757 20.8488C44.2323 20.708 44.0042 20.526 43.8939 20.3028L43.8902 20.3015ZM38.7828 19.9351C38.511 20.0759 38.2574 20.1911 38.0245 20.2712C37.6205 20.4132 37.1765 20.4835 36.6912 20.4835C36.0446 20.4835 35.489 20.3125 35.0243 19.9679C34.5597 19.6245 34.3268 19.0894 34.3268 18.3614C34.3268 17.836 34.4978 17.3459 34.8424 16.8909C35.1857 16.4359 35.7462 15.9966 36.525 15.572C37.128 15.2431 37.8826 14.9083 38.7828 14.5661V19.9351ZM99.1964 21.4239C98.8531 21.2625 98.625 21.0805 98.5146 20.8779C98.403 20.6765 98.3484 20.3222 98.3484 19.8174V10.6931C98.3484 9.23834 98.0305 8.16211 97.3936 7.46444C96.7567 6.76678 95.7716 6.41855 94.4383 6.41855C93.731 6.41855 92.9777 6.54474 92.1806 6.79711C91.3823 7.04948 90.6193 7.34796 89.8926 7.69134C89.2484 7.99588 88.6539 8.30893 88.1043 8.62925V6.41855L81.0728 7.35767V8.02501L82.3151 8.44967C82.6584 8.57101 82.8853 8.7433 82.9969 8.96534C83.1073 9.18738 83.1631 9.59142 83.1631 10.1775V19.8174C83.1631 20.3222 83.1073 20.6765 82.9969 20.8779C82.8853 21.0805 82.6584 21.2625 82.3151 21.4239L81.0728 21.9092V22.5462H90.1049V21.9092L88.9827 21.4542C88.6588 21.3135 88.4416 21.1363 88.3312 20.924C88.2196 20.7116 88.165 20.3428 88.165 19.8174V9.5708C88.7109 9.40942 89.2763 9.28809 89.8622 9.20679C90.4482 9.1255 90.9238 9.08546 91.2865 9.08546C92.0338 9.08546 92.564 9.24198 92.8782 9.55502C93.1912 9.86806 93.3477 10.3995 93.3477 11.1469V19.8174C93.3477 20.3428 93.2919 20.7116 93.1815 20.924C93.0699 21.1363 92.8527 21.3135 92.53 21.4542L91.409 21.9092V22.5462H100.441V21.9092L99.1988 21.4239H99.1964ZM61.9823 20.8779C61.8707 20.6765 61.8161 20.3222 61.8161 19.8174V6.41733L51.1183 6.94028V3.02242L47.5115 3.38642L46.6926 5.66021C46.592 6.02421 46.4355 6.3324 46.2231 6.58478C46.0108 6.83715 45.7427 7.04463 45.42 7.206L44.1171 7.96434V8.57101H46.1479V18.8783C46.1479 20.1717 46.4755 21.1824 47.133 21.9092C47.7894 22.6372 48.6835 23 49.8154 23C50.8453 23 51.8353 22.727 52.7852 22.181C53.4306 21.8097 54.0166 21.3972 54.5407 20.941L53.9826 19.9375C53.609 20.0188 53.2292 20.0589 52.8459 20.0589C52.2393 20.0589 51.8001 19.9181 51.5271 19.6342C51.2542 19.3515 51.1183 18.9062 51.1183 18.3007V8.56979H54.2883C54.6875 8.56979 55.0817 8.66807 55.4336 8.85735C56.1869 9.26139 56.671 10.0331 56.7086 10.8873L56.8154 13.3698V19.8162C56.8154 20.321 56.7596 20.6752 56.6492 20.8767C56.5376 21.0793 56.3107 21.2613 55.9674 21.4227L54.7251 21.908V22.545H63.9391V21.908L62.6665 21.4227C62.3232 21.2613 62.0951 21.0793 61.9847 20.8767L61.9823 20.8779ZM76.834 7.388C75.5504 6.70126 74.0497 6.35788 72.3331 6.35788C70.6164 6.35788 69.1145 6.70126 67.8322 7.388C66.5487 8.07475 65.5684 9.04542 64.8915 10.2976C64.2145 11.551 63.876 13.0155 63.876 14.6935C63.876 16.3715 64.2145 17.8118 64.8915 19.0736C65.5684 20.3367 66.5487 21.3074 67.8322 21.9844C69.1145 22.6615 70.6152 23 72.3331 23C74.0509 23 75.5504 22.6615 76.834 21.9844C78.1163 21.3074 79.1026 20.3379 79.7892 19.0736C80.4759 17.8106 80.8192 16.3509 80.8192 14.6935C80.8192 13.0361 80.4759 11.551 79.7892 10.2976C79.1026 9.04542 78.1163 8.07475 76.834 7.388ZM75.1367 19.1343C74.8832 20.1754 74.5253 20.8924 74.0606 21.2868C73.596 21.6811 73.0197 21.8777 72.3331 21.8777C71.6464 21.8777 71.075 21.6653 70.6201 21.2407C70.1651 20.816 69.8121 20.0783 69.5598 19.0275C69.3062 17.9768 69.1813 16.5014 69.1813 14.6013C69.1813 12.7012 69.3074 11.2622 69.5598 10.2211C69.8121 9.1801 70.1664 8.46302 70.6201 8.06869C71.075 7.67435 71.6452 7.47779 72.3331 7.47779C73.0209 7.47779 73.596 7.69012 74.0606 8.11479C74.5253 8.53946 74.8832 9.28202 75.1367 10.3425C75.3891 11.4029 75.5152 12.8735 75.5152 14.753C75.5152 16.6324 75.3891 18.0933 75.1367 19.1331V19.1343Z"
+              />
+              <path
+                fill="currentColor"
+                opacity="0.72"
+                d="M6.20053 14.4812L5.691 16.1483L5.48719 16.8156C5.44715 16.9248 5.40954 17.0352 5.37315 17.1457H18.7569L17.7318 14.2324H6.27575L6.20053 14.4812Z"
+              />
+            </svg>
+          </div>
+          <span class="ps-brand__sub">AIOS Data Products</span>
         </a>
       </li>
-      <li>
-        <a href="#customer-lynx" class="ps-logo-item">
-          <svg viewBox="0 0 20 20" width="17" height="17" fill="none" aria-hidden="true">
-            <rect x="2.5" y="5.5" width="3.2" height="10" rx="0.8" fill="currentColor" />
-            <rect x="7.4" y="8" width="3.2" height="7.5" rx="0.8" fill="currentColor" opacity="0.72" />
-            <rect x="12.3" y="3.5" width="3.2" height="12" rx="0.8" fill="currentColor" />
-          </svg>
-          <span>ByteDance <em>Lynx</em></span>
+
+      <!-- 2. ByteDance Lynx -->
+      <li class="ps-brand">
+        <a
+          href="https://lynxjs.org/react/genui/a2ui.html"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="ps-brand__inner"
+          aria-label="ByteDance — Lynx Engine"
+        >
+          <div class="ps-brand__lockup">
+            <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M19.8772 1.4685L24 2.5326v18.9426l-4.1228 1.0563V1.4685zm-13.3481 9.428l4.115 1.0641v8.9786l-4.115 1.0642v-11.107zM0 2.572l4.115 1.0642v16.7354L0 21.428V2.572zm17.4553 5.6205v11.107l-4.1228-1.0642V9.2568l4.1228-1.0642z"
+              />
+            </svg>
+            <span class="ps-brand__name">ByteDance</span>
+          </div>
+          <span class="ps-brand__sub">Lynx Engine</span>
         </a>
       </li>
-      <li>
-        <a href="#customer-jira" class="ps-logo-item">
-          <svg viewBox="0 0 20 20" width="17" height="17" fill="none" aria-hidden="true">
-            <path
-              d="M10.4 2.8L3.4 9.8L6.9 13.3L10.4 9.8L13.9 13.3L17.4 9.8L10.4 2.8Z"
-              fill="currentColor"
-            />
-            <path
-              d="M10.4 10.9L7.4 13.9L10.4 16.9L13.4 13.9L10.4 10.9Z"
-              fill="currentColor"
-              opacity="0.6"
-            />
-          </svg>
-          <span>Atlassian <em>Jira</em></span>
+
+      <!-- 3. Atlassian Jira -->
+      <li class="ps-brand">
+        <a
+          href="https://support.atlassian.com/jira-software-cloud/docs/work-with-ai-agents-in-jira/"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="ps-brand__inner"
+          aria-label="Atlassian — Jira AI Agents"
+        >
+          <div class="ps-brand__lockup">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M7.12 11.084a.683.683 0 00-1.16.126L.075 22.974a.703.703 0 00.63 1.018h8.19a.678.678 0 00.63-.39c1.767-3.65.696-9.203-2.406-12.52zM11.434.386a15.515 15.515 0 00-.906 15.317l3.95 7.9a.703.703 0 00.628.388h8.19a.703.703 0 00.63-1.017L12.63.38a.664.664 0 00-1.196.006z"
+              />
+            </svg>
+            <span class="ps-brand__name">Atlassian</span>
+          </div>
+          <span class="ps-brand__sub">Jira AI Agents</span>
         </a>
       </li>
-      <li>
-        <a href="#customer-notebook" class="ps-logo-item">
-          <svg viewBox="0 0 20 20" width="17" height="17" fill="none" aria-hidden="true">
-            <path
-              d="M10 2C10.4 6.3 13.7 9.6 18 10C13.7 10.4 10.4 13.7 10 18C9.6 13.7 6.3 10.4 2 10C6.3 9.6 9.6 6.3 10 2Z"
-              fill="currentColor"
-            />
-          </svg>
-          <span>Gemini Notebook</span>
-        </a>
-      </li>
-      <li>
+
+      <!-- 4. Google Cloud Gemini Enterprise -->
+      <li class="ps-brand">
         <a
           href="https://cloud.google.com/gemini-enterprise"
           target="_blank"
           rel="noopener noreferrer"
-          class="ps-logo-item"
+          class="ps-brand__inner"
+          aria-label="Google Cloud — Gemini Enterprise"
         >
-          <svg viewBox="0 0 20 20" width="17" height="17" fill="none" aria-hidden="true">
-            <path
-              d="M10 2C10.4 6.3 13.7 9.6 18 10C13.7 10.4 10.4 13.7 10 18C9.6 13.7 6.3 10.4 2 10C6.3 9.6 9.6 6.3 10 2Z"
-              fill="currentColor"
-            />
-          </svg>
-          <span>Gemini Enterprise</span>
+          <div class="ps-brand__lockup">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M12.19 2.38a9.344 9.344 0 0 0-9.234 6.893c.053-.02-.055.013 0 0-3.875 2.551-3.922 8.11-.247 10.941l.006-.007-.007.03a6.717 6.717 0 0 0 4.077 1.356h5.173l.03.03h5.192c6.687.053 9.376-8.605 3.835-12.35a9.365 9.365 0 0 0-2.821-4.552l-.043.043.006-.05A9.344 9.344 0 0 0 12.19 2.38zm-.358 4.146c1.244-.04 2.518.368 3.486 1.15a5.186 5.186 0 0 1 1.862 4.078v.518c3.53-.07 3.53 5.262 0 5.193h-5.193l-.008.009v-.04H6.785a2.59 2.59 0 0 1-1.067-.23h.001a2.597 2.597 0 1 1 3.437-3.437l3.013-3.012A6.747 6.747 0 0 0 8.11 8.24c.018-.01.04-.026.054-.023a5.186 5.186 0 0 1 3.67-1.69z"
+              />
+            </svg>
+            <span class="ps-brand__name">Google Cloud</span>
+          </div>
+          <span class="ps-brand__sub">Gemini Enterprise</span>
         </a>
+      </li>
+
+      <!-- 5. Gemini Notebook -->
+      <li class="ps-brand">
+        <div class="ps-brand__inner">
+          <div class="ps-brand__lockup">
+            <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M12 1.8C12.42 7.38 16.62 11.58 22.2 12C16.62 12.42 12.42 16.62 12 22.2C11.58 16.62 7.38 12.42 1.8 12C7.38 11.58 11.58 7.38 12 1.8Z"
+              />
+            </svg>
+            <span class="ps-brand__name">Gemini</span>
+          </div>
+          <span class="ps-brand__sub">Gemini Notebook</span>
+        </div>
       </li>
     </ul>
 
-    <!-- Flagship Row 1: Alation (Quote + Dual-host comparison) -->
-    <article class="ps-feature" id="customer-alation">
-      <div class="ps-feature__copy">
-        <div class="ps-meta">
-          <span class="ps-tag">ALATION · ENTERPRISE DATA</span>
-          <span class="ps-chip">Multi-host MCP + Web</span>
-        </div>
-        <h3 class="ps-h3">Alation Intelligence Operating System</h3>
-        <p class="ps-body">
-          Alation renders governed SQL metric cards, charts, and lineage details from one A2UI
-          payload across both its own Data Products App and external assistants such as Claude via
-          MCP Apps.
-        </p>
-
-        <blockquote class="ps-quote">
-          <p>
-            "The Alation Intelligence Operating System (AIOS) brings artifacts with data, charts,
-            and insights directly to where teams work with transparency about where each figure
-            comes from. A2UI provides the interactive UI scaffolding that makes these artifacts feel
-            like high-touch, tailored applications, whether they are used in Alation or in the AI
-            Assistants our customers already use."
-          </p>
-          <footer>
-            <strong>GT Volpe</strong>
-            <span>Vice President of Product Management, Alation</span>
-          </footer>
-        </blockquote>
-      </div>
-
-      <div class="ps-stage ps-stage--pair">
-        <figure class="ps-frame">
-          <figcaption class="ps-frame__bar">
-            <span>01 · IN CLAUDE (MCP APPS)</span>
-          </figcaption>
-          <div class="ps-frame__img">
-            <img
-              src={`${base}/assets/customers/alation-claude.webp`}
-              alt="Alation Intelligence Operating System rendering an A2UI revenue metric card and bar chart inside Claude via MCP Apps."
-              loading="lazy"
-              decoding="async"
-              width="784"
-              height="752"
-            />
-          </div>
-        </figure>
-
-        <figure class="ps-frame">
-          <figcaption class="ps-frame__bar">
-            <span>02 · IN ALATION DATA PRODUCTS APP</span>
-          </figcaption>
-          <div class="ps-frame__img">
-            <img
-              src={`${base}/assets/customers/alation-app.webp`}
-              alt="The same Alation A2UI revenue metric card and bar chart rendered natively inside Alation's Data Products App."
-              loading="lazy"
-              decoding="async"
-              width="1242"
-              height="736"
-            />
-          </div>
-        </figure>
-      </div>
-    </article>
-
-    <!-- Flagship Row 2: ByteDance Lynx (Quote + Native Playground) -->
-    <article class="ps-feature" id="customer-lynx">
-      <div class="ps-feature__copy">
-        <div class="ps-meta">
-          <span class="ps-tag">BYTEDANCE · LYNX</span>
-          <span class="ps-chip">iOS · Android · Web</span>
-        </div>
-        <h3 class="ps-h3">Lynx native renderer and Jev decision models</h3>
-        <p class="ps-body">
-          ByteDance's open-source Lynx engine ships <code>@lynx-js/genui</code> to render A2UI
-          streams natively across mobile and web, paired with a playground where a Jev decision
-          model selects components and values without raw JSON boilerplate.
-        </p>
-
-        <div class="ps-links">
-          <a
-            href="https://lynx-stack.dev/genui/#/a2ui"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="ps-link"
-          >
-            <span>Open Lynx Playground</span>
-            <span aria-hidden="true">↗</span>
-          </a>
-          <a
-            href="https://lynxjs.org/react/genui/a2ui.html"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="ps-link ps-link--muted"
-          >
-            <span>Renderer documentation</span>
-            <span aria-hidden="true">↗</span>
-          </a>
-        </div>
-
-        <blockquote class="ps-quote">
-          <p>
-            "A2UI is headed in the right direction: it separates how a model produces an interface
-            from how an app renders it. Swappable inference formats and macros keep generation
-            efficient, and even the model can be swapped. In our playground, a decision model like
-            Jev, which picks components and values instead of writing text, builds A2UI screens that
-            Lynx renders natively."
-          </p>
-          <footer>
-            <strong>Shouqun Liu</strong>
-            <span>Engineering Lead for Lynx, ByteDance</span>
-          </footer>
-        </blockquote>
-      </div>
-
-      <div class="ps-stage">
-        <figure class="ps-frame">
-          <figcaption class="ps-frame__bar">
-            <span>LYNX GENUI PLAYGROUND · JEV DECISION STREAM → NATIVE MOBILE SURFACE</span>
-          </figcaption>
-          <div class="ps-frame__img">
-            <img
-              src={`${base}/assets/customers/bytedance-lynx.webp`}
-              alt="ByteDance Lynx GenUI Playground showing streamed createSurface and updateComponents messages on the left and a native mobile Kyoto trip planner preview with render metrics on the right."
-              loading="lazy"
-              decoding="async"
-              width="1600"
-              height="925"
-            />
-          </div>
-        </figure>
-      </div>
-    </article>
-
-    <!-- Secondary 2-Column Grid: Atlassian Jira + Gemini Notebook -->
-    <div class="ps-grid2">
-      <!-- Atlassian Jira -->
-      <article class="ps-card" id="customer-jira">
-        <div class="ps-card__head">
-          <div class="ps-meta">
-            <span class="ps-tag">ATLASSIAN · JIRA</span>
-            <span class="ps-chip">In-ticket agent surfaces</span>
-          </div>
-          <h3 class="ps-h3">Interactive agent decisions inside Jira work items</h3>
-          <p class="ps-body">
-            Atlassian is bringing A2UI to
-            <a
-              href="https://support.atlassian.com/jira-software-cloud/docs/work-with-ai-agents-in-jira/"
-              target="_blank"
-              rel="noopener noreferrer">AI agents in Jira</a
-            >. When an agent needs a team decision to finish a ticket, it posts an interactive
-            follow-up card directly inside the work item rather than asking in plain text.
-          </p>
-        </div>
-
-        <div class="ps-stage ps-stage--compact">
-          <figure class="ps-frame">
-            <figcaption class="ps-frame__bar">
-              <span>JIRA WORK ITEM · AGENT FOLLOW-UP SURFACE</span>
-            </figcaption>
-            <div class="ps-frame__img">
-              <img
-                src={`${base}/assets/customers/atlassian-jira.webp`}
-                alt="Claude Agent for Jira posting an interactive A2UI follow-up card inside a Jira work item to choose test coverage depth for a sticky note colour selection feature."
-                loading="lazy"
-                decoding="async"
-                width="1014"
-                height="1452"
-              />
-            </div>
-          </figure>
-        </div>
-      </article>
-
-      <!-- Gemini Notebook -->
-      <article class="ps-card" id="customer-notebook">
-        <div class="ps-card__head">
-          <div class="ps-meta">
-            <span class="ps-tag">GOOGLE · GEMINI NOTEBOOK</span>
-            <span class="ps-chip">Web &amp; mobile</span>
-          </div>
-          <h3 class="ps-h3">Two-step deck &amp; Video Overview configuration</h3>
-          <p class="ps-body">
-            When asked to build a presentation or Video Overview, Gemini Notebook responds with an
-            options card for deck format and topic focus, followed by an editable review card to
-            adjust length, focus, and visual style before generating.
-          </p>
-        </div>
-
-        <div class="ps-stage ps-stage--steps ps-stage--compact">
-          <figure class="ps-frame">
-            <figcaption class="ps-frame__bar">
-              <span>01 · OPTIONS CARD</span>
-            </figcaption>
-            <div class="ps-frame__img">
-              <img
-                src={`${base}/assets/customers/gemini-notebook-options.webp`}
-                alt="Gemini Notebook options card offering selectable chips for slide deck format and topic focus."
-                loading="lazy"
-                decoding="async"
-                width="1052"
-                height="916"
-              />
-            </div>
-          </figure>
-
-          <figure class="ps-frame">
-            <figcaption class="ps-frame__bar">
-              <span>02 · REVIEW CARD</span>
-            </figcaption>
-            <div class="ps-frame__img">
-              <img
-                src={`${base}/assets/customers/gemini-notebook-review.webp`}
-                alt="Gemini Notebook editable review card summarizing selected format, focus, and visual style with a Generate action."
-                loading="lazy"
-                decoding="async"
-                width="926"
-                height="916"
-              />
-            </div>
-          </figure>
-        </div>
-      </article>
-    </div>
-
-    <!-- Ecosystem & Enterprise ledger -->
-    <div class="ps-ledger">
-      <div class="ps-ledger__cell">
-        <span class="ps-tag">GOOGLE CLOUD · GEMINI ENTERPRISE</span>
+    <!-- Restrained 2-column partner quotes (only where quotes exist) -->
+    <div class="ps-quotes">
+      <blockquote class="ps-quote">
         <p>
-          Agents built on
-          <a
-            href="https://cloud.google.com/gemini-enterprise"
-            target="_blank"
-            rel="noopener noreferrer">Gemini Enterprise</a
-          >
-          support A2UI surfaces for governed internal workflows.
+          "The Alation Intelligence Operating System (AIOS) brings artifacts with data, charts, and
+          insights directly to where teams work with transparency about where each figure comes
+          from. A2UI provides the interactive UI scaffolding that makes these artifacts feel like
+          high-touch, tailored applications, whether they are used in Alation or in the AI
+          Assistants our customers already use."
         </p>
-      </div>
-      <div class="ps-ledger__cell">
-        <span class="ps-tag">AGENCY &amp; CONSULTANCY PARTNERS</span>
+        <footer>
+          <strong>GT Volpe</strong>
+          <span>VP of Product Management, Alation</span>
+        </footer>
+      </blockquote>
+
+      <blockquote class="ps-quote">
         <p>
-          Explore open-source reference apps built by
-          <strong>Moonwise</strong>, <strong>Somnio Software</strong>, <strong>L+R</strong>,
-          <strong>Solid Software</strong>, <strong>Very Good Ventures</strong>, and
-          <strong>Oak Tree</strong>.
-          <a href={`${base}/get-help/#consultants`} class="ps-ledger__cta">
-            Browse partner apps <span aria-hidden="true">→</span>
-          </a>
+          "A2UI is headed in the right direction: it separates how a model produces an interface
+          from how an app renders it. Swappable inference formats and macros keep generation
+          efficient, and even the model can be swapped. In our playground, a decision model like
+          Jev, which picks components and values instead of writing text, builds A2UI screens that
+          Lynx renders natively."
         </p>
-      </div>
+        <footer>
+          <strong>Shouqun Liu</strong>
+          <span>Engineering Lead for Lynx, ByteDance</span>
+        </footer>
+      </blockquote>
     </div>
   </div>
 </section>
 
 <style>
   .ps-section {
+    position: relative;
+    padding: 96px 0 104px;
     background: var(--a2-bg);
+    border-top: 1px solid var(--a2-border-strong);
+    scroll-margin-top: 72px;
+  }
+
+  @media (max-width: 720px) {
+    .ps-section {
+      padding: 72px 0 80px;
+    }
   }
 
   .ps-wrap {
@@ -375,24 +203,15 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     }
   }
 
-  .ps-header {
-    display: grid;
-    grid-template-columns: 1.08fr 0.92fr;
-    gap: 64px;
-    align-items: end;
-    margin-bottom: 40px;
-  }
-
-  @media (max-width: 860px) {
-    .ps-header {
-      grid-template-columns: 1fr;
-      gap: 16px;
-    }
+  /* Compact single-axis header */
+  .ps-head {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 32px;
   }
 
   .ps-eyebrow {
-    display: inline-block;
-    margin-bottom: 12px;
     font-family: var(--a2-font-mono);
     font-size: 10.5px;
     font-weight: 700;
@@ -403,9 +222,9 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   .ps-h2 {
     margin: 0;
     font-family: var(--a2-font-display);
-    font-size: clamp(2.05rem, 3.6vw, 3rem);
+    font-size: clamp(1.85rem, 3vw, 2.45rem);
     font-weight: 700;
-    line-height: 1.08;
+    line-height: 1.1;
     letter-spacing: var(--a2-tracking-h2);
     color: var(--a2-text);
   }
@@ -414,185 +233,177 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     color: var(--a2-heading-accent);
   }
 
-  .ps-sub {
-    margin: 0;
-    font-size: 15.5px;
-    line-height: 1.62;
-    color: var(--a2-text-secondary);
-  }
-
-  /* Monochrome brand strip */
-  .ps-logos {
+  /* Architectural 5-cell brand grid */
+  .ps-brands {
     list-style: none;
-    margin: 0 0 56px;
-    padding: 16px 0;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px 28px;
-    border-top: 1px solid var(--a2-border-strong);
-    border-bottom: 1px solid var(--a2-border-strong);
-  }
-
-  .ps-logo-item {
-    display: inline-flex;
-    align-items: center;
-    gap: 9px;
-    padding: 4px 0;
-    color: var(--a2-text-secondary);
-    text-decoration: none;
-    font-family: var(--a2-font-display);
-    font-size: 14.5px;
-    font-weight: 650;
-    letter-spacing: -0.015em;
-    transition: color 0.15s ease;
-  }
-
-  .ps-logo-item:hover {
-    color: var(--a2-text);
-  }
-
-  .ps-logo-item svg {
-    color: var(--a2-accent);
-    flex-shrink: 0;
-  }
-
-  .ps-logo-item em {
-    font-style: normal;
-    font-weight: 500;
-    color: var(--a2-text-muted);
-    margin-left: 2px;
-  }
-
-  /* Flagship partner rows */
-  .ps-feature {
+    margin: 0;
+    padding: 0;
     display: grid;
-    grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.12fr);
-    gap: 44px;
-    align-items: center;
-    padding: 44px 0;
-    border-bottom: 1px solid var(--a2-border-strong);
-    scroll-margin-top: 84px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    border: 1px solid var(--a2-border-strong);
+    border-radius: 6px;
+    background: var(--a2-surface-subtle);
+    overflow: hidden;
   }
 
-  @media (max-width: 960px) {
-    .ps-feature {
-      grid-template-columns: 1fr;
-      gap: 28px;
-      padding: 36px 0;
+  .ps-brand + .ps-brand {
+    border-left: 1px solid var(--a2-border);
+  }
+
+  @media (max-width: 980px) {
+    .ps-brands {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+
+    .ps-brand:nth-child(-n + 3) {
+      grid-column: span 2;
+    }
+
+    .ps-brand:nth-child(n + 4) {
+      grid-column: span 3;
+      border-top: 1px solid var(--a2-border);
+    }
+
+    .ps-brand:nth-child(4) {
+      border-left: none;
     }
   }
 
-  .ps-feature__copy {
+  @media (max-width: 600px) {
+    .ps-brands {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ps-brand {
+      grid-column: span 1 !important;
+      border-left: none !important;
+      border-top: none !important;
+    }
+
+    .ps-brand:nth-child(even) {
+      border-left: 1px solid var(--a2-border) !important;
+    }
+
+    .ps-brand:nth-child(n + 3) {
+      border-top: 1px solid var(--a2-border) !important;
+    }
+
+    .ps-brand:last-child {
+      grid-column: 1 / -1 !important;
+    }
+  }
+
+  .ps-brand__inner {
+    height: 100%;
+    min-height: 104px;
+    padding: 24px 20px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
-  }
-
-  .ps-meta {
-    display: flex;
-    flex-wrap: wrap;
     align-items: center;
+    justify-content: center;
     gap: 10px;
-  }
-
-  .ps-tag {
-    font-family: var(--a2-font-mono);
-    font-size: 10.5px;
-    font-weight: 700;
-    letter-spacing: 0.09em;
-    color: var(--a2-accent-strong);
-  }
-
-  .ps-chip {
-    font-family: var(--a2-font-mono);
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    padding: 2px 7px;
-    border-radius: 2px;
-    border: 1px solid var(--a2-border-strong);
-    background: var(--a2-surface-subtle);
-    color: var(--a2-text-muted);
-  }
-
-  .ps-h3 {
-    margin: 0;
-    font-family: var(--a2-font-display);
-    font-size: clamp(1.3rem, 2vw, 1.6rem);
-    font-weight: 650;
-    line-height: 1.2;
-    letter-spacing: var(--a2-tracking-h3);
+    text-align: center;
+    text-decoration: none;
     color: var(--a2-text);
+    transition: background-color 0.16s ease, color 0.16s ease;
   }
 
-  .ps-body {
-    margin: 0;
-    font-size: 14.5px;
-    line-height: 1.62;
-    color: var(--a2-text-secondary);
+  a.ps-brand__inner:hover {
+    background: var(--a2-surface);
   }
 
-  .ps-body code {
-    font-family: var(--a2-font-mono);
-    font-size: 12.5px;
-    padding: 1px 5px;
-    border-radius: 3px;
-    background: var(--a2-surface-subtle);
-    border: 1px solid var(--a2-border-strong);
-    color: var(--a2-text);
-  }
-
-  .ps-body a {
-    color: var(--a2-accent-strong);
-    text-decoration: underline;
-    text-underline-offset: 3px;
-  }
-
-  .ps-links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    margin-top: 2px;
-  }
-
-  .ps-link {
+  .ps-brand__lockup {
+    height: 24px;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    font-weight: 650;
-    color: var(--a2-accent-strong);
-    text-decoration: none;
-  }
-
-  .ps-link:hover {
-    text-decoration: underline;
-    text-underline-offset: 3px;
-  }
-
-  .ps-link--muted {
-    color: var(--a2-text-secondary);
-  }
-
-  .ps-link--muted:hover {
+    justify-content: center;
+    gap: 9px;
     color: var(--a2-text);
+    opacity: 0.88;
+    transition: opacity 0.16s ease, color 0.16s ease;
+  }
+
+  a.ps-brand__inner:hover .ps-brand__lockup {
+    opacity: 1;
+    color: var(--a2-accent-strong);
+  }
+
+  .ps-wordmark-svg {
+    display: block;
+    width: auto;
+    height: 19px;
+  }
+
+  .ps-brand__name {
+    font-family: var(--a2-font-display);
+    font-size: 17px;
+    font-weight: 680;
+    letter-spacing: -0.025em;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .ps-brand__sub {
+    font-family: var(--a2-font-mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    color: var(--a2-text-muted);
+    white-space: nowrap;
+  }
+
+  /* Restrained 2-column quotes */
+  .ps-quotes {
+    margin-top: 40px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 64px;
+    align-items: start;
   }
 
   .ps-quote {
-    margin: 8px 0 0;
-    padding: 14px 0 2px 16px;
-    border-left: 2px solid var(--a2-accent);
+    position: relative;
+    margin: 0;
+    padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    justify-content: space-between;
+    gap: 14px;
+    height: 100%;
+  }
+
+  .ps-quote + .ps-quote::before {
+    content: '';
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    left: -32px;
+    width: 1px;
+    background: var(--a2-border);
+  }
+
+  @media (max-width: 820px) {
+    .ps-quotes {
+      grid-template-columns: 1fr;
+      row-gap: 28px;
+      margin-top: 32px;
+    }
+
+    .ps-quote + .ps-quote {
+      padding-top: 28px;
+      border-top: 1px solid var(--a2-border);
+    }
+
+    .ps-quote + .ps-quote::before {
+      display: none;
+    }
   }
 
   .ps-quote p {
     margin: 0;
-    font-size: 13.5px;
-    line-height: 1.62;
-    color: var(--a2-text);
+    font-size: 14px;
+    line-height: 1.66;
+    color: var(--a2-text-secondary);
   }
 
   .ps-quote footer {
@@ -600,7 +411,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     flex-wrap: wrap;
     align-items: baseline;
     gap: 6px 10px;
-    font-size: 12px;
+    font-size: 12.5px;
   }
 
   .ps-quote strong {
@@ -612,178 +423,5 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     font-family: var(--a2-font-mono);
     font-size: 11px;
     color: var(--a2-text-muted);
-  }
-
-  /* Studio stage that blends cropped UI screenshots cleanly in light & dark mode */
-  .ps-stage {
-    padding: 20px;
-    border-radius: 6px;
-    border: 1px solid var(--a2-border-strong);
-    background-color: var(--a2-surface-subtle);
-    background-image: radial-gradient(var(--a2-dot-grid) 1px, transparent 1px);
-    background-size: 14px 14px;
-  }
-
-  .ps-stage--pair {
-    display: grid;
-    grid-template-columns: 0.77fr 1.23fr;
-    gap: 14px;
-    align-items: start;
-  }
-
-  .ps-stage--steps {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-
-  .ps-stage--steps .ps-frame {
-    width: 74%;
-  }
-
-  .ps-stage--steps .ps-frame:last-child {
-    margin-left: auto;
-  }
-
-  .ps-stage--compact {
-    padding: 16px;
-  }
-
-  @media (max-width: 600px) {
-    .ps-stage {
-      padding: 12px;
-    }
-
-    .ps-stage--pair {
-      grid-template-columns: 1fr;
-    }
-
-    .ps-stage--steps .ps-frame {
-      width: 100%;
-    }
-  }
-
-  .ps-frame {
-    margin: 0;
-    border-radius: 6px;
-    border: 1px solid var(--a2-border-strong);
-    background: var(--a2-surface);
-    box-shadow: var(--a2-shadow-md);
-    overflow: hidden;
-  }
-
-  .ps-frame__bar {
-    padding: 7px 11px;
-    border-bottom: 1px solid var(--a2-border);
-    background: var(--a2-surface-subtle);
-    font-family: var(--a2-font-mono);
-    font-size: 9.5px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    color: var(--a2-text-muted);
-  }
-
-  .ps-frame__img {
-    background: #ffffff;
-    line-height: 0;
-  }
-
-  .ps-frame__img img {
-    display: block;
-    width: 100%;
-    height: auto;
-  }
-
-  /* Secondary 2-column grid */
-  .ps-grid2 {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 32px;
-    padding: 44px 0;
-    border-bottom: 1px solid var(--a2-border-strong);
-  }
-
-  @media (max-width: 960px) {
-    .ps-grid2 {
-      grid-template-columns: 1fr;
-      gap: 36px;
-    }
-  }
-
-  .ps-card {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-    scroll-margin-top: 84px;
-  }
-
-  .ps-card__head {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  /* Enterprise & consultancy ledger */
-  .ps-ledger {
-    display: grid;
-    grid-template-columns: 0.85fr 1.15fr;
-    gap: 32px;
-    padding-top: 28px;
-  }
-
-  @media (max-width: 820px) {
-    .ps-ledger {
-      grid-template-columns: 1fr;
-      gap: 20px;
-    }
-  }
-
-  .ps-ledger__cell {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .ps-ledger__cell + .ps-ledger__cell {
-    padding-left: 32px;
-    border-left: 1px solid var(--a2-border);
-  }
-
-  @media (max-width: 820px) {
-    .ps-ledger__cell + .ps-ledger__cell {
-      padding-left: 0;
-      border-left: none;
-    }
-  }
-
-  .ps-ledger__cell p {
-    margin: 0;
-    font-size: 13.5px;
-    line-height: 1.6;
-    color: var(--a2-text-secondary);
-  }
-
-  .ps-ledger__cell strong {
-    color: var(--a2-text);
-    font-weight: 600;
-  }
-
-  .ps-ledger__cell a {
-    color: var(--a2-accent-strong);
-    text-decoration: underline;
-    text-underline-offset: 3px;
-  }
-
-  .ps-ledger__cta {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    margin-left: 6px;
-    font-weight: 650;
-    text-decoration: none !important;
-  }
-
-  .ps-ledger__cta:hover {
-    text-decoration: underline !important;
   }
 </style>
