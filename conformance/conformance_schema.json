@@ -34,12 +34,14 @@
       {"$ref": "#/$defs/RouteAgentFunctionTest"},
       {"$ref": "#/$defs/DeriveTest"},
       {"$ref": "#/$defs/RenderSurfaceTest"},
+      {"$ref": "#/$defs/RendererStateTurnsTest"},
       {"$ref": "#/$defs/HandleRpcTest"},
       {"$ref": "#/$defs/DeclareAgentFunctionsTest"},
       {"$ref": "#/$defs/HandleAgentFunctionTest"},
       {"$ref": "#/$defs/ValidatePayloadTest"},
       {"$ref": "#/$defs/ProcessRendererMessageTest"},
-      {"$ref": "#/$defs/CallRendererFunctionTest"}
+      {"$ref": "#/$defs/CallRendererFunctionTest"},
+      {"$ref": "#/$defs/MarkdownSubsetTest"}
     ]
   },
   "$defs": {
@@ -94,6 +96,7 @@
             "provide_catalog",
             "prune",
             "render",
+            "render_markdown",
             "resolve_catalogs",
             "resolve_path",
             "round_trip",
@@ -110,7 +113,8 @@
             "validate_common_type",
             "validation_schema",
             "verify_cuttable_keys",
-            "wrap"
+            "wrap",
+            "renderer_state_turns"
           ],
           "description": "The conformance test action to perform."
         },
@@ -313,6 +317,24 @@
           },
           "then": {
             "not": {"anyOf": [{"required": ["expect"]}, {"required": ["expectFile"]}]}
+          }
+        },
+        {
+          "if": {
+            "properties": {"action": {"const": "create_processor"}},
+            "required": ["action"]
+          },
+          "then": {
+            "$ref": "#/$defs/CreateProcessorTest"
+          }
+        },
+        {
+          "if": {
+            "properties": {"action": {"const": "renderer_state_turns"}},
+            "required": ["action"]
+          },
+          "then": {
+            "$ref": "#/$defs/RendererStateTurnsTest"
           }
         },
         {
@@ -1539,8 +1561,8 @@
     },
     "InferenceFormatName": {
       "type": "string",
-      "enum": ["direct_json", "express"],
-      "description": "The inference format strategy the case exercises."
+      "enum": ["direct_json", "express", "elemental", "atom"],
+      "description": "The inference format strategy the case exercises. `elemental` and `atom` are experimental and Python-only."
     },
     "CatalogExpectation": {
       "type": "object",
@@ -1752,6 +1774,11 @@
         "expect_deterministic": {
           "type": "boolean",
           "description": "Generating twice from the same inputs returns the same string."
+        },
+        "expect_callable_functions": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Agent-callable function names in catalog and declaration order that the standalone-call prompt rule must list."
         },
         "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
@@ -2239,6 +2266,9 @@
       "type": "object",
       "description": "Taking an agent's registered catalogs and a renderer's capabilities through to a request processor, and using that processor for a turn.",
       "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "features": {"type": "array", "items": {"type": "string"}},
         "action": {"const": "create_processor"},
         "args": {
           "type": "object",
@@ -2297,9 +2327,45 @@
           "required": ["input"],
           "additionalProperties": false
         },
+        "then_stream": {
+          "type": "object",
+          "description": "A response read chunk by chunk through a stream the processor opened, for rules about what each chunk yields once negotiation has narrowed the catalogs. `steps` are fed in order through `open_stream`, each stating the parts its chunk yields; then the stream is closed, and either `expect_close` states the parts closing yields or `expect_error` states the error closing raises, as for a block still open when the response ends.",
+          "properties": {
+            "steps": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "input": {"type": "string"},
+                  "expect": {
+                    "type": "array",
+                    "items": {"$ref": "#/$defs/ResponsePart"}
+                  },
+                  "expect_error": {
+                    "$ref": "#/$defs/ExpectError",
+                    "description": "The error feeding this chunk raises. It is the last step the case runs; the stream is not closed after it."
+                  }
+                },
+                "required": ["input"],
+                "oneOf": [{"required": ["expect"]}, {"required": ["expect_error"]}],
+                "additionalProperties": false
+              },
+              "minItems": 1
+            },
+            "expect_close": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/ResponsePart"}
+            },
+            "expect_error": {"$ref": "#/$defs/ExpectError"}
+          },
+          "required": ["steps"],
+          "not": {"required": ["expect_close", "expect_error"]},
+          "additionalProperties": false
+        },
         "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
-      "required": ["action", "args"]
+      "required": ["name", "action", "args"],
+      "additionalProperties": false
     },
     "AgentFunctionBehavior": {
       "description": "What an agent function does when it runs, in place of a handler, so every SDK runs the same function. Exactly one key.",
@@ -2899,6 +2965,7 @@
         "name": {"type": "string"},
         "description": {"type": "string"},
         "protocolVersion": {"$ref": "#/$defs/ProtocolVersion"},
+        "strictMode": {"type": "boolean"},
         "catalogPaths": {"type": "array", "items": {"type": "string"}},
         "catalogs": {"type": "array", "items": {"type": "object"}},
         "action": {"const": "render_surface"},
@@ -2917,22 +2984,164 @@
                   "unmount_surface"
                 ]
               },
-              "messages": {"type": "array", "items": {"type": "object"}},
+              "messages": {
+                "type": "array",
+                "items": {
+                  "anyOf": [{"type": "object"}, {"$ref": "#/$defs/LastCallIdRef"}]
+                }
+              },
               "targetNode": {"type": "string"},
               "inputValue": {},
               "userActivation": {"type": "boolean"},
-              "expectViewTree": {"type": "object"},
+              "expectViewTree": {"$ref": "#/$defs/ViewTreeNode"},
               "expectAccessibilityTree": {"type": "object"},
               "expectDataModel": {"type": "object"},
               "expectActions": {"type": "array", "items": {"type": "object"}},
               "expectErrors": {"type": "array", "items": {"type": "object"}},
               "expectSameViewIdentity": {"type": "array", "items": {"type": "string"}},
-              "expectActiveSubscriptions": {"type": "integer"}
+              "expectNewViewIdentity": {"type": "array", "items": {"type": "string"}},
+              "expectDisposedNodes": {"type": "array", "items": {"type": "string"}},
+              "expectSurfaceRemoved": {"type": "boolean"},
+              "expectThemeAbsent": {"type": "boolean"},
+              "expectActiveSubscriptions": {"type": "integer"},
+              "expectOutbound": {"$ref": "#/$defs/OutboundEnvelopeList"}
             },
             "additionalProperties": false
           }
         }
       },
+      "additionalProperties": false
+    },
+    "ViewTreeNode": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "string"},
+        "type": {"type": "string"},
+        "state": {
+          "type": "string",
+          "enum": ["resolved", "pending", "unknown-type", "cyclic"]
+        },
+        "occupiesLayout": {"type": "boolean"},
+        "isValid": {"type": "boolean"},
+        "validationErrors": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "validationResults": {
+          "type": "array",
+          "items": {"type": "object"}
+        },
+        "hints": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "children": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/ViewTreeNode"}
+        }
+      },
+      "additionalProperties": true
+    },
+    "MatchAny": {
+      "type": "object",
+      "required": ["$match"],
+      "properties": {
+        "$match": {"const": "any"}
+      },
+      "additionalProperties": false
+    },
+    "OutboundEnvelopeList": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["version"],
+        "minProperties": 2,
+        "maxProperties": 2,
+        "properties": {
+          "version": {"$ref": "#/$defs/ProtocolVersion"},
+          "action": {"type": "object"},
+          "callAgentFunction": {"type": "object"},
+          "rendererFunctionResponse": {"type": "object"},
+          "error": {"type": "object"}
+        },
+        "oneOf": [
+          {"required": ["action"]},
+          {"required": ["callAgentFunction"]},
+          {"required": ["rendererFunctionResponse"]},
+          {"required": ["error"]}
+        ],
+        "additionalProperties": false
+      }
+    },
+    "RendererStateTurnsTest": {
+      "type": "object",
+      "description": "Applying a multi-turn sequence of message payloads or formatted model responses against a stateful `RendererState` instance.",
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "features": {"type": "array", "items": {"type": "string"}},
+        "action": {"const": "renderer_state_turns"},
+        "catalogs": {
+          "type": "array",
+          "items": {
+            "oneOf": [{"$ref": "#/$defs/AgentCatalogRef"}, {"$ref": "#/$defs/CatalogRegistration"}]
+          },
+          "description": "Active catalogs registered on the `RendererState` instance."
+        },
+        "turns": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "payload": {
+                "type": "array",
+                "items": {"type": "object"},
+                "description": "Decoded AgentToRendererMessage objects applied in a single turn."
+              },
+              "response": {
+                "type": "string",
+                "description": "Raw model response parsed and applied in a single turn."
+              },
+              "format": {"$ref": "#/$defs/InferenceFormatName"},
+              "expect_surfaces": {
+                "type": "object",
+                "description": "Expected surface state snapshot keyed by surface ID after this turn completes.",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "components": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": ["component"]
+                      }
+                    },
+                    "data": {}
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "expectError": {"$ref": "#/$defs/ExpectError"},
+              "expect_error": {"$ref": "#/$defs/ExpectError"}
+            },
+            "allOf": [
+              {
+                "oneOf": [{"required": ["payload"]}, {"required": ["response"]}]
+              },
+              {
+                "oneOf": [
+                  {"required": ["expect_surfaces"]},
+                  {"required": ["expectError"]},
+                  {"required": ["expect_error"]}
+                ]
+              }
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["name", "action", "catalogs", "turns"],
       "additionalProperties": false
     },
     "RpcUiScenario": {
@@ -3103,6 +3312,42 @@
         },
         "expectError": {"$ref": "#/$defs/ExpectError"},
         "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "additionalProperties": false
+    },
+    "LastCallIdRef": {
+      "type": "object",
+      "properties": {
+        "$ref": {
+          "const": "lastCallId"
+        }
+      },
+      "required": ["$ref"],
+      "additionalProperties": false
+    },
+    "MarkdownSubsetTest": {
+      "type": "object",
+      "required": ["name", "action", "markdown"],
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "render_markdown"},
+        "markdown": {"type": "string"},
+        "expectVisibleText": {"type": "string"},
+        "expectPresent": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["strong", "emphasis", "heading", "list_item", "code"]
+          }
+        },
+        "expectAbsent": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["html", "image", "link"]
+          }
+        }
       },
       "additionalProperties": false
     }
