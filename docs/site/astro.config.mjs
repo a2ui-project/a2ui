@@ -46,6 +46,7 @@ export default defineConfig({
   site: process.env.ASTRO_SITE || 'https://a2ui.org',
   base: process.env.ASTRO_BASE || undefined,
   redirects: {
+    '/gallery': '/showcase/',
     '/specification/v0.9-a2ui': '/specification/v0.9.1-a2ui/',
     '/specification/v0.9-evolution-guide': '/specification/v0.9.1-evolution-guide/',
     '/concepts/actions': '/concepts/actions-and-functions/',
@@ -126,6 +127,15 @@ export default defineConfig({
             {
               label: 'Quick start',
               slug: 'quickstart',
+            },
+            {
+              label: 'Showcase',
+              link: '/showcase/',
+            },
+            {
+              label: 'Playground',
+              link: 'https://go.copilotkit.ai/a2ui-playground',
+              attrs: {target: '_blank', rel: 'noopener noreferrer'},
             },
           ],
         },
