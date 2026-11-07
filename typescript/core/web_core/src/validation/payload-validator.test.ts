@@ -293,8 +293,41 @@ describe('PayloadValidator', () => {
           id: 'root',
           component: 'Tag',
           catalogId: CATALOG_ID,
-          metadata: {note: 'x'},
+          metadata: {extensions: {note: 'x'}},
           label: 'Hello',
+        }),
+      );
+    });
+
+    it('validates component metadata from v1.0', () => {
+      const tags = new Catalog(CATALOG_ID, '1.0', [
+        {name: 'Tag', schema: z.object({label: z.string()}).strict()},
+      ]);
+      const validator = new PayloadValidator(tags, STRICT_VALIDATION);
+      const tag = (metadata: unknown) => ({id: 'root', component: 'Tag', label: 'Hi', metadata});
+
+      assert.doesNotThrow(() => validator.validateComponent(tag({extensions: {vendor_x: 1}})));
+      assertValidationError(
+        () => validator.validateComponent(tag({extensions: {'bad-key': true}})),
+        /Validation failed for component 'Tag' \(root\): .*Invalid extension key "bad-key"/,
+      );
+      assertValidationError(
+        () => validator.validateComponent(tag({unrecognizedKey: true})),
+        /Validation failed for component 'Tag' \(root\)/,
+      );
+    });
+
+    it('leaves component metadata unchecked below v1.0', () => {
+      const tags = new Catalog('https://example.com/v09', '0.9', [
+        {name: 'Tag', schema: z.object({label: z.string()}).strict()},
+      ]);
+      const validator = new PayloadValidator(tags, STRICT_VALIDATION);
+      assert.doesNotThrow(() =>
+        validator.validateComponent({
+          id: 'root',
+          component: 'Tag',
+          label: 'Hi',
+          metadata: {extensions: {'bad-key': true}},
         }),
       );
     });
