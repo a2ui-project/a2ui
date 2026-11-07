@@ -37,6 +37,12 @@
   only `rendererOnly` or `rendererOrAgent` functions in components
   ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
   [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
+- `MessageProcessor` takes `unifiedOutbound` (`false` by default). When `true`,
+  `outboundListener` also receives an `ActionMessage` for each action emitted
+  on `model.onAction`, carrying the surface's protocol version; `onAction` and
+  `model.onAction` still fire. Setting `unifiedOutbound: true` without an
+  `outboundListener` throws `ArgumentError`
+  ([#4015](https://github.com/a2ui-project/a2ui/issues/4015)).
 - (v1_0) `MessageProcessor` checks a call nested in the arguments of a
   `callRendererFunction` that names no `catalogId` against the default catalog
   of the surface the message names, where the renderer runs it, rather than

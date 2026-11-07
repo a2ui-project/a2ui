@@ -166,6 +166,14 @@ class MessageProcessor<T extends ComponentApi> {
 
   final OutboundMessageListener? _outboundListener;
   final Duration _defaultTimeout;
+  bool _disposed = false;
+
+  /// When true, [_outboundListener] also receives an [ActionMessage] for each
+  /// action emitted on [SurfaceGroupModel.onAction].
+  ///
+  /// Requires `outboundListener` on the constructor. `onAction` and
+  /// [SurfaceGroupModel.onAction] still fire.
+  final bool unifiedOutbound;
 
   /// When true, [processMessages] and [processMessagesAsync] emit mapped
   /// [ErrorMessage]s to [SurfaceGroupModel.onError] and [_outboundListener]
@@ -177,10 +185,14 @@ class MessageProcessor<T extends ComponentApi> {
   final int maxAgentCallCacheEntries;
 
   /// [outboundListener] receives every message the RPC layer sends to the
-  /// agent, and [defaultTimeout] bounds how long [callAgentFunction] waits
-  /// for an answer; see [RpcHandler]. [maxAgentCallCacheEntries] is passed
-  /// to each surface (see [SurfaceModel.maxAgentCallCacheEntries]); it must
-  /// be at least 1, or the constructor throws [ArgumentError].
+  /// agent and mapped [ErrorMessage]s from [processMessages]. When
+  /// [unifiedOutbound] is true, [outboundListener] also receives an
+  /// [ActionMessage] for each action emitted on [SurfaceGroupModel.onAction];
+  /// [outboundListener] must then be provided, or the constructor throws
+  /// [ArgumentError]. [defaultTimeout] bounds how long [callAgentFunction]
+  /// waits for an answer; see [RpcHandler]. [maxAgentCallCacheEntries] is
+  /// passed to each surface (see [SurfaceModel.maxAgentCallCacheEntries]); it
+  /// must be at least 1, or the constructor throws [ArgumentError].
   MessageProcessor({
     required List<Catalog<T, FunctionImplementation>> catalogs,
     this.defaultVersion,
@@ -190,6 +202,7 @@ class MessageProcessor<T extends ComponentApi> {
     void Function(A2uiRendererAction)? onAction,
     void Function(A2uiRendererError)? onError,
     OutboundMessageListener? outboundListener,
+    this.unifiedOutbound = false,
     Duration defaultTimeout = const Duration(seconds: 30),
     this.reportErrorsOnly = false,
     this.maxAgentCallCacheEntries = 256,
@@ -198,6 +211,13 @@ class MessageProcessor<T extends ComponentApi> {
         model = SurfaceGroupModel<T>(),
         _outboundListener = outboundListener,
         _defaultTimeout = defaultTimeout {
+    if (unifiedOutbound && outboundListener == null) {
+      throw ArgumentError.value(
+        unifiedOutbound,
+        'unifiedOutbound',
+        'outboundListener must be provided when unifiedOutbound is true.',
+      );
+    }
     if (maxAgentCallCacheEntries < 1) {
       throw ArgumentError.value(
         maxAgentCallCacheEntries,
@@ -215,6 +235,9 @@ class MessageProcessor<T extends ComponentApi> {
     }
     if (onAction != null) {
       model.onAction.subscribe(onAction);
+    }
+    if (unifiedOutbound) {
+      model.onAction.subscribe(_forwardAction);
     }
     if (onError != null) {
       model.onError.subscribe(onError);
@@ -639,6 +662,25 @@ class MessageProcessor<T extends ComponentApi> {
     return allV1 ? '1.0' : 'v0.9';
   }
 
+  void _forwardAction(A2uiRendererAction action) {
+    if (_disposed) return;
+    final SurfaceModel<T>? surface = model.getSurface(action.surfaceId);
+    final String version =
+        A2uiProtocolVersion.tryParse(surface?.protocolVersion ?? '')
+                ?.jsonValue ??
+            _fallbackWireVersion();
+    final message = ActionMessage(version: version, action: action);
+    final OutboundMessageListener? listener = _outboundListener;
+    if (listener != null) {
+      try {
+        final FutureOr<void> result = listener(message);
+        if (result is Future<void>) {
+          unawaited(result.catchError((Object _) {}));
+        }
+      } catch (_) {}
+    }
+  }
+
   ErrorMessage _emitAndForwardError(A2uiError error, {Object? rawMessage}) {
     final ErrorMessage errorMessage = MessageErrorMapper.map(
       error,
@@ -678,6 +720,7 @@ class MessageProcessor<T extends ComponentApi> {
 
   /// Disposes every surface and the RPC layer, failing its pending calls.
   void dispose() {
+    _disposed = true;
     model.dispose();
     rpc.dispose();
   }

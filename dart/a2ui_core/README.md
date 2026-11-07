@@ -62,6 +62,11 @@ graph TD
 
 ### Processing Protocol Messages
 
+Pass `outboundListener` with `unifiedOutbound: true` to receive every
+renderer-to-agent message (`ActionMessage`, `ErrorMessage`,
+`CallAgentFunctionMessage`, and `RendererFunctionResponseMessage`) through one
+callback:
+
 ```dart
 import 'package:a2ui_core/a2ui_core.dart';
 
@@ -70,6 +75,10 @@ void main() {
   final processor = MessageProcessor(
     catalogs: [catalog],
     defaultVersion: A2uiProtocolVersion.v1_0,
+    outboundListener: (RendererToAgentMessage message) {
+      print('Outbound: ${message.toJson()}');
+    },
+    unifiedOutbound: true,
   );
 
   final Subscription sub = processor.model.onSurfaceCreated.subscribe((surface) {
