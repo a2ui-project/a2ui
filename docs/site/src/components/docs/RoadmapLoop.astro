@@ -1,0 +1,866 @@
+---
+/*
+ * Copyright 2026 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * Interactive lifecycle loop for the roadmap page. Every stage panel is
+ * rendered on the server, so the content is readable without JavaScript; the
+ * client script only switches the selected stage and runs the slow autoplay.
+ */
+import RendererLogo from '@components/RendererLogo.astro';
+
+interface Stage {
+  key: string;
+  name: string;
+  title: string;
+  lead: string;
+  anchor: string;
+  today: string[];
+  next: string[];
+}
+
+const STAGES: Stage[] = [
+  {
+    key: 'build',
+    name: 'Build',
+    title: 'Build cross-platform components',
+    lead: 'Design components once and render them natively on every platform.',
+    anchor: '#build-cross-platform-components',
+    today: [
+      'Catalogs and the Basic Catalog, themed by each host framework',
+      'Official renderers for React, Lit, Angular, Flutter, SwiftUI, and Jetpack Compose',
+      'Universal Web Components and <code>a2ui codegen</code>',
+    ],
+    next: [
+      'Primitives you style to your design system and describe once',
+      'A runtime templating engine that renders them natively on each platform',
+      'A secure sandbox for components with shared business logic',
+    ],
+  },
+  {
+    key: 'configure',
+    name: 'Configure',
+    title: 'Configure your agents',
+    lead: 'Teach your agent when and how to use each component.',
+    anchor: '#configure-your-agents',
+    today: [
+      'Skill generation from your catalog in the Python and TypeScript Agent SDKs',
+      'Catalog negotiation and swappable inference formats',
+      'Validation that feeds errors back to the model',
+    ],
+    next: [
+      'Clearer errors and diagnostics from the skill generator',
+      'Skill generation in the Dart Agent SDK',
+      'Integrations with more agent frameworks',
+    ],
+  },
+  {
+    key: 'evaluate',
+    name: 'Evaluate',
+    title: 'Evaluate gen-UI quality',
+    lead: 'Check that your agent picks the right UI and builds it correctly.',
+    anchor: '#evaluate-gen-ui-quality',
+    today: [
+      'An eval framework that scores the project datasets with schema checks, assertions, and an LLM judge',
+      'Token and latency benchmarks for inference formats',
+    ],
+    next: [
+      'Guidance and tooling to evaluate your own agents and catalogs',
+      'Deterministic rules and an LLM judge you configure',
+      'Tool usage as a judge',
+    ],
+  },
+  {
+    key: 'distribute',
+    name: 'Distribute',
+    title: 'Distribute across platforms',
+    lead: 'Ship one agent to the places your users already are.',
+    anchor: '#distribute-across-platforms',
+    today: [
+      'Web, desktop, and mobile renderers',
+      'A2UI inside MCP Apps, and MCP Apps inside A2UI surfaces',
+    ],
+    next: [
+      'Better MCP Apps tooling, starting with state shared between A2UI and the MCP host',
+      'Guides for AI assistants and messaging apps such as Teams and Slack',
+    ],
+  },
+  {
+    key: 'monitor',
+    name: 'Monitor',
+    title: 'Monitor and evolve',
+    lead: 'Learn from real users, then return to Build.',
+    anchor: '#monitor-and-evolve',
+    today: ['User actions and function results already flow back to your agent'],
+    next: [
+      'Guidance on which logs to collect from gen-UI experiences',
+      'Turning those signals into design and component updates',
+    ],
+  },
+];
+
+const RADIUS = 38;
+const STEP = 360 / STAGES.length;
+const point = (deg: number) => {
+  const rad = (deg * Math.PI) / 180;
+  return {x: 50 + RADIUS * Math.cos(rad), y: 50 + RADIUS * Math.sin(rad)};
+};
+const nodes = STAGES.map((stage, i) => ({...stage, ...point(-90 + i * STEP)}));
+const chevrons = STAGES.map((_, i) => {
+  const deg = -90 + STEP / 2 + i * STEP;
+  return {...point(deg), rotate: deg + 90};
+});
+const arcLength = 100 / STAGES.length;
+const RENDERERS = [
+  {name: 'react', label: 'React'},
+  {name: 'lit', label: 'Lit'},
+  {name: 'angular', label: 'Angular'},
+  {name: 'flutter', label: 'Flutter'},
+  {name: 'swiftui', label: 'SwiftUI'},
+  {name: 'compose', label: 'Jetpack Compose'},
+] as const;
+---
+
+<div class="rl-root not-content" data-diagram data-diagram-title="roadmap-loop" data-roadmap-loop>
+  <div class="rl-stage-area">
+    <div class="rl-ring">
+      <svg viewBox="0 0 100 100" aria-hidden="true">
+        <circle
+          class="rl-track"
+          cx="50"
+          cy="50"
+          r={RADIUS}
+          pathLength="100"
+          transform="rotate(-90 50 50)"></circle>
+        <circle
+          class="rl-arc"
+          cx="50"
+          cy="50"
+          r={RADIUS}
+          pathLength="100"
+          stroke-dasharray={`${arcLength} ${100 - arcLength}`}
+          transform="rotate(-90 50 50)"
+          data-arc></circle>
+        <circle
+          class="rl-comet"
+          cx="50"
+          cy="50"
+          r={RADIUS}
+          pathLength="100"
+          stroke-dasharray="2.5 97.5"
+          transform="rotate(-90 50 50)"></circle>
+        {
+          chevrons.map(c => (
+            <path
+              class="rl-chevron"
+              d="M-1 -1.4 L0.6 0 L-1 1.4"
+              transform={`translate(${c.x.toFixed(2)} ${c.y.toFixed(2)}) rotate(${c.rotate})`}
+            />
+          ))
+        }
+      </svg>
+
+      <div class="rl-center">
+        <div class="rl-term"><span>$</span> a2ui</div>
+        <div class="rl-cmd" data-cmd aria-hidden="true">build</div>
+        <div class="rl-caption">The whole loop, from your coding agent</div>
+      </div>
+
+      <div role="tablist" aria-label="Lifecycle stages">
+        {
+          nodes.map((n, i) => (
+            <button
+              type="button"
+              role="tab"
+              class={`rl-node rl-node--${n.key}`}
+              id={`rl-tab-${n.key}`}
+              aria-controls={`rl-panel-${n.key}`}
+              aria-selected={i === 0 ? 'true' : 'false'}
+              tabindex={i === 0 ? 0 : -1}
+              style={`--x:${n.x.toFixed(2)}%;--y:${n.y.toFixed(2)}%`}
+              data-index={i}
+              data-key={n.key}>
+              <span class="rl-icon" aria-hidden="true">
+                {n.key === 'build' && (
+                  <svg viewBox="0 0 24 24">
+                    <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                    <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                    <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                    <path d="M17.5 14v7M14 17.5h7" />
+                  </svg>
+                )}
+                {n.key === 'configure' && (
+                  <svg viewBox="0 0 24 24">
+                    <path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12" />
+                    <circle cx="16" cy="6" r="2" />
+                    <circle cx="10" cy="12" r="2" />
+                    <circle cx="18" cy="18" r="2" />
+                  </svg>
+                )}
+                {n.key === 'evaluate' && (
+                  <svg viewBox="0 0 24 24">
+                    <path d="M9 11l2.5 2.5L16 9" />
+                    <path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z" />
+                  </svg>
+                )}
+                {n.key === 'distribute' && (
+                  <svg viewBox="0 0 24 24">
+                    <rect x="2" y="4" width="13" height="10" rx="1.5" />
+                    <path d="M6 18h5" />
+                    <rect x="17" y="8" width="5" height="12" rx="1.2" />
+                  </svg>
+                )}
+                {n.key === 'monitor' && (
+                  <svg viewBox="0 0 24 24">
+                    <path d="M3 12h4l2.5-6 4 12 2.5-6H21" />
+                  </svg>
+                )}
+              </span>
+              <span class="rl-num">0{i + 1}</span>
+              <span class="rl-name">{n.name}</span>
+            </button>
+          ))
+        }
+      </div>
+    </div>
+
+    <div class="rl-panels">
+      {
+        nodes.map((n, i) => (
+          <article
+            class={`rl-panel rl-panel--${n.key}`}
+            id={`rl-panel-${n.key}`}
+            role="tabpanel"
+            aria-labelledby={`rl-tab-${n.key}`}
+            hidden={i !== 0}>
+            <div class="rl-panel-head">
+              <div class="rl-eyebrow">
+                Stage 0{i + 1} of 0{STAGES.length}
+              </div>
+              <div class="rl-title">{n.title}</div>
+              <p class="rl-lead">{n.lead}</p>
+            </div>
+            <div class="rl-col rl-col--today">
+              <div class="rl-label">
+                <i aria-hidden="true" />
+                Available today
+              </div>
+              <ul>
+                {n.today.map(item => (
+                  <li set:html={item} />
+                ))}
+              </ul>
+            </div>
+            <div class="rl-col rl-col--next">
+              <div class="rl-label">
+                <i aria-hidden="true" />
+                On the roadmap
+              </div>
+              <ul>
+                {n.next.map(item => (
+                  <li>{item}</li>
+                ))}
+              </ul>
+            </div>
+            <a class="rl-more" href={n.anchor}>
+              Details and links <span aria-hidden="true">&darr;</span>
+            </a>
+          </article>
+        ))
+      }
+    </div>
+  </div>
+
+  <div class="rl-strip">
+    <span class="rl-strip-label">Renders today on</span>
+    <ul>
+      {
+        RENDERERS.map(r => (
+          <li>
+            <RendererLogo name={r.name} size={15} />
+            <span aria-hidden="true">{r.label}</span>
+          </li>
+        ))
+      }
+      <li class="rl-strip-mcp">MCP Apps</li>
+    </ul>
+  </div>
+
+  <!-- Agent & Accessibility View: Machine-readable spec hidden from human UI -->
+  <script type="text/vnd.mermaid" data-agent-diagram="spec" style="display: none;">
+    flowchart LR
+      build["1. Build: cross-platform components"] --> configure["2. Configure: agents with your catalog"]
+      configure --> evaluate["3. Evaluate: gen-UI quality"]
+      evaluate --> distribute["4. Distribute: web, mobile, MCP Apps, assistants"]
+      distribute --> monitor["5. Monitor: logs and user feedback"]
+      monitor -->|revise components| build
+      cli(["A2UI CLI, driven by your coding agent"]) -.-> build & configure & evaluate & distribute & monitor
+  </script>
+</div>
+
+<script>
+  const root = document.querySelector<HTMLElement>('[data-roadmap-loop]');
+  if (root) {
+    const tabs = Array.from(root.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+    const panels = Array.from(root.querySelectorAll<HTMLElement>('[role="tabpanel"]'));
+    const arc = root.querySelector<SVGCircleElement>('[data-arc]');
+    const cmd = root.querySelector<HTMLElement>('[data-cmd]');
+    const arcLength = 100 / tabs.length;
+    let current = 0;
+    let typing: number | undefined;
+
+    const typeCommand = (text: string) => {
+      if (!cmd) return;
+      window.clearInterval(typing);
+      let n = 0;
+      cmd.textContent = '';
+      typing = window.setInterval(() => {
+        n += 1;
+        cmd.textContent = text.slice(0, n);
+        if (n >= text.length) window.clearInterval(typing);
+      }, 45);
+    };
+
+    const select = (index: number, focus = false) => {
+      current = index;
+      root.dataset.active = tabs[index].dataset.key;
+      tabs.forEach((tab, i) => {
+        tab.setAttribute('aria-selected', String(i === index));
+        tab.tabIndex = i === index ? 0 : -1;
+      });
+      panels.forEach((panel, i) => {
+        panel.hidden = i !== index;
+      });
+      arc?.style.setProperty('stroke-dashoffset', String(-index * arcLength));
+      typeCommand(tabs[index].dataset.key ?? '');
+      if (focus) tabs[index].focus();
+    };
+
+    let timer: number | undefined;
+    let paused = false;
+    let visible = false;
+    const stopAutoplay = () => {
+      window.clearInterval(timer);
+      timer = undefined;
+    };
+
+    tabs.forEach((tab, i) => {
+      tab.addEventListener('click', () => {
+        stopAutoplay();
+        select(i);
+      });
+      tab.addEventListener('keydown', event => {
+        const step =
+          event.key === 'ArrowRight' || event.key === 'ArrowDown'
+            ? 1
+            : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+              ? -1
+              : 0;
+        if (!step) return;
+        event.preventDefault();
+        stopAutoplay();
+        select((current + step + tabs.length) % tabs.length, true);
+      });
+    });
+
+    select(0);
+
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      root.addEventListener('mouseenter', () => (paused = true));
+      root.addEventListener('mouseleave', () => (paused = false));
+      root.addEventListener('focusin', stopAutoplay);
+      new IntersectionObserver(entries => {
+        visible = entries[0]?.isIntersecting ?? false;
+      }).observe(root);
+      timer = window.setInterval(() => {
+        if (visible && !paused) select((current + 1) % tabs.length);
+      }, 6000);
+    }
+  }
+</script>
+
+<style>
+  .rl-root {
+    --rl-build: #8ab4f8;
+    --rl-configure: #c58af9;
+    --rl-evaluate: #fcad70;
+    --rl-distribute: #81c995;
+    --rl-monitor: #f28b82;
+    --rl-active: var(--rl-build);
+    --rl-ring: rgba(255, 255, 255, 0.12);
+    --rl-glow: 35%;
+
+    margin: 1.5rem 0 2rem;
+    padding: 1.5rem;
+    border-radius: 18px;
+    border: 1px solid var(--a2-border, rgba(255, 255, 255, 0.08));
+    background:
+      radial-gradient(
+        circle at 22% 30%,
+        color-mix(in srgb, var(--rl-active) 10%, transparent),
+        transparent 55%
+      ),
+      var(--a2-surface-subtle, #1a1a1b);
+    color: var(--a2-text, #e8eaed);
+    font-family: var(--a2-font-sans, var(--sl-font));
+    container-type: inline-size;
+    transition: background 0.6s;
+  }
+
+  :root[data-theme='light'] .rl-root {
+    --rl-build: #1a73e8;
+    --rl-configure: #9334e6;
+    --rl-evaluate: #e37400;
+    --rl-distribute: #188038;
+    --rl-monitor: #d93025;
+    --rl-ring: rgba(31, 31, 31, 0.12);
+    --rl-glow: 22%;
+  }
+
+  .rl-root[data-active='configure'] {
+    --rl-active: var(--rl-configure);
+  }
+  .rl-root[data-active='evaluate'] {
+    --rl-active: var(--rl-evaluate);
+  }
+  .rl-root[data-active='distribute'] {
+    --rl-active: var(--rl-distribute);
+  }
+  .rl-root[data-active='monitor'] {
+    --rl-active: var(--rl-monitor);
+  }
+
+  .rl-stage-area {
+    display: grid;
+    gap: 1.5rem;
+    align-items: center;
+  }
+
+  @container (min-width: 640px) {
+    .rl-stage-area {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+  }
+
+  /* Ring */
+  .rl-ring {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    aspect-ratio: 1;
+    margin: 0.75rem auto;
+    container-type: inline-size;
+  }
+
+  .rl-ring > svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  .rl-track {
+    fill: none;
+    stroke: var(--rl-ring);
+    stroke-width: 0.5;
+  }
+
+  .rl-arc {
+    fill: none;
+    stroke: var(--rl-active);
+    stroke-width: 0.9;
+    stroke-linecap: round;
+    transition:
+      stroke-dashoffset 0.7s cubic-bezier(0.6, 0, 0.2, 1),
+      stroke 0.5s;
+  }
+
+  .rl-comet {
+    fill: none;
+    stroke: var(--a2-accent, #8ab4f8);
+    stroke-width: 1.3;
+    stroke-linecap: round;
+    animation: rl-orbit 9s linear infinite;
+  }
+
+  @keyframes rl-orbit {
+    to {
+      stroke-dashoffset: -100;
+    }
+  }
+
+  .rl-chevron {
+    fill: none;
+    stroke: var(--a2-text-muted, #80868b);
+    stroke-width: 0.55;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .rl-node {
+    --c: var(--rl-build);
+    position: absolute;
+    left: var(--x);
+    top: var(--y);
+    transform: translate(-50%, -50%);
+    width: 28cqi;
+    padding: 2.4cqi 1.4cqi 2.2cqi;
+    display: grid;
+    justify-items: center;
+    gap: 0.8cqi;
+    border-radius: 4.5cqi;
+    border: 1px solid var(--a2-border, rgba(255, 255, 255, 0.08));
+    background: var(--a2-surface, #1e1f20);
+    color: inherit;
+    font: inherit;
+    text-align: center;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+    transition:
+      transform 0.35s cubic-bezier(0.3, 1.4, 0.5, 1),
+      border-color 0.3s,
+      box-shadow 0.3s;
+  }
+
+  .rl-node--configure {
+    --c: var(--rl-configure);
+  }
+  .rl-node--evaluate {
+    --c: var(--rl-evaluate);
+  }
+  .rl-node--distribute {
+    --c: var(--rl-distribute);
+  }
+  .rl-node--monitor {
+    --c: var(--rl-monitor);
+  }
+
+  .rl-node:hover {
+    transform: translate(-50%, -50%) scale(1.04);
+  }
+
+  .rl-node:focus-visible {
+    outline: 2px solid var(--c);
+    outline-offset: 3px;
+  }
+
+  .rl-node[aria-selected='true'] {
+    border-color: var(--c);
+    transform: translate(-50%, -50%) scale(1.08);
+    box-shadow:
+      0 0 0 4px color-mix(in srgb, var(--c) var(--rl-glow), transparent),
+      0 10px 30px -10px color-mix(in srgb, var(--c) 60%, transparent);
+  }
+
+  .rl-icon {
+    width: 9cqi;
+    height: 9cqi;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--c) 15%, transparent);
+    color: var(--c);
+  }
+
+  .rl-icon svg {
+    width: 55%;
+    height: 55%;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .rl-num {
+    font-family: var(--a2-font-mono, var(--sl-font-mono));
+    font-size: max(9px, 2.3cqi);
+    letter-spacing: 0.08em;
+    color: var(--a2-text-muted, #80868b);
+  }
+
+  .rl-name {
+    font-family: var(--a2-font-display, var(--sl-font));
+    font-size: max(11px, 3.6cqi);
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+  }
+
+  .rl-center {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 38cqi;
+    aspect-ratio: 1;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 1.2cqi;
+    text-align: center;
+    border-radius: 50%;
+    border: 1px dashed var(--a2-border-strong, rgba(255, 255, 255, 0.14));
+    background:
+      radial-gradient(
+        circle at 50% 35%,
+        color-mix(in srgb, var(--a2-accent, #8ab4f8) 12%, transparent),
+        transparent 70%
+      ),
+      var(--a2-surface, #1e1f20);
+  }
+
+  .rl-term {
+    font-family: var(--a2-font-mono, var(--sl-font-mono));
+    font-size: max(14px, 5.2cqi);
+    font-weight: 600;
+  }
+
+  .rl-term span {
+    color: var(--a2-accent, #8ab4f8);
+  }
+
+  .rl-cmd {
+    min-height: 1.3em;
+    font-family: var(--a2-font-mono, var(--sl-font-mono));
+    font-size: max(10px, 2.7cqi);
+    color: var(--rl-active);
+    transition: color 0.4s;
+  }
+
+  .rl-cmd::after {
+    content: '\258D';
+    margin-left: 1px;
+    animation: rl-blink 1s steps(1) infinite;
+  }
+
+  @keyframes rl-blink {
+    50% {
+      opacity: 0;
+    }
+  }
+
+  .rl-caption {
+    max-width: 27cqi;
+    font-size: max(10px, 2.6cqi);
+    line-height: 1.35;
+    color: var(--a2-text-muted, #80868b);
+  }
+
+  /* Panels */
+  .rl-panels {
+    min-width: 0;
+  }
+
+  .rl-panel {
+    --c: var(--rl-active);
+    position: relative;
+    display: grid;
+    gap: 1rem;
+    padding: 1.4rem 1.4rem 1.25rem;
+    border-radius: 14px;
+    border: 1px solid var(--a2-border, rgba(255, 255, 255, 0.08));
+    background: var(--a2-surface, #1e1f20);
+    overflow: hidden;
+    animation: rl-fade 0.45s ease both;
+  }
+
+  .rl-panel[hidden] {
+    display: none;
+  }
+
+  .rl-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto;
+    height: 3px;
+    background: var(--c);
+  }
+
+  @keyframes rl-fade {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+  }
+
+  .rl-panel-head {
+    display: grid;
+    gap: 0.3rem;
+  }
+
+  .rl-eyebrow,
+  .rl-label {
+    font-family: var(--a2-font-mono, var(--sl-font-mono));
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .rl-eyebrow {
+    color: var(--c);
+  }
+
+  .rl-title {
+    font-family: var(--a2-font-display, var(--sl-font));
+    font-size: 1.25rem;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: -0.025em;
+    text-wrap: balance;
+  }
+
+  .rl-lead {
+    margin: 0;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--a2-text-secondary, #9aa0a6);
+  }
+
+  .rl-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    color: var(--a2-text-muted, #80868b);
+  }
+
+  .rl-label i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--a2-text-muted, #80868b);
+  }
+
+  .rl-col--next .rl-label i {
+    background: var(--c);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 25%, transparent);
+  }
+
+  .rl-col ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .rl-col li {
+    position: relative;
+    padding-left: 0.95rem;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: var(--a2-text-secondary, #9aa0a6);
+  }
+
+  .rl-col li::before {
+    content: '';
+    position: absolute;
+    left: 0.1rem;
+    top: 0.6em;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--a2-border-strong, rgba(255, 255, 255, 0.14));
+  }
+
+  .rl-col--next li {
+    color: var(--a2-text, #e8eaed);
+  }
+
+  .rl-col--next li::before {
+    background: color-mix(in srgb, var(--c) 70%, transparent);
+  }
+
+  .rl-col code {
+    font-family: var(--a2-font-mono, var(--sl-font-mono));
+    font-size: 0.8em;
+  }
+
+  .rl-more {
+    justify-self: start;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--c);
+    text-decoration: none;
+  }
+
+  .rl-more:hover {
+    text-decoration: underline;
+  }
+
+  /* Renderer strip */
+  .rl-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem 1rem;
+    margin-top: 1.5rem;
+    padding-top: 1.1rem;
+    border-top: 1px solid var(--a2-border, rgba(255, 255, 255, 0.08));
+  }
+
+  .rl-strip-label {
+    font-family: var(--a2-font-mono, var(--sl-font-mono));
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--a2-text-muted, #80868b);
+  }
+
+  .rl-strip ul {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.9rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--a2-text-secondary, #9aa0a6);
+  }
+
+  .rl-strip li {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+  }
+
+  .rl-strip-mcp {
+    font-family: var(--a2-font-mono, var(--sl-font-mono));
+    font-size: 0.75rem;
+    padding: 0.1rem 0.5rem;
+    border-radius: 6px;
+    border: 1px solid var(--a2-border-strong, rgba(255, 255, 255, 0.14));
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rl-comet {
+      display: none;
+    }
+    .rl-cmd::after,
+    .rl-panel {
+      animation: none;
+    }
+    .rl-node,
+    .rl-arc,
+    .rl-root {
+      transition: none;
+    }
+  }
+</style>
