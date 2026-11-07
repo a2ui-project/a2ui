@@ -1783,6 +1783,33 @@ def test_v10_format_string_template_calls_inherit_catalog_and_preserve_index():
     assert res == "Item 1: drops (true)"
     assert errors == []
 
+    # Even when the surface defines a non-matching default catalog, template calls
+    # follow the catalog that formatString resolved to.
+    custom_default = Catalog("custom-default", protocol_version="1.0")
+    mixed_surface = SurfaceModel(
+        "s-mixed",
+        default_catalog=custom_default,
+        available_catalogs={
+            custom_default.catalog_id: custom_default,
+            basic_cat.catalog_id: basic_cat,
+        },
+        protocol_version="1.0",
+    )
+    mixed_ctx = DataContext(mixed_surface, path="/")
+    mixed_errors: list[dict[str, Any]] = []
+    mixed_surface.on_error.subscribe(mixed_errors.append)
+    assert (
+        mixed_ctx.resolve_dynamic_value({
+            "@call": "formatString",
+            "catalogId": basic_cat.catalog_id,
+            "args": {
+                "value": "Count: ${pluralize(value: 2, one: 'drop', other: 'drops')}"
+            },
+        })
+        == "Count: drops"
+    )
+    assert mixed_errors == []
+
     scoped_ctx = ctx.with_active_catalog_id(basic_cat.catalog_id)
     assert scoped_ctx.active_catalog_id == basic_cat.catalog_id
     assert scoped_ctx.index == 1

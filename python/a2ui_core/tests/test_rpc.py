@@ -13,9 +13,11 @@
 # limitations under the License.
 
 import asyncio
-import pytest
 from typing import Any, cast
 
+import pytest
+
+from a2ui.core.basic_catalog import v1_0
 from a2ui.core.catalog import Catalog, FunctionApi, FunctionImplementation
 from a2ui.core.exceptions import A2uiRpcError, RpcErrorCode
 from a2ui.core.resolution import DataContext
@@ -681,3 +683,54 @@ async def test_rpc_handler_concurrent_async_calls_isolate_active_catalog_id() ->
     assert resp_a["rendererFunctionResponse"]["value"] == ["cat-a", "cat-a"]
     assert resp_b["rendererFunctionResponse"]["value"] == "cat-b"
     assert shared_ctx.active_catalog_id is None
+
+
+def test_rpc_handler_standalone_catalog_resolves_nested_template_calls() -> None:
+    basic_format_string = v1_0.BasicCatalog().get_function("formatString")
+    assert basic_format_string is not None
+
+    rpc_cat = Catalog(
+        "rpc-only-cat",
+        protocol_version="1.0",
+        functions=[
+            FunctionImplementation(
+                name="renderTemplate",
+                execute=lambda args, context=None, *_: basic_format_string.execute(
+                    args, context
+                ),
+                allowed_callers="agentOnly",
+            ),
+            FunctionImplementation(
+                name="rpcHelper",
+                execute=lambda args, context=None, *_: "from-rpc-cat",
+                allowed_callers="rendererOrAgent",
+            ),
+        ],
+    )
+    surface_cat = Catalog("surface-cat", protocol_version="1.0")
+    surface = SurfaceModel(
+        "s-rpc-standalone",
+        default_catalog=surface_cat,
+        available_catalogs={"surface-cat": surface_cat},
+        protocol_version="1.0",
+    )
+    ctx = DataContext(surface=surface, path="/")
+    handler = RpcHandler([rpc_cat])
+
+    resp = handler.handle_call_renderer_function(
+        CallRendererFunctionMessage(
+            version="1.0",
+            call_renderer_function=CallRendererFunction(
+                function_call_id="call-standalone",
+                call_function=FunctionCall(
+                    call="renderTemplate",
+                    catalog_id="rpc-only-cat",
+                    args={"value": "Hello ${rpcHelper()}"},
+                ),
+            ),
+        ),
+        context=ctx,
+    )
+
+    assert resp["rendererFunctionResponse"]["value"] == "Hello from-rpc-cat"
+    assert ctx.active_catalog_id is None

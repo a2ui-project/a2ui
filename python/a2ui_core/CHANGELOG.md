@@ -37,10 +37,10 @@
   ([#3820](https://github.com/a2ui-project/a2ui/pull/3820)).
 - (v1_0) Function calls inside `${...}` template expressions of `formatString`
   now inherit the `catalogId` that the enclosing `formatString` call resolved
-  to (preserving reserved `@`-prefixed system calls such as `${@index()}` as
-  catalogless), so nested template calls resolve against `formatString`'s
-  catalog on defaultless multi-catalog surfaces. `DataContext.active_catalog_id`
-  exposes the catalog ID of the currently executing function call
+  to, even when the surface defines a different default `catalogId`, while
+  preserving reserved `@`-prefixed system calls such as `${@index()}` as
+  catalogless. `DataContext.active_catalog_id` exposes the catalog ID of the
+  currently executing function call
   ([#3727](https://github.com/a2ui-project/a2ui/issues/3727)).
 - Add `RpcHandler.cancel_surface_calls` to cancel pending outbound agent
   function calls with `RpcErrorCode.CANCELLED`.
