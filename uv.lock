@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'win32'",
@@ -24,6 +24,7 @@ members = [
     "a2ui-custom-components-example",
     "a2ui-eval",
     "a2ui-in-mcp-apps-server",
+    "a2ui-macros-music-demo",
     "a2ui-mcp-apps-in-a2ui-sample",
     "a2ui-mcp-calculator-demo",
     "a2ui-mcp-recipe-demo",
@@ -312,6 +313,29 @@ requires-dist = [
     { name = "sse-starlette", specifier = ">=3.3.4" },
     { name = "starlette", specifier = ">=1.0.1" },
     { name = "uvicorn", specifier = ">=0.34.0" },
+]
+
+[[package]]
+name = "a2ui-macros-music-demo"
+version = "0.1.0"
+source = { editable = "samples/community/macros-music/agent" }
+dependencies = [
+    { name = "a2ui-agent-sdk" },
+    { name = "a2ui-core" },
+    { name = "fastapi" },
+    { name = "google-genai" },
+    { name = "httpx" },
+    { name = "uvicorn" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "a2ui-agent-sdk", editable = "python/a2ui_agent" },
+    { name = "a2ui-core", editable = "python/a2ui_core" },
+    { name = "fastapi", specifier = ">=0.115.0" },
+    { name = "google-genai", specifier = ">=1.0.0" },
+    { name = "httpx", specifier = ">=0.27.0" },
+    { name = "uvicorn", specifier = ">=0.30.0" },
 ]
 
 [[package]]
