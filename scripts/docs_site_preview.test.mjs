@@ -31,6 +31,7 @@ import reconcileDocsSitePreviews, {
   injectNoindexMeta,
   PREVIEW_COMMENT_MARKER,
   resolveWorkflowRunPr,
+  runCli,
   stagePreviewBundle,
   syncGhPagesPreviewTree,
   validateSiteDirectory,
@@ -123,6 +124,65 @@ describe('docs_site_preview', () => {
       writeFile(distDir, 'index.html', '<html><head></head><body>1234567890</body></html>');
 
       assert.throws(() => validateSiteDirectory(distDir, {maxBytes: 10}), /exceeds size limit/);
+    });
+
+    it('rejects empty or unsafe outDir paths (cwd, root, or distDir)', () => {
+      const distDir = path.join(tmpDir, 'dist');
+      writeFile(distDir, 'index.html', '<html><head></head></html>');
+
+      assert.throws(
+        () => stagePreviewBundle({distDir, outDir: '', prNumber: 1, headSha: SHA_A}),
+        /outDir must be a non-empty path string/,
+      );
+      assert.throws(
+        () => stagePreviewBundle({distDir, outDir: process.cwd(), prNumber: 1, headSha: SHA_A}),
+        /Refusing to stage preview bundle into unsafe directory/,
+      );
+      assert.throws(
+        () => stagePreviewBundle({distDir, outDir: '/', prNumber: 1, headSha: SHA_A}),
+        /Refusing to stage preview bundle into unsafe directory/,
+      );
+      assert.throws(
+        () => stagePreviewBundle({distDir, outDir: distDir, prNumber: 1, headSha: SHA_A}),
+        /Refusing to stage preview bundle into unsafe directory/,
+      );
+      assert.throws(
+        () => stagePreviewBundle({distDir, outDir: tmpDir, prNumber: 1, headSha: SHA_A}),
+        /Refusing to stage preview bundle into unsafe directory/,
+      );
+      assert.equal(fs.existsSync(path.join(distDir, 'index.html')), true);
+    });
+
+    it('validates required CLI flags in runCli before resolving paths', () => {
+      const distDir = path.join(tmpDir, 'dist');
+      const outDir = path.join(tmpDir, 'bundle');
+      writeFile(distDir, 'index.html', '<html><head></head></html>');
+
+      assert.throws(
+        () => runCli(['stage', '--dist', distDir, '--pr', '42', '--sha', SHA_A]),
+        /Missing required flags/,
+      );
+      assert.throws(
+        () => runCli(['stage', '--dist', distDir, '--out', '--pr', '42', '--sha', SHA_A]),
+        /Missing required flags/,
+      );
+      assert.throws(
+        () => runCli(['stage', '--dist', distDir, '--out', '   ', '--pr', '42', '--sha', SHA_A]),
+        /Missing required flags/,
+      );
+
+      const meta = runCli([
+        'stage',
+        '--dist',
+        distDir,
+        '--out',
+        outDir,
+        '--pr',
+        '42',
+        '--sha',
+        SHA_A,
+      ]);
+      assert.deepEqual(meta, {pr_number: 42, head_sha: SHA_A});
     });
   });
 
@@ -384,8 +444,12 @@ describe('docs_site_preview', () => {
       const createdComments = [];
       const updatedComments = [];
 
+      const paginatedEndpoints = [];
       const github = {
-        paginate: async (fn, params) => fn(params).then(r => r.data),
+        paginate: async (fn, params) => {
+          paginatedEndpoints.push(fn);
+          return fn(params).then(r => r.data);
+        },
         rest: {
           pulls: {
             list: async () => ({
@@ -452,6 +516,7 @@ describe('docs_site_preview', () => {
       assert.equal(result.pushed, true);
       assert.equal(result.deployedPrNumber, 4055);
       assert.deepEqual(result.removedPrNumbers, [101]);
+      assert.equal(paginatedEndpoints.includes(github.rest.pulls.listFiles), true);
 
       assert.equal(createdComments.length, 1);
       assert.equal(createdComments[0].issue_number, 4055);
@@ -477,8 +542,12 @@ describe('docs_site_preview', () => {
       // Attacker stages PR #9999 inside PR #4055's build
       stagePreviewBundle({distDir, outDir: bundleDir, prNumber: 9999, headSha: SHA_A});
 
+      const paginatedEndpoints = [];
       const github = {
-        paginate: async (fn, params) => fn(params).then(r => r.data),
+        paginate: async (fn, params) => {
+          paginatedEndpoints.push(fn);
+          return fn(params).then(r => r.data);
+        },
         rest: {
           pulls: {
             list: async () => ({

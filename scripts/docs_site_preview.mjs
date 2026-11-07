@@ -158,15 +158,37 @@ export function stagePreviewBundle({
   headSha,
   maxBytes = MAX_BUNDLE_BYTES,
 }) {
+  if (typeof distDir !== 'string' || !distDir.trim()) {
+    throw new Error('distDir must be a non-empty path string');
+  }
+  if (typeof outDir !== 'string' || !outDir.trim()) {
+    throw new Error('outDir must be a non-empty path string');
+  }
+
+  const resolvedDist = path.resolve(distDir);
+  const resolvedOut = path.resolve(outDir);
+  const cwd = path.resolve(process.cwd());
+  const rootDir = path.parse(resolvedOut).root;
+
+  if (
+    resolvedOut === rootDir ||
+    resolvedOut === cwd ||
+    cwd.startsWith(`${resolvedOut}${path.sep}`) ||
+    resolvedOut === resolvedDist ||
+    resolvedDist.startsWith(`${resolvedOut}${path.sep}`)
+  ) {
+    throw new Error(`Refusing to stage preview bundle into unsafe directory: ${resolvedOut}`);
+  }
+
   const parsedPr = parsePositivePrNumber(prNumber);
   const normalizedSha = validateHeadSha(headSha);
 
-  validateSiteDirectory(distDir, {maxBytes});
+  validateSiteDirectory(resolvedDist, {maxBytes});
 
-  fs.rmSync(outDir, {recursive: true, force: true});
-  const stagedSiteDir = path.join(outDir, 'site');
-  fs.mkdirSync(outDir, {recursive: true});
-  fs.cpSync(distDir, stagedSiteDir, {recursive: true, verbatimSymlinks: true});
+  fs.rmSync(resolvedOut, {recursive: true, force: true});
+  const stagedSiteDir = path.join(resolvedOut, 'site');
+  fs.mkdirSync(resolvedOut, {recursive: true});
+  fs.cpSync(resolvedDist, stagedSiteDir, {recursive: true, verbatimSymlinks: true});
 
   fs.rmSync(path.join(stagedSiteDir, 'CNAME'), {force: true});
   fs.rmSync(path.join(stagedSiteDir, '.nojekyll'), {force: true});
@@ -178,7 +200,10 @@ export function stagePreviewBundle({
     pr_number: parsedPr,
     head_sha: normalizedSha,
   };
-  fs.writeFileSync(path.join(outDir, 'pr-metadata.json'), `${JSON.stringify(metadata, null, 2)}\n`);
+  fs.writeFileSync(
+    path.join(resolvedOut, 'pr-metadata.json'),
+    `${JSON.stringify(metadata, null, 2)}\n`,
+  );
 
   return metadata;
 }
@@ -645,13 +670,12 @@ export default async function reconcileDocsSitePreviews({
   if (deployTarget) {
     let prFiles = [];
     try {
-      const filesResponse = await github.rest.pulls.listFiles({
+      prFiles = await github.paginate(github.rest.pulls.listFiles, {
         owner,
         repo,
         pull_number: deployTarget.prNumber,
         per_page: 100,
       });
-      prFiles = filesResponse.data || [];
     } catch (error) {
       console.warn(
         `[docs-site-preview] Could not list modified files for PR #${deployTarget.prNumber}: ${error.message}`,
@@ -702,14 +726,14 @@ function parseCliFlags(argv) {
   const flags = {};
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg.startsWith('--') && i + 1 < argv.length) {
+    if (arg.startsWith('--') && i + 1 < argv.length && !argv[i + 1].startsWith('--')) {
       flags[arg.slice(2)] = argv[++i];
     }
   }
   return flags;
 }
 
-function runCli(argv) {
+export function runCli(argv) {
   const [command, ...rest] = argv;
   if (command !== 'stage') {
     throw new Error(
@@ -717,15 +741,21 @@ function runCli(argv) {
     );
   }
   const flags = parseCliFlags(rest);
+  if (!flags.dist?.trim() || !flags.out?.trim() || !flags.pr?.trim() || !flags.sha?.trim()) {
+    throw new Error(
+      'Missing required flags: --dist, --out, --pr, and --sha must all be specified and non-empty.',
+    );
+  }
   const metadata = stagePreviewBundle({
-    distDir: path.resolve(flags.dist || ''),
-    outDir: path.resolve(flags.out || ''),
+    distDir: path.resolve(flags.dist),
+    outDir: path.resolve(flags.out),
     prNumber: flags.pr,
     headSha: flags.sha,
   });
   console.log(
     `[docs-site-preview] Staged preview bundle for PR #${metadata.pr_number} (${metadata.head_sha.slice(0, 7)}).`,
   );
+  return metadata;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
