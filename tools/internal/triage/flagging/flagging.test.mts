@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-// Tests for triage.mts. Run from the repository root with:
-// node --test tools/internal/triage/flagging/triage.test.mts
+// Tests for flagging.mts. Run from the repository root with:
+// node --test tools/internal/triage/flagging/flagging.test.mts
 
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -40,7 +40,7 @@ import issueTriage, {
   STALE_DAYS,
   TRIAGE_ASSIGNMENT_DAYS,
   WAITING_LABEL,
-} from './triage.mts';
+} from './flagging.mts';
 
 const NOW = new Date('2026-06-30T00:00:00Z').getTime();
 const DAY = 24 * 60 * 60 * 1000;
