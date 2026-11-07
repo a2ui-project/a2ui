@@ -107,21 +107,21 @@ export default defineConfig({
             href: 'https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,400..700;1,400..700&display=swap',
           },
         },
+        {
+          tag: 'link',
+          attrs: {
+            rel: 'alternate',
+            type: 'text/markdown',
+            href: `${(process.env.ASTRO_BASE || '').replace(/\/$/, '')}/llms.txt`,
+            title: 'A2UI documentation index for LLMs',
+          },
+        },
       ],
       components: {
         Header: './src/components/StarlightHeader.astro',
       },
       customCss: ['./src/styles/tokens.css', './src/styles/custom.css'],
       sidebar: [
-        {
-          label: 'Navigation',
-          items: [
-            {
-              label: '← Back to Overview',
-              link: '/',
-            },
-          ],
-        },
         {
           label: 'Getting Started',
           items: [
@@ -194,6 +194,7 @@ export default defineConfig({
             },
             {
               label: 'Model Context Protocol (MCP)',
+              collapsed: true,
               items: [
                 {
                   label: 'Overview',
@@ -224,15 +225,6 @@ export default defineConfig({
           ],
         },
         {
-          label: 'Roadmap',
-          items: [
-            {
-              label: 'Roadmap',
-              slug: 'roadmap',
-            },
-          ],
-        },
-        {
           label: 'Ecosystem',
           items: [
             {
@@ -242,6 +234,10 @@ export default defineConfig({
             {
               label: 'Get Help',
               link: '/get-help/',
+            },
+            {
+              label: 'Roadmap',
+              slug: 'roadmap',
             },
           ],
         },
@@ -276,6 +272,7 @@ export default defineConfig({
             },
             {
               label: 'v0.9.1',
+              collapsed: true,
               items: [
                 {
                   label: 'Protocol Specification',

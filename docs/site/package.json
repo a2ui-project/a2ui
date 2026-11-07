@@ -4,12 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "predev": "node scripts/prepare-spec-assets.mjs",
+    "predev": "node scripts/prepare-spec-assets.mjs && node scripts/emit-markdown-bundle.mjs",
     "dev": "astro dev",
     "verify:specs": "node scripts/verify-spec-links.mjs",
     "check:anchors": "node scripts/check-anchors.mjs",
-    "prebuild": "node scripts/prepare-spec-assets.mjs && node scripts/verify-spec-links.mjs",
-    "build": "astro build && node scripts/verify-spec-links.mjs --check-dist && node scripts/check-anchors.mjs",
+    "prebuild": "node scripts/prepare-spec-assets.mjs && node scripts/emit-markdown-bundle.mjs && node scripts/verify-spec-links.mjs",
+    "build": "astro build && node scripts/emit-markdown-bundle.mjs --dist && node scripts/verify-spec-links.mjs --check-dist && node scripts/check-anchors.mjs",
     "check": "node scripts/prepare-spec-assets.mjs && node scripts/verify-spec-links.mjs",
     "preview": "astro preview"
   },

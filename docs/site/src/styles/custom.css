@@ -30,7 +30,7 @@
   --sl-color-text-accent: var(--a2-accent-strong);
   --sl-color-bg: var(--a2-bg);
   --sl-color-bg-nav: var(--a2-bg-nav);
-  --sl-color-bg-sidebar: var(--a2-bg-alt);
+  --sl-color-bg-sidebar: var(--a2-bg);
   --sl-color-bg-inline-code: var(--a2-surface);
   --sl-color-hairline-shade: var(--a2-border);
   --sl-color-hairline-light: var(--a2-border);
@@ -53,7 +53,7 @@
   --sl-color-text-accent: var(--a2-accent);
   --sl-color-bg: var(--a2-bg);
   --sl-color-bg-nav: var(--a2-bg-nav);
-  --sl-color-bg-sidebar: var(--a2-bg-alt);
+  --sl-color-bg-sidebar: var(--a2-bg);
   --sl-color-bg-inline-code: #f1f3f4;
   --sl-color-hairline-shade: var(--a2-border);
   --sl-color-hairline-light: var(--a2-border);
@@ -95,15 +95,83 @@ header.header {
   width: auto;
 }
 
+/* Calm editorial sidebar: shares page background, hides scrollbar track until hover, quiet carets */
+.sidebar-pane {
+  border-inline-end: 1px solid var(--a2-border) !important;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.sidebar-pane:hover {
+  scrollbar-color: var(--a2-border-strong) transparent;
+}
+
+.sidebar-pane::-webkit-scrollbar {
+  width: 5px;
+}
+
+.sidebar-pane::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-pane::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.sidebar-pane:hover::-webkit-scrollbar-thumb {
+  background: var(--a2-border-strong);
+}
+
+.sidebar-content {
+  padding: 1.1rem 0.9rem 2rem;
+}
+
+.sidebar-content .top-level > li + li {
+  margin-top: 1.15rem;
+}
+
 /* Sidebar group labels: technical micro-topology */
+.sidebar-content .top-level > li > details > summary {
+  padding: 0.25rem 0.5rem;
+}
+
 .sidebar-content .top-level > li > details > summary .large,
 .sidebar-content .group-label .large {
   font-family: var(--a2-font-mono);
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 600;
-  letter-spacing: 0.085em;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--a2-text-muted);
+}
+
+/* Quiet top-level disclosure carets so the sidebar reads like an editorial index, not an accordion tree */
+.sidebar-content .top-level > li > details > summary .caret {
+  opacity: 0.38;
+  font-size: 0.85rem;
+}
+
+.sidebar-content ul ul li {
+  margin-inline-start: 0.35rem;
+  padding-inline-start: 0.45rem;
+  border-inline-start: 1px solid var(--a2-border);
+}
+
+.sidebar-content a {
+  border-radius: 4px;
+  padding: 0.32rem 0.55rem;
+  font-size: 0.865rem;
+  line-height: 1.4;
+  color: var(--a2-text-secondary);
+  transition:
+    color 0.14s ease,
+    background-color 0.14s ease;
+}
+
+.sidebar-content a:hover {
+  color: var(--a2-text);
+  background-color: var(--a2-surface-subtle);
 }
 
 /* Subtle active state in sidebar */
@@ -113,7 +181,28 @@ header.header {
   background-color: var(--a2-accent-soft);
   color: var(--sl-color-text-accent);
   border-left: 2px solid var(--a2-accent);
-  font-weight: 500;
+  border-radius: 0 4px 4px 0;
+  font-weight: 600;
+}
+
+/* Right-hand table of contents ("On this page"): calm matching rhythm */
+.right-sidebar-panel h2 {
+  font-family: var(--a2-font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--a2-text-muted);
+}
+
+.right-sidebar {
+  border-inline-start: 1px solid var(--a2-border) !important;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.right-sidebar:hover {
+  scrollbar-color: var(--a2-border-strong) transparent;
 }
 
 /* Prevent wide code blocks (e.g. JSONL streams) from expanding flex/grid columns */

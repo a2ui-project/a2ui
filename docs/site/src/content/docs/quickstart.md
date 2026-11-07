@@ -14,6 +14,14 @@ By the end of this quickstart, you'll have:
 - An interactive restaurant finder with form generation, time selection, and confirmation flows.
 - Understanding of how A2UI messages (`createSurface`, `updateComponents`, `updateDataModel`) flow from agent to UI.
 
+## Fast Paths: Agent Harnesses and Visual Tools
+
+Before cloning the full repository, you can equip your coding agent or test surfaces directly in the browser:
+
+- **Agent Harness Skills**: Run `npx skills add a2ui-project/a2ui` in your project to load A2UI protocol rules, SDK integration guides, and catalog authoring workflows into coding agents (see [Get Help](/get-help/)).
+- **[A2UI Composer](https://a2ui-editor.ag-ui.com)** ([source](https://github.com/a2ui-project/a2ui/tree/main/tools/composer)): Visual workspace for prompting an assistant, inspecting streamed envelopes and `dataModel` updates, and editing surfaces side by side.
+- **[A2UI Playground](https://go.copilotkit.ai/a2ui-playground)**: Browser sandbox for testing A2UI prompts and component catalogs with zero local setup.
+
 ## Prerequisites
 
 - **Node.js** (v18 or later with [Corepack](https://nodejs.org/api/corepack.html) enabled) — [Download here](https://nodejs.org/)
@@ -93,7 +101,7 @@ In the app, try these prompts:
 1. **User Input**: You type `"Book a table for 2"`.
 2. **Agent Processing**:
     - The Python ADK agent receives your message via the **A2A Protocol**.
-    - Gemini analyzes the intent and generates A2UI messages (using **A2UI Express** or structured JSON).
+    - Gemini analyzes the intent and generates A2UI messages (compiled from **A2UI Express**, decision models, or server-side macros).
 3. **Streaming & Rendering**:
     - The agent streams `createSurface`, `updateComponents`, and `updateDataModel` envelopes to the client.
     - The client renderer maps abstract components (`Card`, `Row`, `Button`, `DateTimeInput`) to native platform widgets and binds inputs to the local `dataModel` via JSON Pointers.

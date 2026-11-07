@@ -1,0 +1,740 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+
+<section class="a2-section a2-section--alt gs-section" id="spectrum">
+  <div class="gs-wrap">
+    <!-- Chapter header -->
+    <div class="gs-header">
+      <div class="gs-header__title">
+        <span class="gs-eyebrow">ARCHITECTURE · GENERATIVE UI SPECTRUM</span>
+        <h2 class="gs-h2">
+          Three patterns. <span class="gs-accent">Different trust and layout boundaries.</span>
+        </h2>
+      </div>
+      <p class="gs-sub">
+        Generative UI is not one mechanism—it spans a continuum between rigid predictability and
+        open-ended rendering freedom. A2UI occupies the middle ground: agents compose novel layouts
+        at runtime, while your client renders only components from a catalog you control.
+      </p>
+    </div>
+
+    <!-- Differentiated architectural schematic (3-paradigm boundary diagram) -->
+    <div class="gs-diagram" role="region" aria-label="Architectural comparison across the three generative UI paradigms">
+      <div class="gs-axis" aria-hidden="true">
+        <span>← HIGHER HOST CONTROL &amp; NATIVE CONSISTENCY</span>
+        <span class="gs-axis__line"></span>
+        <span>HIGHER RUNTIME VISUAL FREEDOM →</span>
+      </div>
+
+      <div class="gs-lanes">
+        <!-- 01 · Static Tool-Bound UI -->
+        <article class="gs-lane">
+          <div class="gs-lane__top">
+            <span class="gs-idx">01 · STATIC UI</span>
+            <span class="gs-badge">Fixed template</span>
+          </div>
+          <h3 class="gs-h3">Tool-bound widgets</h3>
+          <p class="gs-desc">
+            The agent calls a tool and fills typed props into one pre-authored component—such as a
+            weather card or stock ticker.
+          </p>
+
+          <svg class="gs-svg" viewBox="0 0 320 148" aria-hidden="true">
+            <text class="gs-lbl" x="14" y="24">AGENT</text>
+            <rect class="gs-box" x="14" y="32" width="76" height="32" rx="3" />
+            <text class="gs-mono" x="24" y="52">tool(args)</text>
+
+            <line class="gs-wire" x1="90" y1="48" x2="144" y2="48" />
+            <path class="gs-wire" d="M140 44l4 4-4 4" />
+            <text class="gs-lbl" x="98" y="40">PROPS</text>
+
+            <!-- Host boundary -->
+            <rect class="gs-host" x="150" y="20" width="156" height="114" rx="4" />
+            <text class="gs-lbl" x="160" y="35">HOST APP · FIXED SLOT</text>
+            <rect class="gs-slot" x="162" y="46" width="132" height="74" rx="3" />
+            <line class="gs-ink" x1="174" y1="62" x2="236" y2="62" />
+            <line class="gs-muted" x1="174" y1="74" x2="268" y2="74" />
+            <rect class="gs-muted-fill" x="174" y="90" width="64" height="16" rx="2" />
+          </svg>
+
+          <dl class="gs-traits">
+            <div>
+              <dt>Layout</dt>
+              <dd>Hardcoded per tool</dd>
+            </div>
+            <div>
+              <dt>Renderer</dt>
+              <dd>Native host widget</dd>
+            </div>
+            <div>
+              <dt>Trade-off</dt>
+              <dd>Every new flow needs app code</dd>
+            </div>
+          </dl>
+        </article>
+
+        <!-- 02 · Declarative Catalog UI (A2UI) -->
+        <article class="gs-lane gs-lane--a2ui">
+          <div class="gs-lane__top">
+            <span class="gs-idx gs-idx--hi">02 · DECLARATIVE UI</span>
+            <span class="gs-badge gs-badge--hi">A2UI sweet spot</span>
+          </div>
+          <h3 class="gs-h3">Catalog-governed composition</h3>
+          <p class="gs-desc">
+            The agent composes component trees, two-way data bindings, and validation rules on the
+            fly; the client maps them to native widgets.
+          </p>
+
+          <svg class="gs-svg" viewBox="0 0 320 148" aria-hidden="true">
+            <text class="gs-lbl gs-lbl--hi" x="12" y="24">AGENT + SDK</text>
+            <rect class="gs-box gs-box--hi" x="12" y="32" width="82" height="44" rx="3" />
+            <text class="gs-mono gs-mono--hi" x="20" y="50">Express/Jev</text>
+            <text class="gs-lbl" x="20" y="65">+ @macro</text>
+
+            <line class="gs-wire gs-wire--hi" x1="94" y1="54" x2="146" y2="54" />
+            <path class="gs-wire gs-wire--hi" d="M142 50l4 4-4 4" />
+            <text class="gs-lbl gs-lbl--hi" x="100" y="45">JSONL</text>
+
+            <!-- Catalog gate -->
+            <line class="gs-gate" x1="150" y1="16" x2="150" y2="136" />
+
+            <!-- Native Host App -->
+            <rect class="gs-host gs-host--hi" x="156" y="20" width="152" height="114" rx="4" />
+            <text class="gs-lbl gs-lbl--hi" x="166" y="35">NATIVE CATALOG TREE</text>
+            <rect class="gs-comp" x="166" y="44" width="62" height="36" rx="2" />
+            <rect class="gs-comp" x="234" y="44" width="64" height="36" rx="2" />
+            <rect class="gs-comp" x="166" y="86" width="132" height="36" rx="2" />
+            <line class="gs-ink-hi" x1="174" y1="56" x2="214" y2="56" />
+            <line class="gs-ink-hi" x1="242" y1="56" x2="286" y2="56" />
+            <rect class="gs-cta-fill" x="174" y="96" width="76" height="16" rx="2" />
+          </svg>
+
+          <dl class="gs-traits">
+            <div>
+              <dt>Layout</dt>
+              <dd>Composed dynamically per intent</dd>
+            </div>
+            <div>
+              <dt>Renderer</dt>
+              <dd>React, Lit, Angular, Flutter, SwiftUI, Compose</dd>
+            </div>
+            <div>
+              <dt>Security</dt>
+              <dd>Data stream only; zero code execution</dd>
+            </div>
+          </dl>
+        </article>
+
+        <!-- 03 · Open-Ended / Sandboxed Code UI -->
+        <article class="gs-lane">
+          <div class="gs-lane__top">
+            <span class="gs-idx">03 · OPEN-ENDED UI</span>
+            <span class="gs-badge">Iframe sandbox</span>
+          </div>
+          <h3 class="gs-h3">Sandboxed web views &amp; code</h3>
+          <p class="gs-desc">
+            The agent or tool server delivers self-contained HTML, CSS, and JavaScript—such as an
+            MCP App or generated artifact—inside an isolated iframe.
+          </p>
+
+          <svg class="gs-svg" viewBox="0 0 320 148" aria-hidden="true">
+            <text class="gs-lbl" x="14" y="24">TOOL / MODEL</text>
+            <rect class="gs-box" x="14" y="32" width="78" height="36" rx="3" />
+            <text class="gs-mono" x="22" y="54">&lt;html+js&gt;</text>
+
+            <line class="gs-wire" x1="92" y1="50" x2="144" y2="50" />
+            <path class="gs-wire" d="M140 46l4 4-4 4" />
+            <text class="gs-lbl" x="98" y="42">BUNDLE</text>
+
+            <!-- Host + Iframe boundary -->
+            <rect class="gs-host" x="150" y="20" width="156" height="114" rx="4" />
+            <text class="gs-lbl" x="160" y="35">HOST APP</text>
+            <rect class="gs-sandbox" x="162" y="44" width="132" height="78" rx="3" />
+            <text class="gs-lbl gs-lbl--amber" x="170" y="58">&lt;iframe sandbox&gt;</text>
+            <path class="gs-canvas" d="M172 106 Q 198 70, 224 94 T 282 74" />
+            <circle class="gs-amber-dot" cx="224" cy="94" r="3" />
+          </svg>
+
+          <dl class="gs-traits">
+            <div>
+              <dt>Layout</dt>
+              <dd>Unconstrained DOM, Canvas, or WebGL</dd>
+            </div>
+            <div>
+              <dt>Renderer</dt>
+              <dd>Isolated browser frame / WebView</dd>
+            </div>
+            <div>
+              <dt>Trade-off</dt>
+              <dd>Separate styling, heavier mobile footprint</dd>
+            </div>
+          </dl>
+        </article>
+      </div>
+    </div>
+
+    <!-- Technical comparison matrix -->
+    <div class="gs-table-wrap">
+      <table class="gs-table">
+        <thead>
+          <tr>
+            <th scope="col">Dimension</th>
+            <th scope="col">01 · Static tool-bound UI</th>
+            <th scope="col" class="is-hi">02 · Declarative catalog UI (A2UI)</th>
+            <th scope="col">03 · Open-ended / iframe UI</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Brand &amp; accessibility</th>
+            <td>Inherits host design system</td>
+            <td class="is-hi">Inherits host design system &amp; platform a11y</td>
+            <td>Must re-style inside each iframe bundle</td>
+          </tr>
+          <tr>
+            <th scope="row">Cross-platform reach</th>
+            <td>Per-app implementation</td>
+            <td class="is-hi">One payload across Web, Flutter, iOS, &amp; Android</td>
+            <td>Web-first; requires WebView wrapper on mobile</td>
+          </tr>
+          <tr>
+            <th scope="row">Streaming latency</th>
+            <td>Renders after tool args resolve</td>
+            <td class="is-hi">Incremental updates stream as the model thinks</td>
+            <td>Waits for bundle load or full code block</td>
+          </tr>
+          <tr>
+            <th scope="row">Ideal workload</th>
+            <td>Single-purpose status &amp; confirmation cards</td>
+            <td class="is-hi">Adaptive multi-step product workflows &amp; forms</td>
+            <td>Custom 3D scenes, maps, CAD, or third-party mini-apps</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Composition callout: A2UI + MCP Apps -->
+    <div class="gs-bridge">
+      <div class="gs-bridge__copy">
+        <span class="gs-tag">COMPOSABLE BY DESIGN · A2UI + MCP APPS</span>
+        <p>
+          Declarative catalogs and iframe sandboxes work together in production. Mount an
+          <strong>MCP App</strong> inside an A2UI surface when one step needs a custom map or shader
+          canvas, or render streaming <strong>A2UI surfaces inside an MCP App</strong> host such as
+          Claude or Cursor.
+        </p>
+      </div>
+      <div class="gs-bridge__links">
+        <a href={`${base}/guides/mcp-apps-in-a2ui/`} class="gs-link">
+          <span>MCP Apps inside A2UI</span>
+          <span aria-hidden="true">→</span>
+        </a>
+        <a href={`${base}/guides/a2ui-in-mcp-apps/`} class="gs-link">
+          <span>A2UI inside MCP Apps</span>
+          <span aria-hidden="true">→</span>
+        </a>
+        <a
+          href="https://www.copilotkit.ai/generative-ui-spectrum"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="gs-link gs-link--muted"
+        >
+          <span>Generative UI Spectrum overview</span>
+          <span aria-hidden="true">↗</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .gs-wrap {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 36px;
+  }
+
+  @media (max-width: 640px) {
+    .gs-wrap {
+      padding: 0 20px;
+    }
+  }
+
+  .gs-header {
+    display: grid;
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 64px;
+    align-items: end;
+    margin-bottom: 52px;
+  }
+
+  @media (max-width: 860px) {
+    .gs-header {
+      grid-template-columns: 1fr;
+      gap: 16px;
+      margin-bottom: 36px;
+    }
+  }
+
+  .gs-eyebrow {
+    display: inline-block;
+    margin-bottom: 12px;
+    font-family: var(--a2-font-mono);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--a2-accent-strong);
+  }
+
+  .gs-h2 {
+    margin: 0;
+    font-family: var(--a2-font-display);
+    font-size: clamp(2.05rem, 3.6vw, 3rem);
+    font-weight: 700;
+    line-height: 1.08;
+    letter-spacing: var(--a2-tracking-h2);
+    color: var(--a2-text);
+  }
+
+  .gs-accent {
+    color: var(--a2-heading-accent);
+  }
+
+  .gs-sub {
+    margin: 0;
+    font-size: 15.5px;
+    line-height: 1.62;
+    color: var(--a2-text-secondary);
+  }
+
+  /* Continuum axis bar */
+  .gs-axis {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+    font-family: var(--a2-font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    color: var(--a2-text-muted);
+  }
+
+  .gs-axis__line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      var(--a2-border-strong),
+      var(--a2-accent) 50%,
+      var(--a2-amber)
+    );
+  }
+
+  @media (max-width: 760px) {
+    .gs-axis {
+      display: none;
+    }
+  }
+
+  /* 3-column architectural schematic */
+  .gs-lanes {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+  }
+
+  @media (max-width: 980px) {
+    .gs-lanes {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .gs-lane {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 22px;
+    border-radius: 4px;
+    border: 1px solid var(--a2-border-strong);
+    background: var(--a2-bg);
+  }
+
+  .gs-lane--a2ui {
+    border-color: var(--a2-accent);
+    box-shadow: 0 0 0 1px var(--a2-accent-border), var(--a2-shadow-md);
+  }
+
+  .gs-lane__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .gs-idx {
+    font-family: var(--a2-font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--a2-text-muted);
+    white-space: nowrap;
+  }
+
+  .gs-idx--hi {
+    color: var(--a2-accent-strong);
+  }
+
+  .gs-badge {
+    font-family: var(--a2-font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 2px;
+    border: 1px solid var(--a2-border-strong);
+    background: var(--a2-surface-subtle);
+    color: var(--a2-text-muted);
+    white-space: nowrap;
+  }
+
+  .gs-badge--hi {
+    border-color: var(--a2-accent-border);
+    background: var(--a2-accent-soft);
+    color: var(--a2-accent-strong);
+  }
+
+  .gs-h3 {
+    margin: 0;
+    font-family: var(--a2-font-display);
+    font-size: 19px;
+    font-weight: 660;
+    letter-spacing: var(--a2-tracking-h3);
+    color: var(--a2-text);
+  }
+
+  .gs-desc {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.56;
+    color: var(--a2-text-secondary);
+  }
+
+  /* Blueprint SVG styling */
+  .gs-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+    margin: 4px 0;
+    border-radius: 3px;
+    border: 1px solid var(--a2-border);
+    background-color: var(--a2-surface-subtle);
+    background-image: radial-gradient(var(--a2-dot-grid) 1px, transparent 1px);
+    background-size: 12px 12px;
+  }
+
+  .gs-lbl {
+    font-family: var(--a2-font-mono);
+    font-size: 7.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    fill: var(--a2-text-muted);
+  }
+
+  .gs-lbl--hi {
+    fill: var(--a2-accent-strong);
+  }
+
+  .gs-lbl--amber {
+    fill: var(--a2-amber);
+  }
+
+  .gs-mono {
+    font-family: var(--a2-font-mono);
+    font-size: 9.5px;
+    font-weight: 600;
+    fill: var(--a2-text);
+  }
+
+  .gs-mono--hi {
+    fill: var(--a2-accent-strong);
+  }
+
+  .gs-box {
+    fill: var(--a2-surface);
+    stroke: var(--a2-border-strong);
+    stroke-width: 1;
+  }
+
+  .gs-box--hi {
+    fill: var(--a2-accent-soft);
+    stroke: var(--a2-accent);
+  }
+
+  .gs-wire {
+    fill: none;
+    stroke: var(--a2-text-muted);
+    stroke-width: 1.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .gs-wire--hi {
+    stroke: var(--a2-accent);
+    stroke-width: 1.5;
+  }
+
+  .gs-gate {
+    stroke: var(--a2-accent);
+    stroke-width: 1.2;
+    stroke-dasharray: 3 3;
+  }
+
+  .gs-host {
+    fill: var(--a2-bg);
+    stroke: var(--a2-border-strong);
+    stroke-width: 1;
+  }
+
+  .gs-host--hi {
+    stroke: var(--a2-accent-border);
+  }
+
+  .gs-slot {
+    fill: var(--a2-surface);
+    stroke: var(--a2-border-strong);
+    stroke-width: 1;
+  }
+
+  .gs-comp {
+    fill: var(--a2-accent-soft);
+    stroke: var(--a2-accent-border);
+    stroke-width: 1;
+  }
+
+  .gs-sandbox {
+    fill: var(--a2-amber-soft);
+    stroke: var(--a2-amber-border);
+    stroke-width: 1;
+    stroke-dasharray: 4 2;
+  }
+
+  .gs-ink {
+    stroke: var(--a2-text);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+  }
+
+  .gs-ink-hi {
+    stroke: var(--a2-accent-strong);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+  }
+
+  .gs-muted {
+    stroke: var(--a2-text-muted);
+    stroke-width: 1.2;
+    stroke-linecap: round;
+  }
+
+  .gs-muted-fill {
+    fill: var(--a2-border-strong);
+  }
+
+  .gs-cta-fill {
+    fill: var(--a2-accent);
+  }
+
+  .gs-canvas {
+    fill: none;
+    stroke: var(--a2-amber);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+  }
+
+  .gs-amber-dot {
+    fill: var(--a2-amber);
+  }
+
+  .gs-traits {
+    margin: auto 0 0;
+    padding-top: 12px;
+    border-top: 1px solid var(--a2-border);
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .gs-traits > div {
+    display: grid;
+    grid-template-columns: 78px 1fr;
+    gap: 10px;
+    font-size: 12.5px;
+    line-height: 1.45;
+  }
+
+  .gs-traits dt {
+    font-family: var(--a2-font-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--a2-text-muted);
+  }
+
+  .gs-traits dd {
+    margin: 0;
+    color: var(--a2-text);
+  }
+
+  /* Matrix table */
+  .gs-table-wrap {
+    margin-top: 28px;
+    overflow-x: auto;
+    border: 1px solid var(--a2-border-strong);
+    border-radius: 4px;
+    background: var(--a2-bg);
+  }
+
+  .gs-table {
+    width: 100%;
+    min-width: 680px;
+    border-collapse: collapse;
+    font-size: 13.5px;
+    line-height: 1.5;
+  }
+
+  .gs-table th,
+  .gs-table td {
+    padding: 13px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--a2-border);
+    vertical-align: top;
+  }
+
+  .gs-table thead th {
+    background: var(--a2-surface-subtle);
+    font-family: var(--a2-font-mono);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--a2-text-muted);
+  }
+
+  .gs-table thead th.is-hi {
+    color: var(--a2-accent-strong);
+    background: var(--a2-accent-soft);
+  }
+
+  .gs-table tbody th {
+    font-weight: 650;
+    color: var(--a2-text);
+    width: 19%;
+  }
+
+  .gs-table tbody td {
+    color: var(--a2-text-secondary);
+  }
+
+  .gs-table tbody td.is-hi {
+    color: var(--a2-text);
+    font-weight: 500;
+    background: var(--a2-accent-soft);
+  }
+
+  .gs-table tbody tr:last-child th,
+  .gs-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  /* MCP Apps bridge callout */
+  .gs-bridge {
+    margin-top: 24px;
+    padding: 20px 24px;
+    border-radius: 4px;
+    border: 1px solid var(--a2-border-strong);
+    background: var(--a2-bg);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+  }
+
+  .gs-bridge__copy {
+    flex: 1 1 460px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .gs-tag {
+    font-family: var(--a2-font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    color: var(--a2-accent-strong);
+  }
+
+  .gs-bridge__copy p {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--a2-text-secondary);
+  }
+
+  .gs-bridge__copy strong {
+    color: var(--a2-text);
+    font-weight: 600;
+  }
+
+  .gs-bridge__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .gs-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    font-weight: 650;
+    color: var(--a2-accent-strong);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .gs-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .gs-link--muted {
+    color: var(--a2-text-secondary);
+  }
+
+  .gs-link--muted:hover {
+    color: var(--a2-text);
+  }
+</style>

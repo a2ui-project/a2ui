@@ -1,0 +1,789 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+
+<section class="a2-section ps-section" id="customers">
+  <div class="ps-wrap">
+    <!-- Chapter header -->
+    <div class="ps-header">
+      <div class="ps-header__title">
+        <span class="ps-eyebrow">IN PRODUCTION · 1P &amp; 3P TEAMS</span>
+        <h2 class="ps-h2">
+          Shipping across <span class="ps-accent">products and platforms.</span>
+        </h2>
+      </div>
+      <p class="ps-sub">
+        Product teams at Google and across the industry use A2UI to render interactive agent
+        surfaces inside enterprise workspaces, mobile apps, and multi-host assistants from a single
+        declarative stream.
+      </p>
+    </div>
+
+    <!-- Monochrome brand strip -->
+    <ul class="ps-logos" aria-label="Organizations shipping with A2UI">
+      <li>
+        <a href="#customer-alation" class="ps-logo-item">
+          <svg viewBox="0 0 20 20" width="17" height="17" fill="none" aria-hidden="true">
+            <path
+              d="M10 2.4L17.2 17.2H13.7L12.2 13.9H7.8L6.3 17.2H2.8L10 2.4ZM10 7.5L8.9 10.9H11.1L10 7.5Z"
+              fill="currentColor"
+            />
+          </svg>
+          <span>Alation</span>
+        </a>
+      </li>
+      <li>
+        <a href="#customer-lynx" class="ps-logo-item">
+          <svg viewBox="0 0 20 20" width="17" height="17" fill="none" aria-hidden="true">
+            <rect x="2.5" y="5.5" width="3.2" height="10" rx="0.8" fill="currentColor" />
+            <rect x="7.4" y="8" width="3.2" height="7.5" rx="0.8" fill="currentColor" opacity="0.72" />
+            <rect x="12.3" y="3.5" width="3.2" height="12" rx="0.8" fill="currentColor" />
+          </svg>
+          <span>ByteDance <em>Lynx</em></span>
+        </a>
+      </li>
+      <li>
+        <a href="#customer-jira" class="ps-logo-item">
+          <svg viewBox="0 0 20 20" width="17" height="17" fill="none" aria-hidden="true">
+            <path
+              d="M10.4 2.8L3.4 9.8L6.9 13.3L10.4 9.8L13.9 13.3L17.4 9.8L10.4 2.8Z"
+              fill="currentColor"
+            />
+            <path
+              d="M10.4 10.9L7.4 13.9L10.4 16.9L13.4 13.9L10.4 10.9Z"
+              fill="currentColor"
+              opacity="0.6"
+            />
+          </svg>
+          <span>Atlassian <em>Jira</em></span>
+        </a>
+      </li>
+      <li>
+        <a href="#customer-notebook" class="ps-logo-item">
+          <svg viewBox="0 0 20 20" width="17" height="17" fill="none" aria-hidden="true">
+            <path
+              d="M10 2C10.4 6.3 13.7 9.6 18 10C13.7 10.4 10.4 13.7 10 18C9.6 13.7 6.3 10.4 2 10C6.3 9.6 9.6 6.3 10 2Z"
+              fill="currentColor"
+            />
+          </svg>
+          <span>Gemini Notebook</span>
+        </a>
+      </li>
+      <li>
+        <a
+          href="https://cloud.google.com/gemini-enterprise"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="ps-logo-item"
+        >
+          <svg viewBox="0 0 20 20" width="17" height="17" fill="none" aria-hidden="true">
+            <path
+              d="M10 2C10.4 6.3 13.7 9.6 18 10C13.7 10.4 10.4 13.7 10 18C9.6 13.7 6.3 10.4 2 10C6.3 9.6 9.6 6.3 10 2Z"
+              fill="currentColor"
+            />
+          </svg>
+          <span>Gemini Enterprise</span>
+        </a>
+      </li>
+    </ul>
+
+    <!-- Flagship Row 1: Alation (Quote + Dual-host comparison) -->
+    <article class="ps-feature" id="customer-alation">
+      <div class="ps-feature__copy">
+        <div class="ps-meta">
+          <span class="ps-tag">ALATION · ENTERPRISE DATA</span>
+          <span class="ps-chip">Multi-host MCP + Web</span>
+        </div>
+        <h3 class="ps-h3">Alation Intelligence Operating System</h3>
+        <p class="ps-body">
+          Alation renders governed SQL metric cards, charts, and lineage details from one A2UI
+          payload across both its own Data Products App and external assistants such as Claude via
+          MCP Apps.
+        </p>
+
+        <blockquote class="ps-quote">
+          <p>
+            "The Alation Intelligence Operating System (AIOS) brings artifacts with data, charts,
+            and insights directly to where teams work with transparency about where each figure
+            comes from. A2UI provides the interactive UI scaffolding that makes these artifacts feel
+            like high-touch, tailored applications, whether they are used in Alation or in the AI
+            Assistants our customers already use."
+          </p>
+          <footer>
+            <strong>GT Volpe</strong>
+            <span>Vice President of Product Management, Alation</span>
+          </footer>
+        </blockquote>
+      </div>
+
+      <div class="ps-stage ps-stage--pair">
+        <figure class="ps-frame">
+          <figcaption class="ps-frame__bar">
+            <span>01 · IN CLAUDE (MCP APPS)</span>
+          </figcaption>
+          <div class="ps-frame__img">
+            <img
+              src={`${base}/assets/customers/alation-claude.webp`}
+              alt="Alation Intelligence Operating System rendering an A2UI revenue metric card and bar chart inside Claude via MCP Apps."
+              loading="lazy"
+              decoding="async"
+              width="784"
+              height="752"
+            />
+          </div>
+        </figure>
+
+        <figure class="ps-frame">
+          <figcaption class="ps-frame__bar">
+            <span>02 · IN ALATION DATA PRODUCTS APP</span>
+          </figcaption>
+          <div class="ps-frame__img">
+            <img
+              src={`${base}/assets/customers/alation-app.webp`}
+              alt="The same Alation A2UI revenue metric card and bar chart rendered natively inside Alation's Data Products App."
+              loading="lazy"
+              decoding="async"
+              width="1242"
+              height="736"
+            />
+          </div>
+        </figure>
+      </div>
+    </article>
+
+    <!-- Flagship Row 2: ByteDance Lynx (Quote + Native Playground) -->
+    <article class="ps-feature" id="customer-lynx">
+      <div class="ps-feature__copy">
+        <div class="ps-meta">
+          <span class="ps-tag">BYTEDANCE · LYNX</span>
+          <span class="ps-chip">iOS · Android · Web</span>
+        </div>
+        <h3 class="ps-h3">Lynx native renderer and Jev decision models</h3>
+        <p class="ps-body">
+          ByteDance's open-source Lynx engine ships <code>@lynx-js/genui</code> to render A2UI
+          streams natively across mobile and web, paired with a playground where a Jev decision
+          model selects components and values without raw JSON boilerplate.
+        </p>
+
+        <div class="ps-links">
+          <a
+            href="https://lynx-stack.dev/genui/#/a2ui"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="ps-link"
+          >
+            <span>Open Lynx Playground</span>
+            <span aria-hidden="true">↗</span>
+          </a>
+          <a
+            href="https://lynxjs.org/react/genui/a2ui.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="ps-link ps-link--muted"
+          >
+            <span>Renderer documentation</span>
+            <span aria-hidden="true">↗</span>
+          </a>
+        </div>
+
+        <blockquote class="ps-quote">
+          <p>
+            "A2UI is headed in the right direction: it separates how a model produces an interface
+            from how an app renders it. Swappable inference formats and macros keep generation
+            efficient, and even the model can be swapped. In our playground, a decision model like
+            Jev, which picks components and values instead of writing text, builds A2UI screens that
+            Lynx renders natively."
+          </p>
+          <footer>
+            <strong>Shouqun Liu</strong>
+            <span>Engineering Lead for Lynx, ByteDance</span>
+          </footer>
+        </blockquote>
+      </div>
+
+      <div class="ps-stage">
+        <figure class="ps-frame">
+          <figcaption class="ps-frame__bar">
+            <span>LYNX GENUI PLAYGROUND · JEV DECISION STREAM → NATIVE MOBILE SURFACE</span>
+          </figcaption>
+          <div class="ps-frame__img">
+            <img
+              src={`${base}/assets/customers/bytedance-lynx.webp`}
+              alt="ByteDance Lynx GenUI Playground showing streamed createSurface and updateComponents messages on the left and a native mobile Kyoto trip planner preview with render metrics on the right."
+              loading="lazy"
+              decoding="async"
+              width="1600"
+              height="925"
+            />
+          </div>
+        </figure>
+      </div>
+    </article>
+
+    <!-- Secondary 2-Column Grid: Atlassian Jira + Gemini Notebook -->
+    <div class="ps-grid2">
+      <!-- Atlassian Jira -->
+      <article class="ps-card" id="customer-jira">
+        <div class="ps-card__head">
+          <div class="ps-meta">
+            <span class="ps-tag">ATLASSIAN · JIRA</span>
+            <span class="ps-chip">In-ticket agent surfaces</span>
+          </div>
+          <h3 class="ps-h3">Interactive agent decisions inside Jira work items</h3>
+          <p class="ps-body">
+            Atlassian is bringing A2UI to
+            <a
+              href="https://support.atlassian.com/jira-software-cloud/docs/work-with-ai-agents-in-jira/"
+              target="_blank"
+              rel="noopener noreferrer">AI agents in Jira</a
+            >. When an agent needs a team decision to finish a ticket, it posts an interactive
+            follow-up card directly inside the work item rather than asking in plain text.
+          </p>
+        </div>
+
+        <div class="ps-stage ps-stage--compact">
+          <figure class="ps-frame">
+            <figcaption class="ps-frame__bar">
+              <span>JIRA WORK ITEM · AGENT FOLLOW-UP SURFACE</span>
+            </figcaption>
+            <div class="ps-frame__img">
+              <img
+                src={`${base}/assets/customers/atlassian-jira.webp`}
+                alt="Claude Agent for Jira posting an interactive A2UI follow-up card inside a Jira work item to choose test coverage depth for a sticky note colour selection feature."
+                loading="lazy"
+                decoding="async"
+                width="1014"
+                height="1452"
+              />
+            </div>
+          </figure>
+        </div>
+      </article>
+
+      <!-- Gemini Notebook -->
+      <article class="ps-card" id="customer-notebook">
+        <div class="ps-card__head">
+          <div class="ps-meta">
+            <span class="ps-tag">GOOGLE · GEMINI NOTEBOOK</span>
+            <span class="ps-chip">Web &amp; mobile</span>
+          </div>
+          <h3 class="ps-h3">Two-step deck &amp; Video Overview configuration</h3>
+          <p class="ps-body">
+            When asked to build a presentation or Video Overview, Gemini Notebook responds with an
+            options card for deck format and topic focus, followed by an editable review card to
+            adjust length, focus, and visual style before generating.
+          </p>
+        </div>
+
+        <div class="ps-stage ps-stage--steps ps-stage--compact">
+          <figure class="ps-frame">
+            <figcaption class="ps-frame__bar">
+              <span>01 · OPTIONS CARD</span>
+            </figcaption>
+            <div class="ps-frame__img">
+              <img
+                src={`${base}/assets/customers/gemini-notebook-options.webp`}
+                alt="Gemini Notebook options card offering selectable chips for slide deck format and topic focus."
+                loading="lazy"
+                decoding="async"
+                width="1052"
+                height="916"
+              />
+            </div>
+          </figure>
+
+          <figure class="ps-frame">
+            <figcaption class="ps-frame__bar">
+              <span>02 · REVIEW CARD</span>
+            </figcaption>
+            <div class="ps-frame__img">
+              <img
+                src={`${base}/assets/customers/gemini-notebook-review.webp`}
+                alt="Gemini Notebook editable review card summarizing selected format, focus, and visual style with a Generate action."
+                loading="lazy"
+                decoding="async"
+                width="926"
+                height="916"
+              />
+            </div>
+          </figure>
+        </div>
+      </article>
+    </div>
+
+    <!-- Ecosystem & Enterprise ledger -->
+    <div class="ps-ledger">
+      <div class="ps-ledger__cell">
+        <span class="ps-tag">GOOGLE CLOUD · GEMINI ENTERPRISE</span>
+        <p>
+          Agents built on
+          <a
+            href="https://cloud.google.com/gemini-enterprise"
+            target="_blank"
+            rel="noopener noreferrer">Gemini Enterprise</a
+          >
+          support A2UI surfaces for governed internal workflows.
+        </p>
+      </div>
+      <div class="ps-ledger__cell">
+        <span class="ps-tag">AGENCY &amp; CONSULTANCY PARTNERS</span>
+        <p>
+          Explore open-source reference apps built by
+          <strong>Moonwise</strong>, <strong>Somnio Software</strong>, <strong>L+R</strong>,
+          <strong>Solid Software</strong>, <strong>Very Good Ventures</strong>, and
+          <strong>Oak Tree</strong>.
+          <a href={`${base}/get-help/#consultants`} class="ps-ledger__cta">
+            Browse partner apps <span aria-hidden="true">→</span>
+          </a>
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .ps-section {
+    background: var(--a2-bg);
+  }
+
+  .ps-wrap {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 36px;
+  }
+
+  @media (max-width: 640px) {
+    .ps-wrap {
+      padding: 0 20px;
+    }
+  }
+
+  .ps-header {
+    display: grid;
+    grid-template-columns: 1.08fr 0.92fr;
+    gap: 64px;
+    align-items: end;
+    margin-bottom: 40px;
+  }
+
+  @media (max-width: 860px) {
+    .ps-header {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+  }
+
+  .ps-eyebrow {
+    display: inline-block;
+    margin-bottom: 12px;
+    font-family: var(--a2-font-mono);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--a2-accent-strong);
+  }
+
+  .ps-h2 {
+    margin: 0;
+    font-family: var(--a2-font-display);
+    font-size: clamp(2.05rem, 3.6vw, 3rem);
+    font-weight: 700;
+    line-height: 1.08;
+    letter-spacing: var(--a2-tracking-h2);
+    color: var(--a2-text);
+  }
+
+  .ps-accent {
+    color: var(--a2-heading-accent);
+  }
+
+  .ps-sub {
+    margin: 0;
+    font-size: 15.5px;
+    line-height: 1.62;
+    color: var(--a2-text-secondary);
+  }
+
+  /* Monochrome brand strip */
+  .ps-logos {
+    list-style: none;
+    margin: 0 0 56px;
+    padding: 16px 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 28px;
+    border-top: 1px solid var(--a2-border-strong);
+    border-bottom: 1px solid var(--a2-border-strong);
+  }
+
+  .ps-logo-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 4px 0;
+    color: var(--a2-text-secondary);
+    text-decoration: none;
+    font-family: var(--a2-font-display);
+    font-size: 14.5px;
+    font-weight: 650;
+    letter-spacing: -0.015em;
+    transition: color 0.15s ease;
+  }
+
+  .ps-logo-item:hover {
+    color: var(--a2-text);
+  }
+
+  .ps-logo-item svg {
+    color: var(--a2-accent);
+    flex-shrink: 0;
+  }
+
+  .ps-logo-item em {
+    font-style: normal;
+    font-weight: 500;
+    color: var(--a2-text-muted);
+    margin-left: 2px;
+  }
+
+  /* Flagship partner rows */
+  .ps-feature {
+    display: grid;
+    grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.12fr);
+    gap: 44px;
+    align-items: center;
+    padding: 44px 0;
+    border-bottom: 1px solid var(--a2-border-strong);
+    scroll-margin-top: 84px;
+  }
+
+  @media (max-width: 960px) {
+    .ps-feature {
+      grid-template-columns: 1fr;
+      gap: 28px;
+      padding: 36px 0;
+    }
+  }
+
+  .ps-feature__copy {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .ps-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .ps-tag {
+    font-family: var(--a2-font-mono);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    color: var(--a2-accent-strong);
+  }
+
+  .ps-chip {
+    font-family: var(--a2-font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 2px 7px;
+    border-radius: 2px;
+    border: 1px solid var(--a2-border-strong);
+    background: var(--a2-surface-subtle);
+    color: var(--a2-text-muted);
+  }
+
+  .ps-h3 {
+    margin: 0;
+    font-family: var(--a2-font-display);
+    font-size: clamp(1.3rem, 2vw, 1.6rem);
+    font-weight: 650;
+    line-height: 1.2;
+    letter-spacing: var(--a2-tracking-h3);
+    color: var(--a2-text);
+  }
+
+  .ps-body {
+    margin: 0;
+    font-size: 14.5px;
+    line-height: 1.62;
+    color: var(--a2-text-secondary);
+  }
+
+  .ps-body code {
+    font-family: var(--a2-font-mono);
+    font-size: 12.5px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: var(--a2-surface-subtle);
+    border: 1px solid var(--a2-border-strong);
+    color: var(--a2-text);
+  }
+
+  .ps-body a {
+    color: var(--a2-accent-strong);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .ps-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 2px;
+  }
+
+  .ps-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 650;
+    color: var(--a2-accent-strong);
+    text-decoration: none;
+  }
+
+  .ps-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .ps-link--muted {
+    color: var(--a2-text-secondary);
+  }
+
+  .ps-link--muted:hover {
+    color: var(--a2-text);
+  }
+
+  .ps-quote {
+    margin: 8px 0 0;
+    padding: 14px 0 2px 16px;
+    border-left: 2px solid var(--a2-accent);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .ps-quote p {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.62;
+    color: var(--a2-text);
+  }
+
+  .ps-quote footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 10px;
+    font-size: 12px;
+  }
+
+  .ps-quote strong {
+    font-weight: 650;
+    color: var(--a2-text);
+  }
+
+  .ps-quote span {
+    font-family: var(--a2-font-mono);
+    font-size: 11px;
+    color: var(--a2-text-muted);
+  }
+
+  /* Studio stage that blends cropped UI screenshots cleanly in light & dark mode */
+  .ps-stage {
+    padding: 20px;
+    border-radius: 6px;
+    border: 1px solid var(--a2-border-strong);
+    background-color: var(--a2-surface-subtle);
+    background-image: radial-gradient(var(--a2-dot-grid) 1px, transparent 1px);
+    background-size: 14px 14px;
+  }
+
+  .ps-stage--pair {
+    display: grid;
+    grid-template-columns: 0.77fr 1.23fr;
+    gap: 14px;
+    align-items: start;
+  }
+
+  .ps-stage--steps {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .ps-stage--steps .ps-frame {
+    width: 74%;
+  }
+
+  .ps-stage--steps .ps-frame:last-child {
+    margin-left: auto;
+  }
+
+  .ps-stage--compact {
+    padding: 16px;
+  }
+
+  @media (max-width: 600px) {
+    .ps-stage {
+      padding: 12px;
+    }
+
+    .ps-stage--pair {
+      grid-template-columns: 1fr;
+    }
+
+    .ps-stage--steps .ps-frame {
+      width: 100%;
+    }
+  }
+
+  .ps-frame {
+    margin: 0;
+    border-radius: 6px;
+    border: 1px solid var(--a2-border-strong);
+    background: var(--a2-surface);
+    box-shadow: var(--a2-shadow-md);
+    overflow: hidden;
+  }
+
+  .ps-frame__bar {
+    padding: 7px 11px;
+    border-bottom: 1px solid var(--a2-border);
+    background: var(--a2-surface-subtle);
+    font-family: var(--a2-font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--a2-text-muted);
+  }
+
+  .ps-frame__img {
+    background: #ffffff;
+    line-height: 0;
+  }
+
+  .ps-frame__img img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* Secondary 2-column grid */
+  .ps-grid2 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 32px;
+    padding: 44px 0;
+    border-bottom: 1px solid var(--a2-border-strong);
+  }
+
+  @media (max-width: 960px) {
+    .ps-grid2 {
+      grid-template-columns: 1fr;
+      gap: 36px;
+    }
+  }
+
+  .ps-card {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    scroll-margin-top: 84px;
+  }
+
+  .ps-card__head {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* Enterprise & consultancy ledger */
+  .ps-ledger {
+    display: grid;
+    grid-template-columns: 0.85fr 1.15fr;
+    gap: 32px;
+    padding-top: 28px;
+  }
+
+  @media (max-width: 820px) {
+    .ps-ledger {
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+  }
+
+  .ps-ledger__cell {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .ps-ledger__cell + .ps-ledger__cell {
+    padding-left: 32px;
+    border-left: 1px solid var(--a2-border);
+  }
+
+  @media (max-width: 820px) {
+    .ps-ledger__cell + .ps-ledger__cell {
+      padding-left: 0;
+      border-left: none;
+    }
+  }
+
+  .ps-ledger__cell p {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--a2-text-secondary);
+  }
+
+  .ps-ledger__cell strong {
+    color: var(--a2-text);
+    font-weight: 600;
+  }
+
+  .ps-ledger__cell a {
+    color: var(--a2-accent-strong);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .ps-ledger__cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 6px;
+    font-weight: 650;
+    text-decoration: none !important;
+  }
+
+  .ps-ledger__cta:hover {
+    text-decoration: underline !important;
+  }
+</style>
