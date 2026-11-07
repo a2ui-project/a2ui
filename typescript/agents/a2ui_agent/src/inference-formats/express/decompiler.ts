@@ -287,7 +287,7 @@ export class ExpressDecompiler {
    * A system function, such as `@index`, is defined by the protocol rather than a
    * catalog, so every helper of the version reads it.
    *
-   * @throws {ExpressValidationError} If the version defines no system function of
+   * @throws {A2uiValidationError} If the version defines no system function of
    *   that name, or the call names a `catalogId`.
    */
   private systemFunctionHelper(
@@ -296,10 +296,10 @@ export class ExpressDecompiler {
   ): CatalogSchemaHelper {
     const helper = this.helpers.values().next().value!;
     if (!helper.systemFunctions.has(name)) {
-      throw new ExpressValidationError(`Unknown system function '${name}'.`);
+      throw new A2uiValidationError(`Unknown system function '${name}'.`);
     }
     if ('catalogId' in funcCall) {
-      throw new ExpressValidationError(
+      throw new A2uiValidationError(
         `System function '${name}' is defined by the protocol, not a catalog, so it takes` +
           ' no catalogId.',
       );

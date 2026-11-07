@@ -1089,7 +1089,7 @@ class _SurfaceCompiler {
         ..sort();
       return A2uiValidationError(
         "Unknown system function '$name' in A2UI "
-        'v${compiler._version.semverValue}. System functions: '
+        '${compiler._version.semverValue}. System functions: '
         '${known.isEmpty ? 'none' : known.join(', ')}.',
       );
     }

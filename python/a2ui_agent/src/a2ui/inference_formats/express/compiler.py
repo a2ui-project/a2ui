@@ -1335,12 +1335,18 @@ class ExpressCompiler:
     def _defines_function(self, name: str, catalog_id: Any) -> bool:
         """Checks whether a call names a function.
 
+        A name starting with `@` is always a function call: no component can
+        have one, and a call to a system function, which no catalog defines,
+        is checked when it is compiled.
+
         Args:
             name: The called name.
             catalog_id: The `catalogId` written on the call, or None when it
                 has none, in which case every catalog is searched. A
                 `catalogId` that names no active catalog defines nothing.
         """
+        if name.startswith("@"):
+            return True
         if catalog_id is not None:
             if isinstance(catalog_id, str) and catalog_id in self.helpers:
                 return name in self.helpers[catalog_id].functions
@@ -2582,8 +2588,8 @@ class ExpressCompiler:
         helper = next(iter(self.helpers.values()))
         if fn_name not in helper.system_functions:
             raise ExpressValidationError(
-                f"Unknown system function '{fn_name}' in A2UI {ctx.version}."
-                f" System functions: {sorted(helper.system_functions) or 'none'}."
+                f"Unknown system function '{fn_name}' in A2UI {ctx.version}. System"
+                f" functions: {', '.join(sorted(helper.system_functions)) or 'none'}."
             )
         if "catalogId" in raw_kwargs:
             raise ExpressValidationError(

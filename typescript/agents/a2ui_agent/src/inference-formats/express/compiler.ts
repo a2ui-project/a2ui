@@ -1291,8 +1291,14 @@ export class ExpressCompiler {
 
   /**
    * Checks whether a call names a function across active catalogs or in the named catalog.
+   *
+   * A name starting with `@` is always a function call: no component can have one, and a
+   * call to a system function, which no catalog defines, is checked when it is compiled.
    */
   private definesFunction(name: string, explicitCatalogId: unknown): boolean {
+    if (name.startsWith('@')) {
+      return true;
+    }
     if (explicitCatalogId !== undefined) {
       return (
         typeof explicitCatalogId === 'string' &&

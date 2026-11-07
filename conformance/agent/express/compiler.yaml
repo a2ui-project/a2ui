@@ -440,6 +440,49 @@
     itemRow = Text(@index(catalogId="conformance/simplified"))
   expect_error:
     category: "ValidationError"
+    message: "catalogId"
+
+- name: test_compile_express_variable_holding_a_system_function_call_is_inlined
+  description: A variable that holds a system function call is a function call, not a component, so it is inlined wherever it is named, the same as a variable holding a catalog function call.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Column(_template($/items, itemRow))
+    n = @index(offset=1)
+    itemRow = Text(n)
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              componentId: "itemRow"
+              path: "/items"
+          - id: "itemRow"
+            component: "Text"
+            text:
+              "@call": "@index"
+              args:
+                offset: 1
+
+- name: test_compile_express_variable_holding_a_system_function_call_with_catalog_id_is_a_validation_error
+  description: A system function call held in a variable is checked like one written in place, so a catalogId argument on it is a validation error rather than an unknown component.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Column(_template($/items, itemRow))
+    n = @index(catalogId="conformance/simplified")
+    itemRow = Text(n)
+  expect_error:
+    category: "ValidationError"
+    message: "catalogId"
 
 - name: test_compile_express_unknown_system_function_is_a_validation_error
   description: A name starting with `@` that the protocol does not define as a system function is a validation error.
@@ -452,6 +495,7 @@
     itemRow = Text(@position())
   expect_error:
     category: "ValidationError"
+    message: "Unknown system function"
 
 - name: test_compile_express_standalone_system_function_call_is_a_validation_error
   description: A standalone call compiles to a callRendererFunction, which names a catalog function, so a system function written as a statement of its own is a validation error rather than a renderer call stamped with a catalog id.
@@ -477,6 +521,7 @@
     itemRow = Text(@index())
   expect_error:
     category: "ValidationError"
+    message: "Unknown system function"
 
 - name: test_compile_express_absolute_data_binding_path
   description: A path argument binds the property to the data model rather than setting a literal.

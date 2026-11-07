@@ -461,14 +461,14 @@ class ExpressDecompiler:
         than a catalog, so every helper of the version reads it.
 
         Raises:
-            ExpressValidationError: If the version defines no system function
-                of that name, or the call names a `catalogId`.
+            A2uiValidationError: If the version defines no system function of
+                that name, or the call names a `catalogId`.
         """
         helper = next(iter(self.helpers.values()))
         if name not in helper.system_functions:
-            raise ExpressValidationError(f"Unknown system function '{name}'.")
+            raise A2uiValidationError(f"Unknown system function '{name}'.")
         if "catalogId" in fn:
-            raise ExpressValidationError(
+            raise A2uiValidationError(
                 f"System function '{name}' is defined by the protocol, not a"
                 " catalog, so it takes no catalogId."
             )

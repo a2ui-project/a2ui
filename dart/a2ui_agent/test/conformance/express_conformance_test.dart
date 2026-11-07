@@ -168,6 +168,20 @@ const Map<String, String> _v1OnlyCases = {
   'test_decompile_express_index_system_function_with_several_catalogs':
       _noSystemFunctions,
   'test_express_snippet_lists_system_functions_from_v1_0': _noSystemFunctions,
+  'test_compile_express_system_function_with_catalog_id_is_a_validation_error':
+      _noSystemFunctions,
+  'test_compile_express_unknown_system_function_is_a_validation_error':
+      _noSystemFunctions,
+  'test_compile_express_variable_holding_a_system_function_call_is_inlined':
+      _noSystemFunctions,
+  'test_compile_express_variable_holding_a_system_function_call_with_'
+          'catalog_id_is_a_validation_error':
+      _noSystemFunctions,
+  'test_decompile_express_system_function_with_catalog_id_is_a_'
+          'validation_error':
+      _noSystemFunctions,
+  'test_decompile_express_unknown_system_function_is_a_validation_error':
+      _noSystemFunctions,
   'test_compile_express_event_user_message': _noUserMessage,
   'test_compile_express_event_user_message_binding_with_context':
       _noUserMessage,
