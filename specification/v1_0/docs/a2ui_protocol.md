@@ -520,16 +520,12 @@ When resolving a component (or function call), the renderer evaluates catalog id
 
 ### Catalog-Agnostic Accessibility Requirements
 
-Because JSON Schema cannot inspect arbitrary catalog component property semantics to infer which properties represent visible text labels or which components accept user interaction, accessibility rules are enforced through normative specification requirements and SDK tooling:
+JSON Schema cannot tell which component properties hold visible text labels or accept user interaction, so catalog and renderer implementations enforce accessibility at runtime:
 
 **Catalog and renderer implementations MUST:**
 
 - **Plumb Accessibility Attributes**: Map all relevant A2UI `AccessibilityAttributes` (`label`, `description`, `live`, `hidden`) to the underlying UI framework's accessibility APIs (e.g., WAI-ARIA `aria-label`, `aria-describedby`, `aria-live`, and `aria-hidden` for web renderers; `Semantics` properties for Flutter; `AccessibilityNodeInfo` / `accessibilityLabel` for Android and iOS renderers).
 - **Infer Default Semantics**: Use component types and non-accessibility properties (such as visible titles or text labels) to configure accessibility defaults automatically. When explicit `AccessibilityAttributes` (e.g., `label` or `description`) are provided, they MUST override inferred visual defaults. For example, a button component with a title of `"Submit"` and an explicit `accessibility.label` of `"Send Form"` must be announced by assistive technologies as `"Send Form"`.
-
-**Catalog tooling SHOULD:**
-
-- **Catalog Linter Checks**: Catalog tooling SHOULD warn when a component that accepts an action or user input declares no text-bearing label property (or, in strict mode, no required text-bearing property). A component accepts an action when one of its properties references `common_types.json#/$defs/Action`, and accepts user input when it includes `common_types.json#/$defs/Checkable`. A text-bearing property is a string or `DynamicString` property, a child component reference, or an array of objects that each declare a text-bearing property. Because JSON Schema does not say which property holds the input value, tooling MAY exclude the property it treats as the input value (by convention `value`). This is a heuristic: it cannot prove a label exists, and a warning can be acknowledged per component.
 
 ### The component catalog
 

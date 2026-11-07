@@ -56,3 +56,26 @@ dart run dart/a2ui_cli/bin/a2ui.dart codegen \
   --catalog catalogs/basic/v1/catalog.json \
   --out python/a2ui_agent/src/a2ui/builder/v1_0/catalogs/basic.py
 ```
+
+## Linting Catalog Schemas
+
+Use `a2ui lint` to check freestanding catalog JSON files against deterministic A2UI protocol schema rules:
+
+```bash
+dart run dart/a2ui_cli/bin/a2ui.dart lint \
+  --catalog catalogs/basic/v1/catalog.json
+```
+
+### Rules
+
+`a2ui lint` reports errors and warnings across protocol versions `0.9`, `0.9.1`, and `1.0`:
+
+- Core catalog structure, `catalogId`, `protocolVersion`, `metadata`, and local or external `$ref` targets via `a2ui_core`.
+- Unicode UAX 31 identifier names on components, functions, component properties, and function parameters, plus reserved `@`-prefixed function names.
+- The reserved `Surface` component name, which is permitted only inside `allowedParents`.
+- Functions that set `requiresUserActivation: true` while permitting agent invocation in `allowedCallers`.
+- Warnings when components redundantly wrap `ComponentCommon` or redeclare `ComponentCommon` envelope properties.
+
+### Options
+
+Pass `--fatal-warnings` to treat warning findings as fatal and exit with code `1` in CI checks.
