@@ -23,6 +23,7 @@ import {
   getValidationErrorId,
   hasAttributeValue,
   renderValidationErrors,
+  resolveAccessibilityProps,
 } from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {ChoicePickerSupportedApis} from './supported_apis.js';
@@ -185,8 +186,8 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePi
       : `${this.domId}-choices`;
     const labelId = `${this.domId}-label`;
     const hasVisibleLabel = hasAttributeValue(props.label);
-    const a11yLabel = getAccessibilityLabel(props.accessibility);
-    const a11yDescription = getAccessibilityDescription(props.accessibility);
+    const a11yLabel = getAccessibilityLabel(resolveAccessibilityProps(props));
+    const a11yDescription = getAccessibilityDescription(resolveAccessibilityProps(props));
     const isInvalid = props.isValid === false;
     const errorId = getValidationErrorId(this.domId, props);
 

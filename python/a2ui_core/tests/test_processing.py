@@ -598,7 +598,10 @@ def test_message_processor_component_partial_update_preserves_catalog_when_omitt
     assert surface is not None
     original_comp = surface.components_model.get("c1")
     assert original_comp is not None
-    assert original_comp.catalog is cat_b
+    # Before v1.0, catalogId on a component is an ordinary custom property (#4012).
+    assert original_comp.catalog is cat_a
+    assert original_comp.properties.get("catalogId") == "cat_b"
+    original_comp.catalog = cat_b
 
     events: list[str] = []
     surface.components_model.on_deleted.subscribe(
@@ -1261,3 +1264,293 @@ def test_create_surface_writes_data_model_per_top_level_key():
     assert surface_errors == []
     assert resolvers[0].root is not None
     assert resolvers[0].root.props["count"].value == 2
+
+
+def test_v09_preserves_custom_metadata_and_catalog_id_properties_and_rejects_at_mixins():
+    cat = Catalog.from_json(
+        {
+            "catalogId": "https://a2ui.org/test-v09-gcbp",
+            "components": {
+                "GcbpTable": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "GcbpTable"},
+                        "metadata": {
+                            "type": "object",
+                            "properties": {"pageNumber": {"type": "number"}},
+                            "additionalProperties": False,
+                        },
+                        "catalogId": {"type": "string"},
+                    },
+                    "required": ["component", "metadata"],
+                    "additionalProperties": False,
+                }
+            },
+            "functions": {},
+        },
+        protocol_version="v0.9",
+    )
+    processor = MessageProcessor(
+        catalogs=[cat],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
+    )
+    processor.process_messages([
+        {
+            "version": "v0.9",
+            "createSurface": {"surfaceId": "s09", "catalogId": cat.catalog_id},
+        },
+        {
+            "version": "v0.9",
+            "updateComponents": {
+                "surfaceId": "s09",
+                "components": [{
+                    "id": "root",
+                    "component": "GcbpTable",
+                    "metadata": {"pageNumber": 0},
+                    "catalogId": "custom-cat",
+                }],
+            },
+        },
+    ])
+    surface = processor.model.get_surface("s09")
+    assert surface is not None
+    comp = surface.components_model.get("root")
+    assert comp is not None
+    assert comp.metadata is None
+    assert comp.properties["metadata"] == {"pageNumber": 0}
+    assert comp.properties["catalogId"] == "custom-cat"
+
+    for at_key, at_val in [
+        ("@metadata", {"extensions": {"ext": 1}}),
+        ("@catalogId", cat.catalog_id),
+        ("@accessibility", {"label": "Table"}),
+        ("@checks", []),
+    ]:
+        with pytest.raises(A2uiValidationError):
+            processor.process_messages([{
+                "version": "v0.9",
+                "updateComponents": {
+                    "surfaceId": "s09",
+                    "components": [{
+                        "id": "root",
+                        "component": "GcbpTable",
+                        "metadata": {"pageNumber": 1},
+                        at_key: at_val,
+                    }],
+                },
+            }])
+
+
+def test_v10_legacy_catalog_id_routes_by_default_catalog_schema():
+    """A bare `catalogId` the default catalog's schema doesn't declare routes the
+    component, and is not kept as a property even if the target catalog's
+    schema declares a `catalogId` of its own."""
+
+    def text_catalog(catalog_id: str, declares_catalog_id: bool) -> Catalog:
+        props: dict[str, Any] = {
+            "component": {"const": "Text"},
+            "text": {"type": "string"},
+        }
+        if declares_catalog_id:
+            props["catalogId"] = {"type": "string"}
+        return Catalog.from_json(
+            {
+                "catalogId": catalog_id,
+                "components": {
+                    "Text": {
+                        "type": "object",
+                        "properties": props,
+                        "required": ["component"],
+                        "additionalProperties": False,
+                    }
+                },
+                "functions": {},
+            },
+            protocol_version="1.0",
+        )
+
+    main = text_catalog("https://a2ui.org/test-main", declares_catalog_id=False)
+    other = text_catalog("https://a2ui.org/test-other", declares_catalog_id=True)
+    processor = MessageProcessor(catalogs=[main, other])
+    processor.process_messages([
+        {
+            "version": "1.0",
+            "createSurface": {"surfaceId": "s", "catalogId": main.catalog_id},
+        },
+        {
+            "version": "1.0",
+            "updateComponents": {
+                "surfaceId": "s",
+                "components": [{
+                    "id": "root",
+                    "component": "Text",
+                    "text": "Hi",
+                    "catalogId": other.catalog_id,
+                }],
+            },
+        },
+    ])
+    surface = processor.model.get_surface("s")
+    assert surface is not None
+    comp = surface.components_model.get("root")
+    assert comp is not None
+    assert comp.catalog.catalog_id == other.catalog_id
+    assert comp.properties == {"text": "Hi"}
+
+
+def test_v10_legacy_bare_checks_is_stored_as_at_checks_on_checkable_components():
+    cat = Catalog.from_json(
+        {
+            "catalogId": "https://a2ui.org/test-v10-legacy-checks",
+            "components": {
+                "Input": {
+                    "type": "object",
+                    "allOf": [
+                        {"$ref": "common_types.json#/$defs/Checkable"},
+                        {
+                            "properties": {
+                                "component": {"const": "Input"},
+                                "value": {"type": "string"},
+                            },
+                            "required": ["component"],
+                        },
+                    ],
+                },
+                "Tagged": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "Tagged"},
+                        "checks": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": ["component"],
+                },
+            },
+            "functions": {},
+        },
+        protocol_version="1.0",
+    )
+    processor = MessageProcessor(catalogs=[cat])
+    checks = [{"condition": {"@path": "/accepted"}, "message": "Required"}]
+    processor.process_messages([
+        {
+            "version": "1.0",
+            "createSurface": {"surfaceId": "s10", "catalogId": cat.catalog_id},
+        },
+        {
+            "version": "1.0",
+            "updateComponents": {
+                "surfaceId": "s10",
+                "components": [
+                    {"id": "root", "component": "Input", "checks": checks},
+                    {"id": "tags", "component": "Tagged", "checks": ["a", "b"]},
+                ],
+            },
+        },
+    ])
+    surface = processor.model.get_surface("s10")
+    assert surface is not None
+
+    # On a checkable component, the legacy bare `checks` is the Checkable mixin.
+    root = surface.components_model.get("root")
+    assert root is not None
+    assert root.properties["@checks"] == checks
+    assert "checks" not in root.properties
+
+    # A component that declares its own `checks` keeps it as a property.
+    tags = surface.components_model.get("tags")
+    assert tags is not None
+    assert tags.properties["checks"] == ["a", "b"]
+    assert "@checks" not in tags.properties
+
+
+def test_v10_at_prefixed_mixins_coexistence_and_conflict_detection():
+    cat = Catalog.from_json(
+        {
+            "catalogId": "https://a2ui.org/test-v10-coexist",
+            "components": {
+                "CustomTable": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "CustomTable"},
+                        "metadata": {
+                            "type": "object",
+                            "properties": {"pageNumber": {"type": "number"}},
+                            "additionalProperties": False,
+                        },
+                        "catalogId": {"type": "string"},
+                        "accessibility": {"type": "string"},
+                        "checks": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": ["component", "metadata"],
+                },
+                "PlainBox": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "PlainBox"},
+                        "title": {"type": "string"},
+                    },
+                    "required": ["component"],
+                },
+            },
+            "functions": {},
+        },
+        protocol_version="1.0",
+    )
+    processor = MessageProcessor(
+        catalogs=[cat],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
+    )
+    processor.process_messages([
+        {
+            "version": "1.0",
+            "createSurface": {"surfaceId": "s10", "catalogId": cat.catalog_id},
+        },
+        {
+            "version": "1.0",
+            "updateComponents": {
+                "surfaceId": "s10",
+                "components": [{
+                    "id": "root",
+                    "component": "CustomTable",
+                    "metadata": {"pageNumber": 2},
+                    "catalogId": "custom-prop-cat",
+                    "accessibility": "compact",
+                    "checks": ["rule_a"],
+                    "@metadata": {"extensions": {"vendor_ext": "ok"}},
+                    "@accessibility": {"label": "Revenue Table"},
+                }],
+            },
+        },
+    ])
+    surface = processor.model.get_surface("s10")
+    assert surface is not None
+    comp = surface.components_model.get("root")
+    assert comp is not None
+    assert comp.metadata == {"extensions": {"vendor_ext": "ok"}}
+    assert comp.properties["metadata"] == {"pageNumber": 2}
+    assert comp.properties["catalogId"] == "custom-prop-cat"
+    assert comp.properties["accessibility"] == "compact"
+    assert comp.properties["@accessibility"] == {"label": "Revenue Table"}
+    assert comp.properties["checks"] == ["rule_a"]
+
+    resolver = NodeResolver(surface, cat)
+    assert resolver.root is not None
+    assert resolver.root.props["metadata"] == {"pageNumber": 2}
+    assert resolver.root.props["catalogId"] == "custom-prop-cat"
+    assert resolver.root.props["accessibility"] == "compact"
+    assert resolver.root.props["checks"] == ["rule_a"]
+    resolver.dispose()
+
+    with pytest.raises(A2uiValidationError):
+        processor.process_messages([{
+            "version": "1.0",
+            "updateComponents": {
+                "surfaceId": "s10",
+                "components": [{
+                    "id": "b1",
+                    "component": "PlainBox",
+                    "metadata": {"extensions": {"a": 1}},
+                    "@metadata": {"extensions": {"b": 2}},
+                }],
+            },
+        }])

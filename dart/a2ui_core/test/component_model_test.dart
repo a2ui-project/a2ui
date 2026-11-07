@@ -76,6 +76,33 @@ void main() {
       expect(comp.toJson(), {'text': 'hi', 'id': 'c1', 'component': 'Text'});
     });
 
+    test('toJson writes @catalogId and @metadata beside same-named properties',
+        () {
+      final comp = ComponentModel(
+        'c1',
+        'Table',
+        {
+          'catalogId': 'source-a',
+          'metadata': {'pageNumber': 0},
+        },
+        catalog: 'cat',
+        metadata: {
+          'extensions': {'k': 'v'},
+        },
+      );
+
+      expect(comp.toJson(), {
+        'id': 'c1',
+        'component': 'Table',
+        'catalogId': 'source-a',
+        'metadata': {'pageNumber': 0},
+        '@catalogId': 'cat',
+        '@metadata': {
+          'extensions': {'k': 'v'},
+        },
+      });
+    });
+
     test('supports metadata accessors, events, and extension helpers',
         () async {
       final comp = ComponentModel('c1', 'Text', {'text': 'hi'});

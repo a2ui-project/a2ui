@@ -315,16 +315,49 @@ void main() {
     }
 
     test('renders a component with the catalog it names for itself', () {
-      process([
+      final v1Default = Catalog<ComponentApi, FunctionImplementation>(
+        id: TestCatalog().id,
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        components: TestCatalog().components.values.toList(),
+        functions: TestCatalog().functions.values.toList(),
+      );
+      final v1Second = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'second',
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        components: [chartApi],
+        functions: [_ConstantFunction('capitalize', 'from second')],
+      );
+      final v1Processor = MessageProcessor<ComponentApi>(
+        catalogs: [v1Default, v1Second],
+        defaultVersion: A2uiProtocolVersion.v1_0,
+      );
+      addTearDown(v1Processor.model.dispose);
+      v1Processor.processMessages([
         {
-          'id': 'root',
-          'component': 'Chart',
-          'catalogId': 'second',
-          'title': 'Sales',
+          'version': '1.0',
+          'createSurface': {'surfaceId': 's10', 'catalogId': v1Default.id},
+        },
+        {
+          'version': '1.0',
+          'updateComponents': {
+            'surfaceId': 's10',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Chart',
+                '@catalogId': 'second',
+                'title': 'Sales',
+              },
+            ],
+          },
         },
       ]);
+      final v1Resolver = NodeResolver<ComponentApi>(
+        v1Processor.model.getSurface('s10')!,
+      );
+      addTearDown(v1Resolver.dispose);
 
-      final ComponentNode<ComponentApi> root = resolver.rootNode.peek()!;
+      final ComponentNode<ComponentApi> root = v1Resolver.rootNode.peek()!;
       expect(root.state, NodeState.resolved);
       expect(root.impl, same(chartApi));
     });

@@ -96,7 +96,7 @@ describe('ComponentModel', () => {
     });
   });
 
-  it('keeps the component metadata over a property named metadata in the tree', () => {
+  it('writes the component metadata as @metadata beside a property named metadata', () => {
     const chart = new ComponentModel(
       'chart1',
       'Chart',
@@ -105,10 +105,11 @@ describe('ComponentModel', () => {
       {extensions: {owner: 'agent'}},
     );
     assert.deepStrictEqual(chart.componentTree, {
-      id: 'chart1',
-      component: 'Chart',
-      metadata: {extensions: {owner: 'agent'}},
-      title: 'Sales',
+      'id': 'chart1',
+      'component': 'Chart',
+      'metadata': 'prop',
+      '@metadata': {extensions: {owner: 'agent'}},
+      'title': 'Sales',
     });
   });
 

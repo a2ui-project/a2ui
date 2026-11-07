@@ -47,7 +47,14 @@ from ..validation.payload_validator import (
     nested_call_runs_in_catalog,
     rebase_function_error_details,
 )
-from ..catalog import CatalogApi, is_system_function_name
+from ..catalog import (
+    CatalogApi,
+    get_custom_envelope_properties,
+    get_declared_component_properties,
+    is_component_checkable,
+    is_system_function_name,
+)
+from ..common.metadata import validate_metadata
 from ..exceptions import (
     A2uiCatalogError,
     A2uiError,
@@ -930,77 +937,237 @@ class MessageProcessor:
                 )
             c_type = cast(str, comp_type_raw or (existing.type if existing else ""))
 
-            comp_cat_id = comp_dict.get("catalogId")
-            if (
-                surface_at_least_v10
-                and comp_cat_id is not None
-                and not isinstance(comp_cat_id, str)
-            ):
-                # The spec types catalogId as a string. Ignoring a bad one
-                # would resolve the component to the surface default.
-                raise A2uiValidationError(
-                    f"Component {c_id} has a non-string 'catalogId'.",
-                    details=[
-                        A2uiErrorDetail(
-                            path=f"components.{c_id}.catalogId",
-                            code="type_mismatch",
-                            message="'catalogId' must be a string",
+            comp_catalog: Any = None
+            if not surface_at_least_v10:
+                if existing and (not comp_type_raw or comp_type_raw == existing.type):
+                    comp_catalog = existing.catalog
+                elif surface.default_catalog is not None:
+                    comp_catalog = surface.default_catalog
+                else:
+                    raise A2uiCatalogError(
+                        f"Component {c_id} names no catalogId and surface"
+                        f" {surface_id} has no default catalogId.",
+                        surface_id=surface_id,
+                    )
+
+                declared_props = get_declared_component_properties(comp_catalog, c_type)
+                for at_key in (
+                    "@metadata",
+                    "@catalogId",
+                    "@accessibility",
+                    "@checks",
+                ):
+                    if at_key in comp_dict and at_key not in declared_props:
+                        raise A2uiValidationError(
+                            f"Component '{c_id}' does not allow '{at_key}' before"
+                            " v1.0.",
+                            details=[
+                                A2uiErrorDetail(
+                                    path=f"components.{c_id}.{at_key}",
+                                    code="extra_field",
+                                    message=(
+                                        "Additional properties are not allowed"
+                                        f" ('{at_key}' was unexpected)"
+                                    ),
+                                    surface_id=surface_id,
+                                )
+                            ],
+                            path=f"/components/{comp_idx}/{at_key}",
                             surface_id=surface_id,
                         )
-                    ],
-                    path=f"/components/{comp_idx}/catalogId",
-                    surface_id=surface_id,
-                )
-            # From v1.0 an empty catalogId names a catalog too (none has that
-            # ID); before v1.0 it counts as absent.
-            names_catalog = (
-                comp_cat_id is not None if surface_at_least_v10 else bool(comp_cat_id)
-            )
-            if names_catalog:
-                comp_catalog = self._resolve_catalog(comp_cat_id)
-                if not comp_catalog:
-                    raise A2uiCatalogError(
-                        f"Catalog not found: {comp_cat_id}",
-                        surface_id=surface_id,
-                    )
-                comp_ver = getattr(comp_catalog, "protocol_version", None)
-                surface_ver = surface.protocol_version
-                if (
-                    comp_ver
-                    and surface_ver
-                    and not is_catalog_version_compatible(comp_ver, surface_ver)
-                ):
-                    raise A2uiCatalogError(
-                        f"Component {c_id} catalog '{comp_cat_id}' has different"
-                        f" protocol version {_version_label(comp_ver)} than"
-                        f" surface {surface_id} ({_version_label(surface_ver)}).",
-                        surface_id=surface_id,
-                    )
-            elif (
-                existing
-                and not surface_at_least_v10
-                and (not comp_type_raw or comp_type_raw == existing.type)
-            ):
-                # Before v1.0, an update that names no catalogId keeps the
-                # catalog of the component it replaces. From v1.0 it resolves
-                # like any other component: to the surface default, else error.
-                comp_catalog = existing.catalog
-            elif surface.default_catalog is not None:
-                comp_catalog = surface.default_catalog
+                raw_metadata = None
+                properties = {
+                    k: v for k, v in comp_dict.items() if k not in ("id", "component")
+                }
             else:
-                raise A2uiCatalogError(
-                    f"Component {c_id} names no catalogId and surface"
-                    f" {surface_id} has no default catalogId.",
-                    surface_id=surface_id,
+                has_at_cat = "@catalogId" in comp_dict
+                has_bare_cat = "catalogId" in comp_dict
+                default_custom_props = get_custom_envelope_properties(
+                    surface.default_catalog, c_type
+                )
+                bare_cat_is_custom = (
+                    has_bare_cat and "catalogId" in default_custom_props
                 )
 
-            raw_metadata = comp_dict.get("metadata") if surface_at_least_v10 else None
-            properties = {
-                k: v
-                for k, v in comp_dict.items()
-                if k not in ("id", "component", "catalogId")
-                and not (surface_at_least_v10 and k == "metadata")
-            }
+                if has_at_cat:
+                    comp_cat_id = comp_dict["@catalogId"]
+                    cat_id_key = "@catalogId"
+                    names_catalog = comp_cat_id is not None
+                elif has_bare_cat and not bare_cat_is_custom:
+                    comp_cat_id = comp_dict["catalogId"]
+                    cat_id_key = "catalogId"
+                    names_catalog = comp_cat_id is not None
+                else:
+                    comp_cat_id = None
+                    cat_id_key = None
+                    names_catalog = False
+
+                if names_catalog:
+                    if not isinstance(comp_cat_id, str):
+                        # The spec types catalogId as a string. Ignoring a bad one
+                        # would resolve the component to the surface default.
+                        raise A2uiValidationError(
+                            f"Component {c_id} has a non-string '{cat_id_key}'.",
+                            details=[
+                                A2uiErrorDetail(
+                                    path=f"components.{c_id}.{cat_id_key}",
+                                    code="type_mismatch",
+                                    message=f"'{cat_id_key}' must be a string",
+                                    surface_id=surface_id,
+                                )
+                            ],
+                            path=f"/components/{comp_idx}/{cat_id_key}",
+                            surface_id=surface_id,
+                        )
+                    comp_catalog = self._resolve_catalog(comp_cat_id)
+                    if has_at_cat and has_bare_cat:
+                        check_cat = comp_catalog or surface.default_catalog
+                        if "catalogId" not in get_custom_envelope_properties(
+                            check_cat, c_type
+                        ):
+                            raise A2uiValidationError(
+                                f"Component '{c_id}' cannot specify both"
+                                " '@catalogId' and legacy 'catalogId'.",
+                                details=[
+                                    A2uiErrorDetail(
+                                        path=f"components.{c_id}.@catalogId",
+                                        code="conflicting_properties",
+                                        message=(
+                                            f"Component '{c_id}' cannot specify"
+                                            " both '@catalogId' and legacy"
+                                            " 'catalogId'."
+                                        ),
+                                        surface_id=surface_id,
+                                    )
+                                ],
+                                path=f"/components/{comp_idx}/@catalogId",
+                                surface_id=surface_id,
+                            )
+                    if not comp_catalog:
+                        raise A2uiCatalogError(
+                            f"Catalog not found: {comp_cat_id}",
+                            surface_id=surface_id,
+                        )
+                    comp_ver = getattr(comp_catalog, "protocol_version", None)
+                    surface_ver = surface.protocol_version
+                    if (
+                        comp_ver
+                        and surface_ver
+                        and not is_catalog_version_compatible(comp_ver, surface_ver)
+                    ):
+                        raise A2uiCatalogError(
+                            f"Component {c_id} catalog '{comp_cat_id}' has different"
+                            f" protocol version {_version_label(comp_ver)} than"
+                            f" surface {surface_id} ({_version_label(surface_ver)}).",
+                            surface_id=surface_id,
+                        )
+                elif surface.default_catalog is not None:
+                    comp_catalog = surface.default_catalog
+                else:
+                    raise A2uiCatalogError(
+                        f"Component {c_id} names no catalogId and surface"
+                        f" {surface_id} has no default catalogId.",
+                        surface_id=surface_id,
+                    )
+
+                custom_props = get_custom_envelope_properties(comp_catalog, c_type)
+                if has_bare_cat and not has_at_cat and not bare_cat_is_custom:
+                    # The bare `catalogId` routed the component (its schema in
+                    # the default catalog declares none), so it is the mixin
+                    # even if the target catalog declares a `catalogId` too.
+                    custom_props = custom_props - {"catalogId"}
+                for bare_key, at_key in (
+                    ("metadata", "@metadata"),
+                    ("catalogId", "@catalogId"),
+                    ("accessibility", "@accessibility"),
+                    ("checks", "@checks"),
+                ):
+                    if (
+                        at_key in comp_dict
+                        and bare_key in comp_dict
+                        and bare_key not in custom_props
+                    ):
+                        raise A2uiValidationError(
+                            f"Component '{c_id}' cannot specify both '{at_key}' and"
+                            f" legacy '{bare_key}'.",
+                            details=[
+                                A2uiErrorDetail(
+                                    path=f"components.{c_id}.{at_key}",
+                                    code="conflicting_properties",
+                                    message=(
+                                        f"Component '{c_id}' cannot specify both"
+                                        f" '{at_key}' and legacy '{bare_key}'."
+                                    ),
+                                    surface_id=surface_id,
+                                )
+                            ],
+                            path=f"/components/{comp_idx}/{at_key}",
+                            surface_id=surface_id,
+                        )
+
+                if "@metadata" in comp_dict:
+                    raw_metadata = comp_dict["@metadata"]
+                    meta_key: str | None = "@metadata"
+                elif "metadata" in comp_dict and "metadata" not in custom_props:
+                    raw_metadata = comp_dict["metadata"]
+                    meta_key = "metadata"
+                else:
+                    raw_metadata = None
+                    meta_key = None
+
+                if meta_key is not None:
+                    if raw_metadata is None:
+                        raise A2uiValidationError(
+                            f"Component '{c_id}' {meta_key} cannot be null.",
+                            details=[
+                                A2uiErrorDetail(
+                                    path=f"components.{c_id}.{meta_key}",
+                                    code="type_mismatch",
+                                    message=f"'{meta_key}' must be an object",
+                                    surface_id=surface_id,
+                                )
+                            ],
+                            path=f"/components/{comp_idx}/{meta_key}",
+                            surface_id=surface_id,
+                        )
+                    try:
+                        validate_metadata(
+                            raw_metadata,
+                            context=f"component '{c_id}' metadata",
+                        )
+                    except A2uiValidationError as e:
+                        raise A2uiValidationError(
+                            str(e),
+                            details=[
+                                A2uiErrorDetail(
+                                    path=f"components.{c_id}.{meta_key}",
+                                    code="invalid_metadata",
+                                    message=str(e),
+                                    surface_id=surface_id,
+                                )
+                            ],
+                            path=f"/components/{comp_idx}/{meta_key}",
+                            surface_id=surface_id,
+                        ) from e
+
+                properties = {}
+                is_checkable = is_component_checkable(comp_catalog, c_type)
+                for k, v in comp_dict.items():
+                    if k in ("id", "component", "@catalogId", "@metadata"):
+                        continue
+                    if k == "catalogId" and "catalogId" not in custom_props:
+                        continue
+                    if k == "metadata" and "metadata" not in custom_props:
+                        continue
+                    if k == "accessibility" and "accessibility" not in custom_props:
+                        properties["@accessibility"] = v
+                        continue
+                    # A legacy bare `checks` is the Checkable mixin only on a
+                    # checkable component that declares no `checks` of its own.
+                    if k == "checks" and "checks" not in custom_props and is_checkable:
+                        properties["@checks"] = v
+                        continue
+                    properties[k] = v
 
             new_comp = ComponentModel(
                 c_id, c_type, comp_catalog, properties, metadata=raw_metadata

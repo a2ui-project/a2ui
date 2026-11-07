@@ -61,7 +61,7 @@ struct OpenURLFunctionTests {
     let v09 = BasicCatalog.makeCatalog(version: .v09)
     let v10 = BasicCatalog.makeCatalog(version: .v10)
 
-    // 1. Slider: v1.0 supports `steps` (integer >= 1) and `catalogId`/`metadata`
+    // 1. Slider: v1.0 supports `steps` (integer >= 1) and the `catalogId`/`metadata` mixins
     let v10Slider = try #require(v10.components["Slider"])
     let validSlider: OrderedJSON.JSONValue = [
       "id": "s1",

@@ -3318,3 +3318,209 @@
           primaryColor: "#ff0000"
   expectError:
     category: "ValidationError"
+
+# ------------------------------------------------------------------------------
+# v1.0 @-prefixed component envelope mixins & custom property coexistence (#1376)
+# ------------------------------------------------------------------------------
+
+- name: test_v10_update_components_stores_at_prefixed_component_metadata
+  description: >-
+    Tests that v1.0 updateComponents accepts @metadata on a component, stores it
+    on ComponentModel.metadata, replaces it on subsequent updateComponents, and
+    clears it when omitted.
+  action: process_messages
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "s_v10_at_meta"
+            catalogId: "test-catalog-v10"
+        - version: "1.0"
+          updateComponents:
+            surfaceId: "s_v10_at_meta"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Hello @metadata"
+                "@metadata":
+                  extensions:
+                    com_example_trace: "t1"
+      expect:
+        surfaces:
+          s_v10_at_meta:
+            exists: true
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Hello @metadata"
+                metadata:
+                  extensions:
+                    com_example_trace: "t1"
+    - messages:
+        - version: "1.0"
+          updateComponents:
+            surfaceId: "s_v10_at_meta"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Hello @metadata"
+                "@metadata":
+                  extensions:
+                    com_example_state: "updated"
+      expect:
+        surfaces:
+          s_v10_at_meta:
+            exists: true
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Hello @metadata"
+                metadata:
+                  extensions:
+                    com_example_state: "updated"
+    - messages:
+        - version: "1.0"
+          updateComponents:
+            surfaceId: "s_v10_at_meta"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Hello @metadata"
+      expect:
+        surfaces:
+          s_v10_at_meta:
+            exists: true
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Hello @metadata"
+                metadata: null
+
+- name: test_v10_at_prefixed_envelope_coexists_with_custom_component_properties
+  description: >-
+    Tests that a v1.0 custom catalog component whose schema declares its own
+    'metadata', 'catalogId', 'accessibility', and 'checks' properties can receive
+    those bare custom properties alongside @metadata and @accessibility envelope
+    mixins without collision (#1376).
+  action: process_messages
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: custom-v10-table-cat
+      components:
+        CustomTable:
+          type: object
+          properties:
+            metadata:
+              type: object
+              properties:
+                pageNumber:
+                  type: number
+                pageSize:
+                  type: number
+              additionalProperties: false
+            catalogId:
+              type: string
+            accessibility:
+              type: string
+            checks:
+              type: array
+              items:
+                type: string
+          required:
+            - component
+            - metadata
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s_v10_coexist"
+        catalogId: "custom-v10-table-cat"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s_v10_coexist"
+        components:
+          - id: "root"
+            component: "CustomTable"
+            metadata:
+              pageNumber: 0
+              pageSize: 20
+            catalogId: "custom-prop-catalog"
+            accessibility: "compact-mode"
+            checks:
+              - "non_empty_rows"
+            "@metadata":
+              extensions:
+                com_example_vendor: "acme"
+            "@accessibility":
+              label: "Quarterly revenue table"
+  expect:
+    surfaces:
+      s_v10_coexist:
+        exists: true
+        components:
+          - id: "root"
+            component: "CustomTable"
+            metadata:
+              pageNumber: 0
+              pageSize: 20
+            catalogId: "custom-prop-catalog"
+            accessibility: "compact-mode"
+            checks:
+              - "non_empty_rows"
+            "@metadata":
+              extensions:
+                com_example_vendor: "acme"
+
+- name: test_v10_legacy_catalog_id_routes_by_default_catalog_schema
+  description: >-
+    Tests that during the v1.0 transition a legacy bare 'catalogId' that the
+    component's schema in the surface default catalog does not declare routes
+    the component to the catalog it names, and is not kept as a property even
+    when the component's schema in that catalog declares a 'catalogId'
+    property of its own.
+  action: process_messages
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: legacy-route-main
+      components:
+        Label:
+          type: object
+          properties:
+            text:
+              type: string
+          required:
+            - component
+    - catalogId: legacy-route-other
+      components:
+        Label:
+          type: object
+          properties:
+            text:
+              type: string
+            catalogId:
+              type: string
+          required:
+            - component
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s_v10_legacy_route"
+        catalogId: "legacy-route-main"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s_v10_legacy_route"
+        components:
+          - id: "root"
+            component: "Label"
+            text: "Hi"
+            catalogId: "legacy-route-other"
+  expect:
+    surfaces:
+      s_v10_legacy_route:
+        exists: true
+        components:
+          - id: "root"
+            component: "Label"
+            text: "Hi"

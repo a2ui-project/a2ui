@@ -28,14 +28,23 @@ import jsonschema.exceptions
 from pydantic import BaseModel, ConfigDict, ValidationError
 import referencing.exceptions
 
-from ..catalog import Catalog, is_system_function_name, system_functions_for
+from ..catalog import (
+    Catalog,
+    get_custom_envelope_properties,
+    get_declared_component_properties,
+    is_component_checkable,
+    is_system_function_name,
+    system_functions_for,
+)
 from ..catalog.catalog import CatalogApi
+from ..common.metadata import validate_metadata
 from ..common.semver import is_at_least_version, to_protocol_version
 from ..common.uax31 import is_valid_uax31_identifier
 from ..exceptions import A2uiCatalogError, A2uiErrorDetail, A2uiValidationError
 from ..processing.format_pydantic_error import format_validation_error, to_json_pointer
 from ..schema import ProtocolVersion
 from ..schema.common_types_schema import get_common_types_catalog_defs
+from ..schema.v1_0 import common_types as v1_0_common_types
 from .schema_validator import SchemaValidator
 
 
@@ -396,6 +405,27 @@ class PayloadValidator:
         if c is not None:
             target_comp = c
 
+        ver = getattr(self.catalog, "protocol_version", None)
+        at_least_v10 = bool(ver and is_at_least_version(ver, ProtocolVersion.V1_0))
+        custom_props = (
+            get_custom_envelope_properties(self.catalog, comp_type)
+            if at_least_v10 and isinstance(comp_type, str)
+            else frozenset()
+        )
+        if at_least_v10:
+            if "@catalogId" in comp:
+                comp_catalog_id = comp.get("@catalogId")
+                proto_cat_key: str | None = "@catalogId"
+            elif "catalogId" in comp and "catalogId" not in custom_props:
+                comp_catalog_id = comp.get("catalogId")
+                proto_cat_key = "catalogId"
+            else:
+                comp_catalog_id = None
+                proto_cat_key = None
+        else:
+            comp_catalog_id = None
+            proto_cat_key = None
+
         if target_comp is None:
             if not allow_unknown:
                 errors.append(
@@ -411,13 +441,223 @@ class PayloadValidator:
             # all the same. `MessageProcessor` relies on this for the calls
             # it leaves to component validation.
             self._validate_nested_functions(
-                comp_id or "unknown", comp.get("catalogId"), comp, "", errors
+                comp_id or "unknown",
+                comp_catalog_id,
+                comp,
+                "",
+                errors,
+                custom_props,
             )
             if errors:
                 self._raise_component_validation_errors(
                     errors, comp_id, component_index, surface_id
                 )
             return
+
+        comp_for_schema = dict(comp)
+        if not at_least_v10:
+            declared_props = (
+                get_declared_component_properties(self.catalog, comp_type)
+                if isinstance(comp_type, str)
+                else frozenset()
+            )
+            for at_key in (
+                "@metadata",
+                "@catalogId",
+                "@accessibility",
+                "@checks",
+            ):
+                if at_key in comp and at_key not in declared_props:
+                    comp_for_schema.pop(at_key, None)
+                    if not allow_unknown:
+                        errors.append(
+                            A2uiErrorDetail(
+                                path=f"components.{comp_id or 'unknown'}.{at_key}",
+                                code="extra_field",
+                                message=(
+                                    "Additional properties are not allowed"
+                                    f" ('{at_key}' was unexpected)"
+                                ),
+                                surface_id=surface_id,
+                            )
+                        )
+        else:
+            is_checkable = (
+                is_component_checkable(self.catalog, comp_type)
+                if isinstance(comp_type, str)
+                else False
+            )
+            for bare_key, at_key in (
+                ("metadata", "@metadata"),
+                ("catalogId", "@catalogId"),
+                ("accessibility", "@accessibility"),
+                ("checks", "@checks"),
+            ):
+                if at_key in comp and bare_key in comp and bare_key not in custom_props:
+                    errors.append(
+                        A2uiErrorDetail(
+                            path=f"components.{comp_id or 'unknown'}.{at_key}",
+                            code="conflicting_properties",
+                            message=(
+                                f"Component '{comp_id}' cannot specify both"
+                                f" '{at_key}' and legacy '{bare_key}'."
+                            ),
+                            surface_id=surface_id,
+                        )
+                    )
+
+            if proto_cat_key is not None and not isinstance(comp_catalog_id, str):
+                errors.append(
+                    A2uiErrorDetail(
+                        path=f"components.{comp_id or 'unknown'}.{proto_cat_key}",
+                        code="type_mismatch",
+                        message=f"'{proto_cat_key}' must be a string",
+                        surface_id=surface_id,
+                    )
+                )
+
+            proto_meta_key = (
+                "@metadata"
+                if "@metadata" in comp
+                else (
+                    "metadata"
+                    if "metadata" in comp and "metadata" not in custom_props
+                    else None
+                )
+            )
+            if proto_meta_key is not None:
+                proto_meta_val = comp[proto_meta_key]
+                if proto_meta_val is None:
+                    errors.append(
+                        A2uiErrorDetail(
+                            path=f"components.{comp_id or 'unknown'}.{proto_meta_key}",
+                            code="type_mismatch",
+                            message=f"'{proto_meta_key}' must be an object",
+                            surface_id=surface_id,
+                        )
+                    )
+                else:
+                    try:
+                        validate_metadata(
+                            proto_meta_val,
+                            context=f"component '{comp_id or 'unknown'}' metadata",
+                        )
+                    except A2uiValidationError as e:
+                        meta_err_path = (
+                            f"components.{comp_id or 'unknown'}.{proto_meta_key}.extensions"
+                            if ".extensions" in str(e)
+                            else f"components.{comp_id or 'unknown'}.{proto_meta_key}"
+                        )
+                        errors.append(
+                            A2uiErrorDetail(
+                                path=meta_err_path,
+                                code="invalid_metadata",
+                                message=str(e),
+                                surface_id=surface_id,
+                            )
+                        )
+
+            proto_a11y_key = (
+                "@accessibility"
+                if "@accessibility" in comp
+                else (
+                    "accessibility"
+                    if "accessibility" in comp and "accessibility" not in custom_props
+                    else None
+                )
+            )
+            if proto_a11y_key is not None:
+                try:
+                    v1_0_common_types.AccessibilityAttributes.model_validate(
+                        comp[proto_a11y_key]
+                    )
+                except ValidationError as e:
+                    a11y_errs = format_validation_error(
+                        e,
+                        path_prefix=(
+                            f"components.{comp_id or 'unknown'}.{proto_a11y_key}"
+                        ),
+                        allow_unknown_extra=allow_unknown,
+                        match_jsonschema_missing_path=True,
+                    )
+                    errors.extend(a11y_errs)
+
+            proto_checks_key = (
+                "@checks"
+                if "@checks" in comp
+                else (
+                    "checks"
+                    if "checks" in comp and "checks" not in custom_props
+                    else None
+                )
+            )
+            if proto_checks_key is not None:
+                if not is_checkable:
+                    if not allow_unknown:
+                        errors.append(
+                            A2uiErrorDetail(
+                                path=(
+                                    f"components.{comp_id or 'unknown'}.{proto_checks_key}"
+                                ),
+                                code="extra_field",
+                                message=(
+                                    "Additional properties are not allowed"
+                                    f" ('{proto_checks_key}' was unexpected)"
+                                ),
+                                surface_id=surface_id,
+                            )
+                        )
+                else:
+                    try:
+                        v1_0_common_types.Checkable.model_validate(
+                            {"checks": comp[proto_checks_key]}
+                        )
+                    except ValidationError as e:
+                        check_errs = format_validation_error(
+                            e,
+                            path_prefix=f"components.{comp_id or 'unknown'}",
+                            allow_unknown_extra=allow_unknown,
+                            match_jsonschema_missing_path=True,
+                        )
+                        for d in check_errs:
+                            if proto_checks_key == "@checks":
+                                prefix = f"components.{comp_id or 'unknown'}.checks"
+                                if d.path == prefix:
+                                    d = A2uiErrorDetail(
+                                        path=(
+                                            f"components.{comp_id or 'unknown'}.@checks"
+                                        ),
+                                        code=d.code,
+                                        message=d.message,
+                                        surface_id=d.surface_id,
+                                    )
+                                elif d.path.startswith(f"{prefix}."):
+                                    d = A2uiErrorDetail(
+                                        path=(
+                                            f"components.{comp_id or 'unknown'}.@checks"
+                                            f"{d.path[len(prefix):]}"
+                                        ),
+                                        code=d.code,
+                                        message=d.message,
+                                        surface_id=d.surface_id,
+                                    )
+                            errors.append(d)
+
+            for at_key in (
+                "@metadata",
+                "@catalogId",
+                "@accessibility",
+                "@checks",
+            ):
+                comp_for_schema.pop(at_key, None)
+            for bare_key in (
+                "metadata",
+                "catalogId",
+                "accessibility",
+                "checks",
+            ):
+                if bare_key not in custom_props:
+                    comp_for_schema.pop(bare_key, None)
 
         model_cls = (
             getattr(target_comp, "schema", None)
@@ -432,13 +672,18 @@ class PayloadValidator:
             and issubclass(model_cls, BaseModel)
         ):
             self._validate_model_component(
-                model_cls, comp, comp_id, allow_unknown, errors
+                model_cls, comp_for_schema, comp_id, allow_unknown, errors
             )
         elif isinstance(getattr(target_comp, "schema", None), dict) or isinstance(
             target_comp, dict
         ):
             self._validate_dict_component(
-                target_comp, target_cat, comp, comp_id, allow_unknown, errors
+                target_comp,
+                target_cat,
+                comp_for_schema,
+                comp_id,
+                allow_unknown,
+                errors,
             )
         else:
             raise A2uiCatalogError(
@@ -447,7 +692,12 @@ class PayloadValidator:
             )
 
         self._validate_nested_functions(
-            comp_id or "unknown", comp.get("catalogId"), comp, "", errors
+            comp_id or "unknown",
+            comp_catalog_id,
+            comp,
+            "",
+            errors,
+            custom_props,
         )
         if errors:
             self._raise_component_validation_errors(
@@ -725,6 +975,7 @@ class PayloadValidator:
         val: Any,
         path: str,
         errors: list[A2uiErrorDetail],
+        custom_props: frozenset[str] = frozenset(),
     ) -> None:
         """Recursively validates nested function calls.
 
@@ -755,6 +1006,7 @@ class PayloadValidator:
             val: The value to walk.
             path: The value's path in the component.
             errors: Collects the errors found.
+            custom_props: Custom component properties overriding v1.0 mixin names.
         """
         ver = getattr(self.catalog, "protocol_version", None)
         at_least_v10 = bool(ver and is_at_least_version(ver, ProtocolVersion.V1_0))
@@ -765,8 +1017,23 @@ class PayloadValidator:
             if at_least_v10:
                 from ..resolution.data_context import validate_reserved_directives
 
+                keys_to_check = (
+                    [
+                        k
+                        for k in val.keys()
+                        if k
+                        not in (
+                            "@metadata",
+                            "@catalogId",
+                            "@accessibility",
+                            "@checks",
+                        )
+                    ]
+                    if path == ""
+                    else val.keys()
+                )
                 try:
-                    validate_reserved_directives(val.keys(), ver)
+                    validate_reserved_directives(keys_to_check, ver)
                 except A2uiValidationError as e:
                     errors.append(
                         A2uiErrorDetail(
@@ -785,16 +1052,34 @@ class PayloadValidator:
                     fn_name, val, call_path, comp_catalog_id, at_least_v10, ver, errors
                 )
             for k, v in val.items():
-                if k not in ("id", "component"):
-                    child_path = f"{path}.{k}" if path else k
-                    self._validate_nested_functions(
-                        comp_id, comp_catalog_id, v, child_path, errors
-                    )
+                if k in ("id", "component"):
+                    continue
+                if path == "" and at_least_v10:
+                    if k in ("@catalogId", "@metadata"):
+                        continue
+                    if k == "catalogId" and "catalogId" not in custom_props:
+                        continue
+                    if k == "metadata" and "metadata" not in custom_props:
+                        continue
+                child_path = f"{path}.{k}" if path else k
+                self._validate_nested_functions(
+                    comp_id,
+                    comp_catalog_id,
+                    v,
+                    child_path,
+                    errors,
+                    custom_props,
+                )
         elif isinstance(val, list):
             for idx, item in enumerate(val):
                 child_path = f"{path}.{idx}"
                 self._validate_nested_functions(
-                    comp_id, comp_catalog_id, item, child_path, errors
+                    comp_id,
+                    comp_catalog_id,
+                    item,
+                    child_path,
+                    errors,
+                    custom_props,
                 )
 
     def _validate_nested_call(

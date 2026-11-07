@@ -27,7 +27,7 @@ import {
   BASIC_COMPONENTS as V1_0_BASIC_COMPONENTS,
   BASIC_FUNCTIONS as V1_0_BASIC_FUNCTIONS,
 } from '../../dist/src/catalogs/basic/v1/index.js';
-import {toCanonicalVersion} from '../../dist/src/common/semver.js';
+import {isAtLeastVersion, toCanonicalVersion} from '../../dist/src/common/semver.js';
 import {
   A2uiCatalogError,
   A2uiDataError,
@@ -3374,6 +3374,21 @@ const SURFACE_EXPECT_KNOWN_KEYS = {
   validationResult: new Set(['code', 'message', 'severity', 'valid']),
 };
 
+/**
+ * Whether an expected component key names the component's envelope metadata
+ * rather than one of its properties.
+ *
+ * From v1.0 `@metadata` names the envelope metadata. A bare `metadata` names
+ * it too, as a legacy expectation, unless the expectation also lists
+ * `@metadata` or the component has a `metadata` property of its own. Below
+ * v1.0 `metadata` is always an ordinary property.
+ */
+function isEnvelopeMetadataExpectation(propKey, expectedComp, actualProps, atLeastV1) {
+  if (!atLeastV1) return false;
+  if (propKey === '@metadata') return true;
+  return propKey === 'metadata' && !('@metadata' in expectedComp) && !('metadata' in actualProps);
+}
+
 function assertSurfacesMatch(processor, expect) {
   assertKnownKeys(expect, SURFACE_EXPECT_KNOWN_KEYS.expect, 'expect');
   assertKnownKeysRecord(expect?.surfaces, SURFACE_EXPECT_KNOWN_KEYS.surface, 'expect.surfaces');
@@ -3440,16 +3455,26 @@ function assertSurfacesMatch(processor, expect) {
               );
             }
             const actualProps = node ? (peekValue(node.props) ?? {}) : (comp.properties ?? {});
+            const actualMeta = (node ? peekValue(node.metadata) : comp.metadata) ?? null;
+            const atLeastV1 = isAtLeastVersion(surface.protocolVersion, '1.0');
             for (const [propKey, expectedVal] of Object.entries(expectedComp)) {
               if (propKey === 'id' || propKey === 'component') continue;
-              if (propKey === 'metadata') {
-                const actualMeta = (node ? peekValue(node.metadata) : comp.metadata) ?? null;
+              if (isEnvelopeMetadataExpectation(propKey, expectedComp, actualProps, atLeastV1)) {
                 assert.deepStrictEqual(
                   actualMeta,
                   expectedVal,
                   `Metadata mismatch on component '${expectedComp.id}'`,
                 );
                 continue;
+              }
+              if (propKey === 'metadata' && !atLeastV1) {
+                // Below v1.0 a component has no envelope metadata, and a
+                // `metadata` it declares is an ordinary property.
+                assert.strictEqual(
+                  actualMeta,
+                  null,
+                  `Component '${expectedComp.id}' on a pre-1.0 surface has envelope metadata`,
+                );
               }
               const actualVal = normalizeComponentRefs(actualProps[propKey]);
               if (!propertyValuesMatch(actualVal, expectedVal)) {

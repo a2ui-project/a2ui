@@ -719,6 +719,17 @@ public final class NodeResolver: Sendable {
     nodeRecords.removeAll()
   }
 
+  /// The schema of the accessibility mixin: `AccessibilityAttributes`.
+  private static let accessibilityMixinSchema: JSONValue = .object([
+    "$ref": .string(A2UICommonSchema.v10URI(for: "AccessibilityAttributes"))
+  ])
+
+  /// The schema of the checks mixin: a list of `CheckRule`.
+  private static let checksMixinSchema: JSONValue = .object([
+    "type": .string("array"),
+    "items": .object(["$ref": .string(A2UICommonSchema.v10URI(for: "CheckRule"))]),
+  ])
+
   private func cachedSchema(
     for type: String,
     catalogID: String?,
@@ -732,9 +743,15 @@ public final class NodeResolver: Sendable {
     var propertiesSchema = extractPropertiesSchema(from: schemaJSON)
     // `accessibility` comes from `ComponentCommon`, so a component schema need not declare it.
     if propertiesSchema["accessibility"] == nil {
-      propertiesSchema["accessibility"] = .object([
-        "$ref": .string(A2UICommonSchema.v10URI(for: "AccessibilityAttributes"))
-      ])
+      propertiesSchema["accessibility"] = Self.accessibilityMixinSchema
+    }
+    // A v1.0 component keeps its accessibility and checks mixins under `@accessibility` and
+    // `@checks`, apart from any `accessibility` or `checks` property of its own.
+    if propertiesSchema["@accessibility"] == nil {
+      propertiesSchema["@accessibility"] = Self.accessibilityMixinSchema
+    }
+    if propertiesSchema["@checks"] == nil {
+      propertiesSchema["@checks"] = Self.checksMixinSchema
     }
     let entry = CachedComponentSchema(
       propertiesSchema: propertiesSchema,
