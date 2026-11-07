@@ -25,9 +25,10 @@ import SwiftUI
 /// - `description` becomes `accessibilityHint`. SwiftUI only keeps a hint on a single
 ///   accessibility element, so it is dropped on layout containers and other groups.
 /// - `hidden` becomes `accessibilityHidden` for the whole subtree.
-/// - `live` (`polite` or `assertive`) posts an announcement of the explicit label whenever it
-///   changes, for example when it is bound to the data model. Announcing changes to a component's
-///   visible text is tracked in https://github.com/a2ui-project/a2ui/issues/3147.
+/// - `live` (`polite` or `assertive`) posts an announcement whenever the region's text changes:
+///   the explicit label if set, otherwise the visible text that components in the subtree report
+///   with ``SwiftUI/View/a2uiAccessibleText(_:)``. This works for a live `Text` and for a live
+///   container such as a `Column` or `Card`. See ``A2UIAccessibleTextKey``.
 ///
 /// SwiftUI applies a label set on a stack to every element inside it. A component whose root is
 /// a stack should call ``SwiftUI/View/a2uiAccessibilityControl(for:)`` on its focusable control,
@@ -88,27 +89,64 @@ public struct A2UIAccessibilityModifier: ViewModifier {
     attributes?.live == "assertive"
   }
 
-  /// The text announced when it changes: the explicit label of a live component. `nil` when
-  /// nothing is announced.
+  /// The text announced when it changes, for a component whose subtree reports no visible
+  /// text. Same as ``announcementText(subtreeText:)`` with no text.
   public var announcementText: String? {
+    announcementText(subtreeText: [])
+  }
+
+  /// The text announced when it changes: the explicit label of a live component, otherwise the
+  /// visible text its subtree reports through ``A2UIAccessibleTextKey``, one entry per line.
+  /// `nil` when nothing is announced.
+  public func announcementText(subtreeText: [String]) -> String? {
     guard isLiveRegion, !isHidden else { return nil }
-    return label
+    if let label { return label }
+    let text = subtreeText.filter { !$0.isEmpty }.joined(separator: "\n")
+    return text.isEmpty ? nil : text
   }
 
   public func body(content: Content) -> some View {
-    hidden(
-      content
-        .a2uiOptionalAccessibilityIdentifier(appliesAccessibilityIdentifier ? identifier : nil)
-        .a2uiOptionalAccessibilityLabel(appliesLabelAndHint ? label : nil)
-        .a2uiOptionalAccessibilityHint(appliesLabelAndHint ? hint : nil)
+    liveRegion(
+      hidden(
+        content
+          .a2uiOptionalAccessibilityIdentifier(appliesAccessibilityIdentifier ? identifier : nil)
+          .a2uiOptionalAccessibilityLabel(appliesLabelAndHint ? label : nil)
+          .a2uiOptionalAccessibilityHint(appliesLabelAndHint ? hint : nil)
+      )
     )
-    .modifier(AnnouncementTrigger(text: announcementText, assertive: isAssertive))
   }
 
   @ViewBuilder
   private func hidden<V: View>(_ view: V) -> some View {
     if isHidden {
-      view.accessibilityHidden(true)
+      view
+        .accessibilityHidden(true)
+        // Text that assistive technologies can't reach is not announced by a live ancestor.
+        .transformPreference(A2UIAccessibleTextKey.self) { $0 = [] }
+        .environment(\.a2uiInLiveRegion, false)
+    } else {
+      view
+    }
+  }
+
+  @ViewBuilder
+  private func liveRegion<V: View>(_ view: V) -> some View {
+    if isLiveRegion && !isHidden {
+      view
+        .environment(\.a2uiInLiveRegion, true)
+        .overlayPreferenceValue(A2UIAccessibleTextKey.self) { subtreeText in
+          Color.clear
+            .accessibilityHidden(true)
+            .allowsHitTesting(false)
+            .modifier(
+              AnnouncementTrigger(
+                text: announcementText(subtreeText: subtreeText),
+                assertive: isAssertive
+              )
+            )
+        }
+        // The nearest live region announces the text, so a live ancestor doesn't repeat it.
+        .transformPreference(A2UIAccessibleTextKey.self) { $0 = [] }
     } else {
       view
     }
