@@ -152,12 +152,28 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
            THE IDEA — SCROLL STAGE (own section, alternate tone)
            ================================================================= -->
       <section class="a2-section a2-section--alt a2-section--stage" id="custom-ui">
+        <span id="examples" class="a2-anchor-alias" aria-hidden="true"></span>
         <div class="a2-wrap">
           <div class="a2-chapter a2-chapter--stage">
             <div class="a2-chapter__split">
               <h2 class="a2-h2">
                 Custom UI for <span class="a2-h-accent">each user’s intent.</span>
               </h2>
+            </div>
+            <div class="a2-stage__actions">
+              <a href={`${base}/showcase/`} class="a2-btn a2-btn--primary">
+                <span>Showcase</span>
+                <span aria-hidden="true">→</span>
+              </a>
+              <a
+                href="https://go.copilotkit.ai/a2ui-playground"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="a2-btn a2-btn--outline"
+              >
+                <span>Playground</span>
+                <span aria-hidden="true">↗</span>
+              </a>
             </div>
           </div>
 
@@ -570,6 +586,13 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         margin-bottom: 88px;
       }
 
+      .a2-anchor-alias {
+        position: absolute;
+        top: 0;
+        left: 0;
+        scroll-margin-top: 72px;
+      }
+
       /* Header for the scroll stage — tighter than a full chapter (no rule row above any chapter now) */
       .a2-chapter--stage {
         margin-bottom: 40px;
@@ -580,6 +603,14 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
       .a2-chapter--stage .a2-chapter__split {
         grid-template-columns: 1fr;
+      }
+
+      .a2-stage__actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        margin-top: 22px;
       }
 
       .a2-chapter__split {
