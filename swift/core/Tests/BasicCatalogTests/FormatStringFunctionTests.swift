@@ -285,6 +285,88 @@ struct FormatStringFunctionTests {
     #expect(resolved == .string("https://example.com/outer.json"))
     #expect(ctx.activeFunctionCatalogID == nil)
   }
+
+  @Test func resolvesTemplateCallsInFormatStringCatalogOverSurfaceDefaultCatalog() throws {
+    let customID = "https://example.com/custom.json"
+    let customCatalog = AnyCatalog(
+      id: customID,
+      protocolVersion: .v10,
+      components: [],
+      functions: []
+    )
+    let basicCatalog = BasicCatalog.makeCatalog(version: .v10).eraseToAnyCatalog()
+    let resolver = NodeResolver(
+      surfaceID: "s-custom-default",
+      catalogs: [customCatalog, basicCatalog],
+      defaultCatalogID: customID,
+      protocolVersion: .v10
+    )
+    let ctx = DataContext(
+      dataModel: resolver.dataModel,
+      path: "/",
+      functionHandler: resolver,
+      protocolVersion: .v10
+    )
+    let resolved = ctx.resolveDynamicValue(
+      .object([
+        "@call": .string("formatString"),
+        "catalogId": .string(basicCatalog.id),
+        "args": .object([
+          "value": .string("Count: ${pluralize(value: 2, one: 'drop', other: 'drops')}")
+        ]),
+      ])
+    )
+    #expect(resolved == .string("Count: drops"))
+  }
+
+  @Test func resolvesTemplateCallsInStandaloneRPCCatalogWhenSurfaceLacksCatalog() async throws {
+    let surfaceCatalogID = "https://example.com/surface.json"
+    let surfaceCatalog = AnyCatalog(
+      id: surfaceCatalogID,
+      protocolVersion: .v10,
+      components: [],
+      functions: []
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s-surface",
+      catalogs: [surfaceCatalog],
+      defaultCatalogID: surfaceCatalogID,
+      protocolVersion: .v10
+    )
+    resolver.dataModel.set("/label", value: .string("ok"))
+    let surfaceContext = DataContext(
+      dataModel: resolver.dataModel,
+      path: "/",
+      functionHandler: resolver,
+      protocolVersion: .v10
+    )
+    let standaloneID = "https://example.com/standalone-rpc.json"
+    let standaloneCatalog = AnyCatalog(
+      id: standaloneID,
+      protocolVersion: .v10,
+      components: [],
+      functions: [AgentFormatStringFunction(), ActiveCatalogFunction()]
+    )
+    let message = CallRendererFunctionMessage(
+      surfaceID: "s-surface",
+      functionCallID: "rpc-1",
+      callFunction: CallFunctionPayload(
+        call: "rpcFormatString",
+        catalogID: standaloneID,
+        args: ["value": .string("${/label}:${activeCat()}")]
+      ),
+      version: .v10
+    )
+    let response = await RPCHandler().handleIncomingCall(
+      message,
+      catalogs: [surfaceCatalogID: surfaceCatalog, standaloneID: standaloneCatalog],
+      defaultCatalogID: surfaceCatalogID,
+      dataContext: surfaceContext
+    )
+    #expect(response.error == nil)
+    #expect(response.value == .string("ok:\(standaloneID)"))
+    #expect(surfaceContext.activeFunctionCatalogID == nil)
+  }
 }
 
 @MainActor
@@ -324,5 +406,19 @@ private struct ActiveCatalogFunction: FunctionImplementation, Sendable {
   @MainActor
   func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     .string(context.activeFunctionCatalogID ?? "none")
+  }
+}
+
+private struct AgentFormatStringFunction: FunctionImplementation, Sendable {
+  let api = FunctionAPI(
+    name: "rpcFormatString",
+    returnType: .string,
+    schema: FormatStringFunction().api.schema,
+    allowedCallers: .rendererOrAgent
+  )
+
+  @MainActor
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+    try FormatStringFunction().evaluate(arguments: arguments, context: context)
   }
 }
