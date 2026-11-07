@@ -202,57 +202,108 @@
   </div>
 
   <!-- ===================================================================
-       WHAT THE AGENT COMPOSES FROM — THREE OPEN COLUMNS, LINE ILLUSTRATIONS
+       WHAT THE AGENT COMPOSES FROM — THREE ALIGNED ARCHITECTURAL COLUMNS
        =================================================================== -->
   <div class="ic-sources">
     <div class="ic-sources__grid">
-      <!-- 01 · Customer intent: a sentence on a plane, the parts that matter drawn out into structure -->
+      <!-- 01 · Personalized in the moment: user intent + preferences -> tailored UI surface -->
       <div class="ic-source">
-        <svg class="ic-art" viewBox="0 0 320 160" preserveAspectRatio="xMinYMid meet" aria-hidden="true">
-          <path class="ln mark" d="M20 26h8M24 22v8M286 136h8M290 132v8" />
-          <polygon class="plane" points="96,56 236,56 190,114 50,114" />
-          <circle class="ln" cx="236" cy="56" r="2" />
-          <line class="ln ln-strong" x1="85" y1="70" x2="140" y2="70" />
-          <line class="acc w2" x1="148" y1="70" x2="196" y2="70" />
-          <line class="ln ln-strong" x1="74" y1="84" x2="130" y2="84" />
-          <line class="acc w2" x1="138" y1="84" x2="178" y2="84" />
-          <line class="ln ln-strong" x1="63" y1="98" x2="120" y2="98" />
-          <rect class="acc-fill ic-art__caret" x="123" y="93" width="1.5" height="10" />
-          <path class="ln dash" d="M196 70 C 222 70, 236 48, 262 48" />
-          <path class="ln dash" d="M178 84 L 262 84" />
-          <path class="ln dash" d="M120 98 C 170 98, 215 120, 262 120" />
-          <line class="ln" x1="262" y1="40" x2="262" y2="128" />
-          <rect class="acc-fill" x="265" y="45" width="6" height="6" />
-          <rect class="acc-fill" x="265" y="81" width="6" height="6" />
-          <rect class="node" x="265" y="117" width="6" height="6" />
+        <svg class="ic-art" viewBox="0 0 320 160" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+          <!-- Left: user prompt + personal constraints -->
+          <text class="lbl lbl--tiny" x="6" y="23">USER INTENT</text>
+          <rect class="card-surface" x="4" y="29" width="128" height="44" rx="4" />
+          <text class="lbl lbl--ink" x="13" y="46">"Dinner for 4,</text>
+          <text class="lbl lbl--acc" x="13" y="61">under $40"</text>
+
+          <rect class="card-surface" x="4" y="83" width="128" height="47" rx="4" />
+          <text class="lbl lbl--tiny" x="13" y="98">PREFERENCES</text>
+          <rect class="soft-fill acc" x="12" y="105" width="60" height="17" rx="3" />
+          <text class="lbl lbl--chip" x="42" y="116.5" text-anchor="middle">vegetarian</text>
+          <rect class="node" x="76" y="105" width="48" height="17" rx="3" />
+          <text class="lbl lbl--chip-muted" x="100" y="116.5" text-anchor="middle">5:30pm</text>
+
+          <!-- Middle: dynamic composition -->
+          <path class="ln dash" d="M132 51 C 149 51, 151 80, 164 80" />
+          <path class="ln dash" d="M132 106 C 149 106, 151 80, 164 80" />
+          <rect class="node" x="158" y="74" width="12" height="12" transform="rotate(45 164 80)" />
+          <rect class="acc-fill ic-art__blink" x="161.5" y="77.5" width="5" height="5" transform="rotate(45 164 80)" />
+          <line class="acc ic-art__flow" x1="172" y1="80" x2="188" y2="80" />
+          <path class="acc" d="M184 76l4 4-4 4" />
+
+          <!-- Right: bespoke UI tailored to that exact user -->
+          <rect class="card-surface" x="192" y="22" width="124" height="116" rx="5" />
+          <line class="ln-subtle" x1="192" y1="41" x2="316" y2="41" />
+          <circle class="acc-fill" cx="202" cy="31.5" r="2.5" />
+          <text class="lbl lbl--tiny" x="210" y="34.5">TAILORED UI</text>
+
+          <rect class="soft-fill acc" x="200" y="48" width="108" height="35" rx="3" />
+          <text class="lbl lbl--card-strong" x="207" y="61.5">Veg gnocchi</text>
+          <text class="lbl lbl--chip" x="207" y="75">Serves 4 · $24.92</text>
+
+          <rect class="node" x="200" y="89" width="108" height="18" rx="3" />
+          <text class="lbl lbl--chip-muted" x="207" y="101">5:30pm slot</text>
+          <path class="acc w15" d="M294 98l2.5 2.5 5-5" />
+
+          <rect class="acc-fill" x="200" y="113" width="108" height="17" rx="3" />
+          <text class="lbl lbl--cta" x="254" y="124.5" text-anchor="middle">Add 5 items →</text>
         </svg>
 
         <h3>Personalized in the moment</h3>
         <p>Your agent constructs UI that adapts to each user's unique needs and preferences.</p>
       </div>
 
-      <!-- 02 · Native to your brand: a locked isometric grid; three parts lifted into the surface -->
+      <!-- 02 · Native to your brand: locked component catalog -> 1:1 native host widgets -->
       <div class="ic-source">
-        <svg class="ic-art" viewBox="0 0 320 160" preserveAspectRatio="xMinYMid meet" aria-hidden="true">
-          <path class="ln mark" d="M286 136h8M290 132v8" />
-          <path class="ln" d="M24 140l6 6M30 140l-6 6" />
-          <!-- floor grid -->
-          <polygon class="plane" points="160,44 298,95 160,146 22,95" />
-          <path class="ln" d="M206 61L68 112M252 78L114 129" />
-          <path class="ln" d="M114 61L252 112M68 78L206 129" />
-          <!-- picked cells -->
-          <polygon class="soft-fill acc" points="114,61 160,78 114,95 68,78" />
-          <polygon class="soft-fill acc" points="160,78 206,95 160,112 114,95" />
-          <polygon class="soft-fill acc" points="252,78 298,95 252,112 206,95" />
-          <!-- risers into the composed layer -->
-          <path class="ln dash" d="M114 78V34M160 95V51M252 95V51" />
-          <path class="ln dash" d="M114 34L160 51L252 51" />
-          <rect class="acc-fill" x="111" y="31" width="6" height="6" />
-          <rect class="acc-fill" x="157" y="48" width="6" height="6" />
-          <rect class="acc-fill" x="249" y="48" width="6" height="6" />
-          <!-- lock -->
-          <rect class="ln ln-strong" x="26" y="34" width="11" height="8" rx="1" />
-          <path class="ln ln-strong" d="M28 34v-2.5a3.5 3.5 0 0 1 7 0V34" />
+        <svg class="ic-art" viewBox="0 0 320 160" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+          <!-- Left: locked component catalog -->
+          <rect class="card-surface" x="4" y="22" width="130" height="116" rx="5" />
+          <line class="ln-subtle" x1="4" y1="41" x2="134" y2="41" />
+          <rect class="acc w15" x="12" y="30.5" width="7.5" height="5.5" rx="1" />
+          <path class="acc w15" d="M13.6 30.5v-1.8a2.15 2.15 0 0 1 4.3 0v1.8" />
+          <text class="lbl lbl--tiny lbl--acc" x="24" y="34.5">LOCKED CATALOG</text>
+
+          <!-- Registered components -->
+          <rect class="soft-fill acc" x="12" y="48" width="114" height="18" rx="3" />
+          <text class="lbl lbl--chip" x="20" y="60">Card</text>
+          <circle class="acc-fill" cx="126" cy="57" r="2.3" />
+
+          <rect class="soft-fill acc" x="12" y="70" width="114" height="18" rx="3" />
+          <text class="lbl lbl--chip" x="20" y="82">ChoiceChip</text>
+          <circle class="acc-fill" cx="126" cy="79" r="2.3" />
+
+          <rect class="node" x="12" y="92" width="114" height="18" rx="3" />
+          <text class="lbl lbl--chip-muted" x="20" y="104">DatePicker</text>
+
+          <rect class="soft-fill acc" x="12" y="114" width="114" height="18" rx="3" />
+          <text class="lbl lbl--chip" x="20" y="126">Button</text>
+          <circle class="acc-fill" cx="126" cy="123" r="2.3" />
+
+          <!-- Middle: 1:1 catalog-to-widget binding -->
+          <path class="acc dash-map" d="M128 57 C 158 57, 168 59, 200 59" />
+          <path class="acc dash-map" d="M128 79 C 158 79, 168 86, 200 86" />
+          <path class="acc dash-map" d="M128 123 C 158 123, 168 121, 200 121" />
+
+          <!-- Right: native host app styled by your design system -->
+          <rect class="card-surface" x="192" y="22" width="124" height="116" rx="5" />
+          <line class="ln-subtle" x1="192" y1="41" x2="316" y2="41" />
+          <rect class="acc-fill" x="200" y="28" width="7" height="7" rx="1.5" />
+          <text class="lbl lbl--tiny" x="212" y="34.5">YOUR DESIGN SYSTEM</text>
+
+          <!-- Native Card -->
+          <rect class="plane" x="200" y="48" width="108" height="22" rx="3" />
+          <line class="ln ln-strong w2" x1="208" y1="56" x2="262" y2="56" />
+          <line class="ln" x1="208" y1="63" x2="244" y2="63" />
+
+          <!-- Native ChoiceChips -->
+          <rect class="soft-fill acc" x="200" y="77" width="52" height="18" rx="9" />
+          <circle class="acc-fill" cx="209" cy="86" r="2" />
+          <line class="acc w2" x1="215" y1="86" x2="242" y2="86" />
+          <rect class="node" x="256" y="77" width="52" height="18" rx="9" />
+          <line class="ln" x1="267" y1="86" x2="296" y2="86" />
+
+          <!-- Native Branded Button -->
+          <rect class="acc-fill" x="200" y="112" width="108" height="18" rx="4" />
+          <line class="cta-bar" x1="234" y1="121" x2="274" y2="121" />
         </svg>
 
         <h3>Native to your brand</h3>
@@ -261,31 +312,46 @@
 
       <!-- 03 · Fast, reliable, secure: Jev, Express, or your own DSL + server macros all compile to one wire message -->
       <div class="ic-source">
-        <svg class="ic-art" viewBox="0 0 320 160" preserveAspectRatio="xMinYMid meet" aria-hidden="true">
-          <path class="ln mark" d="M20 26h8M24 22v8M286 136h8M290 132v8" />
-          <!-- three ways the model can write the UI -->
-          <rect class="plane" x="20" y="30" width="98" height="26" rx="3" />
-          <rect class="plane" x="20" y="67" width="98" height="26" rx="3" />
-          <rect class="plane" x="20" y="104" width="98" height="26" rx="3" />
-          <text class="lbl" x="30" y="47">jev format</text>
-          <text class="lbl" x="30" y="84">&lt;a2ui&gt; express</text>
-          <text class="lbl" x="30" y="121">your format</text>
-          <!-- all of them meet at the macro / wire compiler -->
-          <path class="ln dash" d="M118 43 C148 43 152 80 176 80" />
-          <path class="ln dash" d="M118 80 H176" />
-          <path class="ln dash" d="M118 117 C148 117 152 80 176 80" />
-          <text class="lbl lbl--tiny" x="176" y="64" text-anchor="middle">@MACRO</text>
-          <rect class="node" x="170" y="74" width="12" height="12" transform="rotate(45 176 80)" />
-          <rect class="acc-fill ic-art__blink" x="173.5" y="77.5" width="5" height="5" transform="rotate(45 176 80)" />
-          <!-- one wire message out -->
-          <line class="acc ic-art__flow" x1="183" y1="80" x2="226" y2="80" />
-          <path class="acc" d="M222 76l4 4-4 4" />
-          <text class="lbl lbl--tiny" x="184" y="98">ONE WIRE</text>
-          <!-- the same component, whichever way it was written -->
-          <rect class="plane" x="232" y="50" width="68" height="60" rx="3" />
-          <path class="ln-strong ln" d="M242 63h36" />
-          <path class="ln" d="M242 72h26M242 80h30" />
-          <rect class="acc-fill" x="242" y="92" width="48" height="9" rx="1" />
+        <svg class="ic-art" viewBox="0 0 320 160" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+          <!-- Left: swappable model formats -->
+          <rect class="card-surface" x="4" y="24" width="104" height="28" rx="4" />
+          <text class="lbl lbl--ink" x="14" y="41.5">jev format</text>
+
+          <rect class="soft-fill acc" x="4" y="66" width="104" height="28" rx="4" />
+          <text class="lbl lbl--acc" x="14" y="83.5">&lt;a2ui&gt; express</text>
+
+          <rect class="card-surface" x="4" y="108" width="104" height="28" rx="4" />
+          <text class="lbl" x="14" y="125.5">your format</text>
+
+          <!-- Middle: @MACRO compiler -> ONE WIRE stream -->
+          <path class="ln dash" d="M108 38 C 131 38, 136 80, 147 80" />
+          <path class="acc dash-map" d="M108 80 H147" />
+          <path class="ln dash" d="M108 122 C 131 122, 136 80, 147 80" />
+
+          <text class="lbl lbl--tiny lbl--acc" x="154" y="61" text-anchor="middle">@MACRO</text>
+          <rect class="node" x="148" y="74" width="12" height="12" transform="rotate(45 154 80)" />
+          <rect class="acc-fill ic-art__blink" x="151.5" y="77.5" width="5" height="5" transform="rotate(45 154 80)" />
+
+          <line class="acc ic-art__flow" x1="162" y1="80" x2="204" y2="80" />
+          <path class="acc" d="M200 76l4 4-4 4" />
+          <text class="lbl lbl--tiny" x="183" y="96" text-anchor="middle">ONE WIRE</text>
+
+          <!-- Right: progressive streamed surface -->
+          <rect class="card-surface" x="210" y="22" width="106" height="116" rx="5" />
+          <line class="ln-subtle" x1="210" y1="41" x2="316" y2="41" />
+          <circle class="acc-fill ic-art__blink" cx="220" cy="31.5" r="2.5" />
+          <text class="lbl lbl--tiny" x="228" y="34.5">STREAMING</text>
+
+          <rect class="plane" x="218" y="48" width="90" height="25" rx="3" />
+          <line class="ln ln-strong w2" x1="225" y1="57" x2="274" y2="57" />
+          <line class="ln" x1="225" y1="65" x2="258" y2="65" />
+
+          <rect class="soft-fill acc" x="218" y="80" width="90" height="24" rx="3" />
+          <line class="acc w2" x1="225" y1="89" x2="282" y2="89" />
+          <line class="ln" x1="225" y1="97" x2="264" y2="97" />
+
+          <rect class="acc-fill" x="218" y="112" width="90" height="18" rx="4" />
+          <line class="cta-bar" x1="246" y1="121" x2="280" y2="121" />
         </svg>
 
         <h3>Fast, reliable, secure in production</h3>
@@ -1398,10 +1464,10 @@
   /* --- Wire JSON --- */
 
   /* =======================================================================
-     WHAT THE AGENT COMPOSES FROM — OPEN COLUMNS + LINE ILLUSTRATIONS
+     WHAT THE AGENT COMPOSES FROM — SYMMETRIC 3-COLUMN GRID + SUBGRID ALIGNMENT
      ======================================================================= */
   .ic-sources {
-    margin-top: 104px;
+    margin-top: 96px;
     display: flex;
     flex-direction: column;
     gap: 30px;
@@ -1410,40 +1476,68 @@
   .ic-sources__grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    column-gap: 64px;
+    align-items: start;
   }
 
-  @media (max-width: 820px) {
+  .ic-source {
+    position: relative;
+    display: grid;
+    grid-row: span 3;
+    grid-template-rows: subgrid;
+    row-gap: 0;
+    padding: 0;
+  }
+
+  .ic-source + .ic-source::before {
+    content: '';
+    position: absolute;
+    top: 4px;
+    bottom: 0;
+    left: -32px;
+    width: 1px;
+    background: var(--a2-border);
+  }
+
+  @media (max-width: 1080px) {
+    .ic-sources__grid {
+      column-gap: 44px;
+    }
+
+    .ic-source + .ic-source::before {
+      left: -22px;
+    }
+  }
+
+  @media (max-width: 860px) {
     .ic-sources__grid {
       grid-template-columns: 1fr;
       row-gap: 48px;
     }
-  }
 
-  .ic-source {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 6px 40px 0 0;
-  }
+    .ic-source {
+      display: flex;
+      flex-direction: column;
+      grid-row: auto;
+      gap: 10px;
+    }
 
-  .ic-source + .ic-source {
-    padding-left: 40px;
-    border-left: 1px solid var(--a2-border);
-  }
-
-  @media (max-width: 820px) {
-    .ic-source,
     .ic-source + .ic-source {
-      padding: 0;
-      border-left: none;
+      padding-top: 36px;
+      border-top: 1px solid var(--a2-border);
+    }
+
+    .ic-source + .ic-source::before {
+      display: none;
     }
   }
 
   .ic-source h3 {
-    margin: 6px 0 0;
+    margin: 0 0 10px;
     font-family: var(--a2-font-display);
-    font-size: 19px;
-    font-weight: 620;
+    font-size: clamp(17.5px, 1.38vw, 18.5px);
+    font-weight: 640;
+    line-height: 1.24;
     letter-spacing: -0.022em;
     color: var(--a2-text);
   }
@@ -1451,17 +1545,18 @@
   .ic-source p {
     margin: 0;
     font-size: 14px;
-    line-height: 1.58;
+    line-height: 1.6;
     color: var(--a2-text-secondary);
     max-width: 38ch;
   }
 
-  /* --- Technical line illustrations (equal height so the three titles align; labels in mono) --- */
+  /* --- Architectural schematics (identical bounding box + shared visual grammar) --- */
   .ic-art {
     width: 100%;
-    height: 150px;
+    height: auto;
+    aspect-ratio: 2 / 1;
     display: block;
-    margin-bottom: 14px;
+    margin-bottom: 18px;
     overflow: visible;
   }
 
@@ -1471,7 +1566,13 @@
     stroke-width: 1;
     stroke-linecap: round;
     stroke-linejoin: round;
-    opacity: 0.8;
+    opacity: 0.78;
+  }
+
+  .ic-art .ln-subtle {
+    fill: none;
+    stroke: var(--a2-border-strong);
+    stroke-width: 1;
   }
 
   .ic-art .ln-strong {
@@ -1480,18 +1581,25 @@
   }
 
   .ic-art .dash {
-    stroke-dasharray: 2 3;
+    stroke-dasharray: 2.5 3;
   }
 
-  .ic-art .mark {
-    opacity: 0.5;
+  .ic-art .dash-map {
+    fill: none;
+    stroke-dasharray: 3 3;
+    opacity: 0.75;
+  }
+
+  .ic-art .card-surface {
+    fill: var(--a2-bg);
+    stroke: var(--a2-border-strong);
+    stroke-width: 1;
   }
 
   .ic-art .plane {
     fill: var(--a2-surface-subtle);
-    stroke: var(--a2-text-muted);
+    stroke: var(--a2-border-strong);
     stroke-width: 1;
-    opacity: 0.9;
   }
 
   .ic-art .acc {
@@ -1499,10 +1607,22 @@
     stroke: var(--a2-accent);
     stroke-width: 1;
     stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .ic-art .w15 {
+    stroke-width: 1.4;
   }
 
   .ic-art .w2 {
     stroke-width: 2;
+  }
+
+  .ic-art .cta-bar {
+    stroke: #ffffff;
+    stroke-width: 2;
+    stroke-linecap: round;
+    opacity: 0.92;
   }
 
   .ic-art .acc-fill {
@@ -1514,24 +1634,9 @@
   }
 
   .ic-art .node {
-    fill: var(--a2-bg);
-    stroke: var(--a2-text-muted);
+    fill: var(--a2-surface-subtle);
+    stroke: var(--a2-border-strong);
     stroke-width: 1;
-  }
-
-  .ic-art__caret {
-    animation: icCaret 0.9s steps(1) infinite;
-  }
-
-  .ic-art__hand {
-    stroke-width: 1.4;
-    transform-box: view-box;
-    transform-origin: 160px 92px;
-    animation: icSweep 16s linear infinite;
-  }
-
-  @keyframes icSweep {
-    to { transform: rotate(360deg); }
   }
 
   .ic-art__blink {
@@ -1541,15 +1646,52 @@
   .ic-art .lbl {
     font-family: var(--a2-font-mono);
     font-size: 9.5px;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.01em;
     fill: var(--a2-text-secondary);
+  }
+
+  .ic-art .lbl--ink {
+    fill: var(--a2-text);
+    font-weight: 600;
+  }
+
+  .ic-art .lbl--card-strong {
+    font-family: var(--a2-font-sans);
+    font-size: 9.5px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    fill: var(--a2-text);
+  }
+
+  .ic-art .lbl--chip {
+    font-size: 8.5px;
+    font-weight: 600;
+    fill: var(--a2-accent-strong);
+  }
+
+  .ic-art .lbl--chip-muted {
+    font-size: 8.5px;
+    fill: var(--a2-text-muted);
+  }
+
+  .ic-art .lbl--cta {
+    font-family: var(--a2-font-sans);
+    font-size: 8.5px;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+    fill: #ffffff;
   }
 
   .ic-art .lbl--tiny {
     font-size: 7px;
     font-weight: 700;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.09em;
     fill: var(--a2-text-muted);
+  }
+
+  .ic-art .lbl--acc {
+    fill: var(--a2-accent-strong);
+    font-weight: 600;
   }
 
   .ic-art__flow {
