@@ -43,9 +43,11 @@ on:
     branches:
       - main
 
+# Shared `gh-pages-deploy` group on main-branch pushes coordinates with
+# `docs_site_preview_deploy.yml` so `gh-pages` updates never race.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.event_name == 'push' && 'gh-pages-deploy' || format('{0}-{1}', github.workflow, github.ref_name || github.ref) }}
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 jobs:
   changes:
@@ -207,6 +209,11 @@ jobs:
           # llms.txt is rendered by the Astro build; serve it from the site root.
           cp docs/site/dist/llms.txt site/llms.txt
           rm -f site/preview/CNAME site/preview/.nojekyll
+          # Preserve active PR previews published under /pr-preview/ on gh-pages.
+          rm -rf site/pr-preview
+          if git fetch origin gh-pages && git rev-parse --verify origin/gh-pages:pr-preview >/dev/null 2>&1; then
+            git archive origin/gh-pages pr-preview | tar -x -C site
+          fi
           uv run ghp-import --no-jekyll --push \
             --message "Deployed $(git rev-parse --short HEAD) with MkDocs version: $(uv run python -c 'import mkdocs; print(mkdocs.__version__)')" \
             site
