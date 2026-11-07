@@ -177,15 +177,19 @@ public final class RPCHandler {
       index: dataContext?.index,
       isUserActivated: userActivationPresent
     )
-    let effectiveContext =
-      dataContext
-      ?? DataContext(
-        dataModel: argResolutionContext.dataModel,
-        path: "",
-        functionHandler: argHandler,
-        protocolVersion: message.version,
-        isUserActivated: userActivationPresent
-      )
+    let execHandler = RPCArgumentFunctionHandler(
+      delegate: dataContext?.functionHandler,
+      fallback: fallbackHandler
+    )
+    let effectiveContext = DataContext(
+      dataModel: argResolutionContext.dataModel,
+      path: dataContext?.path ?? "",
+      functionHandler: execHandler,
+      protocolVersion: dataContext?.protocolVersion ?? message.version,
+      index: dataContext?.index,
+      isUserActivated: userActivationPresent
+    )
+    effectiveContext.activeFunctionCatalogID = catalog.id
 
     var resolvedArgs: [String: JSONValue] = [:]
     for (key, val) in rawArgs {
@@ -219,9 +223,6 @@ public final class RPCHandler {
       )
     }
 
-    let previousCatalogID = effectiveContext.activeFunctionCatalogID
-    effectiveContext.activeFunctionCatalogID = catalog.id
-    defer { effectiveContext.activeFunctionCatalogID = previousCatalogID }
     do {
       let result = try function.evaluate(arguments: resolvedArgs, context: effectiveContext)
       return RendererFunctionResponseMessage(
@@ -406,7 +407,13 @@ private final class RPCArgumentFunctionHandler: FunctionHandler {
 
   func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
     if let delegate {
-      return delegate.function(named: name, catalogID: catalogID)
+      if let found = delegate.function(named: name, catalogID: catalogID) {
+        return found
+      }
+      if catalogID != nil {
+        return fallback.function(named: name, catalogID: catalogID)
+      }
+      return nil
     }
     return fallback.function(named: name, catalogID: catalogID)
   }
@@ -420,6 +427,9 @@ private final class RPCArgumentFunctionHandler: FunctionHandler {
 
   func validateFunctionCatalog(id catalogID: String?, functionName: String) throws {
     if let delegate {
+      if let catalogID, fallback.hasCatalog(id: catalogID) {
+        return
+      }
       try delegate.validateFunctionCatalog(id: catalogID, functionName: functionName)
     } else {
       try fallback.validateFunctionCatalog(id: catalogID, functionName: functionName)
@@ -439,6 +449,10 @@ private final class DummyContextFunctionHandler: FunctionHandler {
 
   init(catalogs: [String: AnyCatalog]) {
     self.catalogs = catalogs
+  }
+
+  func hasCatalog(id catalogID: String) -> Bool {
+    catalogs[catalogID] != nil
   }
 
   func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
