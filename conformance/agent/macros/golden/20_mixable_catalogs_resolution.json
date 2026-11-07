@@ -1,0 +1,39 @@
+[
+  {
+    "version": "1.0",
+    "createSurface": {
+      "surfaceId": "conformance",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "1.0",
+    "updateComponents": {
+      "surfaceId": "conformance",
+      "components": [
+        {
+          "component": "Column",
+          "id": "root",
+          "children": ["brand_text", "basic_text"]
+        },
+        {
+          "component": "Text",
+          "id": "brand_text__text_1",
+          "text": "[Brand] Brand Header",
+          "variant": "body"
+        },
+        {
+          "component": "Card",
+          "id": "brand_text",
+          "child": "brand_text__text_1"
+        },
+        {
+          "component": "Text",
+          "id": "basic_text",
+          "text": "Plain Body",
+          "variant": "body"
+        }
+      ]
+    }
+  }
+]

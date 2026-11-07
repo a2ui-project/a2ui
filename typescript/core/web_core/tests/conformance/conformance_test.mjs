@@ -253,6 +253,7 @@ const SKIP_TEST_SUITES = new Map([
   ],
   ['builder.yaml', 'typesafe builder API is agent-side only'],
   ['macros.yaml', 'composite macros are agent-side only'],
+  ['renderer_state.yaml', 'agent-side RendererState turn validation is tested in the agent SDK'],
 ]);
 
 /**
@@ -271,6 +272,7 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['from_catalog', 'the Express inference format is implemented in the agent SDK'],
   ['skill_set', 'skill generation is implemented in the agent SDK'],
   ['export_to_directory', 'skill generation is implemented in the agent SDK'],
+  ['monolithic_skill_equals_prompt_snippet', 'skill generation is implemented in the agent SDK'],
   ['process_chunk', 'web_core has no streaming inference parser'],
   ['parse_full', 'web_core has no inference-format parser'],
   ['fix_payload', 'web_core has no payload fixer'],
@@ -292,6 +294,11 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['provide_catalog', 'catalog providers are agent-side only'],
   ['resolve_catalogs', 'catalog resolution is agent-side only'],
   ['common_types_schema', 'no schema generation from models'],
+  ['declare_agent_functions', 'agent functions are agent-side only'],
+  ['handle_agent_function', 'agent functions are agent-side only'],
+  ['validate_payload', 'validating model output is agent-side only'],
+  ['process_renderer_message', 'processing renderer messages is agent-side only'],
+  ['call_renderer_function', "the agent's calls to renderer functions are agent-side only"],
   [
     'agent_to_renderer_schema',
     'web_core does not generate the agent_to_renderer schema from its own models',

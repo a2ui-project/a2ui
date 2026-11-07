@@ -65,7 +65,7 @@ In v0.9.1 and v1.0, `accessibility` provides `label` and `description`, and both
 
 Agents can set `accessibility` on any component instance to supply or override assistive text when visual context is missing, such as an icon-only `Button`:
 
-=== "v1.0 (Candidate)"
+=== "v1.0"
 
     ```json
     {
@@ -80,7 +80,7 @@ Agents can set `accessibility` on any component instance to supply or override a
     }
     ```
 
-=== "v0.9.1 (Current)"
+=== "v0.9.1"
 
     ```json
     {

@@ -39,7 +39,7 @@ Each entry in a catalog's `components` map is a JSON Schema that describes one c
 Here is a custom `FlightStatusCard` component schema in a catalog:
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 ```json
 {
@@ -68,7 +68,7 @@ Here is a custom `FlightStatusCard` component schema in a catalog:
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
+  <TabItem label="v0.9.1">
 
 ```json
 {
@@ -119,7 +119,7 @@ A2UI supports both renderer-side and agent-side functions:
 Each entry in a catalog's `functions` map declares a `returnType` (`"string"`, `"number"`, `"boolean"`, `"array"`, `"object"`, `"any"`, `"void"`, or, in v1.0, `"validationResult"`) and an `args` schema for its arguments:
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 ```json
 {
@@ -151,7 +151,7 @@ Each entry in a catalog's `functions` map declares a `returnType` (`"string"`, `
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
+  <TabItem label="v0.9.1">
 
 ```json
 {
@@ -530,7 +530,7 @@ You do not have to use the basic catalog. You can adopt it as is, restyle its co
 When a session starts, the renderer sends `supportedCatalogIds` to list the catalogs it supports. When creating a surface, the agent picks from that list (or sends no UI if none match).
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 Set `catalogId` in `createSurface` to choose the surface's default catalog, then add `catalogId` on any component in `updateComponents` or function call (`@call`) that comes from another supported catalog.
 
@@ -572,7 +572,7 @@ In this example, `salesDashboard` uses the basic catalog by default, and `chart`
 </details>
 
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
+  <TabItem label="v0.9.1">
 
 The agent selects a single `catalogId` in `createSurface`, locked for the lifetime of that surface:
 

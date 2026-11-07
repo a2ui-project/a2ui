@@ -342,6 +342,55 @@ void main() {
       );
     });
 
+    test('dispose with a reason names it in each cancellation', () async {
+      final RpcHandler h = handler();
+      final Future<Object?> future = h.callAgentFunction(
+        's',
+        FunctionCall(call: 'a', args: {}),
+        options: const CallOptions(functionCallId: 'p1'),
+      );
+      expect(sent, hasLength(1));
+      h.dispose('session closed');
+      await expectLater(
+        future,
+        throwsA(
+          rpcError(RpcErrorCode.cancelled, functionCallId: 'p1').having(
+            (e) => e.message,
+            'message',
+            "Call 'p1' was cancelled because the RpcHandler was disposed: "
+                'session closed.',
+          ),
+        ),
+      );
+      // The listener is dropped and later calls are refused.
+      await expectLater(
+        h.callAgentFunction('s', FunctionCall(call: 'a', args: {})),
+        throwsA(rpcError(RpcErrorCode.disposed)),
+      );
+      expect(sent, hasLength(1));
+      expect(h.pendingCallCount, 0);
+    });
+
+    test('dispose without a reason keeps the plain message', () async {
+      final RpcHandler h = handler();
+      final Future<Object?> future = h.callAgentFunction(
+        's',
+        FunctionCall(call: 'a', args: {}),
+        options: const CallOptions(functionCallId: 'p1'),
+      );
+      h.dispose('');
+      await expectLater(
+        future,
+        throwsA(
+          rpcError(RpcErrorCode.cancelled, functionCallId: 'p1').having(
+            (e) => e.message,
+            'message',
+            "Call 'p1' was cancelled because the RpcHandler was disposed.",
+          ),
+        ),
+      );
+    });
+
     test('a listener that throws synchronously fails the call', () async {
       final h = RpcHandler(
         catalogs: [catalog],

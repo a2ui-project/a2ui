@@ -143,7 +143,7 @@ Create a JSON array that initializes the `recipe-card` surface and declares its 
 In `v1.0`, protocol messages set `"version": "1.0"`, data bindings use `{"@path": "..."}`, component IDs follow UAX #31 identifier syntax (such as `main_column`), and `Text` uses Markdown headings or `"variant": "body" | "caption"`. In `v0.9.1`, messages set `"version": "v0.9"`, data bindings use `{"path": "..."}`, and `Text.variant` includes heading variants such as `"h3"`.
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 ```json
 [
@@ -187,7 +187,7 @@ In `v1.0`, protocol messages set `"version": "1.0"`, data bindings use `{"@path"
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
+  <TabItem label="v0.9.1">
 
 ```json
 [
@@ -316,7 +316,7 @@ Attach `_meta.ui` to the `get_recipe_a2ui` tool and return an `EmbeddedResource`
 Here is the `updateDataModel` payload encoded inside the tool's `EmbeddedResource.resource.text`:
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 ```json
 [
@@ -335,7 +335,7 @@ Here is the `updateDataModel` payload encoded inside the tool's `EmbeddedResourc
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
+  <TabItem label="v0.9.1">
 
 ```json
 [
@@ -507,10 +507,10 @@ async def handle_call_tool(
 
 ### Step 3: Connect the client and hydrate the surface
 
-On web clients, [`callMcpTool`](../../specification/v1.0/schemas/#mcp_catalog.json/functions/callMcpTool) in `@a2ui/catalog-mcp` handles template discovery, URI caching, and message forwarding automatically once you pass your `MessageProcessor` to `configureMcpCatalog`. In `v1.0`, register `mcpCatalog` alongside `basicCatalog`; in `v0.9.1` (where each surface binds to a single catalog), compose `CallMcpToolImplementation` into a `'0.9'` `Catalog` and pass `defaultVersion: 'v0.9'`:
+On web clients, [`callMcpTool`](../mcp-catalog/#mcp_catalog.json/functions/callMcpTool) in `@a2ui/catalog-mcp` handles template discovery, URI caching, and message forwarding automatically once you pass your `MessageProcessor` to `configureMcpCatalog`. In `v1.0`, register `mcpCatalog` alongside `basicCatalog`; in `v0.9.1` (where each surface binds to a single catalog), compose `CallMcpToolImplementation` into a `'0.9'` `Catalog` and pass `defaultVersion: 'v0.9'`:
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 ```typescript
 import {configureMcpCatalog, mcpCatalog} from '@a2ui/catalog-mcp';
@@ -528,7 +528,7 @@ configureMcpCatalog({
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
+  <TabItem label="v0.9.1">
 
 ```typescript
 import {CallMcpToolImplementation, configureMcpCatalog} from '@a2ui/catalog-mcp';
@@ -558,7 +558,7 @@ configureMcpCatalog({
 An interactive A2UI component (such as a **Get Recipe** button on another surface) can then invoke `get_recipe_a2ui` directly through `callMcpTool`:
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 ```json
 {
@@ -583,7 +583,7 @@ An interactive A2UI component (such as a **Get Recipe** button on another surfac
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
+  <TabItem label="v0.9.1">
 
 ```json
 {
@@ -725,7 +725,7 @@ When an MCP server supports multiple catalogs or protocol versions, the client a
 Because MCP sessions are stateful by default, declare A2UI capabilities once in `params.capabilities.a2ui` during the `initialize` handshake and store them on the server for the session lifetime:
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 ```json
 {
@@ -755,7 +755,7 @@ Because MCP sessions are stateful by default, declare A2UI capabilities once in 
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
+  <TabItem label="v0.9.1">
 
 ```json
 {
@@ -791,7 +791,7 @@ Because MCP sessions are stateful by default, declare A2UI capabilities once in 
 When an HTTP MCP server handles each request without session state, pass the same capabilities object in `params._meta.a2ui` on individual `tools/call` requests:
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 ```json
 {
@@ -817,7 +817,7 @@ When an HTTP MCP server handles each request without session state, pass the sam
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
+  <TabItem label="v0.9.1">
 
 ```json
 {
@@ -854,7 +854,7 @@ When a component uses `functionCall` with `callMcpTool` (as in Step 3), the clie
 Declare an `action.event` on a `Button` with data-bound `context` entries:
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 ```json
 {
@@ -874,7 +874,7 @@ Declare an `action.event` on a `Button` with data-bound `context` entries:
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
+  <TabItem label="v0.9.1">
 
 ```json
 {

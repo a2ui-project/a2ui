@@ -21,6 +21,7 @@ on:
       - ".agents/skills/**"
       - "blueprints/skills/**"
       - "eval/iterative_format_optimizer/skills/**"
+      - "skills/**"
       - "skills_lint.yaml"
       - ".github/workflows/validate_skills.yml"
   pull_request:
