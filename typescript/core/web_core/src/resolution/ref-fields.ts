@@ -277,15 +277,17 @@ export function extractRefFields(
   const analysis = analyzeSchema(schema, new Set(), options);
   const fields = analysis.fields;
 
-  if (analysis.isEmptyObject || analysis.openSingle) {
-    if (!analysis.declaredKeys.has('child') && !fields.has('child')) {
-      fields.set('child', {kind: 'single'});
-    }
+  if (
+    (analysis.isEmptyObject && !analysis.declaredKeys.has('child')) ||
+    analysis.openChildFallback
+  ) {
+    mergeRefKind(fields, 'child', {kind: 'single'});
   }
-  if (analysis.isEmptyObject || analysis.openList) {
-    if (!analysis.declaredKeys.has('children') && !fields.has('children')) {
-      fields.set('children', {kind: 'list'});
-    }
+  if (
+    (analysis.isEmptyObject && !analysis.declaredKeys.has('children')) ||
+    analysis.openChildrenFallback
+  ) {
+    mergeRefKind(fields, 'children', {kind: 'list'});
   }
 
   const result = fields.size === 0 ? EMPTY_REF_FIELDS : fields;
@@ -304,6 +306,8 @@ interface SchemaRefAnalysis {
   isEmptyObject: boolean;
   openSingle: boolean;
   openList: boolean;
+  openChildFallback: boolean;
+  openChildrenFallback: boolean;
 }
 
 function emptyAnalysis(): SchemaRefAnalysis {
@@ -318,7 +322,16 @@ function emptyAnalysis(): SchemaRefAnalysis {
     isEmptyObject: false,
     openSingle: false,
     openList: false,
+    openChildFallback: false,
+    openChildrenFallback: false,
   };
+}
+
+function canPipelineStagePassKey(key: string, kind: RefKind, stage: SchemaRefAnalysis): boolean {
+  if (stage.declaredKeys.has(key) || stage.isEmptyObject) {
+    return true;
+  }
+  return kind.kind === 'single' ? stage.openSingle : stage.openList;
 }
 
 function analyzeSchema(
@@ -408,6 +421,8 @@ function analyzeSchema(
           declaredKeys.size === 0 && !constrainsUnknownKeys && !openSingle && !openList,
         openSingle,
         openList,
+        openChildFallback: openSingle && !declaredKeys.has('child'),
+        openChildrenFallback: openList && !declaredKeys.has('children'),
       };
     }
 
@@ -431,6 +446,8 @@ function analyzeSchema(
         isEmptyObject: false,
         openSingle,
         openList,
+        openChildFallback: openSingle,
+        openChildrenFallback: openList,
       };
     }
 
@@ -447,6 +464,8 @@ function analyzeSchema(
         isEmptyObject: false,
         openSingle: true,
         openList: true,
+        openChildFallback: true,
+        openChildrenFallback: true,
       };
 
     case 'ZodIntersection': {
@@ -464,9 +483,16 @@ function analyzeSchema(
       if (inField.hasTransform) {
         const inAnalysis = analyzeSchema(pipeIn, new Set(visited), options);
         const outAnalysis = analyzeSchema(pipeOut, new Set(visited), options);
-        for (const [key, kind] of outAnalysis.fields) {
-          mergeCompatibleField(inAnalysis.fields, key, kind, outAnalysis, inAnalysis);
+        const mergedFields = new Map<string, RefKind>();
+        for (const [key, kind] of inAnalysis.fields) {
+          mergeCompatibleField(mergedFields, key, kind, inAnalysis, outAnalysis);
         }
+        for (const [key, kind] of outAnalysis.fields) {
+          if (canPipelineStagePassKey(key, kind, inAnalysis)) {
+            mergeCompatibleField(mergedFields, key, kind, outAnalysis, inAnalysis);
+          }
+        }
+        inAnalysis.fields = mergedFields;
         for (const key of outAnalysis.declaredKeys) {
           if (!inAnalysis.fields.has(key)) {
             inAnalysis.declaredKeys.add(key);
@@ -477,58 +503,75 @@ function analyzeSchema(
         inAnalysis.isEmptyObject = inAnalysis.isEmptyObject && outAnalysis.isEmptyObject;
         inAnalysis.openSingle = inAnalysis.openSingle && outAnalysis.openSingle;
         inAnalysis.openList = inAnalysis.openList && outAnalysis.openList;
+        inAnalysis.openChildFallback =
+          inAnalysis.openChildFallback && outAnalysis.openChildFallback;
+        inAnalysis.openChildrenFallback =
+          inAnalysis.openChildrenFallback && outAnalysis.openChildrenFallback;
         return inAnalysis;
       }
       const left = analyzeSchema(pipeIn, new Set(visited), options);
       const right = analyzeSchema(pipeOut, new Set(visited), options);
       const piped = intersectAnalyses(left, right);
+      for (const [key, kind] of [...piped.fields]) {
+        if (
+          !canPipelineStagePassKey(key, kind, left) ||
+          !canPipelineStagePassKey(key, kind, right)
+        ) {
+          piped.fields.delete(key);
+        }
+      }
       piped.openSingle = !piped.isEmptyObject && left.openSingle && right.openSingle;
       piped.openList = !piped.isEmptyObject && left.openList && right.openList;
+      piped.openChildFallback =
+        !piped.isEmptyObject && left.openChildFallback && right.openChildFallback;
+      piped.openChildrenFallback =
+        !piped.isEmptyObject && left.openChildrenFallback && right.openChildrenFallback;
       return piped;
     }
 
     case 'ZodUnion':
     case 'ZodDiscriminatedUnion': {
       const unionOptions = getUnionOptions(unwrapped.schema) ?? [];
+      const subs = unionOptions.map(option => analyzeSchema(option, new Set(visited), options));
       const fields = new Map<string, RefKind>();
       const declaredKeys = new Set<string>();
       const compatibleSingleKeys = new Set<string>();
       const compatibleListKeys = new Set<string>();
       const compatibleNestedKeys = new Set<string>();
-      let allEmpty = unionOptions.length > 0;
-      let allConstrainUnknown = unionOptions.length > 0;
+      let allEmpty = subs.length > 0;
+      let allConstrainUnknown = subs.length > 0;
       let openSingle = false;
       let openList = false;
+      let openChildFallback = false;
+      let openChildrenFallback = false;
 
-      for (const option of unionOptions) {
-        const sub = analyzeSchema(option, new Set(visited), options);
+      for (const sub of subs) {
         for (const [key, kind] of sub.fields) {
           mergeRefKind(fields, key, kind);
         }
         for (const key of sub.declaredKeys) {
           declaredKeys.add(key);
         }
-        for (const key of sub.compatibleSingleKeys) {
-          compatibleSingleKeys.add(key);
-        }
-        for (const key of sub.compatibleListKeys) {
-          compatibleListKeys.add(key);
-        }
-        for (const key of sub.compatibleNestedKeys) {
-          compatibleNestedKeys.add(key);
-        }
-        if (sub.openSingle && !sub.declaredKeys.has('child')) {
-          mergeRefKind(fields, 'child', {kind: 'single'});
-          compatibleSingleKeys.add('child');
-        }
-        if (sub.openList && !sub.declaredKeys.has('children')) {
-          mergeRefKind(fields, 'children', {kind: 'list'});
-          compatibleListKeys.add('children');
-        }
         allEmpty = allEmpty && sub.isEmptyObject;
         allConstrainUnknown = allConstrainUnknown && sub.constrainsUnknownKeys;
         openSingle = openSingle || sub.openSingle;
         openList = openList || sub.openList;
+        openChildFallback = openChildFallback || sub.openChildFallback;
+        openChildrenFallback = openChildrenFallback || sub.openChildrenFallback;
+      }
+
+      for (const key of declaredKeys) {
+        if (subs.some(sub => isRefCompatibleWithSide(key, {kind: 'single'}, sub))) {
+          compatibleSingleKeys.add(key);
+        }
+        if (subs.some(sub => isRefCompatibleWithSide(key, {kind: 'list'}, sub))) {
+          compatibleListKeys.add(key);
+        }
+        if (
+          subs.some(sub => isRefCompatibleWithSide(key, {kind: 'nested', keys: new Set()}, sub))
+        ) {
+          compatibleNestedKeys.add(key);
+        }
       }
 
       return {
@@ -542,6 +585,8 @@ function analyzeSchema(
         isEmptyObject: allEmpty,
         openSingle,
         openList,
+        openChildFallback,
+        openChildrenFallback,
       };
     }
 
@@ -604,6 +649,14 @@ function intersectAnalyses(left: SchemaRefAnalysis, right: SchemaRefAnalysis): S
     (left.openList || right.openList) &&
     (left.openList || !left.constrainsUnknownKeys) &&
     (right.openList || !right.constrainsUnknownKeys);
+  const openChildFallback =
+    !isEmptyObject &&
+    ((left.openChildFallback && isRefCompatibleWithSide('child', {kind: 'single'}, right)) ||
+      (right.openChildFallback && isRefCompatibleWithSide('child', {kind: 'single'}, left)));
+  const openChildrenFallback =
+    !isEmptyObject &&
+    ((left.openChildrenFallback && isRefCompatibleWithSide('children', {kind: 'list'}, right)) ||
+      (right.openChildrenFallback && isRefCompatibleWithSide('children', {kind: 'list'}, left)));
 
   return {
     fields,
@@ -616,6 +669,8 @@ function intersectAnalyses(left: SchemaRefAnalysis, right: SchemaRefAnalysis): S
     isEmptyObject,
     openSingle,
     openList,
+    openChildFallback,
+    openChildrenFallback,
   };
 }
 
@@ -993,17 +1048,43 @@ function isDynamicValueUnion(
 ): boolean {
   let hasExplicitChildMarker = false;
   let hasDynamicBranch = false;
-  for (const opt of unionOptions) {
-    const unwrapped = unwrapZodField(opt);
-    if (marksComponentId(unwrapped, options) || marksChildList(unwrapped, options)) {
-      hasExplicitChildMarker = true;
-    } else if (
-      hasNonChildRefMarker(unwrapped, options) ||
-      isDynamicBindingObject(unwrapped.schema)
-    ) {
-      hasDynamicBranch = true;
+  const visited = new Set<z.ZodTypeAny>();
+
+  const visit = (opts: readonly z.ZodTypeAny[]): void => {
+    for (const opt of opts) {
+      const unwrapped = unwrapZodField(opt);
+      let seen = false;
+      for (const s of unwrapped.traversed) {
+        if (visited.has(s)) {
+          seen = true;
+          break;
+        }
+      }
+      if (seen) {
+        continue;
+      }
+      for (const s of unwrapped.traversed) {
+        visited.add(s);
+      }
+
+      if (marksComponentId(unwrapped, options) || marksChildList(unwrapped, options)) {
+        hasExplicitChildMarker = true;
+        return;
+      }
+      if (hasNonChildRefMarker(unwrapped, options) || isDynamicBindingObject(unwrapped.schema)) {
+        hasDynamicBranch = true;
+      }
+      const nestedOptions = getUnionOptions(unwrapped.schema);
+      if (nestedOptions) {
+        visit(nestedOptions);
+        if (hasExplicitChildMarker) {
+          return;
+        }
+      }
     }
-  }
+  };
+
+  visit(unionOptions);
   return hasDynamicBranch && !hasExplicitChildMarker;
 }
 

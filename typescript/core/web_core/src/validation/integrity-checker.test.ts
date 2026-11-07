@@ -160,6 +160,54 @@ describe('Integrity Verification', () => {
       ]);
     });
 
+    it('prioritizes nestedKeys over template detection when structured array items also carry componentId and path/@path fields', () => {
+      const refMap: ComponentRefMap = {
+        ActionRows: {
+          singleRefs: new Set<string>(),
+          listRefs: new Set(['rows']),
+          nestedRefs: {rows: new Set(['iconChild', 'children'])},
+        },
+      };
+
+      const v09Comp = {
+        id: 'root',
+        component: {
+          ActionRows: {
+            rows: [
+              {
+                componentId: 'not-a-template-id',
+                path: '/route/settings',
+                iconChild: 'icon-1',
+                children: ['body-1', 'body-2'],
+              },
+            ],
+          },
+        },
+      };
+      assert.deepEqual(Array.from(getComponentReferences(v09Comp, refMap)), [
+        ['icon-1', 'rows[0].iconChild'],
+        ['body-1', 'rows[0].children[0]'],
+        ['body-2', 'rows[0].children[1]'],
+      ]);
+
+      const v10Comp = {
+        id: 'root',
+        component: 'ActionRows',
+        rows: [
+          {
+            componentId: 'not-a-template-id',
+            '@path': '/route/profile',
+            iconChild: 'icon-2',
+            children: ['body-3'],
+          },
+        ],
+      };
+      assert.deepEqual(Array.from(getComponentReferences(v10Comp, refMap)), [
+        ['icon-2', 'rows[0].iconChild'],
+        ['body-3', 'rows[0].children[0]'],
+      ]);
+    });
+
     it('extracts only componentId from {componentId, "@path"} templates and passes strict validateTopology alongside z.object({}) containers', () => {
       const catalog = new Catalog('v10-tmpl-cat', '1.0', [
         {

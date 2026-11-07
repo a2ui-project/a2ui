@@ -487,11 +487,107 @@ describe('extractRefFields', () => {
     });
 
     // Unmarked dynamic-binding/function-call unions on `child`/`children` are treated as dynamic
-    // data properties, not component references.
+    // data properties, not component references, including chained `.or()` nested unions and lazy cycles.
     const unmarkedDynamicProps = z.object({
       child: z.union([z.string(), z.object({'@path': z.string()})]),
       children: z.union([z.array(z.string()), z.object({'@call': z.string()})]),
     });
     assert.strictEqual(extractRefFields(unmarkedDynamicProps).size, 0);
+
+    const chainedNestedDynamicProps = z.object({
+      child: z
+        .object({'@path': z.string()})
+        .or(z.object({'@call': z.string()}))
+        .or(z.string()),
+      children: z
+        .object({'@path': z.string()})
+        .or(z.object({'@call': z.string()}))
+        .or(z.array(z.string())),
+    });
+    assert.strictEqual(extractRefFields(chainedNestedDynamicProps).size, 0);
+
+    const cyclicNestedDynamic: z.ZodTypeAny = z.lazy(() =>
+      z.union([z.object({'@path': z.string()}).or(cyclicNestedDynamic), z.string()]),
+    );
+    assert.strictEqual(extractRefFields(z.object({child: cyclicNestedDynamic})).size, 0);
+
+    // Explicit child-ref markers inside nested unions still classify as component references.
+    const nestedExplicitChildRefs = z.object({
+      child: z.object({'@path': z.string()}).or(ComponentIdSchema).or(z.string()),
+      children: z.object({'@path': z.string()}).or(ChildListSchema).or(z.array(z.string())),
+    });
+    assert.deepStrictEqual(extractRefFields(nestedExplicitChildRefs).get('child'), {
+      kind: 'single',
+    });
+    assert.deepStrictEqual(extractRefFields(nestedExplicitChildRefs).get('children'), {
+      kind: 'list',
+    });
+  });
+
+  it('constrains open-branch union fallbacks and strips undeclared explicit refs across closed pipelines', () => {
+    const unionWithOpenBranch = z.union([
+      z.object({title: z.string()}).passthrough(),
+      z.object({title: z.string(), subtitle: z.string().optional()}),
+    ]);
+    assert.deepStrictEqual(extractRefFields(unionWithOpenBranch).get('child'), {kind: 'single'});
+    assert.deepStrictEqual(extractRefFields(unionWithOpenBranch).get('children'), {kind: 'list'});
+
+    // Non-transform pipeline into a closed output object strips synthesized open-branch fallbacks.
+    const pipedUnionToClosed = unionWithOpenBranch.pipe(z.object({title: z.string()}));
+    assert.strictEqual(extractRefFields(pipedUnionToClosed).size, 0);
+
+    // Transform pipeline from open-branch union into strict output drops synthesized fallbacks,
+    // while passthrough output declaring incompatible `child` drops only `child`.
+    const transformUnionToStrict = unionWithOpenBranch
+      .transform(v => v)
+      .pipe(z.object({title: z.string()}).strict());
+    assert.strictEqual(extractRefFields(transformUnionToStrict).size, 0);
+
+    const transformUnionToIncompatibleChild = unionWithOpenBranch
+      .transform(v => v)
+      .pipe(z.object({child: z.number()}).passthrough());
+    assert.strictEqual(extractRefFields(transformUnionToIncompatibleChild).has('child'), false);
+    assert.deepStrictEqual(extractRefFields(transformUnionToIncompatibleChild).get('children'), {
+      kind: 'list',
+    });
+
+    // Intersecting open-branch union with non-strict vs strict vs incompatible `child` objects.
+    const unionAndPlain = unionWithOpenBranch.and(z.object({extra: z.string().optional()}));
+    assert.deepStrictEqual(extractRefFields(unionAndPlain).get('child'), {kind: 'single'});
+    assert.deepStrictEqual(extractRefFields(unionAndPlain).get('children'), {kind: 'list'});
+
+    const unionAndIncompatibleChild = unionWithOpenBranch.and(z.object({child: z.number()}));
+    assert.strictEqual(extractRefFields(unionAndIncompatibleChild).has('child'), false);
+    assert.deepStrictEqual(extractRefFields(unionAndIncompatibleChild).get('children'), {
+      kind: 'list',
+    });
+
+    const unionAndStrict = unionWithOpenBranch.and(z.object({title: z.string()}).strict());
+    assert.strictEqual(extractRefFields(unionAndStrict).size, 0);
+
+    // Non-transform pipeline strips explicit ref keys omitted by a closed output stage,
+    // while `.passthrough()` output preserves them.
+    const explicitRefsPipedToClosed = z
+      .object({
+        title: z.string(),
+        child: ComponentIdSchema,
+        header: ComponentIdSchema,
+      })
+      .pipe(z.object({title: z.string()}));
+    assert.strictEqual(extractRefFields(explicitRefsPipedToClosed).size, 0);
+
+    const explicitRefsPipedToPassthrough = z
+      .object({
+        title: z.string(),
+        child: ComponentIdSchema,
+        header: ComponentIdSchema,
+      })
+      .pipe(z.object({title: z.string()}).passthrough());
+    assert.deepStrictEqual(extractRefFields(explicitRefsPipedToPassthrough).get('child'), {
+      kind: 'single',
+    });
+    assert.deepStrictEqual(extractRefFields(explicitRefsPipedToPassthrough).get('header'), {
+      kind: 'single',
+    });
   });
 });

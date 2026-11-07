@@ -363,7 +363,7 @@ export class NodeResolver<
       : isAtLeastVersion(compCatalog.protocolVersion, '0.9')
         ? V09_CHILD_REF_OPTIONS
         : V08_CHILD_REF_OPTIONS;
-    const binder = new GenericBinder<NodeProps>(context, api.schema);
+    const binder = new GenericBinder<NodeProps>(context, api.schema, refOptions);
     const record = this.registerNode(
       new MutableComponentNode(
         instanceIdFor(componentId, dataPath, occurrence),
@@ -381,7 +381,7 @@ export class NodeResolver<
         parent,
         occurrence,
         refFields: extractRefFields(api.schema, refOptions),
-        behavior: scrapeComponentBehavior(api.schema),
+        behavior: scrapeComponentBehavior(api.schema, refOptions),
         componentModel: model,
         binder,
       },
@@ -799,34 +799,42 @@ function wrapDynamicValues(
       if (!value || typeof value !== 'object' || Array.isArray(value)) {
         return value;
       }
+      const rawRecord =
+        raw && typeof raw === 'object' && !Array.isArray(raw)
+          ? (raw as Record<string, unknown>)
+          : {};
       const setterNames = new Set<string>();
       for (const [key, childBehavior] of Object.entries(behavior.shape)) {
         if (childBehavior.type === 'DYNAMIC') {
           setterNames.add(`set${key.charAt(0).toUpperCase()}${key.slice(1)}`);
         }
       }
-      const rawRecord =
-        raw && typeof raw === 'object' && !Array.isArray(raw)
-          ? (raw as Record<string, unknown>)
-          : {};
+      if (behavior.catchall?.type === 'DYNAMIC') {
+        for (const key of Object.keys(rawRecord)) {
+          if (!Object.hasOwn(behavior.shape, key) && key.length > 0) {
+            const setterName = `set${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+            if (!Object.hasOwn(rawRecord, setterName)) {
+              setterNames.add(setterName);
+            }
+          }
+        }
+      }
       const out: Record<string, unknown> = {};
       for (const [key, item] of Object.entries(value)) {
         if (setterNames.has(key)) {
           continue;
         }
-        out[key] = wrapDynamicValues(
-          item,
-          behavior.shape[key] ?? {type: 'STATIC'},
-          rawRecord[key],
-          dataContext,
-        );
+        const childBehavior = Object.hasOwn(behavior.shape, key)
+          ? behavior.shape[key]
+          : (behavior.catchall ?? {type: 'STATIC'});
+        out[key] = wrapDynamicValues(item, childBehavior, rawRecord[key], dataContext);
       }
       // The binder guarantees every dynamic property a setter even when the
       // payload omits it. Represent an omitted one as a read-only binding of
       // undefined, at every nesting level, so consumers synthesizing setters
       // from bindings keep that guarantee.
       for (const [key, childBehavior] of Object.entries(behavior.shape)) {
-        if (childBehavior.type === 'DYNAMIC' && !(key in out)) {
+        if (childBehavior.type === 'DYNAMIC' && !Object.hasOwn(out, key)) {
           out[key] = new ResolvedBinding(undefined);
         }
       }
@@ -873,7 +881,7 @@ function stabilize(prev: unknown, next: unknown): unknown {
       for (const key of nextKeys) {
         const stabilized = stabilize(prev[key], next[key]);
         out[key] = stabilized;
-        if (!(key in prev) || !Object.is(stabilized, prev[key])) {
+        if (!Object.hasOwn(prev, key) || !Object.is(stabilized, prev[key])) {
           allSame = false;
         }
       }
@@ -907,6 +915,7 @@ function pruneOmittedProps(
   behavior?: BehaviorNode,
 ): Record<string, unknown> {
   const shape = behavior?.type === 'OBJECT' ? behavior.shape : undefined;
+  const catchall = behavior?.type === 'OBJECT' ? behavior.catchall : undefined;
   let hasActiveCheckable = false;
   const dynamicSetterNames = new Set<string>();
   if (shape) {
@@ -923,6 +932,22 @@ function pruneOmittedProps(
       }
     }
   }
+  if (catchall) {
+    for (const key of Object.keys(rawProps)) {
+      if (shape && Object.hasOwn(shape, key)) {
+        continue;
+      }
+      if (catchall.type === 'DYNAMIC' && key.length > 0) {
+        dynamicSetterNames.add(`set${key.charAt(0).toUpperCase()}${key.slice(1)}`);
+      } else if (
+        catchall.type === 'CHECKABLE' &&
+        rawProps[key] !== undefined &&
+        rawProps[key] !== null
+      ) {
+        hasActiveCheckable = true;
+      }
+    }
+  }
 
   const out: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(resolved)) {
@@ -932,7 +957,8 @@ function pruneOmittedProps(
       }
       continue;
     }
-    out[key] = pruneOmittedValue(val, rawProps[key], shape?.[key]);
+    const childBehavior = shape && Object.hasOwn(shape, key) ? shape[key] : catchall;
+    out[key] = pruneOmittedValue(val, rawProps[key], childBehavior);
   }
   return out;
 }

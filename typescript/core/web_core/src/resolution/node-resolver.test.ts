@@ -45,7 +45,7 @@ import {
 import {effect, getValue, peekValue, setValue, Signal} from '../reactivity/signals.js';
 import {ComponentNode, NodeProps, PLACEHOLDER_TYPE, isComponentNode} from './component-node.js';
 import {NodeResolver} from './node-resolver.js';
-import {ResolvedBinding, isWritable} from './resolved-binding.js';
+import {ResolvedBinding, WritableBinding, isWritable} from './resolved-binding.js';
 import * as v0_9 from '../v0_9/index.js';
 import {MAX_DYNAMIC_CHILD_LIST_SIZE} from './generic-binder.js';
 
@@ -2105,5 +2105,86 @@ describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
     assert.strictEqual((props(root).contentChild as ComponentNode).componentId, 'dialog-body');
 
     resolver.dispose();
+  });
+
+  it('wraps dynamic bindings and actions on ZodRecord and .catchall() schemas into WritableBinding and prunes omitted entries', () => {
+    const DynamicRecordApi: ComponentApi = {
+      name: 'DynamicRecordBox',
+      schema: z
+        .object({
+          staticTag: z.string().optional(),
+          child: ComponentIdSchema.optional(),
+        })
+        .catchall(DynamicStringSchema),
+    };
+    const ActionRecordApi: ComponentApi = {
+      name: 'ActionRecordBox',
+      schema: z.record(ActionSchema),
+    };
+
+    const catalog = new Catalog<ComponentApi>('catchall-catalog', '0.9', [
+      DynamicRecordApi,
+      ActionRecordApi,
+      TextApi,
+    ]);
+    const surface = new SurfaceModel('surf-catchall', catalog);
+    surface.dataModel.set('/greeting', 'Initial Greeting');
+    surface.dataModel.set('/note', 'Side Note');
+
+    const dispatched: unknown[] = [];
+    surface.onAction.subscribe(evt => {
+      dispatched.push(evt);
+    });
+
+    const resolver = new NodeResolver(surface, catalog);
+    add(surface, 'root', 'DynamicRecordBox', {
+      staticTag: 'plain-tag',
+      boundField: {path: '/greeting'},
+      dropField: {path: '/note'},
+      literalField: 'Static Catchall',
+      child: 'actions-node',
+    });
+    add(surface, 'actions-node', 'ActionRecordBox', {
+      primaryTap: {event: {name: 'primary'}},
+    });
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.strictEqual(props(root).staticTag, 'plain-tag');
+    assert.strictEqual(Object.hasOwn(props(root), 'setBoundField'), false);
+    assert.strictEqual(Object.hasOwn(props(root), 'setLiteralField'), false);
+
+    const boundField = props(root).boundField;
+    assert.ok(boundField instanceof WritableBinding);
+    assert.strictEqual((boundField as WritableBinding<unknown>).value, 'Initial Greeting');
+    (boundField as WritableBinding<unknown>).set('Updated Via Catchall');
+    assert.strictEqual(surface.dataModel.get('/greeting'), 'Updated Via Catchall');
+    assert.strictEqual(
+      (props(root).boundField as WritableBinding<unknown>).value,
+      'Updated Via Catchall',
+    );
+
+    const literalField = props(root).literalField;
+    assert.ok(literalField instanceof ResolvedBinding);
+    assert.strictEqual(literalField instanceof WritableBinding, false);
+    assert.strictEqual((literalField as ResolvedBinding<unknown>).value, 'Static Catchall');
+
+    const actionsNode = props(root).child as ComponentNode;
+    assert.ok(isComponentNode(actionsNode));
+    assert.strictEqual(typeof props(actionsNode).primaryTap, 'function');
+    (props(actionsNode).primaryTap as () => void)();
+    assert.strictEqual(dispatched.length, 1);
+
+    // Removing `dropField` prunes it cleanly while retaining `boundField`.
+    surface.componentsModel.get('root')!.properties = {
+      staticTag: 'plain-tag',
+      boundField: {path: '/greeting'},
+      child: 'actions-node',
+    };
+    assert.strictEqual(Object.hasOwn(props(root), 'dropField'), false);
+    assert.strictEqual(Object.hasOwn(props(root), 'literalField'), false);
+
+    resolver.dispose();
+    surface.dispose();
   });
 });
