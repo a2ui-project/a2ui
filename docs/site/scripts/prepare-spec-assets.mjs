@@ -79,7 +79,7 @@ const specDest = path.join(publicDir, 'specification');
 fs.mkdirSync(specDest, {recursive: true});
 copyRecursive(path.join(repoRoot, 'specification'), specDest);
 
-// Copy v1.0 basic, mcp, and vegachart catalogs under specification/v1_0/catalogs/
+// Copy v1.0 basic, mcp, file_upload, and vegachart catalogs under specification/v1_0/catalogs/
 const basicCatalogDest = path.join(specDest, 'v1_0/catalogs/basic');
 fs.mkdirSync(basicCatalogDest, {recursive: true});
 copyRecursive(
@@ -100,6 +100,17 @@ copyRecursive(
 copyRecursive(
   path.join(repoRoot, 'catalogs/mcp/v1/examples'),
   path.join(mcpCatalogV1Dest, 'examples'),
+);
+
+const fileUploadCatalogDest = path.join(specDest, 'v1_0/catalogs/file_upload');
+fs.mkdirSync(fileUploadCatalogDest, {recursive: true});
+copyRecursive(
+  path.join(repoRoot, 'catalogs/file_upload/catalog.json'),
+  path.join(fileUploadCatalogDest, 'catalog.json'),
+);
+copyRecursive(
+  path.join(repoRoot, 'catalogs/file_upload/examples'),
+  path.join(fileUploadCatalogDest, 'examples'),
 );
 
 const vegaCatalogV1Src = path.join(repoRoot, 'catalogs/vegachart/v1/catalog.json');
