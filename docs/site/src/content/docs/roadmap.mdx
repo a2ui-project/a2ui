@@ -23,10 +23,10 @@ Our goal is for you to design a component once and render it natively on every p
 
 **Available today**
 
-1. [Catalogs](/concepts/catalogs/) describe your components and functions in one JSON Schema that both agents and renderers read. [How to Define a Catalog](/guides/defining-a-catalog/) covers [prompt instructions and metadata](/guides/defining-a-catalog/#prompt-instructions-and-catalog-metadata), [theming with reusable definitions](/guides/defining-a-catalog/#reusable-schema-definitions-defs-and-theming), and [schema parity tests in CI](/guides/defining-a-catalog/#schema-parity-tests-in-ci).
-2. The [Basic Catalog](/concepts/catalogs/#the-basic-catalog) ships with every official renderer and takes its styling from the host framework's theme. See the [v1.0 Basic Catalog Guide](/specification/v1.0-basic-catalog-implementation-guide/).
-3. Official [renderers](/concepts/sdks/#renderer-sdk) exist for React, Lit, Angular, Flutter, SwiftUI, and Jetpack Compose. See [Registering a catalog in a renderer](/concepts/catalogs/#registering-a-catalog-in-a-renderer).
-4. [Universal Web Components](/guides/authoring-universal-components/) let you write a custom web component once and register it in Lit, React, and Angular.
+1. [Catalogs](../concepts/catalogs/) describe your components and functions in one JSON Schema that both agents and renderers read. [How to Define a Catalog](../guides/defining-a-catalog/) covers [prompt instructions and metadata](../guides/defining-a-catalog/#prompt-instructions-and-catalog-metadata), [theming with reusable definitions](../guides/defining-a-catalog/#reusable-schema-definitions-defs-and-theming), and [schema parity tests in CI](../guides/defining-a-catalog/#schema-parity-tests-in-ci).
+2. The [Basic Catalog](../concepts/catalogs/#the-basic-catalog) ships with every official renderer and takes its styling from the host framework's theme. See the [v1.0 Basic Catalog Guide](/specification/v1.0-basic-catalog-implementation-guide/).
+3. Official [renderers](../concepts/sdks/#renderer-sdk) exist for React, Lit, Angular, Flutter, SwiftUI, and Jetpack Compose. See [Registering a catalog in a renderer](../concepts/catalogs/#registering-a-catalog-in-a-renderer).
+4. [Universal Web Components](../guides/authoring-universal-components/) let you write a custom web component once and register it in Lit, React, and Angular.
 5. The `a2ui codegen` command in the [A2UI CLI](https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_cli) generates typesafe component builders from a catalog.
 6. [A2UI Composer](https://a2ui-project.github.io/composer/) is a visual editor for A2UI layouts.
 
@@ -42,11 +42,11 @@ Our goal is for your agent to know when and how to use each component.
 
 **Available today**
 
-1. The skill generator (`SkillGenerator`) in the Python and TypeScript [Agent SDKs](/concepts/sdks/#agent-sdk) builds an A2UI skill from your catalog, with grammar rules for the chosen inference format and the signatures of your components and functions. Because the skill comes from the catalog, it changes when your components change. See [Generate the skill](/concepts/overview/#generate-the-skill).
-2. [Catalog negotiation](/concepts/catalogs/#catalog-negotiation-and-multi-catalog-surfaces) selects the catalogs and protocol version that each client supports. See [Using a catalog in an agent](/concepts/catalogs/#using-a-catalog-in-an-agent).
-3. [Swappable inference formats](/concepts/inference-formats/), such as Express and Direct JSON, compile model output into standard A2UI messages without client changes. See [Configuring inference formats across SDKs](/concepts/inference-formats/#configuring-inference-formats-across-sdks).
-4. The Agent SDKs [validate output against live surface state](/concepts/overview/#compile-and-validate-the-output), so errors go back to the model before anything reaches the client.
-5. Integrations exist for Google ADK and the A2A protocol, and [How to Integrate with My Agent Server](/guides/agent-integration/) covers other agent servers.
+1. The skill generator (`SkillGenerator`) in the Python and TypeScript [Agent SDKs](../concepts/sdks/#agent-sdk) builds an A2UI skill from your catalog, with grammar rules for the chosen inference format and the signatures of your components and functions. Because the skill comes from the catalog, it changes when your components change. See [Generate the skill](../concepts/overview/#generate-the-skill).
+2. [Catalog negotiation](../concepts/catalogs/#catalog-negotiation-and-multi-catalog-surfaces) selects the catalogs and protocol version that each client supports. See [Using a catalog in an agent](../concepts/catalogs/#using-a-catalog-in-an-agent).
+3. [Swappable inference formats](../concepts/inference-formats/), such as Express and Direct JSON, compile model output into standard A2UI messages without client changes. See [Configuring inference formats across SDKs](../concepts/inference-formats/#configuring-inference-formats-across-sdks).
+4. The Agent SDKs [validate output against live surface state](../concepts/overview/#compile-and-validate-the-output), so errors go back to the model before anything reaches the client.
+5. Integrations exist for Google ADK and the A2A protocol, and [How to Integrate with My Agent Server](../guides/agent-integration/) covers other agent servers.
 
 **On the roadmap**
 
@@ -61,7 +61,7 @@ Our goal is for you to know whether your agent picks the right components and bu
 **Available today**
 
 1. The [A2UI evaluation framework](https://github.com/a2ui-project/a2ui/tree/main/eval) is built on Inspect AI and scores model output against the project's own datasets in three stages: schema and structure validation, deterministic assertions, and an LLM judge that grades intent and quality. See the [evaluation design](https://github.com/a2ui-project/a2ui/blob/main/eval/DESIGN.md).
-2. [Token and latency benchmarks](/concepts/inference-formats/#token-and-latency-benchmarks) compare inference formats.
+2. [Token and latency benchmarks](../concepts/inference-formats/#token-and-latency-benchmarks) compare inference formats.
 
 **On the roadmap**
 
@@ -77,9 +77,9 @@ Our goal is for one agent to reach users wherever they are.
 
 **Available today**
 
-1. Renderers cover web and desktop (React, Lit, and Angular) and mobile (Flutter, SwiftUI, and Jetpack Compose). See [How to Integrate with My Client](/guides/client-integration/) and the [Android Jetpack Compose guide](https://developer.android.com/develop/ui/compose/agentic).
-2. MCP works in both directions. You can [render A2UI inside an MCP App](/guides/a2ui-in-mcp-apps/), or [embed MCP Apps in A2UI surfaces](/guides/mcp-apps-in-a2ui/), where `McpApp` already [shares data paths with sibling A2UI components](/guides/mcp-apps-in-a2ui/#synchronizing-state-and-tool-calls). The [MCP Integration Overview](/guides/mcp-overview/) compares these with [serving A2UI layouts from an MCP server](/guides/a2ui-over-mcp/) and [calling MCP tools from A2UI](/guides/mcp-catalog/).
-3. [Community renderers](/ecosystem/renderers/) cover more frameworks and platforms.
+1. Renderers cover web and desktop (React, Lit, and Angular) and mobile (Flutter, SwiftUI, and Jetpack Compose). See [How to Integrate with My Client](../guides/client-integration/) and the [Android Jetpack Compose guide](https://developer.android.com/develop/ui/compose/agentic).
+2. MCP works in both directions. You can [render A2UI inside an MCP App](../guides/a2ui-in-mcp-apps/), or [embed MCP Apps in A2UI surfaces](../guides/mcp-apps-in-a2ui/), where `McpApp` already [shares data paths with sibling A2UI components](../guides/mcp-apps-in-a2ui/#synchronizing-state-and-tool-calls). The [MCP Integration Overview](../guides/mcp-overview/) compares these with [serving A2UI layouts from an MCP server](../guides/a2ui-over-mcp/) and [calling MCP tools from A2UI](../guides/mcp-catalog/).
+3. [Community renderers](../ecosystem/renderers/) cover more frameworks and platforms.
 
 **On the roadmap**
 
@@ -92,7 +92,7 @@ Our goal is for your gen-UI to improve as you learn from your users.
 
 **Available today**
 
-1. [Renderer-to-agent messages](/concepts/messages/#renderer-to-agent-messages) already report user actions and function results to your agent, which gives you events to log. See [Handle user actions](/concepts/overview/#handle-user-actions).
+1. [Renderer-to-agent messages](../concepts/messages/#renderer-to-agent-messages) already report user actions and function results to your agent, which gives you events to log. See [Handle user actions](../concepts/overview/#handle-user-actions).
 
 **On the roadmap**
 
