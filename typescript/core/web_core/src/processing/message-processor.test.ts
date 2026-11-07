@@ -2559,4 +2559,327 @@ describe('MessageProcessor', () => {
       proc.dispose();
     });
   });
+
+  describe('unifiedOutbound', () => {
+    const v10Catalog = new Catalog('cat-v10', '1.0', BASIC_COMPONENTS);
+    const v09Catalog = new Catalog('cat-v09', '0.9', [CardApi, RowApi]);
+
+    it('throws A2uiValidationError when unifiedOutbound is true without outboundListener', () => {
+      assert.throws(
+        () => new MessageProcessor([v10Catalog], undefined, {unifiedOutbound: true}),
+        (err: unknown) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.match(err.message, /unifiedOutbound requires an outboundListener/);
+          return true;
+        },
+      );
+    });
+
+    it('defaults to off so actions and errors do not reach outboundListener', async () => {
+      const actionLog: unknown[] = [];
+      const errorLog: RendererErrorMessage[] = [];
+      const outboundLog: unknown[] = [];
+      const proc = new MessageProcessor(
+        [v10Catalog],
+        a => {
+          actionLog.push(a);
+        },
+        {
+          errorHandler: err => {
+            errorLog.push(err);
+          },
+          outboundListener: msg => {
+            outboundLog.push(msg);
+          },
+          reportErrorsOnly: true,
+        },
+      );
+
+      proc.processMessages({
+        version: '1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'cat-v10'},
+      });
+      await proc
+        .getSurface('s1')!
+        .dispatchAction({event: {name: 'click', context: {ok: true}}}, 'btn-1');
+      proc.processMessages({
+        version: '1.0',
+        updateComponents: {surfaceId: 'missing-surface', components: []},
+      });
+
+      assert.strictEqual(actionLog.length, 1);
+      assert.strictEqual(errorLog.length, 1);
+      assert.deepStrictEqual(outboundLog, []);
+    });
+
+    it('forwards actions from 1.0, v0.9, and v0.9.1 surfaces to outboundListener and still fires actionHandler', async () => {
+      const actionLog: unknown[] = [];
+      const outboundLog: any[] = [];
+      const proc = new MessageProcessor(
+        [v10Catalog, v09Catalog],
+        a => {
+          actionLog.push(a);
+        },
+        {
+          outboundListener: msg => {
+            outboundLog.push(msg);
+          },
+          unifiedOutbound: true,
+        },
+      );
+
+      proc.processMessages([
+        {version: '1.0', createSurface: {surfaceId: 's-10', catalogId: 'cat-v10'}},
+        {version: 'v0.9', createSurface: {surfaceId: 's-09', catalogId: 'cat-v09'}},
+        {version: 'v0.9.1', createSurface: {surfaceId: 's-091', catalogId: 'cat-v09'}},
+      ]);
+
+      await proc.getSurface('s-10')!.dispatchAction(
+        {
+          event: {
+            name: 'submit',
+            context: {item: 1},
+            catalogId: 'cat-v10',
+            userMessage: 'Submitted 1.0',
+          },
+        },
+        'btn-10',
+        {extensions: {vendor_tag: 'v1'}},
+      );
+
+      await proc.getSurface('s-09')!.dispatchAction(
+        {
+          event: {
+            name: 'select',
+            context: {item: 2},
+          },
+        },
+        'btn-09',
+      );
+
+      await proc.getSurface('s-091')!.dispatchAction(
+        {
+          event: {
+            name: 'confirm',
+            context: {item: 3},
+            catalogId: 'cat-v09',
+          },
+        },
+        'btn-091',
+      );
+
+      assert.strictEqual(actionLog.length, 3);
+      assert.strictEqual(outboundLog.length, 3);
+
+      assert.strictEqual(outboundLog[0].version, '1.0');
+      assert.strictEqual(outboundLog[0].action.name, 'submit');
+      assert.strictEqual(outboundLog[0].action.surfaceId, 's-10');
+      assert.strictEqual(outboundLog[0].action.sourceComponentId, 'btn-10');
+      assert.strictEqual(typeof outboundLog[0].action.timestamp, 'string');
+      assert.deepStrictEqual(outboundLog[0].action.context, {item: 1});
+      assert.strictEqual(outboundLog[0].action.catalogId, 'cat-v10');
+      assert.strictEqual(outboundLog[0].action.userMessage, 'Submitted 1.0');
+      assert.deepStrictEqual(outboundLog[0].action.metadata, {extensions: {vendor_tag: 'v1'}});
+
+      assert.strictEqual(outboundLog[1].version, 'v0.9');
+      assert.strictEqual(outboundLog[1].action.name, 'select');
+      assert.strictEqual(outboundLog[1].action.surfaceId, 's-09');
+      assert.strictEqual(outboundLog[1].action.sourceComponentId, 'btn-09');
+      assert.deepStrictEqual(outboundLog[1].action.context, {item: 2});
+      assert.strictEqual('catalogId' in outboundLog[1].action, false);
+
+      assert.strictEqual(outboundLog[2].version, 'v0.9.1');
+      assert.strictEqual(outboundLog[2].action.name, 'confirm');
+      assert.strictEqual(outboundLog[2].action.surfaceId, 's-091');
+      assert.strictEqual(outboundLog[2].action.sourceComponentId, 'btn-091');
+      assert.deepStrictEqual(outboundLog[2].action.context, {item: 3});
+      assert.strictEqual(outboundLog[2].action.catalogId, 'cat-v09');
+    });
+
+    it('uses the fallback wire version when a surface has no protocolVersion', async () => {
+      const v10Out: any[] = [];
+      const v10Proc = new MessageProcessor([v10Catalog], undefined, {
+        outboundListener: msg => {
+          v10Out.push(msg);
+        },
+        unifiedOutbound: true,
+      });
+      const unversionedV10Surface = new SurfaceModel('s-unver-10', undefined, new Map());
+      assert.strictEqual(unversionedV10Surface.protocolVersion, undefined);
+      v10Proc.model.addSurface(unversionedV10Surface);
+      await unversionedV10Surface.dispatchAction({event: {name: 'act1', context: {}}}, 'c1');
+      assert.strictEqual(v10Out.length, 1);
+      assert.strictEqual(v10Out[0].version, '1.0');
+
+      const mixedOut: any[] = [];
+      const mixedProc = new MessageProcessor([v10Catalog, v09Catalog], undefined, {
+        outboundListener: msg => {
+          mixedOut.push(msg);
+        },
+        unifiedOutbound: true,
+      });
+      const unversionedMixedSurface = new SurfaceModel('s-unver-mixed', undefined, new Map());
+      assert.strictEqual(unversionedMixedSurface.protocolVersion, undefined);
+      mixedProc.model.addSurface(unversionedMixedSurface);
+      await unversionedMixedSurface.dispatchAction({event: {name: 'act2', context: {}}}, 'c2');
+      assert.strictEqual(mixedOut.length, 1);
+      assert.strictEqual(mixedOut[0].version, 'v0.9');
+
+      const explicitDefaultOut: any[] = [];
+      const explicitDefaultProc = new MessageProcessor([v10Catalog, v09Catalog], undefined, {
+        version: 'v0.9.1',
+        outboundListener: msg => {
+          explicitDefaultOut.push(msg);
+        },
+        unifiedOutbound: true,
+      });
+      const unversionedExplicitSurface = new SurfaceModel('s-unver-exp', undefined, new Map());
+      assert.strictEqual(unversionedExplicitSurface.protocolVersion, undefined);
+      explicitDefaultProc.model.addSurface(unversionedExplicitSurface);
+      await unversionedExplicitSurface.dispatchAction({event: {name: 'act3', context: {}}}, 'c3');
+      assert.strictEqual(explicitDefaultOut.length, 1);
+      assert.strictEqual(explicitDefaultOut[0].version, 'v0.9.1');
+    });
+
+    it('forwards processing errors to outboundListener and still fires errorHandler', () => {
+      const errorLog: RendererErrorMessage[] = [];
+      const outboundLog: unknown[] = [];
+      const proc = new MessageProcessor([v10Catalog], undefined, {
+        errorHandler: err => {
+          errorLog.push(err);
+        },
+        outboundListener: msg => {
+          outboundLog.push(msg);
+        },
+        unifiedOutbound: true,
+        reportErrorsOnly: true,
+      });
+
+      proc.processMessages({
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'nonexistent',
+          components: [{id: 'root', component: 'Text', text: 'hi'}],
+        },
+      });
+
+      assert.strictEqual(errorLog.length, 1);
+      assert.strictEqual(outboundLog.length, 1);
+      assert.deepStrictEqual(outboundLog[0], errorLog[0]);
+      assert.strictEqual((outboundLog[0] as RendererErrorMessage).version, '1.0');
+      assert.strictEqual((outboundLog[0] as RendererErrorMessage).error.code, 'INTEGRITY_ERROR');
+    });
+
+    it('does not forward v0.8 actions or v0.8 errors to outboundListener', async () => {
+      const v08Cat = new Catalog('cat-v08', '0.8', []);
+      const actionLog: unknown[] = [];
+      const errorLog: RendererErrorMessage[] = [];
+      const outboundLog: unknown[] = [];
+      const proc = new MessageProcessor(
+        [v08Cat],
+        a => {
+          actionLog.push(a);
+        },
+        {
+          version: 'v0.8',
+          errorHandler: err => {
+            errorLog.push(err);
+          },
+          outboundListener: msg => {
+            outboundLog.push(msg);
+          },
+          unifiedOutbound: true,
+          reportErrorsOnly: true,
+        },
+      );
+
+      proc.processMessages({
+        beginRendering: {surfaceId: 's-08', root: 'root', catalogId: 'cat-v08'},
+      });
+      await proc
+        .getSurface('s-08')!
+        .dispatchAction({event: {name: 'legacyClick', context: {}}}, 'btn-08');
+
+      proc.processMessages({
+        surfaceUpdate: {surfaceId: 'missing-08', components: []},
+      });
+
+      assert.strictEqual(actionLog.length, 1);
+      assert.strictEqual(errorLog.length, 1);
+      assert.strictEqual(errorLog[0].version, 'v0.8');
+      assert.deepStrictEqual(outboundLog, []);
+    });
+
+    it('stops forwarding actions and errors after dispose()', async () => {
+      const outboundLog: unknown[] = [];
+      const proc = new MessageProcessor([v10Catalog], undefined, {
+        outboundListener: msg => {
+          outboundLog.push(msg);
+        },
+        unifiedOutbound: true,
+        reportErrorsOnly: true,
+      });
+
+      proc.processMessages({
+        version: '1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'cat-v10'},
+      });
+      const surface = proc.getSurface('s1')!;
+      proc.dispose();
+
+      await surface.dispatchAction({event: {name: 'afterDispose', context: {}}}, 'btn');
+      proc.processMessages({
+        version: '1.0',
+        updateComponents: {surfaceId: 'missing', components: []},
+      });
+
+      assert.deepStrictEqual(outboundLog, []);
+    });
+
+    it('catches synchronous throws and async rejections from outboundListener without breaking dispatch', async () => {
+      const actionLog: unknown[] = [];
+      const errorLog: RendererErrorMessage[] = [];
+      let callCount = 0;
+      const proc = new MessageProcessor(
+        [v10Catalog],
+        a => {
+          actionLog.push(a);
+        },
+        {
+          errorHandler: err => {
+            errorLog.push(err);
+          },
+          outboundListener: () => {
+            callCount++;
+            if (callCount % 2 === 1) {
+              throw new Error('sync transport failure');
+            }
+            return Promise.reject(new Error('async transport failure'));
+          },
+          unifiedOutbound: true,
+          reportErrorsOnly: true,
+        },
+      );
+
+      proc.processMessages({
+        version: '1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'cat-v10'},
+      });
+
+      await proc.getSurface('s1')!.dispatchAction({event: {name: 'a1', context: {}}}, 'btn');
+      await proc.getSurface('s1')!.dispatchAction({event: {name: 'a2', context: {}}}, 'btn');
+      proc.processMessages({
+        version: '1.0',
+        updateComponents: {surfaceId: 'missing-1', components: []},
+      });
+      proc.processMessages({
+        version: '1.0',
+        updateComponents: {surfaceId: 'missing-2', components: []},
+      });
+
+      assert.strictEqual(callCount, 4);
+      assert.strictEqual(actionLog.length, 2);
+      assert.strictEqual(errorLog.length, 2);
+    });
+  });
 });

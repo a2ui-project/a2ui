@@ -28,9 +28,12 @@ import {
   AgentFunctionResponseMessage,
 } from '../v1_0/schema/agent-to-renderer.js';
 import {
-  RendererFunctionResponseMessage,
+  type ActionMessage,
   CallAgentFunctionMessage,
+  RendererFunctionResponseMessage,
 } from '../v1_0/schema/renderer-to-agent.js';
+import type {A2uiClientAction} from '../v0_9/schema/client-to-server.js';
+import type {RendererErrorMessage} from '../processing/message-error-mapper.js';
 import {isCatalogVersionCompatible} from '../processing/adapters/base.js';
 import {findFailedArgument, settleDeep} from '../common/settle_deep.js';
 import {PayloadValidator} from '../validation/payload-validator.js';
@@ -39,10 +42,21 @@ import {A2uiRpcError, RpcErrorCode} from '../errors.js';
 export {A2uiRpcError, RpcErrorCode};
 
 /**
+ * Outbound renderer-to-agent action message envelope across v0.9, v0.9.1, and v1.0.
+ */
+export type OutboundActionMessage =
+  | (Omit<ActionMessage, 'action'> & {action: ActionMessage['action'] & {catalogId?: string}})
+  | {version: 'v0.9' | 'v0.9.1'; action: A2uiClientAction & {catalogId?: string}};
+
+/**
  * Callback function type receiving outbound renderer messages intended for the agent.
  */
 export type OutboundMessageListener = (
-  message: RendererFunctionResponseMessage | CallAgentFunctionMessage,
+  message:
+    | RendererFunctionResponseMessage
+    | CallAgentFunctionMessage
+    | OutboundActionMessage
+    | RendererErrorMessage,
 ) => void | Promise<void>;
 
 /**
