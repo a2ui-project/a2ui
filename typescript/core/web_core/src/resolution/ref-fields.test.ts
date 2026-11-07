@@ -27,7 +27,7 @@ import {
   DynamicStringSchema,
 } from '../v0_9/schema/common-types.js';
 import {ChildSchema as V1ChildSchema} from '../v1_0/schema/common-types.js';
-import {extractCatalogRefFields, extractRefFields} from './ref-fields.js';
+import {extractRefFields} from './ref-fields.js';
 
 describe('extractRefFields', () => {
   it('extracts explicit ComponentIdSchema, ChildSchema, ChildListSchema, and REF pointers on any field name', () => {
@@ -156,13 +156,6 @@ describe('extractRefFields', () => {
     // Strict or incompatible catchall empty objects reject unknown `child`/`children` keys.
     assert.strictEqual(extractRefFields(z.object({}).strict()).size, 0);
     assert.strictEqual(extractRefFields(z.object({}).catchall(z.number())).size, 0);
-
-    // Static catalog introspection excludes zero-property leaf schemas (`z.object({})`)
-    // while keeping explicitly open schemas.
-    assert.strictEqual(extractCatalogRefFields(z.object({})).size, 0);
-    const openCatalogRefs = extractCatalogRefFields(z.object({}).passthrough());
-    assert.deepStrictEqual(openCatalogRefs.get('child'), {kind: 'single'});
-    assert.deepStrictEqual(openCatalogRefs.get('children'), {kind: 'list'});
 
     const stringCatchallRefs = extractRefFields(z.object({title: z.string()}).catchall(z.string()));
     assert.deepStrictEqual(stringCatchallRefs.get('child'), {kind: 'single'});
@@ -420,5 +413,85 @@ describe('extractRefFields', () => {
     assert.deepStrictEqual(elementParityRefs.get('itemsTemplate'), {kind: 'list'});
     assert.deepStrictEqual(elementParityRefs.get('pipedIds'), {kind: 'list'});
     assert.strictEqual(elementParityRefs.has('invalidIntersectedIds'), false);
+
+    // Intersecting a non-strict non-empty object with an open schema retains open child/children,
+    // unless unknown keys are constrained or `child`/`children` is declared with a non-ref type.
+    const objectAndRecord = z.object({title: z.string()}).and(z.record(z.unknown()));
+    assert.deepStrictEqual(extractRefFields(objectAndRecord).get('child'), {kind: 'single'});
+    assert.deepStrictEqual(extractRefFields(objectAndRecord).get('children'), {kind: 'list'});
+
+    const objectAndPassthrough = z.object({title: z.string()}).and(z.object({}).passthrough());
+    assert.deepStrictEqual(extractRefFields(objectAndPassthrough).get('child'), {kind: 'single'});
+    assert.deepStrictEqual(extractRefFields(objectAndPassthrough).get('children'), {kind: 'list'});
+
+    const strictObjectAndRecord = z.object({title: z.string()}).strict().and(z.record(z.unknown()));
+    assert.strictEqual(extractRefFields(strictObjectAndRecord).size, 0);
+
+    const nonRefChildAndRecord = z.object({child: z.number()}).and(z.record(z.unknown()));
+    assert.strictEqual(extractRefFields(nonRefChildAndRecord).has('child'), false);
+    assert.deepStrictEqual(extractRefFields(nonRefChildAndRecord).get('children'), {kind: 'list'});
+
+    // Union of a branch declaring non-ref `child`/`children` and an open branch keeps open refs.
+    const unionOpenWithNonRefChild = z.union([
+      z.object({child: z.number()}),
+      z.object({title: z.string()}).passthrough(),
+    ]);
+    assert.deepStrictEqual(extractRefFields(unionOpenWithNonRefChild).get('child'), {
+      kind: 'single',
+    });
+    assert.deepStrictEqual(extractRefFields(unionOpenWithNonRefChild).get('children'), {
+      kind: 'list',
+    });
+
+    const unionOpenWithNonRefChildren = z.union([
+      z.object({children: z.number()}),
+      z.record(z.unknown()),
+    ]);
+    assert.deepStrictEqual(extractRefFields(unionOpenWithNonRefChildren).get('child'), {
+      kind: 'single',
+    });
+    assert.deepStrictEqual(extractRefFields(unionOpenWithNonRefChildren).get('children'), {
+      kind: 'list',
+    });
+
+    // Transform pipelines from open/empty inputs into strict or closed output schemas do not
+    // synthesize unintended `child` or `children` slots.
+    const transformOpenToStrict = z
+      .any()
+      .transform(v => v)
+      .pipe(z.object({title: z.string()}).strict());
+    assert.strictEqual(extractRefFields(transformOpenToStrict).size, 0);
+
+    const transformPassthroughToClosed = z
+      .object({})
+      .passthrough()
+      .transform(v => v)
+      .pipe(z.object({title: z.string()}));
+    assert.strictEqual(extractRefFields(transformPassthroughToClosed).size, 0);
+
+    const transformEmptyToClosed = z
+      .object({})
+      .transform(v => v)
+      .pipe(z.object({title: z.string()}));
+    assert.strictEqual(extractRefFields(transformEmptyToClosed).size, 0);
+
+    const transformOpenToPassthrough = z
+      .any()
+      .transform(v => v)
+      .pipe(z.object({title: z.string()}).passthrough());
+    assert.deepStrictEqual(extractRefFields(transformOpenToPassthrough).get('child'), {
+      kind: 'single',
+    });
+    assert.deepStrictEqual(extractRefFields(transformOpenToPassthrough).get('children'), {
+      kind: 'list',
+    });
+
+    // Unmarked dynamic-binding/function-call unions on `child`/`children` are treated as dynamic
+    // data properties, not component references.
+    const unmarkedDynamicProps = z.object({
+      child: z.union([z.string(), z.object({'@path': z.string()})]),
+      children: z.union([z.array(z.string()), z.object({'@call': z.string()})]),
+    });
+    assert.strictEqual(extractRefFields(unmarkedDynamicProps).size, 0);
   });
 });

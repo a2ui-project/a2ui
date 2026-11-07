@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-import {SurfaceModel} from '../state/surface-model.js';
-import {ComponentModel} from '../state/component-model.js';
 import {Catalog, ComponentApi, FunctionImplementation} from '../catalog/types.js';
+import {Subscription} from '../common/events.js';
+import {isAtLeastVersion} from '../common/semver.js';
+import {A2uiStateError} from '../errors.js';
+import {computed, getValue, peekValue, setValue, Signal, signal} from '../reactivity/signals.js';
+import {ComponentModel} from '../state/component-model.js';
+import {SurfaceModel} from '../state/surface-model.js';
+import {V08_CHILD_REF_OPTIONS} from '../v0_8/standard_defs.js';
+import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
+import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 import {ComponentContext} from './component-context.js';
-import {DataContext} from './data-context.js';
-import {
-  BehaviorNode,
-  GenericBinder,
-  getSafeChildList,
-  scrapeComponentBehavior,
-} from './generic-binder.js';
 import {
   ComponentNode,
   isComponentNode,
@@ -32,11 +32,15 @@ import {
   NodeProps,
   PLACEHOLDER_TYPE,
 } from './component-node.js';
+import {DataContext} from './data-context.js';
+import {
+  BehaviorNode,
+  GenericBinder,
+  getSafeChildList,
+  scrapeComponentBehavior,
+} from './generic-binder.js';
 import {extractRefFields, RefFields} from './ref-fields.js';
-import {ResolvedBinding, WritableBinding, sameBinding} from './resolved-binding.js';
-import {computed, getValue, Signal, signal, setValue, peekValue} from '../reactivity/signals.js';
-import {Subscription} from '../common/events.js';
-import {A2uiStateError} from '../errors.js';
+import {ResolvedBinding, sameBinding, WritableBinding} from './resolved-binding.js';
 
 const ROOT_COMPONENT_ID = 'root';
 const ROOT_DATA_PATH = '/';
@@ -354,6 +358,11 @@ export class NodeResolver<
       dataPath,
       parent?.context?.dataContext,
     );
+    const refOptions = isAtLeastVersion(compCatalog.protocolVersion, '1.0')
+      ? V10_CHILD_REF_OPTIONS
+      : isAtLeastVersion(compCatalog.protocolVersion, '0.9')
+        ? V09_CHILD_REF_OPTIONS
+        : V08_CHILD_REF_OPTIONS;
     const binder = new GenericBinder<NodeProps>(context, api.schema);
     const record = this.registerNode(
       new MutableComponentNode(
@@ -371,7 +380,7 @@ export class NodeResolver<
         edgeKey,
         parent,
         occurrence,
-        refFields: extractRefFields(api.schema),
+        refFields: extractRefFields(api.schema, refOptions),
         behavior: scrapeComponentBehavior(api.schema),
         componentModel: model,
         binder,

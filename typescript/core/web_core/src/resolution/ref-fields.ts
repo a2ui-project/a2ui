@@ -86,7 +86,8 @@ export type RefFields = ReadonlyMap<string, RefKind>;
 
 const EMPTY_REF_FIELDS: RefFields = new Map();
 
-const refFieldsCache = new WeakMap<z.ZodTypeAny, RefFields>();
+const DEFAULT_OPTIONS_CACHE_KEY = {};
+const refFieldsCache = new WeakMap<object, WeakMap<z.ZodTypeAny, RefFields>>();
 
 /**
  * Unwrapped Zod schema and metadata collected across single-inner-type wrappers
@@ -261,57 +262,35 @@ export function extractRefFields(
   schema: z.ZodTypeAny,
   options?: ChildRefAnalysisOptions,
 ): RefFields {
-  if (!options) {
-    const cached = refFieldsCache.get(schema);
+  const cacheKey = options ?? DEFAULT_OPTIONS_CACHE_KEY;
+  let schemaCache = refFieldsCache.get(cacheKey);
+  if (schemaCache) {
+    const cached = schemaCache.get(schema);
     if (cached) {
       return cached;
     }
+  } else {
+    schemaCache = new WeakMap();
+    refFieldsCache.set(cacheKey, schemaCache);
   }
 
-  const result = extractRefFieldsInternal(schema, options, true);
-  if (!options) {
-    refFieldsCache.set(schema, result);
-  }
-  return result;
-}
-
-/**
- * Extracts child-referencing properties for static catalog introspection
- * (`Catalog.componentRefMap` / `buildComponentRefMap`).
- *
- * Unlike runtime {@link extractRefFields}, zero-property leaf schemas (`z.object({})`)
- * do not synthesize implicit `child`/`children` entries unless the schema is
- * explicitly open (`.passthrough()`, compatible `.catchall(...)`, `z.record(...)`,
- * `z.any()`, or `z.unknown()`).
- */
-export function extractCatalogRefFields(
-  schema: z.ZodTypeAny,
-  options?: ChildRefAnalysisOptions,
-): RefFields {
-  return extractRefFieldsInternal(schema, options, false);
-}
-
-function extractRefFieldsInternal(
-  schema: z.ZodTypeAny,
-  options: ChildRefAnalysisOptions | undefined,
-  includeEmptyObjectFallback: boolean,
-): RefFields {
   const analysis = analyzeSchema(schema, new Set(), options);
   const fields = analysis.fields;
-  const allowEmpty = includeEmptyObjectFallback && analysis.isEmptyObject;
 
-  if (allowEmpty || analysis.openSingle) {
+  if (analysis.isEmptyObject || analysis.openSingle) {
     if (!analysis.declaredKeys.has('child') && !fields.has('child')) {
       fields.set('child', {kind: 'single'});
     }
   }
-  if (allowEmpty || analysis.openList) {
+  if (analysis.isEmptyObject || analysis.openList) {
     if (!analysis.declaredKeys.has('children') && !fields.has('children')) {
       fields.set('children', {kind: 'list'});
     }
   }
 
-  return fields.size === 0 ? EMPTY_REF_FIELDS : fields;
+  const result = fields.size === 0 ? EMPTY_REF_FIELDS : fields;
+  schemaCache.set(schema, result);
+  return result;
 }
 
 interface SchemaRefAnalysis {
@@ -335,7 +314,7 @@ function emptyAnalysis(): SchemaRefAnalysis {
     compatibleListKeys: new Set(),
     compatibleNestedKeys: new Set(),
     nestedElementAnalyses: new Map(),
-    constrainsUnknownKeys: false,
+    constrainsUnknownKeys: true,
     isEmptyObject: false,
     openSingle: false,
     openList: false,
@@ -488,11 +467,24 @@ function analyzeSchema(
         for (const [key, kind] of outAnalysis.fields) {
           mergeCompatibleField(inAnalysis.fields, key, kind, outAnalysis, inAnalysis);
         }
+        for (const key of outAnalysis.declaredKeys) {
+          if (!inAnalysis.fields.has(key)) {
+            inAnalysis.declaredKeys.add(key);
+          }
+        }
+        inAnalysis.constrainsUnknownKeys =
+          inAnalysis.constrainsUnknownKeys || outAnalysis.constrainsUnknownKeys;
+        inAnalysis.isEmptyObject = inAnalysis.isEmptyObject && outAnalysis.isEmptyObject;
+        inAnalysis.openSingle = inAnalysis.openSingle && outAnalysis.openSingle;
+        inAnalysis.openList = inAnalysis.openList && outAnalysis.openList;
         return inAnalysis;
       }
       const left = analyzeSchema(pipeIn, new Set(visited), options);
       const right = analyzeSchema(pipeOut, new Set(visited), options);
-      return intersectAnalyses(left, right);
+      const piped = intersectAnalyses(left, right);
+      piped.openSingle = !piped.isEmptyObject && left.openSingle && right.openSingle;
+      piped.openList = !piped.isEmptyObject && left.openList && right.openList;
+      return piped;
     }
 
     case 'ZodUnion':
@@ -524,6 +516,14 @@ function analyzeSchema(
         }
         for (const key of sub.compatibleNestedKeys) {
           compatibleNestedKeys.add(key);
+        }
+        if (sub.openSingle && !sub.declaredKeys.has('child')) {
+          mergeRefKind(fields, 'child', {kind: 'single'});
+          compatibleSingleKeys.add('child');
+        }
+        if (sub.openList && !sub.declaredKeys.has('children')) {
+          mergeRefKind(fields, 'children', {kind: 'list'});
+          compatibleListKeys.add('children');
         }
         allEmpty = allEmpty && sub.isEmptyObject;
         allConstrainUnknown = allConstrainUnknown && sub.constrainsUnknownKeys;
@@ -596,12 +596,14 @@ function intersectAnalyses(left: SchemaRefAnalysis, right: SchemaRefAnalysis): S
   const isEmptyObject = !constrainsUnknownKeys && left.isEmptyObject && right.isEmptyObject;
   const openSingle =
     !isEmptyObject &&
-    (left.openSingle || left.isEmptyObject) &&
-    (right.openSingle || right.isEmptyObject);
+    (left.openSingle || right.openSingle) &&
+    (left.openSingle || !left.constrainsUnknownKeys) &&
+    (right.openSingle || !right.constrainsUnknownKeys);
   const openList =
     !isEmptyObject &&
-    (left.openList || left.isEmptyObject) &&
-    (right.openList || right.isEmptyObject);
+    (left.openList || right.openList) &&
+    (left.openList || !left.constrainsUnknownKeys) &&
+    (right.openList || !right.constrainsUnknownKeys);
 
   return {
     fields,
@@ -972,6 +974,39 @@ function hasNonChildRefMarker(
   return !marksComponentId(field, options) && !marksChildList(field, options);
 }
 
+function isDynamicBindingObject(schema: z.ZodTypeAny): boolean {
+  if (schema?._def?.typeName !== 'ZodObject' || isTemplateRefObject(schema)) {
+    return false;
+  }
+  const shape = (schema as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
+  return (
+    Object.hasOwn(shape, 'path') ||
+    Object.hasOwn(shape, '@path') ||
+    Object.hasOwn(shape, 'call') ||
+    Object.hasOwn(shape, '@call')
+  );
+}
+
+function isDynamicValueUnion(
+  unionOptions: readonly z.ZodTypeAny[],
+  options?: ChildRefAnalysisOptions,
+): boolean {
+  let hasExplicitChildMarker = false;
+  let hasDynamicBranch = false;
+  for (const opt of unionOptions) {
+    const unwrapped = unwrapZodField(opt);
+    if (marksComponentId(unwrapped, options) || marksChildList(unwrapped, options)) {
+      hasExplicitChildMarker = true;
+    } else if (
+      hasNonChildRefMarker(unwrapped, options) ||
+      isDynamicBindingObject(unwrapped.schema)
+    ) {
+      hasDynamicBranch = true;
+    }
+  }
+  return hasDynamicBranch && !hasExplicitChildMarker;
+}
+
 function canHoldSingleRef(
   field: UnwrappedZodField,
   visited = new Set<z.ZodTypeAny>(),
@@ -1004,6 +1039,9 @@ function canHoldSingleRef(
 
   const unionOptions = getUnionOptions(field.schema);
   if (unionOptions) {
+    if (isDynamicValueUnion(unionOptions, options)) {
+      return false;
+    }
     return unionOptions.some(option =>
       canHoldSingleRef(unwrapZodField(option), new Set(visited), options),
     );
@@ -1066,6 +1104,9 @@ function canHoldListRef(
 
   const unionOptions = getUnionOptions(field.schema);
   if (unionOptions) {
+    if (isDynamicValueUnion(unionOptions, options)) {
+      return false;
+    }
     return unionOptions.some(option =>
       canHoldListRef(unwrapZodField(option), new Set(visited), options),
     );

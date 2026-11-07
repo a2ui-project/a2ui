@@ -85,16 +85,18 @@ function* extractPointers(
   } else if (typeof val === 'object' && val !== null) {
     const obj = val as Record<string, unknown>;
     if (
-      'componentId' in obj &&
+      Object.hasOwn(obj, 'componentId') &&
       typeof obj.componentId === 'string' &&
-      ('path' in obj || 'dataBinding' in obj)
+      (Object.hasOwn(obj, 'path') ||
+        Object.hasOwn(obj, '@path') ||
+        Object.hasOwn(obj, 'dataBinding'))
     ) {
       yield [obj.componentId, `${currentPath}.componentId`];
     } else if (nestedKeys?.size) {
       // The catalog declared exactly which sub-keys carry a child, so sibling
       // properties such as a tab title are not references.
       for (const subKey of nestedKeys) {
-        if (subKey in obj) {
+        if (Object.hasOwn(obj, subKey)) {
           yield* extractPointers(obj[subKey], `${currentPath}.${subKey}`);
         }
       }

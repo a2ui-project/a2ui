@@ -426,9 +426,9 @@ describe('reference-map schema introspection', () => {
     assert.ok(refMap.Tabs.nestedRefs?.tabItems.has('child'));
   });
 
-  it('keeps zero-property leaf schemas empty in componentRefMap while resolving open, composite, wrapped, and unmarked schemas', () => {
-    const emptyLeafApi: ComponentApi = {
-      name: 'SpacerLeaf',
+  it('includes z.object({}) containers in componentRefMap while keeping strict and raw empty schemas empty', () => {
+    const emptyContainerApi: ComponentApi = {
+      name: 'EmptyBox',
       schema: z.object({}),
     };
     const strictEmptyApi: ComponentApi = {
@@ -455,6 +455,10 @@ describe('reference-map schema introspection', () => {
       name: 'RecordBox',
       schema: z.record(z.unknown()),
     };
+    const intersectedOpenApi: ComponentApi = {
+      name: 'IntersectedOpenBox',
+      schema: z.object({title: z.string().optional()}).and(z.record(z.unknown())),
+    };
     const unmarkedAndWrappedApi: ComponentApi = {
       name: 'UnmarkedAndWrapped',
       schema: z
@@ -474,23 +478,31 @@ describe('reference-map schema introspection', () => {
     };
 
     const catalog = new Catalog('aligned-cat', '1.0', [
-      emptyLeafApi,
+      emptyContainerApi,
       strictEmptyApi,
       rawEmptyLeafApi,
       rawOpenApi,
       openApi,
       catchallApi,
       recordApi,
+      intersectedOpenApi,
       unmarkedAndWrappedApi,
     ]);
     const refMap = catalog.componentRefMap;
 
-    for (const leafName of ['SpacerLeaf', 'StrictEmptyLeaf', 'RawEmptyLeaf']) {
+    for (const leafName of ['StrictEmptyLeaf', 'RawEmptyLeaf']) {
       assert.strictEqual(refMap[leafName].singleRefs.size, 0, `${leafName}.singleRefs`);
       assert.strictEqual(refMap[leafName].listRefs.size, 0, `${leafName}.listRefs`);
     }
 
-    for (const openName of ['RawOpenBox', 'OpenBox', 'CatchallBox', 'RecordBox']) {
+    for (const openName of [
+      'EmptyBox',
+      'RawOpenBox',
+      'OpenBox',
+      'CatchallBox',
+      'RecordBox',
+      'IntersectedOpenBox',
+    ]) {
       assert.deepStrictEqual(
         Array.from(refMap[openName].singleRefs),
         ['child'],

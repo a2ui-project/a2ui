@@ -1954,4 +1954,114 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     sub.unsubscribe();
     surface.dispose();
   });
+
+  it('preserves DYNAMIC, ACTION, and CHECKABLE behaviors in object-variant unions paired with static variants and handles composite ZodRecord schemas', () => {
+    const mixedVariantSchema = z.discriminatedUnion('kind', [
+      z.object({
+        kind: z.literal('interactive'),
+        label: CommonSchemas.DynamicString,
+        onSelect: CommonSchemas.Action,
+        checks: CommonSchemas.Checkable.shape.checks,
+      }),
+      z.object({
+        kind: z.literal('plain'),
+        label: z.string(),
+        onSelect: z.string().optional(),
+        checks: z.string().optional(),
+      }),
+    ]);
+
+    const recordInIntersection = z
+      .object({heading: CommonSchemas.DynamicString.optional()})
+      .and(z.record(z.unknown()));
+    const recordInPipeline = z.record(z.unknown()).pipe(z.record(z.unknown()));
+    const recordInUnion = z.union([
+      z.object({mode: z.literal('typed'), heading: CommonSchemas.DynamicString}),
+      z.record(z.unknown()),
+    ]);
+
+    for (const recSchema of [recordInIntersection, recordInPipeline, recordInUnion]) {
+      const scraped = scrapeSchemaBehavior(recSchema);
+      assert.strictEqual(scraped.type, 'OBJECT');
+      if (scraped.type === 'OBJECT') {
+        assert.deepStrictEqual(scraped.shape.children, {type: 'STRUCTURAL'});
+        assert.strictEqual(scraped.shape.accessibility?.type, 'OBJECT');
+      }
+    }
+
+    const catalog = new Catalog('test-mixed-union', '0.9', [], []);
+    const surface = new SurfaceModel('s-mixed', catalog);
+    surface.dataModel.set('/label', 'Dynamic Label');
+    surface.dataModel.set('/validFlag', false);
+    surface.dataModel.set('/rows', [{id: 1}, {id: 2}]);
+
+    const dispatched: unknown[] = [];
+    surface.onAction.subscribe(evt => {
+      dispatched.push(evt);
+    });
+
+    const compModel = new ComponentModel(
+      'c-mixed',
+      'MixedVariant',
+      {
+        kind: 'interactive',
+        label: {path: '/label'},
+        onSelect: {event: {name: 'choose'}},
+        checks: [{condition: {path: '/validFlag'}, message: 'Must be valid'}],
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const binder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c-mixed'),
+      mixedVariantSchema,
+    );
+    const sub = binder.subscribe(() => {});
+
+    assert.strictEqual(binder.snapshot.label, 'Dynamic Label');
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Must be valid']);
+    assert.strictEqual(typeof binder.snapshot.onSelect, 'function');
+    (binder.snapshot.onSelect as () => void)();
+    assert.strictEqual(dispatched.length, 1);
+
+    // Switching to the static variant passes static scalars through without wrapping or mutating isValid.
+    compModel.properties = {
+      kind: 'plain',
+      label: 'Literal Label',
+      onSelect: 'noop-tag',
+      checks: 'skip',
+    };
+    assert.strictEqual(binder.snapshot.label, 'Literal Label');
+    assert.strictEqual(binder.snapshot.onSelect, 'noop-tag');
+    assert.strictEqual(binder.snapshot.checks, 'skip');
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'isValid'), false);
+
+    // Verify composite ZodRecord union binds both dynamic variant properties and open template children.
+    const recCompModel = new ComponentModel(
+      'c-rec-union',
+      'RecUnion',
+      {
+        mode: 'typed',
+        heading: {path: '/label'},
+        children: {componentId: 'row-tpl', path: '/rows'},
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(recCompModel);
+    const recBinder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c-rec-union'),
+      recordInUnion,
+    );
+    assert.strictEqual(recBinder.snapshot.heading, 'Dynamic Label');
+    assert.deepStrictEqual(recBinder.snapshot.children, [
+      {id: 'row-tpl', basePath: '/rows/0'},
+      {id: 'row-tpl', basePath: '/rows/1'},
+    ]);
+
+    sub.unsubscribe();
+    recBinder.dispose();
+    surface.dispose();
+  });
 });

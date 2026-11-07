@@ -119,13 +119,10 @@ export function scrapeSchemaBehavior(schema: z.ZodTypeAny): BehaviorNode {
     return cached;
   }
   const behavior = getFieldBehavior(schema);
-  const isRootRecord = unwrapZodField(schema).schema?._def?.typeName === 'ZodRecord';
   const result: BehaviorNode =
     behavior.type === 'OBJECT'
       ? {type: 'OBJECT', shape: augmentRootObjectShape(schema, behavior.shape)}
-      : isRootRecord
-        ? {type: 'OBJECT', shape: augmentRootObjectShape(schema, {})}
-        : behavior;
+      : behavior;
   behaviorCache.set(schema, result);
   return result;
 }
@@ -379,11 +376,11 @@ function mergeUnionPropertyBehaviors(left: BehaviorNode, right: BehaviorNode): B
     }
     return left;
   }
-  if (
-    (left.type === 'STRUCTURAL' && right.type === 'STATIC') ||
-    (left.type === 'STATIC' && right.type === 'STRUCTURAL')
-  ) {
-    return {type: 'STRUCTURAL'};
+  if (left.type === 'STATIC') {
+    return right.type === 'DYNAMIC' ? {type: 'DYNAMIC'} : right;
+  }
+  if (right.type === 'STATIC') {
+    return left.type === 'DYNAMIC' ? {type: 'DYNAMIC'} : left;
   }
   return {type: 'STATIC'};
 }
@@ -530,6 +527,13 @@ function getFieldBehavior(type: z.ZodTypeAny, visited = new Set<z.ZodTypeAny>())
     return {
       type: 'ARRAY',
       element: getFieldBehavior(current._def.type as z.ZodTypeAny, nextVisited),
+    };
+  }
+
+  if (typeName === 'ZodRecord') {
+    return {
+      type: 'OBJECT',
+      shape: {},
     };
   }
 
@@ -1214,12 +1218,14 @@ export class GenericBinder<T> {
         return this.bindDynamicValue(value, path, isSync, behavior.isBoolean);
 
       case 'ACTION':
+        if (typeof value !== 'object' || Array.isArray(value)) return value;
         return this.bindAction(value, path);
 
       case 'STRUCTURAL':
         return this.bindStructuralTemplate(value, path, isSync);
 
       case 'CHECKABLE':
+        if (!Array.isArray(value)) return value;
         return this.bindCheckable(value, path, isSync, parentTarget);
 
       case 'STATIC':

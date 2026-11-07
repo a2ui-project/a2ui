@@ -2070,4 +2070,40 @@ describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
 
     resolver.dispose();
   });
+
+  it('resolves unannotated v0.8 entryPointChild and contentChild properties into ComponentNode instances', () => {
+    const V08ModalApi: ComponentApi = {
+      name: 'Modal',
+      schema: z.object({
+        entryPointChild: z.string(),
+        contentChild: z.string(),
+      }),
+    };
+    const V08TextApi: ComponentApi = {
+      name: 'Text',
+      schema: z.object({
+        text: z.string(),
+      }),
+    };
+
+    const v08Catalog = new Catalog<ComponentApi>('v08-custom', '0.8', [V08ModalApi, V08TextApi]);
+    const surface = new SurfaceModel('surf-v08', v08Catalog);
+    const resolver = new NodeResolver(surface, v08Catalog);
+
+    add(surface, 'root', 'Modal', {
+      entryPointChild: 'trigger-btn',
+      contentChild: 'dialog-body',
+    });
+    add(surface, 'trigger-btn', 'Text', {text: 'Open'});
+    add(surface, 'dialog-body', 'Text', {text: 'Modal Content'});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.ok(isComponentNode(props(root).entryPointChild));
+    assert.strictEqual((props(root).entryPointChild as ComponentNode).componentId, 'trigger-btn');
+    assert.ok(isComponentNode(props(root).contentChild));
+    assert.strictEqual((props(root).contentChild as ComponentNode).componentId, 'dialog-body');
+
+    resolver.dispose();
+  });
 });

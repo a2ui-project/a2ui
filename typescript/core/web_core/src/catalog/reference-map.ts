@@ -20,8 +20,8 @@ import {
   type ChildRefAnalysisOptions,
   canSchemaHoldListRef,
   canSchemaHoldSingleRef,
-  extractCatalogRefFields,
   extractRefDefName,
+  extractRefFields,
   getUnionOptions,
   isTemplateRefObject,
   unwrapZodField,
@@ -579,7 +579,7 @@ function inspectComponentSchema(
   if (!schema || typeof schema !== 'object') return;
 
   if ('_def' in schema && (schema as z.ZodTypeAny)._def) {
-    const refFields = extractCatalogRefFields(schema as z.ZodTypeAny, options);
+    const refFields = extractRefFields(schema as z.ZodTypeAny, options);
     for (const [key, refKind] of refFields) {
       if (refKind.kind === 'single') {
         acc.singleRefs.add(key);

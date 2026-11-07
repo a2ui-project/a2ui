@@ -18,13 +18,19 @@
  * @fileoverview Unit tests for component integrity checking and path syntax recursion validation.
  */
 
-import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
-import {getComponentReferences} from './integrity-checker.js';
-import {A2uiIntegrityError, A2uiRecursionError} from '../errors.js';
+import {describe, it} from 'node:test';
+
+import {z} from 'zod';
+
 import {buildComponentRefMap, ComponentRefMap} from '../catalog/reference-map.js';
+import {Catalog} from '../catalog/types.js';
 import {BASIC_COMPONENTS} from '../catalogs/basic/v1/components/basic_components.js';
+import {A2uiIntegrityError, A2uiRecursionError} from '../errors.js';
+import {ComponentModel} from '../state/component-model.js';
+import {SurfaceComponentsModel} from '../state/surface-components-model.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
+import {getComponentReferences} from './integrity-checker.js';
 
 describe('Integrity Verification', () => {
   describe('getComponentReferences', () => {
@@ -152,6 +158,57 @@ describe('Integrity Verification', () => {
         ['c3', 'sections[0].children[1]'],
         ['c4', 'sections[1].children[0]'],
       ]);
+    });
+
+    it('extracts only componentId from {componentId, "@path"} templates and passes strict validateTopology alongside z.object({}) containers', () => {
+      const catalog = new Catalog('v10-tmpl-cat', '1.0', [
+        {
+          name: 'Repeater',
+          schema: z.object({
+            children: z.object({componentId: z.string(), '@path': z.string()}),
+          }),
+        },
+        {
+          name: 'EmptyWrapper',
+          schema: z.object({}),
+        },
+        {
+          name: 'LeafText',
+          schema: z.object({text: z.string()}).strict(),
+        },
+      ]);
+
+      const refs = Array.from(
+        getComponentReferences(
+          {
+            id: 'root',
+            component: 'Repeater',
+            children: {componentId: 'wrapper', '@path': '/items'},
+          },
+          catalog,
+        ),
+      );
+      assert.deepEqual(refs, [['wrapper', 'children.componentId']]);
+
+      const model = new SurfaceComponentsModel(catalog);
+      model.addComponent(
+        new ComponentModel(
+          'root',
+          'Repeater',
+          {children: {componentId: 'wrapper', '@path': '/items'}},
+          catalog,
+        ),
+      );
+      model.addComponent(new ComponentModel('wrapper', 'EmptyWrapper', {child: 'leaf'}, catalog));
+      model.addComponent(new ComponentModel('leaf', 'LeafText', {text: 'Hi'}, catalog));
+
+      assert.doesNotThrow(() =>
+        model.validateTopology({
+          allowMissingRoot: false,
+          allowDanglingReferences: false,
+          allowOrphanComponents: false,
+        }),
+      );
     });
   });
 
