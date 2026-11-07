@@ -239,6 +239,11 @@ header.header {
   border-bottom: 1px solid var(--sl-color-hairline-light);
 }
 
+.sl-markdown-content th code {
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 :root[data-theme='light'] .sl-markdown-content th {
   color: #3c4043;
 }

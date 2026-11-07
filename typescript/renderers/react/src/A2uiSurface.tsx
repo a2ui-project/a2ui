@@ -24,20 +24,15 @@
  * implementation and child reference resolution, lives in `node-view.tsx`.
  */
 
-import React, {
-  useCallback,
-  useContext,
-  useLayoutEffect,
-  useMemo,
-  useSyncExternalStore,
-} from 'react';
+import React, {useCallback, useContext, useLayoutEffect, useMemo} from 'react';
 import {NodeResolver, effect, getValue, peekValue, type SurfaceModel} from '@a2ui/web_core/v0_9';
 import {setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
 import {prepareCatalogs} from './catalog/prepare_catalogs';
-import {ChildElement, HostedChildren, SurfaceContext, useA2uiSurface} from './node-view';
-import type {ReactCatalogComponent} from './react_component_implementation';
 import {MarkdownComponentContext, useMarkdownRenderer} from './markdown-context';
 import {registerMarkdownHostRenderer} from './markdown_hosts';
+import {ChildElement, HostedChildren, SurfaceContext, useA2uiSurface} from './node-view';
+import type {ReactCatalogComponent} from './react_component_implementation';
+import {useSyncExternalStore} from './use_sync_external_store';
 
 export {useA2uiSurface};
 

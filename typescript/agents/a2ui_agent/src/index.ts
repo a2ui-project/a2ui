@@ -103,6 +103,7 @@ export {
 
 export {CatalogConfig} from './processor/catalog-config.js';
 
+export {agentCallableFunctions} from './utils/agent-callable.js';
 export {resolveCatalogs} from './utils/catalog-resolver.js';
 
 // Renderer state and payload validation

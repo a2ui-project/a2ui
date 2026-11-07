@@ -131,6 +131,7 @@ __metadata:
     "@types/node": "npm:^25.9.3"
     "@types/uuid": "npm:^11.0.0"
     "@vitest/browser": "npm:^4.1.8"
+    axe-core: "npm:^4.14.0"
     cypress: "npm:^15.17.0"
     eslint: "npm:^10.4.1"
     google-artifactregistry-auth: "npm:^3.5.0"
@@ -332,12 +333,14 @@ __metadata:
   dependencies:
     "@a2ui/web_core": "workspace:*"
     "@types/dompurify": "npm:^3.2.0"
+    "@types/js-yaml": "npm:^4.0.9"
     "@types/jsdom": "npm:^28.0.3"
     "@types/markdown-it": "npm:^14.1.2"
     "@types/node": "npm:^25.9.3"
     dompurify: "npm:3.4.11"
     eslint: "npm:^10.4.1"
     gts: "npm:^7.0.0"
+    js-yaml: "npm:^4.1.0"
     jsdom: "npm:^29.1.1"
     markdown-it: "npm:^14.2.0"
     prettier: "npm:^3.8.4"
@@ -438,8 +441,8 @@ __metadata:
     wireit: "npm:^0.15.0-pre.2"
     zod: "npm:^3.25.76"
   peerDependencies:
-    react: ^18.0.0 || ^19.0.0
-    react-dom: ^18.0.0 || ^19.0.0
+    react: ^17.0.0 || ^18.0.0 || ^19.0.0
+    react-dom: ^17.0.0 || ^18.0.0 || ^19.0.0
     zod: ^3.25.76
   languageName: unknown
   linkType: soft
@@ -10748,6 +10751,13 @@ __metadata:
   version: 1.0.20
   resolution: "aws4fetch@npm:1.0.20"
   checksum: 10c0/a4eac7bd0d1c3e611c17ed1ef41ac0b48c0a8e74a985ad968c071e74d94586d3572edc943b43fa5ca756c686ea73baa2f48e264d657bb8c2e95c8e0037d48a87
+  languageName: node
+  linkType: hard
+
+"axe-core@npm:^4.14.0":
+  version: 4.14.0
+  resolution: "axe-core@npm:4.14.0"
+  checksum: 10c0/8aaa0bf748e0dcf202e8f837951a37b28b4b62d639bed58c07a6890bf035ed6a11ede9f4006db9ca8041db821dc80476c27cff08fd70afa9195ee58fb995a958
   languageName: node
   linkType: hard
 
