@@ -33,6 +33,12 @@ export interface DirectJsonParserOptions {
    * by default.
    */
   progressiveKeys?: Iterable<string>;
+  /**
+   * Whether a pre-v1.0 stream holds back incomplete components until their JSON object
+   * closes rather than healing them as they arrive. Components of v1.0+ catalogs are always
+   * held back regardless of this setting.
+   */
+  bufferIncompleteComponents?: boolean;
 }
 
 /** Parser for the Direct JSON format, for complete and streamed responses. */
@@ -41,6 +47,8 @@ export class DirectJsonParser extends Parser {
   readonly catalogs: CatalogApi[];
   /** The keys whose string values a stream heals while they arrive. */
   readonly progressiveKeys: ReadonlySet<string>;
+  /** Whether pre-v1.0 streams hold components until their JSON object closes. */
+  readonly bufferIncompleteComponents: boolean;
   private readonly decompiler = new DirectJsonDecompiler();
   private readonly lexer = new BlockLexer(
     OPEN_TAG,
@@ -61,6 +69,7 @@ export class DirectJsonParser extends Parser {
     checkParserCatalogs(catalogs);
     this.catalogs = catalogs;
     this.progressiveKeys = new Set(options.progressiveKeys ?? []);
+    this.bufferIncompleteComponents = options.bufferIncompleteComponents ?? false;
   }
 
   override get supportsStreaming(): boolean {

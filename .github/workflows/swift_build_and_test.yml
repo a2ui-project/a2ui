@@ -56,7 +56,7 @@ jobs:
       - name: Run tests
         env:
           A2UI_CONFORMANCE_MANIFEST_DIR: ${{ runner.temp }}/a2ui-manifest
-        run: swift test --enable-swift-testing
+        run: swift test --enable-swift-testing --no-parallel
       - name: Set up Python
         uses: ./.github/actions/setup-python
       - name: Check executed conformance cases
