@@ -89,6 +89,10 @@ const fallbackHostDirective = directive(FallbackHostDirective);
  * an adapter to fill with its own fallback view (through a portal or an embedded view). A
  * parent re-render keeps the element at its position and assigns `properties` again. A host
  * the adapter leaves `:empty` (an Angular template that rendered no node) takes no List item.
+ *
+ * `properties` are JavaScript properties the adapter's host element reads (for example the
+ * view to mount), assigned as Lit's `.prop` bindings would be. They are not HTML attributes:
+ * `class` or `style` here would not set the attribute.
  */
 export function fallbackHost(
   tagName: string,
