@@ -6,10 +6,11 @@
   "scripts": {
     "predev": "node scripts/prepare-spec-assets.mjs",
     "dev": "astro dev",
+    "test": "node tests/check-links.test.mjs",
     "verify:specs": "node scripts/verify-spec-links.mjs",
-    "check:anchors": "node scripts/check-anchors.mjs",
+    "check:links": "node scripts/check-links.mjs",
     "prebuild": "node scripts/prepare-spec-assets.mjs && node scripts/verify-spec-links.mjs",
-    "build": "astro build && node scripts/verify-spec-links.mjs --check-dist && node scripts/check-anchors.mjs",
+    "build": "astro build && node scripts/verify-spec-links.mjs --check-dist && node scripts/check-links.mjs",
     "check": "node scripts/prepare-spec-assets.mjs && node scripts/verify-spec-links.mjs",
     "preview": "astro preview"
   },
