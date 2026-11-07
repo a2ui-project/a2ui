@@ -1,6 +1,6 @@
 # How the staleness ping job works
 
-The staleness ping job asks the assignees of [stale items](../core.blueprint.md#stale-items) to act before the item is flagged for triage. It is a separate job from the [flagging script](flagging.blueprint.md), which only reads the pings to decide when to flag.
+The staleness ping job asks the assignees of [stale items](../core.blueprint.md#stale-items) to act before the item is flagged for triage. 
 
 The job runs daily. For each stale item without a [current ping](../core.blueprint.md#staleness-pings), it does the following:
 
@@ -8,6 +8,22 @@ The job runs daily. For each stale item without a [current ping](../core.bluepri
 2. Sends a message to the team's Google Chat space.
 
 The job keeps no state between runs. It finds its earlier pings by the marker in its comments, and uses the comment's creation time as the time of the ping.
+
+## Staleness pings
+
+A **staleness ping** is a triage bot comment that the staleness-ping job posts on a stale item, marked with the item's case.
+
+A ping is **current** when it was posted for the item's current case after that case's clock started: the latest `status: assigned-for-triage` labeling for case 1, or the last **out-of-team contributor** contribution for cases 2 and 3.
+
+A current ping is **expired** when it is older than the grace period of its case and the item is still stale.
+
+## Stale items
+
+An open issue or PR is **stale** when it matches one of these cases:
+
+1. **Triage assignment.** It has `status: assigned-for-triage`, at least one assignee, and the label was last added more than 14 days ago. Grace period: 7 days.
+2. **Inactive `P0`.** It is an issue with `P0`, at least one assignee, and no team member contribution for more than 1 day. Grace period: 1 day.
+3. **Inactive `P1`.** It is an issue with `P1`, at least one assignee, and no team member contribution for more than 30 days. Grace period: 7 days.
 
 ## The GitHub comment
 
@@ -35,8 +51,7 @@ The job reads two repository secrets:
 
 ## Failures and duplicates
 
-1. If the GitHub comment fails, there is no ping. The job logs the error and tries again on the next run.
-2. If the Chat message fails, the job logs the error and does not retry, because the GitHub comment already records the ping.
-3. Runs of the job must not overlap. Before posting, the job reads the item's comments again and skips the ping if a current one is already there.
+1. If the GitHub comment fails, a GitHub issue with error details should be created.
+2. If the Chat message fails, the job logs the error and does not retry.
 
 The job prints each item it pings, the case, and the assignees it mentioned.
