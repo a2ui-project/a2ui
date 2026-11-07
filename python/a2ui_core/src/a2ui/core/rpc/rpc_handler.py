@@ -493,6 +493,25 @@ class RpcHandler:
         self._emit_outbound_response(resp.model_dump(by_alias=True, exclude_unset=True))
         return resp
 
+    @staticmethod
+    def _scope_call_context(
+        context: DataContext | None, matched_catalog: Any
+    ) -> DataContext | None:
+        """Returns `context` scoped to `matched_catalog`'s ID when available."""
+        if context is None or matched_catalog is None:
+            return context
+        catalog_id = getattr(matched_catalog, "catalog_id", None)
+        with_catalog = getattr(context, "with_active_catalog_id", None)
+        if isinstance(catalog_id, str) and callable(with_catalog):
+            try:
+                return cast(
+                    DataContext,
+                    with_catalog(catalog_id, catalog=matched_catalog),
+                )
+            except TypeError:
+                return cast(DataContext, with_catalog(catalog_id))
+        return context
+
     def _execute_function_safely(
         self,
         fn: Any,
@@ -524,11 +543,12 @@ class RpcHandler:
                 prepared.validated_args if prepared.validated_args is not None else args
             )
             has_pos_context, has_kw_context = self._inspect_call_signature(target_fn)
+            call_context = self._scope_call_context(effective_context, matched_catalog)
             raw_res = (
-                target_fn(fn_args, effective_context)
+                target_fn(fn_args, call_context)
                 if has_pos_context
                 else (
-                    target_fn(fn_args, context=effective_context)
+                    target_fn(fn_args, context=call_context)
                     if has_kw_context
                     else target_fn(fn_args)
                 )
@@ -595,11 +615,12 @@ class RpcHandler:
                 prepared.validated_args if prepared.validated_args is not None else args
             )
             has_pos_context, has_kw_context = self._inspect_call_signature(target_fn)
+            call_context = self._scope_call_context(effective_context, matched_catalog)
             raw_res = (
-                target_fn(fn_args, effective_context)
+                target_fn(fn_args, call_context)
                 if has_pos_context
                 else (
-                    target_fn(fn_args, context=effective_context)
+                    target_fn(fn_args, context=call_context)
                     if has_kw_context
                     else target_fn(fn_args)
                 )

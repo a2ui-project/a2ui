@@ -13,15 +13,18 @@
 # limitations under the License.
 
 import asyncio
-import pytest
 from typing import Any, cast
 
+import pytest
+
+from a2ui.core.basic_catalog import v1_0
 from a2ui.core.catalog import Catalog, FunctionApi, FunctionImplementation
 from a2ui.core.exceptions import A2uiRpcError, RpcErrorCode
 from a2ui.core.resolution import DataContext
 from a2ui.core.rpc import CallOptions, RpcHandler
 from a2ui.core.schema.v1_0 import CallRendererFunction, CallRendererFunctionMessage
 from a2ui.core.schema.v1_0.common_types import FunctionCall
+from a2ui.core.state import SurfaceModel
 
 
 def test_rpc_handler_initialization_and_disposal() -> None:
@@ -602,3 +605,132 @@ async def test_rpc_handler_dispose_cancels_rejects_and_clears_listener() -> None
         handler.call_agent_function(surface_id="s1", call=FunctionCall(call="later"))
     assert refused.value.code == RpcErrorCode.DISPOSED.value
     assert len(sent) == 1
+
+
+@pytest.mark.asyncio
+async def test_rpc_handler_concurrent_async_calls_isolate_active_catalog_id() -> None:
+    started_a = asyncio.Event()
+    release_a = asyncio.Event()
+
+    async def slow_fn(
+        args: dict[str, Any], context: DataContext | None = None
+    ) -> list[str | None]:
+        assert context is not None
+        before = context.active_catalog_id
+        started_a.set()
+        await release_a.wait()
+        return [before, context.active_catalog_id]
+
+    async def fast_fn(
+        args: dict[str, Any], context: DataContext | None = None
+    ) -> str | None:
+        assert context is not None
+        await started_a.wait()
+        seen = context.active_catalog_id
+        release_a.set()
+        return seen
+
+    cat_a = Catalog(
+        "cat-a",
+        protocol_version="1.0",
+        functions=[
+            FunctionImplementation(
+                name="slowFn", execute=slow_fn, allowed_callers="agentOnly"
+            )
+        ],
+    )
+    cat_b = Catalog(
+        "cat-b",
+        protocol_version="1.0",
+        functions=[
+            FunctionImplementation(
+                name="fastFn", execute=fast_fn, allowed_callers="agentOnly"
+            )
+        ],
+    )
+    surface = SurfaceModel(
+        "s1",
+        default_catalog=None,
+        available_catalogs={"cat-a": cat_a, "cat-b": cat_b},
+        protocol_version="1.0",
+    )
+    shared_ctx = DataContext(surface=surface, path="/")
+    handler = RpcHandler([cat_a, cat_b])
+
+    resp_a, resp_b = await asyncio.gather(
+        handler.handle_call_renderer_function_async(
+            CallRendererFunctionMessage(
+                version="1.0",
+                call_renderer_function=CallRendererFunction(
+                    function_call_id="call-a",
+                    call_function=FunctionCall(call="slowFn", catalog_id="cat-a"),
+                ),
+            ),
+            context=shared_ctx,
+        ),
+        handler.handle_call_renderer_function_async(
+            CallRendererFunctionMessage(
+                version="1.0",
+                call_renderer_function=CallRendererFunction(
+                    function_call_id="call-b",
+                    call_function=FunctionCall(call="fastFn", catalog_id="cat-b"),
+                ),
+            ),
+            context=shared_ctx,
+        ),
+    )
+
+    assert resp_a["rendererFunctionResponse"]["value"] == ["cat-a", "cat-a"]
+    assert resp_b["rendererFunctionResponse"]["value"] == "cat-b"
+    assert shared_ctx.active_catalog_id is None
+
+
+def test_rpc_handler_standalone_catalog_resolves_nested_template_calls() -> None:
+    basic_format_string = v1_0.BasicCatalog().get_function("formatString")
+    assert basic_format_string is not None
+
+    rpc_cat = Catalog(
+        "rpc-only-cat",
+        protocol_version="1.0",
+        functions=[
+            FunctionImplementation(
+                name="renderTemplate",
+                execute=lambda args, context=None, *_: basic_format_string.execute(
+                    args, context
+                ),
+                allowed_callers="agentOnly",
+            ),
+            FunctionImplementation(
+                name="rpcHelper",
+                execute=lambda args, context=None, *_: "from-rpc-cat",
+                allowed_callers="rendererOrAgent",
+            ),
+        ],
+    )
+    surface_cat = Catalog("surface-cat", protocol_version="1.0")
+    surface = SurfaceModel(
+        "s-rpc-standalone",
+        default_catalog=surface_cat,
+        available_catalogs={"surface-cat": surface_cat},
+        protocol_version="1.0",
+    )
+    ctx = DataContext(surface=surface, path="/")
+    handler = RpcHandler([rpc_cat])
+
+    resp = handler.handle_call_renderer_function(
+        CallRendererFunctionMessage(
+            version="1.0",
+            call_renderer_function=CallRendererFunction(
+                function_call_id="call-standalone",
+                call_function=FunctionCall(
+                    call="renderTemplate",
+                    catalog_id="rpc-only-cat",
+                    args={"value": "Hello ${rpcHelper()}"},
+                ),
+            ),
+        ),
+        context=ctx,
+    )
+
+    assert resp["rendererFunctionResponse"]["value"] == "Hello from-rpc-cat"
+    assert ctx.active_catalog_id is None
