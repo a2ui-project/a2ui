@@ -40,6 +40,7 @@ class _CaseEntry {
     String? xfailedReason;
     var hasXfailed = false;
     var hasPassed = false;
+    var hasUnreasonedSkip = false;
     String? skippedReason;
 
     for (final _VersionOutcome outcome in outcomes.values) {
@@ -54,7 +55,11 @@ class _CaseEntry {
           hasPassed = true;
           skippedReason ??= outcome.reason;
         case 'skipped':
-          skippedReason ??= outcome.reason;
+          if (outcome.reason == null || outcome.reason!.trim().isEmpty) {
+            hasUnreasonedSkip = true;
+          } else {
+            skippedReason ??= outcome.reason;
+          }
       }
     }
 
@@ -63,6 +68,9 @@ class _CaseEntry {
     }
     if (hasXfailed) {
       return ('xfailed', xfailedReason ?? skippedReason);
+    }
+    if (hasUnreasonedSkip) {
+      return ('skipped', null);
     }
     if (hasPassed) {
       return ('passed', skippedReason);
