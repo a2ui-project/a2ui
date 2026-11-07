@@ -24,6 +24,7 @@ otherwise valid JSON is kept.
 from __future__ import annotations
 
 from collections.abc import Callable, Collection
+import math
 import re
 from typing import Any, NoReturn, TypeVar, cast
 
@@ -590,12 +591,15 @@ class _Reader:
         literal = self.text[start : self._i]
         if not _NUMBER_RE.match(literal):
             self._fail(f"invalid number '{literal}'")
-        try:
-            if "." in literal or "e" in literal or "E" in literal:
-                return float(literal)
-            return int(literal)
-        except ValueError:
-            self._fail(f"invalid number '{literal}'")
+        if "." not in literal and "e" not in literal and "E" not in literal:
+            try:
+                return int(literal)
+            except ValueError:
+                self._fail(f"invalid number '{literal}'")
+        value = float(literal)
+        if not math.isfinite(value):
+            self._fail(f"number '{literal}' is out of range")
+        return value
 
     def _skip_space(self) -> None:
         while not self._at_end and self.text[self._i] in " \t\n\r":
