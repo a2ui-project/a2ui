@@ -47,12 +47,12 @@ import {
 } from '../common/settle_deep.js';
 
 import {FunctionInvoker} from '../catalog/function_invoker.js';
-import {resolveSurfaceCatalog} from '../state/resolve-surface-catalog.js';
-import {SurfaceModel} from '../state/surface-model.js';
-
 import {Catalog, CatalogInterface} from '../catalog/types.js';
 import {SpecVersion} from '../spec_versions.js';
+import {resolveSurfaceCatalog} from '../state/resolve-surface-catalog.js';
+import {SurfaceModel} from '../state/surface-model.js';
 import {IndexApi, SYSTEM_FUNCTIONS} from '../v1_0/functions/system_functions.js';
+import {registerDataContextInternals, type DataContextFlags} from './data-context-internal.js';
 
 const schemaKeysCache = new WeakMap<z.ZodTypeAny, Set<string> | null>();
 
@@ -408,8 +408,24 @@ export class DataContext {
   private _isActionExecution = false;
   /** Whether calls the renderer does not implement must fail instead of going to the agent. */
   private _noAgentRouting = false;
+  /** Catalog ID of the currently executing catalog function, if any. */
+  private _activeCatalogId?: string;
+  /** Catalog instance of the currently executing catalog function, if any. */
+  private _activeCatalog?: Catalog<any>;
 
   readonly surface?: SurfaceModel<any>;
+
+  static {
+    registerDataContextInternals({
+      withFlags: (ctx, flags) => ctx.withFlags(flags),
+      resolveValue: (ctx, value, depth, userActivated, keepPending) =>
+        ctx.resolveValue(value, depth, userActivated, keepPending),
+      allowsAgentRouting: ctx => ctx.allowsAgentRouting,
+      resolveSignalValue: (ctx, value, depth, keepPending) =>
+        ctx.resolveSignalValue(value, depth, keepPending),
+      activeCatalogId: ctx => ctx.activeCatalogId,
+    });
+  }
 
   /**
    * Initializes a new DataContext instance.
@@ -736,8 +752,15 @@ export class DataContext {
     // The evaluation flags are fixed on a scoped view of this context, so
     // the function and the error handling that run after pending arguments
     // settle see the same flags as a synchronous call.
+    const activeCatalogId = !callName.startsWith('@') ? targetCatalog.id : undefined;
     const scope =
-      userActivated && !this.isUserActivated ? this.withFlags({userActivated: true}) : this;
+      (userActivated && !this.isUserActivated) || activeCatalogId !== undefined
+        ? this.withFlags({
+            userActivated: userActivated && !this.isUserActivated,
+            activeCatalogId,
+            activeCatalog: activeCatalogId !== undefined ? targetCatalog : undefined,
+          })
+        : this;
     const result = scope.evaluateFunctionReactive<V>(
       callName,
       args,
@@ -956,7 +979,12 @@ export class DataContext {
       // A binding evaluates passively. The flag is fixed on a scoped view of
       // this context, so the function and the error handling that run after
       // pending arguments settle see it too.
-      const scope = this.withFlags({passive: true});
+      const activeCatalogId = !callName.startsWith('@') ? targetCatalog.id : undefined;
+      const scope = this.withFlags({
+        passive: true,
+        activeCatalogId,
+        activeCatalog: activeCatalogId !== undefined ? targetCatalog : undefined,
+      });
       const argSignals: Record<string, Signal<unknown>> = {};
 
       for (const [key, argVal] of Object.entries(call.args ?? {})) {
@@ -1373,11 +1401,18 @@ export class DataContext {
         `No surface available to resolve catalog: ${catalogId ?? 'default'}`,
       );
     }
-    return resolveSurfaceCatalog(
-      this.surface,
-      this.atLeastV10 ? catalogId : undefined,
-      `Function call '${name}'`,
-    );
+    const effectiveCatalogId = this.atLeastV10 ? catalogId : undefined;
+    try {
+      return resolveSurfaceCatalog(this.surface, effectiveCatalogId, `Function call '${name}'`);
+    } catch (e: unknown) {
+      if (e instanceof A2uiCatalogError && typeof effectiveCatalogId === 'string') {
+        const activeCatalog = this.lookupActiveCatalog(effectiveCatalogId);
+        if (activeCatalog) {
+          return activeCatalog;
+        }
+      }
+      throw e;
+    }
   }
 
   /**
@@ -1421,18 +1456,39 @@ export class DataContext {
    * @param flags The flags to add to those of this context.
    * @returns The view.
    */
-  private withFlags(flags: {
-    userActivated?: boolean;
-    passive?: boolean;
-    action?: boolean;
-    noAgentRouting?: boolean;
-  }): this {
+  private withFlags(flags: DataContextFlags): this {
     const view = Object.create(this) as this;
     view._isUserActivated = this._isUserActivated || Boolean(flags.userActivated);
     view._isPassiveEvaluation = this._isPassiveEvaluation || Boolean(flags.passive);
     view._isActionExecution = this._isActionExecution || Boolean(flags.action);
     view._noAgentRouting = this._noAgentRouting || Boolean(flags.noAgentRouting);
+    view._activeCatalogId = flags.activeCatalogId ?? this._activeCatalogId;
+    view._activeCatalog =
+      flags.activeCatalog !== undefined
+        ? flags.activeCatalog
+        : flags.activeCatalogId !== undefined && flags.activeCatalogId !== this._activeCatalogId
+          ? undefined
+          : this._activeCatalog;
     return view;
+  }
+
+  /**
+   * The catalog ID of the catalog function currently executing in this context
+   * or an ancestor context, if any.
+   */
+  private get activeCatalogId(): string | undefined {
+    return this._activeCatalogId ?? this.parent?.activeCatalogId;
+  }
+
+  /**
+   * Looks up a scoped active `Catalog` instance matching `catalogId` on this
+   * context or an ancestor context.
+   */
+  private lookupActiveCatalog(catalogId: string): Catalog<any> | undefined {
+    if (this._activeCatalog?.id === catalogId) {
+      return this._activeCatalog;
+    }
+    return this.parent?.lookupActiveCatalog(catalogId);
   }
 
   /**

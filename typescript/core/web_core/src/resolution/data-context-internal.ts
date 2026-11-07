@@ -19,8 +19,53 @@
  * arguments. Not exported from any entry point of the package.
  */
 
+import type {Catalog} from '../catalog/types.js';
 import type {Signal} from '../reactivity/signals.js';
 import type {DataContext} from './data-context.js';
+
+/** Evaluation flags carried by a scoped `DataContext` view. */
+export interface DataContextFlags {
+  userActivated?: boolean;
+  passive?: boolean;
+  action?: boolean;
+  noAgentRouting?: boolean;
+  activeCatalogId?: string;
+  activeCatalog?: Catalog<any>;
+}
+
+/** Dotted delegates registered by `DataContext` so private members survive Closure renaming. */
+interface DataContextInternals {
+  withFlags(ctx: DataContext, flags: DataContextFlags): DataContext;
+  resolveValue(
+    ctx: DataContext,
+    value: unknown,
+    depth: number,
+    userActivated: boolean,
+    keepPending: boolean,
+  ): unknown;
+  allowsAgentRouting(ctx: DataContext): boolean;
+  resolveSignalValue(
+    ctx: DataContext,
+    value: unknown,
+    depth: number,
+    keepPending: boolean,
+  ): Signal<unknown>;
+  activeCatalogId(ctx: DataContext): string | undefined;
+}
+
+let internals: DataContextInternals | undefined;
+
+function getInternals(): DataContextInternals {
+  if (!internals) {
+    throw new Error('DataContext internals have not been registered.');
+  }
+  return internals;
+}
+
+/** Registers `DataContext`'s package-internal callbacks from its `static` initializer. */
+export function registerDataContextInternals(impl: DataContextInternals): void {
+  internals = impl;
+}
 
 /**
  * Resolves a value once, as an argument of a function call.
@@ -43,9 +88,10 @@ export function resolveArgumentValue(
   userActivated: boolean,
   options?: {allowAgentRouting?: boolean},
 ): unknown {
+  const impl = getInternals();
   const scope =
-    options?.allowAgentRouting === false ? ctx['withFlags']({noAgentRouting: true}) : ctx;
-  return scope['resolveValue'](value, depth, userActivated, true);
+    options?.allowAgentRouting === false ? impl.withFlags(ctx, {noAgentRouting: true}) : ctx;
+  return impl.resolveValue(scope, value, depth, userActivated, true);
 }
 
 /**
@@ -57,7 +103,7 @@ export function resolveArgumentValue(
  * @returns Whether the call may be routed.
  */
 export function allowsAgentRouting(ctx: DataContext): boolean {
-  return ctx['allowsAgentRouting'];
+  return getInternals().allowsAgentRouting(ctx);
 }
 
 /**
@@ -72,7 +118,7 @@ export function allowsAgentRouting(ctx: DataContext): boolean {
  * @returns The Signal, whose `unsubscribe` ends its subscriptions.
  */
 export function resolveSignalKeepingPending(ctx: DataContext, value: unknown): Signal<unknown> {
-  return ctx['resolveSignalValue'](value, 0, true);
+  return getInternals().resolveSignalValue(ctx, value, 0, true);
 }
 
 /**
@@ -83,5 +129,33 @@ export function resolveSignalKeepingPending(ctx: DataContext, value: unknown): S
  * @returns The view.
  */
 export function withoutAgentRouting(ctx: DataContext): DataContext {
-  return ctx['withFlags']({noAgentRouting: true});
+  return getInternals().withFlags(ctx, {noAgentRouting: true});
+}
+
+/**
+ * Returns the catalog ID of the catalog function currently executing in `ctx`,
+ * if any.
+ *
+ * @param ctx The context to inspect.
+ * @returns The active catalog ID, or `undefined`.
+ */
+export function activeCallCatalogId(ctx: DataContext): string | undefined {
+  return getInternals().activeCatalogId(ctx);
+}
+
+/**
+ * Returns a view of `ctx` scoped to `catalogId` as the active function catalog.
+ *
+ * @param ctx The context to evaluate in.
+ * @param catalogId The catalog ID of the executing function.
+ * @param catalog Optional catalog instance so standalone RPC or direct invoker
+ *   catalogs not registered in `surface.availableCatalogs` still resolve nested calls.
+ * @returns The view.
+ */
+export function withActiveCallCatalogId(
+  ctx: DataContext,
+  catalogId: string,
+  catalog?: Catalog<any>,
+): DataContext {
+  return getInternals().withFlags(ctx, {activeCatalogId: catalogId, activeCatalog: catalog});
 }

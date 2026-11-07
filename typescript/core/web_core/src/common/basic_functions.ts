@@ -27,7 +27,7 @@ import {createFunctionImplementation, FunctionImplementation} from '../catalog/t
 import {coerceDynamicBoolean} from '../catalog/validation_result_coercion.js';
 import {A2uiExpressionError} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
-import {withoutAgentRouting} from '../resolution/data-context-internal.js';
+import {activeCallCatalogId, withoutAgentRouting} from '../resolution/data-context-internal.js';
 import {isAtLeastVersion} from './semver.js';
 import {MAX_REGEX_VALUE_CODE_POINTS, analyzeRegex, countCodePoints} from './regex_subset.js';
 
@@ -447,23 +447,50 @@ export function executeNot(value: unknown, truthy: TruthyFn = coerceDynamicBoole
   return !truthy(value);
 }
 
-function adaptAstPartForV10(part: any): any {
-  if (typeof part !== 'object' || part === null || Array.isArray(part)) {
+function defineOwn(target: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(target, key, {value, enumerable: true, writable: true, configurable: true});
+}
+
+function adaptAstPartForV10(part: any, catalogId?: string): any {
+  if (Array.isArray(part)) {
+    return part.map(item => adaptAstPartForV10(item, catalogId));
+  }
+  if (typeof part !== 'object' || part === null) {
     return part;
   }
-  if ('path' in part && typeof part.path === 'string' && !('@path' in part)) {
+  if (
+    typeof part.path === 'string' &&
+    part.componentId === undefined &&
+    part['@path'] === undefined
+  ) {
     return {'@path': part.path};
   }
-  if ('call' in part && typeof part.call === 'string' && !('@call' in part)) {
+  const hasCall = typeof part.call === 'string';
+  const hasAtCall = typeof part['@call'] === 'string';
+  const callName: string | undefined =
+    hasCall && !hasAtCall ? part.call : hasAtCall ? part['@call'] : undefined;
+  if (callName !== undefined) {
     const args: Record<string, unknown> = {};
-    if (part.args && typeof part.args === 'object') {
+    if (part.args && typeof part.args === 'object' && !Array.isArray(part.args)) {
       for (const [k, v] of Object.entries(part.args)) {
-        args[k] = adaptAstPartForV10(v);
+        defineOwn(args, k, adaptAstPartForV10(v, catalogId));
       }
     }
-    return {'@call': part.call, args, returnType: part.returnType};
+    const resolvedCatalogId: unknown =
+      part.catalogId !== undefined && part.catalogId !== null
+        ? part.catalogId
+        : catalogId !== undefined && !callName.startsWith('@')
+          ? catalogId
+          : undefined;
+    return resolvedCatalogId !== undefined
+      ? {'@call': callName, args, catalogId: resolvedCatalogId}
+      : {'@call': callName, args};
   }
-  return part;
+  const adaptedObj: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(part)) {
+    defineOwn(adaptedObj, k, adaptAstPartForV10(v, catalogId));
+  }
+  return adaptedObj;
 }
 
 /** Formats a template string by resolving embedded expressions. */
@@ -480,6 +507,7 @@ export function executeFormatString(
     context.surface?.protocolVersion ?? context.surface?.defaultCatalog?.protocolVersion,
     '1.0',
   );
+  const catalogId = atLeastV10 ? activeCallCatalogId(context) : undefined;
   // A template part never waits for the agent: from v1.0, a part that calls
   // a function the renderer does not implement fails with an
   // `EXPRESSION_ERROR` naming it, sends nothing, and renders empty.
@@ -488,7 +516,7 @@ export function executeFormatString(
     if (typeof part !== 'object' || part === null || Array.isArray(part)) {
       return part;
     }
-    const adapted = atLeastV10 ? adaptAstPartForV10(part) : part;
+    const adapted = atLeastV10 ? adaptAstPartForV10(part, catalogId) : part;
     return partContext.resolveSignal(adapted);
   });
 
