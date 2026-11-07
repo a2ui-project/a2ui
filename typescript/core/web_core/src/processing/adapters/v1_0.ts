@@ -74,6 +74,28 @@ export class V1Point0Adapter extends BaseVersionAdapter {
     return [...INTERNAL_OPERATION_TYPES];
   }
 
+  protected override preparePayloadForValidation(
+    msgObj: Record<string, unknown>,
+    options?: {allowUnknownElements?: boolean},
+  ): Record<string, unknown> {
+    const payload = super.preparePayloadForValidation(msgObj, options);
+    const allowUnknownElements = options ? (options.allowUnknownElements ?? false) : true;
+    if (
+      allowUnknownElements &&
+      typeof payload.createSurface === 'object' &&
+      payload.createSurface !== null &&
+      !Array.isArray(payload.createSurface)
+    ) {
+      const cs = payload.createSurface as Record<string, unknown>;
+      if ('theme' in cs) {
+        const withoutTheme = {...cs};
+        delete withoutTheme.theme;
+        return {...payload, createSurface: withoutTheme};
+      }
+    }
+    return payload;
+  }
+
   protected extractOperationsFromObject(msgObj: Record<string, unknown>): InternalOperation[] {
     const ops: InternalOperation[] = [];
     if ('createSurface' in msgObj) {

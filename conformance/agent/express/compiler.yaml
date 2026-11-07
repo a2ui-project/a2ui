@@ -2205,3 +2205,85 @@
     root = Text("Hello", extensions={onTap: Event("tap")})
   expect_error:
     category: "ValidationError"
+
+- name: test_compile_express_standalone_call_renderer_or_agent_function
+  description: A standalone call to a function with allowedCallers set to rendererOrAgent compiles to callRendererFunction.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: 'notify("Saved")'
+  expect:
+    - version: "1.0"
+      callRendererFunction:
+        functionCallId: "call_1"
+        callFunction:
+          catalogId: "conformance/agent_functions"
+          "@call": "notify"
+          args:
+            message: "Saved"
+
+- name: test_compile_express_standalone_call_agent_only_function
+  description: A standalone call to a function with allowedCallers set to agentOnly compiles to callRendererFunction.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: 'peek("mood")'
+  expect:
+    - version: "1.0"
+      callRendererFunction:
+        functionCallId: "call_1"
+        callFunction:
+          catalogId: "conformance/agent_functions"
+          "@call": "peek"
+          args:
+            key: "mood"
+
+- name: test_compile_express_standalone_call_renderer_only_function_is_validation_error
+  description: A standalone call to a function whose allowedCallers defaults to rendererOnly is rejected with a ValidationError naming the function.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'formatString("abc")'
+  expect_error:
+    category: "ValidationError"
+    message: "formatString"
+
+- name: test_compile_express_standalone_call_user_activation_function_is_validation_error
+  description: A standalone call to a function that requires user activation is rejected with a ValidationError naming the function.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'openUrl("https://example.com")'
+  expect_error:
+    category: "ValidationError"
+    message: "openUrl"
+
+- name: test_compile_express_renderer_only_function_in_component_check_is_allowed
+  description: A rendererOnly function remains allowed inside a component validation check evaluated on the renderer.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/forms_catalog_v1_0.json"
+  input: 'root = TextField("Name", $/name, _, [?required("Name is required")])'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/forms"
+        components:
+          - id: "root"
+            component: "TextField"
+            label: "Name"
+            value:
+              "@path": "/name"
+            checks:
+              - condition:
+                  "@call": "required"
+                  args:
+                    value:
+                      "@path": "/name"
+                message: "Name is required"

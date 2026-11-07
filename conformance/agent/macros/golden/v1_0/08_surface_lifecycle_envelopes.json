@@ -1,0 +1,41 @@
+[
+  {
+    "version": "1.0",
+    "createSurface": {
+      "surfaceId": "conformance",
+      "catalogId": "org.a2ui.basic"
+    }
+  },
+  {
+    "version": "1.0",
+    "updateComponents": {
+      "surfaceId": "conformance",
+      "components": [
+        {
+          "component": "Text",
+          "id": "root__text_1",
+          "text": "READY",
+          "variant": "caption"
+        },
+        {
+          "component": "Text",
+          "id": "root__text_2",
+          "text": "System",
+          "variant": "body"
+        },
+        {
+          "component": "Row",
+          "id": "root__row_1",
+          "children": ["root__text_1", "root__text_2"],
+          "justify": "start",
+          "align": "stretch"
+        },
+        {
+          "component": "Card",
+          "id": "root",
+          "child": "root__row_1"
+        }
+      ]
+    }
+  }
+]
