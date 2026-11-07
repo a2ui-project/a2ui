@@ -22,7 +22,12 @@ import {gfmFromMarkdown} from 'mdast-util-gfm';
 import {gfm} from 'micromark-extension-gfm';
 import {visit} from 'unist-util-visit';
 
-import {findRepoRoot, resolveSchemaExplorerUrl, SPEC_DOC_ROUTES} from '../lib/spec-schemas.mjs';
+import {
+  findRepoRoot,
+  normalizeBasePrefix,
+  resolveSchemaExplorerUrl,
+  SPEC_DOC_ROUTES,
+} from '../lib/spec-schemas.mjs';
 
 const repoRoot = findRepoRoot();
 const contentDocsRoot = path.join(repoRoot, 'docs/site/src/content/docs');
@@ -124,18 +129,21 @@ function cleanIncludedSpecMarkdown(markdown) {
  * file or the included `specification/...` / `catalogs/...` file on disk).
  */
 export function resolveAstUrl(rawTarget, originFilePath, options = {}) {
-  if (!rawTarget || /^(?:https?:|mailto:|tel:|data:|javascript:|\/\/|#)/i.test(rawTarget)) {
+  if (!rawTarget || /^(?:[a-zA-Z][a-zA-Z0-9+.-]+:|\/\/|#)/.test(rawTarget)) {
     return rawTarget;
   }
 
   const githubBaseUrl = 'https://github.com/a2ui-project/a2ui/blob/main';
-  const rawBaseOption = options.base ?? process.env.ASTRO_BASE ?? '';
-  const basePrefix = String(rawBaseOption).replace(/\/+$/, '');
+  const basePrefix = normalizeBasePrefix(options.base ?? process.env.ASTRO_BASE ?? '');
 
   const hashIdx = rawTarget.indexOf('#');
-  const rawBase = hashIdx === -1 ? rawTarget : rawTarget.slice(0, hashIdx);
+  const withoutHash = hashIdx === -1 ? rawTarget : rawTarget.slice(0, hashIdx);
   const rawAnchor = hashIdx === -1 ? '' : rawTarget.slice(hashIdx + 1);
   const anchor = rawAnchor ? `#${rawAnchor}` : '';
+
+  const queryIdx = withoutHash.indexOf('?');
+  const rawBase = queryIdx === -1 ? withoutHash : withoutHash.slice(0, queryIdx);
+  const search = queryIdx === -1 ? '' : withoutHash.slice(queryIdx);
 
   if (!rawBase) {
     return rawTarget;
@@ -144,7 +152,7 @@ export function resolveAstUrl(rawTarget, originFilePath, options = {}) {
   // Handle already root-relative site paths by prepending ASTRO_BASE when configured
   if (rawBase.startsWith('/')) {
     if (basePrefix && rawBase !== basePrefix && !rawBase.startsWith(`${basePrefix}/`)) {
-      return `${basePrefix}${rawBase}${anchor}`;
+      return `${basePrefix}${rawBase}${search}${anchor}`;
     }
     return rawTarget;
   }
@@ -158,14 +166,18 @@ export function resolveAstUrl(rawTarget, originFilePath, options = {}) {
   const originIsContentDoc = originRelToRepo.startsWith('docs/site/src/content/docs/');
 
   if (originIsContentDoc) {
-    // 1a. Explicit file links inside `src/content/docs/` (e.g. `./v1.0-schemas.mdx`)
+    // 1a. Explicit file links inside `src/content/docs/` (e.g. `./v1.0-schemas.mdx`);
+    // preserve colocated non-Markdown assets (e.g. `./diagram.png`) for Astro's image pipeline.
     if (
       relToRepo.startsWith('docs/site/src/content/docs/') &&
       fs.existsSync(resolvedAbs) &&
       fs.statSync(resolvedAbs).isFile()
     ) {
+      if (!/\.(?:md|mdx)$/i.test(resolvedAbs)) {
+        return rawTarget;
+      }
       const slug = resolveContentDocSlug(resolvedAbs);
-      return slug ? `${basePrefix}/${slug}/${anchor}` : `${basePrefix}/${anchor}`;
+      return slug ? `${basePrefix}/${slug}/${search}${anchor}` : `${basePrefix}/${search}${anchor}`;
     }
 
     // 1b. Relative asset imports inside `docs/site/src/` (e.g. `../../assets/*.svg`)
@@ -189,8 +201,8 @@ export function resolveAstUrl(rawTarget, originFilePath, options = {}) {
     if (!targetsRepoSourceOutsideSite) {
       const originSlug = resolveContentDocSlug(originFilePath);
       const pageUrlBase = originSlug ? `https://a2ui.org/${originSlug}/` : 'https://a2ui.org/';
-      const resolvedPathname = new URL(rawBase, pageUrlBase).pathname;
-      return `${basePrefix}${resolvedPathname}${anchor}`;
+      const resolvedUrl = new URL(`${rawBase}${search}`, pageUrlBase);
+      return `${basePrefix}${resolvedUrl.pathname}${resolvedUrl.search}${anchor}`;
     }
   }
 
@@ -201,7 +213,7 @@ export function resolveAstUrl(rawTarget, originFilePath, options = {}) {
   // 1. Canonical included specification / catalog Markdown files
   if (SPEC_DOC_ROUTES[relToRepo]) {
     const slug = SPEC_DOC_ROUTES[relToRepo];
-    return `${basePrefix}/${slug}/${normalizeSpecAnchor(slug, rawAnchor)}`;
+    return `${basePrefix}/${slug}/${search}${normalizeSpecAnchor(slug, rawAnchor)}`;
   }
 
   // 2. Canonical JSON Schemas -> human-browsable JSON Schemas page permalinks
@@ -214,8 +226,15 @@ export function resolveAstUrl(rawTarget, originFilePath, options = {}) {
 
   // 3. Links to Starlight content docs (`docs/site/src/content/docs/...`)
   if (relToRepo.startsWith('docs/site/src/content/docs/')) {
+    if (
+      fs.existsSync(resolvedAbs) &&
+      fs.statSync(resolvedAbs).isFile() &&
+      !/\.(?:md|mdx)$/i.test(resolvedAbs)
+    ) {
+      return rawTarget;
+    }
     const slug = resolveContentDocSlug(resolvedAbs);
-    return slug ? `${basePrefix}/${slug}/${anchor}` : `${basePrefix}/${anchor}`;
+    return slug ? `${basePrefix}/${slug}/${search}${anchor}` : `${basePrefix}/${search}${anchor}`;
   }
 
   // Preserve relative imports/images inside docs/site/src/ (e.g. ../../assets/*.svg) for Astro's remarkCollectImages
@@ -229,15 +248,15 @@ export function resolveAstUrl(rawTarget, originFilePath, options = {}) {
   // 4. Links to legacy `docs/public/...` pages or assets
   if (relToRepo.startsWith('docs/public/assets/')) {
     const assetRel = relToRepo.slice('docs/public/assets/'.length);
-    return `${basePrefix}/assets/${assetRel}${anchor}`;
+    return `${basePrefix}/assets/${assetRel}${search}${anchor}`;
   }
   if (relToRepo.startsWith('docs/public/')) {
     const publicRel = relToRepo.slice('docs/public/'.length);
-    return `${resolveLegacyPublicDocRoute(publicRel, basePrefix)}${anchor}`;
+    return `${resolveLegacyPublicDocRoute(publicRel, basePrefix)}${search}${anchor}`;
   }
 
   // 5. Fallback for any other repository source file (e.g. Python SDKs, v0.9 archived docs, tests)
-  return `${githubBaseUrl}/${relToRepo}${anchor}`;
+  return `${githubBaseUrl}/${relToRepo}${search}${anchor}`;
 }
 
 /**
@@ -246,7 +265,7 @@ export function resolveAstUrl(rawTarget, originFilePath, options = {}) {
  * without touching inline code or fenced code blocks.
  */
 function transformMarkdownAst(tree, originFilePath) {
-  const basePrefix = (process.env.ASTRO_BASE || '').replace(/\/$/, '');
+  const basePrefix = normalizeBasePrefix(process.env.ASTRO_BASE);
 
   visit(tree, node => {
     if (node.type === 'link' || node.type === 'image' || node.type === 'definition') {

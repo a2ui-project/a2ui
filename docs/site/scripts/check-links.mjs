@@ -36,6 +36,7 @@ import {fileURLToPath, pathToFileURL} from 'node:url';
 import {
   findRepoRoot,
   loadVersionSchemas,
+  normalizeBasePrefix,
   SPEC_CATALOG_SCHEMAS,
   SPEC_SCHEMAS,
 } from '../src/lib/spec-schemas.mjs';
@@ -54,16 +55,28 @@ const CHECKED_LINK_RELS = new Set([
 
 const RAW_TEXT_TAGS = new Set(['script', 'style', 'textarea', 'title']);
 
-function normalizeBasePrefix(rawBase) {
-  const trimmed = String(rawBase || '')
-    .trim()
-    .replace(/\/+$/, '');
-  if (!trimmed) return '';
-  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-}
+const NAMED_HTML_ENTITIES = {
+  amp: '&',
+  quot: '"',
+  apos: "'",
+  lt: '<',
+  gt: '>',
+};
 
 function decodeHtmlAttrEntities(value) {
-  return value.replace(/&(?:amp|#38|#x26);/gi, '&');
+  return value.replace(
+    /&(?:#(\d+)|#x([0-9a-fA-F]+)|(amp|quot|apos|lt|gt));/gi,
+    (full, dec, hex, named) => {
+      if (dec !== undefined || hex !== undefined) {
+        const cp = dec !== undefined ? parseInt(dec, 10) : parseInt(hex, 16);
+        if (Number.isFinite(cp) && cp > 0 && cp <= 0x10ffff && (cp < 0xd800 || cp > 0xdfff)) {
+          return String.fromCodePoint(cp);
+        }
+        return full;
+      }
+      return NAMED_HTML_ENTITIES[named.toLowerCase()] ?? full;
+    },
+  );
 }
 
 function safeDecodeURIComponent(value) {
@@ -108,7 +121,6 @@ function parseTagAttributes(rawAttrs) {
  * text/code content, `<template>` subtrees, and `<script>` / `<style>` bodies.
  */
 export function parseHtmlDocument(html) {
-  const withoutComments = html.replace(/<!--[\s\S]*?-->/g, '');
   /** @type {Set<string>} */
   const ids = new Set();
   /** @type {Array<{kind: 'anchor' | 'redirect' | 'asset', tag: string, rawUrl: string}>} */
@@ -116,22 +128,38 @@ export function parseHtmlDocument(html) {
 
   let templateDepth = 0;
   let i = 0;
-  const len = withoutComments.length;
+  const len = html.length;
 
   while (i < len) {
-    const lt = withoutComments.indexOf('<', i);
+    const lt = html.indexOf('<', i);
     if (lt === -1) break;
 
-    const nextCh = withoutComments[lt + 1];
+    // HTML comments: <!-- ... -->
+    if (html.startsWith('<!--', lt)) {
+      const commentEnd = html.indexOf('-->', lt + 4);
+      i = commentEnd === -1 ? len : commentEnd + 3;
+      continue;
+    }
+
+    const nextCh = html[lt + 1];
     if (!nextCh) break;
+
+    // Declarations / processing instructions such as <!doctype html> or <?xml ...?>
+    if (nextCh === '!' || nextCh === '?') {
+      const declEnd = html.indexOf('>', lt + 2);
+      i = declEnd === -1 ? len : declEnd + 1;
+      continue;
+    }
 
     // Closing tag: </tagName ...>
     if (nextCh === '/') {
-      const closeEnd = withoutComments.indexOf('>', lt + 2);
+      if (!/[a-zA-Z]/.test(html[lt + 2] || '')) {
+        i = lt + 1;
+        continue;
+      }
+      const closeEnd = html.indexOf('>', lt + 2);
       if (closeEnd === -1) break;
-      const closeNameMatch = /^\/\s*([a-zA-Z][a-zA-Z0-9:-]*)/.exec(
-        withoutComments.slice(lt + 1, closeEnd),
-      );
+      const closeNameMatch = /^\/\s*([a-zA-Z][a-zA-Z0-9:-]*)/.exec(html.slice(lt + 1, closeEnd));
       if (closeNameMatch && closeNameMatch[1].toLowerCase() === 'template' && templateDepth > 0) {
         templateDepth--;
       }
@@ -139,10 +167,9 @@ export function parseHtmlDocument(html) {
       continue;
     }
 
-    // Declarations such as <!doctype html>
+    // Bare '<' in prose (e.g. "mcp<2" or "latency < 50ms") — advance past '<' without eating '>'
     if (!/[a-zA-Z]/.test(nextCh)) {
-      const declEnd = withoutComments.indexOf('>', lt + 1);
-      i = declEnd === -1 ? len : declEnd + 1;
+      i = lt + 1;
       continue;
     }
 
@@ -150,7 +177,7 @@ export function parseHtmlDocument(html) {
     let cursor = lt + 1;
     let quote = null;
     while (cursor < len) {
-      const ch = withoutComments[cursor];
+      const ch = html[cursor];
       if (quote) {
         if (ch === quote) quote = null;
       } else if (ch === '"' || ch === "'") {
@@ -162,11 +189,12 @@ export function parseHtmlDocument(html) {
     }
     if (cursor >= len) break;
 
-    const tagInner = withoutComments.slice(lt + 1, cursor);
-    const selfClosing = /\/\s*$/.test(tagInner);
-    const nameMatch = /^([a-zA-Z][a-zA-Z0-9:-]*)([\s\S]*)$/.exec(
-      selfClosing ? tagInner.replace(/\/\s*$/, '') : tagInner,
-    );
+    const tagInner = html.slice(lt + 1, cursor);
+    // Only treat trailing '/' as self-closing when preceded by whitespace or a closing quote,
+    // preserving trailing slashes in unquoted attributes such as `<a href=/foo/>`.
+    const selfClosing = /(?:^|[\s"'])\/\s*$/.test(tagInner);
+    const cleanedInner = selfClosing ? tagInner.replace(/\/\s*$/, '') : tagInner;
+    const nameMatch = /^([a-zA-Z][a-zA-Z0-9:-]*)([\s\S]*)$/.exec(cleanedInner);
     i = cursor + 1;
     if (!nameMatch) continue;
 
@@ -232,7 +260,7 @@ export function parseHtmlDocument(html) {
     if (RAW_TEXT_TAGS.has(tagName) && !selfClosing) {
       const closeRegex = new RegExp(`<\\/\\s*${tagName}\\b[^>]*>`, 'gi');
       closeRegex.lastIndex = i;
-      const closeMatch = closeRegex.exec(withoutComments);
+      const closeMatch = closeRegex.exec(html);
       i = closeMatch ? closeMatch.index + closeMatch[0].length : len;
     }
   }
@@ -446,8 +474,9 @@ export function checkDistLinks({
       const rawUrl = ref.rawUrl.trim();
       if (!rawUrl) continue;
 
-      // Skip external URLs, special non-document schemes, and protocol-relative URLs
-      if (/^(?:https?:|mailto:|tel:|javascript:|data:|blob:|\/\/)/i.test(rawUrl)) {
+      // Skip any external / non-document RFC 3986 URI scheme (https:, mailto:, vscode:, etc.)
+      // and protocol-relative URLs (//...)
+      if (/^(?:[a-zA-Z][a-zA-Z0-9+.-]+:|\/\/)/.test(rawUrl)) {
         continue;
       }
 
@@ -458,8 +487,6 @@ export function checkDistLinks({
         validateFragmentOnHtmlTarget(sourceLabel, rawUrl, rawFrag, htmlFile);
         continue;
       }
-
-      checkedLinks++;
 
       const hashIdx = rawUrl.indexOf('#');
       const pathAndQuery = hashIdx === -1 ? rawUrl : rawUrl.slice(0, hashIdx);
@@ -473,6 +500,11 @@ export function checkDistLinks({
         continue;
       }
 
+      if (resolvedUrl.origin !== 'https://a2ui.local') {
+        continue;
+      }
+
+      checkedLinks++;
       const pathname = resolvedUrl.pathname;
 
       // Enforce ASTRO_BASE containment when ASTRO_BASE is configured
@@ -514,9 +546,9 @@ function runCli() {
   let customBase = null;
 
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--dist' && args[i + 1] !== undefined) {
+    if (args[i] === '--dist' && args[i + 1] !== undefined && !args[i + 1].startsWith('--')) {
       customDist = args[++i];
-    } else if (args[i] === '--base' && args[i + 1] !== undefined) {
+    } else if (args[i] === '--base' && args[i + 1] !== undefined && !args[i + 1].startsWith('--')) {
       customBase = args[++i];
     }
   }

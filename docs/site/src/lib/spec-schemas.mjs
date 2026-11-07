@@ -20,6 +20,18 @@ import {fileURLToPath} from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/**
+ * Normalizes an `ASTRO_BASE` value (e.g. `""`, `"/"`, `"/preview/"`, `"preview"`)
+ * into a clean path prefix (`""` or `"/preview"`).
+ */
+export function normalizeBasePrefix(rawBase) {
+  const trimmed = String(rawBase || '')
+    .trim()
+    .replace(/\/+$/, '');
+  if (!trimmed) return '';
+  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+}
+
 export function findRepoRoot(startDir = __dirname) {
   let curr = startDir;
   for (let i = 0; i < 6; i++) {

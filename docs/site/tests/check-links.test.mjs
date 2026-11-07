@@ -21,7 +21,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 import {checkDistLinks, parseHtmlDocument} from '../scripts/check-links.mjs';
-import {findRepoRoot} from '../src/lib/spec-schemas.mjs';
+import {findRepoRoot, normalizeBasePrefix} from '../src/lib/spec-schemas.mjs';
 import {resolveAstUrl} from '../src/plugins/remark-a2ui-includes.mjs';
 
 function createTempDist(t, files) {
@@ -38,7 +38,7 @@ function createTempDist(t, files) {
   return dir;
 }
 
-test('passes valid intra-page #id, <a name>, cross-page ../page/#id, URL-encoded fragments, redirects, and assets', t => {
+test('passes valid intra-page #id, <a name>, cross-page ../page/#id, URL-encoded fragments, custom URI schemes, redirects, and assets', t => {
   const distDir = createTempDist(t, {
     'index.html': `<!doctype html>
       <html>
@@ -54,7 +54,13 @@ test('passes valid intra-page #id, <a name>, cross-page ../page/#id, URL-encoded
           <a href="#top">Back to top</a>
           <a href="#hero">Hero</a>
           <a href="#legacy-target">Legacy</a>
+          <a href="/preview">Bare base root</a>
           <a href="/preview/concepts/overview/#core-flow">Overview</a>
+          <a href=/preview/concepts/overview/>Unquoted trailing slash</a>
+          <a href="ftp://example.com/archive.tar.gz">FTP</a>
+          <a href="sms:+15551234567">SMS</a>
+          <a href="vscode:extension/a2ui.inspector">VS Code</a>
+          <a href="ui://surface/main">MCP UI resource</a>
           <img src="/preview/assets/diagram.png" alt="Diagram">
         </body>
       </html>`,
@@ -86,6 +92,25 @@ test('passes valid intra-page #id, <a name>, cross-page ../page/#id, URL-encoded
   const result = checkDistLinks({distDir, base: '/preview/'});
   assert.equal(result.ok, true, `Unexpected errors: ${result.errors.join('; ')}`);
   assert.equal(result.errors.length, 0);
+
+  // Leading-slash-less base ('preview') normalizes identically to '/preview/'
+  const withoutLeadingSlash = checkDistLinks({distDir, base: 'preview'});
+  assert.equal(withoutLeadingSlash.ok, true);
+});
+
+test('handles root base "/" identically to empty base ""', t => {
+  const distDir = createTempDist(t, {
+    'index.html': `<!doctype html><html><body><a href="/about/#team">About</a></body></html>`,
+    'about/index.html': `<!doctype html><html><body><h1 id="team">Team</h1></body></html>`,
+  });
+
+  assert.equal(normalizeBasePrefix(''), '');
+  assert.equal(normalizeBasePrefix('/'), '');
+  assert.equal(normalizeBasePrefix('preview/'), '/preview');
+  assert.equal(normalizeBasePrefix('/preview/'), '/preview');
+
+  const rootSlashResult = checkDistLinks({distDir, base: '/'});
+  assert.equal(rootSlashResult.ok, true);
 });
 
 test('fails on missing intra-page and cross-page #fragment IDs (including non-schema slash fragments)', t => {
@@ -133,12 +158,13 @@ test('fails on missing target pages, broken redirects, and missing static assets
   assert.match(result.errors[3], /target "\/gone\/" does not exist/);
 });
 
-test('flags root-relative, redirect, and excessive relative links that escape ASTRO_BASE', t => {
+test('flags root-relative, prefix-colliding, redirect, and excessive relative links that escape ASTRO_BASE', t => {
   const distDir = createTempDist(t, {
     'index.html': `<!doctype html>
       <html>
         <body>
           <a href="/concepts/overview/">Escapes /preview/</a>
+          <a href="/preview-other/page/">Prefix collision with /preview/</a>
         </body>
       </html>`,
     'concepts/overview/index.html': `<!doctype html>
@@ -153,13 +179,13 @@ test('flags root-relative, redirect, and excessive relative links that escape AS
 
   const result = checkDistLinks({distDir, base: '/preview/'});
   assert.equal(result.ok, false);
-  assert.equal(result.errors.length, 3);
+  assert.equal(result.errors.length, 4);
   for (const err of result.errors) {
     assert.match(err, /escapes ASTRO_BASE "\/preview\/"/);
   }
 });
 
-test('ignores IDs and hrefs inside <template>, <script>, <style>, HTML comments, and code text nodes', t => {
+test('ignores <template>, <script>, <style>, comments, and code text while handling bare <, data-code comments, and HTML entities', t => {
   const html = `<!doctype html>
     <html>
       <head>
@@ -169,11 +195,15 @@ test('ignores IDs and hrefs inside <template>, <script>, <style>, HTML comments,
         </template>
         <style>#fake-css { content: "id='css-id'"; }</style>
         <script>
+          const unclosedComment = '<!-- in script';
           const tpl = '<div id="ghost-script-id"><a href="/broken-in-script/">x</a></div>';
         </script>
       </head>
       <body>
         <!-- <h2 id="commented-out"></h2> <a href="/broken-in-comment/"></a> -->
+        <button data-code="<!-- unclosed comment inside attribute">Copy</button>
+        <p>Requires mcp<2 and latency < 50ms. See <a href="/broken-after-lt/">link</a> and <h2 id="after-lt">Sec</h2></p>
+        <h3 id="quote&#34;hex&#x22;amp&amp;id">Entities</h3>
         <pre><code>&lt;a href="/broken-in-code/" id="code-id"&gt;snippet href="/also-text"&lt;/a&gt;</code></pre>
         <a href="#ghost-template-id">Should fail</a>
         <a href="#ghost-script-id">Should also fail</a>
@@ -182,13 +212,19 @@ test('ignores IDs and hrefs inside <template>, <script>, <style>, HTML comments,
     </html>`;
 
   const parsed = parseHtmlDocument(html);
-  assert.equal(parsed.ids.size, 0);
-  assert.equal(parsed.references.length, 3);
+  assert.equal(parsed.ids.has('after-lt'), true);
+  assert.equal(parsed.ids.has('quote"hex"amp&id'), true);
+  assert.equal(parsed.ids.has('ghost-template-id'), false);
+  assert.equal(parsed.ids.has('ghost-script-id'), false);
+  assert.equal(parsed.ids.has('commented-out'), false);
+  assert.equal(parsed.references.length, 4);
+  assert.equal(parsed.references[0].rawUrl, '/broken-after-lt/');
 
   const distDir = createTempDist(t, {'index.html': html});
   const result = checkDistLinks({distDir, base: ''});
   assert.equal(result.ok, false);
-  assert.equal(result.errors.length, 3);
+  assert.equal(result.errors.length, 4);
+  assert.match(result.errors[0], /target "\/broken-after-lt\/" does not exist/);
 });
 
 test('validates Schema Explorer and Catalog Guide JSON pointer fragments against canonical schemas', t => {
@@ -225,7 +261,7 @@ test('validates Schema Explorer and Catalog Guide JSON pointer fragments against
   assert.match(result.errors[1], /Schema "mcp_catalog\.json" .* is not hosted on/);
 });
 
-test('resolveAstUrl resolves Starlight URL-relative links, explicit .mdx file links, and spec includes', () => {
+test('resolveAstUrl resolves Starlight URL-relative links, query strings, colocated assets, .mdx file links, and spec includes', t => {
   const repoRoot = findRepoRoot();
   const glossaryMdx = path.join(repoRoot, 'docs/site/src/content/docs/concepts/glossary.mdx');
   const specWrapperMd = path.join(
@@ -234,10 +270,14 @@ test('resolveAstUrl resolves Starlight URL-relative links, explicit .mdx file li
   );
   const canonicalSpecMd = path.join(repoRoot, 'specification/v1_0/docs/a2ui_protocol.md');
 
-  // Starlight URL-relative sibling and cross-section links inside src/content/docs/
+  // Starlight URL-relative sibling, cross-section, and query-string links inside src/content/docs/
   assert.equal(
     resolveAstUrl('../overview/', glossaryMdx, {base: '/preview/'}),
     '/preview/concepts/overview/',
+  );
+  assert.equal(
+    resolveAstUrl('../overview/?tab=python#setup', glossaryMdx, {base: '/preview/'}),
+    '/preview/concepts/overview/?tab=python#setup',
   );
   assert.equal(
     resolveAstUrl('../catalogs/#the-basic-catalog', glossaryMdx, {base: '/preview/'}),
@@ -249,10 +289,37 @@ test('resolveAstUrl resolves Starlight URL-relative links, explicit .mdx file li
   );
   assert.equal(resolveAstUrl('../overview/', glossaryMdx, {base: ''}), '/concepts/overview/');
 
-  // Explicit .mdx file link reading custom frontmatter slug
+  // Base-prefix boundary & custom URI scheme preservation
+  assert.equal(resolveAstUrl('/preview', glossaryMdx, {base: '/preview/'}), '/preview');
   assert.equal(
-    resolveAstUrl('./v1.0-schemas.mdx', specWrapperMd, {base: '/preview/'}),
-    '/preview/specification/v1.0/schemas/',
+    resolveAstUrl('/preview-other/page/', glossaryMdx, {base: '/preview/'}),
+    '/preview/preview-other/page/',
+  );
+  assert.equal(
+    resolveAstUrl('vscode:extension/a2ui.inspector', glossaryMdx, {base: '/preview/'}),
+    'vscode:extension/a2ui.inspector',
+  );
+
+  // Explicit .mdx file link reading custom frontmatter slug + preserving query string
+  assert.equal(
+    resolveAstUrl('./v1.0-schemas.mdx?view=raw#agent_to_renderer.json', specWrapperMd, {
+      base: '/preview/',
+    }),
+    '/preview/specification/v1.0/schemas/?view=raw#agent_to_renderer.json',
+  );
+
+  // Colocated non-Markdown asset inside src/content/docs/ stays untouched for Astro bundling
+  const tempAsset = path.join(
+    repoRoot,
+    'docs/site/src/content/docs/concepts/__test_colocated_asset.svg',
+  );
+  fs.writeFileSync(tempAsset, '<svg></svg>', 'utf8');
+  t.after(() => {
+    fs.rmSync(tempAsset, {force: true});
+  });
+  assert.equal(
+    resolveAstUrl('./__test_colocated_asset.svg', glossaryMdx, {base: '/preview/'}),
+    './__test_colocated_asset.svg',
   );
 
   // Canonical included specification file links

@@ -18,8 +18,9 @@
 import starlight from '@astrojs/starlight';
 import {defineConfig} from 'astro/config';
 
-import {remarkA2uiIncludes} from './src/plugins/remark-a2ui-includes.mjs';
+import {normalizeBasePrefix} from './src/lib/spec-schemas.mjs';
 import {rehypeWrapTables} from './src/plugins/rehype-wrap-tables.mjs';
+import {remarkA2uiIncludes} from './src/plugins/remark-a2ui-includes.mjs';
 
 function extractHastText(node) {
   if (!node) return '';
@@ -42,7 +43,7 @@ function rehypePreserveJsonHeadingIds() {
   };
 }
 
-const basePrefix = (process.env.ASTRO_BASE || '').replace(/\/+$/, '');
+const basePrefix = normalizeBasePrefix(process.env.ASTRO_BASE);
 
 export default defineConfig({
   site: process.env.ASTRO_SITE || 'https://a2ui.org',
