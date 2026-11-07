@@ -48,6 +48,9 @@ public final class DataContext {
   /// such as a `formatString` `${...}` part, can't wait for the agent.
   private var runningFunctionDepth = 0
 
+  /// The catalog ID of the catalog function currently executing in this context, if any.
+  public internal(set) var activeFunctionCatalogID: String?
+
   /// Whether a function call was not evaluated or sent because one of its arguments includes a
   /// call that has no value (see `unsettledCallCount`).
   ///
@@ -62,7 +65,7 @@ public final class DataContext {
   /// The outcome of looking up the function that a v1.0 call runs.
   private enum V10FunctionTarget {
     /// The renderer runs the function.
-    case local(any FunctionImplementation)
+    case local(any FunctionImplementation, catalogID: String?)
     /// The agent runs the function. `declaration` is the catalog's declaration, if any.
     case agent(declaration: (any FunctionImplementation)?, catalogID: String)
   }
@@ -116,7 +119,7 @@ public final class DataContext {
     guard let handler = functionHandler else { return nil }
     let absPath = JSONValue.absolutePath(for: relativePath, in: self.path)
 
-    return DataContext(
+    let ctx = DataContext(
       dataModel: dataModel,
       path: absPath,
       functionHandler: handler,
@@ -124,6 +127,8 @@ public final class DataContext {
       index: index ?? self.index,
       isUserActivated: isUserActivated
     )
+    ctx.activeFunctionCatalogID = activeFunctionCatalogID
+    return ctx
   }
 
   public nonisolated static func unescapeObjectKey(_ key: String) -> String {
@@ -136,14 +141,16 @@ public final class DataContext {
   /// (`call` / `@call`), arrays, and nested plain objects.
   public func resolveDynamicValue(_ value: JSONValue, userActivation: Bool? = nil) -> JSONValue {
     if let userActivation, userActivation != isUserActivated, let handler = functionHandler {
-      return DataContext(
+      let ctx = DataContext(
         dataModel: dataModel,
         path: path,
         functionHandler: handler,
         protocolVersion: protocolVersion,
         index: index,
         isUserActivated: userActivation
-      ).resolveDynamicValue(value)
+      )
+      ctx.activeFunctionCatalogID = activeFunctionCatalogID
+      return ctx.resolveDynamicValue(value)
     }
     switch value {
     case .array(let arr):
@@ -183,13 +190,15 @@ public final class DataContext {
     dict: OrderedDictionary<String, JSONValue>
   ) -> JSONValue {
     let function: (any FunctionImplementation)?
+    var resolvedCatalogID: String?
     if atLeastV10 {
       switch resolveV10Function(name: callName, dict: dict) {
       case nil:
         recordFailedCall()
         return .null
-      case .local(let resolved):
+      case .local(let resolved, let catalogID):
         function = resolved
+        resolvedCatalogID = catalogID
       case .agent(let declaration, let catalogID):
         return routeToAgent(
           name: callName,
@@ -260,8 +269,15 @@ public final class DataContext {
       }
     }
 
+    let previousCatalogID = activeFunctionCatalogID
+    if atLeastV10 && !callName.hasPrefix("@"), let resolvedCatalogID {
+      activeFunctionCatalogID = resolvedCatalogID
+    }
     runningFunctionDepth += 1
-    defer { runningFunctionDepth -= 1 }
+    defer {
+      runningFunctionDepth -= 1
+      activeFunctionCatalogID = previousCatalogID
+    }
     do {
       return try function.evaluate(arguments: resolvedArguments, context: self)
     } catch {
@@ -614,7 +630,8 @@ public final class DataContext {
         )
       } else if callName == "@index" {
         return .local(
-          functionHandler?.function(named: callName, catalogID: nil) ?? IndexFunction()
+          functionHandler?.function(named: callName, catalogID: nil) ?? IndexFunction(),
+          catalogID: nil
         )
       } else {
         failure = FunctionError.functionNotFound(callName)
@@ -633,9 +650,11 @@ public final class DataContext {
         functionHandler?.handleFunctionError(error, functionName: callName)
         return nil
       }
+      let resolvedCatalogID =
+        functionHandler?.resolvedFunctionCatalogID(forCallCatalogID: catalogID) ?? catalogID
       let function = functionHandler?.function(named: callName, catalogID: catalogID)
       if let function, function.hasLocalImplementation {
-        return .local(function)
+        return .local(function, catalogID: resolvedCatalogID)
       }
       if let agentCatalogID = functionHandler?.agentFunctionCatalogID(
         forCallCatalogID: catalogID
@@ -643,7 +662,7 @@ public final class DataContext {
         return .agent(declaration: function, catalogID: agentCatalogID)
       }
       if let function {
-        return .local(function)
+        return .local(function, catalogID: resolvedCatalogID)
       }
       failure = FunctionError.functionNotFound(callName)
     }

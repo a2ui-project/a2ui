@@ -2337,8 +2337,12 @@ extension NodeResolver: FunctionHandler {
     if name == "@index" {
       return catalogID == nil ? IndexFunction() : nil
     }
-    let callCatalogID = atLeastV10 ? (catalogID ?? defaultCatalogID) : defaultCatalogID
+    let callCatalogID = resolvedFunctionCatalogID(forCallCatalogID: catalogID)
     return getCatalog(id: callCatalogID)?.functions[name]
+  }
+
+  public func resolvedFunctionCatalogID(forCallCatalogID catalogID: String?) -> String? {
+    atLeastV10 ? (catalogID ?? defaultCatalogID) : defaultCatalogID
   }
 
   /// Checks that the catalog a v1.0 function call runs in resolves on this surface: the

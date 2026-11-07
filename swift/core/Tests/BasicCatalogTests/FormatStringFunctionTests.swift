@@ -201,4 +201,224 @@ struct FormatStringFunctionTests {
     )
     #expect(result == .string("{\"path\":\"/user/name\"}"))
   }
+
+  @Test func inheritsCatalogIDForTemplateCallsWhileKeepingIndexCataloglessOnDefaultlessV10Surface()
+    throws
+  {
+    let basicCatalog = BasicCatalog.makeCatalog(version: .v10).eraseToAnyCatalog()
+    let resolver = NodeResolver(
+      surfaceID: "s-no-default",
+      catalogs: [basicCatalog],
+      defaultCatalogID: nil,
+      protocolVersion: .v10
+    )
+    let itemContext = DataContext(
+      dataModel: resolver.dataModel,
+      path: "/items/2",
+      functionHandler: resolver,
+      protocolVersion: .v10,
+      index: 2
+    )
+    let template = """
+      Row ${@index()}: ${pluralize(value: 2, one: 'drop', other: 'drops')} \
+      (${not(value: not(value: true))})
+      """
+    let resolved = itemContext.resolveDynamicValue(
+      .object([
+        "@call": .string("formatString"),
+        "catalogId": .string(basicCatalog.id),
+        "args": .object([
+          "value": .string(template)
+        ]),
+      ])
+    )
+    #expect(resolved == .string("Row 2: drops (true)"))
+  }
+
+  @Test func recordsDefaultCatalogIDWhenFormatStringOmitsCatalogIDOnV10Surface() throws {
+    let customID = "https://example.com/custom.json"
+    let customCatalog = AnyCatalog(
+      id: customID,
+      protocolVersion: .v10,
+      components: [],
+      functions: [FormatStringFunction(), ActiveCatalogFunction()]
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s-default",
+      catalogs: [customCatalog],
+      defaultCatalogID: customID,
+      protocolVersion: .v10
+    )
+    let ctx = DataContext(
+      dataModel: resolver.dataModel,
+      path: "/",
+      functionHandler: resolver,
+      protocolVersion: .v10
+    )
+    let resolved = ctx.resolveDynamicValue(
+      .object([
+        "@call": .string("formatString"),
+        "args": .object([
+          "value": .string("${activeCat()}")
+        ]),
+      ])
+    )
+    #expect(resolved == .string(customID))
+    #expect(ctx.activeFunctionCatalogID == nil)
+  }
+
+  @Test func preservesOuterCatalogIDWhenNestedCallOmitsCatalogIDOnCustomHandler() throws {
+    let customHandler = PreservingCatalogFunctionHandler()
+    let ctx = DataContext(
+      dataModel: DataModel(),
+      path: "/",
+      functionHandler: customHandler,
+      protocolVersion: .v10
+    )
+    let resolved = ctx.resolveDynamicValue(
+      .object([
+        "@call": .string("outer"),
+        "catalogId": .string("https://example.com/outer.json"),
+        "args": .object([:]),
+      ])
+    )
+    #expect(resolved == .string("https://example.com/outer.json"))
+    #expect(ctx.activeFunctionCatalogID == nil)
+  }
+
+  @Test func resolvesTemplateCallsInFormatStringCatalogOverSurfaceDefaultCatalog() throws {
+    let customID = "https://example.com/custom.json"
+    let customCatalog = AnyCatalog(
+      id: customID,
+      protocolVersion: .v10,
+      components: [],
+      functions: []
+    )
+    let basicCatalog = BasicCatalog.makeCatalog(version: .v10).eraseToAnyCatalog()
+    let resolver = NodeResolver(
+      surfaceID: "s-custom-default",
+      catalogs: [customCatalog, basicCatalog],
+      defaultCatalogID: customID,
+      protocolVersion: .v10
+    )
+    let ctx = DataContext(
+      dataModel: resolver.dataModel,
+      path: "/",
+      functionHandler: resolver,
+      protocolVersion: .v10
+    )
+    let resolved = ctx.resolveDynamicValue(
+      .object([
+        "@call": .string("formatString"),
+        "catalogId": .string(basicCatalog.id),
+        "args": .object([
+          "value": .string("Count: ${pluralize(value: 2, one: 'drop', other: 'drops')}")
+        ]),
+      ])
+    )
+    #expect(resolved == .string("Count: drops"))
+  }
+
+  @Test func resolvesTemplateCallsInStandaloneRPCCatalogWhenSurfaceLacksCatalog() async throws {
+    let surfaceCatalogID = "https://example.com/surface.json"
+    let surfaceCatalog = AnyCatalog(
+      id: surfaceCatalogID,
+      protocolVersion: .v10,
+      components: [],
+      functions: []
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s-surface",
+      catalogs: [surfaceCatalog],
+      defaultCatalogID: surfaceCatalogID,
+      protocolVersion: .v10
+    )
+    resolver.dataModel.set("/label", value: .string("ok"))
+    let surfaceContext = DataContext(
+      dataModel: resolver.dataModel,
+      path: "/",
+      functionHandler: resolver,
+      protocolVersion: .v10
+    )
+    let standaloneID = "https://example.com/standalone-rpc.json"
+    let standaloneCatalog = AnyCatalog(
+      id: standaloneID,
+      protocolVersion: .v10,
+      components: [],
+      functions: [AgentFormatStringFunction(), ActiveCatalogFunction()]
+    )
+    let message = CallRendererFunctionMessage(
+      surfaceID: "s-surface",
+      functionCallID: "rpc-1",
+      callFunction: CallFunctionPayload(
+        call: "rpcFormatString",
+        catalogID: standaloneID,
+        args: ["value": .string("${/label}:${activeCat()}")]
+      ),
+      version: .v10
+    )
+    let response = await RPCHandler().handleIncomingCall(
+      message,
+      catalogs: [surfaceCatalogID: surfaceCatalog, standaloneID: standaloneCatalog],
+      defaultCatalogID: surfaceCatalogID,
+      dataContext: surfaceContext
+    )
+    #expect(response.error == nil)
+    #expect(response.value == .string("ok:\(standaloneID)"))
+    #expect(surfaceContext.activeFunctionCatalogID == nil)
+  }
+}
+
+@MainActor
+private final class PreservingCatalogFunctionHandler: FunctionHandler {
+  func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
+    switch name {
+    case "outer":
+      return OuterCatalogFunction()
+    case "activeCat":
+      return ActiveCatalogFunction()
+    default:
+      return nil
+    }
+  }
+}
+
+private struct OuterCatalogFunction: FunctionImplementation, Sendable {
+  let api = FunctionAPI(
+    name: "outer",
+    returnType: .string,
+    schema: try! JSONSchema.Schema(instance: "{}")
+  )
+
+  @MainActor
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+    context.resolveDynamicValue(.object(["@call": .string("activeCat"), "args": .object([:])]))
+  }
+}
+
+private struct ActiveCatalogFunction: FunctionImplementation, Sendable {
+  let api = FunctionAPI(
+    name: "activeCat",
+    returnType: .string,
+    schema: try! JSONSchema.Schema(instance: "{}")
+  )
+
+  @MainActor
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+    .string(context.activeFunctionCatalogID ?? "none")
+  }
+}
+
+private struct AgentFormatStringFunction: FunctionImplementation, Sendable {
+  let api = FunctionAPI(
+    name: "rpcFormatString",
+    returnType: .string,
+    schema: FormatStringFunction().api.schema,
+    allowedCallers: .rendererOrAgent
+  )
+
+  @MainActor
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+    try FormatStringFunction().evaluate(arguments: arguments, context: context)
+  }
 }
