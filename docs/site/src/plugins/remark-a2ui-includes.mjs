@@ -123,13 +123,14 @@ function cleanIncludedSpecMarkdown(markdown) {
  * Resolves a Markdown link or image URL relative to `originFilePath` (either the wrapper `.md`
  * file or the included `specification/...` / `catalogs/...` file on disk).
  */
-export function resolveAstUrl(rawTarget, originFilePath) {
-  if (!rawTarget || /^(?:https?:|mailto:|tel:|#)/.test(rawTarget)) {
+export function resolveAstUrl(rawTarget, originFilePath, options = {}) {
+  if (!rawTarget || /^(?:https?:|mailto:|tel:|data:|javascript:|\/\/|#)/i.test(rawTarget)) {
     return rawTarget;
   }
 
   const githubBaseUrl = 'https://github.com/a2ui-project/a2ui/blob/main';
-  const basePrefix = (process.env.ASTRO_BASE || '').replace(/\/$/, '');
+  const rawBaseOption = options.base ?? process.env.ASTRO_BASE ?? '';
+  const basePrefix = String(rawBaseOption).replace(/\/+$/, '');
 
   const hashIdx = rawTarget.indexOf('#');
   const rawBase = hashIdx === -1 ? rawTarget : rawTarget.slice(0, hashIdx);
@@ -142,7 +143,7 @@ export function resolveAstUrl(rawTarget, originFilePath) {
 
   // Handle already root-relative site paths by prepending ASTRO_BASE when configured
   if (rawBase.startsWith('/')) {
-    if (basePrefix && !rawBase.startsWith(`${basePrefix}/`)) {
+    if (basePrefix && rawBase !== basePrefix && !rawBase.startsWith(`${basePrefix}/`)) {
       return `${basePrefix}${rawBase}${anchor}`;
     }
     return rawTarget;
@@ -151,6 +152,47 @@ export function resolveAstUrl(rawTarget, originFilePath) {
   const originDir = originFilePath ? path.dirname(originFilePath) : process.cwd();
   const resolvedAbs = path.resolve(originDir, rawBase);
   const relToRepo = path.relative(repoRoot, resolvedAbs).replace(/\\/g, '/');
+  const originRelToRepo = originFilePath
+    ? path.relative(repoRoot, originFilePath).replace(/\\/g, '/')
+    : '';
+  const originIsContentDoc = originRelToRepo.startsWith('docs/site/src/content/docs/');
+
+  if (originIsContentDoc) {
+    // 1a. Explicit file links inside `src/content/docs/` (e.g. `./v1.0-schemas.mdx`)
+    if (
+      relToRepo.startsWith('docs/site/src/content/docs/') &&
+      fs.existsSync(resolvedAbs) &&
+      fs.statSync(resolvedAbs).isFile()
+    ) {
+      const slug = resolveContentDocSlug(resolvedAbs);
+      return slug ? `${basePrefix}/${slug}/${anchor}` : `${basePrefix}/${anchor}`;
+    }
+
+    // 1b. Relative asset imports inside `docs/site/src/` (e.g. `../../assets/*.svg`)
+    if (
+      relToRepo.startsWith('docs/site/src/') &&
+      !relToRepo.startsWith('docs/site/src/content/docs/') &&
+      fs.existsSync(resolvedAbs)
+    ) {
+      return rawTarget;
+    }
+
+    // 1c. URL-relative site links authored relative to the page's rendered Starlight route
+    // (e.g. `../overview/` from `concepts/glossary.mdx`, served at `/concepts/glossary/`).
+    const targetsRepoSourceOutsideSite =
+      !relToRepo.startsWith('docs/site/') &&
+      !relToRepo.startsWith('..') &&
+      (Boolean(SPEC_DOC_ROUTES[relToRepo]) ||
+        relToRepo.endsWith('.json') ||
+        fs.existsSync(resolvedAbs));
+
+    if (!targetsRepoSourceOutsideSite) {
+      const originSlug = resolveContentDocSlug(originFilePath);
+      const pageUrlBase = originSlug ? `https://a2ui.org/${originSlug}/` : 'https://a2ui.org/';
+      const resolvedPathname = new URL(rawBase, pageUrlBase).pathname;
+      return `${basePrefix}${resolvedPathname}${anchor}`;
+    }
+  }
 
   if (relToRepo.startsWith('..')) {
     return rawTarget;
@@ -173,7 +215,7 @@ export function resolveAstUrl(rawTarget, originFilePath) {
   // 3. Links to Starlight content docs (`docs/site/src/content/docs/...`)
   if (relToRepo.startsWith('docs/site/src/content/docs/')) {
     const slug = resolveContentDocSlug(resolvedAbs);
-    return `${basePrefix}/${slug}/${anchor}`;
+    return slug ? `${basePrefix}/${slug}/${anchor}` : `${basePrefix}/${anchor}`;
   }
 
   // Preserve relative imports/images inside docs/site/src/ (e.g. ../../assets/*.svg) for Astro's remarkCollectImages

@@ -42,26 +42,28 @@ function rehypePreserveJsonHeadingIds() {
   };
 }
 
+const basePrefix = (process.env.ASTRO_BASE || '').replace(/\/+$/, '');
+
 export default defineConfig({
   site: process.env.ASTRO_SITE || 'https://a2ui.org',
   base: process.env.ASTRO_BASE || undefined,
   redirects: {
-    '/specification/v0.9-a2ui': '/specification/v0.9.1-a2ui/',
-    '/specification/v0.9-evolution-guide': '/specification/v0.9.1-evolution-guide/',
-    '/concepts/actions': '/concepts/actions-and-functions/',
-    '/concepts/agent-sdks': '/concepts/sdks/#agent-sdk',
-    '/concepts/components': '/concepts/catalogs/',
-    '/concepts/data-flow': '/concepts/data-binding/',
-    '/concepts/renderer-sdks': '/concepts/sdks/#renderer-sdk',
-    '/concepts/transports': '/concepts/messages/',
-    '/guides/a2ui_over_mcp': '/guides/a2ui-over-mcp/',
-    '/guides/defining-your-own-catalog': '/guides/defining-a-catalog/',
-    '/guides/client-setup': '/guides/client-integration/',
-    '/guides/agent-development': '/guides/agent-integration/',
-    '/specification/v0.8-a2ui': '/specification/v1.0-a2ui/',
-    '/specification/v0.8-a2a-extension': '/specification/v1.0-a2ui-extension-specification/',
-    '/specification/v0.8-custom-catalog-changes': '/specification/v1.0-a2ui/',
-    '/specification/v0.8/schemas': '/specification/v1.0/schemas/',
+    '/specification/v0.9-a2ui': `${basePrefix}/specification/v0.9.1-a2ui/`,
+    '/specification/v0.9-evolution-guide': `${basePrefix}/specification/v0.9.1-evolution-guide/`,
+    '/concepts/actions': `${basePrefix}/concepts/actions-and-functions/`,
+    '/concepts/agent-sdks': `${basePrefix}/concepts/sdks/#agent-sdk`,
+    '/concepts/components': `${basePrefix}/concepts/catalogs/`,
+    '/concepts/data-flow': `${basePrefix}/concepts/data-binding/`,
+    '/concepts/renderer-sdks': `${basePrefix}/concepts/sdks/#renderer-sdk`,
+    '/concepts/transports': `${basePrefix}/concepts/messages/`,
+    '/guides/a2ui_over_mcp': `${basePrefix}/guides/a2ui-over-mcp/`,
+    '/guides/defining-your-own-catalog': `${basePrefix}/guides/defining-a-catalog/`,
+    '/guides/client-setup': `${basePrefix}/guides/client-integration/`,
+    '/guides/agent-development': `${basePrefix}/guides/agent-integration/`,
+    '/specification/v0.8-a2ui': `${basePrefix}/specification/v1.0-a2ui/`,
+    '/specification/v0.8-a2a-extension': `${basePrefix}/specification/v1.0-a2ui-extension-specification/`,
+    '/specification/v0.8-custom-catalog-changes': `${basePrefix}/specification/v1.0-a2ui/`,
+    '/specification/v0.8/schemas': `${basePrefix}/specification/v1.0/schemas/`,
   },
   markdown: {
     remarkPlugins: [remarkA2uiIncludes],
