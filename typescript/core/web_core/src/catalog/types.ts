@@ -17,7 +17,11 @@
 import {z} from 'zod';
 import type {ProtocolVersion} from '../processing/adapters/base.js';
 import {DataContext} from '../resolution/data-context.js';
-import {allowsAgentRouting} from '../resolution/data-context-internal.js';
+import {
+  activeCallCatalogId,
+  allowsAgentRouting,
+  withActiveCallCatalogId,
+} from '../resolution/data-context-internal.js';
 import type {SurfaceModel} from '../state/surface-model.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
@@ -978,7 +982,7 @@ export class Catalog<
     this.commonTypesUri = options.commonTypesUri;
     this.themeLocation = options.themeLocation;
     this.defModels = options.defModels ? Object.freeze([...options.defModels]) : undefined;
-    this.invoker = createCatalogInvoker(this.id, this.protocolVersion, this.functions);
+    this.invoker = createCatalogInvoker(this.id, this.protocolVersion, this.functions, this);
   }
 
   /**
@@ -1172,6 +1176,7 @@ function createCatalogInvoker<F extends FunctionApi>(
   catalogId: string,
   protocolVersion: ProtocolVersion | string,
   functions: ReadonlyMap<string, F>,
+  catalog?: Catalog<any, any>,
 ): FunctionInvoker {
   const atLeastV10 = isAtLeastVersion(protocolVersion, SpecVersion.V1_0);
   return (name, rawArgs, ctx, abortSignal) => {
@@ -1206,11 +1211,20 @@ function createCatalogInvoker<F extends FunctionApi>(
       );
     }
 
+    const callCtx =
+      atLeastV10 &&
+      !name.startsWith('@') &&
+      catalogId &&
+      ctx instanceof DataContext &&
+      activeCallCatalogId(ctx) !== catalogId
+        ? withActiveCallCatalogId(ctx, catalogId, catalog)
+        : ctx;
+
     return whenArgumentsSettle(rawArgs, abortSignal, resolvedArgs => {
       try {
         const args = coerceDynamicBooleans(fn.schema, resolvedArgs);
         const safeArgs = fn.schema.parse(args);
-        return execute.call(fn, safeArgs, ctx, abortSignal);
+        return execute.call(fn, safeArgs, callCtx, abortSignal);
       } catch (e: any) {
         if (e?.name === 'ZodError' || e instanceof z.ZodError) {
           throw new A2uiExpressionError(
