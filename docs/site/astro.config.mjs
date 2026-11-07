@@ -105,13 +105,6 @@ export default defineConfig({
             href: 'https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,400..700;1,400..700&display=swap',
           },
         },
-        {
-          tag: 'script',
-          attrs: {
-            type: 'module',
-          },
-          content: `const renderMermaid = async () => { for (const pre of document.querySelectorAll('pre[data-language="mermaid"]')) { const lines = pre.querySelectorAll('.ec-line'); const code = (lines.length ? Array.from(lines, l => l.textContent).join('\\n') : (pre.querySelector('code')?.textContent || pre.textContent)).trim(); const div = document.createElement('div'); div.className = 'mermaid-rendered not-content'; div.dataset.mermaidSource = code; (pre.closest('.expressive-code') || pre).replaceWith(div); } const blocks = document.querySelectorAll('.mermaid-rendered[data-mermaid-source]'); if (!blocks.length) return; const { default: mermaid } = await import('https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs'); const isDark = document.documentElement.getAttribute('data-theme') !== 'light'; mermaid.initialize({ startOnLoad: false, theme: isDark ? 'dark' : 'default', fontFamily: 'inherit' }); for (let i = 0; i < blocks.length; i++) { const div = blocks[i]; const code = div.dataset.mermaidSource; if (!code) continue; try { const id = 'mermaid-svg-' + i + '-' + Date.now().toString(36); const { svg } = await mermaid.render(id, code); div.innerHTML = svg; } catch (err) { console.error('Mermaid render error:', err); } } }; if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', renderMermaid); } else { renderMermaid(); } new MutationObserver(() => renderMermaid()).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });`,
-        },
       ],
       components: {
         Header: './src/components/StarlightHeader.astro',
@@ -160,7 +153,7 @@ export default defineConfig({
               badge: {text: 'P0', variant: 'danger'},
             },
             {
-              label: 'Actions and Functions',
+              label: 'Actions, Events and Functions',
               slug: 'concepts/actions-and-functions',
               badge: {text: 'P0', variant: 'danger'},
             },
