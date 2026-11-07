@@ -503,7 +503,13 @@ class RpcHandler:
         catalog_id = getattr(matched_catalog, "catalog_id", None)
         with_catalog = getattr(context, "with_active_catalog_id", None)
         if isinstance(catalog_id, str) and callable(with_catalog):
-            return cast(DataContext, with_catalog(catalog_id))
+            try:
+                return cast(
+                    DataContext,
+                    with_catalog(catalog_id, catalog=matched_catalog),
+                )
+            except TypeError:
+                return cast(DataContext, with_catalog(catalog_id))
         return context
 
     def _execute_function_safely(
