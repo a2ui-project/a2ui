@@ -1,32 +1,29 @@
 ---
 title: 'Macros'
-description: 'Define composite UI components on the server with @macro and expand them into standard catalog components before they reach the renderer.'
+description: 'Define composite UI components on the server with @macro and expand them into reusable catalog components supported by the client.'
 ---
 
 import {Aside, Tabs, TabItem} from '@astrojs/starlight/components';
 
-Macros let you define composite UI components in Python on the server that expand into standard [catalog](/concepts/catalogs/) components before any messages reach the renderer. Because the renderer only receives components it already implements, you can add or update macros on the server without shipping new client code.
+Macros let you define composite UI components on the server that can programmatically inject server-side data and expand into the flexible, reusable [catalog](/concepts/catalogs/) components your client supports (from the Basic Catalog, your own custom catalogs, or both) before any messages reach the renderer. Because the renderer only receives components the client already implements, you can add or change macros on the server without shipping new client code.
 
-<Aside type="note" title="Python agent SDK support">
-  Macros are currently implemented in the Python [agent SDK](/concepts/agent-sdks/)
-  (`a2ui-agent-sdk`, module `a2ui.transformers.macros`). Several features on this page, including
-  v1.0 support, `on_error`, and `transform_catalogs`, are newer than the `0.10.0` release on PyPI.
-  Until the next release, install the package from GitHub as shown in [Step 1: Install the Python
-  agent SDK](#step-1-install-the-python-agent-sdk).
+<Aside type="note" title="Language support">
+  Macros are currently available in the Python [agent SDK](/concepts/agent-sdks/)
+  (`a2ui-agent-sdk`), with support for other languages coming next.
 </Aside>
 
 ## How macros work
 
-When a language model builds UI from low-level primitives on every turn, repeated patterns like flight summaries or product cards take many lines of nested components. With `@macro`, you write a Python function once to assemble that pattern on the server.
+When a language model builds UI from low-level primitives on every turn, repeated patterns like flight summaries or product cards take many lines of nested components. With a macro, you write a function once on the server to assemble that pattern.
 
 Macros are useful when you want to:
 
 1. Reduce output tokens and latency by letting the model write one call instead of a nested component tree.
-2. Keep layouts consistent across turns because your Python code constructs the component hierarchy.
-3. Load data on the server by accepting an identifier from the model and looking up the details in Python.
+2. Keep layouts consistent across turns because your server code constructs the component hierarchy.
+3. Look up data from server-side databases and APIs, accepting an identifier from the model and populating the components on the server.
 4. Ship new domain components with a server deployment alone, using catalog components the client already renders.
 
-In the sequence below, [`MacroExpander`](/concepts/glossary/#macroexpander) works on both sides of the model call. Before inference, it adds each macro's component schema to the catalog included in the system prompt. After inference, it intercepts each macro call in the parsed messages, runs your Python function, and outputs flat catalog components for the renderer.
+In the sequence below, [`MacroExpander`](/concepts/glossary/#macroexpander) works on both sides of the model call. Before inference, it adds each macro's component schema to the catalog in the system prompt. After inference, it intercepts each macro call, runs your macro function, and outputs flat catalog components for the renderer.
 
 ```mermaid
 sequenceDiagram
@@ -37,13 +34,13 @@ sequenceDiagram
     Agent->>Model: System prompt with FlightCard(...) signature
     Model-->>Agent: root = FlightCard("OS 87", ...)
     Agent->>Expander: transform_to_transport(messages)
-    Expander-->>Agent: Standard Card, Column, and Text components
+    Expander-->>Agent: Expanded catalog components
     Agent->>Renderer: createSurface with catalog components
 ```
 
 ### Example: macro, model call, and expanded output
 
-Here is a `FlightCard` macro that wraps three `Text` components inside a `Card` and `Column`. The `flight` and `route` parameters are static strings, while `status` uses `DynamicString` so it can bind to the [data model](/concepts/data-binding/):
+Here is a `FlightCard` macro. The `flight` and `route` parameters take static strings, while `status` uses `DynamicString` so it can bind to the [data model](/concepts/data-binding/):
 
 ```python title="flight_macros.py"
 from a2ui.builder.v1_0 import Card, Column, DynamicString, Text
@@ -70,7 +67,7 @@ def FlightCard(flight: str, route: str, status: DynamicString) -> Card:
     )
 ```
 
-In the [Express](/concepts/inference-formats/) format, the model sets `/flight/status` in the data model and calls `FlightCard` in a single line:
+Using the [Express](/concepts/inference-formats/) inference format, the model calls `FlightCard` in a single line:
 
 ```text title="Model output"
 Your flight is boarding.
@@ -80,7 +77,7 @@ root = FlightCard("OS 87", "Vienna to New York", $/flight/status)
 </a2ui>
 ```
 
-Before the agent sends the response over the wire, `MacroExpander` runs `FlightCard` and replaces it with five basic catalog components. Notice that `"### OS 87"` and `"Vienna to New York"` are baked in as static strings, while `root__text_3` keeps its live data binding (`/flight/status`). In v1.0, the components and initial `dataModel` travel together in `createSurface`; in v0.9.1, they travel as separate `createSurface`, `updateComponents`, and `updateDataModel` messages:
+`MacroExpander` runs `FlightCard` on the server and sends the expanded components over the wire, with static arguments baked in and the `/flight/status` data binding preserved:
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0">
@@ -204,13 +201,11 @@ The steps below integrate a macro into a Python agent using `BasicCatalog("1.0")
 
 ### Step 1: Install the Python agent SDK
 
-Install `a2ui-agent-sdk` from GitHub until the next release after `0.10.0` is published:
+Install `a2ui-agent-sdk` with `pip` (or `uv add a2ui-agent-sdk`):
 
 ```bash
-pip install "a2ui-agent-sdk @ git+https://github.com/a2ui-project/a2ui.git#subdirectory=python/a2ui_agent"
+pip install a2ui-agent-sdk
 ```
-
-Once the next release is out on PyPI, `pip install a2ui-agent-sdk` (or `uv add a2ui-agent-sdk`) is sufficient.
 
 ### Step 2: Define a macro
 
@@ -370,10 +365,10 @@ Suppose you have a `travel_catalog.json` file that defines a `BoardingPass` comp
 
 </details>
 
-Run `a2ui codegen` to generate a Python builder module from your catalog schema:
+Run `a2ui codegen` with `--lang python` to generate a Python builder module from your catalog schema:
 
 ```bash
-a2ui codegen --catalog travel_catalog.json --out travel_builders.py --catalog-name travel
+a2ui codegen --lang python --catalog travel_catalog.json --out travel_builders.py --catalog-name travel
 ```
 
 The generated `travel_builders.py` file contains a typed `ComponentBuilderNode` subclass for every component in your catalog:
@@ -447,12 +442,10 @@ system_prompt = processor.prompt_snippet
 
 # After receiving llm_output from the model:
 parts = processor.parse_response(llm_output)
-transport_messages = [
-    msg
-    for part in parts
-    if isinstance(part, A2uiPart)
-    for msg in expander.transform_to_transport(part.a2ui)
+inference_messages = [
+    msg for part in parts if isinstance(part, A2uiPart) for msg in part.a2ui
 ]
+transport_messages = expander.transform_to_transport(inference_messages)
 ```
 
 In v1.0, `transform_catalogs` registers your base catalogs on the expander and appends an inference-only sidecar catalog for the macros. When `transform_to_transport` expands `TripSummary`, it removes the sidecar catalog and stamps the owning `catalogId` onto each expanded `Card`, `Column`, `Text`, and `BoardingPass` component automatically.
@@ -463,9 +456,9 @@ In v1.0, `transform_catalogs` registers your base catalogs on the expander and a
 
 Parameter annotations control both the JSON Schema shown to the model and whether a value is static or reactive:
 
-1. Plain Python types (`str`, `int`, `float`, `bool`) accept only static literal values, which are baked into the expanded components when the macro runs. Passing a data binding to a plain `str` parameter fails validation.
-2. Reactive A2UI types (`DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList`) accept either a literal value or a `@path` / `@call` binding. When you pass that parameter to a child component property, the binding remains live on the renderer.
-3. Always treat macro arguments as untrusted model output. Validate identifiers against your backend data rather than trusting arbitrary strings.
+- Plain Python types (`str`, `int`, `float`, `bool`) accept only static literal values, which are baked into the expanded components when the macro runs. Passing a data binding to a plain `str` parameter fails validation.
+- Reactive A2UI types (`DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList`) accept either a literal value or a `@path` / `@call` binding. When you pass that parameter to a child component property, the binding remains live on the renderer.
+- Always treat macro arguments as untrusted model output. Validate identifiers against your backend data rather than trusting arbitrary strings.
 
 The table below lists the most common parameter annotations (showing v1.0 schema definitions):
 
@@ -483,35 +476,34 @@ The table below lists the most common parameter annotations (showing v1.0 schema
 
 `@macro` reads parameter descriptions from Google-style (`Args:`) docstrings, Sphinx-style (`:param name:`) docstrings, or `typing.Annotated[T, Field(description="...")]`. For additional annotations, including `DynamicValue`, `Extensions`, catalog sub-models (`TabItem`, `ChoicePickerOption`), and union types, see the [parameter type mapping table in the macros README](https://github.com/a2ui-project/a2ui/blob/main/python/a2ui_agent/src/a2ui/transformers/macros/README.md#parameter-type-mapping).
 
-### Protocol versions: v1.0 vs. v0.9.1
+### Protocol versions
 
-Each macro and `MacroExpander` instance targets a single protocol family (`1.0` or `0.9`). Mixing `a2ui.builder.v1_0` and `a2ui.builder.v0_9` types, catalogs, or returned components raises `A2uiValidationError`.
+To target A2UI v0.9.1 instead of v1.0, import builders from `a2ui.builder.v0_9` and pass a single catalog (such as `BasicCatalog("0.9.1")`) to `expander.transform_to_inference_catalog`. Do not mix `v1_0` and `v0_9` builders or catalogs on the same `MacroExpander`.
 
-| Feature                | A2UI v1.0                                                                     | A2UI v0.9.1                                                            |
-| :--------------------- | :---------------------------------------------------------------------------- | :--------------------------------------------------------------------- |
-| Builder imports        | `from a2ui.builder.v1_0 import ...`                                           | `from a2ui.builder.v0_9 import ...`                                    |
-| Basic Catalog instance | `BasicCatalog("1.0")`                                                         | `BasicCatalog("0.9.1")`                                                |
-| Wire binding keys      | `{"@path": "/..."}` and `{"@call": "..."}`                                    | `{"path": "/..."}` and `{"call": "..."}`                               |
-| Catalogs per surface   | Multiple catalogs per surface (`transform_catalogs([...])`) or single catalog | Single catalog per surface (`transform_to_inference_catalog(catalog)`) |
-| Macro naming rules     | Defaults to PascalCase; must be a valid UAX #31 identifier and not `Surface`  | Defaults to PascalCase                                                 |
+### Additional configuration options
 
-Additional version notes:
+#### Custom macro names and descriptions
 
-1. To override a macro's name or schema description in either version, pass arguments to the decorator: `@macro("CustomCard")` or `@macro(name="CustomCard", description="...")`.
-2. In v0.9.1, a surface binds a single catalog. To use custom components alongside basic components in v0.9.1, include all needed component definitions in one catalog JSON file, generate builders with `a2ui codegen`, and pass that catalog to `transform_to_inference_catalog`.
-3. If a v1.0 macro uses only version-neutral Python types (such as `str`, `int`, or `Child`) and you call `expander.to_catalog()` before registering any v1.0 catalogs, pass `protocol_version="1.0"` to `MacroExpander(...)`.
+Override the inferred PascalCase component name or docstring description by passing arguments to `@macro`, such as `@macro("CustomCard")` or `@macro(name="CustomCard", description="...")`.
 
-### Expander options and runtime behavior
+#### Error handling (`on_error`)
 
-1. With the default `on_error="passthrough"`, a macro that raises an exception during expansion is logged and left unexpanded in the message. Pass `on_error="raise"` to `MacroExpander` to raise `A2uiValidationError` instead so your agent retry loop can send the error message back to the model for self-correction. Structural errors, such as exceeding the maximum recursion depth (16) or mixing protocol versions, always raise.
-2. By default, all components from your base catalogs remain visible to the model alongside your macros. Pass `passthrough_components=["Button"]` to `MacroExpander` to expose only specific base components plus your macros, or `passthrough_components=[]` to expose only your macros.
-3. Expanded child components receive deterministic IDs prefixed with the macro call's ID, such as `root__text_1`. Multiple calls to the same macro on one surface receive distinct prefixes, such as `root_children_0__text_1` and `root_children_1__text_1`, preventing ID collisions.
-4. `MacroExpander` remembers up to 256 active surfaces from `createSurface` and `deleteSurface` messages so later `updateComponents` calls know each surface's default catalog. In a multi-tenant server, either create one `MacroExpander` per session or pass `surface_catalogs={"main": catalog_id}` (`None` for a v1.0 multi-catalog surface) to `transform_to_transport`.
-5. When using multiple v1.0 catalogs, if two registered catalogs define a component with the same name, `transform_to_transport` raises `A2uiCatalogError` unless you specify which catalog the builder node belongs to. Pass `catalog_id="https://..."` when instantiating that builder class, as in `BoardingPass(..., catalog_id=TRAVEL_CATALOG_ID)`.
-6. If you run more than one sidecar `MacroExpander` across the same v1.0 message stream, pass a distinct `catalog_id="https://..."` to each expander so their sidecar catalogs do not share the default `https://a2ui.org/catalogs/macros` identifier.
+With the default `on_error="passthrough"`, a macro that raises an exception during expansion is logged and left unexpanded in the message. Pass `on_error="raise"` to `MacroExpander` to raise `A2uiValidationError` instead so an agent retry loop can send the error back to the model.
+
+#### Filtering base components (`passthrough_components`)
+
+By default, all components from your base catalogs remain visible to the model alongside your macros. Pass `passthrough_components=["Button"]` to `MacroExpander` to expose only specific base components plus your macros, or `passthrough_components=[]` to expose only your macros.
+
+#### Explicit `protocol_version`
+
+`MacroExpander` normally infers the protocol version from your macro type hints or registered catalogs. If a v1.0 macro uses only version-neutral Python types (such as `str`, `int`, or `Child`) and you call `expander.to_catalog()` before registering any v1.0 catalogs, pass `protocol_version="1.0"` to `MacroExpander(...)`.
+
+#### Disambiguating duplicate component names (`catalog_id`)
+
+When multiple registered v1.0 catalogs define a component with the same name, specify the owning catalog when instantiating that builder class, such as `BoardingPass(..., catalog_id=TRAVEL_CATALOG_ID)`.
 
 ### Related resources
 
-1. [Macros README](https://github.com/a2ui-project/a2ui/blob/main/python/a2ui_agent/src/a2ui/transformers/macros/README.md) for full `@macro` and `MacroExpander` API details, including nested sub-model coercion and catalog resolution rules.
-2. [Macros community sample](https://github.com/a2ui-project/a2ui/tree/main/samples/community/macros) for a runnable FastAPI agent and React client using server-side macros.
-3. [Swappable Inference Formats](/concepts/inference-formats/) for details on Express and Direct JSON.
+- [Macros README](https://github.com/a2ui-project/a2ui/blob/main/python/a2ui_agent/src/a2ui/transformers/macros/README.md) for full `@macro` and `MacroExpander` API details.
+- [Macros community sample](https://github.com/a2ui-project/a2ui/tree/main/samples/community/macros) for a runnable FastAPI agent and React client using server-side macros.
+- [Swappable Inference Formats](/concepts/inference-formats/) for details on Express and Direct JSON.
