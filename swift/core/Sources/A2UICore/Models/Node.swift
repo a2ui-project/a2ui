@@ -106,6 +106,73 @@ package final class NodeBox: Observable {
     revision &+= 1
   }
 
+  /// Replaces, wherever the box's properties hold it, each child node whose backing box is a key
+  /// of `replacements` (by `ObjectIdentifier`) with the node it maps to, notifying `Observation`
+  /// observers of `properties` once if any child was replaced.
+  ///
+  /// - Returns: The number of child references replaced.
+  func replaceChildNodes(_ replacements: [ObjectIdentifier: Node]) -> Int {
+    var replacedCount = 0
+    var updatedProperties = _properties
+    for (key, value) in _properties {
+      if let replaced = Self.replacingChildNodes(in: value, replacements, count: &replacedCount) {
+        updatedProperties[key] = replaced
+      }
+    }
+    guard replacedCount > 0 else { return 0 }
+    registrar.withMutation(of: self, keyPath: \.properties) {
+      _properties = updatedProperties
+    }
+    propsRevision &+= 1
+    revision &+= 1
+    return replacedCount
+  }
+
+  /// Returns `value` with the child nodes in `replacements` replaced, or `nil` if it holds none.
+  private static func replacingChildNodes(
+    in value: any Resolved,
+    _ replacements: [ObjectIdentifier: Node],
+    count: inout Int
+  ) -> (any Resolved)? {
+    if let node = value as? Node {
+      guard let replacement = replacements[ObjectIdentifier(node.box)] else { return nil }
+      count += 1
+      return replacement
+    }
+    if let nodes = value as? [Node] {
+      let previousCount = count
+      let updated = nodes.map { node in
+        guard let replacement = replacements[ObjectIdentifier(node.box)] else { return node }
+        count += 1
+        return replacement
+      }
+      return count == previousCount ? nil : updated
+    }
+    if let dict = value as? ResolvedDictionary {
+      var storage = dict.storage
+      var changed = false
+      for (key, nestedValue) in dict.storage {
+        if let replaced = replacingChildNodes(in: nestedValue, replacements, count: &count) {
+          storage[key] = replaced
+          changed = true
+        }
+      }
+      return changed ? ResolvedDictionary(storage) : nil
+    }
+    if let arr = value as? ResolvedArray {
+      var elements = arr.elements
+      var changed = false
+      for (index, element) in arr.elements.enumerated() {
+        if let replaced = replacingChildNodes(in: element, replacements, count: &count) {
+          elements[index] = replaced
+          changed = true
+        }
+      }
+      return changed ? ResolvedArray(elements) : nil
+    }
+    return nil
+  }
+
   private static func arePropertiesShallowEqual(
     _ lhs: [String: any Resolved],
     _ rhs: [String: any Resolved]
