@@ -258,6 +258,82 @@ describe('Integrity Verification', () => {
         }),
       );
     });
+
+    it('extracts template componentId when a property has nestedRefs from a [list, nested] union regardless of branch order', () => {
+      const ComponentIdRef = z.string().describe('REF:common_types.json#/$defs/ComponentId');
+      const TemplateBranch = z.object({
+        componentId: ComponentIdRef,
+        path: z.string(),
+      });
+      const StructuredBranch = z.array(
+        z.object({
+          title: z.string(),
+          child: ComponentIdRef,
+        }),
+      );
+
+      for (const sectionsSchema of [
+        z.union([TemplateBranch, StructuredBranch]),
+        z.union([StructuredBranch, TemplateBranch]),
+      ]) {
+        const catalog = new Catalog('union-nested-tmpl-cat', '0.9', [
+          {
+            name: 'FlexibleSections',
+            schema: z.object({sections: sectionsSchema}),
+          },
+          {
+            name: 'LeafText',
+            schema: z.object({text: z.string()}).strict(),
+          },
+        ]);
+
+        assert.deepEqual(
+          Array.from(
+            getComponentReferences(
+              {
+                id: 'root',
+                component: 'FlexibleSections',
+                sections: {componentId: 'item-tpl', path: '/items'},
+              },
+              catalog,
+            ),
+          ),
+          [['item-tpl', 'sections.componentId']],
+        );
+
+        assert.deepEqual(
+          Array.from(
+            getComponentReferences(
+              {
+                id: 'root',
+                component: 'FlexibleSections',
+                sections: [{title: 'Not a component ID', child: 'c1'}],
+              },
+              catalog,
+            ),
+          ),
+          [['c1', 'sections[0].child']],
+        );
+
+        const model = new SurfaceComponentsModel(catalog);
+        model.addComponent(
+          new ComponentModel(
+            'root',
+            'FlexibleSections',
+            {sections: {componentId: 'item-tpl', path: '/items'}},
+            catalog,
+          ),
+        );
+        model.addComponent(new ComponentModel('item-tpl', 'LeafText', {text: 'Row'}, catalog));
+        assert.doesNotThrow(() =>
+          model.validateTopology({
+            allowMissingRoot: false,
+            allowDanglingReferences: false,
+            allowOrphanComponents: false,
+          }),
+        );
+      }
+    });
   });
 
   describe('Integrity and Recursion Errors', () => {

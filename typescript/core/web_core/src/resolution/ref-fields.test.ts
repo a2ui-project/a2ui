@@ -590,4 +590,72 @@ describe('extractRefFields', () => {
       kind: 'single',
     });
   });
+
+  it('merges [list, nested] and [single, nested] unions order-independently and narrows via intersections', () => {
+    const structuredArray = z.array(
+      z.object({
+        title: z.string(),
+        child: ComponentIdSchema,
+      }),
+    );
+
+    const objListThenNested = z.union([
+      z.object({sections: ChildListSchema}),
+      z.object({sections: structuredArray}),
+    ]);
+    const objNestedThenList = z.union([
+      z.object({sections: structuredArray}),
+      z.object({sections: ChildListSchema}),
+    ]);
+    assert.deepStrictEqual(extractRefFields(objListThenNested).get('sections'), {
+      kind: 'nested',
+      keys: new Set(['child']),
+    });
+    assert.deepStrictEqual(
+      extractRefFields(objListThenNested).get('sections'),
+      extractRefFields(objNestedThenList).get('sections'),
+    );
+
+    const propListThenNested = z.object({
+      sections: ChildListSchema.or(structuredArray),
+    });
+    const propNestedThenList = z.object({
+      sections: structuredArray.or(ChildListSchema),
+    });
+    assert.deepStrictEqual(extractRefFields(propListThenNested).get('sections'), {
+      kind: 'nested',
+      keys: new Set(['child']),
+    });
+    assert.deepStrictEqual(
+      extractRefFields(propListThenNested).get('sections'),
+      extractRefFields(propNestedThenList).get('sections'),
+    );
+
+    const propSingleThenNested = z.object({
+      slot: ComponentIdSchema.or(structuredArray),
+    });
+    const propNestedThenSingle = z.object({
+      slot: structuredArray.or(ComponentIdSchema),
+    });
+    assert.deepStrictEqual(extractRefFields(propSingleThenNested).get('slot'), {
+      kind: 'nested',
+      keys: new Set(['child']),
+    });
+    assert.deepStrictEqual(
+      extractRefFields(propSingleThenNested).get('slot'),
+      extractRefFields(propNestedThenSingle).get('slot'),
+    );
+
+    // Narrowing a [list, nested] union with z.array(z.string()) yields {kind: 'list'}.
+    const narrowedToList = propListThenNested.and(z.object({sections: z.array(z.string())}));
+    assert.deepStrictEqual(extractRefFields(narrowedToList).get('sections'), {
+      kind: 'list',
+    });
+
+    // Narrowing a [single, nested] union with z.string() yields {kind: 'single'}.
+    const narrowedToSingle = propSingleThenNested.and(z.object({slot: z.string()}));
+    assert.deepStrictEqual(extractRefFields(narrowedToSingle).get('slot'), {
+      kind: 'single',
+    });
+  });
 });

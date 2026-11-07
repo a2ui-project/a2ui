@@ -87,9 +87,28 @@ export type BehaviorNode =
   | {type: 'CHECKABLE'}
   | {type: 'STATIC'}
   | {type: 'OBJECT'; shape: Record<string, BehaviorNode>; catchall?: BehaviorNode}
-  | {type: 'ARRAY'; element: BehaviorNode};
+  | {type: 'ARRAY'; element: BehaviorNode; templateFallback?: boolean};
 
 type ObjectBehaviorNode = Extract<BehaviorNode, {type: 'OBJECT'}>;
+
+function hasActiveBehavior(node: BehaviorNode): boolean {
+  switch (node.type) {
+    case 'STATIC':
+      return false;
+    case 'DYNAMIC':
+    case 'ACTION':
+    case 'STRUCTURAL':
+    case 'CHECKABLE':
+      return true;
+    case 'ARRAY':
+      return Boolean(node.templateFallback) || hasActiveBehavior(node.element);
+    case 'OBJECT':
+      return (
+        (node.catchall !== undefined && hasActiveBehavior(node.catchall)) ||
+        Object.values(node.shape).some(hasActiveBehavior)
+      );
+  }
+}
 
 const DEFAULT_OPTIONS_CACHE_KEY = {};
 const behaviorCache = new WeakMap<object, WeakMap<z.ZodTypeAny, BehaviorNode>>();
@@ -140,6 +159,11 @@ function augmentRootObjectShape(
   const nextShape: Record<string, BehaviorNode> = {...baseShape};
   for (const [key, refKind] of extractRefFields(schema, options)) {
     if (refKind.kind === 'list' && nextShape[key]?.type !== 'STRUCTURAL') {
+      nextShape[key] = {type: 'STRUCTURAL'};
+    } else if (
+      refKind.kind === 'nested' &&
+      (!Object.hasOwn(nextShape, key) || nextShape[key]?.type === 'STATIC')
+    ) {
       nextShape[key] = {type: 'STRUCTURAL'};
     }
   }
@@ -448,11 +472,16 @@ function mergeIntersectedBehaviors(left: BehaviorNode, right: BehaviorNode): Beh
   if (left.type === 'STATIC') return right;
   if (right.type === 'STATIC') return left;
   if (left.type === 'OBJECT' && right.type === 'OBJECT') {
-    const shape: Record<string, BehaviorNode> = {...left.shape};
-    for (const [key, rightVal] of Object.entries(right.shape)) {
-      shape[key] = Object.hasOwn(shape, key)
-        ? mergeIntersectedBehaviors(shape[key], rightVal)
-        : rightVal;
+    const allKeys = new Set<string>([...Object.keys(left.shape), ...Object.keys(right.shape)]);
+    const shape: Record<string, BehaviorNode> = {};
+    for (const key of allKeys) {
+      const leftVal = Object.hasOwn(left.shape, key) ? left.shape[key] : left.catchall;
+      const rightVal = Object.hasOwn(right.shape, key) ? right.shape[key] : right.catchall;
+      const merged =
+        leftVal && rightVal ? mergeIntersectedBehaviors(leftVal, rightVal) : (leftVal ?? rightVal);
+      if (merged !== undefined) {
+        shape[key] = merged;
+      }
     }
     const catchall =
       left.catchall && right.catchall
@@ -461,7 +490,10 @@ function mergeIntersectedBehaviors(left: BehaviorNode, right: BehaviorNode): Beh
     return makeObjectBehavior(shape, catchall);
   }
   if (left.type === 'ARRAY' && right.type === 'ARRAY') {
-    return {type: 'ARRAY', element: mergeIntersectedBehaviors(left.element, right.element)};
+    const element = mergeIntersectedBehaviors(left.element, right.element);
+    return left.templateFallback && right.templateFallback
+      ? {type: 'ARRAY', element, templateFallback: true}
+      : {type: 'ARRAY', element};
   }
   if (left.type === 'DYNAMIC' && right.type === 'DYNAMIC') {
     return left.isBoolean || right.isBoolean
@@ -477,7 +509,10 @@ function mergeUnionPropertyBehaviors(left: BehaviorNode, right: BehaviorNode): B
       return mergeUnionObjectBehaviors([left, right]);
     }
     if (left.type === 'ARRAY' && right.type === 'ARRAY') {
-      return {type: 'ARRAY', element: mergeUnionPropertyBehaviors(left.element, right.element)};
+      const element = mergeUnionPropertyBehaviors(left.element, right.element);
+      return left.templateFallback || right.templateFallback
+        ? {type: 'ARRAY', element, templateFallback: true}
+        : {type: 'ARRAY', element};
     }
     if (left.type === 'DYNAMIC' && right.type === 'DYNAMIC') {
       return left.isBoolean && right.isBoolean
@@ -485,6 +520,16 @@ function mergeUnionPropertyBehaviors(left: BehaviorNode, right: BehaviorNode): B
         : {type: 'DYNAMIC'};
     }
     return left;
+  }
+  if (left.type === 'STRUCTURAL' && right.type === 'ARRAY') {
+    return hasActiveBehavior(right.element)
+      ? {type: 'ARRAY', element: right.element, templateFallback: true}
+      : {type: 'STRUCTURAL'};
+  }
+  if (left.type === 'ARRAY' && right.type === 'STRUCTURAL') {
+    return hasActiveBehavior(left.element)
+      ? {type: 'ARRAY', element: left.element, templateFallback: true}
+      : {type: 'STRUCTURAL'};
   }
   if (left.type === 'STATIC') {
     return right.type === 'DYNAMIC' ? {type: 'DYNAMIC'} : right;
@@ -533,22 +578,29 @@ function matchObjectVariantUnionBehavior(
   visited: Set<z.ZodTypeAny>,
   options?: ChildRefAnalysisOptions,
 ): BehaviorNode {
-  const nonNullish = unionOptions.filter(opt => {
+  const nonNullish = flattenUnionOptions(unionOptions).filter(opt => {
     const typeName = unwrapZodField(opt).schema?._def?.typeName as string | undefined;
     return typeName !== 'ZodNull' && typeName !== 'ZodUndefined';
   });
   if (nonNullish.length === 0) {
     return {type: 'STATIC'};
   }
-  const objects: ObjectBehaviorNode[] = [];
-  for (const option of nonNullish) {
-    const branchBehavior = getFieldBehavior(option, visited, options);
-    if (branchBehavior.type !== 'OBJECT') {
-      return {type: 'STATIC'};
-    }
-    objects.push(branchBehavior);
+  const branchBehaviors = nonNullish.map(opt => getFieldBehavior(opt, visited, options));
+  if (branchBehaviors.every((b): b is ObjectBehaviorNode => b.type === 'OBJECT')) {
+    return mergeUnionObjectBehaviors(branchBehaviors);
   }
-  return mergeUnionObjectBehaviors(objects);
+  if (
+    branchBehaviors.every((b): b is Extract<BehaviorNode, {type: 'ARRAY'}> => b.type === 'ARRAY')
+  ) {
+    const merged = branchBehaviors
+      .slice(1)
+      .reduce<BehaviorNode>(
+        (acc, cur) => mergeUnionPropertyBehaviors(acc, cur),
+        branchBehaviors[0],
+      );
+    return hasActiveBehavior(merged) ? merged : {type: 'STATIC'};
+  }
+  return {type: 'STATIC'};
 }
 
 function scrapeObjectShape(
@@ -605,13 +657,15 @@ function getFieldBehavior(
     return {type: 'STATIC'};
   }
 
-  if (
+  const unionOptions = getUnionOptions(current);
+  const marksOuterChildList =
     (field.refs.has('child-list') ||
       hasChildRefKind(type, 'child-list') ||
       defName === 'ChildList' ||
       Boolean(defName && options?.childListRefNames?.has(defName))) &&
-    canSchemaHoldListRef(type, options)
-  ) {
+    canSchemaHoldListRef(type, options);
+
+  if (!unionOptions && marksOuterChildList) {
     return {type: 'STRUCTURAL'};
   }
 
@@ -650,10 +704,29 @@ function getFieldBehavior(
   }
 
   // Structural matching for A2UI primitives and variant unions using typeName to avoid dual-module instanceof issues
-  const unionOptions = getUnionOptions(current);
   if (unionOptions) {
-    const unionBehavior = matchUnionBehavior(unionOptions, options);
+    const unionBehavior =
+      matchUnionBehavior(unionOptions, options) ??
+      (marksOuterChildList ? ({type: 'STRUCTURAL'} as const) : undefined);
     if (unionBehavior) {
+      if (unionBehavior.type === 'STRUCTURAL') {
+        const flatOptions = flattenUnionOptions(unionOptions);
+        let mergedElement: BehaviorNode | undefined;
+        for (const opt of flatOptions) {
+          if (!isChildListOption(opt, options) && isArrayOption(opt)) {
+            const branchBehavior = getFieldBehavior(opt, nextVisited, options);
+            if (branchBehavior.type === 'ARRAY') {
+              mergedElement =
+                mergedElement === undefined
+                  ? branchBehavior.element
+                  : mergeUnionPropertyBehaviors(mergedElement, branchBehavior.element);
+            }
+          }
+        }
+        if (mergedElement && hasActiveBehavior(mergedElement)) {
+          return {type: 'ARRAY', element: mergedElement, templateFallback: true};
+        }
+      }
       return unionBehavior.type === 'DYNAMIC' && isDynamicBooleanSchema(type)
         ? {type: 'DYNAMIC', isBoolean: true}
         : unionBehavior;
@@ -1408,7 +1481,11 @@ export class GenericBinder<T> {
         return value;
 
       case 'ARRAY':
-        if (!Array.isArray(value)) return value;
+        if (!Array.isArray(value)) {
+          return behavior.templateFallback
+            ? this.bindStructuralTemplate(value, path, isSync)
+            : value;
+        }
         return value.map((item, index) =>
           this.resolveAndBind(item, behavior.element, [...path, index.toString()], isSync),
         );

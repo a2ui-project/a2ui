@@ -27,6 +27,7 @@ export {
   GenericBinder,
   MAX_DYNAMIC_CHILD_LIST_SIZE,
   getSafeChildList,
+  scrapeComponentBehavior,
   scrapeSchemaBehavior,
   type BehaviorNode,
   type GenerateSetters,

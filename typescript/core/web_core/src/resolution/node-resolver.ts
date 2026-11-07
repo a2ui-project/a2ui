@@ -621,24 +621,68 @@ export class NodeResolver<
         }
         case 'nested': {
           const value = next[key];
+          const slotKey = escapeIdPart(key);
+          if (typeof value === 'string' && value) {
+            next[key] = resolveChild(slotKey, value, record.node.dataPath);
+            break;
+          }
           if (!Array.isArray(value)) {
             break;
           }
-          next[key] = value.map((item, index) => {
+          const safeValue = getSafeChildList(value);
+          next[key] = safeValue.map((item, index) => {
+            if (typeof item === 'string' && item) {
+              return resolveChild(slotKey, item, record.node.dataPath);
+            }
             if (!item || typeof item !== 'object' || Array.isArray(item)) {
               return item;
             }
-            const entry = {...(item as Record<string, unknown>)};
+            const rawEntry = item as Record<string, unknown>;
+            const hasNestedKey = Array.from(ref.keys).some(subKey =>
+              Object.hasOwn(rawEntry, subKey),
+            );
+            if (!hasNestedKey) {
+              if (typeof rawEntry.id === 'string' && typeof rawEntry.basePath === 'string') {
+                return resolveChild(slotKey, rawEntry.id, rawEntry.basePath);
+              }
+              if (typeof rawEntry.componentId === 'string' && rawEntry.componentId) {
+                return resolveChild(slotKey, rawEntry.componentId, record.node.dataPath);
+              }
+              return item;
+            }
+            const entry = {...rawEntry};
             let resolvedAny = false;
             for (const subKey of ref.keys) {
-              const childId = entry[subKey];
-              if (typeof childId === 'string' && childId) {
-                entry[subKey] = resolveChild(
-                  `${escapeIdPart(key)}[${index}].${escapeIdPart(subKey)}`,
-                  childId,
-                  record.node.dataPath,
-                );
+              const subVal = entry[subKey];
+              const subSlotKey = `${slotKey}[${index}].${escapeIdPart(subKey)}`;
+              if (typeof subVal === 'string' && subVal) {
+                entry[subKey] = resolveChild(subSlotKey, subVal, record.node.dataPath);
                 resolvedAny = true;
+              } else if (Array.isArray(subVal)) {
+                const safeSubVal = getSafeChildList(subVal);
+                let resolvedSubList = false;
+                const mappedSubVal = safeSubVal.map(subItem => {
+                  if (typeof subItem === 'string' && subItem) {
+                    resolvedSubList = true;
+                    return resolveChild(subSlotKey, subItem, record.node.dataPath);
+                  }
+                  if (subItem && typeof subItem === 'object' && !Array.isArray(subItem)) {
+                    const subEntry = subItem as Record<string, unknown>;
+                    if (typeof subEntry.id === 'string' && typeof subEntry.basePath === 'string') {
+                      resolvedSubList = true;
+                      return resolveChild(subSlotKey, subEntry.id, subEntry.basePath);
+                    }
+                    if (typeof subEntry.componentId === 'string' && subEntry.componentId) {
+                      resolvedSubList = true;
+                      return resolveChild(subSlotKey, subEntry.componentId, record.node.dataPath);
+                    }
+                  }
+                  return subItem;
+                });
+                if (resolvedSubList) {
+                  entry[subKey] = mappedSubVal;
+                  resolvedAny = true;
+                }
               }
             }
             return resolvedAny ? entry : item;
@@ -770,6 +814,9 @@ function wrapDynamicValues(
   raw: unknown,
   dataContext: DataContext,
 ): unknown {
+  if (isComponentNode(value)) {
+    return value;
+  }
   switch (behavior.type) {
     case 'DYNAMIC': {
       const bindingKey = dataContext.atLeastV10 ? '@path' : 'path';

@@ -2099,9 +2099,13 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     const scrapedComposite = scrapeSchemaBehavior(compositeCatchallSchema);
     assert.strictEqual(scrapedComposite.type, 'OBJECT');
     if (scrapedComposite.type === 'OBJECT') {
-      assert.deepStrictEqual(scrapedComposite.shape.id, {type: 'STATIC'});
+      assert.deepStrictEqual(scrapedComposite.shape.id, {type: 'DYNAMIC'});
       assert.deepStrictEqual(scrapedComposite.catchall, {type: 'DYNAMIC'});
     }
+    const scrapedCompositeReversed = scrapeSchemaBehavior(
+      z.record(CommonSchemas.DynamicString).and(z.object({id: z.string()}).passthrough()),
+    );
+    assert.deepStrictEqual(scrapedCompositeReversed, scrapedComposite);
 
     const scrapedUnion = scrapeSchemaBehavior(unionCatchallSchema);
     assert.strictEqual(scrapedUnion.type, 'OBJECT');
@@ -2238,6 +2242,116 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
 
     defaultBinder.dispose();
     customBinder.dispose();
+    surface.dispose();
+  });
+
+  it('binds explicit keys intersected with a dynamic catchall, expands [list, nested] union templates, and re-exports scrapeComponentBehavior', async () => {
+    const resolutionBarrel = await import('./index.js');
+    const rootBarrel = await import('../index.js');
+    assert.strictEqual(resolutionBarrel.scrapeComponentBehavior, scrapeComponentBehavior);
+    assert.strictEqual(rootBarrel.scrapeComponentBehavior, scrapeComponentBehavior);
+
+    const compositeCatchallSchema = z
+      .object({id: z.string()})
+      .passthrough()
+      .and(z.record(CommonSchemas.DynamicString));
+
+    const structuredItems = z.array(
+      z.object({
+        title: CommonSchemas.DynamicString,
+        child: CommonSchemas.ComponentId,
+      }),
+    );
+    const objUnionListFirst = z.union([
+      z.object({sections: CommonSchemas.ChildList}),
+      z.object({sections: structuredItems}),
+    ]);
+    const objUnionNestedFirst = z.union([
+      z.object({sections: structuredItems}),
+      z.object({sections: CommonSchemas.ChildList}),
+    ]);
+    const propUnionSchema = z.object({
+      sections: CommonSchemas.ChildList.or(structuredItems),
+    });
+
+    assert.deepStrictEqual(
+      scrapeComponentBehavior(objUnionListFirst),
+      scrapeComponentBehavior(objUnionNestedFirst),
+    );
+
+    const catalog = new Catalog('union-catchall-cat', '0.9', [], []);
+    const surface = new SurfaceModel('s-union-catchall', catalog);
+    surface.dataModel.set('/dynId', 'resolved-id-42');
+    surface.dataModel.set('/extra', 'extra-val');
+    surface.dataModel.set('/secTitle', 'Bound Section');
+    surface.dataModel.set('/rows', [{label: 'One'}, {label: 'Two'}]);
+
+    surface.componentsModel.addComponent(
+      new ComponentModel(
+        'c-comp-catchall',
+        'CompositeCatchall',
+        {id: {path: '/dynId'}, extra: {path: '/extra'}},
+        catalog,
+      ),
+    );
+    const compositeBinder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c-comp-catchall'),
+      compositeCatchallSchema,
+    );
+    const compositeSub = compositeBinder.subscribe(() => {});
+    assert.strictEqual(compositeBinder.snapshot.id, 'resolved-id-42');
+    assert.strictEqual(compositeBinder.snapshot.extra, 'extra-val');
+    assert.strictEqual(typeof compositeBinder.snapshot.setId, 'function');
+    (compositeBinder.snapshot.setId as (v: unknown) => void)('updated-id-99');
+    assert.strictEqual(surface.dataModel.get('/dynId'), 'updated-id-99');
+    assert.strictEqual(compositeBinder.snapshot.id, 'updated-id-99');
+
+    for (const [idx, schema] of [
+      objUnionListFirst,
+      objUnionNestedFirst,
+      propUnionSchema,
+    ].entries()) {
+      const tplId = `c-tpl-${idx}`;
+      surface.componentsModel.addComponent(
+        new ComponentModel(
+          tplId,
+          'FlexSections',
+          {sections: {componentId: 'row-tpl', path: '/rows'}},
+          catalog,
+        ),
+      );
+      const tplBinder = new GenericBinder<Record<string, unknown>>(
+        new ComponentContext(surface, tplId),
+        schema,
+      );
+      assert.deepStrictEqual(tplBinder.snapshot.sections, [
+        {id: 'row-tpl', basePath: '/rows/0'},
+        {id: 'row-tpl', basePath: '/rows/1'},
+      ]);
+      tplBinder.dispose();
+
+      const arrId = `c-arr-${idx}`;
+      surface.componentsModel.addComponent(
+        new ComponentModel(
+          arrId,
+          'FlexSections',
+          {sections: [{title: {path: '/secTitle'}, child: 'leaf-1'}]},
+          catalog,
+        ),
+      );
+      const arrBinder = new GenericBinder<Record<string, unknown>>(
+        new ComponentContext(surface, arrId),
+        schema,
+      );
+      const boundSections = arrBinder.snapshot.sections as Array<Record<string, unknown>>;
+      assert.strictEqual(boundSections.length, 1);
+      assert.strictEqual(boundSections[0].title, 'Bound Section');
+      assert.strictEqual(boundSections[0].child, 'leaf-1');
+      arrBinder.dispose();
+    }
+
+    compositeSub.unsubscribe();
+    compositeBinder.dispose();
     surface.dispose();
   });
 });

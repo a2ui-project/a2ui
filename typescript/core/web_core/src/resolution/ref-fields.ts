@@ -683,6 +683,17 @@ function mergeCompatibleField(
 ): void {
   if (kind.kind === 'nested') {
     if (!isRefCompatibleWithSide(key, kind, other)) {
+      if (
+        source.compatibleListKeys.has(key) &&
+        isRefCompatibleWithSide(key, {kind: 'list'}, other)
+      ) {
+        mergeRefKind(target, key, {kind: 'list'});
+      } else if (
+        source.compatibleSingleKeys.has(key) &&
+        isRefCompatibleWithSide(key, {kind: 'single'}, other)
+      ) {
+        mergeRefKind(target, key, {kind: 'single'});
+      }
       return;
     }
     const otherElem = other.nestedElementAnalyses.get(key);
@@ -749,7 +760,10 @@ function mergeRefKind(target: Map<string, RefKind>, key: string, incoming: RefKi
     target.set(key, incoming);
     return;
   }
-  if (existing.kind === 'single' && incoming.kind === 'list') {
+  if (
+    (existing.kind === 'single' && (incoming.kind === 'list' || incoming.kind === 'nested')) ||
+    (existing.kind === 'list' && incoming.kind === 'nested')
+  ) {
     target.set(key, incoming);
     return;
   }
@@ -810,26 +824,26 @@ function classifyExplicitProperty(
     return classifyIntersectedProperty(def.left, def.right, nextVisited, options, field);
   }
 
-  if (
-    marksChildList(field, options) ||
-    isChildListUnion(field.schema) ||
-    isTemplateRefObject(field.schema)
-  ) {
-    return {kind: 'list'};
-  }
-
   // Zod's `.or()` copies the first operand's `description` onto the `ZodUnion`,
-  // so inspect all union branches before settling on `'single'` (e.g. `ComponentId.or(ChildList)`).
+  // so inspect all union branches and merge with any outer marker so `[list, nested]`
+  // and `[single, nested]` unions remain order-independent.
   const unionOptions = getUnionOptions(field.schema);
   if (unionOptions) {
+    const merged = new Map<string, RefKind>();
     const unionKind = classifyExplicitUnionOptions(unionOptions, nextVisited, options);
-    if (unionKind?.kind === 'list') {
-      return unionKind;
+    if (unionKind) {
+      mergeRefKind(merged, 'prop', unionKind);
     }
-    if (marksComponentId(field, options)) {
-      return {kind: 'single'};
+    if (marksChildList(field, options) || isChildListUnion(field.schema)) {
+      mergeRefKind(merged, 'prop', {kind: 'list'});
+    } else if (marksComponentId(field, options)) {
+      mergeRefKind(merged, 'prop', {kind: 'single'});
     }
-    return unionKind;
+    return merged.get('prop');
+  }
+
+  if (marksChildList(field, options) || isTemplateRefObject(field.schema)) {
+    return {kind: 'list'};
   }
 
   if (marksComponentId(field, options)) {
@@ -910,29 +924,31 @@ function classifyIntersectedProperty(
     }
   }
 
-  if (leftKind) {
-    if (canHoldRefKind(leftKind, rightField, new Set(visited), options)) {
-      mergeRefKind(merged, 'prop', leftKind);
+  const mergeSide = (
+    sideKind: RefKind | undefined,
+    ownField: UnwrappedZodField,
+    otherField: UnwrappedZodField,
+  ) => {
+    if (!sideKind) return;
+    if (canHoldRefKind(sideKind, otherField, new Set(visited), options)) {
+      mergeRefKind(merged, 'prop', sideKind);
     } else if (
-      leftKind.kind === 'list' &&
-      canHoldSingleRef(leftField, new Set(visited), options) &&
-      canHoldSingleRef(rightField, new Set(visited), options)
+      sideKind.kind === 'nested' &&
+      canHoldListRef(ownField, new Set(visited), options) &&
+      canHoldListRef(otherField, new Set(visited), options)
+    ) {
+      mergeRefKind(merged, 'prop', {kind: 'list'});
+    } else if (
+      (sideKind.kind === 'list' || sideKind.kind === 'nested') &&
+      canHoldSingleRef(ownField, new Set(visited), options) &&
+      canHoldSingleRef(otherField, new Set(visited), options)
     ) {
       mergeRefKind(merged, 'prop', {kind: 'single'});
     }
-  }
+  };
 
-  if (rightKind) {
-    if (canHoldRefKind(rightKind, leftField, new Set(visited), options)) {
-      mergeRefKind(merged, 'prop', rightKind);
-    } else if (
-      rightKind.kind === 'list' &&
-      canHoldSingleRef(rightField, new Set(visited), options) &&
-      canHoldSingleRef(leftField, new Set(visited), options)
-    ) {
-      mergeRefKind(merged, 'prop', {kind: 'single'});
-    }
-  }
+  mergeSide(leftKind, leftField, rightField);
+  mergeSide(rightKind, rightField, leftField);
 
   return merged.get('prop');
 }

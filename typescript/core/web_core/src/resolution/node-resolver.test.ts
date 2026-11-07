@@ -2187,4 +2187,93 @@ describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
     resolver.dispose();
     surface.dispose();
   });
+
+  it('resolves structured items, templates, string arrays, and single IDs on [list, nested] and [single, nested] unions in either branch order', () => {
+    const StructuredSection = z.array(
+      z.object({
+        title: DynamicStringSchema,
+        child: ComponentIdSchema,
+      }),
+    );
+
+    const ListFirstApi: ComponentApi = {
+      name: 'ListFirstSections',
+      schema: z.union([
+        z.object({sections: ChildListSchema}),
+        z.object({sections: StructuredSection}),
+      ]),
+    };
+    const NestedFirstApi: ComponentApi = {
+      name: 'NestedFirstSections',
+      schema: z.object({
+        sections: StructuredSection.or(ChildListSchema),
+        slot: ComponentIdSchema.or(StructuredSection).optional(),
+      }),
+    };
+
+    const catalog = new Catalog<ComponentApi>('union-nested-list-cat', '0.9', [
+      ListFirstApi,
+      NestedFirstApi,
+      ColumnApi,
+      TextApi,
+    ]);
+    const surface = new SurfaceModel('surf-union-nested', catalog);
+    surface.dataModel.set('/secTitle', 'Dynamic Section Title');
+    surface.dataModel.set('/rows', [{label: 'Row A'}, {label: 'Row B'}]);
+
+    const resolver = new NodeResolver(surface, catalog);
+    add(surface, 'root', 'Column', {children: ['sec-structured', 'sec-template', 'sec-ids']});
+    add(surface, 'sec-structured', 'ListFirstSections', {
+      sections: [{title: {path: '/secTitle'}, child: 'leaf-1'}],
+    });
+    add(surface, 'sec-template', 'NestedFirstSections', {
+      sections: {componentId: 'row-tpl', path: '/rows'},
+      slot: 'leaf-2',
+    });
+    add(surface, 'sec-ids', 'ListFirstSections', {
+      sections: ['leaf-1', 'leaf-2'],
+    });
+    add(surface, 'leaf-1', 'Text', {text: 'Leaf One'});
+    add(surface, 'leaf-2', 'Text', {text: 'Leaf Two'});
+    add(surface, 'row-tpl', 'Text', {text: {path: 'label'}});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+
+    // 1. Structured array payload resolves `child` to ComponentNode and binds `title` to WritableBinding.
+    const structuredNode = child(root, 'children', 0);
+    const structuredSections = props(structuredNode).sections as Array<Record<string, unknown>>;
+    assert.strictEqual(structuredSections.length, 1);
+    assert.ok(structuredSections[0].title instanceof WritableBinding);
+    assert.strictEqual(
+      (structuredSections[0].title as WritableBinding<unknown>).value,
+      'Dynamic Section Title',
+    );
+    assert.ok(isComponentNode(structuredSections[0].child));
+    assert.strictEqual(bound(structuredSections[0].child as ComponentNode, 'text'), 'Leaf One');
+
+    // 2. Template payload `{componentId, path}` expands into ComponentNode[] even when `nested` keys exist,
+    //    and `[single, nested]` union resolves string `slot` into a ComponentNode.
+    const templateNode = child(root, 'children', 1);
+    const expandedSections = props(templateNode).sections as ComponentNode[];
+    assert.strictEqual(expandedSections.length, 2);
+    assert.ok(isComponentNode(expandedSections[0]));
+    assert.ok(isComponentNode(expandedSections[1]));
+    assert.strictEqual(bound(expandedSections[0], 'text'), 'Row A');
+    assert.strictEqual(bound(expandedSections[1], 'text'), 'Row B');
+
+    const slotChild = props(templateNode).slot as ComponentNode;
+    assert.ok(isComponentNode(slotChild));
+    assert.strictEqual(bound(slotChild, 'text'), 'Leaf Two');
+
+    // 3. Plain string ID list payload resolves into ComponentNode[].
+    const idsNode = child(root, 'children', 2);
+    const resolvedIds = props(idsNode).sections as ComponentNode[];
+    assert.strictEqual(resolvedIds.length, 2);
+    assert.strictEqual(bound(resolvedIds[0], 'text'), 'Leaf One');
+    assert.strictEqual(bound(resolvedIds[1], 'text'), 'Leaf Two');
+
+    resolver.dispose();
+    surface.dispose();
+  });
 });
