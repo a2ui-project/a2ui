@@ -50,11 +50,13 @@
   "devDependencies": {
     "@a2ui/web_core": "workspace:*",
     "@types/dompurify": "^3.2.0",
+    "@types/js-yaml": "^4.0.9",
     "@types/jsdom": "^28.0.3",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^25.9.3",
     "eslint": "^10.4.1",
     "gts": "^7.0.0",
+    "js-yaml": "^4.1.0",
     "jsdom": "^29.1.1",
     "prettier": "^3.8.4",
     "typescript": "5.9.3",
