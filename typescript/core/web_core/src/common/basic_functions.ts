@@ -447,6 +447,10 @@ export function executeNot(value: unknown, truthy: TruthyFn = coerceDynamicBoole
   return !truthy(value);
 }
 
+function defineOwn(target: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(target, key, {value, enumerable: true, writable: true, configurable: true});
+}
+
 function adaptAstPartForV10(part: any, catalogId?: string): any {
   if (Array.isArray(part)) {
     return part.map(item => adaptAstPartForV10(item, catalogId));
@@ -455,38 +459,36 @@ function adaptAstPartForV10(part: any, catalogId?: string): any {
     return part;
   }
   if (
-    Object.hasOwn(part, 'path') &&
     typeof part.path === 'string' &&
-    !Object.hasOwn(part, 'componentId') &&
-    !Object.hasOwn(part, '@path')
+    part.componentId === undefined &&
+    part['@path'] === undefined
   ) {
     return {'@path': part.path};
   }
-  const hasCall = Object.hasOwn(part, 'call') && typeof part.call === 'string';
-  const hasAtCall = Object.hasOwn(part, '@call') && typeof part['@call'] === 'string';
+  const hasCall = typeof part.call === 'string';
+  const hasAtCall = typeof part['@call'] === 'string';
   const callName: string | undefined =
     hasCall && !hasAtCall ? part.call : hasAtCall ? part['@call'] : undefined;
   if (callName !== undefined) {
     const args: Record<string, unknown> = {};
     if (part.args && typeof part.args === 'object' && !Array.isArray(part.args)) {
       for (const [k, v] of Object.entries(part.args)) {
-        args[k] = adaptAstPartForV10(v, catalogId);
+        defineOwn(args, k, adaptAstPartForV10(v, catalogId));
       }
     }
-    const adapted: Record<string, unknown> = {
-      '@call': callName,
-      args,
-    };
-    if (Object.hasOwn(part, 'catalogId') && part.catalogId !== undefined) {
-      adapted['catalogId'] = part.catalogId;
-    } else if (catalogId !== undefined && !callName.startsWith('@')) {
-      adapted['catalogId'] = catalogId;
-    }
-    return adapted;
+    const resolvedCatalogId: unknown =
+      part.catalogId !== undefined && part.catalogId !== null
+        ? part.catalogId
+        : catalogId !== undefined && !callName.startsWith('@')
+          ? catalogId
+          : undefined;
+    return resolvedCatalogId !== undefined
+      ? {'@call': callName, args, catalogId: resolvedCatalogId}
+      : {'@call': callName, args};
   }
   const adaptedObj: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(part)) {
-    adaptedObj[k] = adaptAstPartForV10(v, catalogId);
+    defineOwn(adaptedObj, k, adaptAstPartForV10(v, catalogId));
   }
   return adaptedObj;
 }

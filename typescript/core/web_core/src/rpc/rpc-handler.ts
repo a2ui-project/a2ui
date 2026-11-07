@@ -258,7 +258,7 @@ export class RpcHandler {
 
     const scopedContext =
       effectiveContext && resolved.catalog.id
-        ? withActiveCallCatalogId(effectiveContext, resolved.catalog.id)
+        ? withActiveCallCatalogId(effectiveContext, resolved.catalog.id, resolved.catalog)
         : effectiveContext;
     const response = await this.executeFunctionSafely(
       resolved.funcImpl,
