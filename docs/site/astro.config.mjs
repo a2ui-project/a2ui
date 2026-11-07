@@ -161,6 +161,10 @@ export default defineConfig({
               slug: 'concepts/inference-formats',
             },
             {
+              label: 'Macros',
+              slug: 'concepts/macros',
+            },
+            {
               label: 'Glossary',
               slug: 'concepts/glossary',
             },
