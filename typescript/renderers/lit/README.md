@@ -77,6 +77,25 @@ export class MyApp extends LitElement {
 }
 ```
 
+### Fallbacks
+
+A component that hasn't arrived yet, or can't render (an unknown type, a cycle), renders nothing by default. Set `fallbacks` to show your own UI instead. Each builder gets `info` (`componentId`, `parentComponentType`, and for errors `error.type`) and returns a template, or `null` to render nothing:
+
+```typescript
+html`<a2ui-surface
+  .surface=${this.surface}
+  .fallbacks=${{
+    pending: (info: A2uiPendingInfo) =>
+      info.parentComponentType === 'List'
+        ? html`<div class="skeleton-row"></div>`
+        : html`<my-spinner></my-spinner>`,
+    error: (info: A2uiErrorInfo) => html`<div class="error">${info.error.type}</div>`,
+  }}
+></a2ui-surface>`;
+```
+
+`pending` also covers the root before it arrives. A fallback takes a child's place in any container and is replaced in place when the component arrives. Errors still reach `surface.onError`; builders don't need to report them.
+
 ## Defining Custom Components
 
 A2UI v0.9 separates a component's API (Schema) from its implementation.

@@ -26,7 +26,13 @@ export {A2uiController} from './a2ui-controller.js';
 export type {A2uiWebComponentElement} from './a2ui_web_component_element.js';
 export {registerUniversalElement} from './register_universal_element.js';
 export {isWebComponentImplementation} from './is_web_component_implementation.js';
-export {renderA2uiNode} from './render-a2ui-node.js';
+export {type A2uiFallbackContext, renderA2uiNode} from './render-a2ui-node.js';
+export {
+  type A2uiFallbackRenderer,
+  fallbackHost,
+  registerFallbackRenderer,
+  renderFallback,
+} from './fallback_renderer.js';
 export {sanitizeMediaUrl} from '../common/sanitize_media_url.js';
 export {
   bindHostAccessibility,

@@ -25,6 +25,8 @@ import {NodeResolver} from '../resolution/node-resolver.js';
 import {getValue} from '../reactivity/signals.js';
 import {MessageProcessor} from '../processing/message-processor.js';
 import {canRenderA2uiNode, renderA2uiNode} from './render-a2ui-node.js';
+import {registerFallbackRenderer} from './fallback_renderer.js';
+import {ComponentModel} from '../state/component-model.js';
 import {Catalog} from '../catalog/types.js';
 import type {A2uiWebComponentElement} from './a2ui_web_component_element.js';
 import type {WebComponentImplementation} from './web_component_implementation.js';
@@ -271,5 +273,83 @@ describe('renderA2uiNode', () => {
     } finally {
       console.warn = originalWarn;
     }
+  });
+
+  describe('placeholder fallbacks', () => {
+    /** A resolved root `Button` whose `rootId` is `root`, plus the node for `childId`. */
+    function placeholderFor(components: Array<{id: string; component: string}>) {
+      const p = new MessageProcessor([testCatalog]);
+      p.processMessages([
+        {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'test-catalog'}},
+        {version: 'v0.9', updateComponents: {surfaceId: 's', components}},
+      ]);
+      const s = p.model.getSurface('s')!;
+      const resolver = new NodeResolver(s, testCatalog);
+      return {surface: s, root: getValue(resolver.rootNode)!, resolver};
+    }
+
+    it('renders what the surface fallback renderer returns for a placeholder', () => {
+      const {surface: s, root, resolver} = placeholderFor([{id: 'root', component: 'Unknown'}]);
+      const requests: unknown[] = [];
+      const unregister = registerFallbackRenderer(s, request => {
+        requests.push(request);
+        return html`<span class="fb">fallback</span>`;
+      });
+      const container = document.createElement('div');
+      render(
+        html`<div>${renderA2uiNode(root, {surface: s, parentComponentType: 'Card'})}</div>`,
+        container,
+      );
+
+      assert.strictEqual(container.querySelector('.fb')?.textContent, 'fallback');
+      assert.deepStrictEqual(requests, [
+        {
+          category: 'error',
+          info: {
+            componentId: 'root',
+            parentComponentType: 'Card',
+            error: {type: 'unknown-type', componentType: 'Unknown'},
+          },
+        },
+      ]);
+      unregister();
+      resolver.dispose();
+    });
+
+    it('renders nothing for a placeholder without a fallback context, renderer or view', () => {
+      const {surface: s, root, resolver} = placeholderFor([{id: 'root', component: 'Unknown'}]);
+      assert.strictEqual(renderA2uiNode(root, {surface: s}), nothing);
+      const unregister = registerFallbackRenderer(s, () => null);
+      assert.strictEqual(renderA2uiNode(root, {surface: s}), nothing);
+      unregister();
+      registerFallbackRenderer(s, () => 'view');
+      assert.strictEqual(renderA2uiNode(root), nothing);
+      assert.strictEqual(renderA2uiNode(root, {surface: s}), 'view');
+      resolver.dispose();
+      assert.strictEqual(renderA2uiNode(root, {surface: s}), nothing, 'a disposed node');
+    });
+
+    it('renders the element, not the fallback, once the node resolves', () => {
+      const {surface: s, resolver} = placeholderFor([{id: 'root', component: 'Unknown'}]);
+      const unregister = registerFallbackRenderer(s, () => html`<span class="fb"></span>`);
+      const container = document.createElement('div');
+      const renderRoot = () =>
+        render(
+          html`<div>${renderA2uiNode(getValue(resolver.rootNode)!, {surface: s})}</div>`,
+          container,
+        );
+      renderRoot();
+      assert.ok(container.querySelector('.fb'));
+
+      s.componentsModel.removeComponent('root');
+      s.componentsModel.addComponent(
+        new ComponentModel('root', 'Button', {text: 'Now'}, testCatalog),
+      );
+      renderRoot();
+      assert.strictEqual(container.querySelector('.fb'), null);
+      assert.ok(container.firstElementChild!.firstElementChild instanceof MockButtonElement);
+      unregister();
+      resolver.dispose();
+    });
   });
 });

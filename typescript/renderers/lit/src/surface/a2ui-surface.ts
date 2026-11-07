@@ -14,15 +14,19 @@
  * limitations under the License.
  */
 
-import {html, nothing, LitElement, PropertyValues} from 'lit';
+import {html, nothing, LitElement, PropertyValues, type TemplateResult} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
 import {
   NodeResolver,
+  buildFallback,
   effect,
   getValue,
+  rootPendingRequest,
+  type A2uiFallbacks,
   type ComponentNode,
   type SurfaceModel,
 } from '@a2ui/web_core';
+import {registerFallbackRenderer, renderFallback} from '@a2ui/web_core/universal';
 import {renderA2uiNode} from './render-a2ui-node.js';
 import type {LitComponentApi} from '../types.js';
 
@@ -30,8 +34,8 @@ import type {LitComponentApi} from '../types.js';
  * A Lit component that renders an A2UI Surface.
  *
  * This component takes a `SurfaceModel` and dynamically renders the root component
- * and its children using the provided catalog. It handles loading states if the
- * root component is not yet available.
+ * and its children using the provided catalog. A node that can't render yet, or at
+ * all, renders the matching builder of `fallbacks`, or nothing.
  *
  * @element a2ui-surface
  */
@@ -41,6 +45,13 @@ export class A2uiSurface extends LitElement {
    * The surface model containing the component tree and catalog.
    */
   @property({type: Object}) accessor surface: SurfaceModel<LitComponentApi> | undefined;
+
+  /**
+   * The UI for nodes that can't render yet (`pending`, including the root before it
+   * arrives) or at all (`error`). A missing builder, or one that returns null or
+   * undefined, renders nothing. An element reads the builders when it renders.
+   */
+  @property({attribute: false}) accessor fallbacks: A2uiFallbacks<TemplateResult> | undefined;
 
   /**
    * Resolved root component node from `NodeResolver`.
@@ -120,6 +131,10 @@ export class A2uiSurface extends LitElement {
       return;
     }
 
+    // The surface's elements render their unresolved children through this.
+    const unregisterFallbacks = registerFallbackRenderer(this.surface, request =>
+      buildFallback(this.fallbacks, request),
+    );
     const resolver = new NodeResolver(this.surface);
     const stopEffect = effect(() => {
       this._rootNode = getValue(resolver.rootNode);
@@ -128,24 +143,27 @@ export class A2uiSurface extends LitElement {
     this.unsubscribe = () => {
       stopEffect();
       resolver.dispose();
+      unregisterFallbacks();
     };
   }
 
   /**
    * Renders the surface.
    *
-   * If `surface` is not set, or the root has not resolved (it has not arrived,
-   * has an unknown type, or is part of a cycle), returns `nothing`.
-   * Otherwise, renders the root component using `renderA2uiNode`.
+   * Before the root arrives, renders the `pending` fallback for it, or nothing.
+   * Once it is present, renders it with `renderA2uiNode`, which renders the
+   * fallback for a root that is unresolved (unknown type, cycle).
    */
   override render() {
-    if (!this.surface) return nothing;
+    const surface = this.surface;
+    if (!surface) return nothing;
     const root = this._rootNode;
-    // Nothing to show until the root resolves (pending, unknown type or cycle).
-    if (!root || root.isPlaceholder) return nothing;
+    if (!root) {
+      return renderFallback(surface, rootPendingRequest(surface.rootId)) ?? nothing;
+    }
 
     try {
-      return renderA2uiNode(root);
+      return renderA2uiNode(root, {surface});
     } catch (e) {
       console.error('Error rendering root node:', e);
       return html`<div>Error rendering surface</div>`;

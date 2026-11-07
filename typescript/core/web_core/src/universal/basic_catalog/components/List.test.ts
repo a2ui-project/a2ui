@@ -25,11 +25,15 @@ import {
   SurfaceModel,
   Subscription,
 } from '../../../v0_9/index.js';
+import type {ProcessableMessagePayload} from '../../../processing/message-processor.js';
 import {NodeResolver} from '../../../resolution/node-resolver.js';
 import type {ComponentNode} from '../../../resolution/component-node.js';
 import {getValue} from '../../../reactivity/signals.js';
+import {html} from 'lit';
+import type {A2uiFallbackRequest} from '../../../resolution/fallbacks.js';
 import {
   type A2uiWebComponentElement,
+  registerFallbackRenderer,
   registerUniversalElement,
   type WebComponentImplementation,
 } from '../../index.js';
@@ -52,6 +56,7 @@ describe('List Component', () => {
   let element: A2uiWebComponentElement | null = null;
   let subscription: Subscription | null = null;
   let resolver: NodeResolver | null = null;
+  let unregister: (() => void) | null = null;
 
   beforeEach(() => {
     processor = new MessageProcessor([basicCatalog]);
@@ -96,6 +101,8 @@ describe('List Component', () => {
     // Disposed here so that a failed assertion doesn't leave it subscribed to the surface.
     resolver?.dispose();
     resolver = null;
+    unregister?.();
+    unregister = null;
     if (element) {
       element.remove();
       element = null;
@@ -219,6 +226,91 @@ describe('List Component', () => {
         },
       ]),
     );
+  });
+
+  /** A List over `a`, `late` and `b` where `late` has not arrived, with `sendLate` to send it. */
+  async function pendingList(version: 'v0.9' | '1.0') {
+    const catalog =
+      version === 'v0.9'
+        ? basicCatalog
+        : (await import('../../../catalogs/basic/v1/index.js')).basicCatalog;
+    const nodeProcessor = new MessageProcessor([catalog]);
+    nodeProcessor.processMessages([
+      {version, createSurface: {surfaceId: 'fb-surface', catalogId: catalog.id}},
+      {
+        version,
+        updateComponents: {
+          surfaceId: 'fb-surface',
+          components: [
+            {id: 'root', component: 'List', children: ['a', 'late', 'b']},
+            {id: 'a', component: 'Text', text: 'A'},
+            {id: 'b', component: 'Text', text: 'B'},
+          ],
+        },
+      },
+    ] as ProcessableMessagePayload);
+    const fbSurface = nodeProcessor.model.getSurface('fb-surface')!;
+    resolver = new NodeResolver(fbSurface, catalog);
+    const sendLate = () =>
+      nodeProcessor.processMessages([
+        {
+          version,
+          updateComponents: {
+            surfaceId: 'fb-surface',
+            components: [{id: 'late', component: 'Text', text: 'Late'}],
+          },
+        },
+      ] as ProcessableMessagePayload);
+    return {surface: fbSurface, root: getValue(resolver.rootNode)!, sendLate};
+  }
+
+  async function mountList(root: ComponentNode) {
+    const el = document.createElement('a2ui-list') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+    await asyncUpdate(el, e => {
+      e.node = root;
+    });
+    return el;
+  }
+
+  for (const version of ['v0.9', '1.0'] as const) {
+    it(`gives a child whose fallback renders something an item, replaced in place on arrival (${version})`, async () => {
+      const {surface: fbSurface, root, sendLate} = await pendingList(version);
+      const requests: A2uiFallbackRequest[] = [];
+      unregister = registerFallbackRenderer(fbSurface, request => {
+        requests.push(request);
+        return html`<span class="fb">loading ${request.info.componentId}</span>`;
+      });
+      const el = await mountList(root);
+      const items = () => [...el.querySelectorAll('.a2ui-list-item-none')];
+
+      assert.strictEqual(items().length, 3);
+      const lateItem = items()[1];
+      assert.strictEqual(lateItem.querySelector('.fb')?.textContent, 'loading late');
+      assert.deepStrictEqual(requests[0], {
+        category: 'pending',
+        info: {componentId: 'late', parentComponentType: 'List'},
+      });
+
+      sendLate();
+      await (el as unknown as {updateComplete: Promise<unknown>}).updateComplete;
+      assert.strictEqual(items().length, 3);
+      assert.strictEqual(items()[1], lateItem, 'the item stays; only its content changes');
+      assert.strictEqual(el.querySelector('.fb'), null);
+      assert.strictEqual(
+        (lateItem.querySelector('a2ui-basic-text') as A2uiWebComponentElement | null)?.node
+          ?.componentId,
+        'late',
+      );
+    });
+  }
+
+  it('gives no item to a child whose fallback renders nothing', async () => {
+    const {surface: fbSurface, root} = await pendingList('v0.9');
+    unregister = registerFallbackRenderer(fbSurface, () => null);
+    const el = await mountList(root);
+    assert.strictEqual(el.querySelectorAll('.a2ui-list-item-none').length, 2);
   });
 
   it('emits no item for an unknown-type child when rendered from a context alone', async () => {
