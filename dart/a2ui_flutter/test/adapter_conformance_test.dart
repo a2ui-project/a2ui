@@ -23,9 +23,16 @@ void main() {
   final List<Object?> adapterTests = loadYamlTests(
     '../../conformance/core/adapter_conformance.yaml',
   );
+  final List<Object?> adapterTestsV09 = loadYamlTests(
+    '../../conformance/adapter/adapter_conformance_v0_9.yaml',
+  );
 
   tearDownAll(
-    () => assertAllUnsupportedMatched(accessibilityTests, adapterTests),
+    () => assertAllUnsupportedMatched(
+      accessibilityTests,
+      adapterTests,
+      adapterTestsV09,
+    ),
   );
 
   group('Accessibility Conformance (accessibility.yaml)', () {
@@ -97,6 +104,45 @@ void main() {
             return;
           }
           assertKnownAdapterCase(testCase);
+          await runAdapterCase(tester, testCase);
+          status = 'passed';
+        } catch (error) {
+          status = 'failed';
+          reason = error.toString();
+          rethrow;
+        }
+      });
+    }
+  });
+
+  group('Adapter Conformance v0.9 (adapter_conformance_v0_9.yaml)', () {
+    for (final entry in adapterTestsV09) {
+      final testCase = entry! as Map<String, Object?>;
+      final name = testCase['name']! as String;
+      testWidgets(name, (tester) async {
+        var status = 'failed';
+        String? reason;
+        addTearDown(() {
+          writeManifestRecord({
+            'harness': 'flutter',
+            'suite': 'adapter/adapter_conformance_v0_9.yaml',
+            'case': name,
+            'status': status,
+            'reason': ?reason,
+          });
+        });
+        try {
+          assertKnownAdapterCase(testCase);
+          final String? skipReason = findUnsupportedReason(
+            name,
+            (testCase['steps'] as List<Object?>?) ?? const [],
+          );
+          if (skipReason != null) {
+            status = 'skipped';
+            reason = skipReason;
+            markTestSkipped(skipReason);
+            return;
+          }
           await runAdapterCase(tester, testCase);
           status = 'passed';
         } catch (error) {

@@ -17,6 +17,7 @@
 import {ChangeDetectionStrategy, Component, computed} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {
+  A2uiClientMessageSchema,
   CommonSchemas,
   type ComponentNode,
   createFunctionImplementation,
@@ -26,9 +27,11 @@ import {
   ResolvedBinding,
   type SurfaceModel,
 } from '@a2ui/web_core/v0_9';
-import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {basicCatalog, createBasicCatalogFunctions} from '@a2ui/web_core/catalogs/basic/v1';
 import type {A2uiWebComponentElement} from '@a2ui/web_core/v0_9/universal';
+import {FunctionImplementation, RendererToAgentMessageSchema} from '@a2ui/web_core/v1_0';
 import {z} from 'zod';
+import {BasicCatalogBase as V09BasicCatalogBase} from './v0_9';
 import {
   A2uiRendererService,
   AngularCatalog,
@@ -78,9 +81,11 @@ export interface ExpectedViewNode {
   id?: string;
   type?: string;
   state?: string;
+  occupiesLayout?: boolean;
   isValid?: boolean;
   validationErrors?: string[];
   validationResults?: Array<Record<string, unknown>>;
+  hints?: string[];
   children?: ExpectedViewNode[];
   [key: string]: unknown;
 }
@@ -101,7 +106,7 @@ export interface ExpectedErrorEntry {
 export interface ExtraCatalogEntry {
   catalogId: string;
   protocolVersion?: string;
-  components: Record<
+  components?: Record<
     string,
     {
       type: string;
@@ -109,6 +114,7 @@ export interface ExtraCatalogEntry {
       properties?: Record<string, {type?: string; const?: string; $ref?: string}>;
     }
   >;
+  functions?: Record<string, unknown>;
 }
 
 export interface AdapterStep {
@@ -128,7 +134,12 @@ export interface AdapterStep {
   expectDataModel?: Record<string, unknown>;
   expectActions?: ExpectedActionEvent[];
   expectErrors?: ExpectedErrorEntry[];
+  expectOutbound?: Array<Record<string, unknown>>;
   expectSameViewIdentity?: string[];
+  expectNewViewIdentity?: string[];
+  expectDisposedNodes?: string[];
+  expectSurfaceRemoved?: boolean;
+  expectThemeAbsent?: boolean;
   expectActiveSubscriptions?: number;
 }
 
@@ -137,6 +148,7 @@ export interface AdapterTestCase {
   description?: string;
   features?: string[];
   protocolVersion: string;
+  strictMode?: boolean;
   action: string;
   catalogPaths?: string[];
   catalogs?: ExtraCatalogEntry[];
@@ -146,6 +158,7 @@ export interface AdapterTestCase {
 export interface KarmaConformanceConfig {
   accessibility: AccessibilityTestCase[];
   adapterConformance: AdapterTestCase[];
+  adapterConformanceV09?: AdapterTestCase[];
   basicCatalogJson: Record<string, unknown>;
 }
 
@@ -156,8 +169,11 @@ export interface HarnessState {
   unmounted: boolean;
   actions: Array<Record<string, unknown>>;
   errors: Array<Record<string, unknown>>;
+  outbound: Array<Record<string, unknown>>;
+  protocolVersion: string;
   previousNodes: Map<string, ComponentNode>;
   previousDomElements: Map<string, HTMLElement>;
+  lastCallId?: string;
 }
 
 export interface ManifestRecord {
@@ -172,7 +188,10 @@ export interface ManifestRecord {
  * Reasoned skip entries keyed by `"<case>"` or `"<case>/<op|expectKey>"`.
  * Every entry in this map must match at least one case during the run.
  */
-export const UNSUPPORTED: Record<string, string> = {};
+export const UNSUPPORTED: Record<string, string> = {
+  'validation_results_error_disables_warning_allows/hints':
+    'SHOULD in framework adapter specification, not implemented in Web Basic Catalog TextField',
+};
 
 const matchedUnsupportedKeys = new Set<string>();
 
@@ -183,11 +202,12 @@ export const KNOWN_KEYS = {
     'features',
     'action',
     'protocolVersion',
+    'strictMode',
     'catalogPaths',
     'catalogs',
     'steps',
   ]),
-  adapterCatalog: new Set(['catalogId', 'protocolVersion', 'components']),
+  adapterCatalog: new Set(['catalogId', 'protocolVersion', 'components', 'functions']),
   adapterStep: new Set([
     'description',
     'op',
@@ -200,7 +220,12 @@ export const KNOWN_KEYS = {
     'expectDataModel',
     'expectActions',
     'expectErrors',
+    'expectOutbound',
     'expectSameViewIdentity',
+    'expectNewViewIdentity',
+    'expectDisposedNodes',
+    'expectSurfaceRemoved',
+    'expectThemeAbsent',
     'expectActiveSubscriptions',
   ]),
   adapterOps: new Set([
@@ -214,12 +239,17 @@ export const KNOWN_KEYS = {
     'id',
     'type',
     'state',
+    'occupiesLayout',
     'text',
     'value',
+    'url',
+    'name',
+    'axis',
     'badgeText',
     'isValid',
     'validationErrors',
     'validationResults',
+    'hints',
     'children',
   ]),
   validationResult: new Set(['valid', 'code', 'message', 'severity']),
@@ -325,6 +355,19 @@ export function assertKnownKeys(
       assertObjectKeys(item, KNOWN_KEYS.expectedError, `${where}.expectErrors[${idx}]`);
     });
   }
+  if (step['expectOutbound'] !== undefined) {
+    if (!Array.isArray(step['expectOutbound'])) {
+      throw new Error(`${where}.expectOutbound: expected array`);
+    }
+    (step['expectOutbound'] as unknown[]).forEach((item, idx) => {
+      if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+        throw new Error(`${where}.expectOutbound[${idx}]: expected object`);
+      }
+      if (typeof (item as Record<string, unknown>)['version'] !== 'string') {
+        throw new Error(`${where}.expectOutbound[${idx}].version: expected string`);
+      }
+    });
+  }
 }
 
 export function assertKnownAdapterCase(testCase: AdapterTestCase): void {
@@ -368,6 +411,21 @@ export function assertKnownAccessibilityCase(testCase: AccessibilityTestCase): v
   }
 }
 
+function collectViewTreeKeys(node: unknown, out: Set<string>): void {
+  if (!node || typeof node !== 'object' || Array.isArray(node)) {
+    return;
+  }
+  const rec = node as Record<string, unknown>;
+  for (const key of Object.keys(rec)) {
+    out.add(key);
+  }
+  if (Array.isArray(rec['children'])) {
+    for (const child of rec['children']) {
+      collectViewTreeKeys(child, out);
+    }
+  }
+}
+
 export function findUnsupportedReason(
   caseName: string,
   steps: Array<Record<string, unknown>> = [],
@@ -392,6 +450,15 @@ export function findUnsupportedReason(
         return UNSUPPORTED[stepKey];
       }
     }
+    const viewKeys = new Set<string>();
+    collectViewTreeKeys(step['expectViewTree'], viewKeys);
+    for (const key of viewKeys) {
+      const viewKey = `${caseName}/${key}`;
+      if (Object.hasOwn(UNSUPPORTED, viewKey)) {
+        matchedUnsupportedKeys.add(viewKey);
+        return UNSUPPORTED[viewKey];
+      }
+    }
     const assertions = step['assertions'];
     if (assertions && typeof assertions === 'object' && !Array.isArray(assertions)) {
       for (const key of Object.keys(assertions as Record<string, unknown>)) {
@@ -409,6 +476,7 @@ export function findUnsupportedReason(
 export function assertAllUnsupportedMatched(
   accessibilityCases: AccessibilityTestCase[] = [],
   adapterCases: AdapterTestCase[] = [],
+  adapterV09Cases: AdapterTestCase[] = [],
 ): void {
   for (const testCase of accessibilityCases) {
     const steps: AccessibilityStep[] = testCase.steps ?? [
@@ -419,7 +487,7 @@ export function assertAllUnsupportedMatched(
     ];
     findUnsupportedReason(testCase.name, steps as unknown as Array<Record<string, unknown>>);
   }
-  for (const testCase of adapterCases) {
+  for (const testCase of [...adapterCases, ...adapterV09Cases]) {
     findUnsupportedReason(
       testCase.name,
       testCase.steps as unknown as Array<Record<string, unknown>>,
@@ -446,9 +514,11 @@ const RESERVED_VIEW_KEYS = new Set([
   'id',
   'type',
   'state',
+  'occupiesLayout',
   'isValid',
   'validationErrors',
   'validationResults',
+  'hints',
   'children',
 ]);
 
@@ -500,31 +570,36 @@ export function getConformanceSuites(): KarmaConformanceConfig {
   return decodeConformanceSuites(suites);
 }
 
-export function createDefaultAdapterCatalog(): AngularCatalog {
+export function createDefaultAdapterCatalog(protocolVersion: string = '1.0'): AngularCatalog {
   const incrementCounter = createFunctionImplementation(
     {
       name: 'incrementCounter',
       returnType: 'void',
       schema: z.object({
         path: z.string().optional(),
-        step: z.number().optional(),
-        amount: z.number().optional(),
+        step: z.any().optional(),
+        amount: z.any().optional(),
       }),
     },
     (args, context) => {
-      const targetPath = args.path ?? '/counter';
-      const delta = args.amount ?? args.step ?? 1;
+      const targetPath = (args.path as string | undefined) ?? '/counter';
+      const delta = Number(args.amount ?? args.step ?? 1);
       const current = Number(context.dataModel.get(targetPath) ?? 0);
       context.dataModel.set(targetPath, current + delta);
     },
   );
+  if (protocolVersion === 'v0.9' || protocolVersion === '0.9') {
+    return new V09BasicCatalogBase({
+      functions: [...createBasicCatalogFunctions(), incrementCounter],
+    });
+  }
   return new BasicCatalogBase({
     functions: [...Array.from(basicCatalog.functions.values()), incrementCounter],
   });
 }
 
 export function buildExtraCatalog(entry: ExtraCatalogEntry): AngularCatalog {
-  const implementations = Object.entries(entry.components).map(([name, def]) => {
+  const implementations = Object.entries(entry.components ?? {}).map(([name, def]) => {
     const shape: Record<string, z.ZodTypeAny> = {};
     for (const [propKey, propSchema] of Object.entries(def.properties ?? {})) {
       if (propKey === 'component') {
@@ -540,7 +615,28 @@ export function buildExtraCatalog(entry: ExtraCatalogEntry): AngularCatalog {
       ConformanceCustomWidgetComponent,
     );
   });
-  return new AngularCatalog(entry.catalogId, entry.protocolVersion ?? '1.0', implementations);
+  const functionImplementations = entry.functions
+    ? Object.entries(entry.functions).map(([name, fnDef]) => {
+        const record = fnDef as Record<string, unknown>;
+        return {
+          name,
+          returnType: (record['returnType'] as string) ?? 'any',
+          schema: z.object({}).passthrough(),
+          allowedCallers: record['allowedCallers'] as
+            | 'rendererOnly'
+            | 'agentOnly'
+            | 'rendererOrAgent'
+            | undefined,
+          requiresUserActivation: record['requiresUserActivation'] as boolean | undefined,
+        } as unknown as FunctionImplementation;
+      })
+    : [];
+  return new AngularCatalog(
+    entry.catalogId,
+    entry.protocolVersion ?? '1.0',
+    implementations,
+    functionImplementations,
+  );
 }
 
 export async function settleSurfaceDom(fixture: ComponentFixture<SurfaceComponent>): Promise<void> {
@@ -584,13 +680,33 @@ function getRootComponentNode(container: HTMLElement): ComponentNode | undefined
   return first?.node;
 }
 
-function extractDirectChildNodes(node: ComponentNode): ComponentNode[] {
+function extractDirectChildNodes(node: ComponentNode, container?: HTMLElement): ComponentNode[] {
   const props = peekValue(node.props);
   if (Array.isArray(props['children'])) {
     return props['children'].filter(isComponentNode);
   }
   if (isComponentNode(props['child'])) {
     return [props['child']];
+  }
+  if (Array.isArray(props['tabs'])) {
+    const domEl = container ? findDomElementForNode(container, node) : undefined;
+    const activeIndex = (domEl as unknown as {activeIndex?: number})?.activeIndex ?? 0;
+    const activeTab = (props['tabs'] as Array<{child?: unknown}>)[activeIndex];
+    if (activeTab && isComponentNode(activeTab.child)) {
+      return [activeTab.child];
+    }
+    return [];
+  }
+  if (isComponentNode(props['trigger'])) {
+    const modalChildren: ComponentNode[] = [props['trigger']];
+    const domEl = container ? findDomElementForNode(container, node) : undefined;
+    const isOpen =
+      (domEl as unknown as {isOpen?: boolean})?.isOpen === true ||
+      Boolean(domEl?.querySelector('.a2ui-modal-content'));
+    if (isOpen && isComponentNode(props['content'])) {
+      modalChildren.push(props['content']);
+    }
+    return modalChildren;
   }
   return [];
 }
@@ -602,6 +718,7 @@ function collectMountedNodes(root: ComponentNode | undefined): Map<string, Compo
   }
   const visit = (node: ComponentNode, nodePath: string): void => {
     nodes.set(nodePath, node);
+    nodes.set(node.componentId, node);
     const props = peekValue(node.props);
     if (Array.isArray(props['children'])) {
       props['children'].forEach((child, i) => {
@@ -611,6 +728,7 @@ function collectMountedNodes(root: ComponentNode | undefined): Map<string, Compo
       });
     } else if (isComponentNode(props['child'])) {
       visit(props['child'], `${nodePath}/child`);
+      visit(props['child'], `${nodePath}/children/0`);
     }
   };
   visit(root, 'root');
@@ -701,6 +819,14 @@ export function assertViewTree(
   if (expected.state !== undefined) {
     expect(actual.state).withContext(`${nodePath}.state`).toBe(expected.state);
   }
+  if (expected.occupiesLayout !== undefined && container) {
+    const domEl = findDomElementForNode(container, actual);
+    const occupies =
+      domEl !== undefined &&
+      window.getComputedStyle(domEl).display !== 'none' &&
+      (domEl.offsetWidth > 0 || domEl.offsetHeight > 0);
+    expect(occupies).withContext(`${nodePath}.occupiesLayout`).toBe(expected.occupiesLayout);
+  }
   if (actual.state === 'resolved' && container) {
     const domEl = findDomElementForNode(container, actual);
     expect(domEl).withContext(`Expected a mounted DOM element for ${nodePath}`).toBeDefined();
@@ -712,10 +838,15 @@ export function assertViewTree(
           .toContain(expectedText);
       }
     }
+    if (expected.hints !== undefined) {
+      for (const hint of expected.hints) {
+        expect(domEl!.textContent).withContext(`${nodePath}.hints rendered text`).toContain(hint);
+      }
+    }
   }
   assertViewNodeProps(actual, expected, nodePath);
   if (expected.children !== undefined) {
-    const childNodes = extractDirectChildNodes(actual);
+    const childNodes = extractDirectChildNodes(actual, container);
     expect(childNodes.length)
       .withContext(`${nodePath}.children length`)
       .toBe(expected.children.length);
@@ -901,6 +1032,66 @@ async function performStepOperation(state: HarnessState, step: AdapterStep): Pro
   const targetId = step.targetNode!;
   if (step.op === 'user_input') {
     const compEl = findComponentElement(container, targetId);
+    expect(compEl).withContext(`Component element for "${targetId}"`).toBeDefined();
+    const tag = compEl!.tagName.toLowerCase();
+    if (tag === 'a2ui-checkbox' || typeof step.inputValue === 'boolean') {
+      const checkbox = compEl!.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+      expect(checkbox).withContext(`Checkbox input for "${targetId}"`).not.toBeNull();
+      checkbox!.checked = Boolean(step.inputValue);
+      checkbox!.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+      return;
+    }
+    if (tag === 'a2ui-choicepicker' || Array.isArray(step.inputValue)) {
+      const values = (Array.isArray(step.inputValue) ? step.inputValue : [step.inputValue]).map(
+        String,
+      );
+      const options = Array.from(
+        compEl!.querySelectorAll('input.a2ui-option-input'),
+      ) as HTMLInputElement[];
+      expect(options.length).toBeGreaterThan(0);
+      for (const opt of options) {
+        const shouldCheck = values.includes(opt.value);
+        if (opt.type === 'radio' ? shouldCheck : opt.checked !== shouldCheck) {
+          opt.checked = shouldCheck;
+          opt.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+        }
+      }
+      return;
+    }
+    if (tag === 'a2ui-tabs') {
+      const tabButtons = Array.from(
+        compEl!.querySelectorAll('button.a2ui-tab-button'),
+      ) as HTMLButtonElement[];
+      const tabIdx = Number(step.inputValue ?? 0);
+      expect(tabButtons[tabIdx])
+        .withContext(`Tab button ${tabIdx} for "${targetId}"`)
+        .toBeDefined();
+      tabButtons[tabIdx]!.click();
+      return;
+    }
+    if (tag === 'a2ui-slider') {
+      const slider = compEl!.querySelector('input[type="range"]') as HTMLInputElement | null;
+      expect(slider).withContext(`Range input for "${targetId}"`).not.toBeNull();
+      slider!.value = String(step.inputValue ?? 0);
+      slider!.dispatchEvent(new Event('input', {bubbles: true, composed: true}));
+      return;
+    }
+    if (tag === 'a2ui-datetimeinput') {
+      const raw = String(step.inputValue ?? '');
+      const [datePart, timePart] = raw.includes('T') ? raw.split('T') : [raw, ''];
+      const dateInput = compEl!.querySelector('input[type="date"]') as HTMLInputElement | null;
+      if (dateInput && datePart) {
+        dateInput.value = datePart.slice(0, 10);
+        dateInput.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+        await settleSurfaceDom(state.fixture!);
+      }
+      const timeInput = compEl!.querySelector('input[type="time"]') as HTMLInputElement | null;
+      if (timeInput && timePart) {
+        timeInput.value = timePart.slice(0, 5);
+        timeInput.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+      }
+      return;
+    }
     const input = compEl?.querySelector('input, textarea') as HTMLInputElement | null;
     expect(input).withContext(`Input element for "${targetId}"`).not.toBeNull();
     input!.value = String(step.inputValue ?? '');
@@ -992,8 +1183,46 @@ function assertStepIdentityAndModel(
       expect(currEl).toBe(prevEl);
     }
   }
+  if (step.expectNewViewIdentity) {
+    for (const nodePath of step.expectNewViewIdentity) {
+      const prevNode = state.previousNodes.get(nodePath);
+      const currNode = currentNodes.get(nodePath);
+      expect(prevNode).withContext(`Previous node at ${nodePath}`).toBeDefined();
+      expect(currNode).withContext(`Current node at ${nodePath}`).toBeDefined();
+      expect(currNode).not.toBe(prevNode);
+      const prevEl = state.previousDomElements.get(nodePath);
+      const currEl = currentDom.get(nodePath);
+      expect(prevEl).withContext(`Previous DOM element for ${nodePath}`).toBeDefined();
+      expect(currEl).withContext(`Current DOM element for ${nodePath}`).toBeDefined();
+      expect(currEl).not.toBe(prevEl);
+    }
+  }
+  if (step.expectDisposedNodes) {
+    for (const nodeId of step.expectDisposedNodes) {
+      const prevNode = state.previousNodes.get(nodeId);
+      expect(prevNode).withContext(`Previous node for ${nodeId}`).toBeDefined();
+      expect((prevNode as unknown as {disposed?: boolean})?.disposed).toBe(true);
+      expect(currentNodes.has(nodeId)).toBe(false);
+    }
+  }
+  if (step.expectSurfaceRemoved) {
+    expect(state.rendererService.surfaceGroup.getSurface(state.surface!.id)).toBeUndefined();
+    expect((state.surface as unknown as {disposed?: boolean})?.disposed).toBe(true);
+    expect(state.unmounted).toBe(true);
+  }
   if (step.expectDataModel !== undefined) {
     expect(state.surface!.dataModel.get('/')).toEqual(step.expectDataModel);
+  }
+  if (step.expectThemeAbsent && state.surface && state.fixture) {
+    expect(state.surface.theme ?? {}).toEqual({});
+    const container = state.fixture.nativeElement as HTMLElement;
+    for (const el of Array.from(container.querySelectorAll('*'))) {
+      const htmlEl = el as HTMLElement;
+      expect(htmlEl.style.getPropertyValue('--a2ui-color-primary')).toBe('');
+      const inlineStyle = (htmlEl.getAttribute('style') ?? '').toLowerCase();
+      expect(inlineStyle).not.toContain('#ff00aa');
+      expect(inlineStyle).not.toContain('255, 0, 170');
+    }
   }
   if (step.expectActiveSubscriptions !== undefined) {
     expect(countActiveSubscriptions(state.surface!)).toBe(step.expectActiveSubscriptions);
@@ -1015,14 +1244,173 @@ function mapNodesToDomElements(
   return result;
 }
 
+function frameActionEnvelope(
+  action: Record<string, unknown>,
+  protocolVersion: string,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    name: action['name'],
+    surfaceId: action['surfaceId'],
+    sourceComponentId: action['sourceComponentId'],
+    timestamp: action['timestamp'],
+    context: action['context'] ?? {},
+  };
+  if (action['userMessage'] !== undefined) {
+    payload['userMessage'] = action['userMessage'];
+  }
+  if (action['metadata'] !== undefined) {
+    payload['metadata'] = action['metadata'];
+  }
+  return {
+    version: protocolVersion,
+    action: payload,
+  };
+}
+
+function frameErrorEnvelope(
+  err: Record<string, unknown>,
+  surfaceId: string,
+  protocolVersion: string,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    code: err['code'],
+    message: err['message'],
+  };
+  if (typeof err['functionCallId'] === 'string') {
+    payload['functionCallId'] = err['functionCallId'];
+  } else {
+    payload['surfaceId'] = typeof err['surfaceId'] === 'string' ? err['surfaceId'] : surfaceId;
+  }
+  if (typeof err['path'] === 'string') {
+    payload['path'] = err['path'];
+  }
+  return {
+    version: protocolVersion,
+    error: payload,
+  };
+}
+
+function isMatchAny(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const keys = Object.keys(value as Record<string, unknown>);
+  return keys.length === 1 && (value as Record<string, unknown>)['$match'] === 'any';
+}
+
+function assertMatchesExpectedOutbound(actual: unknown, expected: unknown, where: string): void {
+  if (isMatchAny(expected)) {
+    expect(actual !== undefined && actual !== null)
+      .withContext(`${where}: expected defined non-null`)
+      .toBe(true);
+    return;
+  }
+  if (Array.isArray(expected)) {
+    expect(Array.isArray(actual)).withContext(`${where}: expected array`).toBe(true);
+    expect((actual as unknown[]).length)
+      .withContext(`${where}: array length`)
+      .toBe(expected.length);
+    for (let i = 0; i < expected.length; i++) {
+      assertMatchesExpectedOutbound((actual as unknown[])[i], expected[i], `${where}[${i}]`);
+    }
+    return;
+  }
+  if (typeof expected === 'object' && expected !== null) {
+    expect(typeof actual === 'object' && actual !== null && !Array.isArray(actual))
+      .withContext(`${where}: expected object`)
+      .toBe(true);
+    const actualRecord = actual as Record<string, unknown>;
+    const expectedRecord = expected as Record<string, unknown>;
+    const actualKeys = Object.keys(actualRecord).sort();
+    const expectedKeys = Object.keys(expectedRecord).sort();
+    expect(actualKeys).withContext(`${where}: object keys`).toEqual(expectedKeys);
+    for (const key of expectedKeys) {
+      assertMatchesExpectedOutbound(actualRecord[key], expectedRecord[key], `${where}.${key}`);
+    }
+    return;
+  }
+  expect(actual).withContext(`${where}: value`).toBe(expected);
+}
+
+function validateOutboundEnvelopes(
+  envelopes: Array<Record<string, unknown>>,
+  protocolVersion: string,
+): void {
+  const isV09 = protocolVersion.startsWith('v0.9') || protocolVersion.startsWith('0.9');
+  for (let i = 0; i < envelopes.length; i++) {
+    const env = envelopes[i];
+    const parsed = isV09
+      ? A2uiClientMessageSchema.safeParse(env)
+      : RendererToAgentMessageSchema.safeParse(env);
+    expect(parsed.success)
+      .withContext(
+        `outbound[${i}] failed protocol schema validation: ${
+          parsed.success ? '' : JSON.stringify(parsed.error.issues)
+        }`,
+      )
+      .toBe(true);
+  }
+}
+
+function assertExpectedOutbound(
+  actual: Array<Record<string, unknown>>,
+  expected: Array<Record<string, unknown>> | undefined,
+): void {
+  if (expected === undefined) {
+    return;
+  }
+  expect(actual.length).withContext('expectOutbound length').toBe(expected.length);
+  for (let i = 0; i < expected.length; i++) {
+    assertMatchesExpectedOutbound(actual[i], expected[i], `expectOutbound[${i}]`);
+  }
+}
+
 export function mountSurface(caseSpec?: Partial<AdapterTestCase>): HarnessState {
+  const protocolVersion = caseSpec?.protocolVersion ?? '1.0';
   const catalogs: AngularCatalog[] = [
-    createDefaultAdapterCatalog(),
+    createDefaultAdapterCatalog(protocolVersion),
     ...(caseSpec?.catalogs ?? []).map(buildExtraCatalog),
   ];
+  const outbound: Array<Record<string, unknown>> = [];
+  const validationConfig =
+    caseSpec?.strictMode === true
+      ? {
+          allowOrphanComponents: false,
+          allowDanglingReferences: false,
+          allowMissingRoot: false,
+          allowUnknownElements: false,
+        }
+      : caseSpec?.strictMode === false
+        ? {
+            allowOrphanComponents: true,
+            allowDanglingReferences: true,
+            allowMissingRoot: true,
+            allowUnknownElements: true,
+          }
+        : undefined;
+  let lastCapturedCallId: string | undefined;
   TestBed.configureTestingModule({
     imports: [SurfaceComponent],
-    providers: [provideA2UI({catalogs})],
+    providers: [
+      provideA2UI({
+        catalogs,
+        processorOptions: {
+          validationConfig,
+          outboundListener: msg => {
+            outbound.push(structuredClone(msg) as unknown as Record<string, unknown>);
+            const call = (msg as Record<string, unknown>)?.['callAgentFunction'] as
+              | Record<string, unknown>
+              | undefined;
+            if (call && typeof call['functionCallId'] === 'string') {
+              lastCapturedCallId = call['functionCallId'];
+              if (state) {
+                state.lastCallId = lastCapturedCallId;
+              }
+            }
+          },
+        },
+      }),
+    ],
   });
   const rendererService = TestBed.inject(A2uiRendererService);
   const state: HarnessState = {
@@ -1030,25 +1418,75 @@ export function mountSurface(caseSpec?: Partial<AdapterTestCase>): HarnessState 
     unmounted: false,
     actions: [],
     errors: [],
+    outbound,
+    protocolVersion,
     previousNodes: new Map(),
     previousDomElements: new Map(),
+    lastCallId: lastCapturedCallId,
   };
   rendererService.surfaceGroup.onSurfaceCreated.subscribe(surface => {
     state.surface = surface;
     surface.onAction.subscribe(action => {
       state.actions.push(action as unknown as Record<string, unknown>);
+      state.outbound.push(
+        frameActionEnvelope(action as unknown as Record<string, unknown>, state.protocolVersion),
+      );
     });
     surface.onError.subscribe(err => {
-      state.errors.push(err as unknown as Record<string, unknown>);
+      const errRecord = err as unknown as Record<string, unknown>;
+      state.errors.push({
+        code: errRecord['code'],
+        message: errRecord['message'],
+        surfaceId: (errRecord['surfaceId'] as string | undefined) ?? surface.id,
+        ...(typeof errRecord['path'] === 'string' ? {path: errRecord['path']} : {}),
+      });
+      state.outbound.push(
+        frameErrorEnvelope(
+          err as unknown as Record<string, unknown>,
+          surface.id,
+          state.protocolVersion,
+        ),
+      );
     });
+  });
+  rendererService.surfaceGroup.onSurfaceDeleted.subscribe(deletedId => {
+    if (state.surface?.id === deletedId && !state.unmounted) {
+      state.fixture?.destroy();
+      state.unmounted = true;
+    }
   });
   return state;
 }
 
+export function substituteLastCallId(value: unknown, lastCallId: string): unknown {
+  if (Array.isArray(value)) {
+    return value.map(item => substituteLastCallId(item, lastCallId));
+  }
+  if (value && typeof value === 'object') {
+    const rec = value as Record<string, unknown>;
+    if (rec['$ref'] === 'lastCallId' && Object.keys(rec).length === 1) {
+      return lastCallId;
+    }
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(rec)) {
+      result[k] = substituteLastCallId(v, lastCallId);
+    }
+    return result;
+  }
+  return value;
+}
+
 export async function runStep(state: HarnessState, step: AdapterStep): Promise<void> {
   assertKnownKeys(step);
+  if (step.messages) {
+    step = {
+      ...step,
+      messages: substituteLastCallId(step.messages, state.lastCallId ?? '') as ProcessableMessage[],
+    };
+  }
   state.actions = [];
   state.errors = [];
+  state.outbound.length = 0;
   if (step.messages && step.messages.length > 0) {
     state.rendererService.processMessages(step.messages);
   }
@@ -1080,6 +1518,8 @@ export async function runStep(state: HarnessState, step: AdapterStep): Promise<v
   }
   assertExpectedActions(state.actions, step.expectActions);
   assertExpectedErrors(state.errors, step.expectErrors);
+  validateOutboundEnvelopes(state.outbound, state.protocolVersion);
+  assertExpectedOutbound(state.outbound, step.expectOutbound);
   assertStepIdentityAndModel(state, step, currentNodes, currentDom);
   state.previousNodes = currentNodes;
   state.previousDomElements = currentDom;

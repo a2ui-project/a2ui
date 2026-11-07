@@ -383,7 +383,15 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
       const div = document.createElement('div');
       div.className = 'mermaid-rendered not-content';
       div.dataset.mermaidSource = code;
-      (pre.closest('.expressive-code') || pre).replaceWith(div);
+      const ec = pre.closest('.expressive-code');
+      if (ec) {
+        for (const el of ec.querySelectorAll('link, script')) {
+          document.head.appendChild(el);
+        }
+        ec.replaceWith(div);
+      } else {
+        pre.replaceWith(div);
+      }
     }
 
     const blocks = document.querySelectorAll<HTMLElement>(
