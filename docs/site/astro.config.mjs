@@ -62,6 +62,7 @@ export default defineConfig({
     '/specification/v0.8-a2a-extension': '/specification/v1.0-a2ui-extension-specification/',
     '/specification/v0.8-custom-catalog-changes': '/specification/v1.0-a2ui/',
     '/specification/v0.8/schemas': '/specification/v1.0/schemas/',
+    '/consultants': '/get-help/#consultants',
   },
   markdown: {
     remarkPlugins: [remarkA2uiIncludes],
@@ -227,6 +228,10 @@ export default defineConfig({
             {
               label: 'Ecosystem Renderers & Tools',
               slug: 'ecosystem/renderers',
+            },
+            {
+              label: 'Get Help',
+              link: '/get-help/',
             },
           ],
         },
