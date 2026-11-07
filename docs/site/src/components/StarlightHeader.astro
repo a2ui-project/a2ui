@@ -66,14 +66,6 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
     <span class="a2-sl-header__slash" aria-hidden="true">/</span>
     <nav class="a2-sl-header__tabs" aria-label="Primary section navigation">
       <a
-        href={`${base}/#custom-ui`}
-        class="a2-sl-tab a2-sl-tab--desk-only">Examples</a
-      >
-      <a
-        href={`${base}/#spectrum`}
-        class="a2-sl-tab a2-sl-tab--desk-only">Spectrum</a
-      >
-      <a
         href={`${base}/showcase/`}
         class:list={['a2-sl-tab', { 'is-active': isShowcase }]}
         aria-current={isShowcase ? 'page' : undefined}>Showcase</a
@@ -594,7 +586,6 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
   }
 
   @media (max-width: 1020px) {
-    .a2-sl-tab--desk-only,
     .a2-sl-brand__ver {
       display: none;
     }
