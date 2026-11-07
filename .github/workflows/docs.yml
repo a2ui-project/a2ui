@@ -132,6 +132,9 @@ jobs:
       - name: Install preview site dependencies
         run: npm --prefix docs/site ci || npm --prefix docs/site install --no-package-lock
 
+      - name: Run preview site tests
+        run: npm --prefix docs/site test
+
       - name: Validate documentation conversion script
         run: uv run pytest docs/scripts/test_convert_docs.py
 
