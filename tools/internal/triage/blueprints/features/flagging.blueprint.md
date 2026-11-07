@@ -1,10 +1,10 @@
 # How the flagging script works
 
-The triage process the script supports is described in [docs/contributing/triage/triage.md](../../../../docs/contributing/triage/triage.md).
+The triage process the script supports is described in [docs/contributing/triage/triage.md](../../../../../docs/contributing/triage/triage.md).
 
-The [flagging.mts](../flagging/flagging.mts) script runs via the [`Flag/Unflag issues and PRs`](https://github.com/a2ui-project/a2ui/blob/main/.github/workflows/triage.yml) GitHub Actions workflow. It checks every open issue and PR, adds `status: needs-triage` to the ones that match the rules below, and removes the label from the rest. The terms are defined in [definitions.blueprint.md](definitions.blueprint.md).
+The [flagging.mts](../../packages/flagging/flagging.mts) script runs via the [`Flag/Unflag issues and PRs`](https://github.com/a2ui-project/a2ui/blob/main/.github/workflows/triage.yml) GitHub Actions workflow. It checks every open issue and PR, adds `status: needs-triage` to the ones that match the rules below, and removes the label from the rest. The terms are defined in [core.blueprint.md](../core.blueprint.md).
 
-The script handles [triage bot](definitions.blueprint.md#contributors) comments in two ways:
+The script handles [triage bot](../core.blueprint.md#contributors) comments in two ways:
 
 1. A staleness ping delays flagging. A stale item is not flagged right away: the [staleness ping job](staleness_ping.blueprint.md) pings its assignees first, and the script flags the item only once the ping has expired (rule 2). The ping does not count as activity, so it does not restart the clock that made the item stale.
 2. In all other rules, the script ignores triage bot comments. For example, a triage recommendation does not answer `status: waiting-for-author-response` (rule 1). It also does not count as the team's response to an item (rules 4 and 5), so the item stays flagged until a team member acts on it.

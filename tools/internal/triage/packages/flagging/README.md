@@ -1,3 +1,3 @@
 # Triage flagging bot
 
-The bot implements functionality described in [flagging.blueprint.md](../blueprints/flagging.blueprint.md).
+The bot implements functionality described in [flagging.blueprint.md](../../blueprints/features/flagging.blueprint.md).

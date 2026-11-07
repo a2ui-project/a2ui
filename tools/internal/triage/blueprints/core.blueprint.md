@@ -1,6 +1,6 @@
 # Triage definitions
 
-Terms used in [flagging.blueprint.md](flagging.blueprint.md) and [staleness_ping.blueprint.md](staleness_ping.blueprint.md).
+Terms used in [flagging.blueprint.md](features/flagging.blueprint.md) and [staleness_ping.blueprint.md](features/staleness_ping.blueprint.md).
 
 ## Contributors
 

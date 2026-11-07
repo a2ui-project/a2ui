@@ -1,10 +1,10 @@
 # How the staleness ping job works
 
-The staleness ping job asks the assignees of [stale items](definitions.blueprint.md#stale-items) to act before the item is flagged for triage. It is a separate job from the [flagging script](flagging.blueprint.md), which only reads the pings to decide when to flag.
+The staleness ping job asks the assignees of [stale items](../core.blueprint.md#stale-items) to act before the item is flagged for triage. It is a separate job from the [flagging script](flagging.blueprint.md), which only reads the pings to decide when to flag.
 
-The job runs daily. For each stale item without a [current ping](definitions.blueprint.md#staleness-pings), it does the following:
+The job runs daily. For each stale item without a [current ping](../core.blueprint.md#staleness-pings), it does the following:
 
-1. Posts a [triage bot](definitions.blueprint.md#contributors) comment on the issue or PR.
+1. Posts a [triage bot](../core.blueprint.md#contributors) comment on the issue or PR.
 2. Sends a message to the team's Google Chat space.
 
 The job keeps no state between runs. It finds its earlier pings by the marker in its comments, and uses the comment's creation time as the time of the ping.
