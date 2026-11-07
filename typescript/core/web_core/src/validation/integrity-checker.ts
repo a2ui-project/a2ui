@@ -84,20 +84,25 @@ function* extractPointers(
     }
   } else if (typeof val === 'object' && val !== null) {
     const obj = val as Record<string, unknown>;
-    if (
-      'componentId' in obj &&
+    const isTemplate =
+      Object.hasOwn(obj, 'componentId') &&
       typeof obj.componentId === 'string' &&
-      ('path' in obj || 'dataBinding' in obj)
+      (Object.hasOwn(obj, 'path') ||
+        Object.hasOwn(obj, '@path') ||
+        Object.hasOwn(obj, 'dataBinding'));
+    if (
+      nestedKeys?.size &&
+      (!isTemplate || Array.from(nestedKeys).some(subKey => Object.hasOwn(obj, subKey)))
     ) {
-      yield [obj.componentId, `${currentPath}.componentId`];
-    } else if (nestedKeys?.size) {
       // The catalog declared exactly which sub-keys carry a child, so sibling
       // properties such as a tab title are not references.
       for (const subKey of nestedKeys) {
-        if (subKey in obj) {
+        if (Object.hasOwn(obj, subKey)) {
           yield* extractPointers(obj[subKey], `${currentPath}.${subKey}`);
         }
       }
+    } else if (isTemplate) {
+      yield [obj.componentId as string, `${currentPath}.componentId`];
     } else {
       for (const [subKey, subVal] of Object.entries(obj)) {
         yield* extractPointers(subVal, `${currentPath}.${subKey}`);

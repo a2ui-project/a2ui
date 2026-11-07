@@ -45,7 +45,7 @@ import {
 import {effect, getValue, peekValue, setValue, Signal} from '../reactivity/signals.js';
 import {ComponentNode, NodeProps, PLACEHOLDER_TYPE, isComponentNode} from './component-node.js';
 import {NodeResolver} from './node-resolver.js';
-import {ResolvedBinding, isWritable} from './resolved-binding.js';
+import {ResolvedBinding, WritableBinding, isWritable} from './resolved-binding.js';
 import * as v0_9 from '../v0_9/index.js';
 import {MAX_DYNAMIC_CHILD_LIST_SIZE} from './generic-binder.js';
 
@@ -1705,6 +1705,573 @@ describe('NodeResolver omitted property pruning on update (#3779)', () => {
     assert.deepStrictEqual(props(root).extraMap, {keep: 'yes'});
     assert.deepStrictEqual(props(root).grid, [[{title: 'Cell 1'}]]);
     assert.strictEqual((props(root).children as ComponentNode[]).length, 1);
+
+    resolver.dispose();
+    surface.dispose();
+  });
+});
+
+describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
+  it('resolves child and children for z.record, z.any, and z.unknown schemas and disposes removed children', () => {
+    for (const [label, dynamicSchema] of [
+      ['z.record', z.record(z.unknown())],
+      ['z.any', z.any()],
+      ['z.unknown', z.unknown()],
+    ] as const) {
+      const DynamicApi: ComponentApi = {name: 'DynamicWidget', schema: dynamicSchema};
+      const catalog = new Catalog<ComponentApi>(`dyn-${label}`, '0.9', [DynamicApi, TextApi]);
+      const surface = new SurfaceModel('surf-1', catalog);
+      const resolver = new NodeResolver(surface, catalog);
+
+      add(surface, 'root', 'DynamicWidget', {
+        title: 'Header',
+        child: 'single-kid',
+        children: ['list-a', 'list-b'],
+      });
+      add(surface, 'single-kid', 'Text', {text: 'Single'});
+      add(surface, 'list-a', 'Text', {text: 'One'});
+      add(surface, 'list-b', 'Text', {text: 'Two'});
+
+      const root = getValue(resolver.rootNode);
+      assert.ok(root, `${label}: expected root node`);
+      assert.strictEqual(props(root).title, 'Header');
+
+      const singleChild = props(root).child;
+      assert.ok(isComponentNode(singleChild), `${label}: expected single child node`);
+      assert.strictEqual(singleChild.componentId, 'single-kid');
+
+      const listChildren = props(root).children as ComponentNode[];
+      assert.strictEqual(listChildren.length, 2, `${label}: expected 2 list children`);
+      assert.ok(listChildren.every(isComponentNode), `${label}: expected resolved list nodes`);
+      assert.deepStrictEqual(
+        listChildren.map(c => c.componentId),
+        ['list-a', 'list-b'],
+      );
+
+      // Updating properties disposes removed child nodes cleanly.
+      const removedChild = listChildren[1];
+      const rootModel = surface.componentsModel.get('root')!;
+      rootModel.properties = {title: 'Updated', children: ['list-a']};
+      assert.strictEqual(removedChild.disposed, true, `${label}: removed child should dispose`);
+      assert.strictEqual(
+        singleChild.disposed,
+        true,
+        `${label}: omitted single child should dispose`,
+      );
+      assert.strictEqual(Object.hasOwn(props(root), 'child'), false);
+      assert.strictEqual((props(root).children as ComponentNode[]).length, 1);
+
+      resolver.dispose();
+    }
+  });
+
+  it('resolves child and children for empty-shape z.object({}), passthrough, catchall, and Catalog.fromJson schemas', () => {
+    const EmptyApi: ComponentApi = {name: 'EmptyBox', schema: z.object({})};
+    const PassthroughApi: ComponentApi = {
+      name: 'PassthroughBox',
+      schema: z.object({variant: z.string().optional()}).passthrough(),
+    };
+    const CatchallApi: ComponentApi = {
+      name: 'CatchallBox',
+      schema: z.object({variant: z.string().optional()}).catchall(z.unknown()),
+    };
+    const catalog = new Catalog<ComponentApi>('open-obj-catalog', '0.9', [
+      EmptyApi,
+      PassthroughApi,
+      CatchallApi,
+      TextApi,
+    ]);
+    const surface = new SurfaceModel('surf-open', catalog);
+    const resolver = new NodeResolver(surface, catalog);
+
+    add(surface, 'root', 'EmptyBox', {children: ['pt', 'ca']});
+    add(surface, 'pt', 'PassthroughBox', {variant: 'card', child: 'leaf-1'});
+    add(surface, 'ca', 'CatchallBox', {variant: 'row', children: ['leaf-2']});
+    add(surface, 'leaf-1', 'Text', {text: 'Leaf 1'});
+    add(surface, 'leaf-2', 'Text', {text: 'Leaf 2'});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const [ptNode, caNode] = props(root).children as ComponentNode[];
+    assert.ok(isComponentNode(ptNode));
+    assert.ok(isComponentNode(caNode));
+    assert.ok(isComponentNode(props(ptNode).child));
+    assert.strictEqual((props(ptNode).child as ComponentNode).componentId, 'leaf-1');
+    const caChildren = props(caNode).children as ComponentNode[];
+    assert.strictEqual(caChildren.length, 1);
+    assert.ok(isComponentNode(caChildren[0]));
+    assert.strictEqual(caChildren[0].componentId, 'leaf-2');
+    resolver.dispose();
+
+    const loadedJsonCatalog = Catalog.fromJson({
+      catalogId: 'https://example.com/json-open.json',
+      components: {
+        DynamicContainer: {
+          type: 'object',
+          properties: {heading: {type: 'string'}},
+          additionalProperties: true,
+        },
+        UnannotatedStack: {
+          type: 'object',
+          properties: {
+            child: {type: 'string'},
+            children: {type: 'array', items: {type: 'string'}},
+          },
+        },
+        Label: {
+          type: 'object',
+          properties: {text: {type: 'string'}},
+          additionalProperties: false,
+        },
+      },
+    });
+    const jsonCatalog = new Catalog(
+      loadedJsonCatalog.id,
+      loadedJsonCatalog.protocolVersion,
+      Array.from(loadedJsonCatalog.components.values()),
+      [],
+    );
+    const jsonSurface = new SurfaceModel('surf-json', jsonCatalog);
+    const jsonResolver = new NodeResolver(jsonSurface, jsonCatalog);
+
+    jsonSurface.componentsModel.addComponent(
+      new ComponentModel('root', 'DynamicContainer', {heading: 'Top', child: 'stack'}, jsonCatalog),
+    );
+    jsonSurface.componentsModel.addComponent(
+      new ComponentModel(
+        'stack',
+        'UnannotatedStack',
+        {child: 'lbl-1', children: ['lbl-2']},
+        jsonCatalog,
+      ),
+    );
+    jsonSurface.componentsModel.addComponent(
+      new ComponentModel('lbl-1', 'Label', {text: 'First'}, jsonCatalog),
+    );
+    jsonSurface.componentsModel.addComponent(
+      new ComponentModel('lbl-2', 'Label', {text: 'Second'}, jsonCatalog),
+    );
+
+    const jsonRoot = getValue(jsonResolver.rootNode);
+    assert.ok(jsonRoot);
+    const stackNode = props(jsonRoot).child as ComponentNode;
+    assert.ok(isComponentNode(stackNode));
+    assert.strictEqual(stackNode.componentId, 'stack');
+    assert.ok(isComponentNode(props(stackNode).child));
+    assert.strictEqual((props(stackNode).child as ComponentNode).componentId, 'lbl-1');
+    const stackChildren = props(stackNode).children as ComponentNode[];
+    assert.strictEqual(stackChildren.length, 1);
+    assert.ok(isComponentNode(stackChildren[0]));
+    assert.strictEqual(stackChildren[0].componentId, 'lbl-2');
+
+    jsonResolver.dispose();
+  });
+
+  it('resolves unannotated z.object({child, children}) alongside explicit custom ref fields without misclassifying incompatible types', () => {
+    const UnannotatedApi: ComponentApi = {
+      name: 'UnannotatedLayout',
+      schema: z.object({
+        header: ComponentIdSchema.optional(),
+        child: z.string().optional(),
+        children: z.array(z.string()).optional(),
+      }),
+    };
+    const IncompatibleApi: ComponentApi = {
+      name: 'IncompatibleFields',
+      schema: z.object({
+        child: z.boolean().optional(),
+        children: z.number().optional(),
+      }),
+    };
+    const catalog = new Catalog<ComponentApi>('mixed-catalog', '0.9', [
+      UnannotatedApi,
+      IncompatibleApi,
+      TextApi,
+    ]);
+    const surface = new SurfaceModel('surf-mixed', catalog);
+    const resolver = new NodeResolver(surface, catalog);
+
+    add(surface, 'root', 'UnannotatedLayout', {
+      header: 'hdr',
+      child: 'body',
+      children: ['inc'],
+    });
+    add(surface, 'hdr', 'Text', {text: 'Header'});
+    add(surface, 'body', 'Text', {text: 'Body'});
+    add(surface, 'inc', 'IncompatibleFields', {child: true, children: 3});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.ok(isComponentNode(props(root).header));
+    assert.strictEqual((props(root).header as ComponentNode).componentId, 'hdr');
+    assert.ok(isComponentNode(props(root).child));
+    assert.strictEqual((props(root).child as ComponentNode).componentId, 'body');
+
+    const [incNode] = props(root).children as ComponentNode[];
+    assert.ok(isComponentNode(incNode));
+    assert.strictEqual(props(incNode).child, true);
+    assert.strictEqual(props(incNode).children, 3);
+
+    resolver.dispose();
+  });
+
+  it('expands { componentId, path } templates into ComponentNode[] on unmarked, open, empty, and wrapped schemas', () => {
+    const UnmarkedUnionListApi: ComponentApi = {
+      name: 'UnmarkedUnionList',
+      schema: z.object({
+        children: z
+          .union([z.array(z.string()), z.object({componentId: z.string(), path: z.string()})])
+          .optional(),
+      }),
+    };
+    const WrappedListApi: ComponentApi = {
+      name: 'WrappedList',
+      schema: z.object({
+        children: ChildListSchema.catch([]).pipe(z.any()).optional(),
+      }),
+    };
+    const EmptyListApi: ComponentApi = {
+      name: 'EmptyList',
+      schema: z.object({}),
+    };
+    const RecordListApi: ComponentApi = {
+      name: 'RecordList',
+      schema: z.record(z.unknown()),
+    };
+
+    const catalog = new Catalog<ComponentApi>('template-catalog', '0.9', [
+      UnmarkedUnionListApi,
+      WrappedListApi,
+      EmptyListApi,
+      RecordListApi,
+      TextApi,
+    ]);
+    const surface = new SurfaceModel('surf-tmpl', catalog);
+    surface.dataModel.set('/items', [{label: 'First'}, {label: 'Second'}]);
+    const resolver = new NodeResolver(surface, catalog);
+
+    add(surface, 'root', 'UnmarkedUnionList', {
+      children: ['wrapped', 'empty', 'record'],
+    });
+    add(surface, 'wrapped', 'WrappedList', {
+      children: {componentId: 'item-tpl', path: '/items'},
+    });
+    add(surface, 'empty', 'EmptyList', {
+      children: {componentId: 'item-tpl', path: '/items'},
+    });
+    add(surface, 'record', 'RecordList', {
+      children: {componentId: 'item-tpl', path: '/items'},
+    });
+    add(surface, 'item-tpl', 'Text', {text: {path: 'label'}});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const containers = props(root).children as ComponentNode[];
+    assert.strictEqual(containers.length, 3);
+
+    for (const container of containers) {
+      const resolvedItems = props(container).children as ComponentNode[];
+      assert.ok(Array.isArray(resolvedItems), `${container.type}: expected children array`);
+      assert.strictEqual(resolvedItems.length, 2, `${container.type}: expected 2 expanded items`);
+      assert.ok(resolvedItems.every(isComponentNode));
+      assert.strictEqual(bound(resolvedItems[0], 'text'), 'First');
+      assert.strictEqual(bound(resolvedItems[1], 'text'), 'Second');
+    }
+
+    // Verify unmarked union itself also expands a { componentId, path } template.
+    const rootModel = surface.componentsModel.get('root')!;
+    rootModel.properties = {children: {componentId: 'item-tpl', path: '/items'}};
+    const expandedRootChildren = props(root).children as ComponentNode[];
+    assert.strictEqual(expandedRootChildren.length, 2);
+    assert.strictEqual(bound(expandedRootChildren[0], 'text'), 'First');
+    assert.strictEqual(bound(expandedRootChildren[1], 'text'), 'Second');
+
+    resolver.dispose();
+  });
+
+  it('resolves dynamic bindings, actions, accessibility, and child references on ZodIntersection, variant union, and ZodPipeline schemas', () => {
+    const VariantAndIntersectedApi: ComponentApi = {
+      name: 'VariantContainer',
+      schema: z
+        .object({
+          subtitle: DynamicStringSchema.optional(),
+          onTap: ActionSchema.optional(),
+        })
+        .and(
+          z.union([
+            z.object({
+              mode: z.literal('single'),
+              title: DynamicStringSchema,
+              child: ComponentIdSchema.pipe(z.string()),
+            }),
+            z.object({
+              mode: z.literal('list'),
+              title: DynamicStringSchema,
+              children: ChildListSchema,
+            }),
+          ]),
+        ),
+    };
+
+    const catalog = new Catalog<ComponentApi>('composite-catalog', '0.9', [
+      VariantAndIntersectedApi,
+      TextApi,
+    ]);
+    const surface = new SurfaceModel('surf-comp', catalog);
+    surface.dataModel.set('/title', 'Hello Composite');
+    surface.dataModel.set('/sub', 'Subtext');
+    surface.dataModel.set('/a11y', 'Accessible Container');
+
+    const actions: unknown[] = [];
+    surface.onAction.subscribe(a => {
+      actions.push(a);
+    });
+
+    const resolver = new NodeResolver(surface, catalog);
+    add(surface, 'root', 'VariantContainer', {
+      mode: 'single',
+      title: {path: '/title'},
+      subtitle: {path: '/sub'},
+      child: 'kid-1',
+      onTap: {event: {name: 'clicked'}},
+      accessibility: {label: {path: '/a11y'}},
+    });
+    add(surface, 'kid-1', 'Text', {text: 'Child 1'});
+    add(surface, 'kid-2', 'Text', {text: 'Child 2'});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.strictEqual(bound(root, 'title'), 'Hello Composite');
+    assert.strictEqual(bound(root, 'subtitle'), 'Subtext');
+    const a11y = props(root).accessibility as Record<string, unknown>;
+    assert.ok(a11y.label instanceof ResolvedBinding);
+    assert.strictEqual((a11y.label as ResolvedBinding<unknown>).value, 'Accessible Container');
+    assert.ok(isComponentNode(props(root).child));
+    assert.strictEqual((props(root).child as ComponentNode).componentId, 'kid-1');
+    assert.strictEqual(typeof props(root).onTap, 'function');
+    (props(root).onTap as () => void)();
+    assert.strictEqual(actions.length, 1);
+
+    // Switch variant to `list` and update bound data.
+    surface.dataModel.set('/title', 'Updated Composite');
+    surface.componentsModel.get('root')!.properties = {
+      mode: 'list',
+      title: {path: '/title'},
+      children: ['kid-1', 'kid-2'],
+    };
+    assert.strictEqual(bound(root, 'title'), 'Updated Composite');
+    assert.strictEqual(Object.hasOwn(props(root), 'child'), false);
+    const listKids = props(root).children as ComponentNode[];
+    assert.strictEqual(listKids.length, 2);
+    assert.deepStrictEqual(
+      listKids.map(k => k.componentId),
+      ['kid-1', 'kid-2'],
+    );
+
+    resolver.dispose();
+  });
+
+  it('resolves unannotated v0.8 entryPointChild and contentChild properties into ComponentNode instances', () => {
+    const V08ModalApi: ComponentApi = {
+      name: 'Modal',
+      schema: z.object({
+        entryPointChild: z.string(),
+        contentChild: z.string(),
+      }),
+    };
+    const V08TextApi: ComponentApi = {
+      name: 'Text',
+      schema: z.object({
+        text: z.string(),
+      }),
+    };
+
+    const v08Catalog = new Catalog<ComponentApi>('v08-custom', '0.8', [V08ModalApi, V08TextApi]);
+    const surface = new SurfaceModel('surf-v08', v08Catalog);
+    const resolver = new NodeResolver(surface, v08Catalog);
+
+    add(surface, 'root', 'Modal', {
+      entryPointChild: 'trigger-btn',
+      contentChild: 'dialog-body',
+    });
+    add(surface, 'trigger-btn', 'Text', {text: 'Open'});
+    add(surface, 'dialog-body', 'Text', {text: 'Modal Content'});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.ok(isComponentNode(props(root).entryPointChild));
+    assert.strictEqual((props(root).entryPointChild as ComponentNode).componentId, 'trigger-btn');
+    assert.ok(isComponentNode(props(root).contentChild));
+    assert.strictEqual((props(root).contentChild as ComponentNode).componentId, 'dialog-body');
+
+    resolver.dispose();
+  });
+
+  it('wraps dynamic bindings and actions on ZodRecord and .catchall() schemas into WritableBinding and prunes omitted entries', () => {
+    const DynamicRecordApi: ComponentApi = {
+      name: 'DynamicRecordBox',
+      schema: z
+        .object({
+          staticTag: z.string().optional(),
+          child: ComponentIdSchema.optional(),
+        })
+        .catchall(DynamicStringSchema),
+    };
+    const ActionRecordApi: ComponentApi = {
+      name: 'ActionRecordBox',
+      schema: z.record(ActionSchema),
+    };
+
+    const catalog = new Catalog<ComponentApi>('catchall-catalog', '0.9', [
+      DynamicRecordApi,
+      ActionRecordApi,
+      TextApi,
+    ]);
+    const surface = new SurfaceModel('surf-catchall', catalog);
+    surface.dataModel.set('/greeting', 'Initial Greeting');
+    surface.dataModel.set('/note', 'Side Note');
+
+    const dispatched: unknown[] = [];
+    surface.onAction.subscribe(evt => {
+      dispatched.push(evt);
+    });
+
+    const resolver = new NodeResolver(surface, catalog);
+    add(surface, 'root', 'DynamicRecordBox', {
+      staticTag: 'plain-tag',
+      boundField: {path: '/greeting'},
+      dropField: {path: '/note'},
+      literalField: 'Static Catchall',
+      child: 'actions-node',
+    });
+    add(surface, 'actions-node', 'ActionRecordBox', {
+      primaryTap: {event: {name: 'primary'}},
+    });
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.strictEqual(props(root).staticTag, 'plain-tag');
+    assert.strictEqual(Object.hasOwn(props(root), 'setBoundField'), false);
+    assert.strictEqual(Object.hasOwn(props(root), 'setLiteralField'), false);
+
+    const boundField = props(root).boundField;
+    assert.ok(boundField instanceof WritableBinding);
+    assert.strictEqual((boundField as WritableBinding<unknown>).value, 'Initial Greeting');
+    (boundField as WritableBinding<unknown>).set('Updated Via Catchall');
+    assert.strictEqual(surface.dataModel.get('/greeting'), 'Updated Via Catchall');
+    assert.strictEqual(
+      (props(root).boundField as WritableBinding<unknown>).value,
+      'Updated Via Catchall',
+    );
+
+    const literalField = props(root).literalField;
+    assert.ok(literalField instanceof ResolvedBinding);
+    assert.strictEqual(literalField instanceof WritableBinding, false);
+    assert.strictEqual((literalField as ResolvedBinding<unknown>).value, 'Static Catchall');
+
+    const actionsNode = props(root).child as ComponentNode;
+    assert.ok(isComponentNode(actionsNode));
+    assert.strictEqual(typeof props(actionsNode).primaryTap, 'function');
+    (props(actionsNode).primaryTap as () => void)();
+    assert.strictEqual(dispatched.length, 1);
+
+    // Removing `dropField` prunes it cleanly while retaining `boundField`.
+    surface.componentsModel.get('root')!.properties = {
+      staticTag: 'plain-tag',
+      boundField: {path: '/greeting'},
+      child: 'actions-node',
+    };
+    assert.strictEqual(Object.hasOwn(props(root), 'dropField'), false);
+    assert.strictEqual(Object.hasOwn(props(root), 'literalField'), false);
+
+    resolver.dispose();
+    surface.dispose();
+  });
+
+  it('resolves structured items, templates, string arrays, and single IDs on [list, nested] and [single, nested] unions in either branch order', () => {
+    const StructuredSection = z.array(
+      z.object({
+        title: DynamicStringSchema,
+        child: ComponentIdSchema,
+      }),
+    );
+
+    const ListFirstApi: ComponentApi = {
+      name: 'ListFirstSections',
+      schema: z.union([
+        z.object({sections: ChildListSchema}),
+        z.object({sections: StructuredSection}),
+      ]),
+    };
+    const NestedFirstApi: ComponentApi = {
+      name: 'NestedFirstSections',
+      schema: z.object({
+        sections: StructuredSection.or(ChildListSchema),
+        slot: ComponentIdSchema.or(StructuredSection).optional(),
+      }),
+    };
+
+    const catalog = new Catalog<ComponentApi>('union-nested-list-cat', '0.9', [
+      ListFirstApi,
+      NestedFirstApi,
+      ColumnApi,
+      TextApi,
+    ]);
+    const surface = new SurfaceModel('surf-union-nested', catalog);
+    surface.dataModel.set('/secTitle', 'Dynamic Section Title');
+    surface.dataModel.set('/rows', [{label: 'Row A'}, {label: 'Row B'}]);
+
+    const resolver = new NodeResolver(surface, catalog);
+    add(surface, 'root', 'Column', {children: ['sec-structured', 'sec-template', 'sec-ids']});
+    add(surface, 'sec-structured', 'ListFirstSections', {
+      sections: [{title: {path: '/secTitle'}, child: 'leaf-1'}],
+    });
+    add(surface, 'sec-template', 'NestedFirstSections', {
+      sections: {componentId: 'row-tpl', path: '/rows'},
+      slot: 'leaf-2',
+    });
+    add(surface, 'sec-ids', 'ListFirstSections', {
+      sections: ['leaf-1', 'leaf-2'],
+    });
+    add(surface, 'leaf-1', 'Text', {text: 'Leaf One'});
+    add(surface, 'leaf-2', 'Text', {text: 'Leaf Two'});
+    add(surface, 'row-tpl', 'Text', {text: {path: 'label'}});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+
+    // 1. Structured array payload resolves `child` to ComponentNode and binds `title` to WritableBinding.
+    const structuredNode = child(root, 'children', 0);
+    const structuredSections = props(structuredNode).sections as Array<Record<string, unknown>>;
+    assert.strictEqual(structuredSections.length, 1);
+    assert.ok(structuredSections[0].title instanceof WritableBinding);
+    assert.strictEqual(
+      (structuredSections[0].title as WritableBinding<unknown>).value,
+      'Dynamic Section Title',
+    );
+    assert.ok(isComponentNode(structuredSections[0].child));
+    assert.strictEqual(bound(structuredSections[0].child as ComponentNode, 'text'), 'Leaf One');
+
+    // 2. Template payload `{componentId, path}` expands into ComponentNode[] even when `nested` keys exist,
+    //    and `[single, nested]` union resolves string `slot` into a ComponentNode.
+    const templateNode = child(root, 'children', 1);
+    const expandedSections = props(templateNode).sections as ComponentNode[];
+    assert.strictEqual(expandedSections.length, 2);
+    assert.ok(isComponentNode(expandedSections[0]));
+    assert.ok(isComponentNode(expandedSections[1]));
+    assert.strictEqual(bound(expandedSections[0], 'text'), 'Row A');
+    assert.strictEqual(bound(expandedSections[1], 'text'), 'Row B');
+
+    const slotChild = props(templateNode).slot as ComponentNode;
+    assert.ok(isComponentNode(slotChild));
+    assert.strictEqual(bound(slotChild, 'text'), 'Leaf Two');
+
+    // 3. Plain string ID list payload resolves into ComponentNode[].
+    const idsNode = child(root, 'children', 2);
+    const resolvedIds = props(idsNode).sections as ComponentNode[];
+    assert.strictEqual(resolvedIds.length, 2);
+    assert.strictEqual(bound(resolvedIds[0], 'text'), 'Leaf One');
+    assert.strictEqual(bound(resolvedIds[1], 'text'), 'Leaf Two');
 
     resolver.dispose();
     surface.dispose();
