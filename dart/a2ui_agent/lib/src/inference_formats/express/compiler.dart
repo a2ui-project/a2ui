@@ -998,6 +998,12 @@ class _SurfaceCompiler {
   /// `call_<index>`.
   Map<String, Object?> callRendererFunction(CallNode call, int index) {
     final String name = call.name;
+    if (name.startsWith('@')) {
+      throw A2uiValidationError(
+        "System function '$name' cannot be called as a standalone statement, "
+        'since a renderer function call names a catalog function.',
+      );
+    }
     if (_reservedHelpers.contains(name)) {
       throw A2uiValidationError(
         '$name(...) is written as an argument, not as a statement of its own.',
@@ -1046,6 +1052,11 @@ class _SurfaceCompiler {
     });
   }
 
+  /// Reads the system functions of the target version, which every
+  /// catalog's helper shares.
+  CatalogSchemaHelper get _systemFunctions =>
+      compiler._catalogHelpers.values.first;
+
   /// Whether [call] names a component of its catalog.
   bool _isComponent(CallNode call) => _v1
       ? compiler._declaresComponent(call)
@@ -1066,12 +1077,22 @@ class _SurfaceCompiler {
 
   bool _isKnownCall(CallNode call) =>
       _isComponent(call) ||
+      _systemFunctions.isSystemFunction(call.name) ||
       _isFunction(call.name, compiler._catalogArgument(call)) ||
       (_reservedHelpers.contains(call.name) &&
           compiler._catalogArgument(call) == null);
 
   A2uiValidationError _unknownCall(CallNode call) {
     final String name = call.name;
+    if (name.startsWith('@')) {
+      final List<String> known = _systemFunctions.systemFunctions.keys.toList()
+        ..sort();
+      return A2uiValidationError(
+        "Unknown system function '$name' in A2UI "
+        '${compiler._version.semverValue}. System functions: '
+        '${known.isEmpty ? 'none' : known.join(', ')}.',
+      );
+    }
     final String? catalogId = compiler._catalogArgument(call);
     if (_reservedHelpers.contains(name) && catalogId != null) {
       return A2uiValidationError(
@@ -1514,12 +1535,23 @@ class _SurfaceCompiler {
           '$name(...) must be written as a statement of its own.',
         );
     }
-    if (!_isFunction(name, catalogId)) throw _unknownCall(call);
-    final (CatalogSchemaHelper helper, String? writtenCatalog) = _resolve(
-      name,
-      catalogId,
-      component: false,
-    );
+    final CatalogSchemaHelper helper;
+    final String? writtenCatalog;
+    if (name.startsWith('@')) {
+      // A system function is defined by the protocol, not a catalog, so it
+      // is looked up before any catalog and never carries a catalogId.
+      if (!_systemFunctions.isSystemFunction(name)) throw _unknownCall(call);
+      if (call.kwargs.containsKey('catalogId')) {
+        throw A2uiValidationError(
+          "System function '$name' is defined by the protocol, not a "
+          'catalog, so it takes no catalogId.',
+        );
+      }
+      (helper, writtenCatalog) = (_systemFunctions, null);
+    } else {
+      if (!_isFunction(name, catalogId)) throw _unknownCall(call);
+      (helper, writtenCatalog) = _resolve(name, catalogId, component: false);
+    }
 
     final List<String> parameters = helper.parameters(name);
     if (call.args.length > parameters.length) {
@@ -1557,10 +1589,11 @@ class _SurfaceCompiler {
         args[kwarg.key] = value;
       }
     }
+    // A system function's args are optional, so an empty list is left out.
     final functionCall = <String, Object?>{
       _callKey: name,
       'catalogId': ?writtenCatalog,
-      'args': args,
+      if (args.isNotEmpty || !name.startsWith('@')) 'args': args,
     };
     return context.isAction ? {'functionCall': functionCall} : functionCall;
   }

@@ -173,6 +173,7 @@
       "required": [
         "@call"
       ],
+      "returnType": "number",
       "type": "object",
       "unevaluatedProperties": false
     },

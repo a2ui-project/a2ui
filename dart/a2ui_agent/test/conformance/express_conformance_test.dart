@@ -42,6 +42,7 @@ const Map<String, Set<String>> _knownKeys = {
   'case:decompile': {
     ...caseMetadataKeys,
     'args',
+    'expect_absent',
     'expect_contains',
     'expect_error',
     'expect_recompiled',
@@ -148,10 +149,39 @@ const String _noUserMessage =
     'The v0.9 Action has no userMessage field, so an event carrying one runs '
     'as written in v1.0 only.';
 
+const String _noSystemFunctions =
+    'v0.9 defines no system functions, so a call to @index runs as written '
+    'in v1.0 only.';
+
 /// Cases that state what v0.9 cannot, or that are already written against a
 /// v0.9 catalog, so they run in [SuiteVersion.v1_0] (as written) only, with
 /// the reason for each.
 const Map<String, String> _v1OnlyCases = {
+  'test_compile_express_index_system_function': _noSystemFunctions,
+  'test_compile_express_index_system_function_positional_offset':
+      _noSystemFunctions,
+  'test_compile_express_index_system_function_named_offset': _noSystemFunctions,
+  'test_compile_express_index_system_function_with_several_catalogs_'
+          'names_no_catalog':
+      _noSystemFunctions,
+  'test_decompile_express_index_system_function': _noSystemFunctions,
+  'test_decompile_express_index_system_function_with_several_catalogs':
+      _noSystemFunctions,
+  'test_express_snippet_lists_system_functions_from_v1_0': _noSystemFunctions,
+  'test_compile_express_system_function_with_catalog_id_is_a_validation_error':
+      _noSystemFunctions,
+  'test_compile_express_unknown_system_function_is_a_validation_error':
+      _noSystemFunctions,
+  'test_compile_express_variable_holding_a_system_function_call_is_inlined':
+      _noSystemFunctions,
+  'test_compile_express_variable_holding_a_system_function_call_with_'
+          'catalog_id_is_a_validation_error':
+      _noSystemFunctions,
+  'test_decompile_express_system_function_with_catalog_id_is_a_'
+          'validation_error':
+      _noSystemFunctions,
+  'test_decompile_express_unknown_system_function_is_a_validation_error':
+      _noSystemFunctions,
   'test_compile_express_event_user_message': _noUserMessage,
   'test_compile_express_event_user_message_binding_with_context':
       _noUserMessage,
@@ -458,6 +488,10 @@ void _checkDecompiled(
   for (final Object? text
       in (testCase['expect_contains'] as List<Object?>?) ?? const []) {
     expect(output, contains(text));
+  }
+  for (final Object? text
+      in (testCase['expect_absent'] as List<Object?>?) ?? const []) {
+    expect(output, isNot(contains(text)));
   }
   if (testCase['expect_round_trip'] == true) {
     expect(

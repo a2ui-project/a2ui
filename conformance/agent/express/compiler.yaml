@@ -320,6 +320,209 @@
             text:
               "@path": "label"
 
+- name: test_compile_express_index_system_function
+  description: From v1.0, `@index()` calls the protocol's `@index` system function, which no catalog defines. It compiles to a call with no args when it is given none.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Column(_template($/items, itemRow))
+    itemRow = Text(@index())
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              componentId: "itemRow"
+              path: "/items"
+          - id: "itemRow"
+            component: "Text"
+            text:
+              "@call": "@index"
+
+- name: test_compile_express_index_system_function_positional_offset
+  description: A system function takes positional arguments in the order its common types definition declares them, the same as a catalog function, so `@index(1)` passes `offset`.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Column(_template($/items, itemRow))
+    itemRow = Text(@index(1))
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              componentId: "itemRow"
+              path: "/items"
+          - id: "itemRow"
+            component: "Text"
+            text:
+              "@call": "@index"
+              args:
+                offset: 1
+
+- name: test_compile_express_index_system_function_named_offset
+  description: A system function takes named arguments too, so `@index(offset=1)` compiles the same as `@index(1)`.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Column(_template($/items, itemRow))
+    itemRow = Text(@index(offset=1))
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              componentId: "itemRow"
+              path: "/items"
+          - id: "itemRow"
+            component: "Text"
+            text:
+              "@call": "@index"
+              args:
+                offset: 1
+
+- name: test_compile_express_index_system_function_with_several_catalogs_names_no_catalog
+  description: With several catalogs, components and catalog function calls carry a catalogId, but a system function call never does, since no catalog defines it.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |-
+    root = Column(_template($/items, itemRow))
+    itemRow = Text(@index(offset=1))
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        components:
+          - id: "root"
+            component: "Column"
+            catalogId: "conformance/simplified"
+            children:
+              componentId: "itemRow"
+              path: "/items"
+          - id: "itemRow"
+            component: "Text"
+            catalogId: "conformance/simplified"
+            text:
+              "@call": "@index"
+              args:
+                offset: 1
+
+- name: test_compile_express_system_function_with_catalog_id_is_a_validation_error
+  description: A system function is defined by the protocol, not a catalog, so a catalogId argument on it is a validation error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Column(_template($/items, itemRow))
+    itemRow = Text(@index(catalogId="conformance/simplified"))
+  expect_error:
+    category: "ValidationError"
+    message: "catalogId"
+
+- name: test_compile_express_variable_holding_a_system_function_call_is_inlined
+  description: A variable that holds a system function call is a function call, not a component, so it is inlined wherever it is named, the same as a variable holding a catalog function call.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Column(_template($/items, itemRow))
+    n = @index(offset=1)
+    itemRow = Text(n)
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              componentId: "itemRow"
+              path: "/items"
+          - id: "itemRow"
+            component: "Text"
+            text:
+              "@call": "@index"
+              args:
+                offset: 1
+
+- name: test_compile_express_variable_holding_a_system_function_call_with_catalog_id_is_a_validation_error
+  description: A system function call held in a variable is checked like one written in place, so a catalogId argument on it is a validation error rather than an unknown component.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Column(_template($/items, itemRow))
+    n = @index(catalogId="conformance/simplified")
+    itemRow = Text(n)
+  expect_error:
+    category: "ValidationError"
+    message: "catalogId"
+
+- name: test_compile_express_unknown_system_function_is_a_validation_error
+  description: A name starting with `@` that the protocol does not define as a system function is a validation error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Column(_template($/items, itemRow))
+    itemRow = Text(@position())
+  expect_error:
+    category: "ValidationError"
+    message: "Unknown system function"
+
+- name: test_compile_express_standalone_system_function_call_is_a_validation_error
+  description: A standalone call compiles to a callRendererFunction, which names a catalog function, so a system function written as a statement of its own is a validation error rather than a renderer call stamped with a catalog id.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Text("a")
+    @index()
+  expect_error:
+    category: "ValidationError"
+    message: "standalone"
+
+- name: test_compile_express_index_system_function_before_v1_0_is_a_validation_error
+  description: Before v1.0 the protocol defines no system functions, so `@index()` is a validation error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/streaming_catalog_v0_9.json"
+  input: |-
+    root = List(_template($/items, itemRow))
+    itemRow = Text(@index())
+  expect_error:
+    category: "ValidationError"
+    message: "Unknown system function"
+
 - name: test_compile_express_absolute_data_binding_path
   description: A path argument binds the property to the data model rather than setting a literal.
   action: compile
@@ -1333,7 +1536,7 @@
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  input: 'root = @Text("Hello")'
+  input: 'root = ^Text("Hello")'
   expect_error:
     category: "ParseError"
 

@@ -155,6 +155,115 @@
     category: "ValidationError"
     message: "UAX #31"
 
+- name: test_decompile_express_index_system_function
+  description: A call to the `@index` system function, which no catalog defines, is written as `@index()`.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              componentId: "itemRow"
+              path: "/items"
+          - id: "itemRow"
+            component: "Text"
+            text:
+              "@call": "@index"
+  expect_contains:
+    - "root = Column(_template($/items, itemRow))"
+    - "itemRow = Text(@index())"
+  expect_round_trip: true
+
+- name: test_decompile_express_index_system_function_with_several_catalogs
+  description: With several catalogs, a system function call is written without a catalogId, and its arguments are written by position like a catalog function's.
+  action: decompile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Column"
+            catalogId: "conformance/simplified"
+            children:
+              componentId: "itemRow"
+              path: "/items"
+          - id: "itemRow"
+            component: "Text"
+            catalogId: "conformance/simplified"
+            text:
+              "@call": "@index"
+              args:
+                offset: 1
+  expect_contains:
+    - "itemRow = Text(@index(1))"
+  expect_absent:
+    - "@index(1, catalogId"
+  expect_round_trip: true
+
+- name: test_decompile_express_system_function_with_catalog_id_is_a_validation_error
+  description: A system function is defined by the protocol, not a catalog, so a call to one that names a catalogId is a validation error.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              componentId: "itemRow"
+              path: "/items"
+          - id: "itemRow"
+            component: "Text"
+            text:
+              "@call": "@index"
+              catalogId: "conformance/simplified"
+  expect_error:
+    category: "ValidationError"
+    message: "catalogId"
+
+- name: test_decompile_express_unknown_system_function_is_a_validation_error
+  description: A call to an `@` name that the protocol does not define as a system function is a validation error.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              componentId: "itemRow"
+              path: "/items"
+          - id: "itemRow"
+            component: "Text"
+            text:
+              "@call": "@position"
+  expect_error:
+    category: "ValidationError"
+    message: "Unknown system function"
+
 - name: test_decompile_express_data_model
   description: An initial data model writes back out as the data path assignments that would produce it.
   action: decompile

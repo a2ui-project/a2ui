@@ -336,16 +336,16 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
   describe('3. Specific error cases (§Wave 2a item 3)', () => {
     it('throws ExpressSyntaxError on lexer error', () => {
       const compiler = new ExpressCompiler([simplifiedCatalog], '1.0');
-      expect(() => compiler.compile('root = @Text("Hello")')).toThrow(ExpressSyntaxError);
+      expect(() => compiler.compile('root = ^Text("Hello")')).toThrow(ExpressSyntaxError);
       try {
-        compiler.compile('root = @Text("Hello")');
+        compiler.compile('root = ^Text("Hello")');
       } catch (err: unknown) {
         expect(err).toBeInstanceOf(ExpressSyntaxError);
         const synErr = err as ExpressSyntaxError;
         expect(synErr.isLexer).toBe(true);
         expect(synErr.line).toBe(1);
         expect(synErr.column).toBe(7);
-        expect(synErr.message).toContain("token recognition error at: '@'");
+        expect(synErr.message).toContain("token recognition error at: '^'");
       }
     });
 

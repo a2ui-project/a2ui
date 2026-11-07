@@ -452,6 +452,28 @@ class ExpressDecompiler:
         found = catalogs_defining(self.helpers, kind, name)
         return helper, None if found == [actual] else actual
 
+    def _system_function_helper(
+        self, fn: dict[str, Any], name: str
+    ) -> CatalogSchemaHelper:
+        """Returns a helper that reads the system function a call names.
+
+        A system function, such as `@index`, is defined by the protocol rather
+        than a catalog, so every helper of the version reads it.
+
+        Raises:
+            A2uiValidationError: If the version defines no system function of
+                that name, or the call names a `catalogId`.
+        """
+        helper = next(iter(self.helpers.values()))
+        if name not in helper.system_functions:
+            raise A2uiValidationError(f"Unknown system function '{name}'.")
+        if "catalogId" in fn:
+            raise A2uiValidationError(
+                f"System function '{name}' is defined by the protocol, not a"
+                " catalog, so it takes no catalogId."
+            )
+        return helper
+
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         """Wraps individual decompiled A2UI Express DSL blocks within sentinel tags.
 
@@ -800,9 +822,12 @@ class ExpressDecompiler:
         """Writes a function call as `name(args..., catalogId=...)`."""
         name = _reserved_value(fn, "call") or ""
         args = fn.get("args", {}) or {}
-        fn_helper, write_cat_id = self._resolve(
-            "function", name, fn.get("catalogId"), surface_cat_id, "function"
-        )
+        if name.startswith("@"):
+            fn_helper, write_cat_id = self._system_function_helper(fn, name), None
+        else:
+            fn_helper, write_cat_id = self._resolve(
+                "function", name, fn.get("catalogId"), surface_cat_id, "function"
+            )
 
         fn_props = fn_helper.get_function_properties(name)
         args_reprs = []

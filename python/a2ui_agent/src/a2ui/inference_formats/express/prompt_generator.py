@@ -434,24 +434,48 @@ class ExpressPromptGenerator(PromptGenerator):
         root_component = _example_root_component(self.catalogs)
         if root_component is not None:
             base = base.replace(_ROOT_EXAMPLE_LINE, f"root = {root_component}(...)")
-        if len(self.catalogs) <= 1:
-            return base
-        if effective_allowed is not None:
-            allowed_set = set(effective_allowed)
-            has_comp_or_data = any(
-                m in allowed_set
-                for m in (
-                    "createSurface",
-                    "CreateSurfaceMessage",
-                    "updateComponents",
-                    "UpdateComponentsMessage",
-                    "updateDataModel",
-                    "UpdateDataModelMessage",
-                )
-            )
-            if not has_comp_or_data:
-                return base
-        return _renumber_rules(f"{base}\n\n{_multi_catalog_rules(self.helpers)}")
+        allowed_set = set(effective_allowed) if effective_allowed is not None else None
+
+        def allows(*messages: str) -> bool:
+            return allowed_set is None or any(m in allowed_set for m in messages)
+
+        component_messages = (
+            "createSurface",
+            "CreateSurfaceMessage",
+            "updateComponents",
+            "UpdateComponentsMessage",
+        )
+        data_messages = ("updateDataModel", "UpdateDataModelMessage")
+        prompt = base
+        if len(self.catalogs) > 1 and allows(*component_messages, *data_messages):
+            prompt = _renumber_rules(f"{base}\n\n{_multi_catalog_rules(self.helpers)}")
+        sections = [prompt]
+        if allows(*component_messages):
+            system_functions = self._generate_system_function_signatures()
+            if system_functions:
+                sections.append(system_functions)
+        return "\n\n".join(sections)
+
+    def _generate_system_function_signatures(self) -> str:
+        """Lists the system functions of the target version, such as `@index`.
+
+        System functions are defined by the protocol rather than a catalog, so
+        they are listed once, in the same signature format as catalog
+        functions, and only for a version that defines them.
+
+        Returns:
+            The section, or an empty string if the version defines none.
+        """
+        h = next(iter(self.helpers.values()), None)
+        if h is None or not h.system_functions:
+            return ""
+        sigs = self._format_function_signatures(h, sorted(h.system_functions))
+        return (
+            "## System Functions\n\nThese functions are defined by the A2UI"
+            " protocol, not by a catalog. Call them by their `@` name, like any"
+            " function, and never add a `catalogId` to them:\n"
+            f"{sigs}"
+        )
 
     def generate_catalog_instructions(
         self,
@@ -615,8 +639,15 @@ class ExpressPromptGenerator(PromptGenerator):
         h = helper or next(iter(self.helpers.values()), None)
         if not h:
             return ""
+        return self._format_function_signatures(h, sorted(h.function_properties))
+
+    @staticmethod
+    def _format_function_signatures(
+        h: CatalogSchemaHelper, names: Sequence[str]
+    ) -> str:
+        """Writes one signature, with its descriptions, for each named function."""
         signatures = []
-        for name in sorted(h.function_properties.keys()):
+        for name in names:
             props = h.get_function_properties(name)
             reqs = h.get_function_required(name)
 
@@ -626,7 +657,7 @@ class ExpressPromptGenerator(PromptGenerator):
             ordered_args = []
             prop_details = []
 
-            func_schema = h.functions.get(name, {})
+            func_schema = h.functions.get(name) or h.system_functions.get(name, {})
             args_properties = (
                 func_schema.get("properties", {}).get("args", {}).get("properties", {})
             )
