@@ -135,27 +135,22 @@ export default defineConfig({
             {
               label: 'Overview: How A2UI Works',
               slug: 'concepts/overview',
-              badge: {text: 'P0', variant: 'danger'},
             },
             {
               label: 'Messages',
               slug: 'concepts/messages',
-              badge: {text: 'P0', variant: 'danger'},
             },
             {
               label: 'Catalogs',
               slug: 'concepts/catalogs',
-              badge: {text: 'P0', variant: 'danger'},
             },
             {
               label: 'Data Model and Data Binding',
               slug: 'concepts/data-binding',
-              badge: {text: 'P0', variant: 'danger'},
             },
             {
               label: 'Actions, Events and Functions',
               slug: 'concepts/actions-and-functions',
-              badge: {text: 'P0', variant: 'danger'},
             },
             {
               label: 'SDKs',
