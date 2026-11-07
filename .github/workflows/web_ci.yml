@@ -157,6 +157,8 @@ jobs:
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --corpus e2e \
             --harness ts-agent
+      - name: Test React 17 Compatibility
+        run: yarn workspace @a2ui/react run test:react17
       - name: Test React 18 Compatibility
         run: yarn workspace @a2ui/react run test:react18
       - name: Verify NPM Publish Script
