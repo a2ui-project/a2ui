@@ -33,7 +33,8 @@
   now inherit the `catalogId` that the enclosing `formatString` call resolved
   to (preserving reserved `@`-prefixed system calls such as `${@index()}` as
   catalogless), so nested template calls resolve against `formatString`'s
-  catalog on defaultless multi-catalog surfaces
+  catalog on defaultless surfaces and when the surface defines a different
+  default `catalogId`
   ([#3727](https://github.com/a2ui-project/a2ui/issues/3727),
   [#4029](https://github.com/a2ui-project/a2ui/pull/4029)).
 - (v0_9) Restore `listStyle` property to basic catalog `List` component schema ([#3956](https://github.com/a2ui-project/a2ui/pull/3956)).
