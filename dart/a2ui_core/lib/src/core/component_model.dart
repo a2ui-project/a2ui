@@ -182,13 +182,21 @@ class ComponentModel {
   }
 
   /// Returns the component as the message that would create it.
+  ///
+  /// The component's catalog and envelope metadata are written as `catalogId`
+  /// and `metadata`, or as `@catalogId` and `@metadata` when the component has
+  /// a property of that name of its own, so that neither overwrites the other.
   Map<String, dynamic> toJson() {
     return {
       ..._properties,
       'id': id,
       'component': type,
-      if (catalog != null) 'catalogId': catalog,
-      if (metadata != null) 'metadata': metadata,
+      if (catalog != null)
+        _properties.containsKey('catalogId') ? '@catalogId' : 'catalogId':
+            catalog,
+      if (metadata != null)
+        _properties.containsKey('metadata') ? '@metadata' : 'metadata':
+            metadata,
     };
   }
 }

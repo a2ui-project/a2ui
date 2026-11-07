@@ -1341,6 +1341,63 @@ def test_v09_preserves_custom_metadata_and_catalog_id_properties_and_rejects_at_
             }])
 
 
+def test_v10_legacy_catalog_id_routes_by_default_catalog_schema():
+    """A bare `catalogId` the default catalog's schema doesn't declare routes the
+    component, and is not kept as a property even if the target catalog's
+    schema declares a `catalogId` of its own."""
+
+    def text_catalog(catalog_id: str, declares_catalog_id: bool) -> Catalog:
+        props: dict[str, Any] = {
+            "component": {"const": "Text"},
+            "text": {"type": "string"},
+        }
+        if declares_catalog_id:
+            props["catalogId"] = {"type": "string"}
+        return Catalog.from_json(
+            {
+                "catalogId": catalog_id,
+                "components": {
+                    "Text": {
+                        "type": "object",
+                        "properties": props,
+                        "required": ["component"],
+                        "additionalProperties": False,
+                    }
+                },
+                "functions": {},
+            },
+            protocol_version="1.0",
+        )
+
+    main = text_catalog("https://a2ui.org/test-main", declares_catalog_id=False)
+    other = text_catalog("https://a2ui.org/test-other", declares_catalog_id=True)
+    processor = MessageProcessor(catalogs=[main, other])
+    processor.process_messages([
+        {
+            "version": "1.0",
+            "createSurface": {"surfaceId": "s", "catalogId": main.catalog_id},
+        },
+        {
+            "version": "1.0",
+            "updateComponents": {
+                "surfaceId": "s",
+                "components": [{
+                    "id": "root",
+                    "component": "Text",
+                    "text": "Hi",
+                    "catalogId": other.catalog_id,
+                }],
+            },
+        },
+    ])
+    surface = processor.model.get_surface("s")
+    assert surface is not None
+    comp = surface.components_model.get("root")
+    assert comp is not None
+    assert comp.catalog.catalog_id == other.catalog_id
+    assert comp.properties == {"text": "Hi"}
+
+
 def test_v10_legacy_bare_checks_is_stored_as_at_checks_on_checkable_components():
     cat = Catalog.from_json(
         {

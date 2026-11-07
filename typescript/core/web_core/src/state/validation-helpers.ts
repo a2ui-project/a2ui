@@ -192,6 +192,7 @@ function batchGraph<T extends ComponentApi>(
       comp,
       surface.protocolVersion,
       catalog.components.get(type)?.schema,
+      {defaultCatalogSchema: surface.defaultCatalog?.components.get(type)?.schema},
     );
     const children = Array.from(
       getComponentReferences({...properties, id, component: type}, catalog.componentRefMap),
@@ -604,6 +605,7 @@ export function validateCandidateTopology<T extends ComponentApi>(
       comp,
       surface.protocolVersion,
       targetCatalog.components.get(componentType)?.schema,
+      {defaultCatalogSchema: surface.defaultCatalog?.components.get(componentType)?.schema},
     );
 
     if (existing) {

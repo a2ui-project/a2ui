@@ -1071,6 +1071,11 @@ class MessageProcessor:
                     )
 
                 custom_props = get_custom_envelope_properties(comp_catalog, c_type)
+                if has_bare_cat and not has_at_cat and not bare_cat_is_custom:
+                    # The bare `catalogId` routed the component (its schema in
+                    # the default catalog declares none), so it is the mixin
+                    # even if the target catalog declares a `catalogId` too.
+                    custom_props = custom_props - {"catalogId"}
                 for bare_key, at_key in (
                     ("metadata", "@metadata"),
                     ("catalogId", "@catalogId"),

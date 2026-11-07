@@ -227,6 +227,40 @@ export function componentMixinLayout(schema: z.ZodTypeAny | undefined): Componen
   return layout;
 }
 
+/**
+ * Adjusts a v1.0 component's mixin layout so that a legacy bare `catalogId`
+ * routing the component is not also kept as one of its properties.
+ *
+ * Whether a bare `catalogId` names the component's catalog is decided by the
+ * component's schema in the surface's default catalog, because the catalog
+ * it names is not known until then. When that schema declares no custom
+ * `catalogId`, the bare key routes the component, so it is the mixin even if
+ * the schema in the catalog it routes to declares a `catalogId` of its own.
+ *
+ * @param layout The component's layout in the catalog it resolved to.
+ * @param comp The raw component object.
+ * @param defaultCatalogSchema The component's schema in the surface's
+ *   default catalog, if that catalog defines its type.
+ * @returns `layout`, or a copy that treats the bare `catalogId` as the mixin.
+ */
+export function routeLegacyCatalogId(
+  layout: ComponentMixinLayout,
+  comp: Readonly<Record<string, unknown>>,
+  defaultCatalogSchema: z.ZodTypeAny | undefined,
+): ComponentMixinLayout {
+  if (
+    !layout.customKeys.has('catalogId') ||
+    comp[atMixinKey('catalogId')] !== undefined ||
+    comp['catalogId'] === undefined ||
+    componentMixinLayout(defaultCatalogSchema).customKeys.has('catalogId')
+  ) {
+    return layout;
+  }
+  const customKeys = new Set(layout.customKeys);
+  customKeys.delete('catalogId');
+  return {customKeys, schemaKeys: layout.schemaKeys};
+}
+
 /** A component envelope mixin read from a v1.0 component object. */
 export interface ComponentMixinValue {
   /** The mixin's value. */
@@ -320,6 +354,10 @@ export interface ComponentPayloadState {
  * @param comp The raw component object.
  * @param protocolVersion The protocol version of the surface.
  * @param schema The component's schema, if known.
+ * @param options.defaultCatalogSchema The component's schema in the surface's
+ *   default catalog, when the caller resolved the component's catalog; a
+ *   legacy bare `catalogId` that routed the component is then dropped from its
+ *   properties (see {@link routeLegacyCatalogId}).
  * @returns The component's properties and metadata.
  * @throws {A2uiValidationError} If a v1.0 component object carries both forms
  *   of a mixin; see {@link splitComponentEnvelope}.
@@ -328,12 +366,15 @@ export function componentPayloadState(
   comp: Readonly<Record<string, unknown>>,
   protocolVersion: string | undefined,
   schema: z.ZodTypeAny | undefined,
+  options?: {readonly defaultCatalogSchema: z.ZodTypeAny | undefined},
 ): ComponentPayloadState {
   if (!isAtLeastVersion(protocolVersion, '1.0')) {
     const {id: _id, component: _component, ...properties} = comp;
     return {properties, metadata: undefined};
   }
-  const {properties, mixins} = splitComponentEnvelope(comp, componentMixinLayout(schema));
+  let layout = componentMixinLayout(schema);
+  if (options) layout = routeLegacyCatalogId(layout, comp, options.defaultCatalogSchema);
+  const {properties, mixins} = splitComponentEnvelope(comp, layout);
   if (mixins.accessibility) properties[atMixinKey('accessibility')] = mixins.accessibility.value;
   if (mixins.checks) properties[atMixinKey('checks')] = mixins.checks.value;
   return {properties, metadata: mixins.metadata?.value};

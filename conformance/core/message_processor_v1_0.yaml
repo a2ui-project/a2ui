@@ -3472,3 +3472,55 @@
             "@metadata":
               extensions:
                 com_example_vendor: "acme"
+
+- name: test_v10_legacy_catalog_id_routes_by_default_catalog_schema
+  description: >-
+    Tests that during the v1.0 transition a legacy bare 'catalogId' that the
+    component's schema in the surface default catalog does not declare routes
+    the component to the catalog it names, and is not kept as a property even
+    when the component's schema in that catalog declares a 'catalogId'
+    property of its own.
+  action: process_messages
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: legacy-route-main
+      components:
+        Label:
+          type: object
+          properties:
+            text:
+              type: string
+          required:
+            - component
+    - catalogId: legacy-route-other
+      components:
+        Label:
+          type: object
+          properties:
+            text:
+              type: string
+            catalogId:
+              type: string
+          required:
+            - component
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s_v10_legacy_route"
+        catalogId: "legacy-route-main"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s_v10_legacy_route"
+        components:
+          - id: "root"
+            component: "Label"
+            text: "Hi"
+            catalogId: "legacy-route-other"
+  expect:
+    surfaces:
+      s_v10_legacy_route:
+        exists: true
+        components:
+          - id: "root"
+            component: "Label"
+            text: "Hi"

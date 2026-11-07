@@ -30,6 +30,7 @@ import {
   componentMixinLayout,
   ComponentMixinLayout,
   componentPayloadState,
+  routeLegacyCatalogId,
   splitComponentEnvelope,
 } from '../catalog/component_envelope.js';
 import {batchWrite} from '../reactivity/signals.js';
@@ -1297,6 +1298,10 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   /**
    * Returns how a component's schema declares the envelope mixins.
    *
+   * A legacy bare `catalogId` that routed the component, because its schema
+   * in the surface's default catalog doesn't declare one, is the mixin here
+   * too, even if the schema in `catalog` declares a `catalogId` property.
+   *
    * @param comp Raw component payload.
    * @param surface Surface the component belongs to.
    * @param catalog Catalog the component resolves to, if known.
@@ -1307,7 +1312,13 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     surface: SurfaceModel<T>,
     catalog: Catalog<T> | undefined,
   ): ComponentMixinLayout {
-    return componentMixinLayout(this.componentSchema(comp, surface, catalog));
+    const layout = componentMixinLayout(this.componentSchema(comp, surface, catalog));
+    if (catalog === surface.defaultCatalog) return layout;
+    return routeLegacyCatalogId(
+      layout,
+      comp,
+      this.componentSchema(comp, surface, surface.defaultCatalog),
+    );
   }
 
   /** Returns the schema of a component's type in `catalog`, if any. */
@@ -1541,6 +1552,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       comp,
       surface.protocolVersion,
       this.componentSchema(comp, surface, targetCatalog),
+      {defaultCatalogSchema: this.componentSchema(comp, surface, surface.defaultCatalog)},
     );
     const properties = state.properties;
     const metadata = extractComponentMetadata(state.metadata);

@@ -1554,7 +1554,15 @@ class MessageProcessor<T extends ComponentApi> {
     final String? envCatalogId = _extractV1CatalogId(entry, id, type, surface);
     final Catalog<T, FunctionImplementation> catalog =
         surface.resolveCatalog(envCatalogId, subject: "Component '$id'");
-    final Set<String> customProps = catalog.customComponentProperties(type);
+    Set<String> customProps = catalog.customComponentProperties(type);
+    if (envCatalogId != null &&
+        !entry.containsKey('@catalogId') &&
+        customProps.contains('catalogId')) {
+      // The bare `catalogId` routed the component (its schema in the default
+      // catalog declares none), so it is the mixin even if the target
+      // catalog declares a `catalogId` property of its own.
+      customProps = {...customProps}..remove('catalogId');
+    }
     final bool isCheckable = catalog.isComponentCheckable(type);
 
     final (String? metaKey, Object? rawMetadata) =

@@ -1675,11 +1675,11 @@ public final class MessageProcessor: ObservableObject {
     type: String,
     on surface: SurfaceViewModel
   ) -> ComponentModel {
-    let catalogID =
-      ComponentEnvelope.catalogIDEntry(
-        in: componentDict,
-        defaultCatalogSchema: defaultCatalogSchema(for: componentDict, on: surface)
-      )?.value.stringValue ?? surface.defaultCatalogID
+    let catalogEntry = ComponentEnvelope.catalogIDEntry(
+      in: componentDict,
+      defaultCatalogSchema: defaultCatalogSchema(for: componentDict, on: surface)
+    )
+    let catalogID = catalogEntry?.value.stringValue ?? surface.defaultCatalogID
     let envelope = try? componentEnvelope(
       componentDict,
       id: id,
@@ -1688,6 +1688,11 @@ public final class MessageProcessor: ObservableObject {
     var properties =
       envelope?.properties
       ?? componentDict.filter { $0.key != "id" && $0.key != "component" }
+    if catalogEntry?.key == ComponentEnvelope.Mixin.catalogID.bareKey {
+      // The bare `catalogId` routed the component (its schema in the default catalog declares
+      // none), so it is the mixin even if the target catalog declares a `catalogId` of its own.
+      properties.removeValue(forKey: ComponentEnvelope.Mixin.catalogID.bareKey)
+    }
     for mixin in [ComponentEnvelope.Mixin.accessibility, .checks] {
       if let value = envelope?[mixin] {
         properties[mixin.prefixedKey] = value

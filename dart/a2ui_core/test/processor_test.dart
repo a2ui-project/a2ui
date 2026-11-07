@@ -1076,6 +1076,58 @@ void main() {
       expect(components().get('root')!.catalog, 'cat2');
     });
 
+    test(
+        'routes a legacy bare catalogId by the default catalog schema and '
+        'drops it from properties', () {
+      final routing = MessageProcessor<ComponentApi>(
+        catalogs: [
+          alphaCatalog('main'),
+          Catalog<ComponentApi, FunctionImplementation>(
+            id: 'other',
+            protocolVersion: A2uiProtocolVersion.v1_0,
+            components: [
+              ComponentApi(
+                name: 'Alpha',
+                schema: Schema.object(
+                  properties: {
+                    'a': Schema.string(),
+                    'catalogId': Schema.string(),
+                  },
+                  required: ['a'],
+                ),
+              ),
+            ],
+          ),
+        ],
+        defaultVersion: A2uiProtocolVersion.v1_0,
+      );
+      routing.processMessages(
+        AgentToRendererMessagePayload([
+          CreateSurfaceMessage(
+            version: '1.0',
+            surfaceId: 's',
+            catalogId: 'main',
+          ),
+          UpdateComponentsMessage(
+            version: '1.0',
+            surfaceId: 's',
+            components: [
+              {
+                'id': 'root',
+                'component': 'Alpha',
+                'a': 'x',
+                'catalogId': 'other',
+              },
+            ],
+          ),
+        ]),
+      );
+      final ComponentModel root =
+          routing.model.getSurface('s')!.componentsModel.get('root')!;
+      expect(root.catalog, 'other');
+      expect(root.properties, {'a': 'x'});
+    });
+
     test('treats bare metadata and catalogId as custom properties on v0.9', () {
       final v09Processor = MessageProcessor<ComponentApi>(
         catalogs: [

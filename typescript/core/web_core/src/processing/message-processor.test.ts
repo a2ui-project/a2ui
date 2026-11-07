@@ -2651,6 +2651,26 @@ describe('MessageProcessor component envelope mixins', () => {
       proc.dispose();
     });
 
+    it('reads a legacy bare catalogId by the default catalog for routing and storage', () => {
+      // `Text` declares no `catalogId` in the surface default, so a bare
+      // `catalogId` routes the component, even though the target catalog's
+      // `Text` declares a `catalogId` property of its own.
+      const plainText: ComponentApi = {name: 'Text', schema: z.object({text: z.any()}).strict()};
+      const textWithCatalogId: ComponentApi = {
+        name: 'Text',
+        schema: z.object({text: z.any(), catalogId: z.string().optional()}).strict(),
+      };
+      const proc = v10Processor(
+        new Catalog<ComponentApi>('main', '1.0', [plainText]),
+        new Catalog<ComponentApi>('other', '1.0', [textWithCatalogId]),
+      );
+      process(proc, [{id: 'root', component: 'Text', text: 'Hi', catalogId: 'other'}]);
+      const root = proc.getSurface('s')!.componentsModel.get('root')!;
+      assert.strictEqual(root.catalog.id, 'other');
+      assert.deepStrictEqual(root.properties, {text: 'Hi'});
+      proc.dispose();
+    });
+
     it('rejects @metadata with invalid extension keys and conflicting mixins', () => {
       const proc = v10Processor(gcbpCatalog('main', '1.0'));
       assert.throws(
