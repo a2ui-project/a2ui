@@ -38,7 +38,7 @@ The following automations contribute to the triage process:
   - query an AI agent
   - comment GitHub items
 
-**Triager**: 
+**Triage UI**: 
 
 - What: remove `satus: needs-triage` from GitHub items, by triager them 
 - When: weekly, semi-manually
@@ -47,9 +47,24 @@ The following automations contribute to the triage process:
   - show UI
   - update GitHub items
 
-
 ## Triage recommendation
 
-Tr
+Triage recommendation is a comment on a GitHub item with the following workflow:
 
+1. Constructed by **Advisor** and ported to the item as a triage bot comment.
+2. Parsed by **Triage UI** and showed to triager.
+3. Optionally adjusted by triager.
+4. Applied by **Triage UI** to the item.
 
+The recommendation is structured as A2UI surface, that consists of one A2UI component TriageRecommendation  
+
+The recommendation comment on GitHub is plain English plus hidden technical details as A2UI component in express format.
+
+The comonent has the following fields:
+
+- comment
+- added_labels
+- removed_labels
+- assignee
+- related_issues
+- related_prs
