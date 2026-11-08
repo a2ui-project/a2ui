@@ -4,20 +4,36 @@
 
 Triage suggestion is a comment on a GitHub item with the following workflow:
 
-1. Advisor (skill [a2ui-triage-advisor](../../../../../.agents/skills/a2ui-triage-advisor)), for each item marked with `status: needs triage` (or for concreate items specified in prompt), without suggestion or with outdated suggestion: 
+1. The skill [a2ui-triage-advisor](../../../../../.agents/skills/a2ui-triage-advisor) for each GitHub item marked with `status: needs triage` (or for concreate items specified in prompt), without suggestion or with outdated suggestion: 
   b. Constructs the suggestion in native english 
-  b. Format the suggestion as A2UI component Triagesuggestion
-  c. Comment to the GitHub item as plain English plus hidden technical details in express format.
+  b. Formats the suggestion as [A2UI component TriageSuggestion](../../pkgs/triage/lib/src/triage_item/triage_suggestion.dart)
+  c. Comments to the GitHub item as plain English plus hidden technical details
 2. Triage UI:
-  a. Parse the suggestion from GitHub item comment
-  b. Show it to triager
-  b. Finalize it by collaborating with the triager
-  c. Apply to the item
+  a. Parses the suggestion from GitHub item comment
+  b. Shows it to triager
+  b. Finalizes it by collaborating with the triager
+  c. Applies to the item when triager clicks 'Apply'
 
-## suggestion comment
+## Suggestion comment
 
-The suggestion comment 
+The suggestion comment on a GitHub itam looks as follows:
 
+```
+**From triage bot:**
+
+## Triage suggestion
+
+<TriageSuggestion in plain english>
+
+<details>
+  <summary>Details</summary>
+
+    <a2ui>
+    <TriageSuggestion in express format>
+    </a2ui>
+
+</details>
+```
 
 ## The component TriageSuggestion
 
