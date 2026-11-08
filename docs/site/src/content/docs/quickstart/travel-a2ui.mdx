@@ -9,7 +9,7 @@ import ArchDiagram from '@components/docs/travel-a2ui/ArchDiagram.astro';
 import {REPO, STEP_BY_STEP} from '../../../lib/travel-a2ui/site';
 
 **A2UI** lets an AI agent answer with an interface instead of a paragraph:
-cards you can tap, dates you can drag, a panel that keeps up with you.
+cards your users can tap, dates they can drag, a panel that keeps up with them.
 
 This quickstart runs **Travel A2UI**, a small trip planner built on the official
 A2UI SDKs. It is simple on purpose: **one Python server** holds the agent, and
@@ -29,7 +29,8 @@ a **React** client (web) and a **Flutter** client (mobile) draw what it sends.
 
 One server serves the API, the React app at `/` and the Flutter app at
 `/flutter/`. The clients know nothing about travel: each knows how to draw the
-catalog's components, and the agent decides what to draw.
+catalog's components. You, the builder, decide what is in the catalog; the
+agent decides what to draw from it.
 
 ## What you will learn
 

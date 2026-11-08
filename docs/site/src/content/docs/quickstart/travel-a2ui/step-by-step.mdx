@@ -81,8 +81,8 @@ to the client, and what draws it.
 
 ### 1. What is A2UI, and what is app code
 
-Not everything on screen is A2UI. Blue is composed by the agent; grey is the
-app's own code, the same on every turn:
+Not everything on screen is A2UI. Blue is composed by the agent; grey is app
+code, written by you, the builder, and the same on every turn:
 
 ![The app with A2UI surfaces outlined in blue (a cost card in the conversation and the trip panel) and app code outlined in grey (the header, the message box and the reply text)](../../../../assets/quickstart/travel-a2ui/a2ui-vs-app.png)
 
@@ -94,12 +94,12 @@ app's own code, the same on every turn:
 
 Each blue region is a **surface**: one area of UI the agent controls. A surface
 is made of **components** (a `Text`, a `Button`, a `FlightOption`), and the
-values they show come from the surface's **data model**. Tap a flight and the
-agent receives an **action** saying which one.
+values they show come from the surface's **data model**. When the user taps a
+flight, the agent receives an **action** saying which one.
 
 A rule of thumb for your own app: if it should look the same on every turn,
-write it as app code; if it depends on what the user just asked, let the agent
-compose it.
+build it yourself as app code; if it depends on what the user just asked, let
+the agent compose it.
 
 ### 2. The catalog: what the agent may draw
 
@@ -127,14 +127,15 @@ The web client's **Catalog** tab draws every component with the real renderer:
 The catalog is also the **guardrail**. The server checks every message the
 model writes against it before sending anything, and each client implements
 every component and function in it, so the agent can only ask for what the
-client knows how to draw.
+client knows how to draw. The work splits between the model and you, the
+builder:
 
-| The model decides                | The catalog and the code decide |
-| -------------------------------- | ------------------------------- |
-| Whether to show a card           | Which components exist          |
-| Which components, and the layout | The data in them                |
-| The wording                      | That every message is valid     |
-| What to ask next                 | What a press records            |
+| The model decides                | You, the builder, decide                           |
+| -------------------------------- | -------------------------------------------------- |
+| Whether to show a card           | Which components and functions exist (the catalog) |
+| Which components, and the layout | The data in them                                   |
+| The wording                      | That every message is checked against the catalog  |
+| What to ask next                 | What a press records                               |
 
 ### 3. Skills: teaching the model A2UI
 

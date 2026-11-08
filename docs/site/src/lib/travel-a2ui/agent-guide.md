@@ -1,6 +1,7 @@
 # A2UI quickstart: instructions for coding agents
 
-You are a coding agent. A developer has asked you for the A2UI quickstart.
+You are a coding agent. A builder (a developer, designer or anyone making an
+app) has asked you for the A2UI quickstart.
 <!-- only:both -->
 Set up the **web and mobile apps**, the Python server with the React and
 Flutter clients, on their machine, then explain how A2UI works, simply, with
@@ -128,7 +129,8 @@ those tabs; it needs Node 20+), or share the lesson's screenshot.
 
 Have them look at the screen: the cards in the conversation and the trip panel
 (the trip sheet in Flutter) are **A2UI**, composed by the agent. The header,
-message box, chat bubbles and key form are **app code**, the same every turn.
+message box, chat bubbles and key form are **app code**, written by the
+builder (that is them, in their own app) and the same every turn.
 
 Then name the pieces on a card: it is a **surface**, a region of UI the agent
 controls. It is made of **components** (`Text`, `Button`, `FlightOption`), the
@@ -155,8 +157,8 @@ Open the web client's **Catalog** tab. The **catalog**
 The catalog is the **guardrail**: the server checks every message the model
 writes against it, and React and Flutter implement everything in it, so the
 agent can only ask for what the client can draw. The model decides whether and
-what to show; the catalog and the code decide what exists, the data inside it
-and what a press records.
+what to show; the builder (them, in their own app) decides what is in the
+catalog, the data inside it and what a press records.
 
 Picture: {{STEP_BY_STEP}}#2-the-catalog-what-the-agent-may-draw (the Catalog
 tab).
