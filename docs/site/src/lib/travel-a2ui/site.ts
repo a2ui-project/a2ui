@@ -1,11 +1,11 @@
-/**
+/*
  * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -29,33 +29,53 @@ export const absolute = (path: string) => `${site}${base}/${path.replace(/^\//, 
 /** A path inside this site, relative to the origin. */
 export const local = (path: string) => `${base}/${path.replace(/^\//, '')}`;
 
-/** The sample lives in A2UI Labs. */
-export const LABS_REPO = 'https://github.com/a2ui-project/labs';
+/**
+ * Where the sample's code is cloned from.
+ *
+ * Until the sample is merged into a2ui-project/labs, the quickstart clones the
+ * pull request's branch on the fork, so it can be tried end to end. After the
+ * merge, set LABS_REPO to 'https://github.com/a2ui-project/labs' and
+ * LABS_BRANCH to 'main'.
+ */
+export const LABS_REPO = 'https://github.com/vpm238/labs';
+export const LABS_BRANCH = 'travel-a2ui-sample';
 export const SAMPLE_DIR = 'samples/travel-a2ui';
-export const REPO = `${LABS_REPO}/tree/main/${SAMPLE_DIR}`;
-export const DEPLOY = `https://deploy.cloud.run/?git_repo=${LABS_REPO}&dir=${SAMPLE_DIR}`;
+export const REPO = `${LABS_REPO}/tree/${LABS_BRANCH}/${SAMPLE_DIR}`;
+export const DEPLOY = `https://deploy.cloud.run/?git_repo=${LABS_REPO}&revision=${LABS_BRANCH}&dir=${SAMPLE_DIR}`;
 export const BUILD_YOUR_OWN = `${REPO}#build-one-of-your-own`;
+
+/** The two commands that get the code. */
+export const CLONE = `git clone --branch ${LABS_BRANCH} ${LABS_REPO}\ncd labs/${SAMPLE_DIR}`;
 
 /** The pages of this quickstart. */
 export const OVERVIEW_PATH = 'quickstart/travel-a2ui/';
 export const STEP_BY_STEP_PATH = 'quickstart/travel-a2ui/step-by-step/';
 export const STEP_BY_STEP = local(STEP_BY_STEP_PATH);
 
-/** What a coding agent follows, served raw. `agent.md` asks which app first. */
+/** What a coding agent follows, served raw: web and mobile, or one of them. */
 export const PROMPT_PATH = 'quickstart/travel-a2ui/agent.md';
 export const PROMPT_WEB = 'quickstart/travel-a2ui/agent/web.md';
 export const PROMPT_MOBILE = 'quickstart/travel-a2ui/agent/mobile.md';
 
-/** The prompts the quickstart button copies: one line, one URL each. */
+/** The prompts the quickstart button copies: one line, one URL each. The first is the default. */
 export const QUICKSTART_PROMPTS = [
   {
-    app: 'Web app',
+    id: 'both',
+    app: 'Web + Mobile',
+    stack: 'Python + React + Flutter',
+    prompt: `Follow the steps at ${absolute(PROMPT_PATH)} to set up the A2UI quickstart web and mobile apps and explain them to me.`,
+    guide: PROMPT_PATH,
+  },
+  {
+    id: 'web',
+    app: 'Web only',
     stack: 'Python + React',
     prompt: `Follow the steps at ${absolute(PROMPT_WEB)} to set up the A2UI quickstart web app and explain it to me.`,
     guide: PROMPT_WEB,
   },
   {
-    app: 'Mobile app',
+    id: 'mobile',
+    app: 'Mobile only',
     stack: 'Python + Flutter',
     prompt: `Follow the steps at ${absolute(PROMPT_MOBILE)} to set up the A2UI quickstart mobile app and explain it to me.`,
     guide: PROMPT_MOBILE,

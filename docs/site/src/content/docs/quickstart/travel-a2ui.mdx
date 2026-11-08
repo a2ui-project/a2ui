@@ -1,6 +1,6 @@
 ---
 title: 'Quickstart: Travel A2UI'
-description: Run a small A2UI app, a Python agent server with a React web client or a Flutter mobile client, from one prompt to your coding agent or in three commands.
+description: Run a small A2UI app, a Python agent server with a React web client and a Flutter mobile client, from one prompt to your coding agent or in three commands.
 ---
 
 import {Aside} from '@astrojs/starlight/components';
@@ -13,7 +13,7 @@ cards you can tap, dates you can drag, a panel that keeps up with you.
 
 This quickstart runs **Travel A2UI**, a small trip planner built on the official
 A2UI SDKs. It is simple on purpose: **one Python server** holds the agent, and
-a **React** client (web) or a **Flutter** client (mobile) draws what it sends.
+a **React** client (web) and a **Flutter** client (mobile) draw what it sends.
 
 <AgentPrompt />
 
@@ -36,11 +36,12 @@ catalog's components, and the agent decides what to draw.
 Once it runs, your agent (or the <a href={STEP_BY_STEP}>step-by-step quickstart</a>)
 explains, with the app open:
 
-1. **The core pieces of A2UI**, and how parent and child components make a
-   card reliable and let it stream.
-2. **Which parts of the screen are A2UI** and which are ordinary app code, and
-   the **catalog** that draws the line.
-3. **Agent skills**: what they are and how they are generated from the catalog.
-4. **Agent output versus A2UI messages**: the Express DSL the model writes, the
-   JSON on the wire and the **MessageProcessor** that applies it.
+1. **What on screen is A2UI** and what is ordinary app code: surfaces, the
+   components in them, and the data they show.
+2. **The catalog**: the components and client functions the agent may use,
+   and why it is the guardrail.
+3. **Agent skills**: how the model is taught to write A2UI for the catalog.
+4. **What the model writes versus what the client receives**: A2UI Express,
+   the A2UI messages the agent SDK turns it into, and the MessageProcessor
+   that applies them.
 5. **Renderers**: the two here, and the others A2UI has.

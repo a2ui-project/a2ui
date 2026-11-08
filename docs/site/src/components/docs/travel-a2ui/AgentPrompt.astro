@@ -15,55 +15,79 @@
  * limitations under the License.
  */
 
-// The quickstart button: a menu of prompts to paste into a coding agent.
+// The quickstart button: copy a one-line prompt for a coding agent.
 //
-// Each prompt is one line carrying one URL. Everything the agent needs (the
-// commands, what to explain, where it is in the code) lives behind that URL,
-// in `src/lib/travel-a2ui/agent-guide.md`, so it can improve without anyone re-copying
-// a prompt. Web comes first.
-import { absolute, local, QUICKSTART_PROMPTS, STEP_BY_STEP } from '../../../lib/travel-a2ui/site';
+// A split button. The main part copies the prompt for the chosen apps; the
+// arrow opens a menu to choose them (web and mobile by default, or one of
+// the two). "View prompt" opens what the agent will read, the Markdown guide
+// behind the prompt's one URL, built from `src/lib/travel-a2ui/agent-guide.md`.
+import antigravity from '../../../assets/quickstart/travel-a2ui/agents/antigravity.svg';
+import claude from '../../../assets/quickstart/travel-a2ui/agents/claude.svg';
+import codex from '../../../assets/quickstart/travel-a2ui/agents/codex.svg';
+import cursor from '../../../assets/quickstart/travel-a2ui/agents/cursor.svg';
+import {absolute, QUICKSTART_PROMPTS, STEP_BY_STEP} from '../../../lib/travel-a2ui/site';
+
+const agents = [
+  {name: 'Antigravity', logo: antigravity},
+  {name: 'Claude Code', logo: claude},
+  {name: 'Codex', logo: codex},
+  {name: 'Cursor', logo: cursor},
+];
+const [first] = QUICKSTART_PROMPTS;
 ---
 
-<section class="qs-cta not-content" aria-label="Quickstart">
-  <div class="qs-cta__row">
-    <details class="qs-menu">
-      <summary class="qs-menu__button">
-        Quickstart with your coding agent
-        <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16"
-          ><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2"></path></svg
-        >
-      </summary>
-      <div class="qs-menu__panel">
-        {
-          QUICKSTART_PROMPTS.map((entry) => (
-            <button type="button" class="qs-menu__item" data-prompt={entry.prompt}>
-              <span class="qs-menu__title">
-                Copy prompt: {entry.app} <span class="qs-menu__stack">({entry.stack})</span>
-              </span>
-              <span class="qs-menu__preview">{entry.prompt}</span>
-              <span class="qs-menu__status" aria-live="polite" />
-            </button>
-          ))
-        }
-        <p class="qs-menu__foot">
-          What your agent reads:
+<section class="qs not-content" aria-label="Quickstart with your coding agent">
+  <div class="qs__row">
+    <div class="qs__split" data-qs>
+      <button
+        type="button"
+        class="qs__copy"
+        data-qs-copy
+        data-prompt={first.prompt}
+        aria-describedby="qs-choice"
+      >
+        <span class="qs__logos" aria-hidden="true">
+          {agents.map(agent => <img src={agent.logo.src} alt="" width="18" height="18" />)}
+        </span>
+        <span class="qs__label" data-qs-label>Copy prompt</span>
+      </button>
+      <details class="qs__menu" data-qs-menu>
+        <summary class="qs__toggle" aria-label="Choose which apps to set up">
+          <span id="qs-choice" class="qs__choice" data-qs-choice>{first.app}</span>
+          <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14"
+            ><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2"></path></svg
+          >
+        </summary>
+        <div class="qs__panel" role="radiogroup" aria-label="Apps to set up">
           {
             QUICKSTART_PROMPTS.map((entry, index) => (
-              <>
-                {index > 0 ? ' · ' : ' '}
-                <a href={absolute(entry.guide)}>{entry.app.toLowerCase()}</a>
-              </>
+              <button
+                type="button"
+                role="radio"
+                class="qs__option"
+                aria-checked={index === 0 ? 'true' : 'false'}
+                data-qs-option
+                data-app={entry.app}
+                data-prompt={entry.prompt}
+                data-guide={absolute(entry.guide)}
+              >
+                <span class="qs__option-title">
+                  {entry.app}
+                  {index === 0 && <span class="qs__default">default</span>}
+                </span>
+                <span class="qs__option-stack">{entry.stack}</span>
+              </button>
             ))
           }
-        </p>
-      </div>
-    </details>
-    <a class="qs-cta__alt" href={STEP_BY_STEP}>Or follow the step-by-step quickstart</a>
+        </div>
+      </details>
+    </div>
+    <a class="qs__view" data-qs-view href={absolute(first.guide)}>View prompt →</a>
+    <a class="qs__alt" href={STEP_BY_STEP}>Or follow the step-by-step quickstart</a>
   </div>
-  <p class="qs-cta__note">
-    Paste the prompt into Claude Code, Gemini CLI, Codex, Cursor or any agent that can read a web page.
-    It runs three commands, then explains how A2UI works with the app open.
-    <a href={local('llms.txt')}>llms.txt</a>
+  <p class="qs__note">
+    Paste it into {agents.map(agent => agent.name).join(', ')} or any coding agent that can read a
+    web page. It runs three commands, then explains how A2UI works with the apps open.
   </p>
 </section>
 
@@ -88,22 +112,35 @@ import { absolute, local, QUICKSTART_PROMPTS, STEP_BY_STEP } from '../../../lib/
     }
   }
 
-  for (const menu of document.querySelectorAll<HTMLDetailsElement>('.qs-menu')) {
-    for (const item of menu.querySelectorAll<HTMLButtonElement>('.qs-menu__item')) {
-      item.addEventListener('click', async () => {
-        const status = item.querySelector('.qs-menu__status');
-        const done = await copy(item.dataset.prompt ?? '');
-        if (status) status.textContent = done ? 'Copied' : 'Select the text above to copy';
-        setTimeout(() => {
-          if (status) status.textContent = '';
-          if (done) menu.open = false;
-        }, 1400);
+  for (const root of document.querySelectorAll<HTMLElement>('.qs')) {
+    const button = root.querySelector<HTMLButtonElement>('[data-qs-copy]')!;
+    const label = root.querySelector<HTMLElement>('[data-qs-label]')!;
+    const choice = root.querySelector<HTMLElement>('[data-qs-choice]')!;
+    const view = root.querySelector<HTMLAnchorElement>('[data-qs-view]')!;
+    const menu = root.querySelector<HTMLDetailsElement>('[data-qs-menu]')!;
+    const options = [...root.querySelectorAll<HTMLButtonElement>('[data-qs-option]')];
+
+    button.addEventListener('click', async () => {
+      const done = await copy(button.dataset.prompt ?? '');
+      label.textContent = done ? 'Copied' : 'Copy failed';
+      setTimeout(() => (label.textContent = 'Copy prompt'), 1400);
+    });
+
+    for (const option of options) {
+      option.addEventListener('click', () => {
+        for (const other of options) other.setAttribute('aria-checked', String(other === option));
+        button.dataset.prompt = option.dataset.prompt;
+        choice.textContent = option.dataset.app ?? '';
+        view.href = option.dataset.guide ?? view.href;
+        menu.open = false;
+        menu.querySelector('summary')?.focus();
       });
     }
-    document.addEventListener('click', (event) => {
+
+    document.addEventListener('click', event => {
       if (menu.open && !menu.contains(event.target as Node)) menu.open = false;
     });
-    menu.addEventListener('keydown', (event) => {
+    menu.addEventListener('keydown', event => {
       if (event.key === 'Escape') {
         menu.open = false;
         menu.querySelector('summary')?.focus();
@@ -113,58 +150,99 @@ import { absolute, local, QUICKSTART_PROMPTS, STEP_BY_STEP } from '../../../lib/
 </script>
 
 <style>
-  .qs-cta {
+  .qs {
     margin-top: 1.5rem;
   }
-  .qs-cta__row {
+  .qs__row {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.75rem 1.25rem;
   }
-  .qs-menu {
-    position: relative;
+  .qs__split {
+    display: inline-flex;
+    align-items: stretch;
+    border-radius: 999px;
+    background: var(--sl-color-accent);
+    /* The page background's colour: light on the dark-blue light-theme button,
+       dark on the light-blue dark-theme one. */
+    color: var(--sl-color-bg);
   }
-  .qs-menu__button {
+  .qs__copy,
+  .qs__toggle {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.6rem 1rem;
-    border-radius: 999px;
-    background: var(--sl-color-accent);
-    color: var(--sl-color-black);
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
     font-weight: 600;
     cursor: pointer;
+  }
+  .qs__copy {
+    padding: 0.5rem 0.9rem 0.5rem 0.6rem;
+    border-radius: 999px 0 0 999px;
+  }
+  .qs__menu {
+    position: relative;
+    display: flex;
+  }
+  .qs__toggle {
+    padding: 0.5rem 0.9rem 0.5rem 0.8rem;
+    border-left: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+    border-radius: 0 999px 999px 0;
     list-style: none;
     user-select: none;
+    font-weight: 500;
   }
-  .qs-menu__button::-webkit-details-marker {
+  .qs__toggle::-webkit-details-marker {
     display: none;
   }
-  .qs-menu__button:focus-visible {
-    outline: 2px solid var(--sl-color-accent-high);
-    outline-offset: 3px;
+  .qs__copy:hover,
+  .qs__toggle:hover {
+    background: color-mix(in srgb, #000 12%, transparent);
   }
-  .qs-menu[open] .qs-menu__button svg {
+  .qs__copy:focus-visible,
+  .qs__toggle:focus-visible,
+  .qs__option:focus-visible {
+    outline: 2px solid var(--sl-color-accent-high);
+    outline-offset: 2px;
+  }
+  .qs__menu[open] .qs__toggle svg {
     transform: rotate(180deg);
   }
-  .qs-menu__panel {
+  .qs__logos {
+    display: inline-flex;
+  }
+  .qs__logos img {
+    width: 1.6rem;
+    height: 1.6rem;
+    padding: 0.25rem;
+    border: 2px solid var(--sl-color-accent);
+    border-radius: 999px;
+    background: #fff;
+  }
+  .qs__logos img + img {
+    margin-left: -0.45rem;
+  }
+  .qs__panel {
     position: absolute;
     z-index: 20;
     top: calc(100% + 0.5rem);
-    left: 0;
-    width: min(26rem, calc(100vw - 2rem));
-    padding: 0.4rem;
+    right: 0;
+    width: min(18rem, calc(100vw - 2rem));
+    padding: 0.35rem;
     border: 1px solid var(--sl-color-gray-5);
     border-radius: 0.9rem;
     background: var(--sl-color-bg);
     box-shadow: var(--sl-shadow-lg);
   }
-  .qs-menu__item {
+  .qs__option {
     display: grid;
-    gap: 0.2rem;
+    gap: 0.15rem;
     width: 100%;
-    padding: 0.65rem 0.75rem;
+    padding: 0.6rem 0.75rem 0.6rem 2rem;
     border: 0;
     border-radius: 0.6rem;
     background: transparent;
@@ -172,51 +250,44 @@ import { absolute, local, QUICKSTART_PROMPTS, STEP_BY_STEP } from '../../../lib/
     text-align: left;
     font: inherit;
     cursor: pointer;
+    position: relative;
   }
-  .qs-menu__item + .qs-menu__item {
-    margin-top: 0.15rem;
-  }
-  .qs-menu__item:hover,
-  .qs-menu__item:focus-visible {
+  .qs__option:hover {
     background: var(--sl-color-gray-6);
-    outline: none;
   }
-  .qs-menu__title {
-    font-weight: 600;
-  }
-  .qs-menu__stack {
-    font-weight: 400;
-    color: var(--sl-color-gray-2);
-  }
-  .qs-menu__preview {
-    overflow: hidden;
-    font-family: var(--sl-font-mono);
-    font-size: var(--sl-text-xs);
-    color: var(--sl-color-gray-3);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .qs-menu__status {
-    font-size: var(--sl-text-xs);
-    font-weight: 600;
-    color: var(--sl-color-accent-high);
-  }
-  .qs-menu__status:empty {
-    display: none;
-  }
-  .qs-menu__foot {
-    margin: 0.3rem 0.75rem 0.4rem;
-    font-size: var(--sl-text-xs);
-    color: var(--sl-color-gray-3);
-  }
-  .qs-cta a {
+  .qs__option[aria-checked='true']::before {
+    content: '✓';
+    position: absolute;
+    left: 0.75rem;
+    top: 0.6rem;
+    font-weight: 700;
     color: var(--sl-color-text-accent);
   }
-  .qs-cta__alt {
+  .qs__option-title {
     font-weight: 600;
   }
-  .qs-cta__note {
-    margin: 1rem 0 0;
+  .qs__default {
+    margin-left: 0.4rem;
+    padding: 0.05rem 0.4rem;
+    border-radius: 999px;
+    background: var(--sl-color-gray-6);
+    font-size: var(--sl-text-xs);
+    font-weight: 500;
+    color: var(--sl-color-gray-2);
+  }
+  .qs__option:hover .qs__default {
+    background: var(--sl-color-gray-5);
+  }
+  .qs__option-stack {
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+  }
+  .qs a {
+    color: var(--sl-color-text-accent);
+    font-weight: 600;
+  }
+  .qs__note {
+    margin: 0.9rem 0 0;
     font-size: var(--sl-text-sm);
     color: var(--sl-color-gray-2);
   }

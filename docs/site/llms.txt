@@ -25,7 +25,7 @@
 - [How does A2UI compare?](https://a2ui.org/introduction/agent-ui-ecosystem/)
 - [Quickstart](https://a2ui.org/quickstart/)
 - [Quickstart: Travel A2UI](https://a2ui.org/quickstart/travel-a2ui/): a Python agent server with React and Flutter clients, from A2UI Labs
-- Travel A2UI agent guides, for coding agents asked to give someone the quickstart: [web app](https://a2ui.org/quickstart/travel-a2ui/agent/web.md), [mobile app](https://a2ui.org/quickstart/travel-a2ui/agent/mobile.md), [either](https://a2ui.org/quickstart/travel-a2ui/agent.md)
+- Travel A2UI agent guides, for coding agents asked to give someone the quickstart: [web and mobile apps](https://a2ui.org/quickstart/travel-a2ui/agent.md) (the default), [web app only](https://a2ui.org/quickstart/travel-a2ui/agent/web.md), [mobile app only](https://a2ui.org/quickstart/travel-a2ui/agent/mobile.md)
 - [Client setup (React, Angular, Lit, Flutter)](https://a2ui.org/guides/client-setup/)
 - [Agent development](https://a2ui.org/guides/agent-development/)
 - [Use A2UI with any agent framework (AG-UI, CopilotKit)](https://a2ui.org/guides/a2ui-with-any-agent-framework/)
