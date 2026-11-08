@@ -1,6 +1,6 @@
 # GitHub labels used in triage
 
-Added and removed by the [triage bot](../../../tools/internal/triage/blueprints/flagging.blueprint.md):
+Added and removed by the [triage bot](../../../tools/internal/triage/blueprints/features/flagging.blueprint.md):
 
 - [status: needs-triage][needs-triage-label]: the item needs triage. The [needs triage queue][needs-triage-all] lists all of them.
 

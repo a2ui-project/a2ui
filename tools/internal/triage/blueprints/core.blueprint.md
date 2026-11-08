@@ -1,5 +1,7 @@
 # Core triage definitions
 
+The triage process is described in [triage.md](../../../../docs/contributing/triage/triage.md), and its labels in [labels.md](../../../../docs/contributing/triage/labels.md). The blueprints in this folder describe the automation that supports it.
+
 ## Contributors
 
 1. A **team member** is anyone with the `OWNER`, `MEMBER` or `COLLABORATOR` association on the repository.
@@ -8,39 +10,26 @@
 
 ## Triage jobs
 
-The following automations contribute to the triage process:
+1. The [flagger](features/flagging.blueprint.md) adds `status: needs-triage` to the items that need triage, and removes it from the rest.
 
-**Flagger**:
+   1. Runs: when an item changes, and daily.
+   2. Started by: a GitHub workflow.
+   3. Needs to: listen to item changes, and add and remove labels.
 
-- What: manages label `satus: needs-triage`
-- When: when state of a GitHub item changed 
-- Initiated by: githug workflow
-- Required abilities: 
-  - add/remove labels on GitHub items
-  - listen to GitHub items change
+2. The [staleness pinger](features/staleness_ping.blueprint.md) asks the assignees of stale items to act, before the flagger flags those items.
 
-**Pinger**:
-- What: reminds about stale items before they are flagged for triage
-- When: daily, auto-scheduled
-- Initiated by: triage agent
-- Required abilities: 
-  - comment GitHub items
-  - send messages to team members
+   1. Runs: daily.
+   2. Started by: a GitHub workflow.
+   3. Needs to: comment on items, and send messages to team members.
 
-**Advisor**: 
+3. The [advisor](features/triage_item.blueprint.md#triage-suggestions) posts a triage suggestion on each item that needs triage.
 
-- What: create triage recommendations as comments on GitHub items 
-- When: daily, auto-scheduled
-- Initiated-by: triage agent
-- Required abilities: 
-  - query an AI agent
-  - comment GitHub items
+   1. Runs: daily.
+   2. Started by: a scheduled agent that runs the [a2ui-triage-advisor](../../../../.agents/skills/a2ui-triage-advisor/SKILL.md) skill.
+   3. Needs to: query an AI agent, and comment on items.
 
-**Triage UI**: 
+4. The [triage UI](features/ui.blueprint.md) helps the triager finalize the suggestions and apply them. Once an item is triaged, the flagger removes its `status: needs-triage`.
 
-- What: remove `satus: needs-triage` from GitHub items, by triager them 
-- When: weekly, semi-manually
-- Initiated-by: triager (himan)
-- Required abilities: 
-  - show UI
-  - update GitHub items
+   1. Runs: weekly.
+   2. Started by: the triager, a person.
+   3. Needs to: show a UI, and update items.

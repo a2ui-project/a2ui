@@ -15,7 +15,7 @@
  */
 
 // Tests for flagging.mts. Run from the repository root with:
-// node --test tools/internal/triage/flagging/flagging.test.mts
+// node --test tools/internal/triage/archive/packages/flagging/flagging.test.mts
 
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -117,7 +117,7 @@ const isPriority = (label: string) => (PRIORITY_LABELS as readonly string[]).inc
 describe('triage workflow', () => {
   it('runs the script from main, whatever the triggering event', () => {
     const workflow = readFileSync(
-      new URL('../../../../.github/workflows/triage.yml', import.meta.url),
+      new URL('../../../../../../.github/workflows/triage.yml', import.meta.url),
       'utf8',
     );
     const checkout = workflow.match(

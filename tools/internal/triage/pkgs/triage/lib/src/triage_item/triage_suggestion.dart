@@ -41,6 +41,24 @@ final ComponentApi triageSuggestionApi = ComponentApi(
             'plain English.',
         minLength: 1,
       ),
+      TriageSuggestionProps.reply: Schema.string(
+        description:
+            'A comment to post on the item for its author or other '
+            'participants, in plain English. Omitted means no comment.',
+        minLength: 1,
+      ),
+      TriageSuggestionProps.closeAs: Schema.string(
+        description:
+            'How to close the item. Omitted means keep it open. A pull '
+            'request has no close reason, so any value closes it.',
+        enumValues: TriageCloseReason.values,
+      ),
+      TriageSuggestionProps.duplicateOf: Schema.integer(
+        description:
+            'The number of the item in the same repository that this item '
+            'duplicates. Set it only when `close_as` is `duplicate`.',
+        minimum: 1,
+      ),
       TriageSuggestionProps.addedLabels: _names('Labels to add to the item.'),
       TriageSuggestionProps.removedLabels: _names(
         'Labels to remove from the item.',
@@ -74,12 +92,25 @@ abstract final class TriageSuggestionProps {
 
   static const String summary = 'summary';
   static const String suggestion = 'suggestion';
+  static const String reply = 'reply';
+  static const String closeAs = 'close_as';
+  static const String duplicateOf = 'duplicate_of';
   static const String addedLabels = 'added_labels';
   static const String removedLabels = 'removed_labels';
   static const String newAssignees = 'new_assignees';
   static const String removedAssignees = 'removed_assignees';
   static const String relatedIssues = 'related_issues';
   static const String relatedPrs = 'related_prs';
+}
+
+/// The values of the `close_as` property of [triageSuggestionApi], which
+/// match the GitHub close reasons of an issue.
+abstract final class TriageCloseReason {
+  static const String completed = 'completed';
+  static const String notPlanned = 'not_planned';
+  static const String duplicate = 'duplicate';
+
+  static const List<String> values = [completed, notPlanned, duplicate];
 }
 
 Schema _names(String description) => Schema.list(

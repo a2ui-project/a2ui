@@ -17,8 +17,8 @@
 # owned by this automation and reconciled on every run.
 #
 # The flagging rules are implemented in
-# ./tools/internal/triage/flagging/flagging.mts and described in
-# https://github.com/a2ui-project/a2ui/blob/main/tools/internal/triage/blueprints/flagging.blueprint.md
+# ./tools/internal/triage/archive/packages/flagging/flagging.mts and described in
+# https://github.com/a2ui-project/a2ui/blob/main/tools/internal/triage/blueprints/features/flagging.blueprint.md
 
 name: Flag/Unflag issues and PRs
 
@@ -99,7 +99,7 @@ jobs:
             const path = require('path');
             const { pathToFileURL } = require('url');
 
-            const filePath = path.resolve('./tools/internal/triage/flagging/flagging.mts');
+            const filePath = path.resolve('./tools/internal/triage/archive/packages/flagging/flagging.mts');
             const fileUrl = pathToFileURL(filePath).href;
 
             const importedModule = await import(fileUrl);

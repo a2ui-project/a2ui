@@ -213,9 +213,9 @@ jobs:
           node-version: "24"
           install: "false"
       - name: Test Scripts
-        run: node --test scripts/*.test.mjs tools/internal/triage/flagging/*.test.mts
+        run: node --test scripts/*.test.mjs tools/internal/triage/archive/packages/flagging/*.test.mts
       - name: Type-check the triage bot
-        working-directory: tools/internal/triage
+        working-directory: tools/internal/triage/archive/packages
         run: |
           npm ci
           npm run typecheck

@@ -18,7 +18,7 @@
 // waiting-for-author-response' labels across all open issues and PRs.
 //
 // For detailed rules and documentation on how the triage automation works, see:
-// https://github.com/a2ui-project/a2ui/blob/main/tools/internal/triage/blueprints/flagging.blueprint.md
+// https://github.com/a2ui-project/a2ui/blob/main/tools/internal/triage/blueprints/features/flagging.blueprint.md
 //
 // Implementation notes:
 // - Items are selected by query, but the query alone is not trusted: GitHub's
