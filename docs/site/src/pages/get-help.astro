@@ -236,6 +236,8 @@ const consultants: ConsultantEntry[] = [
       'https://www.figma.com/design/5lulKujQK2M3unUbeRgqYw/Rivera-Home-%7C-Component-Catalog?node-id=2001-67',
   },
 ];
+
+const sortedConsultants = [...consultants].sort((a, b) => a.agency.localeCompare(b.agency));
 ---
 
 <!doctype html>
@@ -329,55 +331,15 @@ const consultants: ConsultantEntry[] = [
                 These independent companies offer consulting services on A2UI.
               </p>
             </div>
-
-            <div class="c-sort" role="group" aria-label="Consultancy sort order">
-              <button
-                type="button"
-                class="c-sort__btn"
-                id="c-sort-random"
-                aria-pressed="true"
-                title="Randomize consultancy order (click again to reshuffle)"
-              >
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <polyline points="16 3 21 3 21 8"></polyline>
-                  <line x1="4" y1="20" x2="21" y2="3"></line>
-                  <polyline points="21 16 21 21 16 21"></polyline>
-                  <line x1="15" y1="15" x2="21" y2="21"></line>
-                  <line x1="4" y1="4" x2="9" y2="9"></line>
-                </svg>
-                <span>Random</span>
-              </button>
-              <button
-                type="button"
-                class="c-sort__btn"
-                id="c-sort-alpha"
-                aria-pressed="false"
-                title="Sort consultancies alphabetically (A to Z)"
-              >
-                <span>A–Z</span>
-              </button>
-              <span class="c-sr-only" id="c-sort-live" aria-live="polite"></span>
-            </div>
           </div>
 
           <div class="c-grid" id="c-grid">
             {
-              consultants.map((item, idx) => (
+              sortedConsultants.map((item) => (
                 <article
                   class="c-card"
                   data-card
                   data-slug={item.slug}
-                  data-alpha-index={String(idx)}
                   data-agency-name={item.agency}
                   data-app-name={`${item.appName} · ${item.appTagline}`}
                   data-agency-url={item.agencyUrl}
@@ -647,22 +609,6 @@ const consultants: ConsultantEntry[] = [
               ))
             }
           </div>
-          <script is:inline>
-            (() => {
-              const grid = document.getElementById('c-grid');
-              if (!grid) return;
-              const items = Array.from(grid.children);
-              for (let i = items.length - 1; i > 0; i -= 1) {
-                const j = Math.floor(Math.random() * (i + 1));
-                const tmp = items[i];
-                items[i] = items[j];
-                items[j] = tmp;
-              }
-              const frag = document.createDocumentFragment();
-              items.forEach((c) => frag.appendChild(c));
-              grid.appendChild(frag);
-            })();
-          </script>
 
           <div
             class="c-notes"
@@ -672,9 +618,9 @@ const consultants: ConsultantEntry[] = [
             <div>
               <h3 class="c-notes__heading">Independent directory</h3>
               <p>
-                Consultancies on this page are independent third parties shown in random order by
-                default (with an A–Z toggle) alongside public source code. The A2UI project does not
-                endorse, rank, or certify commercial vendors.
+                Consultancies on this page are independent third parties listed in alphabetical
+                order alongside public source code. The A2UI project does not endorse, rank, or
+                certify commercial vendors.
               </p>
             </div>
 
@@ -744,11 +690,7 @@ const consultants: ConsultantEntry[] = [
     <script is:inline>
       (() => {
         const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        const grid = document.getElementById('c-grid');
         const cards = Array.from(document.querySelectorAll('[data-card]'));
-        const sortRandomBtn = document.getElementById('c-sort-random');
-        const sortAlphaBtn = document.getElementById('c-sort-alpha');
-        const sortLive = document.getElementById('c-sort-live');
         const copySkillBtn = document.getElementById('c-copy-skill');
         const copySkillLabel = document.getElementById('c-copy-skill-label');
 
@@ -832,57 +774,6 @@ const consultants: ConsultantEntry[] = [
             );
             cards.forEach((card) => observer.observe(card));
           }
-        }
-
-        if (sortRandomBtn && sortAlphaBtn && grid) {
-          const setSortMode = (isRandom) => {
-            sortRandomBtn.setAttribute('aria-pressed', isRandom ? 'true' : 'false');
-            sortAlphaBtn.setAttribute('aria-pressed', isRandom ? 'false' : 'true');
-          };
-
-          sortRandomBtn.addEventListener('click', () => {
-            const prevTop = Array.from(grid.children)
-              .slice(0, 2)
-              .map((c) => c.getAttribute('data-slug'))
-              .join(',');
-            let shuffled = cards.slice();
-            for (let attempt = 0; attempt < 6; attempt += 1) {
-              shuffled = cards.slice();
-              for (let i = shuffled.length - 1; i > 0; i -= 1) {
-                const j = Math.floor(Math.random() * (i + 1));
-                const tmp = shuffled[i];
-                shuffled[i] = shuffled[j];
-                shuffled[j] = tmp;
-              }
-              const nextTop = shuffled
-                .slice(0, 2)
-                .map((c) => c.getAttribute('data-slug'))
-                .join(',');
-              if (nextTop !== prevTop || cards.length <= 2) break;
-            }
-            const frag = document.createDocumentFragment();
-            shuffled.forEach((c) => frag.appendChild(c));
-            grid.appendChild(frag);
-            setSortMode(true);
-            syncVisibleVideos();
-            if (sortLive) sortLive.textContent = 'Showing consultancies in random order.';
-          });
-
-          sortAlphaBtn.addEventListener('click', () => {
-            const sorted = cards
-              .slice()
-              .sort(
-                (a, b) =>
-                  Number(a.getAttribute('data-alpha-index')) -
-                  Number(b.getAttribute('data-alpha-index'))
-              );
-            const frag = document.createDocumentFragment();
-            sorted.forEach((c) => frag.appendChild(c));
-            grid.appendChild(frag);
-            setSortMode(false);
-            syncVisibleVideos();
-            if (sortLive) sortLive.textContent = 'Sorted consultancies alphabetically, A to Z.';
-          });
         }
 
         cards.forEach((card) => {
@@ -1284,18 +1175,6 @@ const consultants: ConsultantEntry[] = [
       /* =======================================================================
          GET HELP PAGE LAYOUT & DIRECTORY CARDS
          ======================================================================= */
-      .c-sr-only {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        padding: 0;
-        margin: -1px;
-        overflow: hidden;
-        clip: rect(0, 0, 0, 0);
-        white-space: nowrap;
-        border: 0;
-      }
-
       .c-hero__inner {
         position: relative;
       }
@@ -1364,45 +1243,6 @@ const consultants: ConsultantEntry[] = [
 
       .c-directory {
         padding: 36px 0 88px;
-      }
-
-      .c-sort {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-      }
-
-      .c-sort__btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        height: 36px;
-        padding: 0 12px;
-        border-radius: 3px;
-        border: 1px solid var(--a2-border-strong);
-        background: var(--a2-surface);
-        color: var(--a2-text-secondary);
-        font-family: var(--a2-font-sans);
-        font-size: 13px;
-        font-weight: 600;
-        cursor: pointer;
-        white-space: nowrap;
-        transition:
-          background-color 0.14s ease,
-          border-color 0.14s ease,
-          color 0.14s ease;
-      }
-
-      .c-sort__btn:hover {
-        color: var(--a2-text);
-        border-color: var(--a2-text);
-      }
-
-      .c-sort__btn[aria-pressed='true'] {
-        background: var(--a2-cta-bg);
-        color: var(--a2-cta-fg);
-        border-color: var(--a2-cta-bg);
       }
 
       .c-grid {
@@ -1765,7 +1605,6 @@ const consultants: ConsultantEntry[] = [
           .a2-cmd-bar,
           .c-tab,
           .c-icon-btn,
-          .c-sort__btn,
           .c-inline-link,
           .c-text-link,
           .c-notes a,
@@ -1783,7 +1622,6 @@ const consultants: ConsultantEntry[] = [
 
         .a2-btn,
         .a2-cmd-bar,
-        .c-sort__btn,
         .c-tab,
         .c-icon-btn,
         .c-inline-link {
