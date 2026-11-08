@@ -85,7 +85,6 @@ export default defineConfig({
       favicon: '/assets/favicon.svg',
       social: {
         github: 'https://github.com/a2ui-project/a2ui',
-        discord: 'https://discord.gg/6fS2326966',
       },
       head: [
         {
