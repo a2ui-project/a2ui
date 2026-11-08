@@ -355,7 +355,7 @@ public struct A2UIIcon: View {
           .accessibilityLabel(explicitLabel ?? "Icon")
       }
     }
-    .accessibilityIdentifier("A2UIIcon_\(node.id)")
+    .accessibilityIdentifier("a2ui-\(node.id)")
   }
 
   private func sfSymbolName(for name: String) -> String {

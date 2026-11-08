@@ -300,21 +300,6 @@ class AtomPromptGenerator(PromptGenerator):
             blocks.append(decompiler.wrap_decompiled_blocks([dsl]))
         return "\n\n".join(blocks)
 
-    def generate(self) -> str:
-        """Generates the prompt snippet for Atom S-expression UI generation."""
-        parts = [f"## Instructions:\n{self.generate_base_rules()}"]
-
-        if self.schema_helpers:
-            instructions = self.generate_catalog_instructions(include_schema=True)
-            if instructions:
-                parts.append(instructions)
-
-        formatted_examples = self.generate_examples()
-        if formatted_examples:
-            parts.append(f"### Examples:\n{formatted_examples}")
-
-        return "\n\n".join(parts)
-
     def _generate_component_signatures(
         self, helper: CatalogSchemaHelper | None = None
     ) -> str:

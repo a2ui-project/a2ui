@@ -6,13 +6,18 @@
   "scripts": {
     "predev": "node scripts/prepare-spec-assets.mjs",
     "dev": "astro dev",
-    "prebuild": "node scripts/prepare-spec-assets.mjs",
-    "build": "astro build",
+    "test": "node tests/check-links.test.mjs",
+    "verify:specs": "node scripts/verify-spec-links.mjs",
+    "check:links": "node scripts/check-links.mjs",
+    "prebuild": "node scripts/prepare-spec-assets.mjs && node scripts/verify-spec-links.mjs",
+    "build": "astro build && node scripts/verify-spec-links.mjs --check-dist && node scripts/check-links.mjs",
+    "check": "node scripts/prepare-spec-assets.mjs && node scripts/verify-spec-links.mjs",
     "preview": "astro preview"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.32.0",
     "astro": "^5.5.0",
+    "mermaid": "^11.12.0",
     "sharp": "^0.33.5"
   }
 }

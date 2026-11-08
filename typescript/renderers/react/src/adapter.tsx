@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, {useRef, useSyncExternalStore, useCallback, memo, useEffect} from 'react';
+import React, {memo, useCallback, useEffect, useRef} from 'react';
 import {
   type A2uiMetadata,
   type ComponentApi,
@@ -31,6 +31,7 @@ import type {
   ReactComponentImplementation,
   ReactRenderProps,
 } from './react_component_implementation';
+import {useSyncExternalStore} from './use_sync_external_store';
 
 // --- Component Factories ---
 
