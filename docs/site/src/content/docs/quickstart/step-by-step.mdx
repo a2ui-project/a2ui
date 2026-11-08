@@ -3,20 +3,12 @@ title: Step-by-step quickstart
 description: Run Travel A2UI yourself, with a React web client, a Flutter mobile client or both, then learn how A2UI works from what is on screen, with screenshots and real output.
 ---
 
-import {Code, LinkCard, Steps} from '@astrojs/starlight/components';
+import {Steps} from '@astrojs/starlight/components';
 import {Image} from 'astro:assets';
 import flutterTrip from '../../../assets/quickstart/travel-a2ui/flutter-trip.png';
-import {
-  A2UI,
-  BUILD_YOUR_OWN,
-  CLONE,
-  CLOUD_SHELL,
-  DEPLOY_DOCS,
-  REPO,
-} from '../../../lib/travel-a2ui/site';
 
 Run the app first, then read the second half with it open: every idea there is
-something you can see on screen. The app is <a href={REPO}>samples/travel-a2ui</a>
+something you can see on screen. The app is [samples/travel-a2ui](https://github.com/a2ui-project/labs/tree/main/samples/travel-a2ui)
 in A2UI Labs: one Python server, a React client for the web and a Flutter client
 for mobile.
 
@@ -29,7 +21,10 @@ You need **Python 3.11+**, plus **Node 20+** for the web app and
 
 1. Get the code:
 
-   <Code code={CLONE} lang="bash" />
+   ```bash
+   git clone https://github.com/a2ui-project/labs
+   cd labs/samples/travel-a2ui
+   ```
 
 2. Start the server with both clients:
 
@@ -248,9 +243,7 @@ writing a renderer for the same catalog, with no change to the agent.
 Run the quickstart app in your own Google Cloud project: the server and both
 clients on one URL. You need a project with billing enabled.
 
-<a href={CLOUD_SHELL}>
-  <img src="https://gstatic.com/cloudssh/images/open-btn.svg" alt="Open in Cloud Shell" />
-</a>
+[![Open in Cloud Shell](https://gstatic.com/cloudssh/images/open-btn.svg)](https://shell.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/a2ui-project/labs&cloudshell_git_branch=main&cloudshell_workspace=samples/travel-a2ui&cloudshell_tutorial=docs/cloud-shell.md&show=ide%2Cterminal)
 
 Cloud Shell opens with the sample and a short guide beside the terminal: sign
 in, choose a project, and run one script:
@@ -263,16 +256,13 @@ It turns on the services the deploy needs, lets the build use them, then builds
 and deploys (about ten minutes the first time) and prints the URL. No key is
 stored on the service: each visitor pastes their own. From your own clone, the
 same script works anywhere the gcloud CLI is signed in; see
-
-<a href={DEPLOY_DOCS}>deploying</a> for what it runs.
+[deploying](https://github.com/a2ui-project/labs/blob/main/samples/travel-a2ui/docs/deploying.md)
+for what it runs.
 
 ## Keep going
 
-<LinkCard
-  title="Build your own"
-  description="What to change to make this app about something other than travel."
-  href={BUILD_YOUR_OWN}
-/>
-<LinkCard title="A2UI renderers" href={A2UI.renderers} />
-<LinkCard title="How A2UI works" description="The concepts, in depth." href={A2UI.overview} />
-<LinkCard title="A2UI v1.0 specification" href={A2UI.spec} />
+- [Build your own](https://github.com/a2ui-project/labs/tree/main/samples/travel-a2ui#build-one-of-your-own): what to change to make
+  this app about something other than travel.
+- [A2UI renderers](../../ecosystem/renderers/): the renderers A2UI has.
+- [How A2UI works](../../concepts/overview/): the concepts, in depth.
+- [A2UI v1.0 specification](../../specification/v1.0-a2ui/).

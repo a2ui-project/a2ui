@@ -6,7 +6,6 @@ description: Run a small A2UI app, a Python agent server with a React web client
 import {Aside} from '@astrojs/starlight/components';
 import AgentPrompt from '@components/docs/travel-a2ui/AgentPrompt.astro';
 import ArchitecturePipelineOverview from '@components/docs/overview/ArchitecturePipelineOverview.astro';
-import {REPO, STEP_BY_STEP} from '../../lib/travel-a2ui/site';
 
 **A2UI** lets an AI agent answer with an interface instead of a paragraph:
 cards your users can tap, dates they can drag, a panel that keeps up with them.
@@ -18,8 +17,9 @@ a **React** client (web) and a **Flutter** client (mobile) draw what it sends.
 <AgentPrompt />
 
 <Aside type="note" title="About this sample">
-  Travel A2UI lives in A2UI Labs, at <a href={REPO}>samples/travel-a2ui</a>. It is a sample for
-  learning A2UI and is not meant for production use.
+  Travel A2UI lives in A2UI Labs, at
+  [samples/travel-a2ui](https://github.com/a2ui-project/labs/tree/main/samples/travel-a2ui). It is a
+  sample for learning A2UI and is not meant for production use.
 </Aside>
 
 ## How A2UI fits into this app
@@ -50,7 +50,7 @@ walks through the same picture for any A2UI app.
 
 ## What you will learn
 
-Once it runs, your agent (or the <a href={STEP_BY_STEP}>step-by-step quickstart</a>)
+Once it runs, your agent (or the [step-by-step quickstart](./step-by-step/))
 explains, with the app open:
 
 1. **What on screen is A2UI** and what is ordinary app code: surfaces, the

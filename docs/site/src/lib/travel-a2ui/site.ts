@@ -35,7 +35,6 @@ export const local = (path: string) => `${base}/${path.replace(/^\//, '')}`;
 export const LABS_REPO = 'https://github.com/a2ui-project/labs';
 export const SAMPLE_DIR = 'samples/travel-a2ui';
 export const REPO = `${LABS_REPO}/tree/main/${SAMPLE_DIR}`;
-export const BUILD_YOUR_OWN = `${REPO}#build-one-of-your-own`;
 
 /**
  * Deploying the sample to Cloud Run: Cloud Shell, with the sample cloned and
@@ -47,7 +46,6 @@ export const CLOUD_SHELL =
   `?cloudshell_git_repo=${LABS_REPO}&cloudshell_git_branch=main` +
   `&cloudshell_workspace=${SAMPLE_DIR}&cloudshell_tutorial=docs/cloud-shell.md` +
   '&show=ide%2Cterminal';
-export const DEPLOY_DOCS = `${LABS_REPO}/blob/main/${SAMPLE_DIR}/docs/deploying.md`;
 
 /** The two commands that get the code. */
 export const CLONE = `git clone ${LABS_REPO}\ncd labs/${SAMPLE_DIR}`;
@@ -87,17 +85,3 @@ export const QUICKSTART_PROMPTS = [
     guide: PROMPT_MOBILE,
   },
 ];
-
-/** The A2UI documentation on this site, one entry per concept the tour teaches. */
-export const A2UI = {
-  home: local('/'),
-  overview: local('concepts/overview/'),
-  messages: local('concepts/messages/'),
-  catalogs: local('concepts/catalogs/'),
-  ownCatalog: local('guides/defining-a-catalog/'),
-  dataBinding: local('concepts/data-binding/'),
-  actions: local('concepts/actions-and-functions/'),
-  spec: local('specification/v1.0-a2ui/'),
-  renderers: local('ecosystem/renderers/'),
-  glossary: local('concepts/glossary/'),
-};
