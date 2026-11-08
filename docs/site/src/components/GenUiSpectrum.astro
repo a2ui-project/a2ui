@@ -90,10 +90,7 @@
               tabindex="0"
               data-stop="a2ui"
             >
-              <span class="gs-stop__title-row">
-                <span class="gs-stop__title">Flexible composition</span>
-                <span class="gs-stop__badge">A2UI</span>
-              </span>
+              <span class="gs-stop__title">Flexible composition</span>
               <span class="gs-stop__sub">Native widget catalog</span>
             </button>
 
@@ -800,14 +797,6 @@
     border-radius: 6px;
   }
 
-  .gs-stop__title-row {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
   .gs-stop__title {
     font-family: var(--a2-font-display);
     font-size: 16.5px;
@@ -820,18 +809,6 @@
 
   .gs-stop.is-active .gs-stop__title {
     color: var(--a2-text);
-  }
-
-  .gs-stop__badge {
-    font-family: var(--a2-font-mono);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    padding: 1.5px 6px;
-    border-radius: 4px;
-    background: var(--a2-accent-soft);
-    border: 1px solid var(--a2-accent-border);
-    color: var(--a2-accent-strong);
   }
 
   .gs-stop__sub {
@@ -848,7 +825,6 @@
       font-size: 13.5px;
     }
 
-    .gs-stop__badge,
     .gs-stop__sub {
       display: none;
     }
