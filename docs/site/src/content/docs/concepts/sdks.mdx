@@ -58,7 +58,13 @@ An Agent SDK connects a language model or agent runtime to the A2UI protocol whi
 
 Swift and Kotlin target client-side rendering; for legacy v0.8 and v0.9 JVM servers, [`kotlin/agent_sdk_legacy`](https://github.com/a2ui-project/a2ui/tree/main/kotlin/agent_sdk_legacy) remains in the repository.
 
-See [Using a catalog in an agent](/concepts/catalogs/#using-a-catalog-in-an-agent) and [Configuring inference formats across SDKs](/concepts/inference-formats/#configuring-inference-formats-across-sdks) for TypeScript, Python, and Dart examples of configuring `A2uiGenerator`, negotiating capabilities, and streaming compiled messages, or run a working agent in the [Quickstart](/quickstart/). Browse [Ecosystem Renderers & Tools](/ecosystem/renderers/) for community agent libraries and transport adapters, or consult [`blueprints/modules`](https://github.com/a2ui-project/a2ui/tree/main/blueprints/modules) and [`conformance/agent`](https://github.com/a2ui-project/a2ui/tree/main/conformance/agent) if you are implementing an Agent SDK in another language.
+### Go and community SDKs
+
+For **Go** services and CLI clients, community-maintained libraries cover server-side validation, streaming parsers, and terminal rendering—including [`satorunooshie/a2ui-go`](https://github.com/satorunooshie/a2ui-go), [`tmc/a2ui`](https://pkg.go.dev/github.com/tmc/a2ui), [`charmbracelet/a2tea`](https://github.com/charmbracelet/a2tea), and [`muncus/a2term`](https://github.com/muncus/a2term) (listed with version details in [Ecosystem Renderers & Tools](/ecosystem/renderers/)).
+
+To implement a conformance-verified Core or Agent SDK in Go, Rust, C#, or another language, follow the language-agnostic specifications in [`blueprints/modules`](https://github.com/a2ui-project/a2ui/tree/main/blueprints/modules), verify behavioral parity against the YAML suites in [`conformance/core`](https://github.com/a2ui-project/a2ui/tree/main/conformance/core) and [`conformance/agent`](https://github.com/a2ui-project/a2ui/tree/main/conformance/agent), and open a pull request to add your package to the [Ecosystem directory](/ecosystem/renderers/#how-to-submit-a-project).
+
+See [Using a catalog in an agent](/concepts/catalogs/#using-a-catalog-in-an-agent) and [Configuring inference formats across SDKs](/concepts/inference-formats/#configuring-inference-formats-across-sdks) for TypeScript, Python, and Dart examples of configuring `A2uiGenerator`, negotiating capabilities, and streaming compiled messages, or run a working agent in the [Quickstart](/quickstart/).
 
 ## Renderer SDK
 

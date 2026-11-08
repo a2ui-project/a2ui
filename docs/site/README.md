@@ -68,7 +68,7 @@ To include every specification version on `a2ui.org` **without duplicating Markd
 1. **Phase 1 — Scaffold Astro + Starlight in `docs/site/`**
     - Initialize `docs/site/package.json`, `astro.config.mjs`, `tsconfig.json`, `src/content.config.ts`, `scripts/prepare-spec-assets.mjs`, and `src/plugins/remark-a2ui-includes.mjs`.
 2. **Phase 2 — Build the Landing Page (`src/pages/index.astro`)**
-    - Implement the landing page following the Part I & Part II outline (_Give your agents UI on every surface_, _The Generative UI Spectrum_, _Real Use Cases_ with JetBrains/Alation/ByteDance/Google Home/Gemini Notebook logos & screenshot tabs, and _Why A2UI_: Express, Macros, Multi-Platform Client Rendering).
+    - Implement the landing page following the Part I & Part II outline (_Give your agents UI on every surface_, _The Generative UI Spectrum_, _Real Use Cases_ with Alation/ByteDance/Atlassian/Gemini Notebook logos & screenshots, and _Why A2UI_: Express, Macros, Multi-Platform Client Rendering).
     - Visually inspect every section in Light and Dark modes using Playwright screenshots.
 3. **Phase 3 — Pilot Markdown Pages Verification (2 Pilot Pages)**
     - Add **two representative pilot Markdown pages** before migrating the rest of `docs/public/`:

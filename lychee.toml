@@ -89,6 +89,10 @@ exclude_path = [
   # nested deeper inside docs/.
   "^docs/public/specification",
   "^docs/site/public/specification",
+  # Starlight content docs under docs/site/src/content/docs/ use root-relative
+  # Astro route links (for example, /get-help/) that are rewritten for
+  # ASTRO_BASE and verified post-build by docs/site/scripts/check-links.mjs.
+  "^docs/site/src/content/docs",
   # Exclude Python virtual environment directories
   "\\.venv",
   "venv",
