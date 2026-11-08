@@ -1038,6 +1038,41 @@ describe('PayloadValidator with AgentFunction', () => {
     assert.throws(() => validateWith(schema, {o: {a: 'y', b: 'x'}}), isValidationError);
   });
 
+  it('checks minProperties and maxProperties on an arguments object and on a property', () => {
+    const args = {
+      type: 'object',
+      properties: {a: {type: 'string'}, b: {type: 'string'}},
+      maxProperties: 1,
+    };
+    assert.deepStrictEqual(validateWith(args, {a: 'x'}), {a: 'x'});
+    assert.throws(() => validateWith(args, {a: 'x', b: 'y'}), isValidationError);
+
+    const min = {type: 'object', properties: {a: {type: 'string'}}, minProperties: 1};
+    assert.deepStrictEqual(validateWith(min, {a: 'x'}), {a: 'x'});
+    assert.throws(() => validateWith(min, {}), isValidationError);
+
+    const nested = {type: 'object', properties: {o: {type: 'object', maxProperties: 1}}};
+    assert.deepStrictEqual(validateWith(nested, {o: {a: 1}}), {o: {a: 1}});
+    assert.throws(() => validateWith(nested, {o: {a: 1, b: 2}}), isValidationError);
+  });
+
+  it('applies a not schema that declares no type to the objects it matches', () => {
+    const schema = {
+      type: 'object',
+      properties: {p: {type: 'object', not: {required: ['b']}}},
+    };
+    assert.deepStrictEqual(validateWith(schema, {p: {a: 1}}), {p: {a: 1}});
+    assert.throws(() => validateWith(schema, {p: {b: 1}}), isValidationError);
+
+    // Without a type, `required` only constrains objects, so every other
+    // value satisfies it and a `not` over it rejects them.
+    const anyValue = {type: 'object', properties: {p: {not: {required: ['b']}}}};
+    assert.deepStrictEqual(validateWith(anyValue, {p: {a: 1}}), {p: {a: 1}});
+    assert.throws(() => validateWith(anyValue, {p: {b: 1}}), isValidationError);
+    assert.throws(() => validateWith(anyValue, {p: 'text'}), isValidationError);
+    assert.throws(() => validateWith(anyValue, {p: ['b']}), isValidationError);
+  });
+
   it('accepts resolved argument values whose keys start with @', () => {
     const schema = {type: 'object', properties: {v: {type: 'object'}, w: {}}};
     const args = {v: {'@type': 'x'}, w: {'@path': '/a', '@call': 'g'}};

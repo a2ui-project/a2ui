@@ -190,6 +190,110 @@ function finalizePropertyZod(
 }
 
 /**
+ * Applies `minProperties` and `maxProperties` to an object schema.
+ *
+ * The keys are counted on the value as written, before `result` fills in
+ * defaults or drops keys it does not declare.
+ *
+ * @param result Zod schema for the object.
+ * @param raw Raw JSON Schema that may declare the bounds.
+ * @returns `result`, rejecting objects outside the bounds when `raw` declares any.
+ */
+function withPropertyCountBounds(result: z.ZodTypeAny, raw: Record<string, unknown>): z.ZodTypeAny {
+  const min = typeof raw.minProperties === 'number' ? raw.minProperties : undefined;
+  const max = typeof raw.maxProperties === 'number' ? raw.maxProperties : undefined;
+  if (min === undefined && max === undefined) {
+    return result;
+  }
+  return z.preprocess((val, ctx) => {
+    if (isPlainObject(val)) {
+      const count = Object.keys(val).length;
+      if (min !== undefined && count < min) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Object must have at least ${min} properties`,
+        });
+      }
+      if (max !== undefined && count > max) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Object must have at most ${max} properties`,
+        });
+      }
+    }
+    return val;
+  }, result);
+}
+
+/** Keywords that constrain an object even when the schema declares no `type`. */
+const TYPELESS_OBJECT_KEYWORDS = [
+  'properties',
+  'patternProperties',
+  'required',
+  'minProperties',
+  'maxProperties',
+];
+
+/**
+ * Converts a schema that declares no `type` but has object keywords.
+ *
+ * Without a `type` these keywords apply to objects only, so every other value
+ * passes, as in JSON Schema. Collapsing the schema to `z.unknown()` would make
+ * a `not` over it match every value.
+ *
+ * @param propSchema Raw schema with no `type`.
+ * @param rootDoc Optional root schema document for resolving nested references.
+ * @param visitedPointers Set of JSON pointer references currently being resolved.
+ * @param defCache Cache of previously converted definition schemas.
+ * @returns A Zod schema that checks the object keywords, or `z.unknown()` if there are none.
+ */
+function convertTypelessToZod(
+  propSchema: Record<string, unknown>,
+  rootDoc?: Record<string, unknown>,
+  visitedPointers?: Set<string>,
+  defCache?: Map<string, z.ZodTypeAny>,
+): z.ZodTypeAny {
+  if (propSchema.type !== undefined || !TYPELESS_OBJECT_KEYWORDS.some(k => k in propSchema)) {
+    return z.unknown();
+  }
+  // `not`, `default` and `description` are applied by finalizePropertyZod.
+  const {
+    not: _not,
+    default: _default,
+    description: _description,
+    required,
+    ...keywords
+  } = propSchema;
+  const requiredKeys = Array.isArray(required)
+    ? required.filter((r): r is string => typeof r === 'string')
+    : [];
+  const objectSchema = convertPropertyToZod(
+    {...keywords, type: 'object'},
+    rootDoc,
+    new Set(visitedPointers),
+    defCache,
+  );
+  return z.unknown().superRefine((val, ctx) => {
+    if (!isPlainObject(val)) return;
+    for (const key of requiredKeys) {
+      if (!Object.hasOwn(val, key)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Required property "${key}" is missing`,
+          path: [key],
+        });
+      }
+    }
+    const result = objectSchema.safeParse(val);
+    if (!result.success) {
+      for (const issue of result.error.issues) {
+        ctx.addIssue({code: z.ZodIssueCode.custom, message: issue.message, path: issue.path});
+      }
+    }
+  });
+}
+
+/**
  * Converts a JSON Schema `$ref` pointer into a Zod schema.
  *
  * Resolves standard protocol definitions from common types, as well as local
@@ -568,10 +672,22 @@ function convertPropertyToZod(
       } else {
         obj = z.record(z.unknown());
       }
-      return finalizePropertyZod(obj, propSchema, rootDoc, visitedPointers, defCache);
+      return finalizePropertyZod(
+        withPropertyCountBounds(obj, propSchema),
+        propSchema,
+        rootDoc,
+        visitedPointers,
+        defCache,
+      );
     }
     default: {
-      return finalizePropertyZod(z.unknown(), propSchema, rootDoc, visitedPointers, defCache);
+      return finalizePropertyZod(
+        convertTypelessToZod(propSchema, rootDoc, visitedPointers, defCache),
+        propSchema,
+        rootDoc,
+        visitedPointers,
+        defCache,
+      );
     }
   }
 }
@@ -1046,7 +1162,7 @@ export function convertFunctionArgsJsonSchemaToZod(
     collected.hasUnresolvable ||
     collected.schemas.some(isExplicitlyOpen) ||
     isExplicitlyOpen(rawSchema);
-  return closeObjectSchema(
+  let result = closeObjectSchema(
     obj,
     [rawSchema, ...collected.schemas.filter(s => s !== rawSchema)],
     !allowExtra,
@@ -1054,6 +1170,10 @@ export function convertFunctionArgsJsonSchemaToZod(
     undefined,
     defCache,
   );
+  for (const piece of new Set([rawSchema, ...collected.schemas])) {
+    result = withPropertyCountBounds(result, piece);
+  }
+  return result;
 }
 
 /**
