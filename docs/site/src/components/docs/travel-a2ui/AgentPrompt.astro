@@ -1,0 +1,223 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// The quickstart button: a menu of prompts to paste into a coding agent.
+//
+// Each prompt is one line carrying one URL. Everything the agent needs (the
+// commands, what to explain, where it is in the code) lives behind that URL,
+// in `src/lib/travel-a2ui/agent-guide.md`, so it can improve without anyone re-copying
+// a prompt. Web comes first.
+import { absolute, local, QUICKSTART_PROMPTS, STEP_BY_STEP } from '../../../lib/travel-a2ui/site';
+---
+
+<section class="qs-cta not-content" aria-label="Quickstart">
+  <div class="qs-cta__row">
+    <details class="qs-menu">
+      <summary class="qs-menu__button">
+        Quickstart with your coding agent
+        <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16"
+          ><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2"></path></svg
+        >
+      </summary>
+      <div class="qs-menu__panel">
+        {
+          QUICKSTART_PROMPTS.map((entry) => (
+            <button type="button" class="qs-menu__item" data-prompt={entry.prompt}>
+              <span class="qs-menu__title">
+                Copy prompt: {entry.app} <span class="qs-menu__stack">({entry.stack})</span>
+              </span>
+              <span class="qs-menu__preview">{entry.prompt}</span>
+              <span class="qs-menu__status" aria-live="polite" />
+            </button>
+          ))
+        }
+        <p class="qs-menu__foot">
+          What your agent reads:
+          {
+            QUICKSTART_PROMPTS.map((entry, index) => (
+              <>
+                {index > 0 ? ' · ' : ' '}
+                <a href={absolute(entry.guide)}>{entry.app.toLowerCase()}</a>
+              </>
+            ))
+          }
+        </p>
+      </div>
+    </details>
+    <a class="qs-cta__alt" href={STEP_BY_STEP}>Or follow the step-by-step quickstart</a>
+  </div>
+  <p class="qs-cta__note">
+    Paste the prompt into Claude Code, Gemini CLI, Codex, Cursor or any agent that can read a web page.
+    It runs three commands, then explains how A2UI works with the app open.
+    <a href={local('llms.txt')}>llms.txt</a>
+  </p>
+</section>
+
+<script>
+  async function copy(text: string): Promise<boolean> {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Without the async clipboard (an insecure origin, an old browser), a
+      // selected textarea and the legacy command still copy.
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.setAttribute('readonly', '');
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.append(area);
+      area.select();
+      const done = document.execCommand('copy');
+      area.remove();
+      return done;
+    }
+  }
+
+  for (const menu of document.querySelectorAll<HTMLDetailsElement>('.qs-menu')) {
+    for (const item of menu.querySelectorAll<HTMLButtonElement>('.qs-menu__item')) {
+      item.addEventListener('click', async () => {
+        const status = item.querySelector('.qs-menu__status');
+        const done = await copy(item.dataset.prompt ?? '');
+        if (status) status.textContent = done ? 'Copied' : 'Select the text above to copy';
+        setTimeout(() => {
+          if (status) status.textContent = '';
+          if (done) menu.open = false;
+        }, 1400);
+      });
+    }
+    document.addEventListener('click', (event) => {
+      if (menu.open && !menu.contains(event.target as Node)) menu.open = false;
+    });
+    menu.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        menu.open = false;
+        menu.querySelector('summary')?.focus();
+      }
+    });
+  }
+</script>
+
+<style>
+  .qs-cta {
+    margin-top: 1.5rem;
+  }
+  .qs-cta__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1.25rem;
+  }
+  .qs-menu {
+    position: relative;
+  }
+  .qs-menu__button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1rem;
+    border-radius: 999px;
+    background: var(--sl-color-accent);
+    color: var(--sl-color-black);
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+  }
+  .qs-menu__button::-webkit-details-marker {
+    display: none;
+  }
+  .qs-menu__button:focus-visible {
+    outline: 2px solid var(--sl-color-accent-high);
+    outline-offset: 3px;
+  }
+  .qs-menu[open] .qs-menu__button svg {
+    transform: rotate(180deg);
+  }
+  .qs-menu__panel {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 0.5rem);
+    left: 0;
+    width: min(26rem, calc(100vw - 2rem));
+    padding: 0.4rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.9rem;
+    background: var(--sl-color-bg);
+    box-shadow: var(--sl-shadow-lg);
+  }
+  .qs-menu__item {
+    display: grid;
+    gap: 0.2rem;
+    width: 100%;
+    padding: 0.65rem 0.75rem;
+    border: 0;
+    border-radius: 0.6rem;
+    background: transparent;
+    color: var(--sl-color-white);
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+  }
+  .qs-menu__item + .qs-menu__item {
+    margin-top: 0.15rem;
+  }
+  .qs-menu__item:hover,
+  .qs-menu__item:focus-visible {
+    background: var(--sl-color-gray-6);
+    outline: none;
+  }
+  .qs-menu__title {
+    font-weight: 600;
+  }
+  .qs-menu__stack {
+    font-weight: 400;
+    color: var(--sl-color-gray-2);
+  }
+  .qs-menu__preview {
+    overflow: hidden;
+    font-family: var(--sl-font-mono);
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .qs-menu__status {
+    font-size: var(--sl-text-xs);
+    font-weight: 600;
+    color: var(--sl-color-accent-high);
+  }
+  .qs-menu__status:empty {
+    display: none;
+  }
+  .qs-menu__foot {
+    margin: 0.3rem 0.75rem 0.4rem;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+  }
+  .qs-cta a {
+    color: var(--sl-color-text-accent);
+  }
+  .qs-cta__alt {
+    font-weight: 600;
+  }
+  .qs-cta__note {
+    margin: 1rem 0 0;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-2);
+  }
+</style>

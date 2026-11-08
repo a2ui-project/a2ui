@@ -1,0 +1,134 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// One turn of an A2UI app, as the parts that handle it. An ordered list,
+// because the order is the point: each stage hands the next one something.
+// Wraps into a column on a phone.
+const stages = [
+  {
+    who: 'You',
+    what: 'Type a message, or press something on a surface.',
+    wire: 'message or action',
+  },
+  {
+    who: 'Agent',
+    what: 'The model decides what to show and writes it in A2UI Express, taught by skills generated from the catalog.',
+    wire: 'Express',
+  },
+  {
+    who: 'A2UI SDK',
+    what: 'Parses the Express as it streams, expands macros into catalog components, and checks every message against the catalog and what the renderer holds.',
+    wire: 'A2UI messages',
+  },
+  {
+    who: 'Renderer',
+    what: 'React or Flutter draws each component with its own widgets, bound to the surface’s data model.',
+    wire: 'pixels',
+  },
+];
+---
+
+<figure class="turn-flow not-content">
+  <ol>
+    {
+      stages.map((stage, index) => (
+        <li>
+          <span class="turn-flow__step">{index + 1}</span>
+          <strong>{stage.who}</strong>
+          <span class="turn-flow__what">{stage.what}</span>
+          <code class="turn-flow__wire">{stage.wire}</code>
+        </li>
+      ))
+    }
+  </ol>
+  <figcaption>
+    A press on what the renderer drew goes back to the agent as an A2UI <code>action</code>, with
+    the renderer's data model beside it, and starts the next turn.
+  </figcaption>
+</figure>
+
+<style>
+  .turn-flow {
+    margin: 1.5rem 0;
+  }
+  .turn-flow ol {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .turn-flow li {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0.9rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.75rem;
+    background: var(--sl-color-bg-nav);
+  }
+  .turn-flow li + li::before {
+    content: '→';
+    position: absolute;
+    left: -0.72rem;
+    top: 1.05rem;
+    color: var(--sl-color-accent-high);
+    font-weight: 700;
+  }
+  .turn-flow__step {
+    display: inline-grid;
+    place-items: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 999px;
+    background: var(--sl-color-accent);
+    color: var(--sl-color-white);
+    font-size: var(--sl-text-xs);
+    font-weight: 700;
+  }
+  :root[data-theme='light'] .turn-flow__step {
+    color: #fff;
+  }
+  .turn-flow__what {
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-2);
+    flex: 1;
+  }
+  .turn-flow__wire {
+    align-self: flex-start;
+    font-size: var(--sl-text-xs);
+    white-space: nowrap;
+  }
+  .turn-flow figcaption {
+    margin-top: 0.75rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+  }
+  @media (max-width: 50rem) {
+    .turn-flow ol {
+      grid-template-columns: 1fr;
+    }
+    .turn-flow li + li::before {
+      content: '↓';
+      left: 1.1rem;
+      top: -0.95rem;
+    }
+  }
+</style>

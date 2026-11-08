@@ -130,6 +130,19 @@ export default defineConfig({
               label: 'Quick start',
               slug: 'quickstart',
             },
+            {
+              label: 'Quickstart: Travel A2UI',
+              items: [
+                {
+                  label: 'Overview',
+                  slug: 'quickstart/travel-a2ui',
+                },
+                {
+                  label: 'Step by step',
+                  slug: 'quickstart/travel-a2ui/step-by-step',
+                },
+              ],
+            },
           ],
         },
         {

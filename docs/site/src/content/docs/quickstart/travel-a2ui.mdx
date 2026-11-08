@@ -1,0 +1,46 @@
+---
+title: 'Quickstart: Travel A2UI'
+description: Run a small A2UI app, a Python agent server with a React web client or a Flutter mobile client, from one prompt to your coding agent or in three commands.
+---
+
+import {Aside} from '@astrojs/starlight/components';
+import AgentPrompt from '@components/docs/travel-a2ui/AgentPrompt.astro';
+import ArchDiagram from '@components/docs/travel-a2ui/ArchDiagram.astro';
+import {REPO, STEP_BY_STEP} from '../../../lib/travel-a2ui/site';
+
+**A2UI** lets an AI agent answer with an interface instead of a paragraph:
+cards you can tap, dates you can drag, a panel that keeps up with you.
+
+This quickstart runs **Travel A2UI**, a small trip planner built on the official
+A2UI SDKs. It is simple on purpose: **one Python server** holds the agent, and
+a **React** client (web) or a **Flutter** client (mobile) draws what it sends.
+
+<AgentPrompt />
+
+<Aside type="note" title="About this sample">
+  Travel A2UI lives in A2UI Labs, at <a href={REPO}>samples/travel-a2ui</a>. It is a worked example
+  for learning A2UI, not a reference implementation of the protocol, and is not meant for production
+  use.
+</Aside>
+
+## What it sets up
+
+<ArchDiagram />
+
+One server serves the API, the React app at `/` and the Flutter app at
+`/flutter/`. The clients know nothing about travel: each knows how to draw the
+catalog's components, and the agent decides what to draw.
+
+## What you will learn
+
+Once it runs, your agent (or the <a href={STEP_BY_STEP}>step-by-step quickstart</a>)
+explains, with the app open:
+
+1. **The core pieces of A2UI**, and how parent and child components make a
+   card reliable and let it stream.
+2. **Which parts of the screen are A2UI** and which are ordinary app code, and
+   the **catalog** that draws the line.
+3. **Agent skills**: what they are and how they are generated from the catalog.
+4. **Agent output versus A2UI messages**: the Express DSL the model writes, the
+   JSON on the wire and the **MessageProcessor** that applies it.
+5. **Renderers**: the two here, and the others A2UI has.

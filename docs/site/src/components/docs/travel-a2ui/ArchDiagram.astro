@@ -1,0 +1,127 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// The architecture: two clients, one Python server, one model, with what
+// travels between them. Plain HTML, so it reflows on a phone instead of
+// shrinking into an unreadable picture.
+---
+
+<figure class="arch not-content" aria-label="Architecture: a React web client and a Flutter mobile client receive the same A2UI messages from one Python agent server, which calls Gemini">
+  <div class="arch__clients">
+    <div class="arch__box">
+      <span class="arch__tag">Web</span>
+      <strong>React client</strong>
+      <span>@a2ui/react · @a2ui/web_core</span>
+      <code>renderers/react/ · apps/web/</code>
+    </div>
+    <div class="arch__box">
+      <span class="arch__tag">Mobile</span>
+      <strong>Flutter client</strong>
+      <span>a2ui_flutter · a2ui_core</span>
+      <code>renderers/flutter/</code>
+    </div>
+  </div>
+
+  <div class="arch__wire">
+    <span>↓ A2UI messages over SSE</span>
+    <span>↑ actions, errors, data model</span>
+  </div>
+
+  <div class="arch__box arch__box--server">
+    <span class="arch__tag">Backend</span>
+    <strong>Python agent server</strong>
+    <span>
+      The agent loop, tools and trip; macros; the A2UI agent SDK, which parses and validates what
+      the model writes
+    </span>
+    <code>apps/server/src/travel_a2ui/</code>
+  </div>
+
+  <div class="arch__wire"><span>↕ prompts, skills and tool calls</span></div>
+
+  <div class="arch__box arch__box--model">
+    <span class="arch__tag">Model</span>
+    <strong>Gemini</strong>
+    <span>Called in one function, so another platform can stand in</span>
+  </div>
+</figure>
+
+<style>
+  .arch {
+    display: grid;
+    gap: 0.5rem;
+    margin: 1.5rem 0;
+  }
+  .arch__clients {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+  /* Starlight spaces siblings in page content with a top margin; inside a
+     grid that only knocks boxes out of line. */
+  .arch > *,
+  .arch__clients > *,
+  .arch__box > * {
+    margin: 0;
+  }
+  .arch__box {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.75rem;
+    background: var(--sl-color-bg-nav);
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-2);
+  }
+  .arch__box strong {
+    font-size: var(--sl-text-base);
+    color: var(--sl-color-white);
+  }
+  .arch__box code {
+    align-self: flex-start;
+    font-size: var(--sl-text-xs);
+  }
+  .arch__box--server {
+    border-color: var(--sl-color-accent);
+  }
+  .arch__box--model {
+    border-style: dashed;
+  }
+  .arch__tag {
+    font-size: var(--sl-text-xs);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--sl-color-accent-high);
+  }
+  .arch__wire {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.25rem 1.5rem;
+    font-size: var(--sl-text-xs);
+    font-family: var(--sl-font-mono);
+    color: var(--sl-color-gray-3);
+  }
+  @media (max-width: 40rem) {
+    .arch__clients {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

@@ -5,6 +5,9 @@ description: Get hands-on with A2UI by running the restaurant finder demo and ex
 
 Get hands-on with A2UI by running the restaurant finder demo. This guide will have you experiencing agent-generated UI in less than 5 minutes.
 
+> [!TIP] Prefer a guided tour?
+> The [Travel A2UI quickstart](/quickstart/travel-a2ui/) runs a small trip planner from A2UI Labs, with a React or Flutter client, from one prompt to your coding agent. It then explains how A2UI works with the app open.
+
 ## What You'll Build
 
 By the end of this quickstart, you'll have:
