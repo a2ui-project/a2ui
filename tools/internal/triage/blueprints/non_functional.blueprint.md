@@ -1,4 +1,4 @@
-# Not functional details of the triage processes
+# Not functional details
 
 The triage processes are automated in form of:
 
