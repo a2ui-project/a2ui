@@ -255,7 +255,8 @@
 - Add `SurfaceComponentsModel.get_partial_components()` to obtain a detached,
   schema-valid rooted component view while referenced children are still
   streaming. Callers can defer components with `exclude_ids`; accumulated state
-  and final validation remain unchanged.
+  and final validation remain unchanged
+  ([#4052](https://github.com/a2ui-project/a2ui/pull/4052)).
 
 ## 0.4.0 (2026-10-17)
 
