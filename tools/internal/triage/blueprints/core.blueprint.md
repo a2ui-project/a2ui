@@ -1,6 +1,4 @@
-# Triage definitions
-
-Terms used in [flagging.blueprint.md](features/flagging.blueprint.md) and [staleness_ping.blueprint.md](features/staleness_ping.blueprint.md).
+# Core triage definitions
 
 ## Contributors
 
@@ -60,11 +58,13 @@ The recommendation is structured as A2UI surface, that consists of one A2UI comp
 
 The recommendation comment on GitHub is plain English plus hidden technical details as A2UI component in express format.
 
-The comonent has the following fields:
+The comonent has the following properties:
 
-- comment
+- summary
+- suggestion
 - added_labels
 - removed_labels
-- assignee
+- new_assignees
+- removed_assignees
 - related_issues
 - related_prs
