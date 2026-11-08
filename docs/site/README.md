@@ -58,6 +58,8 @@ To include every specification version on `a2ui.org` **without duplicating Markd
     - Copies `specification/*` and `catalogs/{basic,mcp}/v1/{catalog.json,examples}` (plus `catalogs/mcp/catalog.json` for v0.9) into `docs/site/public/specification/` and flattens `<version>/json/*.json` to `<version>/*.json` before `astro build` runs, so `https://a2ui.org/specification/...` schema `$id` URLs resolve as static JSON.
 2. **GitHub Pages Deployment & Legacy Redirects (`.github/workflows/docs.yml` & `astro.config.mjs`)**:
     - Builds `docs/site/dist/` (including `CNAME` for `a2ui.org`, `.nojekyll`, and Astro `redirects` for renamed legacy MkDocs paths) and deploys to the `gh-pages` branch on `a2ui-project/a2ui`.
+3. **Pull Request Previews (`.github/workflows/docs_site_preview.yml` & `.github/workflows/docs_site_preview_deploy.yml`)**:
+    - Pull requests touching `docs/site/`, `specification/`, `catalogs/`, or `docs/public/assets/` build with `ASTRO_BASE=/pr-preview/pr-<PR_NUMBER>/` and publish a `noindex` preview to `https://a2ui.org/pr-preview/pr-<PR_NUMBER>/` on `gh-pages`, posting a sticky comment on the pull request and removing the preview directory after the pull request closes.
 
 ---
 
