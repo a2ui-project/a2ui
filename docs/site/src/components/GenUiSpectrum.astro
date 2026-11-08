@@ -500,7 +500,9 @@
 
       rail.addEventListener('pointerdown', (e) => {
         dragging = true;
-        rail.setPointerCapture(e.pointerId);
+        if (e.isTrusted) {
+          rail.setPointerCapture(e.pointerId);
+        }
         updateFromPointer(e.clientX, false);
       });
 
@@ -575,24 +577,27 @@
   })();
 </script>
 
-<style is:inline>
-  #spectrum {
+<style>
+  .gs-section {
     position: relative;
     padding: 112px 0 124px;
     background: var(--a2-bg);
     border-top: 1px solid var(--a2-border-strong);
     scroll-margin-top: 72px;
+  }
 
-    @media (max-width: 720px) {
+  @media (max-width: 720px) {
+    .gs-section {
       padding: 80px 0 88px;
     }
+  }
 
-    .gs-wrap {
-      width: 100%;
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 0 36px;
-    }
+  .gs-wrap {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 36px;
+  }
 
   @media (max-width: 640px) {
     .gs-wrap {
@@ -1420,8 +1425,6 @@
     font-size: 13.5px;
     line-height: 1.5;
     color: var(--a2-text-secondary);
-  }
-
   }
 
   @keyframes gs-shake {
