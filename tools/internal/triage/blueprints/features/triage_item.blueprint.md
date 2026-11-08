@@ -4,10 +4,10 @@
 
 Triage suggestion is a comment on a GitHub item with the following workflow:
 
-1. The skill [a2ui-triage-advisor](../../../../../.agents/skills/a2ui-triage-advisor) for each GitHub item marked with `status: needs triage` (or for concreate items specified in prompt), without suggestion or with outdated suggestion: 
+1. The skill [a2ui-triage-advisor](../../../../../.agents/skills/a2ui-triage-advisor/SKILL.md), for each GitHub item marked with `status: needs triage` (or for concreate items specified in prompt), without suggestion or with outdated suggestion: 
   b. Constructs the suggestion in native english 
   b. Formats the suggestion as [A2UI component TriageSuggestion](../../pkgs/triage/lib/src/triage_item/triage_suggestion.dart)
-  c. Comments to the GitHub item as plain English plus hidden technical details
+  c. Posts the suggestion as a comment to the item
 2. Triage UI:
   a. Parses the suggestion from GitHub item comment
   b. Shows it to triager

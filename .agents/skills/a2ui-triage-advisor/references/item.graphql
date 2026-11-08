@@ -1,0 +1,49 @@
+query($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    issueOrPullRequest(number: $number) {
+      __typename
+      ... on Issue {
+        number title body url state createdAt lastEditedAt
+        author { login } authorAssociation
+        labels(first: 50) { nodes { name } }
+        assignees(first: 20) { nodes { login } }
+        comments(last: 100) { nodes { databaseId url author { login } authorAssociation body createdAt updatedAt } }
+        timelineItems(last: 100, itemTypes: [LABELED_EVENT, UNLABELED_EVENT, ASSIGNED_EVENT, UNASSIGNED_EVENT, CLOSED_EVENT, REOPENED_EVENT, CROSS_REFERENCED_EVENT]) {
+          nodes {
+            __typename
+            ... on LabeledEvent { createdAt label { name } }
+            ... on UnlabeledEvent { createdAt label { name } }
+            ... on AssignedEvent { createdAt }
+            ... on UnassignedEvent { createdAt }
+            ... on ClosedEvent { createdAt }
+            ... on ReopenedEvent { createdAt }
+            ... on CrossReferencedEvent { createdAt source { __typename ... on Issue { number } ... on PullRequest { number } } }
+          }
+        }
+      }
+      ... on PullRequest {
+        number title body url state createdAt lastEditedAt isDraft
+        author { login } authorAssociation
+        labels(first: 50) { nodes { name } }
+        assignees(first: 20) { nodes { login } }
+        files(first: 100) { nodes { path } }
+        closingIssuesReferences(first: 10) { nodes { number } }
+        comments(last: 100) { nodes { databaseId url author { login } authorAssociation body createdAt updatedAt } }
+        reviews(last: 50) { nodes { author { login } authorAssociation body state submittedAt } }
+        timelineItems(last: 100, itemTypes: [LABELED_EVENT, UNLABELED_EVENT, ASSIGNED_EVENT, UNASSIGNED_EVENT, CLOSED_EVENT, REOPENED_EVENT, CROSS_REFERENCED_EVENT, PULL_REQUEST_COMMIT]) {
+          nodes {
+            __typename
+            ... on LabeledEvent { createdAt label { name } }
+            ... on UnlabeledEvent { createdAt label { name } }
+            ... on AssignedEvent { createdAt }
+            ... on UnassignedEvent { createdAt }
+            ... on ClosedEvent { createdAt }
+            ... on ReopenedEvent { createdAt }
+            ... on CrossReferencedEvent { createdAt source { __typename ... on Issue { number } ... on PullRequest { number } } }
+            ... on PullRequestCommit { commit { committedDate } }
+          }
+        }
+      }
+    }
+  }
+}
