@@ -5,7 +5,7 @@ description: Run a small A2UI app, a Python agent server with a React web client
 
 import {Aside} from '@astrojs/starlight/components';
 import AgentPrompt from '@components/docs/travel-a2ui/AgentPrompt.astro';
-import ArchDiagram from '@components/docs/travel-a2ui/ArchDiagram.astro';
+import HowItFits from '@components/docs/travel-a2ui/HowItFits.astro';
 import {REPO, STEP_BY_STEP} from '../../../lib/travel-a2ui/site';
 
 **A2UI** lets an AI agent answer with an interface instead of a paragraph:
@@ -25,7 +25,7 @@ a **React** client (web) and a **Flutter** client (mobile) draw what it sends.
 
 ## What it sets up
 
-<ArchDiagram />
+<HowItFits />
 
 One server serves the API, the React app at `/` and the Flutter app at
 `/flutter/`. The clients know nothing about travel: each knows how to draw the

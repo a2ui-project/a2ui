@@ -4,7 +4,7 @@ description: Run Travel A2UI yourself, with a React web client, a Flutter mobile
 ---
 
 import {Code, LinkCard, Steps} from '@astrojs/starlight/components';
-import TurnFlow from '@components/docs/travel-a2ui/TurnFlow.astro';
+import HowItFits from '@components/docs/travel-a2ui/HowItFits.astro';
 import {A2UI, BUILD_YOUR_OWN, CLONE, DEPLOY, REPO} from '../../../../lib/travel-a2ui/site';
 
 Run the app first, then read the second half with it open: every idea there is
@@ -75,9 +75,15 @@ same thing: the same messages, drawn by two renderers.
 
 ## How A2UI works
 
-Five short steps, in the order you meet them on screen: what on the screen is
-A2UI, what the agent is allowed to draw, how the model learns it, what travels
-to the client, and what draws it.
+A2UI is an SDK for your agent and a renderer for your app. Here is how they fit
+together in this one:
+
+<HowItFits />
+
+The five steps below walk through it in the order you meet it on screen: what
+on the screen is A2UI, what the agent is allowed to draw, how the model learns
+it, what travels to the client, and what draws it. The same picture, for any
+A2UI app, is in <a href={A2UI.overview}>How A2UI works</a>.
 
 ### 1. What is A2UI, and what is app code
 
@@ -162,8 +168,6 @@ Here the skills are generated from the catalog with the A2UI agent SDK's
 `npm run generate` updates what the model is taught to match.
 
 ### 4. What the model writes, and what the client receives
-
-<TurnFlow />
 
 The model writes **A2UI Express**, a short notation, as its skills taught it.
 `root` comes first, so the card can appear before the rest is written:

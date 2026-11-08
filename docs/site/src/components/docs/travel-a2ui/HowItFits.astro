@@ -1,0 +1,476 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// How A2UI fits into Travel A2UI: an SDK for the builder's agent, a renderer
+// for the builder's app. The same picture as the Concepts overview's pipeline
+// (purple for the builder's agent code, blue for the builder's app, a dashed
+// teal line around the A2UI SDKs), drawn with this sample's real pieces and
+// paths. Plain HTML, so it reflows on a phone instead of shrinking.
+import {Image} from 'astro:assets';
+import flutterShot from '../../../assets/quickstart/travel-a2ui/flutter.png';
+
+// Real messages from this sample (`renderers/flutter/test/fixtures/flights.json`), trimmed.
+const components = `{"id": "fares__flightoption_1",
+ "component": "FlightOption",
+ "airline": {"@path": "airline"},
+ "price": {"@path": "price"}, …}`;
+const data = `{"path": "/flights",
+ "value": [{"airline": "TAP Air Portugal",
+            "price": "€292", …}]}`;
+---
+
+<figure class="fit not-content" aria-labelledby="fit-caption">
+  <section class="fit__side fit__side--server" aria-label="Server: your agent">
+    <div class="fit__head">
+      <span class="fit__badge fit__badge--server">SERVER · YOUR AGENT</span>
+      <code>apps/server/</code>
+    </div>
+
+    <div class="fit__two">
+      <div class="fit__card">
+        <span class="fit__tag">YOUR CATALOG</span>
+        <strong>Components and functions</strong>
+        <p>
+          What the client can draw and compute: <code>FlightOption</code>, <code>DateRangePicker</code>,
+          <code>calcNights</code>…
+        </p>
+        <code class="fit__path">catalogs/a2ui-travel/catalog.json</code>
+      </div>
+      <div class="fit__card">
+        <span class="fit__tag">YOUR TOOLS</span>
+        <strong>Domain lookups</strong>
+        <p>Flights, fares, hotels and places. Fixture data in this sample.</p>
+        <code class="fit__path">data/tools.json</code>
+      </div>
+    </div>
+
+    <div class="fit__sdk">
+      <div class="fit__sdk-head">
+        <span class="fit__sdk-label">A2UI AGENT SDK</span>
+        <span class="fit__sdk-langs">a2ui-agent-sdk · Python</span>
+      </div>
+      <div class="fit__two">
+        <div class="fit__card">
+          <strong>Skill generator</strong>
+          <p>Turns the catalog into skills that teach the model to write A2UI.</p>
+          <code class="fit__path">skills/express-modular/</code>
+        </div>
+        <div class="fit__card">
+          <strong>Compiler</strong>
+          <p>Reads what the model writes as it streams, checks it against the catalog, and emits A2UI JSON.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="fit__two fit__flow" aria-hidden="true">
+      <span>↓ A2UI skills</span>
+      <span>↑ A2UI Express, as the model writes it</span>
+    </div>
+
+    <div class="fit__agent">
+      <div class="fit__agent-head">
+        <strong>Your agent</strong>
+        <code class="fit__pill">brain/</code>
+      </div>
+      <p>
+        Calls Gemini with the skills and your tools, keeps the conversation and the trip, and hands the
+        model's UI to the compiler.
+      </p>
+    </div>
+  </section>
+
+  <div class="fit__wire">
+    <span class="fit__wire-label">A2UI PROTOCOL · JSON over SSE</span>
+    <div class="fit__two">
+      <pre class="fit__code"><span class="fit__code-tag">updateComponents</span>{components}</pre>
+      <pre class="fit__code"><span class="fit__code-tag">updateDataModel · data, sent separately</span>{data}</pre>
+    </div>
+    <div class="fit__chips" aria-hidden="true">
+      <span>↓ to the client</span>
+      <span class="fit__chip-up">↑ action: select_flight</span>
+    </div>
+  </div>
+
+  <section class="fit__side fit__side--client" aria-label="Client: your app">
+    <div class="fit__head">
+      <span class="fit__badge fit__badge--client">CLIENT · YOUR APP</span>
+      <code>apps/web/ · apps/flutter/</code>
+    </div>
+    <div class="fit__client">
+      <div class="fit__phone">
+        <div class="fit__screen">
+          <Image
+            src={flutterShot}
+            width={360}
+            alt="The Flutter client: flight options drawn as an A2UI surface inside the app"
+          />
+          <span class="fit__surface" aria-hidden="true"><span>A2UI surface</span></span>
+        </div>
+        <span>What the user sees: an A2UI surface inside your app</span>
+      </div>
+      <div class="fit__stack">
+        <div class="fit__card fit__card--app">
+          <span class="fit__tag">YOUR APP</span>
+          <strong>Everything around the surfaces</strong>
+          <p>The header, the chat, the key form: the same on every turn.</p>
+        </div>
+        <div class="fit__card fit__card--app">
+          <span class="fit__tag">YOUR COMPONENT IMPLEMENTATIONS</span>
+          <strong>The catalog, as native widgets</strong>
+          <p>React views and Flutter widgets for <code>FlightOption</code>, <code>HotelCard</code>…</p>
+          <code class="fit__path">renderers/react/ · renderers/flutter/</code>
+        </div>
+        <div class="fit__sdk">
+          <div class="fit__sdk-head">
+            <span class="fit__sdk-label">A2UI RENDERER</span>
+            <span class="fit__sdk-langs">@a2ui/react · a2ui_flutter</span>
+          </div>
+          <p class="fit__sdk-text">
+            Its MessageProcessor applies the messages and binds the data; the renderer draws each
+            surface with your widgets and sends a tap back as an action.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <figcaption id="fit-caption">
+    Purple is your agent's code, blue is your app, and the dashed teal lines are the A2UI SDKs: an
+    SDK for your agent, a renderer for your app.
+  </figcaption>
+</figure>
+
+<style>
+  .fit {
+    container-type: inline-size;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin: 1.5rem 0;
+    font-size: var(--sl-text-sm);
+  }
+  .fit p,
+  .fit pre {
+    margin: 0;
+  }
+  .fit code {
+    font-size: 0.72rem;
+  }
+  .fit__side {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 1rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 12px;
+    background: var(--sl-color-bg-sidebar);
+  }
+  :root[data-theme='light'] .fit__side {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+  }
+  .fit__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+  }
+  .fit__badge {
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    font-family: var(--sl-font-mono);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+  .fit__badge--server {
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    background: rgba(168, 85, 247, 0.14);
+    color: #c084fc;
+  }
+  .fit__badge--client {
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    background: rgba(59, 130, 246, 0.14);
+    color: #60a5fa;
+  }
+  :root[data-theme='light'] .fit__badge--server {
+    color: #7e22ce;
+  }
+  :root[data-theme='light'] .fit__badge--client {
+    color: #1d4ed8;
+  }
+  .fit__two {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
+  @container (min-width: 460px) {
+    .fit__two {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  .fit__card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 8px;
+    background: var(--sl-color-bg);
+    color: var(--sl-color-gray-3);
+  }
+  :root[data-theme='light'] .fit__card {
+    background: #fff;
+    border-color: #cbd5e1;
+    color: #475569;
+  }
+  .fit__card strong {
+    color: var(--sl-color-white);
+  }
+  :root[data-theme='light'] .fit__card strong {
+    color: #0f172a;
+  }
+  .fit__card--app {
+    border-color: rgba(59, 130, 246, 0.4);
+  }
+  .fit__tag {
+    font-family: var(--sl-font-mono);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--sl-color-gray-3);
+  }
+  .fit__path {
+    align-self: flex-start;
+    margin-top: 0.15rem;
+  }
+  .fit__sdk {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 0.75rem;
+    border: 2px dashed rgba(20, 184, 166, 0.5);
+    border-radius: 10px;
+    background: rgba(20, 184, 166, 0.05);
+  }
+  :root[data-theme='light'] .fit__sdk {
+    border-color: rgba(13, 148, 136, 0.55);
+    background: rgba(13, 148, 136, 0.04);
+  }
+  .fit__sdk-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.25rem 0.75rem;
+  }
+  .fit__sdk-label {
+    font-family: var(--sl-font-mono);
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: #2dd4bf;
+  }
+  :root[data-theme='light'] .fit__sdk-label {
+    color: #0f766e;
+  }
+  .fit__sdk-langs,
+  .fit__flow,
+  .fit__wire-label,
+  .fit figcaption {
+    font-family: var(--sl-font-mono);
+    font-size: 0.7rem;
+    color: var(--sl-color-gray-3);
+  }
+  .fit__sdk-text {
+    color: var(--sl-color-gray-2);
+  }
+  :root[data-theme='light'] .fit__sdk-text {
+    color: #334155;
+  }
+  .fit__flow {
+    margin: -0.2rem 0;
+    text-align: center;
+  }
+  .fit__agent {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding: 0.75rem;
+    border: 1px solid rgba(168, 85, 247, 0.4);
+    border-radius: 10px;
+    background: var(--sl-color-bg);
+    color: var(--sl-color-gray-3);
+  }
+  :root[data-theme='light'] .fit__agent {
+    background: #fff;
+    border-color: rgba(147, 51, 234, 0.4);
+    color: #475569;
+  }
+  .fit__agent-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+  }
+  .fit__agent-head strong {
+    color: #c084fc;
+  }
+  :root[data-theme='light'] .fit__agent-head strong {
+    color: #7e22ce;
+  }
+  .fit__pill {
+    padding: 0.1rem 0.45rem;
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    border-radius: 4px;
+    background: rgba(168, 85, 247, 0.15);
+    color: #c084fc;
+  }
+  :root[data-theme='light'] .fit__pill {
+    border-color: #d8b4fe;
+    background: #f3e8ff;
+    color: #7e22ce;
+  }
+  .fit__wire {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    border-left: 1px dashed var(--sl-color-gray-4);
+    border-right: 1px dashed var(--sl-color-gray-4);
+  }
+  .fit__wire-label {
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-align: center;
+  }
+  .fit__code {
+    overflow-x: auto;
+    padding: 0.6rem 0.75rem;
+    border-radius: 8px;
+    background: #0b1d3a;
+    color: #e8eaed;
+    font-family: var(--sl-font-mono);
+    font-size: 0.72rem;
+    line-height: 1.5;
+  }
+  .fit__code-tag {
+    display: block;
+    margin-bottom: 0.2rem;
+    color: #8ab4f8;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-size: 0.62rem;
+  }
+  .fit__chips {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.4rem;
+  }
+  .fit__chips span {
+    padding: 0.15rem 0.55rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 6px;
+    background: var(--sl-color-bg);
+    font-family: var(--sl-font-mono);
+    font-size: 0.7rem;
+    color: #60a5fa;
+  }
+  .fit__chips .fit__chip-up {
+    color: #2dd4bf;
+  }
+  :root[data-theme='light'] .fit__chips span {
+    color: #1d4ed8;
+  }
+  :root[data-theme='light'] .fit__chips .fit__chip-up {
+    color: #0f766e;
+  }
+  .fit__client {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    align-items: start;
+  }
+  @container (min-width: 520px) {
+    .fit__client {
+      grid-template-columns: minmax(9rem, 13rem) 1fr;
+    }
+  }
+  .fit__phone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    font-family: var(--sl-font-mono);
+    font-size: 0.68rem;
+    color: var(--sl-color-gray-3);
+    text-align: center;
+  }
+  .fit__screen {
+    position: relative;
+    width: 100%;
+    max-width: 13rem;
+    overflow: hidden;
+    border: 6px solid #1f1f1f;
+    border-radius: 1.4rem;
+  }
+  :root:not([data-theme='light']) .fit__screen {
+    border-color: #5f6368;
+  }
+  .fit__screen img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  /* The flight card's place in the screenshot (measured from flutter.png):
+     the surface, not the app around it. */
+  .fit__surface {
+    position: absolute;
+    top: 17.4%;
+    bottom: 8.4%;
+    left: 2.2%;
+    right: 2.2%;
+    border: 2px dashed #14b8a6;
+    border-radius: 0.5rem;
+  }
+  .fit__surface span {
+    position: absolute;
+    top: -0.75rem;
+    left: 0.4rem;
+    padding: 0.05rem 0.4rem;
+    border-radius: 4px;
+    background: #0f766e;
+    color: #fff;
+    font-family: var(--sl-font-mono);
+    font-size: 0.6rem;
+    font-weight: 700;
+  }
+  .fit__stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .fit figcaption {
+    text-align: center;
+  }
+</style>

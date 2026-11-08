@@ -117,7 +117,10 @@ renderers.
 ## Step 3: Explain how A2UI works
 
 Five short lessons, in the order they meet them on screen. Each starts from
-something on screen and ends with one friendly check question.
+something on screen and ends with one friendly check question. If they would
+like the whole picture first (their agent and the A2UI agent SDK on the server,
+the messages between, their app and the A2UI renderer on the client), share the
+diagram at {{STEP_BY_STEP}}#how-a2ui-works.
 <!-- only:mobile -->
 Lessons 2 and 4 use the **Catalog** and **Wire** tabs, which only the web
 client has. For those, offer to restart with `./scripts/quickstart.sh both`,
