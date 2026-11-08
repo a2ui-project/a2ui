@@ -18,221 +18,745 @@
 
 <section class="a2-section gs-section" id="spectrum">
   <div class="gs-wrap">
-    <!-- Chapter header -->
+    <!-- High-level editorial header -->
     <div class="gs-header">
-      <div class="gs-header__title">
-        <h2 class="gs-h2">
-          Three patterns. <span class="gs-accent">Different trust and layout boundaries.</span>
-        </h2>
-      </div>
+      <h2 class="gs-h2">
+        Three patterns. <span class="gs-accent">One generative UI spectrum.</span>
+      </h2>
       <p class="gs-sub">
-        Generative UI is not one mechanism—it spans a continuum between rigid predictability and
-        open-ended rendering freedom. A2UI occupies the middle ground: agents compose novel layouts
-        at runtime, while your client renders only components from a catalog you control.
+        Slide from fixed host templates to open-ended sandboxes to see how the same user request
+        moves from agent to screen.
       </p>
     </div>
 
-    <!-- Differentiated architectural schematic (3-paradigm boundary diagram) -->
-    <div class="gs-diagram" role="region" aria-label="Architectural comparison across the three generative UI paradigms">
-      <div class="gs-axis" aria-hidden="true">
-        <span>← HIGHER HOST CONTROL &amp; NATIVE CONSISTENCY</span>
-        <span class="gs-axis__line"></span>
-        <span>HIGHER RUNTIME VISUAL FREEDOM →</span>
+    <!-- Single unified interactive spectrum instrument -->
+    <div
+      class="gs-instrument"
+      id="gs-instrument"
+      data-active="a2ui"
+      role="region"
+      aria-label="Interactive generative UI spectrum explorer"
+    >
+      <!-- =================================================================
+           TOP: CONTINUUM SCRUBBER RAIL + 3 SPECTRUM STATIONS
+           ================================================================= -->
+      <div class="gs-continuum">
+        <div class="gs-poles" aria-hidden="true">
+          <span class="gs-pole gs-pole--left">
+            <i class="gs-pole__dot gs-pole__dot--cyan"></i>
+            Strict host control
+          </span>
+          <span class="gs-pole gs-pole--center">Catalog-governed composition</span>
+          <span class="gs-pole gs-pole--right">
+            Open-ended UI freedom
+            <i class="gs-pole__dot gs-pole__dot--amber"></i>
+          </span>
+        </div>
+
+        <!-- Interactive continuum track (click or drag across the spectrum) -->
+        <div class="gs-rail-wrap" id="gs-rail" aria-hidden="true">
+          <div class="gs-rail">
+            <div class="gs-rail__gradient"></div>
+            <span class="gs-rail__tick" style="left: 16.6667%"></span>
+            <span class="gs-rail__tick gs-rail__tick--mid" style="left: 50%"></span>
+            <span class="gs-rail__tick" style="left: 83.3333%"></span>
+            <div class="gs-rail__puck" id="gs-puck">
+              <span class="gs-rail__puck-core"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3 stations along the spectrum -->
+        <div class="gs-stops" role="tablist" aria-label="Generative UI patterns along the spectrum">
+          <button
+            type="button"
+            class="gs-stop"
+            role="tab"
+            id="gs-tab-static"
+            aria-selected="false"
+            aria-controls="gs-stage-panel"
+            tabindex="-1"
+            data-stop="static"
+          >
+            <span class="gs-stop__top">
+              <span class="gs-stop__idx">01 · STATIC</span>
+              <span class="gs-stop__glyph" aria-hidden="true">
+                <svg viewBox="0 0 20 14" width="20" height="14" fill="none">
+                  <rect x="1" y="1" width="18" height="12" rx="2" stroke="currentColor" stroke-width="1.3" />
+                  <rect x="4" y="4" width="12" height="6" rx="1" fill="currentColor" opacity="0.35" />
+                </svg>
+              </span>
+            </span>
+            <strong class="gs-stop__title">Pre-built widgets</strong>
+            <span class="gs-stop__hint">Props into a fixed slot</span>
+          </button>
+
+          <button
+            type="button"
+            class="gs-stop is-active"
+            role="tab"
+            id="gs-tab-a2ui"
+            aria-selected="true"
+            aria-controls="gs-stage-panel"
+            tabindex="0"
+            data-stop="a2ui"
+          >
+            <span class="gs-stop__top">
+              <span class="gs-stop__idx">02 · DECLARATIVE</span>
+              <span class="gs-stop__pill">A2UI</span>
+            </span>
+            <strong class="gs-stop__title">Catalog composition</strong>
+            <span class="gs-stop__hint">Novel layouts, native widgets</span>
+          </button>
+
+          <button
+            type="button"
+            class="gs-stop"
+            role="tab"
+            id="gs-tab-sandbox"
+            aria-selected="false"
+            aria-controls="gs-stage-panel"
+            tabindex="-1"
+            data-stop="sandbox"
+          >
+            <span class="gs-stop__top">
+              <span class="gs-stop__idx">03 · OPEN-ENDED</span>
+              <span class="gs-stop__glyph" aria-hidden="true">
+                <svg viewBox="0 0 20 14" width="20" height="14" fill="none">
+                  <rect
+                    x="1"
+                    y="1"
+                    width="18"
+                    height="12"
+                    rx="2"
+                    stroke="currentColor"
+                    stroke-width="1.3"
+                    stroke-dasharray="2.5 2"
+                  />
+                  <path
+                    d="M7.2 4.8L4.8 7l2.4 2.2M12.8 4.8L15.2 7l-2.4 2.2"
+                    stroke="currentColor"
+                    stroke-width="1.3"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </span>
+            </span>
+            <strong class="gs-stop__title">Sandboxed code</strong>
+            <span class="gs-stop__hint">HTML &amp; JS in an iframe</span>
+          </button>
+        </div>
       </div>
 
-      <div class="gs-lanes">
-        <!-- 01 · Static Tool-Bound UI -->
-        <article class="gs-lane">
-          <div class="gs-lane__top">
-            <span class="gs-idx">01 · STATIC UI</span>
-            <span class="gs-badge">Fixed template</span>
+      <!-- =================================================================
+           MAIN UNIFIED STAGE: LIVE VISUAL PIPELINE + SPECTRUM METERS
+           ================================================================= -->
+      <div class="gs-body" id="gs-stage-panel" role="tabpanel" aria-labelledby="gs-tab-a2ui">
+        <!-- LEFT: VISUAL PIPELINE (Same intent -> Agent -> Boundary -> App Screen) -->
+        <div class="gs-canvas">
+          <div class="gs-intent-bar">
+            <span class="gs-intent-bar__tag">SAME PROMPT</span>
+            <span class="gs-intent-bar__text">
+              "Flight delayed. Rebook me on the next nonstop with an aisle seat."
+            </span>
           </div>
-          <h3 class="gs-h3">Tool-bound widgets</h3>
-          <p class="gs-desc">
-            The agent calls a tool and fills typed props into one pre-authored component—such as a
-            weather card or stock ticker.
-          </p>
 
-          <svg class="gs-svg" viewBox="0 0 320 148" aria-hidden="true">
-            <text class="gs-lbl" x="14" y="24">AGENT</text>
-            <rect class="gs-box" x="14" y="32" width="76" height="32" rx="3" />
-            <text class="gs-mono" x="24" y="52">tool(args)</text>
+          <div class="gs-scenes">
+            <!-- ===========================================================
+                 SCENE 01 · STATIC WIDGETS
+                 =========================================================== -->
+            <div class="gs-scene" data-scene="static" aria-hidden="true">
+              <div class="gs-pipeline">
+                <!-- Col 1: Agent -->
+                <div class="gs-node gs-node--agent">
+                  <div class="gs-node__hdr">
+                    <span class="gs-node__role">AGENT</span>
+                    <span class="gs-node__kind">Tool call</span>
+                  </div>
+                  <div class="gs-code">
+                    <div class="gs-code__ln"><span class="k">flight_card</span>(&#123;</div>
+                    <div class="gs-code__ln">&nbsp;&nbsp;flight: <span class="s">"UA 418"</span>,</div>
+                    <div class="gs-code__ln">&nbsp;&nbsp;dep: <span class="s">"6:45 PM"</span>,</div>
+                    <div class="gs-code__ln">&nbsp;&nbsp;gate: <span class="s">"B12"</span></div>
+                    <div class="gs-code__ln">&#125;)</div>
+                  </div>
+                  <span class="gs-node__foot">Sends flat arguments only</span>
+                </div>
 
-            <line class="gs-wire" x1="90" y1="48" x2="144" y2="48" />
-            <path class="gs-wire" d="M140 44l4 4-4 4" />
-            <text class="gs-lbl" x="98" y="40">PROPS</text>
+                <!-- Col 2: Boundary -->
+                <div class="gs-bridge-col" aria-hidden="true">
+                  <div class="gs-wire gs-wire--cyan">
+                    <i class="gs-pkt"></i>
+                  </div>
+                  <div class="gs-gate-badge gs-gate-badge--cyan">
+                    <strong>FIXED SLOT</strong>
+                    <span>1 tool = 1 view</span>
+                  </div>
+                </div>
 
-            <!-- Host boundary -->
-            <rect class="gs-host" x="150" y="20" width="156" height="114" rx="4" />
-            <text class="gs-lbl" x="160" y="35">HOST APP · FIXED SLOT</text>
-            <rect class="gs-slot" x="162" y="46" width="132" height="74" rx="3" />
-            <line class="gs-ink" x1="174" y1="62" x2="236" y2="62" />
-            <line class="gs-muted" x1="174" y1="74" x2="268" y2="74" />
-            <rect class="gs-muted-fill" x="174" y="90" width="64" height="16" rx="2" />
-          </svg>
+                <!-- Col 3: Host App Surface -->
+                <div class="gs-app">
+                  <div class="gs-app__chrome">
+                    <span class="gs-app__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                    <span class="gs-app__name">SkyLine App · Native</span>
+                  </div>
+                  <div class="gs-app__body">
+                    <div class="gs-card-flight">
+                      <div class="gs-card-flight__row">
+                        <span class="gs-chip gs-chip--cyan">NONSTOP</span>
+                        <span class="gs-card-flight__meta">Gate B12</span>
+                      </div>
+                      <strong class="gs-card-flight__route">UA 418 · SFO → JFK</strong>
+                      <span class="gs-card-flight__sub">Departs 6:45 PM · On time</span>
+                    </div>
 
-          <dl class="gs-traits">
-            <div>
-              <dt>Layout</dt>
-              <dd>Hardcoded per tool</dd>
+                    <button type="button" class="gs-locked-slot" id="gs-static-locked">
+                      <span class="gs-locked-slot__hdr">
+                        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                          <rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5" />
+                          <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" stroke-width="1.5" />
+                        </svg>
+                        <span>Aisle seat picker unavailable</span>
+                      </span>
+                      <span class="gs-locked-slot__sub" id="gs-static-locked-msg">
+                        Not in this template · needs an app update
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div>
-              <dt>Renderer</dt>
-              <dd>Native host widget</dd>
-            </div>
-            <div>
-              <dt>Trade-off</dt>
-              <dd>Every new flow needs app code</dd>
-            </div>
-          </dl>
-        </article>
 
-        <!-- 02 · Declarative Catalog UI (A2UI) -->
-        <article class="gs-lane gs-lane--a2ui">
-          <div class="gs-lane__top">
-            <span class="gs-idx gs-idx--hi">02 · DECLARATIVE UI</span>
-            <span class="gs-badge gs-badge--hi">A2UI sweet spot</span>
+            <!-- ===========================================================
+                 SCENE 02 · DECLARATIVE CATALOG (A2UI)
+                 =========================================================== -->
+            <div class="gs-scene is-active" data-scene="a2ui" aria-hidden="false">
+              <div class="gs-pipeline">
+                <!-- Col 1: Agent -->
+                <div class="gs-node gs-node--agent gs-node--a2ui">
+                  <div class="gs-node__hdr">
+                    <span class="gs-node__role gs-node__role--blue">
+                      <i class="gs-live-dot" aria-hidden="true"></i>AGENT + SDK
+                    </span>
+                    <span class="gs-node__kind">JSONL stream</span>
+                  </div>
+                  <div class="gs-code">
+                    <div class="gs-code__ln"><span class="k">Surface</span> <span class="s">"rebook"</span></div>
+                    <div class="gs-code__ln">├─ <span class="k">FlightCard</span> <span class="s">"UA 418"</span></div>
+                    <div class="gs-code__ln">├─ <span class="k">ChoiceChips</span> <span class="m">[/seat]</span></div>
+                    <div class="gs-code__ln is-bound" id="gs-a2ui-binding">
+                      │&nbsp;&nbsp;seat: <span class="s" id="gs-a2ui-seat-val">"14C"</span>
+                    </div>
+                    <div class="gs-code__ln">└─ <span class="k">Button</span> <span class="s">"Confirm"</span></div>
+                  </div>
+                  <span class="gs-node__foot">Composes tree + 2-way bindings</span>
+                </div>
+
+                <!-- Col 2: Catalog Boundary -->
+                <div class="gs-bridge-col" aria-hidden="true">
+                  <div class="gs-wire gs-wire--blue">
+                    <i class="gs-pkt"></i>
+                  </div>
+                  <div class="gs-gate-badge gs-gate-badge--blue">
+                    <strong>CATALOG GATE</strong>
+                    <span>Allowlisted · No JS</span>
+                  </div>
+                </div>
+
+                <!-- Col 3: Composed Native App Surface -->
+                <div class="gs-app gs-app--a2ui">
+                  <div class="gs-app__chrome">
+                    <span class="gs-app__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                    <span class="gs-app__name">SkyLine App · Native Catalog</span>
+                  </div>
+                  <div class="gs-app__body">
+                    <div class="gs-card-flight gs-card-flight--a2ui">
+                      <div class="gs-card-flight__row">
+                        <span class="gs-chip gs-chip--blue">COMPOSED LIVE</span>
+                        <span class="gs-card-flight__meta">6:45 PM</span>
+                      </div>
+                      <strong class="gs-card-flight__route">UA 418 · SFO → JFK</strong>
+                    </div>
+
+                    <div class="gs-seat-group" role="group" aria-label="Pick an aisle seat">
+                      <button type="button" class="gs-seat is-on" data-seat="14C">
+                        <strong>14C</strong>
+                        <span>Main aisle</span>
+                      </button>
+                      <button type="button" class="gs-seat" data-seat="9F">
+                        <strong>9F</strong>
+                        <span>Exit aisle</span>
+                      </button>
+                    </div>
+
+                    <button type="button" class="gs-confirm-btn" id="gs-a2ui-cta">
+                      <span id="gs-a2ui-cta-lbl">Confirm seat 14C</span>
+                      <span aria-hidden="true">→</span>
+                    </button>
+
+                    <div class="gs-platforms" aria-hidden="true">
+                      <span>1 stream →</span>
+                      <b>Web</b>
+                      <b>Flutter</b>
+                      <b>iOS</b>
+                      <b>Android</b>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ===========================================================
+                 SCENE 03 · SANDBOXED CODE
+                 =========================================================== -->
+            <div class="gs-scene" data-scene="sandbox" aria-hidden="true">
+              <div class="gs-pipeline">
+                <!-- Col 1: Agent / Server -->
+                <div class="gs-node gs-node--agent gs-node--amber">
+                  <div class="gs-node__hdr">
+                    <span class="gs-node__role gs-node__role--amber">AGENT / TOOL</span>
+                    <span class="gs-node__kind">HTML bundle</span>
+                  </div>
+                  <div class="gs-code">
+                    <div class="gs-code__ln"><span class="m">&lt;!doctype html&gt;</span></div>
+                    <div class="gs-code__ln"><span class="a">&lt;style&gt;</span>.cabin&#123;…&#125;<span class="a">&lt;/style&gt;</span></div>
+                    <div class="gs-code__ln"><span class="a">&lt;canvas</span> id=<span class="s">"deck"</span><span class="a">&gt;</span></div>
+                    <div class="gs-code__ln"><span class="a">&lt;script</span> src=<span class="s">"map.js"</span><span class="a">&gt;</span></div>
+                    <div class="gs-code__ln"><span class="m">// 48 KB mini-app</span></div>
+                  </div>
+                  <span class="gs-node__foot">Ships self-contained code</span>
+                </div>
+
+                <!-- Col 2: Sandbox Boundary -->
+                <div class="gs-bridge-col" aria-hidden="true">
+                  <div class="gs-wire gs-wire--amber">
+                    <i class="gs-pkt"></i>
+                  </div>
+                  <div class="gs-gate-badge gs-gate-badge--amber">
+                    <strong>IFRAME SANDBOX</strong>
+                    <span>Isolated origin</span>
+                  </div>
+                </div>
+
+                <!-- Col 3: Host App + Embedded Iframe -->
+                <div class="gs-app">
+                  <div class="gs-app__chrome">
+                    <span class="gs-app__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                    <span class="gs-app__name">SkyLine App · Host Shell</span>
+                  </div>
+                  <div class="gs-app__body">
+                    <div class="gs-iframe-box">
+                      <div class="gs-iframe-box__bar">
+                        <span>&lt;iframe sandbox&gt;</span>
+                        <span id="gs-sandbox-seat-readout">Deck 14C</span>
+                      </div>
+                      <svg class="gs-cabin-svg" viewBox="0 0 240 84" aria-label="Interactive custom aircraft cabin canvas">
+                        <!-- Fuselage rails -->
+                        <path
+                          d="M8 14 Q120 4 232 14 M8 70 Q120 80 232 70"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-opacity="0.24"
+                          stroke-width="1.2"
+                        />
+                        <!-- Wing sweep hint -->
+                        <path
+                          d="M96 10 L118 2 L148 2 L134 10 M96 74 L118 82 L148 82 L134 74"
+                          fill="currentColor"
+                          fill-opacity="0.1"
+                        />
+                        <!-- Aisle center dashed guide -->
+                        <line
+                          x1="18"
+                          y1="42"
+                          x2="222"
+                          y2="42"
+                          stroke="currentColor"
+                          stroke-opacity="0.2"
+                          stroke-dasharray="3 3"
+                        />
+                        <!-- Seat grid rows -->
+                        <g class="gs-cabin-seats">
+                          <rect x="34" y="21" width="14" height="12" rx="2.5" opacity="0.28" />
+                          <rect x="56" y="21" width="14" height="12" rx="2.5" opacity="0.28" />
+                          <rect x="78" y="21" width="14" height="12" rx="2.5" opacity="0.28" />
+                          <rect
+                            class="gs-cabin-pick is-picked"
+                            data-deck-seat="Deck 14C"
+                            x="104"
+                            y="20"
+                            width="16"
+                            height="14"
+                            rx="3"
+                          />
+                          <rect
+                            class="gs-cabin-pick"
+                            data-deck-seat="Deck 15C"
+                            x="128"
+                            y="20"
+                            width="16"
+                            height="14"
+                            rx="3"
+                          />
+                          <rect x="154" y="21" width="14" height="12" rx="2.5" opacity="0.28" />
+                          <rect x="176" y="21" width="14" height="12" rx="2.5" opacity="0.28" />
+
+                          <rect x="34" y="51" width="14" height="12" rx="2.5" opacity="0.28" />
+                          <rect x="56" y="51" width="14" height="12" rx="2.5" opacity="0.28" />
+                          <rect
+                            class="gs-cabin-pick"
+                            data-deck-seat="Deck 12D"
+                            x="78"
+                            y="50"
+                            width="16"
+                            height="14"
+                            rx="3"
+                          />
+                          <rect x="104" y="51" width="14" height="12" rx="2.5" opacity="0.28" />
+                          <rect x="128" y="51" width="14" height="12" rx="2.5" opacity="0.28" />
+                          <rect
+                            class="gs-cabin-pick"
+                            data-deck-seat="Deck 16D"
+                            x="154"
+                            y="50"
+                            width="16"
+                            height="14"
+                            rx="3"
+                          />
+                          <rect x="176" y="51" width="14" height="12" rx="2.5" opacity="0.28" />
+                        </g>
+                      </svg>
+                      <div class="gs-iframe-box__foot">
+                        Custom 2D/3D canvas · Separate CSS · Mobile WebView
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <h3 class="gs-h3">Catalog-governed composition</h3>
-          <p class="gs-desc">
-            The agent composes component trees, two-way data bindings, and validation rules on the
-            fly; the client maps them to native widgets.
-          </p>
+        </div>
 
-          <svg class="gs-svg" viewBox="0 0 320 148" aria-hidden="true">
-            <text class="gs-lbl gs-lbl--hi" x="12" y="24">AGENT + SDK</text>
-            <rect class="gs-box gs-box--hi" x="12" y="32" width="82" height="44" rx="3" />
-            <text class="gs-mono gs-mono--hi" x="20" y="50">Express/Jev</text>
-            <text class="gs-lbl" x="20" y="65">+ @macro</text>
-
-            <line class="gs-wire gs-wire--hi" x1="94" y1="54" x2="146" y2="54" />
-            <path class="gs-wire gs-wire--hi" d="M142 50l4 4-4 4" />
-            <text class="gs-lbl gs-lbl--hi" x="100" y="45">JSONL</text>
-
-            <!-- Catalog gate -->
-            <line class="gs-gate" x1="150" y1="16" x2="150" y2="136" />
-
-            <!-- Native Host App -->
-            <rect class="gs-host gs-host--hi" x="156" y="20" width="152" height="114" rx="4" />
-            <text class="gs-lbl gs-lbl--hi" x="166" y="35">NATIVE CATALOG TREE</text>
-            <rect class="gs-comp" x="166" y="44" width="62" height="36" rx="2" />
-            <rect class="gs-comp" x="234" y="44" width="64" height="36" rx="2" />
-            <rect class="gs-comp" x="166" y="86" width="132" height="36" rx="2" />
-            <line class="gs-ink-hi" x1="174" y1="56" x2="214" y2="56" />
-            <line class="gs-ink-hi" x1="242" y1="56" x2="286" y2="56" />
-            <rect class="gs-cta-fill" x="174" y="96" width="76" height="16" rx="2" />
-          </svg>
-
-          <dl class="gs-traits">
-            <div>
-              <dt>Layout</dt>
-              <dd>Composed dynamically per intent</dd>
+        <!-- RIGHT: LIVE VISUAL SPECTRUM PROFILE (Replaces static prose & bottom table) -->
+        <aside class="gs-profile" aria-label="Pattern trade-off profile">
+          <div class="gs-profile__summaries">
+            <div class="gs-summary" data-summary="static">
+              <span class="gs-summary__tag gs-summary__tag--cyan">01 · FIXED TEMPLATE</span>
+              <p class="gs-summary__headline">
+                Safe and native, but locked to the exact screens you hardcoded ahead of time.
+              </p>
             </div>
-            <div>
-              <dt>Renderer</dt>
-              <dd>React, Lit, Angular, Flutter, SwiftUI, Compose</dd>
-            </div>
-            <div>
-              <dt>Security</dt>
-              <dd>Data stream only; zero code execution</dd>
-            </div>
-          </dl>
-        </article>
 
-        <!-- 03 · Open-Ended / Sandboxed Code UI -->
-        <article class="gs-lane">
-          <div class="gs-lane__top">
-            <span class="gs-idx">03 · OPEN-ENDED UI</span>
-            <span class="gs-badge">Iframe sandbox</span>
+            <div class="gs-summary is-active" data-summary="a2ui">
+              <span class="gs-summary__tag gs-summary__tag--blue">02 · A2UI SWEET SPOT</span>
+              <p class="gs-summary__headline">
+                Agents compose tailored layouts at runtime using only native widgets from your catalog.
+              </p>
+            </div>
+
+            <div class="gs-summary" data-summary="sandbox">
+              <span class="gs-summary__tag gs-summary__tag--amber">03 · ISOLATED BUNDLE</span>
+              <p class="gs-summary__headline">
+                Unrestricted custom canvases inside an isolated frame with its own styling and bundle.
+              </p>
+            </div>
           </div>
-          <h3 class="gs-h3">Sandboxed web views &amp; code</h3>
-          <p class="gs-desc">
-            The agent or tool server delivers self-contained HTML, CSS, and JavaScript—such as an
-            MCP App or generated artifact—inside an isolated iframe.
-          </p>
 
-          <svg class="gs-svg" viewBox="0 0 320 148" aria-hidden="true">
-            <text class="gs-lbl" x="14" y="24">TOOL / MODEL</text>
-            <rect class="gs-box" x="14" y="32" width="78" height="36" rx="3" />
-            <text class="gs-mono" x="22" y="54">&lt;html+js&gt;</text>
-
-            <line class="gs-wire" x1="92" y1="50" x2="144" y2="50" />
-            <path class="gs-wire" d="M140 46l4 4-4 4" />
-            <text class="gs-lbl" x="98" y="42">BUNDLE</text>
-
-            <!-- Host + Iframe boundary -->
-            <rect class="gs-host" x="150" y="20" width="156" height="114" rx="4" />
-            <text class="gs-lbl" x="160" y="35">HOST APP</text>
-            <rect class="gs-sandbox" x="162" y="44" width="132" height="78" rx="3" />
-            <text class="gs-lbl gs-lbl--amber" x="170" y="58">&lt;iframe sandbox&gt;</text>
-            <path class="gs-canvas" d="M172 106 Q 198 70, 224 94 T 282 74" />
-            <circle class="gs-amber-dot" cx="224" cy="94" r="3" />
-          </svg>
-
-          <dl class="gs-traits">
-            <div>
-              <dt>Layout</dt>
-              <dd>Unconstrained DOM, Canvas, or WebGL</dd>
+          <!-- 5 animated visual signal bars -->
+          <div class="gs-meters">
+            <div class="gs-meter" data-meter="layout">
+              <div class="gs-meter__row">
+                <span class="gs-meter__lbl">Layout freedom</span>
+                <span class="gs-meter__val" data-meter-val>Composed per intent</span>
+              </div>
+              <div class="gs-meter__track">
+                <div class="gs-meter__fill" data-meter-fill style="width: 88%"></div>
+              </div>
             </div>
-            <div>
-              <dt>Renderer</dt>
-              <dd>Isolated browser frame / WebView</dd>
+
+            <div class="gs-meter" data-meter="brand">
+              <div class="gs-meter__row">
+                <span class="gs-meter__lbl">Host brand &amp; a11y</span>
+                <span class="gs-meter__val" data-meter-val>100% native catalog</span>
+              </div>
+              <div class="gs-meter__track">
+                <div class="gs-meter__fill" data-meter-fill style="width: 100%"></div>
+              </div>
             </div>
-            <div>
-              <dt>Trade-off</dt>
-              <dd>Separate styling, heavier mobile footprint</dd>
+
+            <div class="gs-meter" data-meter="security">
+              <div class="gs-meter__row">
+                <span class="gs-meter__lbl">Security boundary</span>
+                <span class="gs-meter__val" data-meter-val>Data only · zero JS</span>
+              </div>
+              <div class="gs-meter__track">
+                <div class="gs-meter__fill" data-meter-fill style="width: 96%"></div>
+              </div>
             </div>
-          </dl>
-        </article>
+
+            <div class="gs-meter" data-meter="reach">
+              <div class="gs-meter__row">
+                <span class="gs-meter__lbl">Cross-platform native</span>
+                <span class="gs-meter__val" data-meter-val>Web, mobile &amp; desktop</span>
+              </div>
+              <div class="gs-meter__track">
+                <div class="gs-meter__fill" data-meter-fill style="width: 100%"></div>
+              </div>
+            </div>
+
+            <div class="gs-meter" data-meter="speed">
+              <div class="gs-meter__row">
+                <span class="gs-meter__lbl">Streaming speed</span>
+                <span class="gs-meter__val" data-meter-val>Progressive JSONL</span>
+              </div>
+              <div class="gs-meter__track">
+                <div class="gs-meter__fill" data-meter-fill style="width: 96%"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Best-fit workloads -->
+          <div class="gs-fits">
+            <span class="gs-fits__lbl">BEST FIT</span>
+            <div class="gs-fits__stack">
+              <div class="gs-fit-tags" data-fit="static">
+                <span>Weather &amp; stock cards</span>
+                <span>Single confirmations</span>
+                <span>Status widgets</span>
+              </div>
+              <div class="gs-fit-tags is-active" data-fit="a2ui">
+                <span>Multi-step workflows</span>
+                <span>Adaptive forms</span>
+                <span>Native mobile &amp; web</span>
+              </div>
+              <div class="gs-fit-tags" data-fit="sandbox">
+                <span>Interactive maps</span>
+                <span>2D/3D canvases</span>
+                <span>Third-party mini-apps</span>
+              </div>
+            </div>
+          </div>
+        </aside>
       </div>
-    </div>
-
-    <!-- Technical comparison matrix -->
-    <div class="gs-table-wrap">
-      <table class="gs-table">
-        <thead>
-          <tr>
-            <th scope="col">Dimension</th>
-            <th scope="col">01 · Static tool-bound UI</th>
-            <th scope="col" class="is-hi">02 · Declarative catalog UI (A2UI)</th>
-            <th scope="col">03 · Open-ended / iframe UI</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <th scope="row">Brand &amp; accessibility</th>
-            <td>Inherits host design system</td>
-            <td class="is-hi">Inherits host design system &amp; platform a11y</td>
-            <td>Must re-style inside each iframe bundle</td>
-          </tr>
-          <tr>
-            <th scope="row">Cross-platform reach</th>
-            <td>Per-app implementation</td>
-            <td class="is-hi">One payload across Web, Flutter, iOS, &amp; Android</td>
-            <td>Web-first; requires WebView wrapper on mobile</td>
-          </tr>
-          <tr>
-            <th scope="row">Streaming latency</th>
-            <td>Renders after tool args resolve</td>
-            <td class="is-hi">Incremental updates stream as the model thinks</td>
-            <td>Waits for bundle load or full code block</td>
-          </tr>
-          <tr>
-            <th scope="row">Ideal workload</th>
-            <td>Single-purpose status &amp; confirmation cards</td>
-            <td class="is-hi">Adaptive multi-step product workflows &amp; forms</td>
-            <td>Custom 3D scenes, maps, CAD, or third-party mini-apps</td>
-          </tr>
-        </tbody>
-      </table>
     </div>
   </div>
 </section>
 
+<script is:inline>
+  (() => {
+    const root = document.getElementById('gs-instrument');
+    if (!root) return;
+
+    const stops = Array.from(root.querySelectorAll('[data-stop]'));
+    const scenes = Array.from(root.querySelectorAll('[data-scene]'));
+    const summaries = Array.from(root.querySelectorAll('[data-summary]'));
+    const fits = Array.from(root.querySelectorAll('[data-fit]'));
+    const panel = document.getElementById('gs-stage-panel');
+    const rail = document.getElementById('gs-rail');
+    const puck = document.getElementById('gs-puck');
+
+    const ORDER = ['static', 'a2ui', 'sandbox'];
+    const POS = { static: 16.6667, a2ui: 50, sandbox: 83.3333 };
+
+    const PROFILES = {
+      static: {
+        layout: [20, 'Fixed per tool'],
+        brand: [100, '100% host widgets'],
+        security: [100, 'Typed props only'],
+        reach: [38, 'Built per platform'],
+        speed: [68, 'After tool resolves'],
+      },
+      a2ui: {
+        layout: [88, 'Composed per intent'],
+        brand: [100, '100% native catalog'],
+        security: [96, 'Data only · zero JS'],
+        reach: [100, 'Web, mobile & desktop'],
+        speed: [96, 'Progressive JSONL'],
+      },
+      sandbox: {
+        layout: [100, 'Any DOM or WebGL'],
+        brand: [28, 'Re-styled per iframe'],
+        security: [52, 'Sandboxed JS exec'],
+        reach: [40, 'Web or WebView'],
+        speed: [34, 'After bundle loads'],
+      },
+    };
+
+    const setMode = (mode, focusTab = false) => {
+      if (!PROFILES[mode]) return;
+      root.setAttribute('data-active', mode);
+      if (puck) {
+        puck.style.left = `${POS[mode]}%`;
+      }
+
+      stops.forEach((btn) => {
+        const active = btn.getAttribute('data-stop') === mode;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-selected', active ? 'true' : 'false');
+        btn.setAttribute('tabindex', active ? '0' : '-1');
+        if (active) {
+          if (panel) panel.setAttribute('aria-labelledby', btn.id);
+          if (focusTab) btn.focus();
+        }
+      });
+
+      scenes.forEach((el) => {
+        const active = el.getAttribute('data-scene') === mode;
+        el.classList.toggle('is-active', active);
+        el.setAttribute('aria-hidden', active ? 'false' : 'true');
+      });
+
+      summaries.forEach((el) => {
+        el.classList.toggle('is-active', el.getAttribute('data-summary') === mode);
+      });
+
+      fits.forEach((el) => {
+        el.classList.toggle('is-active', el.getAttribute('data-fit') === mode);
+      });
+
+      const data = PROFILES[mode];
+      Object.keys(data).forEach((key) => {
+        const row = root.querySelector(`[data-meter="${key}"]`);
+        if (!row) return;
+        const fill = row.querySelector('[data-meter-fill]');
+        const val = row.querySelector('[data-meter-val]');
+        if (fill) fill.style.width = `${data[key][0]}%`;
+        if (val) val.textContent = data[key][1];
+      });
+    };
+
+    stops.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        setMode(btn.getAttribute('data-stop') || 'a2ui');
+      });
+
+      btn.addEventListener('keydown', (e) => {
+        const idx = ORDER.indexOf(btn.getAttribute('data-stop') || 'a2ui');
+        if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          setMode(ORDER[(idx + 1) % ORDER.length], true);
+        } else if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          setMode(ORDER[(idx - 1 + ORDER.length) % ORDER.length], true);
+        } else if (e.key === 'Home') {
+          e.preventDefault();
+          setMode(ORDER[0], true);
+        } else if (e.key === 'End') {
+          e.preventDefault();
+          setMode(ORDER[ORDER.length - 1], true);
+        }
+      });
+    });
+
+    /* Pointer drag / click scrubbing along the continuum rail */
+    if (rail && puck) {
+      let dragging = false;
+
+      const updateFromPointer = (clientX, snap) => {
+        const rect = rail.getBoundingClientRect();
+        if (!rect.width) return;
+        const pct = Math.max(8, Math.min(92, ((clientX - rect.left) / rect.width) * 100));
+        const mode = pct < 33.34 ? 'static' : pct > 66.66 ? 'sandbox' : 'a2ui';
+        if (snap) {
+          root.classList.remove('is-scrubbing');
+          setMode(mode);
+        } else {
+          root.classList.add('is-scrubbing');
+          setMode(mode);
+          puck.style.left = `${pct}%`;
+        }
+      };
+
+      rail.addEventListener('pointerdown', (e) => {
+        dragging = true;
+        rail.setPointerCapture(e.pointerId);
+        updateFromPointer(e.clientX, false);
+      });
+
+      rail.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        updateFromPointer(e.clientX, false);
+      });
+
+      const endDrag = (e) => {
+        if (!dragging) return;
+        dragging = false;
+        updateFromPointer(e.clientX, true);
+      };
+
+      rail.addEventListener('pointerup', endDrag);
+      rail.addEventListener('pointercancel', () => {
+        dragging = false;
+        root.classList.remove('is-scrubbing');
+        setMode(root.getAttribute('data-active') || 'a2ui');
+      });
+    }
+
+    /* Scene 01 micro-interaction: clicking locked slot highlights template rigidity */
+    const lockedBtn = document.getElementById('gs-static-locked');
+    const lockedMsg = document.getElementById('gs-static-locked-msg');
+    if (lockedBtn && lockedMsg) {
+      lockedBtn.addEventListener('click', () => {
+        lockedBtn.classList.remove('is-shake');
+        void lockedBtn.offsetWidth;
+        lockedBtn.classList.add('is-shake');
+        lockedMsg.textContent = 'Blocked · ship new app code to add this control';
+      });
+    }
+
+    /* Scene 02 micro-interaction: live 2-way seat binding + confirm CTA */
+    const seatBtns = Array.from(root.querySelectorAll('[data-seat]'));
+    const seatVal = document.getElementById('gs-a2ui-seat-val');
+    const bindingLine = document.getElementById('gs-a2ui-binding');
+    const a2uiCta = document.getElementById('gs-a2ui-cta');
+    const a2uiCtaLbl = document.getElementById('gs-a2ui-cta-lbl');
+    let currentSeat = '14C';
+
+    seatBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        currentSeat = btn.getAttribute('data-seat') || '14C';
+        seatBtns.forEach((b) => b.classList.toggle('is-on', b === btn));
+        if (seatVal) seatVal.textContent = `"${currentSeat}"`;
+        if (bindingLine) {
+          bindingLine.classList.remove('is-flash');
+          void bindingLine.offsetWidth;
+          bindingLine.classList.add('is-flash');
+        }
+        if (a2uiCta && a2uiCtaLbl) {
+          a2uiCta.classList.remove('is-done');
+          a2uiCtaLbl.textContent = `Confirm seat ${currentSeat}`;
+        }
+      });
+    });
+
+    if (a2uiCta && a2uiCtaLbl) {
+      a2uiCta.addEventListener('click', () => {
+        const done = a2uiCta.classList.toggle('is-done');
+        a2uiCtaLbl.textContent = done
+          ? `✓ Rebooked · Seat ${currentSeat} saved`
+          : `Confirm seat ${currentSeat}`;
+      });
+    }
+
+    /* Scene 03 micro-interaction: custom SVG cabin canvas seat click */
+    const cabinPicks = Array.from(root.querySelectorAll('.gs-cabin-pick'));
+    const cabinReadout = document.getElementById('gs-sandbox-seat-readout');
+    cabinPicks.forEach((rect) => {
+      rect.addEventListener('click', () => {
+        cabinPicks.forEach((r) => r.classList.toggle('is-picked', r === rect));
+        if (cabinReadout) {
+          cabinReadout.textContent = rect.getAttribute('data-deck-seat') || 'Deck 14C';
+        }
+      });
+    });
+  })();
+</script>
+
 <style>
   .gs-section {
     position: relative;
-    padding: 120px 0 140px;
+    padding: 112px 0 124px;
     background: var(--a2-bg);
     border-top: 1px solid var(--a2-border-strong);
     scroll-margin-top: 72px;
@@ -240,7 +764,7 @@
 
   @media (max-width: 720px) {
     .gs-section {
-      padding: 88px 0 96px;
+      padding: 80px 0 88px;
     }
   }
 
@@ -257,26 +781,27 @@
     }
   }
 
+  /* Editorial header */
   .gs-header {
     display: grid;
-    grid-template-columns: 1.05fr 0.95fr;
-    gap: 64px;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 48px;
     align-items: end;
-    margin-bottom: 52px;
+    margin-bottom: 40px;
   }
 
   @media (max-width: 860px) {
     .gs-header {
       grid-template-columns: 1fr;
-      gap: 16px;
-      margin-bottom: 36px;
+      gap: 14px;
+      margin-bottom: 28px;
     }
   }
 
   .gs-h2 {
     margin: 0;
     font-family: var(--a2-font-display);
-    font-size: clamp(2.05rem, 3.6vw, 3rem);
+    font-size: clamp(2rem, 3.5vw, 2.9rem);
     font-weight: 700;
     line-height: 1.08;
     letter-spacing: var(--a2-tracking-h2);
@@ -290,349 +815,1243 @@
   .gs-sub {
     margin: 0;
     font-size: 15.5px;
-    line-height: 1.62;
+    line-height: 1.58;
     color: var(--a2-text-secondary);
   }
 
-  /* Continuum axis bar */
-  .gs-axis {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 16px;
-    font-family: var(--a2-font-mono);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.09em;
-    color: var(--a2-text-muted);
-  }
+  /* =========================================================================
+     UNIFIED SPECTRUM INSTRUMENT
+     ========================================================================= */
+  .gs-instrument {
+    --gs-mode-color: var(--a2-accent);
+    --gs-mode-strong: var(--a2-accent-strong);
+    --gs-mode-soft: var(--a2-accent-soft);
+    --gs-mode-border: var(--a2-accent-border);
 
-  .gs-axis__line {
-    flex: 1;
-    height: 1px;
-    background: linear-gradient(
-      90deg,
-      var(--a2-border-strong),
-      var(--a2-accent) 50%,
-      var(--a2-amber)
-    );
-  }
-
-  @media (max-width: 760px) {
-    .gs-axis {
-      display: none;
-    }
-  }
-
-  /* 3-column architectural schematic */
-  .gs-lanes {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 18px;
-  }
-
-  @media (max-width: 980px) {
-    .gs-lanes {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  .gs-lane {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 22px;
-    border-radius: 4px;
     border: 1px solid var(--a2-border-strong);
+    border-radius: 10px;
     background: var(--a2-surface);
+    box-shadow: var(--a2-shadow-md);
+    overflow: hidden;
   }
 
-  .gs-lane--a2ui {
-    border-color: var(--a2-accent);
-    box-shadow: 0 0 0 1px var(--a2-accent-border), var(--a2-shadow-md);
+  .gs-instrument[data-active='static'] {
+    --gs-mode-color: var(--a2-cyan);
+    --gs-mode-strong: var(--a2-cyan-strong);
+    --gs-mode-soft: var(--a2-cyan-soft);
+    --gs-mode-border: var(--a2-cyan-border);
   }
 
-  .gs-lane__top {
+  .gs-instrument[data-active='sandbox'] {
+    --gs-mode-color: var(--a2-amber);
+    --gs-mode-strong: var(--a2-amber-strong);
+    --gs-mode-soft: var(--a2-amber-soft);
+    --gs-mode-border: var(--a2-amber-border);
+  }
+
+  /* --- Top Continuum Track & Stations --- */
+  .gs-continuum {
+    background: var(--a2-surface-subtle);
+    border-bottom: 1px solid var(--a2-border-strong);
+  }
+
+  .gs-poles {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
-  }
-
-  .gs-idx {
-    font-family: var(--a2-font-mono);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    color: var(--a2-text-muted);
-    white-space: nowrap;
-  }
-
-  .gs-idx--hi {
-    color: var(--a2-accent-strong);
-  }
-
-  .gs-badge {
-    font-family: var(--a2-font-mono);
-    font-size: 9.5px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    padding: 2px 7px;
-    border-radius: 2px;
-    border: 1px solid var(--a2-border-strong);
-    background: var(--a2-surface-subtle);
-    color: var(--a2-text-muted);
-    white-space: nowrap;
-  }
-
-  .gs-badge--hi {
-    border-color: var(--a2-accent-border);
-    background: var(--a2-accent-soft);
-    color: var(--a2-accent-strong);
-  }
-
-  .gs-h3 {
-    margin: 0;
-    font-family: var(--a2-font-display);
-    font-size: 19px;
-    font-weight: 660;
-    letter-spacing: var(--a2-tracking-h3);
-    color: var(--a2-text);
-  }
-
-  .gs-desc {
-    margin: 0;
-    font-size: 13.5px;
-    line-height: 1.56;
-    color: var(--a2-text-secondary);
-  }
-
-  /* Blueprint SVG styling */
-  .gs-svg {
-    width: 100%;
-    height: auto;
-    display: block;
-    margin: 4px 0;
-    border-radius: 3px;
-    border: 1px solid var(--a2-border);
-    background-color: var(--a2-surface-subtle);
-    background-image: radial-gradient(var(--a2-dot-grid) 1px, transparent 1px);
-    background-size: 12px 12px;
-  }
-
-  .gs-lbl {
-    font-family: var(--a2-font-mono);
-    font-size: 7.5px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    fill: var(--a2-text-muted);
-  }
-
-  .gs-lbl--hi {
-    fill: var(--a2-accent-strong);
-  }
-
-  .gs-lbl--amber {
-    fill: var(--a2-amber);
-  }
-
-  .gs-mono {
-    font-family: var(--a2-font-mono);
-    font-size: 9.5px;
-    font-weight: 600;
-    fill: var(--a2-text);
-  }
-
-  .gs-mono--hi {
-    fill: var(--a2-accent-strong);
-  }
-
-  .gs-box {
-    fill: var(--a2-surface);
-    stroke: var(--a2-border-strong);
-    stroke-width: 1;
-  }
-
-  .gs-box--hi {
-    fill: var(--a2-accent-soft);
-    stroke: var(--a2-accent);
-  }
-
-  .gs-wire {
-    fill: none;
-    stroke: var(--a2-text-muted);
-    stroke-width: 1.2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-
-  .gs-wire--hi {
-    stroke: var(--a2-accent);
-    stroke-width: 1.5;
-  }
-
-  .gs-gate {
-    stroke: var(--a2-accent);
-    stroke-width: 1.2;
-    stroke-dasharray: 3 3;
-  }
-
-  .gs-host {
-    fill: var(--a2-bg);
-    stroke: var(--a2-border-strong);
-    stroke-width: 1;
-  }
-
-  .gs-host--hi {
-    stroke: var(--a2-accent-border);
-  }
-
-  .gs-slot {
-    fill: var(--a2-surface);
-    stroke: var(--a2-border-strong);
-    stroke-width: 1;
-  }
-
-  .gs-comp {
-    fill: var(--a2-accent-soft);
-    stroke: var(--a2-accent-border);
-    stroke-width: 1;
-  }
-
-  .gs-sandbox {
-    fill: var(--a2-amber-soft);
-    stroke: var(--a2-amber-border);
-    stroke-width: 1;
-    stroke-dasharray: 4 2;
-  }
-
-  .gs-ink {
-    stroke: var(--a2-text);
-    stroke-width: 1.5;
-    stroke-linecap: round;
-  }
-
-  .gs-ink-hi {
-    stroke: var(--a2-accent-strong);
-    stroke-width: 1.5;
-    stroke-linecap: round;
-  }
-
-  .gs-muted {
-    stroke: var(--a2-text-muted);
-    stroke-width: 1.2;
-    stroke-linecap: round;
-  }
-
-  .gs-muted-fill {
-    fill: var(--a2-border-strong);
-  }
-
-  .gs-cta-fill {
-    fill: var(--a2-accent);
-  }
-
-  .gs-canvas {
-    fill: none;
-    stroke: var(--a2-amber);
-    stroke-width: 1.6;
-    stroke-linecap: round;
-  }
-
-  .gs-amber-dot {
-    fill: var(--a2-amber);
-  }
-
-  .gs-traits {
-    margin: auto 0 0;
-    padding-top: 12px;
-    border-top: 1px solid var(--a2-border);
-    display: flex;
-    flex-direction: column;
-    gap: 7px;
-  }
-
-  .gs-traits > div {
-    display: grid;
-    grid-template-columns: 78px 1fr;
-    gap: 10px;
-    font-size: 12.5px;
-    line-height: 1.45;
-  }
-
-  .gs-traits dt {
+    padding: 14px 24px 8px;
     font-family: var(--a2-font-mono);
     font-size: 10.5px;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--a2-text-muted);
-  }
-
-  .gs-traits dd {
-    margin: 0;
-    color: var(--a2-text);
-  }
-
-  /* Matrix table */
-  .gs-table-wrap {
-    margin-top: 28px;
-    overflow-x: auto;
-    border: 1px solid var(--a2-border-strong);
-    border-radius: 4px;
-    background: var(--a2-surface);
-  }
-
-  .gs-table {
-    width: 100%;
-    min-width: 680px;
-    border-collapse: collapse;
-    font-size: 13.5px;
-    line-height: 1.5;
-  }
-
-  .gs-table th,
-  .gs-table td {
-    padding: 13px 16px;
-    text-align: left;
-    border-bottom: 1px solid var(--a2-border);
-    vertical-align: top;
-  }
-
-  .gs-table thead th {
-    background: var(--a2-surface-subtle);
-    font-family: var(--a2-font-mono);
-    font-size: 10.5px;
-    font-weight: 700;
     letter-spacing: 0.07em;
     text-transform: uppercase;
     color: var(--a2-text-muted);
   }
 
-  .gs-table thead th.is-hi {
+  .gs-pole {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .gs-pole--center {
     color: var(--a2-accent-strong);
-    background: var(--a2-accent-soft);
   }
 
-  .gs-table tbody th {
-    font-weight: 650;
+  @media (max-width: 720px) {
+    .gs-poles {
+      padding: 12px 16px 6px;
+      font-size: 9.5px;
+    }
+    .gs-pole--center {
+      display: none;
+    }
+  }
+
+  .gs-pole__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .gs-pole__dot--cyan {
+    background: var(--a2-cyan);
+  }
+
+  .gs-pole__dot--amber {
+    background: var(--a2-amber);
+  }
+
+  /* Scrubber Rail */
+  .gs-rail-wrap {
+    padding: 8px 24px 14px;
+    cursor: pointer;
+    touch-action: none;
+    user-select: none;
+  }
+
+  @media (max-width: 720px) {
+    .gs-rail-wrap {
+      padding: 6px 16px 12px;
+    }
+  }
+
+  .gs-rail {
+    position: relative;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--a2-bg);
+    border: 1px solid var(--a2-border-strong);
+  }
+
+  .gs-rail__gradient {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+      90deg,
+      var(--a2-cyan) 0%,
+      var(--a2-accent) 50%,
+      var(--a2-amber) 100%
+    );
+    opacity: 0.34;
+  }
+
+  .gs-rail__tick {
+    position: absolute;
+    top: 50%;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--a2-text-muted);
+    transform: translate(-50%, -50%);
+    opacity: 0.55;
+  }
+
+  .gs-rail__tick--mid {
+    width: 7px;
+    height: 7px;
+    background: var(--a2-accent);
+    opacity: 0.85;
+  }
+
+  .gs-rail__puck {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--a2-surface);
+    border: 2px solid var(--gs-mode-color);
+    box-shadow: var(--a2-shadow-sm);
+    transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition:
+      left 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 0.24s ease,
+      transform 0.16s ease;
+  }
+
+  .gs-instrument.is-scrubbing .gs-rail__puck {
+    transition: border-color 0.16s ease;
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+
+  .gs-rail-wrap:hover .gs-rail__puck {
+    transform: translate(-50%, -50%) scale(1.08);
+  }
+
+  .gs-rail__puck-core {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--gs-mode-color);
+    transition: background-color 0.24s ease;
+  }
+
+  /* 3 Spectrum Stops */
+  .gs-stops {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border-top: 1px solid var(--a2-border);
+  }
+
+  .gs-stop {
+    position: relative;
+    appearance: none;
+    border: none;
+    background: transparent;
+    padding: 16px 22px 18px;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    cursor: pointer;
+    color: var(--a2-text-secondary);
+    font-family: inherit;
+    transition: background-color 0.18s ease, color 0.18s ease;
+  }
+
+  .gs-stop + .gs-stop {
+    border-left: 1px solid var(--a2-border);
+  }
+
+  .gs-stop:hover {
+    background: var(--a2-bg);
     color: var(--a2-text);
-    width: 19%;
   }
 
-  .gs-table tbody td {
+  .gs-stop.is-active {
+    background: var(--a2-surface);
+    color: var(--a2-text);
+  }
+
+  .gs-stop.is-active::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: var(--gs-mode-color);
+  }
+
+  .gs-stop:focus-visible {
+    outline: 2px solid var(--a2-accent);
+    outline-offset: -2px;
+  }
+
+  .gs-stop__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 20px;
+    margin-bottom: 2px;
+  }
+
+  .gs-stop__idx {
+    font-family: var(--a2-font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--a2-text-muted);
+  }
+
+  .gs-stop.is-active .gs-stop__idx {
+    color: var(--gs-mode-strong);
+  }
+
+  .gs-stop__glyph {
+    color: var(--a2-text-muted);
+    display: inline-flex;
+  }
+
+  .gs-stop.is-active .gs-stop__glyph {
+    color: var(--gs-mode-color);
+  }
+
+  .gs-stop__pill {
+    font-family: var(--a2-font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    padding: 1.5px 6px;
+    border-radius: 3px;
+    background: var(--a2-accent-soft);
+    border: 1px solid var(--a2-accent-border);
+    color: var(--a2-accent-strong);
+  }
+
+  .gs-stop__title {
+    font-family: var(--a2-font-display);
+    font-size: 16px;
+    font-weight: 680;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+    color: var(--a2-text);
+  }
+
+  .gs-stop__hint {
+    font-size: 12.5px;
+    line-height: 1.35;
+    color: var(--a2-text-muted);
+  }
+
+  @media (max-width: 680px) {
+    .gs-stop {
+      padding: 12px 8px 14px;
+      align-items: center;
+      text-align: center;
+    }
+
+    .gs-stop__top {
+      justify-content: center;
+      min-height: 0;
+    }
+
+    .gs-stop__idx {
+      font-size: 9px;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    .gs-stop__glyph,
+    .gs-stop__pill {
+      display: none;
+    }
+
+    .gs-stop__title {
+      font-size: 13px;
+    }
+
+    .gs-stop__hint {
+      display: none;
+    }
+  }
+
+  /* =========================================================================
+     STAGE BODY: LEFT PIPELINE + RIGHT VISUAL PROFILE
+     ========================================================================= */
+  .gs-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1.44fr) minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  @media (max-width: 1040px) {
+    .gs-body {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* --- Left Visual Pipeline Canvas --- */
+  .gs-canvas {
+    padding: 24px 26px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    background-color: var(--a2-bg);
+    background-image: radial-gradient(var(--a2-dot-grid) 1px, transparent 1px);
+    background-size: 14px 14px;
+  }
+
+  @media (max-width: 640px) {
+    .gs-canvas {
+      padding: 18px 16px 22px;
+      gap: 16px;
+    }
+  }
+
+  .gs-intent-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 13px;
+    border-radius: 6px;
+    background: var(--a2-surface);
+    border: 1px solid var(--a2-border-strong);
+    font-size: 13px;
+    color: var(--a2-text);
+  }
+
+  .gs-intent-bar__tag {
+    font-family: var(--a2-font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: var(--a2-surface-subtle);
+    border: 1px solid var(--a2-border);
+    color: var(--a2-text-muted);
+    flex-shrink: 0;
+  }
+
+  .gs-intent-bar__text {
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  /* Grid stack so switching scenes causes 0px height jump */
+  .gs-scenes {
+    display: grid;
+    flex: 1;
+    align-items: center;
+  }
+
+  .gs-scene {
+    grid-area: 1 / 1;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(6px);
+    transition:
+      opacity 0.24s ease,
+      transform 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0.24s;
+  }
+
+  .gs-scene.is-active {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+
+  .gs-pipeline {
+    display: grid;
+    grid-template-columns: minmax(164px, 0.85fr) 130px minmax(232px, 1.18fr);
+    align-items: center;
+    gap: 0;
+  }
+
+  @media (max-width: 720px) {
+    .gs-pipeline {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+  }
+
+  /* Agent Node Card */
+  .gs-node {
+    border-radius: 8px;
+    border: 1px solid var(--a2-border-strong);
+    background: var(--a2-surface);
+    box-shadow: var(--a2-shadow-sm);
+    overflow: hidden;
+  }
+
+  .gs-node--a2ui {
+    border-color: var(--a2-accent-border);
+  }
+
+  .gs-node--amber {
+    border-color: var(--a2-amber-border);
+  }
+
+  .gs-node__hdr {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 8px 11px;
+    background: var(--a2-code-header);
+    border-bottom: 1px solid var(--a2-border);
+    font-family: var(--a2-font-mono);
+    font-size: 9.5px;
+  }
+
+  .gs-node__role {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
     color: var(--a2-text-secondary);
   }
 
-  .gs-table tbody td.is-hi {
-    color: var(--a2-text);
-    font-weight: 500;
+  .gs-node__role--blue {
+    color: var(--a2-accent-strong);
+  }
+
+  .gs-node__role--amber {
+    color: var(--a2-amber-strong);
+  }
+
+  .gs-live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--a2-accent);
+    animation: gs-pulse 2s ease-in-out infinite;
+  }
+
+  .gs-node__kind {
+    color: var(--a2-text-muted);
+  }
+
+  .gs-code {
+    padding: 11px 12px;
+    background: var(--a2-code-bg);
+    font-family: var(--a2-font-mono);
+    font-size: 11px;
+    line-height: 1.58;
+    color: var(--a2-syn-base);
+  }
+
+  .gs-code__ln {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-radius: 3px;
+  }
+
+  .gs-code__ln.is-bound {
+    padding: 0 4px;
+    margin: 0 -4px;
     background: var(--a2-accent-soft);
   }
 
-  .gs-table tbody tr:last-child th,
-  .gs-table tbody tr:last-child td {
-    border-bottom: none;
+  .gs-code__ln.is-flash {
+    animation: gs-bind-flash 0.55s ease;
+  }
+
+  .gs-code .k {
+    color: var(--a2-syn-comp);
+    font-weight: 600;
+  }
+
+  .gs-code .s {
+    color: var(--a2-syn-str);
+  }
+
+  .gs-code .m {
+    color: var(--a2-syn-comment);
+  }
+
+  .gs-code .a {
+    color: var(--a2-amber-strong);
+  }
+
+  .gs-node__foot {
+    display: block;
+    padding: 7px 11px;
+    border-top: 1px solid var(--a2-border);
+    font-family: var(--a2-font-mono);
+    font-size: 10px;
+    color: var(--a2-text-muted);
+  }
+
+  /* Boundary Connector + Gate */
+  .gs-bridge-col {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px;
+    min-height: 86px;
+  }
+
+  .gs-wire {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 2px;
+    transform: translateY(-50%);
+    background: var(--a2-border-strong);
+    overflow: hidden;
+  }
+
+  .gs-wire--cyan {
+    background: var(--a2-cyan-border);
+  }
+
+  .gs-wire--blue {
+    background: var(--a2-accent-border);
+  }
+
+  .gs-wire--amber {
+    background: var(--a2-amber-border);
+  }
+
+  .gs-pkt {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 28px;
+    border-radius: 999px;
+    animation: gs-flow-x 1.9s linear infinite;
+  }
+
+  .gs-wire--cyan .gs-pkt {
+    background: var(--a2-cyan);
+  }
+
+  .gs-wire--blue .gs-pkt {
+    background: var(--a2-accent);
+  }
+
+  .gs-wire--amber .gs-pkt {
+    background: var(--a2-amber);
+  }
+
+  @media (max-width: 720px) {
+    .gs-bridge-col {
+      min-height: 56px;
+      padding: 8px 0;
+    }
+
+    .gs-wire {
+      left: 50%;
+      right: auto;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      height: auto;
+      transform: translateX(-50%);
+    }
+
+    .gs-pkt {
+      left: 0;
+      right: 0;
+      width: auto;
+      height: 18px;
+      animation: gs-flow-y 1.6s linear infinite;
+    }
+  }
+
+  .gs-gate-badge {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    padding: 5px 8px;
+    border-radius: 5px;
+    background: var(--a2-surface);
+    border: 1px solid var(--a2-border-strong);
+    box-shadow: var(--a2-shadow-sm);
+    text-align: center;
+    font-family: var(--a2-font-mono);
+  }
+
+  .gs-gate-badge strong {
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    white-space: nowrap;
+  }
+
+  .gs-gate-badge span {
+    font-size: 8.5px;
+    color: var(--a2-text-muted);
+    white-space: nowrap;
+  }
+
+  .gs-gate-badge--cyan {
+    border-color: var(--a2-cyan-border);
+  }
+  .gs-gate-badge--cyan strong {
+    color: var(--a2-cyan-strong);
+  }
+
+  .gs-gate-badge--blue {
+    border-color: var(--a2-accent);
+  }
+  .gs-gate-badge--blue strong {
+    color: var(--a2-accent-strong);
+  }
+
+  .gs-gate-badge--amber {
+    border-style: dashed;
+    border-color: var(--a2-amber);
+  }
+  .gs-gate-badge--amber strong {
+    color: var(--a2-amber-strong);
+  }
+
+  /* Client App Surface Frame */
+  .gs-app {
+    border-radius: 9px;
+    border: 1px solid var(--a2-border-strong);
+    background: var(--a2-surface);
+    box-shadow: var(--a2-shadow-sm);
+    overflow: hidden;
+  }
+
+  .gs-app--a2ui {
+    border-color: var(--a2-accent-border);
+    box-shadow: 0 0 0 1px var(--a2-accent-soft), var(--a2-shadow-sm);
+  }
+
+  .gs-app__chrome {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--a2-surface-subtle);
+    border-bottom: 1px solid var(--a2-border);
+  }
+
+  .gs-app__dots {
+    display: inline-flex;
+    gap: 4px;
+  }
+
+  .gs-app__dots i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--a2-border-strong);
+  }
+
+  .gs-app__name {
+    font-family: var(--a2-font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--a2-text-muted);
+  }
+
+  .gs-app__body {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .gs-card-flight {
+    padding: 10px 11px;
+    border-radius: 6px;
+    background: var(--a2-surface-subtle);
+    border: 1px solid var(--a2-border);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .gs-card-flight--a2ui {
+    background: var(--a2-accent-soft);
+    border-color: var(--a2-accent-border);
+  }
+
+  .gs-card-flight__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  .gs-chip {
+    font-family: var(--a2-font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    padding: 1.5px 5px;
+    border-radius: 3px;
+  }
+
+  .gs-chip--cyan {
+    background: var(--a2-cyan-soft);
+    color: var(--a2-cyan-strong);
+  }
+
+  .gs-chip--blue {
+    background: var(--a2-surface);
+    color: var(--a2-accent-strong);
+  }
+
+  .gs-card-flight__meta {
+    font-family: var(--a2-font-mono);
+    font-size: 10px;
+    color: var(--a2-text-muted);
+  }
+
+  .gs-card-flight__route {
+    font-family: var(--a2-font-display);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--a2-text);
+  }
+
+  .gs-card-flight__sub {
+    font-size: 11.5px;
+    color: var(--a2-text-secondary);
+  }
+
+  /* Scene 01 locked slot */
+  .gs-locked-slot {
+    appearance: none;
+    width: 100%;
+    padding: 10px 11px;
+    border-radius: 6px;
+    border: 1px dashed var(--a2-border-strong);
+    background: transparent;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--a2-text-secondary);
+    transition: border-color 0.16s ease, background-color 0.16s ease;
+  }
+
+  .gs-locked-slot:hover {
+    border-color: var(--a2-cyan);
+    background: var(--a2-surface-subtle);
+  }
+
+  .gs-locked-slot.is-shake {
+    animation: gs-shake 0.34s ease;
+    border-color: var(--a2-danger);
+  }
+
+  .gs-locked-slot__hdr {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--a2-text);
+  }
+
+  .gs-locked-slot__sub {
+    font-family: var(--a2-font-mono);
+    font-size: 10px;
+    color: var(--a2-text-muted);
+  }
+
+  /* Scene 02 interactive native chips + CTA */
+  .gs-seat-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+  }
+
+  .gs-seat {
+    appearance: none;
+    padding: 7px 9px;
+    border-radius: 6px;
+    border: 1px solid var(--a2-border-strong);
+    background: var(--a2-surface);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--a2-text);
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+  }
+
+  .gs-seat strong {
+    font-family: var(--a2-font-mono);
+    font-size: 11.5px;
+    font-weight: 700;
+  }
+
+  .gs-seat span {
+    font-size: 10.5px;
+    color: var(--a2-text-muted);
+  }
+
+  .gs-seat.is-on {
+    border-color: var(--a2-accent);
+    background: var(--a2-accent-soft);
+  }
+
+  .gs-seat.is-on strong {
+    color: var(--a2-accent-strong);
+  }
+
+  .gs-confirm-btn {
+    appearance: none;
+    width: 100%;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: var(--a2-cta-bg);
+    color: var(--a2-cta-fg);
+    font-family: var(--a2-font-display);
+    font-size: 12.5px;
+    font-weight: 650;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+  }
+
+  .gs-confirm-btn:hover {
+    background: var(--a2-cta-hover);
+  }
+
+  .gs-confirm-btn.is-done {
+    background: var(--a2-success-soft);
+    color: var(--a2-success);
+    border: 1px solid var(--a2-success-border);
+  }
+
+  .gs-platforms {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    padding-top: 2px;
+    font-family: var(--a2-font-mono);
+    font-size: 9px;
+    color: var(--a2-text-muted);
+  }
+
+  .gs-platforms b {
+    font-weight: 600;
+    padding: 1px 4.5px;
+    border-radius: 3px;
+    background: var(--a2-surface-subtle);
+    border: 1px solid var(--a2-border);
+    color: var(--a2-text-secondary);
+  }
+
+  /* Scene 03 iframe sandbox box */
+  .gs-iframe-box {
+    border-radius: 6px;
+    border: 1.5px dashed var(--a2-amber);
+    background: var(--a2-code-bg);
+    overflow: hidden;
+  }
+
+  .gs-iframe-box__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 9px;
+    background: var(--a2-amber-soft);
+    border-bottom: 1px solid var(--a2-amber-border);
+    font-family: var(--a2-font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    color: var(--a2-amber-strong);
+  }
+
+  .gs-cabin-svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    color: var(--a2-text);
+    padding: 4px 6px;
+  }
+
+  .gs-cabin-seats rect {
+    fill: currentColor;
+  }
+
+  .gs-cabin-pick {
+    fill: var(--a2-amber-soft) !important;
+    stroke: var(--a2-amber);
+    stroke-width: 1.3;
+    cursor: pointer;
+    transition: fill 0.15s ease, transform 0.15s ease;
+  }
+
+  .gs-cabin-pick.is-picked {
+    fill: var(--a2-amber) !important;
+  }
+
+  .gs-iframe-box__foot {
+    padding: 5px 9px;
+    border-top: 1px solid var(--a2-border);
+    font-family: var(--a2-font-mono);
+    font-size: 9.5px;
+    color: var(--a2-text-muted);
+    text-align: center;
+  }
+
+  /* =========================================================================
+     RIGHT PANEL: SPECTRUM METERS & BEST FIT
+     ========================================================================= */
+  .gs-profile {
+    padding: 24px 26px 28px;
+    border-left: 1px solid var(--a2-border-strong);
+    background: var(--a2-surface);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 20px;
+  }
+
+  @media (max-width: 1040px) {
+    .gs-profile {
+      border-left: none;
+      border-top: 1px solid var(--a2-border-strong);
+    }
+  }
+
+  @media (max-width: 640px) {
+    .gs-profile {
+      padding: 20px 16px 22px;
+    }
+  }
+
+  .gs-profile__summaries {
+    display: grid;
+  }
+
+  .gs-summary {
+    grid-area: 1 / 1;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .gs-summary.is-active {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .gs-summary__tag {
+    font-family: var(--a2-font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 2.5px 7px;
+    border-radius: 3px;
+  }
+
+  .gs-summary__tag--cyan {
+    background: var(--a2-cyan-soft);
+    border: 1px solid var(--a2-cyan-border);
+    color: var(--a2-cyan-strong);
+  }
+
+  .gs-summary__tag--blue {
+    background: var(--a2-accent-soft);
+    border: 1px solid var(--a2-accent-border);
+    color: var(--a2-accent-strong);
+  }
+
+  .gs-summary__tag--amber {
+    background: var(--a2-amber-soft);
+    border: 1px solid var(--a2-amber-border);
+    color: var(--a2-amber-strong);
+  }
+
+  .gs-summary__headline {
+    margin: 0;
+    font-family: var(--a2-font-display);
+    font-size: 15.5px;
+    font-weight: 620;
+    line-height: 1.42;
+    letter-spacing: -0.015em;
+    color: var(--a2-text);
+  }
+
+  /* 5 Animated Signal Bars */
+  .gs-meters {
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+  }
+
+  @media (min-width: 680px) and (max-width: 1040px) {
+    .gs-meters {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px 24px;
+    }
+  }
+
+  .gs-meter {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .gs-meter__row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .gs-meter__lbl {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--a2-text);
+  }
+
+  .gs-meter__val {
+    font-family: var(--a2-font-mono);
+    font-size: 10.5px;
+    color: var(--a2-text-secondary);
+    white-space: nowrap;
+  }
+
+  .gs-meter__track {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--a2-surface-subtle);
+    border: 1px solid var(--a2-border);
+    overflow: hidden;
+  }
+
+  .gs-meter__fill {
+    height: 100%;
+    border-radius: inherit;
+    background: var(--gs-mode-color);
+    transition:
+      width 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 0.24s ease;
+  }
+
+  /* Best-fit tags */
+  .gs-fits {
+    padding-top: 14px;
+    border-top: 1px solid var(--a2-border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  @media (max-width: 520px) {
+    .gs-fits {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+  }
+
+  .gs-fits__lbl {
+    font-family: var(--a2-font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--a2-text-muted);
+    flex-shrink: 0;
+  }
+
+  .gs-fits__stack {
+    display: grid;
+    flex: 1;
+  }
+
+  .gs-fit-tags {
+    grid-area: 1 / 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .gs-fit-tags.is-active {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .gs-fit-tags span {
+    font-family: var(--a2-font-mono);
+    font-size: 10.5px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--a2-surface-subtle);
+    border: 1px solid var(--a2-border);
+    color: var(--a2-text-secondary);
+  }
+
+  /* Animations */
+  @keyframes gs-flow-x {
+    0% {
+      left: -28px;
+      opacity: 0;
+    }
+    20% {
+      opacity: 1;
+    }
+    80% {
+      opacity: 1;
+    }
+    100% {
+      left: 100%;
+      opacity: 0;
+    }
+  }
+
+  @keyframes gs-flow-y {
+    0% {
+      top: -18px;
+      opacity: 0;
+    }
+    20% {
+      opacity: 1;
+    }
+    80% {
+      opacity: 1;
+    }
+    100% {
+      top: 100%;
+      opacity: 0;
+    }
+  }
+
+  @keyframes gs-pulse {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.45;
+      transform: scale(0.85);
+    }
+  }
+
+  @keyframes gs-bind-flash {
+    0% {
+      background: var(--a2-accent-border);
+    }
+    100% {
+      background: var(--a2-accent-soft);
+    }
+  }
+
+  @keyframes gs-shake {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    25% {
+      transform: translateX(-3px);
+    }
+    75% {
+      transform: translateX(3px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gs-rail__puck,
+    .gs-scene,
+    .gs-meter__fill,
+    .gs-pkt,
+    .gs-live-dot {
+      transition: none !important;
+      animation: none !important;
+    }
   }
 </style>
