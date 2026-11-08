@@ -54,12 +54,12 @@ Skip locked items: a comment cannot be posted on them.
 
 A suggestion comment is a comment whose body starts with `**From triage bot:**` and contains `## Triage suggestion`. There is at most one per item.
 
-The suggestion is current when its `updatedAt` is later than all of the following:
+[Current and outdated suggestions](../../../tools/internal/triage/blueprints/features/triage_item.blueprint.md#current-and-outdated-suggestions) defines when a suggestion is current. In the fields that [item.graphql](references/item.graphql) returns, the suggestion is current when its `updatedAt` is later than all of the following:
 
 1. The `createdAt` of every other comment, excluding other triage bot comments.
 2. The `submittedAt` of every PR review.
 3. The item's `lastEditedAt`.
-4. The `createdAt` of every timeline event, excluding events that add or remove `status: needs-triage` (the flagging bot manages that label, so its events say nothing new about the item).
+4. The `createdAt` of every timeline event, excluding events that add or remove `status: needs-triage`.
 5. The `committedDate` of every PR commit.
 
 Otherwise the suggestion is outdated. Skip items with a current suggestion. For an item named in the prompt, skip it only if the prompt does not ask to redo the suggestion, and say in your report that you skipped it.
@@ -88,24 +88,27 @@ Decide what the triager should do, following [triage_criteria.md](references/tri
 The [`TriageSuggestion`](../../../tools/internal/triage/pkgs/triage/lib/src/triage_item/triage_suggestion.dart) component has these properties:
 
 1. `summary` (required): what the item is about, in one or two sentences, for a triager who has not read it.
-2. `suggestion` (required): what the triager should do and why. Name the evidence with links. If the author needs a reply, include a draft reply, copied from [templates.md](../../../docs/contributing/triage/templates.md) when a template fits. If the triager should close the item, say so here and say how (as completed, as not planned, or as a duplicate of an item), since no property carries it.
-3. `added_labels`: labels to add.
-4. `removed_labels`: labels to remove.
-5. `new_assignees`: GitHub logins to assign.
-6. `removed_assignees`: GitHub logins to unassign.
-7. `related_issues`: numbers of related issues in `a2ui-project/a2ui`.
-8. `related_prs`: numbers of related PRs in `a2ui-project/a2ui`.
+2. `suggestion` (required): what the triager should do and why. Name the evidence with links.
+3. `reply`: a comment for the item's author or other participants, which the triage UI posts when the triager applies the suggestion. Copy it from [templates.md](../../../docs/contributing/triage/templates.md) when a template fits. Add a reply when the author needs to act, when an out-of-team contributor's question is unanswered, or when the item is closed.
+4. `close_as`: `completed`, `not_planned` or `duplicate`, when the triager should close the item. Omit it to keep the item open.
+5. `duplicate_of`: with `close_as` set to `duplicate`, the number of the item this one duplicates.
+6. `added_labels`: labels to add.
+7. `removed_labels`: labels to remove.
+8. `new_assignees`: GitHub logins to assign.
+9. `removed_assignees`: GitHub logins to unassign.
+10. `related_issues`: numbers of related issues in `a2ui-project/a2ui`.
+11. `related_prs`: numbers of related PRs in `a2ui-project/a2ui`.
 
 Rules for the lists:
 
 1. Omit a list that is empty.
 2. Use only labels that exist in the repository (`gh label list -R a2ui-project/a2ui --limit 200`). Add only labels the item does not have, and remove only labels it has.
-3. Never add or remove `status: needs-triage`. The [flagging bot](../../../tools/internal/triage/blueprints/features/flagging.blueprint.md) manages it and would undo the change.
+3. Never add or remove `status: needs-triage`. The [flagger](../../../tools/internal/triage/blueprints/features/flagging.blueprint.md) manages it and would undo the change.
 4. Assign only logins that pass the assignee check in step 4, and that are not assigned yet.
-5. List a related item only if the suggestion says how it relates. Do not list the item itself.
+5. List a related item only if the suggestion says how it relates. Do not list the item itself, or the item in `duplicate_of`.
 6. Do not repeat an entry in a list.
 
-Write `summary` and `suggestion` for the triager, not for the author, following the natural-writing rules. State the action first, then the reason. Do not use filler such as "I hope this helps".
+Write `summary` and `suggestion` for the triager, and `reply` for the people on the item, following the natural-writing rules. In `suggestion`, state the action first, then the reason. Do not use filler such as "I hope this helps".
 
 ## Step 7: Format the comment
 
@@ -120,12 +123,17 @@ The comment has a plain English part for people and a hidden part for the triage
 
 <suggestion>
 
-1. Add labels: `<label>`, `<label>`
-2. Remove labels: `<label>`
-3. Assign: `<login>`
-4. Unassign: `<login>`
-5. Related issues: #<number>, #<number>
-6. Related PRs: #<number>
+1. Close as: <completed | not planned | duplicate of #<number>>
+2. Add labels: `<label>`, `<label>`
+3. Remove labels: `<label>`
+4. Assign: `<login>`
+5. Unassign: `<login>`
+6. Related issues: #<number>, #<number>
+7. Related PRs: #<number>
+
+Reply:
+
+> <reply>
 
 <details>
 <summary>Details</summary>
@@ -135,6 +143,9 @@ The comment has a plain English part for people and a hidden part for the triage
 root = TriageSuggestion(
   summary="<summary>",
   suggestion="""<suggestion>""",
+  reply="""<reply>""",
+  close_as="duplicate",
+  duplicate_of=<number>,
   added_labels=["<label>", "<label>"],
   new_assignees=["<login>"],
   related_issues=[<number>, <number>]
@@ -147,12 +158,12 @@ root = TriageSuggestion(
 
 Formatting rules:
 
-1. In the numbered list, keep only the lines for properties that have values, and number them from 1.
-2. Write logins in backticks without `@`. A suggestion is not a decision yet, so it must not notify the people it names. The same applies to logins inside `summary` and `suggestion`.
+1. In the numbered list, keep only the lines for properties that have values, and number them from 1. Leave out the **Reply** section when there is no reply. Quote every line of the reply with `>`.
+2. Write logins in backticks without `@`, in every property. A suggestion is not a decision yet, so it must not notify the people it names.
 3. In the A2UI block, use the [A2UI Express](../../../specification/inference_formats/express/Express.g4) syntax: one `root = TriageSuggestion(...)` statement with keyword arguments named exactly like the properties. Write strings in `"..."`, escaping `"` and `\` as `\"` and `\\`, or in `"""..."""` when they span several lines. Write numbers without `#`.
 4. Keep the A2UI block inside the code fence, so GitHub shows it as written. The triage UI reads the text between `<a2ui>` and `</a2ui>`. Neither tag may appear inside a string.
 
-Example, with an illustrative login and item numbers:
+Example of a bug report, with an illustrative login and item numbers:
 
 ````markdown
 **From triage bot:**
@@ -178,6 +189,43 @@ root = TriageSuggestion(
   added_labels=["type: bug", "P1", "component: flutter adapter", "status: first-line-handled"],
   new_assignees=["flutter-owner"],
   related_issues=[1234]
+)
+</a2ui>
+```
+
+</details>
+````
+
+Example of a duplicate, with illustrative item numbers:
+
+````markdown
+**From triage bot:**
+
+## Triage suggestion
+
+The issue asks for a `Slider` component in the basic catalog.
+
+Close as a duplicate of #1100, which asks for the same component and already has P2. The issue adds no new use case.
+
+1. Close as: duplicate of #1100
+2. Add labels: `status: first-line-handled`
+
+Reply:
+
+> Thanks for the request. #1100 tracks the same component, so we are closing this issue as a duplicate. Add your use case there if it is not covered yet.
+
+<details>
+<summary>Details</summary>
+
+```
+<a2ui>
+root = TriageSuggestion(
+  summary="The issue asks for a `Slider` component in the basic catalog.",
+  suggestion="Close as a duplicate of #1100, which asks for the same component and already has P2. The issue adds no new use case.",
+  reply="""Thanks for the request. #1100 tracks the same component, so we are closing this issue as a duplicate. Add your use case there if it is not covered yet.""",
+  close_as="duplicate",
+  duplicate_of=1100,
+  added_labels=["status: first-line-handled"]
 )
 </a2ui>
 ```
