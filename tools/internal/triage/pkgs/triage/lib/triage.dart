@@ -15,4 +15,4 @@
 /// Triage of GitHub items in the A2UI repository.
 library;
 
-export 'src/triage_item/triage_recommendation.dart';
+export 'src/triage_item/triage_suggestion.dart';

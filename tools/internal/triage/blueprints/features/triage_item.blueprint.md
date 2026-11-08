@@ -1,22 +1,27 @@
 # Triage item
 
-## Triage recommendation
+## Triage suggestion
 
-Triage recommendation is a comment on a GitHub item with the following workflow:
+Triage suggestion is a comment on a GitHub item with the following workflow:
 
-1. Advisor:
-  a. Construct the recommendation using the skill [a2ui-triage-item](../../../../../.agents/skills/a2ui-triage-item)
-  b. Format the recommendation as A2UI component TriageRecommendation
+1. Advisor (skill [a2ui-triage-advisor](../../../../../.agents/skills/a2ui-triage-advisor)), for each item marked with `status: needs triage` (or for concreate items specified in prompt), without suggestion or with outdated suggestion: 
+  b. Constructs the suggestion in native english 
+  b. Format the suggestion as A2UI component Triagesuggestion
   c. Comment to the GitHub item as plain English plus hidden technical details in express format.
 2. Triage UI:
-  a. Parse from GitHub item comment
-  b. Show to triager
-  b. Finalize by collaborating with the triager
+  a. Parse the suggestion from GitHub item comment
+  b. Show it to triager
+  b. Finalize it by collaborating with the triager
   c. Apply to the item
 
-## The component TriageRecommendation
+## suggestion comment
 
-The A2UI comonent TriageRecommendation has the following properties:
+The suggestion comment 
+
+
+## The component TriageSuggestion
+
+The A2UI comonent Triagesuggestion has the following properties:
 
 - summary
 - suggestion

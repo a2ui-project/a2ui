@@ -20,7 +20,7 @@ void main() {
   final validator = PayloadValidator<ComponentApi, FunctionApi>(
     catalog: Catalog<ComponentApi, FunctionApi>(
       id: 'triage_test',
-      components: [triageRecommendationApi],
+      components: [triageSuggestionApi],
       protocolVersion: A2uiProtocolVersion.v1_0,
     ),
     protocolVersion: A2uiProtocolVersion.v1_0,

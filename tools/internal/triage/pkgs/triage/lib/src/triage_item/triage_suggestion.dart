@@ -15,64 +15,62 @@
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 
-/// The A2UI component that carries a triage recommendation for one GitHub
+/// The A2UI component that carries a triage suggestion for one GitHub
 /// item (issue or pull request).
 ///
 /// The advisor posts it on the item, and the triage UI shows it to the
 /// triager, who finalizes it and applies it to the item. See
 /// `blueprints/features/triage_item.blueprint.md`.
-final ComponentApi triageRecommendationApi = ComponentApi(
-  name: TriageRecommendationProps.componentName,
+final ComponentApi triageSuggestionApi = ComponentApi(
+  name: TriageSuggestionProps.componentName,
   schema: Schema.object(
     description:
-        'A triage recommendation for one GitHub issue or pull '
+        'A triage suggestion for one GitHub issue or pull '
         'request.',
     properties: {
       'component': Schema.string(
-        constValue: TriageRecommendationProps.componentName,
+        constValue: TriageSuggestionProps.componentName,
       ),
-      TriageRecommendationProps.summary: Schema.string(
+      TriageSuggestionProps.summary: Schema.string(
         description: 'What the item is about, in plain English.',
         minLength: 1,
       ),
-      TriageRecommendationProps.suggestion: Schema.string(
+      TriageSuggestionProps.suggestion: Schema.string(
         description:
             'What the triager should do with the item and why, in '
             'plain English.',
         minLength: 1,
       ),
-      TriageRecommendationProps.addedLabels: _names(
-        'Labels to add to the item.',
-      ),
-      TriageRecommendationProps.removedLabels: _names(
+      TriageSuggestionProps.addedLabels: _names('Labels to add to the item.'),
+      TriageSuggestionProps.removedLabels: _names(
         'Labels to remove from the item.',
       ),
-      TriageRecommendationProps.newAssignees: _names(
+      TriageSuggestionProps.newAssignees: _names(
         'GitHub logins to assign to the item.',
       ),
-      TriageRecommendationProps.removedAssignees: _names(
+      TriageSuggestionProps.removedAssignees: _names(
         'GitHub logins to unassign from the item.',
       ),
-      TriageRecommendationProps.relatedIssues: _itemNumbers(
+      TriageSuggestionProps.relatedIssues: _itemNumbers(
         'Numbers of issues in the same repository that relate to the item.',
       ),
-      TriageRecommendationProps.relatedPrs: _itemNumbers(
+      TriageSuggestionProps.relatedPrs: _itemNumbers(
         'Numbers of pull requests in the same repository that relate to the '
         'item.',
       ),
     },
     required: [
       'component',
-      TriageRecommendationProps.summary,
-      TriageRecommendationProps.suggestion,
+      TriageSuggestionProps.summary,
+      TriageSuggestionProps.suggestion,
     ],
     additionalProperties: false,
   ),
 );
 
-/// The names of the [triageRecommendationApi] component and its properties.
-abstract final class TriageRecommendationProps {
-  static const String componentName = 'TriageRecommendation';
+/// The names of the [triageSuggestionApi] component and its properties.
+abstract final class TriageSuggestionProps {
+  static const String componentName = 'TriageSuggestion';
 
   static const String summary = 'summary';
   static const String suggestion = 'suggestion';
