@@ -29,22 +29,14 @@ export const absolute = (path: string) => `${site}${base}/${path.replace(/^\//, 
 /** A path inside this site, relative to the origin. */
 export const local = (path: string) => `${base}/${path.replace(/^\//, '')}`;
 
-/**
- * Where the sample's code is cloned from.
- *
- * Until the sample is merged into a2ui-project/labs, the quickstart clones the
- * pull request's branch on the fork, so it can be tried end to end. After the
- * merge, set LABS_REPO to 'https://github.com/a2ui-project/labs' and
- * LABS_BRANCH to 'main'.
- */
-export const LABS_REPO = 'https://github.com/vpm238/labs';
-export const LABS_BRANCH = 'travel-a2ui-sample';
+/** Where the sample lives: A2UI Labs, on its main branch. */
+export const LABS_REPO = 'https://github.com/a2ui-project/labs';
 export const SAMPLE_DIR = 'samples/travel-a2ui';
-export const REPO = `${LABS_REPO}/tree/${LABS_BRANCH}/${SAMPLE_DIR}`;
+export const REPO = `${LABS_REPO}/tree/main/${SAMPLE_DIR}`;
 export const BUILD_YOUR_OWN = `${REPO}#build-one-of-your-own`;
 
 /** The two commands that get the code. */
-export const CLONE = `git clone --branch ${LABS_BRANCH} ${LABS_REPO}\ncd labs/${SAMPLE_DIR}`;
+export const CLONE = `git clone ${LABS_REPO}\ncd labs/${SAMPLE_DIR}`;
 
 /** The pages of this quickstart. */
 export const OVERVIEW_PATH = 'quickstart/';
