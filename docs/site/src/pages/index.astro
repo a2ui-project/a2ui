@@ -15,10 +15,12 @@
  * limitations under the License.
  */
 import '../styles/tokens.css';
-import StarlightHeader from '../components/StarlightHeader.astro';
+import GenUiSpectrum from '../components/GenUiSpectrum.astro';
 import HeroChatGeneration from '../components/HeroChatGeneration.astro';
-import RendererLogo from '../components/RendererLogo.astro';
 import HeroFormFactors from '../components/HeroFormFactors.astro';
+import ProductionShowcase from '../components/ProductionShowcase.astro';
+import RendererLogo from '../components/RendererLogo.astro';
+import StarlightHeader from '../components/StarlightHeader.astro';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
@@ -34,6 +36,12 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       content="An open-source generative UI framework with an agent-optimized streaming protocol, native web and mobile renderers, and multi-language agent SDKs."
     />
     <link rel="icon" type="image/svg+xml" href={`${base}/assets/favicon.svg`} />
+    <link
+      rel="alternate"
+      type="text/markdown"
+      href={`${base}/llms.txt`}
+      title="A2UI documentation index for LLMs"
+    />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -82,7 +90,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
                 </h1>
 
                 <p class="a2-lead">
-                  A2UI is a generative UI framework that enables agents to
+                  A2UI is a generative UI protocol that enables agents to
                   compose experiences tailored to each user's needs in real time.
                   Using an agent-optimized protocol and native framework renderers,
                   A2UI achieves low latency, predictability, and visual fidelity
@@ -94,6 +102,17 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
                     <span>Run in 5 Minutes</span>
                     <span aria-hidden="true">→</span>
                   </a>
+                  <button
+                    type="button"
+                    class="a2-cmd-bar"
+                    id="hero-copy-clone"
+                    data-copy="npx skills add a2ui-project/a2ui"
+                    aria-label="Copy command to install A2UI agent skills: npx skills add a2ui-project/a2ui"
+                  >
+                    <span class="a2-cmd-bar__sig" aria-hidden="true">$</span>
+                    <span>npx skills add a2ui-project/a2ui</span>
+                    <span class="a2-cmd-bar__act" id="hero-copy-act">COPY</span>
+                  </button>
                 </div>
               </div>
 
@@ -138,7 +157,9 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
                   >
                 </li>
                 <li class="a2-renderers__more">
-                  <a href={`${base}/ecosystem/renderers/`} title="Vue, Svelte, React Native and other community renderers"
+                  <a
+                    href={`${base}/ecosystem/renderers/`}
+                    title="Lynx, Svelte, Vue, Compose Multiplatform, Go TUI, and other community renderers"
                     ><span>and more community renderers</span><span aria-hidden="true">→</span></a
                   >
                 </li>
@@ -149,15 +170,31 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       </section>
 
       <!-- =================================================================
-           THE IDEA — SCROLL STAGE (own section, alternate tone)
+           THE IDEA — INTERACTIVE STAGE (own section, alternate tone)
            ================================================================= -->
       <section class="a2-section a2-section--alt a2-section--stage" id="custom-ui">
+        <span id="examples" class="a2-anchor-alias" aria-hidden="true"></span>
         <div class="a2-wrap">
           <div class="a2-chapter a2-chapter--stage">
-            <div class="a2-chapter__split">
+            <div class="a2-chapter__stage-row">
               <h2 class="a2-h2">
-                Custom UI for <span class="a2-h-accent">each user’s intent.</span>
+                Custom UI for <span class="a2-h-accent">each user's intent.</span>
               </h2>
+              <div class="a2-stage__actions">
+                <a href={`${base}/showcase/`} class="a2-btn a2-btn--primary">
+                  <span>Showcase</span>
+                  <span aria-hidden="true">→</span>
+                </a>
+                <a
+                  href="https://go.copilotkit.ai/a2ui-playground"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="a2-btn a2-btn--outline"
+                >
+                  <span>Playground</span>
+                  <span aria-hidden="true">↗</span>
+                </a>
+              </div>
             </div>
           </div>
 
@@ -167,6 +204,16 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
           </div>
         </div>
       </section>
+
+      <!-- =================================================================
+           ARCHITECTURE — THE GENERATIVE UI SPECTRUM
+           ================================================================= -->
+      <GenUiSpectrum />
+
+      <!-- =================================================================
+           IN PRODUCTION — 1P & 3P BRANDS & PARTNER QUOTES
+           ================================================================= -->
+      <ProductionShowcase />
 
       <!-- =================================================================
            CLOSING ARCHITECTURAL BANNER
@@ -204,11 +251,13 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         </div>
         <nav class="a2-footer__links" aria-label="Footer links">
           <a href={`${base}/quickstart/`}>Quickstart</a>
+          <a href={`${base}/showcase/`}>Showcase</a>
           <a href={`${base}/concepts/overview/`}>Concepts</a>
-          <a href={`${base}/concepts/sdks/#renderer-sdk`}>Renderers</a>
+          <a href={`${base}/concepts/sdks/`}>SDKs</a>
           <a href={`${base}/specification/v1.0-a2ui/`}>Specification</a>
+          <a href={`${base}/get-help/`}>Get Help</a>
+          <a href={`${base}/llms.txt`}>llms.txt</a>
           <a href="https://github.com/a2ui-project/a2ui" target="_blank" rel="noopener">GitHub</a>
-          <a href="https://discord.gg/6fS2326966" target="_blank" rel="noopener">Discord</a>
         </nav>
       </div>
     </footer>
@@ -367,6 +416,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
       .a2-lead {
         margin: 0;
+        padding-left: clamp(3px, 0.3vw, 4px);
         max-width: 52ch;
         font-size: 17px;
         line-height: 1.65;
@@ -379,6 +429,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         flex-wrap: wrap;
         align-items: stretch;
         gap: 14px;
+        padding-left: clamp(3px, 0.3vw, 4px);
       }
 
       /* Sharp Architectural Buttons (Zero Pill Rounding!) */
@@ -472,6 +523,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         gap: 22px;
         flex-wrap: wrap;
         margin-top: 44px;
+        margin-left: clamp(3px, 0.3vw, 4px);
         padding-top: 20px;
         border-top: 1px solid var(--a2-border);
       }
@@ -570,16 +622,32 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         margin-bottom: 88px;
       }
 
-      /* Header for the scroll stage — tighter than a full chapter (no rule row above any chapter now) */
+      .a2-anchor-alias {
+        position: absolute;
+        top: 0;
+        left: 0;
+        scroll-margin-top: 72px;
+      }
+
+      /* Header for the interactive stage — headline left, Showcase/Playground CTAs right */
       .a2-chapter--stage {
-        margin-bottom: 40px;
+        margin-bottom: 44px;
         scroll-margin-top: 84px;
       }
 
-      /* no subtitle in this chapter: let the headline take the full measure */
+      .a2-chapter__stage-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 20px 32px;
+      }
 
-      .a2-chapter--stage .a2-chapter__split {
-        grid-template-columns: 1fr;
+      .a2-stage__actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
       }
 
       .a2-chapter__split {

@@ -21,6 +21,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 import {checkDistLinks, parseHtmlDocument} from '../scripts/check-links.mjs';
+import {cleanMdxOutsideFences, renderLlmsHeader} from '../scripts/emit-markdown-bundle.mjs';
 import {findRepoRoot, normalizeBasePrefix} from '../src/lib/spec-schemas.mjs';
 import {resolveAstUrl} from '../src/plugins/remark-a2ui-includes.mjs';
 
@@ -331,4 +332,43 @@ test('resolveAstUrl resolves Starlight URL-relative links, query strings, coloca
     }),
     '/preview/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage',
   );
+});
+
+test('emit-markdown-bundle strips multi-line MDX imports/exports outside fences and renders source llms.txt header', () => {
+  const mdx = `import {
+  Aside,
+  Tabs,
+  TabItem,
+} from '@astrojs/starlight/components';
+import SchemaExplorer from '../../../components/docs/SchemaExplorer.astro';
+
+export const base =
+  import.meta.env.BASE_URL.replace(/\\/$/, '');
+
+Intro paragraph with <a href={\`\${base}/quickstart/\`}>Quickstart</a>;
+
+\`\`\`ts
+import {
+  A2UIClient,
+  createCatalog,
+} from '@a2ui/web_core';
+export const keepInsideFence = {
+  ok: true,
+};
+\`\`\`
+`;
+
+  const cleaned = cleanMdxOutsideFences(mdx);
+  assert.doesNotMatch(cleaned, /@astrojs\/starlight/);
+  assert.doesNotMatch(cleaned, /import\.meta\.env/);
+  assert.match(
+    cleaned,
+    /Intro paragraph with \[Quickstart\]\(https:\/\/a2ui\.org\/quickstart\/\);/,
+  );
+  assert.match(cleaned, /import \{\n  A2UIClient,\n  createCatalog,\n\} from '@a2ui\/web_core';/);
+  assert.match(cleaned, /export const keepInsideFence = \{\n  ok: true,\n\};/);
+
+  const header = renderLlmsHeader();
+  assert.match(header, /^# A2UI\b/);
+  assert.doesNotMatch(header, /\{\{[A-Z0-9_]+\}\}/);
 });

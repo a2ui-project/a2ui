@@ -102,7 +102,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
         3. **Declarative Generative UI**: Agent composes catalog primitives on demand for long-tail requests.
         4. **Open-Ended & MCP Apps**: Sandboxed `ui://` MCP App surfaces.
 3. **Real Use Cases in Production**
-    - **Logo Bar**: JetBrains, Alation, ByteDance, Google Home, Gemini Notebook (plus Google Opal & Flutter GenUI).
+    - **Logo Bar**: Alation, ByteDance (Lynx), Atlassian (Jira), Gemini Notebook, and Gemini Enterprise.
     - **Interactive Use-Case Tabs**: Switchable tabs with visual previews and architectural notes along the spectrum.
 
 ### Part II: Why A2UI? (Core Technical Differentiators)
