@@ -14,8 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
 
 <section class="a2-section a2-section--alt gs-section" id="spectrum">
@@ -228,38 +226,6 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
           </tr>
         </tbody>
       </table>
-    </div>
-
-    <!-- Composition callout: A2UI + MCP Apps -->
-    <div class="gs-bridge">
-      <div class="gs-bridge__copy">
-        <span class="gs-tag">COMPOSABLE BY DESIGN · A2UI + MCP APPS</span>
-        <p>
-          Declarative catalogs and iframe sandboxes work together in production. Mount an
-          <strong>MCP App</strong> inside an A2UI surface when one step needs a custom map or shader
-          canvas, or render streaming <strong>A2UI surfaces inside an MCP App</strong> host such as
-          Claude or Cursor.
-        </p>
-      </div>
-      <div class="gs-bridge__links">
-        <a href={`${base}/guides/mcp-apps-in-a2ui/`} class="gs-link">
-          <span>MCP Apps inside A2UI</span>
-          <span aria-hidden="true">→</span>
-        </a>
-        <a href={`${base}/guides/a2ui-in-mcp-apps/`} class="gs-link">
-          <span>A2UI inside MCP Apps</span>
-          <span aria-hidden="true">→</span>
-        </a>
-        <a
-          href="https://www.copilotkit.ai/generative-ui-spectrum"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="gs-link gs-link--muted"
-        >
-          <span>Generative UI Spectrum overview</span>
-          <span aria-hidden="true">↗</span>
-        </a>
-      </div>
     </div>
   </div>
 </section>
@@ -679,76 +645,5 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   .gs-table tbody tr:last-child th,
   .gs-table tbody tr:last-child td {
     border-bottom: none;
-  }
-
-  /* MCP Apps bridge callout */
-  .gs-bridge {
-    margin-top: 24px;
-    padding: 20px 24px;
-    border-radius: 4px;
-    border: 1px solid var(--a2-border-strong);
-    background: var(--a2-bg);
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 20px;
-  }
-
-  .gs-bridge__copy {
-    flex: 1 1 460px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .gs-tag {
-    font-family: var(--a2-font-mono);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.09em;
-    color: var(--a2-accent-strong);
-  }
-
-  .gs-bridge__copy p {
-    margin: 0;
-    font-size: 13.5px;
-    line-height: 1.6;
-    color: var(--a2-text-secondary);
-  }
-
-  .gs-bridge__copy strong {
-    color: var(--a2-text);
-    font-weight: 600;
-  }
-
-  .gs-bridge__links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-  }
-
-  .gs-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 13px;
-    font-weight: 650;
-    color: var(--a2-accent-strong);
-    text-decoration: none;
-    white-space: nowrap;
-  }
-
-  .gs-link:hover {
-    text-decoration: underline;
-    text-underline-offset: 3px;
-  }
-
-  .gs-link--muted {
-    color: var(--a2-text-secondary);
-  }
-
-  .gs-link--muted:hover {
-    color: var(--a2-text);
   }
 </style>
