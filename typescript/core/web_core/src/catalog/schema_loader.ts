@@ -200,8 +200,10 @@ function finalizePropertyZod(
  * @returns `result`, rejecting objects outside the bounds when `raw` declares any.
  */
 function withPropertyCountBounds(result: z.ZodTypeAny, raw: Record<string, unknown>): z.ZodTypeAny {
-  const min = typeof raw.minProperties === 'number' ? raw.minProperties : undefined;
-  const max = typeof raw.maxProperties === 'number' ? raw.maxProperties : undefined;
+  const bound = (value: unknown) =>
+    typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : undefined;
+  const min = bound(raw.minProperties);
+  const max = bound(raw.maxProperties);
   if (min === undefined && max === undefined) {
     return result;
   }

@@ -1054,6 +1054,12 @@ describe('PayloadValidator with AgentFunction', () => {
     const nested = {type: 'object', properties: {o: {type: 'object', maxProperties: 1}}};
     assert.deepStrictEqual(validateWith(nested, {o: {a: 1}}), {o: {a: 1}});
     assert.throws(() => validateWith(nested, {o: {a: 1, b: 2}}), isValidationError);
+
+    // A bound that is not a non-negative integer is not a valid bound; it is ignored.
+    for (const bad of [-1, 1.5]) {
+      const malformed = {type: 'object', properties: {a: {type: 'string'}}, maxProperties: bad};
+      assert.deepStrictEqual(validateWith(malformed, {a: 'x'}), {a: 'x'});
+    }
   });
 
   it('applies a not schema that declares no type to the objects it matches', () => {
