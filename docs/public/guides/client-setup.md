@@ -124,9 +124,49 @@ npm install @a2ui/react @a2ui/web_core
 
 The React renderer provides:
 
-- **`MessageProcessor` class**: A class that manages the A2UI message processor and reactive model.
-- **`<A2UISurface>` component**: Renders A2UI surfaces in your React app
-- **`useA2UI()` hook**: Accesses the message processor from any component
+- **`MessageProcessor` class** (from `@a2ui/web_core/v0_9`): Processes A2UI messages and holds the surface state. Create it with the catalogs you support and an action handler.
+- **`<A2uiSurface>` component** (from `@a2ui/react/v0_9`): Renders one surface in your React app.
+
+### Setup Example (v0.9)
+
+Create one `MessageProcessor`, feed it the messages from your agent, and render an `<A2uiSurface>` for each surface it creates:
+
+```tsx
+import {useEffect, useMemo, useState} from 'react';
+import {A2uiSurface, ReactCatalogComponent} from '@a2ui/react/v0_9';
+import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+import {MessageProcessor, SurfaceModel} from '@a2ui/web_core/v0_9';
+
+export function Surfaces({onAction}: {onAction: (action: unknown) => void}) {
+  const processor = useMemo(
+    () => new MessageProcessor<ReactCatalogComponent>([basicCatalog], onAction),
+    [],
+  );
+  const [surfaces, setSurfaces] = useState<SurfaceModel<ReactCatalogComponent>[]>(() =>
+    Array.from(processor.model.surfacesMap.values()),
+  );
+
+  useEffect(() => {
+    const created = processor.onSurfaceCreated(surface => setSurfaces(prev => [...prev, surface]));
+    const deleted = processor.onSurfaceDeleted(id =>
+      setSurfaces(prev => prev.filter(s => s.id !== id)),
+    );
+    return () => {
+      created.unsubscribe();
+      deleted.unsubscribe();
+    };
+  }, [processor]);
+
+  // Call `processor.processMessages(messages)` with each batch from your agent.
+  return (
+    <>
+      {surfaces.map(surface => (
+        <A2uiSurface key={surface.id} surface={surface} />
+      ))}
+    </>
+  );
+}
+```
 
 **See working example:** [React shell](../../../samples/client/react/shell)
 
