@@ -470,7 +470,7 @@ Slide across the spectrum to see how the same user prompt turns into different U
 “Flight delayed — rebook me on the next nonstop with an aisle seat.”
 </p> </div> <div class="gs-prompt-stem" aria-hidden="true"> <span class="gs-prompt-stem__line gs-prompt-stem__line--arrow"></span> </div> </div> <!-- =================================================================
            UNIFIED SPECTRUM SLIDER + OUTCOME STAGE
-           ================================================================= --> <div class="gs-card"> <!-- Spectrum Slider Header (Zero eyebrows) --> <div class="gs-slider-band"> <div class="gs-stops" role="tablist" aria-label="Generative UI spectrum"> <button type="button" class="gs-stop" role="tab" id="gs-tab-static" aria-selected="false" aria-controls="gs-stage-panel" tabindex="-1" data-stop="static"> <span class="gs-stop__title">Strict control</span> <span class="gs-stop__sub">Pre-built widgets</span> </button> <button type="button" class="gs-stop is-active" role="tab" id="gs-tab-a2ui" aria-selected="true" aria-controls="gs-stage-panel" tabindex="0" data-stop="a2ui"> <span class="gs-stop__title-row"> <span class="gs-stop__title">Flexible composition</span> <span class="gs-stop__badge">A2UI</span> </span> <span class="gs-stop__sub">Native widget catalog</span> </button> <button type="button" class="gs-stop" role="tab" id="gs-tab-sandbox" aria-selected="false" aria-controls="gs-stage-panel" tabindex="-1" data-stop="sandbox"> <span class="gs-stop__title">Render anything</span> <span class="gs-stop__sub">Sandboxed HTML &amp; JS</span> </button> </div> <!-- Draggable / clickable continuum rail --> <div class="gs-rail-wrap" id="gs-rail" aria-hidden="true"> <div class="gs-rail"> <div class="gs-rail__gradient"></div> <span class="gs-rail__tick" style="left: 16.6667%"></span> <span class="gs-rail__tick gs-rail__tick--mid" style="left: 50%"></span> <span class="gs-rail__tick" style="left: 83.3333%"></span> <div class="gs-rail__puck" id="gs-puck"> <span class="gs-rail__puck-core"></span> </div> </div> </div> </div> <!-- Outcome Stage: Visual Screen Outcome (Left) + 3 Consolidated Points (Right) --> <div class="gs-body" id="gs-stage-panel" role="tabpanel" aria-labelledby="gs-tab-a2ui"> <!-- LEFT: VISUAL OUTCOME FOR THE SHARED PROMPT --> <div class="gs-canvas"> <div class="gs-scenes"> <!-- =========================================================
+           ================================================================= --> <div class="gs-card"> <!-- Spectrum Slider Header (Zero eyebrows) --> <div class="gs-slider-band"> <div class="gs-stops" role="tablist" aria-label="Generative UI spectrum"> <button type="button" class="gs-stop" role="tab" id="gs-tab-static" aria-selected="false" aria-controls="gs-stage-panel" tabindex="-1" data-stop="static"> <span class="gs-stop__title">Strict control</span> <span class="gs-stop__sub">Pre-built widgets</span> </button> <button type="button" class="gs-stop is-active" role="tab" id="gs-tab-a2ui" aria-selected="true" aria-controls="gs-stage-panel" tabindex="0" data-stop="a2ui"> <span class="gs-stop__title">Flexible composition</span> <span class="gs-stop__sub">Native widget catalog</span> </button> <button type="button" class="gs-stop" role="tab" id="gs-tab-sandbox" aria-selected="false" aria-controls="gs-stage-panel" tabindex="-1" data-stop="sandbox"> <span class="gs-stop__title">Render anything</span> <span class="gs-stop__sub">Sandboxed HTML &amp; JS</span> </button> </div> <!-- Draggable / clickable continuum rail --> <div class="gs-rail-wrap" id="gs-rail" aria-hidden="true"> <div class="gs-rail"> <div class="gs-rail__gradient"></div> <span class="gs-rail__tick" style="left: 16.6667%"></span> <span class="gs-rail__tick gs-rail__tick--mid" style="left: 50%"></span> <span class="gs-rail__tick" style="left: 83.3333%"></span> <div class="gs-rail__puck" id="gs-puck"> <span class="gs-rail__puck-core"></span> </div> </div> </div> </div> <!-- Outcome Stage: Visual Screen Outcome (Left) + 3 Consolidated Points (Right) --> <div class="gs-body" id="gs-stage-panel" role="tabpanel" aria-labelledby="gs-tab-a2ui"> <!-- LEFT: VISUAL OUTCOME FOR THE SHARED PROMPT --> <div class="gs-canvas"> <div class="gs-scenes"> <!-- =========================================================
                    OUTCOME 1 · STRICT CONTROL
                    ========================================================= --> <div class="gs-scene" data-scene="static" aria-hidden="true"> <div class="gs-wire-pill gs-wire-pill--cyan"> <span class="gs-wire-pill__verb">Agent calls</span> <code>flight_card(&#123; flight: "UA 418", gate: "B12" &#125;)</code> </div> <div class="gs-wire-drop gs-wire-drop--cyan" aria-hidden="true"></div> <div class="gs-app"> <div class="gs-app__chrome"> <span class="gs-app__dots" aria-hidden="true"><i></i><i></i><i></i></span> <span class="gs-app__name">Host App · Hardcoded Template</span> </div> <div class="gs-app__body"> <div class="gs-flight"> <div class="gs-flight__top"> <span class="gs-badge gs-badge--cyan">NONSTOP</span> <span class="gs-flight__meta">Departs 6:45 PM · Gate B12</span> </div> <strong class="gs-flight__route">UA 418 · SFO → JFK</strong> </div> <button type="button" class="gs-missing" id="gs-static-locked"> <span class="gs-missing__hdr"> <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"> <rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"></rect> <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" stroke-width="1.5"></path> </svg> <span>Aisle seat picker unavailable</span> </span> <span class="gs-missing__sub" id="gs-static-locked-msg">
 This template only renders flight details — seat selection wasn't hardcoded.
@@ -863,14 +863,6 @@ This template only renders flight details — seat selection wasn't hardcoded.
     border-radius: 6px;
   }
 
-  .gs-stop__title-row {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
   .gs-stop__title {
     font-family: var(--a2-font-display);
     font-size: 16.5px;
@@ -883,18 +875,6 @@ This template only renders flight details — seat selection wasn't hardcoded.
 
   .gs-stop.is-active .gs-stop__title {
     color: var(--a2-text);
-  }
-
-  .gs-stop__badge {
-    font-family: var(--a2-font-mono);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    padding: 1.5px 6px;
-    border-radius: 4px;
-    background: var(--a2-accent-soft);
-    border: 1px solid var(--a2-accent-border);
-    color: var(--a2-accent-strong);
   }
 
   .gs-stop__sub {
@@ -911,7 +891,6 @@ This template only renders flight details — seat selection wasn't hardcoded.
       font-size: 13.5px;
     }
 
-    .gs-stop__badge,
     .gs-stop__sub {
       display: none;
     }
