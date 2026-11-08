@@ -33,8 +33,6 @@ export const local = (path: string) => `${base}/${path.replace(/^\//, '')}`;
 export const LABS_REPO = 'https://github.com/a2ui-project/labs';
 export const SAMPLE_DIR = 'samples/travel-a2ui';
 export const REPO = `${LABS_REPO}/tree/main/${SAMPLE_DIR}`;
-export const LIVE_DEMO = 'https://travel-a2ui-vy7stnte2a-uc.a.run.app';
-export const FLUTTER_DEMO = `${LIVE_DEMO}/flutter/`;
 export const DEPLOY = `https://deploy.cloud.run/?git_repo=${LABS_REPO}&dir=${SAMPLE_DIR}`;
 export const BUILD_YOUR_OWN = `${REPO}#build-one-of-your-own`;
 

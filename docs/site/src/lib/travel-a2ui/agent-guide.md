@@ -114,8 +114,9 @@ Five short lessons, in order. Each starts from something on screen and ends
 with one friendly check question. The written version, with screenshots, is at
 {{STEP_BY_STEP}}.
 <!-- only:mobile -->
-Two lessons use tabs that only the web client has. Use the hosted web app for
-those: https://travel-a2ui-vy7stnte2a-uc.a.run.app (no key needed for them).
+Two lessons use tabs that only the web client has. For those, offer to
+restart with `./scripts/quickstart.sh both`, which also serves the React app
+at http://127.0.0.1:8080 (no key needed for those tabs). It needs Node 20+.
 <!-- /only -->
 
 ### 1. The core pieces, and parent and child components

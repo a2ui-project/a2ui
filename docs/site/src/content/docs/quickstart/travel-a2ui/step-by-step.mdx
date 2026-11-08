@@ -5,7 +5,7 @@ description: Run Travel A2UI yourself, the web app (Python + React) or the mobil
 
 import {Steps, LinkCard} from '@astrojs/starlight/components';
 import TurnFlow from '@components/docs/travel-a2ui/TurnFlow.astro';
-import {A2UI, BUILD_YOUR_OWN, DEPLOY, FLUTTER_DEMO, REPO} from '../../../../lib/travel-a2ui/site';
+import {A2UI, BUILD_YOUR_OWN, DEPLOY, REPO} from '../../../../lib/travel-a2ui/site';
 
 Run the app first, then read the second half with it open: every idea there is
 something you can see on screen. The app is <a href={REPO}>samples/travel-a2ui</a>
@@ -85,9 +85,7 @@ You need **Python 3.11+** and **Flutter 3.47+**. Node is not needed.
 
 Try _"A weekend in Lisbon from JFK in May, two of us"_. Here Flutter is built
 for the web, in a phone layout; the same Dart code can target iOS and Android,
-which this repository does not set up. No Flutter on this machine? Try the
-
-<a href={FLUTTER_DEMO}>hosted one</a>.
+which this repository does not set up.
 
 **Both at once:** `./scripts/quickstart.sh both` serves React and Flutter from
 one server. Ask both the same thing: the same kind of messages, drawn by two
