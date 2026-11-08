@@ -1,18 +1,17 @@
-# Not functional details
+# Non-functional details
 
-The triage processes are automated in form of:
+The triage automation consists of:
 
-1. Set of skills
-2. Dart packages
-  - **triager**: dart only code
-  - **triager_ui**: Flutter application that helps to triage items
+1. Skills in [`.agents/skills/`](../../../../.agents/skills/), such as [a2ui-triage-advisor](../../../../.agents/skills/a2ui-triage-advisor/SKILL.md).
+2. Dart packages in [`pkgs/`](../pkgs/):
+
+   1. [`triage`](../pkgs/triage/): Dart-only code, such as the [`TriageSuggestion`](features/triage_item.blueprint.md#the-triagesuggestion-component) component.
+   2. `triage_ui`: the Flutter application of the [triage UI](features/ui.blueprint.md). It does not exist yet.
+
+3. The TypeScript implementation of the [flagger](features/flagging.blueprint.md), in [`archive/packages/flagging/`](../archive/packages/flagging/).
 
 ## Dart packages
 
-Dart packages top level directories are structured as following:
+The code of a Dart package is in `lib/src/`, with one folder per feature, named like the feature's blueprint in [`features/`](features/). For example, `lib/src/triage_item/` implements [triage_item.blueprint.md](features/triage_item.blueprint.md). Code that several features use goes in `lib/src/shared/`.
 
-- feature1
-- feature2
-- ...
-- featureN
-- shared (code that is shared between features)
+Tests mirror this layout in `test/`.

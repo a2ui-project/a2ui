@@ -1,13 +1,13 @@
-# How the flagging script works
+# Flagger
 
-The triage process the script supports is described in [docs/contributing/triage/triage.md](../../../../../docs/contributing/triage/triage.md).
+The flagger adds `status: needs-triage` to every open issue and PR that matches the rules below, and removes the label from the rest. It supports the process described in [triage.md](../../../../../docs/contributing/triage/triage.md). The terms are defined in [core.blueprint.md](../core.blueprint.md).
 
-The [flagging.mts](../../packages/flagging/flagging.mts) script runs via the [`Flag/Unflag issues and PRs`](https://github.com/a2ui-project/a2ui/blob/main/.github/workflows/triage.yml) GitHub Actions workflow. It checks every open issue and PR, adds `status: needs-triage` to the ones that match the rules below, and removes the label from the rest. The terms are defined in [core.blueprint.md](../core.blueprint.md).
+The flagger is the [flagging.mts](../../archive/packages/flagging/flagging.mts) script, which runs in the [`Flag/Unflag issues and PRs`](../../../../../.github/workflows/triage.yml) GitHub Actions workflow.
 
 The script handles [triage bot](../core.blueprint.md#contributors) comments in two ways:
 
-1. A staleness ping delays flagging. A stale item is not flagged right away: the [staleness ping job](staleness_ping.blueprint.md) pings its assignees first, and the script flags the item only once the ping has expired (rule 2). The ping does not count as activity, so it does not restart the clock that made the item stale.
-2. In all other rules, the script ignores triage bot comments. For example, a triage recommendation does not answer `status: waiting-for-author-response` (rule 1). It also does not count as the team's response to an item (rules 4 and 5), so the item stays flagged until a team member acts on it.
+1. A staleness ping delays flagging. A stale item is not flagged right away: the [staleness pinger](staleness_ping.blueprint.md) pings its assignees first, and the script flags the item only once the ping has expired (rule 2). The ping does not count as activity, so it does not restart the clock that made the item stale.
+2. In all other rules, the script ignores triage bot comments. For example, a [triage suggestion](triage_item.blueprint.md#triage-suggestions) does not answer `status: waiting-for-author-response` (rule 1). It also does not count as the team's response to an item (rules 4 and 5), so the item stays flagged until a team member acts on it.
 
 The script uses the following rules to decide if a PR or issue should get **the label `status: needs-triage`**:
 
@@ -18,7 +18,7 @@ The script uses the following rules to decide if a PR or issue should get **the 
    - If yes: **NO LABEL**.
    - If no: continue processing.
 
-2. Is the item stale, with an expired staleness ping?
+2. Is the item [stale](staleness_ping.blueprint.md#stale-items), with an [expired staleness ping](staleness_ping.blueprint.md#staleness-pings)?
 
    - If yes: **LABEL**.
    - If no: continue processing.
@@ -54,4 +54,4 @@ The script prints which items it flags or unflags and why.
 
 The workflow runs daily on a schedule (15:00 UTC / 07:00 PST), on manual dispatch, and on issue events (opened, edited, labeled, unlabeled, assigned, unassigned, reopened), new issue comments, and submitted PR reviews or review comments.
 
-Every run uses the script from `main`, whatever event triggers it. Otherwise a PR review event runs the copy from the PR's merge commit, which can have older rules, and the two copies keep undoing each other's labels. Running the workflow from a branch also applies the rules from `main`, so test a rule change with `node --test tools/internal/triage/flagging/flagging.test.mts`.
+Every run uses the script from `main`, whatever event triggers it. Otherwise a PR review event runs the copy from the PR's merge commit, which can have older rules, and the two copies keep undoing each other's labels. Running the workflow from a branch also applies the rules from `main`, so test a rule change with `node --test tools/internal/triage/archive/packages/flagging/flagging.test.mts`.

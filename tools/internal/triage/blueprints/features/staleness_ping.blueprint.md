@@ -1,17 +1,17 @@
-# How the staleness ping job works
+# Staleness pinger
 
-The staleness ping job asks the assignees of [stale items](../core.blueprint.md#stale-items) to act before the item is flagged for triage. 
+The staleness pinger asks the assignees of [stale items](#stale-items) to act before the [flagger](flagging.blueprint.md) flags the item for triage. The terms are defined in [core.blueprint.md](../core.blueprint.md).
 
-The job runs daily. For each stale item without a [current ping](../core.blueprint.md#staleness-pings), it does the following:
+The pinger runs daily. For each stale item without a [current ping](#staleness-pings), it:
 
 1. Posts a [triage bot](../core.blueprint.md#contributors) comment on the issue or PR.
 2. Sends a message to the team's Google Chat space.
 
-The job keeps no state between runs. It finds its earlier pings by the marker in its comments, and uses the comment's creation time as the time of the ping.
+The pinger keeps no state between runs. It finds its earlier pings by the marker in its comments, and uses the comment's creation time as the time of the ping.
 
 ## Staleness pings
 
-A **staleness ping** is a triage bot comment that the staleness-ping job posts on a stale item, marked with the item's case.
+A **staleness ping** is a triage bot comment that the staleness pinger posts on a stale item, marked with the item's case.
 
 A ping is **current** when it was posted for the item's current case after that case's clock started: the latest `status: assigned-for-triage` labeling for case 1, or the last **out-of-team contributor** contribution for cases 2 and 3.
 
@@ -27,10 +27,10 @@ An open issue or PR is **stale** when it matches one of these cases:
 
 ## The GitHub comment
 
-The job posts the comment from a team member's account, so that the comment is a triage bot comment. The comment mentions every assignee, says why the item is stale, and says what happens if nothing changes. It starts with the triage bot prefix and ends with a hidden marker that names the case:
+The pinger posts the comment from a team member's account, so that the comment is a triage bot comment. The comment mentions every assignee, says why the item is stale, and says what happens if nothing changes. It starts with the triage bot prefix and ends with a hidden marker that names the case:
 
 ```markdown
-**From triage bot:** `@{assignee}` this `P1` issue has had no human activity for 30 days. Please post an update, or change the priority or assignee if the plan has changed. If nothing changes in 7 days, the issue gets `status: needs-triage` and goes back to the weekly triage.
+**From triage bot:** @{assignee} this `P1` issue has had no human activity for 30 days. Please post an update, or change the priority or assignee if the plan has changed. If nothing changes in 7 days, the issue gets `status: needs-triage` and goes back to the weekly triage.
 <!-- a2ui-triage-ping: p1-inactive -->
 ```
 
@@ -42,16 +42,16 @@ The marker and the first sentence for each case:
 
 ## The Google Chat message
 
-The job sends the message through an incoming webhook. It has the item's title and link, the text of the comment, and a mention of each assignee.
+The pinger sends the message through an incoming webhook. It has the item's title and link, the text of the comment, and a mention of each assignee.
 
-The job reads two repository secrets:
+The pinger reads two repository secrets:
 
-1. `TRIAGE_CHAT_WEBHOOK_URL`: the webhook URL of the space. If it is not set, the job skips the message and logs that it did.
+1. `TRIAGE_CHAT_WEBHOOK_URL`: the webhook URL of the space. If it is not set, the pinger skips the message and logs that it did.
 2. `TRIAGE_CHAT_USERS`: a JSON object that maps GitHub logins to Google Chat user IDs. An assignee missing from the map is named by their GitHub login, without a mention.
 
-## Failures and duplicates
+## Failures
 
-1. If the GitHub comment fails, a GitHub issue with error details should be created.
-2. If the Chat message fails, the job logs the error and does not retry.
+1. If the GitHub comment fails, the pinger opens a GitHub issue with the error details.
+2. If the Chat message fails, the pinger logs the error and does not retry.
 
-The job prints each item it pings, the case, and the assignees it mentioned.
+The pinger prints each item it pings, the case, and the assignees it mentioned.
