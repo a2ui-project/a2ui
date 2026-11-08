@@ -18,268 +18,186 @@
 
 <section class="a2-section gs-section" id="spectrum">
   <div class="gs-wrap">
-    <!-- High-level editorial header -->
     <div class="gs-header">
       <h2 class="gs-h2">
         Three patterns. <span class="gs-accent">One generative UI spectrum.</span>
       </h2>
       <p class="gs-sub">
-        Slide from fixed host templates to open-ended sandboxes to see how the same user request
-        moves from agent to screen.
+        Slide across the spectrum to see how the same user prompt turns into different UI outcomes.
       </p>
     </div>
 
-    <!-- Single unified interactive spectrum instrument -->
     <div
-      class="gs-instrument"
+      class="gs-flow"
       id="gs-instrument"
       data-active="a2ui"
       role="region"
-      aria-label="Interactive generative UI spectrum explorer"
+      aria-label="Interactive generative UI spectrum"
     >
       <!-- =================================================================
-           TOP: CONTINUUM SCRUBBER RAIL + 3 SPECTRUM STATIONS
+           SHARED USER PROMPT (Constant input above the spectrum)
            ================================================================= -->
-      <div class="gs-continuum">
-        <div class="gs-poles" aria-hidden="true">
-          <span class="gs-pole gs-pole--left">
-            <i class="gs-pole__dot gs-pole__dot--cyan"></i>
-            Strict host control
+      <div class="gs-prompt-stage">
+        <div class="gs-prompt-card">
+          <span class="gs-prompt-card__avatar" aria-hidden="true">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+              <path
+                d="M2.5 3.5A1.5 1.5 0 0 1 4 2h8a1.5 1.5 0 0 1 1.5 1.5v6A1.5 1.5 0 0 1 12 11H6.2L3.3 13.4a.5.5 0 0 1-.8-.4V3.5Z"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linejoin="round"
+              />
+            </svg>
           </span>
-          <span class="gs-pole gs-pole--center">Catalog-governed composition</span>
-          <span class="gs-pole gs-pole--right">
-            Open-ended UI freedom
-            <i class="gs-pole__dot gs-pole__dot--amber"></i>
-          </span>
+          <p class="gs-prompt-card__quote">
+            “Flight delayed — rebook me on the next nonstop with an aisle seat.”
+          </p>
         </div>
 
-        <!-- Interactive continuum track (click or drag across the spectrum) -->
-        <div class="gs-rail-wrap" id="gs-rail" aria-hidden="true">
-          <div class="gs-rail">
-            <div class="gs-rail__gradient"></div>
-            <span class="gs-rail__tick" style="left: 16.6667%"></span>
-            <span class="gs-rail__tick gs-rail__tick--mid" style="left: 50%"></span>
-            <span class="gs-rail__tick" style="left: 83.3333%"></span>
-            <div class="gs-rail__puck" id="gs-puck">
-              <span class="gs-rail__puck-core"></span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 3 stations along the spectrum -->
-        <div class="gs-stops" role="tablist" aria-label="Generative UI patterns along the spectrum">
-          <button
-            type="button"
-            class="gs-stop"
-            role="tab"
-            id="gs-tab-static"
-            aria-selected="false"
-            aria-controls="gs-stage-panel"
-            tabindex="-1"
-            data-stop="static"
-          >
-            <span class="gs-stop__top">
-              <span class="gs-stop__idx">01 · STATIC</span>
-              <span class="gs-stop__glyph" aria-hidden="true">
-                <svg viewBox="0 0 20 14" width="20" height="14" fill="none">
-                  <rect x="1" y="1" width="18" height="12" rx="2" stroke="currentColor" stroke-width="1.3" />
-                  <rect x="4" y="4" width="12" height="6" rx="1" fill="currentColor" opacity="0.35" />
-                </svg>
-              </span>
-            </span>
-            <strong class="gs-stop__title">Pre-built widgets</strong>
-            <span class="gs-stop__hint">Props into a fixed slot</span>
-          </button>
-
-          <button
-            type="button"
-            class="gs-stop is-active"
-            role="tab"
-            id="gs-tab-a2ui"
-            aria-selected="true"
-            aria-controls="gs-stage-panel"
-            tabindex="0"
-            data-stop="a2ui"
-          >
-            <span class="gs-stop__top">
-              <span class="gs-stop__idx">02 · DECLARATIVE</span>
-              <span class="gs-stop__pill">A2UI</span>
-            </span>
-            <strong class="gs-stop__title">Catalog composition</strong>
-            <span class="gs-stop__hint">Novel layouts, native widgets</span>
-          </button>
-
-          <button
-            type="button"
-            class="gs-stop"
-            role="tab"
-            id="gs-tab-sandbox"
-            aria-selected="false"
-            aria-controls="gs-stage-panel"
-            tabindex="-1"
-            data-stop="sandbox"
-          >
-            <span class="gs-stop__top">
-              <span class="gs-stop__idx">03 · OPEN-ENDED</span>
-              <span class="gs-stop__glyph" aria-hidden="true">
-                <svg viewBox="0 0 20 14" width="20" height="14" fill="none">
-                  <rect
-                    x="1"
-                    y="1"
-                    width="18"
-                    height="12"
-                    rx="2"
-                    stroke="currentColor"
-                    stroke-width="1.3"
-                    stroke-dasharray="2.5 2"
-                  />
-                  <path
-                    d="M7.2 4.8L4.8 7l2.4 2.2M12.8 4.8L15.2 7l-2.4 2.2"
-                    stroke="currentColor"
-                    stroke-width="1.3"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                </svg>
-              </span>
-            </span>
-            <strong class="gs-stop__title">Sandboxed code</strong>
-            <span class="gs-stop__hint">HTML &amp; JS in an iframe</span>
-          </button>
+        <div class="gs-prompt-stem" aria-hidden="true">
+          <span class="gs-prompt-stem__line gs-prompt-stem__line--arrow"></span>
         </div>
       </div>
 
       <!-- =================================================================
-           MAIN UNIFIED STAGE: LIVE VISUAL PIPELINE + SPECTRUM METERS
+           UNIFIED SPECTRUM SLIDER + OUTCOME STAGE
            ================================================================= -->
-      <div class="gs-body" id="gs-stage-panel" role="tabpanel" aria-labelledby="gs-tab-a2ui">
-        <!-- LEFT: VISUAL PIPELINE (Same intent -> Agent -> Boundary -> App Screen) -->
-        <div class="gs-canvas">
-          <div class="gs-intent-bar">
-            <span class="gs-intent-bar__tag">SAME PROMPT</span>
-            <span class="gs-intent-bar__text">
-              "Flight delayed. Rebook me on the next nonstop with an aisle seat."
-            </span>
+      <div class="gs-card">
+        <!-- Spectrum Slider Header (Zero eyebrows) -->
+        <div class="gs-slider-band">
+          <div class="gs-stops" role="tablist" aria-label="Generative UI spectrum">
+            <button
+              type="button"
+              class="gs-stop"
+              role="tab"
+              id="gs-tab-static"
+              aria-selected="false"
+              aria-controls="gs-stage-panel"
+              tabindex="-1"
+              data-stop="static"
+            >
+              <span class="gs-stop__title">Strict control</span>
+              <span class="gs-stop__sub">Pre-built widgets</span>
+            </button>
+
+            <button
+              type="button"
+              class="gs-stop is-active"
+              role="tab"
+              id="gs-tab-a2ui"
+              aria-selected="true"
+              aria-controls="gs-stage-panel"
+              tabindex="0"
+              data-stop="a2ui"
+            >
+              <span class="gs-stop__title-row">
+                <span class="gs-stop__title">Flexible composition</span>
+                <span class="gs-stop__badge">A2UI</span>
+              </span>
+              <span class="gs-stop__sub">Native widget catalog</span>
+            </button>
+
+            <button
+              type="button"
+              class="gs-stop"
+              role="tab"
+              id="gs-tab-sandbox"
+              aria-selected="false"
+              aria-controls="gs-stage-panel"
+              tabindex="-1"
+              data-stop="sandbox"
+            >
+              <span class="gs-stop__title">Render anything</span>
+              <span class="gs-stop__sub">Sandboxed HTML &amp; JS</span>
+            </button>
           </div>
 
-          <div class="gs-scenes">
-            <!-- ===========================================================
-                 SCENE 01 · STATIC WIDGETS
-                 =========================================================== -->
-            <div class="gs-scene" data-scene="static" aria-hidden="true">
-              <div class="gs-pipeline">
-                <!-- Col 1: Agent -->
-                <div class="gs-node gs-node--agent">
-                  <div class="gs-node__hdr">
-                    <span class="gs-node__role">AGENT</span>
-                    <span class="gs-node__kind">Tool call</span>
-                  </div>
-                  <div class="gs-code">
-                    <div class="gs-code__ln"><span class="k">flight_card</span>(&#123;</div>
-                    <div class="gs-code__ln">&nbsp;&nbsp;flight: <span class="s">"UA 418"</span>,</div>
-                    <div class="gs-code__ln">&nbsp;&nbsp;dep: <span class="s">"6:45 PM"</span>,</div>
-                    <div class="gs-code__ln">&nbsp;&nbsp;gate: <span class="s">"B12"</span></div>
-                    <div class="gs-code__ln">&#125;)</div>
-                  </div>
-                  <span class="gs-node__foot">Sends flat arguments only</span>
+          <!-- Draggable / clickable continuum rail -->
+          <div class="gs-rail-wrap" id="gs-rail" aria-hidden="true">
+            <div class="gs-rail">
+              <div class="gs-rail__gradient"></div>
+              <span class="gs-rail__tick" style="left: 16.6667%"></span>
+              <span class="gs-rail__tick gs-rail__tick--mid" style="left: 50%"></span>
+              <span class="gs-rail__tick" style="left: 83.3333%"></span>
+              <div class="gs-rail__puck" id="gs-puck">
+                <span class="gs-rail__puck-core"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Outcome Stage: Visual Screen Outcome (Left) + 3 Consolidated Points (Right) -->
+        <div class="gs-body" id="gs-stage-panel" role="tabpanel" aria-labelledby="gs-tab-a2ui">
+          <!-- LEFT: VISUAL OUTCOME FOR THE SHARED PROMPT -->
+          <div class="gs-canvas">
+            <div class="gs-scenes">
+              <!-- =========================================================
+                   OUTCOME 1 · STRICT CONTROL
+                   ========================================================= -->
+              <div class="gs-scene" data-scene="static" aria-hidden="true">
+                <div class="gs-wire-pill gs-wire-pill--cyan">
+                  <span class="gs-wire-pill__verb">Agent calls</span>
+                  <code>flight_card(&#123; flight: "UA 418", gate: "B12" &#125;)</code>
                 </div>
 
-                <!-- Col 2: Boundary -->
-                <div class="gs-bridge-col" aria-hidden="true">
-                  <div class="gs-wire gs-wire--cyan">
-                    <i class="gs-pkt"></i>
-                  </div>
-                  <div class="gs-gate-badge gs-gate-badge--cyan">
-                    <strong>FIXED SLOT</strong>
-                    <span>1 tool = 1 view</span>
-                  </div>
-                </div>
+                <div class="gs-wire-drop gs-wire-drop--cyan" aria-hidden="true"></div>
 
-                <!-- Col 3: Host App Surface -->
                 <div class="gs-app">
                   <div class="gs-app__chrome">
                     <span class="gs-app__dots" aria-hidden="true"><i></i><i></i><i></i></span>
-                    <span class="gs-app__name">SkyLine App · Native</span>
+                    <span class="gs-app__name">Host App · Hardcoded Template</span>
                   </div>
                   <div class="gs-app__body">
-                    <div class="gs-card-flight">
-                      <div class="gs-card-flight__row">
-                        <span class="gs-chip gs-chip--cyan">NONSTOP</span>
-                        <span class="gs-card-flight__meta">Gate B12</span>
+                    <div class="gs-flight">
+                      <div class="gs-flight__top">
+                        <span class="gs-badge gs-badge--cyan">NONSTOP</span>
+                        <span class="gs-flight__meta">Departs 6:45 PM · Gate B12</span>
                       </div>
-                      <strong class="gs-card-flight__route">UA 418 · SFO → JFK</strong>
-                      <span class="gs-card-flight__sub">Departs 6:45 PM · On time</span>
+                      <strong class="gs-flight__route">UA 418 · SFO → JFK</strong>
                     </div>
 
-                    <button type="button" class="gs-locked-slot" id="gs-static-locked">
-                      <span class="gs-locked-slot__hdr">
-                        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <button type="button" class="gs-missing" id="gs-static-locked">
+                      <span class="gs-missing__hdr">
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                           <rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5" />
                           <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" stroke-width="1.5" />
                         </svg>
                         <span>Aisle seat picker unavailable</span>
                       </span>
-                      <span class="gs-locked-slot__sub" id="gs-static-locked-msg">
-                        Not in this template · needs an app update
+                      <span class="gs-missing__sub" id="gs-static-locked-msg">
+                        This template only renders flight details — seat selection wasn't hardcoded.
                       </span>
                     </button>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <!-- ===========================================================
-                 SCENE 02 · DECLARATIVE CATALOG (A2UI)
-                 =========================================================== -->
-            <div class="gs-scene is-active" data-scene="a2ui" aria-hidden="false">
-              <div class="gs-pipeline">
-                <!-- Col 1: Agent -->
-                <div class="gs-node gs-node--agent gs-node--a2ui">
-                  <div class="gs-node__hdr">
-                    <span class="gs-node__role gs-node__role--blue">
-                      <i class="gs-live-dot" aria-hidden="true"></i>AGENT + SDK
-                    </span>
-                    <span class="gs-node__kind">JSONL stream</span>
-                  </div>
-                  <div class="gs-code">
-                    <div class="gs-code__ln"><span class="k">Surface</span> <span class="s">"rebook"</span></div>
-                    <div class="gs-code__ln">├─ <span class="k">FlightCard</span> <span class="s">"UA 418"</span></div>
-                    <div class="gs-code__ln">├─ <span class="k">ChoiceChips</span> <span class="m">[/seat]</span></div>
-                    <div class="gs-code__ln is-bound" id="gs-a2ui-binding">
-                      │&nbsp;&nbsp;seat: <span class="s" id="gs-a2ui-seat-val">"14C"</span>
-                    </div>
-                    <div class="gs-code__ln">└─ <span class="k">Button</span> <span class="s">"Confirm"</span></div>
-                  </div>
-                  <span class="gs-node__foot">Composes tree + 2-way bindings</span>
+              <!-- =========================================================
+                   OUTCOME 2 · FLEXIBLE COMPOSITION (A2UI)
+                   ========================================================= -->
+              <div class="gs-scene is-active" data-scene="a2ui" aria-hidden="false">
+                <div class="gs-wire-pill gs-wire-pill--blue">
+                  <span class="gs-wire-pill__verb">Agent composes</span>
+                  <code>FlightCard + ChoiceChips + Button</code>
                 </div>
 
-                <!-- Col 2: Catalog Boundary -->
-                <div class="gs-bridge-col" aria-hidden="true">
-                  <div class="gs-wire gs-wire--blue">
-                    <i class="gs-pkt"></i>
-                  </div>
-                  <div class="gs-gate-badge gs-gate-badge--blue">
-                    <strong>CATALOG GATE</strong>
-                    <span>Allowlisted · No JS</span>
-                  </div>
-                </div>
+                <div class="gs-wire-drop gs-wire-drop--blue" aria-hidden="true"></div>
 
-                <!-- Col 3: Composed Native App Surface -->
                 <div class="gs-app gs-app--a2ui">
                   <div class="gs-app__chrome">
                     <span class="gs-app__dots" aria-hidden="true"><i></i><i></i><i></i></span>
-                    <span class="gs-app__name">SkyLine App · Native Catalog</span>
+                    <span class="gs-app__name">Host App · Native Catalog</span>
                   </div>
                   <div class="gs-app__body">
-                    <div class="gs-card-flight gs-card-flight--a2ui">
-                      <div class="gs-card-flight__row">
-                        <span class="gs-chip gs-chip--blue">COMPOSED LIVE</span>
-                        <span class="gs-card-flight__meta">6:45 PM</span>
+                    <div class="gs-flight gs-flight--a2ui">
+                      <div class="gs-flight__top">
+                        <span class="gs-badge gs-badge--blue">NONSTOP</span>
+                        <span class="gs-flight__meta">Departs 6:45 PM · Gate B12</span>
                       </div>
-                      <strong class="gs-card-flight__route">UA 418 · SFO → JFK</strong>
+                      <strong class="gs-flight__route">UA 418 · SFO → JFK</strong>
                     </div>
 
-                    <div class="gs-seat-group" role="group" aria-label="Pick an aisle seat">
+                    <div class="gs-seats" role="group" aria-label="Choose an aisle seat">
                       <button type="button" class="gs-seat is-on" data-seat="14C">
                         <strong>14C</strong>
                         <span>Main aisle</span>
@@ -290,254 +208,206 @@
                       </button>
                     </div>
 
-                    <button type="button" class="gs-confirm-btn" id="gs-a2ui-cta">
-                      <span id="gs-a2ui-cta-lbl">Confirm seat 14C</span>
+                    <button type="button" class="gs-cta" id="gs-a2ui-cta">
+                      <span id="gs-a2ui-cta-lbl">Confirm rebooking · Seat 14C</span>
                       <span aria-hidden="true">→</span>
                     </button>
-
-                    <div class="gs-platforms" aria-hidden="true">
-                      <span>1 stream →</span>
-                      <b>Web</b>
-                      <b>Flutter</b>
-                      <b>iOS</b>
-                      <b>Android</b>
-                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <!-- ===========================================================
-                 SCENE 03 · SANDBOXED CODE
-                 =========================================================== -->
-            <div class="gs-scene" data-scene="sandbox" aria-hidden="true">
-              <div class="gs-pipeline">
-                <!-- Col 1: Agent / Server -->
-                <div class="gs-node gs-node--agent gs-node--amber">
-                  <div class="gs-node__hdr">
-                    <span class="gs-node__role gs-node__role--amber">AGENT / TOOL</span>
-                    <span class="gs-node__kind">HTML bundle</span>
-                  </div>
-                  <div class="gs-code">
-                    <div class="gs-code__ln"><span class="m">&lt;!doctype html&gt;</span></div>
-                    <div class="gs-code__ln"><span class="a">&lt;style&gt;</span>.cabin&#123;…&#125;<span class="a">&lt;/style&gt;</span></div>
-                    <div class="gs-code__ln"><span class="a">&lt;canvas</span> id=<span class="s">"deck"</span><span class="a">&gt;</span></div>
-                    <div class="gs-code__ln"><span class="a">&lt;script</span> src=<span class="s">"map.js"</span><span class="a">&gt;</span></div>
-                    <div class="gs-code__ln"><span class="m">// 48 KB mini-app</span></div>
-                  </div>
-                  <span class="gs-node__foot">Ships self-contained code</span>
+              <!-- =========================================================
+                   OUTCOME 3 · RENDER ANYTHING
+                   ========================================================= -->
+              <div class="gs-scene" data-scene="sandbox" aria-hidden="true">
+                <div class="gs-wire-pill gs-wire-pill--amber">
+                  <span class="gs-wire-pill__verb">Agent ships</span>
+                  <code>&lt;iframe sandbox&gt; HTML, CSS &amp; JS bundle</code>
                 </div>
 
-                <!-- Col 2: Sandbox Boundary -->
-                <div class="gs-bridge-col" aria-hidden="true">
-                  <div class="gs-wire gs-wire--amber">
-                    <i class="gs-pkt"></i>
-                  </div>
-                  <div class="gs-gate-badge gs-gate-badge--amber">
-                    <strong>IFRAME SANDBOX</strong>
-                    <span>Isolated origin</span>
-                  </div>
-                </div>
+                <div class="gs-wire-drop gs-wire-drop--amber" aria-hidden="true"></div>
 
-                <!-- Col 3: Host App + Embedded Iframe -->
                 <div class="gs-app">
                   <div class="gs-app__chrome">
                     <span class="gs-app__dots" aria-hidden="true"><i></i><i></i><i></i></span>
-                    <span class="gs-app__name">SkyLine App · Host Shell</span>
+                    <span class="gs-app__name">Host App · Embedded Sandbox</span>
                   </div>
                   <div class="gs-app__body">
-                    <div class="gs-iframe-box">
-                      <div class="gs-iframe-box__bar">
-                        <span>&lt;iframe sandbox&gt;</span>
-                        <span id="gs-sandbox-seat-readout">Deck 14C</span>
+                    <div class="gs-sandbox-frame">
+                      <div class="gs-sandbox-frame__bar">
+                        <span>&lt;iframe sandbox&gt; · Custom cabin map</span>
+                        <span id="gs-sandbox-seat-readout">Seat 14C</span>
                       </div>
-                      <svg class="gs-cabin-svg" viewBox="0 0 240 84" aria-label="Interactive custom aircraft cabin canvas">
-                        <!-- Fuselage rails -->
+                      <svg
+                        class="gs-cabin-svg"
+                        viewBox="0 0 260 92"
+                        aria-label="Interactive custom aircraft cabin map"
+                      >
                         <path
-                          d="M8 14 Q120 4 232 14 M8 70 Q120 80 232 70"
+                          d="M10 15 Q130 5 250 15 M10 77 Q130 87 250 77"
                           fill="none"
                           stroke="currentColor"
                           stroke-opacity="0.24"
-                          stroke-width="1.2"
+                          stroke-width="1.3"
                         />
-                        <!-- Wing sweep hint -->
                         <path
-                          d="M96 10 L118 2 L148 2 L134 10 M96 74 L118 82 L148 82 L134 74"
+                          d="M104 11 L128 2 L160 2 L144 11 M104 81 L128 90 L160 90 L144 81"
                           fill="currentColor"
                           fill-opacity="0.1"
                         />
-                        <!-- Aisle center dashed guide -->
                         <line
-                          x1="18"
-                          y1="42"
-                          x2="222"
-                          y2="42"
+                          x1="20"
+                          y1="46"
+                          x2="240"
+                          y2="46"
                           stroke="currentColor"
                           stroke-opacity="0.2"
                           stroke-dasharray="3 3"
                         />
-                        <!-- Seat grid rows -->
                         <g class="gs-cabin-seats">
-                          <rect x="34" y="21" width="14" height="12" rx="2.5" opacity="0.28" />
-                          <rect x="56" y="21" width="14" height="12" rx="2.5" opacity="0.28" />
-                          <rect x="78" y="21" width="14" height="12" rx="2.5" opacity="0.28" />
+                          <rect x="36" y="22" width="15" height="13" rx="2.5" opacity="0.25" />
+                          <rect x="60" y="22" width="15" height="13" rx="2.5" opacity="0.25" />
+                          <rect x="84" y="22" width="15" height="13" rx="2.5" opacity="0.25" />
                           <rect
                             class="gs-cabin-pick is-picked"
-                            data-deck-seat="Deck 14C"
-                            x="104"
-                            y="20"
-                            width="16"
-                            height="14"
+                            data-deck-seat="Seat 14C"
+                            x="112"
+                            y="21"
+                            width="17"
+                            height="15"
                             rx="3"
                           />
                           <rect
                             class="gs-cabin-pick"
-                            data-deck-seat="Deck 15C"
-                            x="128"
-                            y="20"
-                            width="16"
-                            height="14"
+                            data-deck-seat="Seat 15C"
+                            x="138"
+                            y="21"
+                            width="17"
+                            height="15"
                             rx="3"
                           />
-                          <rect x="154" y="21" width="14" height="12" rx="2.5" opacity="0.28" />
-                          <rect x="176" y="21" width="14" height="12" rx="2.5" opacity="0.28" />
+                          <rect x="166" y="22" width="15" height="13" rx="2.5" opacity="0.25" />
+                          <rect x="190" y="22" width="15" height="13" rx="2.5" opacity="0.25" />
 
-                          <rect x="34" y="51" width="14" height="12" rx="2.5" opacity="0.28" />
-                          <rect x="56" y="51" width="14" height="12" rx="2.5" opacity="0.28" />
+                          <rect x="36" y="57" width="15" height="13" rx="2.5" opacity="0.25" />
+                          <rect x="60" y="57" width="15" height="13" rx="2.5" opacity="0.25" />
                           <rect
                             class="gs-cabin-pick"
-                            data-deck-seat="Deck 12D"
-                            x="78"
-                            y="50"
-                            width="16"
-                            height="14"
+                            data-deck-seat="Seat 12D"
+                            x="84"
+                            y="56"
+                            width="17"
+                            height="15"
                             rx="3"
                           />
-                          <rect x="104" y="51" width="14" height="12" rx="2.5" opacity="0.28" />
-                          <rect x="128" y="51" width="14" height="12" rx="2.5" opacity="0.28" />
+                          <rect x="112" y="57" width="15" height="13" rx="2.5" opacity="0.25" />
+                          <rect x="138" y="57" width="15" height="13" rx="2.5" opacity="0.25" />
                           <rect
                             class="gs-cabin-pick"
-                            data-deck-seat="Deck 16D"
-                            x="154"
-                            y="50"
-                            width="16"
-                            height="14"
+                            data-deck-seat="Seat 16D"
+                            x="166"
+                            y="56"
+                            width="17"
+                            height="15"
                             rx="3"
                           />
-                          <rect x="176" y="51" width="14" height="12" rx="2.5" opacity="0.28" />
+                          <rect x="190" y="57" width="15" height="13" rx="2.5" opacity="0.25" />
                         </g>
                       </svg>
-                      <div class="gs-iframe-box__foot">
-                        Custom 2D/3D canvas · Separate CSS · Mobile WebView
-                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
+
+          <!-- RIGHT: CONSOLIDATED HIGH-LEVEL SUMMARY (1 headline + 3 crisp points, zero eyebrows) -->
+          <div class="gs-details">
+            <!-- Slide 1: Strict control -->
+            <div class="gs-detail" data-detail="static" aria-hidden="true">
+              <h3 class="gs-detail__title">Hardcoded screens filled with agent data.</h3>
+              <ul class="gs-points">
+                <li class="gs-point">
+                  <span class="gs-point__icon gs-point__icon--pos" aria-hidden="true">+</span>
+                  <div>
+                    <strong>100% host-controlled</strong>
+                    <span>Inherits your app's exact styling, components, and security model.</span>
+                  </div>
+                </li>
+                <li class="gs-point">
+                  <span class="gs-point__icon gs-point__icon--lim" aria-hidden="true">–</span>
+                  <div>
+                    <strong>Locked to pre-built views</strong>
+                    <span>Agents can fill data slots, but cannot combine widgets for new requests.</span>
+                  </div>
+                </li>
+                <li class="gs-point">
+                  <span class="gs-point__icon gs-point__icon--lim" aria-hidden="true">–</span>
+                  <div>
+                    <strong>New flows require app releases</strong>
+                    <span>Anything you didn't anticipate upfront falls back to plain chat text.</span>
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Slide 2: Flexible composition (A2UI) -->
+            <div class="gs-detail is-active" data-detail="a2ui" aria-hidden="false">
+              <h3 class="gs-detail__title">Tailored layouts assembled from your native catalog.</h3>
+              <ul class="gs-points">
+                <li class="gs-point">
+                  <span class="gs-point__icon gs-point__icon--blue" aria-hidden="true">+</span>
+                  <div>
+                    <strong>Adapts to every prompt</strong>
+                    <span>Agents compose multi-step flows on the fly from widgets you approve.</span>
+                  </div>
+                </li>
+                <li class="gs-point">
+                  <span class="gs-point__icon gs-point__icon--blue" aria-hidden="true">+</span>
+                  <div>
+                    <strong>Native &amp; safe by default</strong>
+                    <span>Streams declarative JSON data with two-way bindings — never executable code.</span>
+                  </div>
+                </li>
+                <li class="gs-point">
+                  <span class="gs-point__icon gs-point__icon--blue" aria-hidden="true">+</span>
+                  <div>
+                    <strong>One stream, every screen</strong>
+                    <span>Renders natively across React, Lit, Angular, Flutter, SwiftUI, and Compose.</span>
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Slide 3: Render anything -->
+            <div class="gs-detail" data-detail="sandbox" aria-hidden="true">
+              <h3 class="gs-detail__title">Self-contained web bundles inside an isolated sandbox.</h3>
+              <ul class="gs-points">
+                <li class="gs-point">
+                  <span class="gs-point__icon gs-point__icon--amber" aria-hidden="true">+</span>
+                  <div>
+                    <strong>Unrestricted custom visuals</strong>
+                    <span>Built for bespoke 2D/3D canvases, interactive maps, and full mini-apps.</span>
+                  </div>
+                </li>
+                <li class="gs-point">
+                  <span class="gs-point__icon gs-point__icon--lim" aria-hidden="true">–</span>
+                  <div>
+                    <strong>Isolated from your design system</strong>
+                    <span>Runs inside an iframe boundary with separate styling, state, and a11y.</span>
+                  </div>
+                </li>
+                <li class="gs-point">
+                  <span class="gs-point__icon gs-point__icon--lim" aria-hidden="true">–</span>
+                  <div>
+                    <strong>Tied to web &amp; WebViews</strong>
+                    <span>Ships heavier HTML/JS payloads rather than native mobile or desktop widgets.</span>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
         </div>
-
-        <!-- RIGHT: LIVE VISUAL SPECTRUM PROFILE (Replaces static prose & bottom table) -->
-        <aside class="gs-profile" aria-label="Pattern trade-off profile">
-          <div class="gs-profile__summaries">
-            <div class="gs-summary" data-summary="static">
-              <span class="gs-summary__tag gs-summary__tag--cyan">01 · FIXED TEMPLATE</span>
-              <p class="gs-summary__headline">
-                Safe and native, but locked to the exact screens you hardcoded ahead of time.
-              </p>
-            </div>
-
-            <div class="gs-summary is-active" data-summary="a2ui">
-              <span class="gs-summary__tag gs-summary__tag--blue">02 · A2UI SWEET SPOT</span>
-              <p class="gs-summary__headline">
-                Agents compose tailored layouts at runtime using only native widgets from your catalog.
-              </p>
-            </div>
-
-            <div class="gs-summary" data-summary="sandbox">
-              <span class="gs-summary__tag gs-summary__tag--amber">03 · ISOLATED BUNDLE</span>
-              <p class="gs-summary__headline">
-                Unrestricted custom canvases inside an isolated frame with its own styling and bundle.
-              </p>
-            </div>
-          </div>
-
-          <!-- 5 animated visual signal bars -->
-          <div class="gs-meters">
-            <div class="gs-meter" data-meter="layout">
-              <div class="gs-meter__row">
-                <span class="gs-meter__lbl">Layout freedom</span>
-                <span class="gs-meter__val" data-meter-val>Composed per intent</span>
-              </div>
-              <div class="gs-meter__track">
-                <div class="gs-meter__fill" data-meter-fill style="width: 88%"></div>
-              </div>
-            </div>
-
-            <div class="gs-meter" data-meter="brand">
-              <div class="gs-meter__row">
-                <span class="gs-meter__lbl">Host brand &amp; a11y</span>
-                <span class="gs-meter__val" data-meter-val>100% native catalog</span>
-              </div>
-              <div class="gs-meter__track">
-                <div class="gs-meter__fill" data-meter-fill style="width: 100%"></div>
-              </div>
-            </div>
-
-            <div class="gs-meter" data-meter="security">
-              <div class="gs-meter__row">
-                <span class="gs-meter__lbl">Security boundary</span>
-                <span class="gs-meter__val" data-meter-val>Data only · zero JS</span>
-              </div>
-              <div class="gs-meter__track">
-                <div class="gs-meter__fill" data-meter-fill style="width: 96%"></div>
-              </div>
-            </div>
-
-            <div class="gs-meter" data-meter="reach">
-              <div class="gs-meter__row">
-                <span class="gs-meter__lbl">Cross-platform native</span>
-                <span class="gs-meter__val" data-meter-val>Web, mobile &amp; desktop</span>
-              </div>
-              <div class="gs-meter__track">
-                <div class="gs-meter__fill" data-meter-fill style="width: 100%"></div>
-              </div>
-            </div>
-
-            <div class="gs-meter" data-meter="speed">
-              <div class="gs-meter__row">
-                <span class="gs-meter__lbl">Streaming speed</span>
-                <span class="gs-meter__val" data-meter-val>Progressive JSONL</span>
-              </div>
-              <div class="gs-meter__track">
-                <div class="gs-meter__fill" data-meter-fill style="width: 96%"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Best-fit workloads -->
-          <div class="gs-fits">
-            <span class="gs-fits__lbl">BEST FIT</span>
-            <div class="gs-fits__stack">
-              <div class="gs-fit-tags" data-fit="static">
-                <span>Weather &amp; stock cards</span>
-                <span>Single confirmations</span>
-                <span>Status widgets</span>
-              </div>
-              <div class="gs-fit-tags is-active" data-fit="a2ui">
-                <span>Multi-step workflows</span>
-                <span>Adaptive forms</span>
-                <span>Native mobile &amp; web</span>
-              </div>
-              <div class="gs-fit-tags" data-fit="sandbox">
-                <span>Interactive maps</span>
-                <span>2D/3D canvases</span>
-                <span>Third-party mini-apps</span>
-              </div>
-            </div>
-          </div>
-        </aside>
       </div>
     </div>
   </div>
@@ -550,8 +420,7 @@
 
     const stops = Array.from(root.querySelectorAll('[data-stop]'));
     const scenes = Array.from(root.querySelectorAll('[data-scene]'));
-    const summaries = Array.from(root.querySelectorAll('[data-summary]'));
-    const fits = Array.from(root.querySelectorAll('[data-fit]'));
+    const details = Array.from(root.querySelectorAll('[data-detail]'));
     const panel = document.getElementById('gs-stage-panel');
     const rail = document.getElementById('gs-rail');
     const puck = document.getElementById('gs-puck');
@@ -559,32 +428,8 @@
     const ORDER = ['static', 'a2ui', 'sandbox'];
     const POS = { static: 16.6667, a2ui: 50, sandbox: 83.3333 };
 
-    const PROFILES = {
-      static: {
-        layout: [20, 'Fixed per tool'],
-        brand: [100, '100% host widgets'],
-        security: [100, 'Typed props only'],
-        reach: [38, 'Built per platform'],
-        speed: [68, 'After tool resolves'],
-      },
-      a2ui: {
-        layout: [88, 'Composed per intent'],
-        brand: [100, '100% native catalog'],
-        security: [96, 'Data only · zero JS'],
-        reach: [100, 'Web, mobile & desktop'],
-        speed: [96, 'Progressive JSONL'],
-      },
-      sandbox: {
-        layout: [100, 'Any DOM or WebGL'],
-        brand: [28, 'Re-styled per iframe'],
-        security: [52, 'Sandboxed JS exec'],
-        reach: [40, 'Web or WebView'],
-        speed: [34, 'After bundle loads'],
-      },
-    };
-
     const setMode = (mode, focusTab = false) => {
-      if (!PROFILES[mode]) return;
+      if (!POS[mode]) return;
       root.setAttribute('data-active', mode);
       if (puck) {
         puck.style.left = `${POS[mode]}%`;
@@ -607,22 +452,10 @@
         el.setAttribute('aria-hidden', active ? 'false' : 'true');
       });
 
-      summaries.forEach((el) => {
-        el.classList.toggle('is-active', el.getAttribute('data-summary') === mode);
-      });
-
-      fits.forEach((el) => {
-        el.classList.toggle('is-active', el.getAttribute('data-fit') === mode);
-      });
-
-      const data = PROFILES[mode];
-      Object.keys(data).forEach((key) => {
-        const row = root.querySelector(`[data-meter="${key}"]`);
-        if (!row) return;
-        const fill = row.querySelector('[data-meter-fill]');
-        const val = row.querySelector('[data-meter-val]');
-        if (fill) fill.style.width = `${data[key][0]}%`;
-        if (val) val.textContent = data[key][1];
+      details.forEach((el) => {
+        const active = el.getAttribute('data-detail') === mode;
+        el.classList.toggle('is-active', active);
+        el.setAttribute('aria-hidden', active ? 'false' : 'true');
       });
     };
 
@@ -693,7 +526,7 @@
       });
     }
 
-    /* Scene 01 micro-interaction: clicking locked slot highlights template rigidity */
+    /* Slide 1 micro-interaction */
     const lockedBtn = document.getElementById('gs-static-locked');
     const lockedMsg = document.getElementById('gs-static-locked-msg');
     if (lockedBtn && lockedMsg) {
@@ -701,14 +534,12 @@
         lockedBtn.classList.remove('is-shake');
         void lockedBtn.offsetWidth;
         lockedBtn.classList.add('is-shake');
-        lockedMsg.textContent = 'Blocked · ship new app code to add this control';
+        lockedMsg.textContent = 'Blocked — shipping a seat picker requires updating host app code.';
       });
     }
 
-    /* Scene 02 micro-interaction: live 2-way seat binding + confirm CTA */
+    /* Slide 2 micro-interaction */
     const seatBtns = Array.from(root.querySelectorAll('[data-seat]'));
-    const seatVal = document.getElementById('gs-a2ui-seat-val');
-    const bindingLine = document.getElementById('gs-a2ui-binding');
     const a2uiCta = document.getElementById('gs-a2ui-cta');
     const a2uiCtaLbl = document.getElementById('gs-a2ui-cta-lbl');
     let currentSeat = '14C';
@@ -717,15 +548,9 @@
       btn.addEventListener('click', () => {
         currentSeat = btn.getAttribute('data-seat') || '14C';
         seatBtns.forEach((b) => b.classList.toggle('is-on', b === btn));
-        if (seatVal) seatVal.textContent = `"${currentSeat}"`;
-        if (bindingLine) {
-          bindingLine.classList.remove('is-flash');
-          void bindingLine.offsetWidth;
-          bindingLine.classList.add('is-flash');
-        }
         if (a2uiCta && a2uiCtaLbl) {
           a2uiCta.classList.remove('is-done');
-          a2uiCtaLbl.textContent = `Confirm seat ${currentSeat}`;
+          a2uiCtaLbl.textContent = `Confirm rebooking · Seat ${currentSeat}`;
         }
       });
     });
@@ -734,46 +559,43 @@
       a2uiCta.addEventListener('click', () => {
         const done = a2uiCta.classList.toggle('is-done');
         a2uiCtaLbl.textContent = done
-          ? `✓ Rebooked · Seat ${currentSeat} saved`
-          : `Confirm seat ${currentSeat}`;
+          ? `✓ Rebooked on UA 418 · Seat ${currentSeat}`
+          : `Confirm rebooking · Seat ${currentSeat}`;
       });
     }
 
-    /* Scene 03 micro-interaction: custom SVG cabin canvas seat click */
+    /* Slide 3 micro-interaction */
     const cabinPicks = Array.from(root.querySelectorAll('.gs-cabin-pick'));
     const cabinReadout = document.getElementById('gs-sandbox-seat-readout');
     cabinPicks.forEach((rect) => {
       rect.addEventListener('click', () => {
         cabinPicks.forEach((r) => r.classList.toggle('is-picked', r === rect));
         if (cabinReadout) {
-          cabinReadout.textContent = rect.getAttribute('data-deck-seat') || 'Deck 14C';
+          cabinReadout.textContent = rect.getAttribute('data-deck-seat') || 'Seat 14C';
         }
       });
     });
   })();
 </script>
 
-<style>
-  .gs-section {
+<style is:inline>
+  #spectrum {
     position: relative;
     padding: 112px 0 124px;
     background: var(--a2-bg);
     border-top: 1px solid var(--a2-border-strong);
     scroll-margin-top: 72px;
-  }
 
-  @media (max-width: 720px) {
-    .gs-section {
+    @media (max-width: 720px) {
       padding: 80px 0 88px;
     }
-  }
 
-  .gs-wrap {
-    width: 100%;
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 36px;
-  }
+    .gs-wrap {
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 36px;
+    }
 
   @media (max-width: 640px) {
     .gs-wrap {
@@ -781,25 +603,16 @@
     }
   }
 
-  /* Editorial header */
+  /* Clean stacked section header (flush optical left alignment, zero eyebrow) */
   .gs-header {
-    display: grid;
-    grid-template-columns: 1.1fr 0.9fr;
-    gap: 48px;
-    align-items: end;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
     margin-bottom: 40px;
   }
 
-  @media (max-width: 860px) {
-    .gs-header {
-      grid-template-columns: 1fr;
-      gap: 14px;
-      margin-bottom: 28px;
-    }
-  }
-
   .gs-h2 {
-    margin: 0;
+    margin: 0 0 0 -0.05em;
     font-family: var(--a2-font-display);
     font-size: clamp(2rem, 3.5vw, 2.9rem);
     font-weight: 700;
@@ -814,106 +627,244 @@
 
   .gs-sub {
     margin: 0;
-    font-size: 15.5px;
-    line-height: 1.58;
+    max-width: 58ch;
+    font-size: 16px;
+    line-height: 1.55;
     color: var(--a2-text-secondary);
   }
 
   /* =========================================================================
-     UNIFIED SPECTRUM INSTRUMENT
+     ROOT FLOW: SHARED PROMPT -> SPECTRUM SLIDER -> OUTCOME
      ========================================================================= */
-  .gs-instrument {
+  .gs-flow {
     --gs-mode-color: var(--a2-accent);
     --gs-mode-strong: var(--a2-accent-strong);
     --gs-mode-soft: var(--a2-accent-soft);
     --gs-mode-border: var(--a2-accent-border);
 
-    border: 1px solid var(--a2-border-strong);
-    border-radius: 10px;
-    background: var(--a2-surface);
-    box-shadow: var(--a2-shadow-md);
-    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  .gs-instrument[data-active='static'] {
+  .gs-flow[data-active='static'] {
     --gs-mode-color: var(--a2-cyan);
     --gs-mode-strong: var(--a2-cyan-strong);
     --gs-mode-soft: var(--a2-cyan-soft);
     --gs-mode-border: var(--a2-cyan-border);
   }
 
-  .gs-instrument[data-active='sandbox'] {
+  .gs-flow[data-active='sandbox'] {
     --gs-mode-color: var(--a2-amber);
     --gs-mode-strong: var(--a2-amber-strong);
     --gs-mode-soft: var(--a2-amber-soft);
     --gs-mode-border: var(--a2-amber-border);
   }
 
-  /* --- Top Continuum Track & Stations --- */
-  .gs-continuum {
+  /* --- Shared Prompt Stage (Clearly outside & feeding the spectrum) --- */
+  .gs-prompt-stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .gs-prompt-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    max-width: 680px;
+    padding: 13px 20px;
+    border-radius: 999px;
+    background: var(--a2-surface);
+    border: 1.5px solid var(--gs-mode-border);
+    box-shadow: var(--a2-shadow-sm);
+    transition: border-color 0.24s ease;
+  }
+
+  @media (max-width: 640px) {
+    .gs-prompt-card {
+      border-radius: 14px;
+      padding: 12px 15px;
+    }
+  }
+
+  .gs-prompt-card__avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--gs-mode-soft);
+    color: var(--gs-mode-strong);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background-color 0.24s ease, color 0.24s ease;
+  }
+
+  .gs-prompt-card__quote {
+    margin: 0;
+    font-family: var(--a2-font-display);
+    font-size: 15px;
+    font-weight: 620;
+    line-height: 1.4;
+    color: var(--a2-text);
+  }
+
+  .gs-prompt-stem {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .gs-prompt-stem__line {
+    width: 2px;
+    height: 12px;
+    background: var(--gs-mode-border);
+    transition: background-color 0.24s ease;
+  }
+
+  .gs-prompt-stem__line--arrow {
+    position: relative;
+    height: 22px;
+  }
+
+  .gs-prompt-stem__line--arrow::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: -1px;
+    width: 7px;
+    height: 7px;
+    border-right: 2px solid var(--gs-mode-color);
+    border-bottom: 2px solid var(--gs-mode-color);
+    transform: translateX(-50%) rotate(45deg);
+    transition: border-color 0.24s ease;
+  }
+
+  .gs-prompt-stem__pill {
+    font-family: var(--a2-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--a2-text-muted);
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: var(--a2-surface-subtle);
+    border: 1px solid var(--a2-border);
+  }
+
+  /* =========================================================================
+     SPECTRUM CARD (SLIDER + UNIFIED STAGE)
+     ========================================================================= */
+  .gs-card {
+    border: 1px solid var(--a2-border-strong);
+    border-radius: 12px;
+    background: var(--a2-surface);
+    box-shadow: var(--a2-shadow-md);
+    overflow: hidden;
+  }
+
+  .gs-slider-band {
     background: var(--a2-surface-subtle);
     border-bottom: 1px solid var(--a2-border-strong);
+    padding: 6px 0 18px;
   }
 
-  .gs-poles {
+  .gs-stops {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .gs-stop {
+    appearance: none;
+    border: none;
+    background: transparent;
+    padding: 14px 18px 10px;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: space-between;
-    padding: 14px 24px 8px;
-    font-family: var(--a2-font-mono);
-    font-size: 10.5px;
-    font-weight: 600;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    color: var(--a2-text-muted);
+    text-align: center;
+    gap: 3px;
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--a2-text-secondary);
+    transition: color 0.18s ease, opacity 0.18s ease;
   }
 
-  .gs-pole {
+  .gs-stop:hover {
+    color: var(--a2-text);
+  }
+
+  .gs-stop:focus-visible {
+    outline: 2px solid var(--a2-accent);
+    outline-offset: -2px;
+    border-radius: 6px;
+  }
+
+  .gs-stop__title-row {
     display: inline-flex;
     align-items: center;
     gap: 7px;
+    flex-wrap: wrap;
+    justify-content: center;
   }
 
-  .gs-pole--center {
+  .gs-stop__title {
+    font-family: var(--a2-font-display);
+    font-size: 16.5px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+    color: var(--a2-text-secondary);
+    transition: color 0.18s ease;
+  }
+
+  .gs-stop.is-active .gs-stop__title {
+    color: var(--a2-text);
+  }
+
+  .gs-stop__badge {
+    font-family: var(--a2-font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 1.5px 6px;
+    border-radius: 4px;
+    background: var(--a2-accent-soft);
+    border: 1px solid var(--a2-accent-border);
     color: var(--a2-accent-strong);
   }
 
-  @media (max-width: 720px) {
-    .gs-poles {
-      padding: 12px 16px 6px;
-      font-size: 9.5px;
+  .gs-stop__sub {
+    font-size: 12.5px;
+    color: var(--a2-text-muted);
+  }
+
+  @media (max-width: 680px) {
+    .gs-stop {
+      padding: 12px 8px 8px;
     }
-    .gs-pole--center {
+
+    .gs-stop__title {
+      font-size: 13.5px;
+    }
+
+    .gs-stop__badge,
+    .gs-stop__sub {
       display: none;
     }
   }
 
-  .gs-pole__dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    display: inline-block;
-  }
-
-  .gs-pole__dot--cyan {
-    background: var(--a2-cyan);
-  }
-
-  .gs-pole__dot--amber {
-    background: var(--a2-amber);
-  }
-
-  /* Scrubber Rail */
+  /* Continuum Scrubber Rail */
   .gs-rail-wrap {
-    padding: 8px 24px 14px;
+    padding: 6px 28px 0;
     cursor: pointer;
     touch-action: none;
     user-select: none;
   }
 
-  @media (max-width: 720px) {
+  @media (max-width: 680px) {
     .gs-rail-wrap {
-      padding: 6px 16px 12px;
+      padding: 6px 16px 0;
     }
   }
 
@@ -935,14 +886,14 @@
       var(--a2-accent) 50%,
       var(--a2-amber) 100%
     );
-    opacity: 0.34;
+    opacity: 0.36;
   }
 
   .gs-rail__tick {
     position: absolute;
     top: 50%;
-    width: 5px;
-    height: 5px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
     background: var(--a2-text-muted);
     transform: translate(-50%, -50%);
@@ -950,8 +901,6 @@
   }
 
   .gs-rail__tick--mid {
-    width: 7px;
-    height: 7px;
     background: var(--a2-accent);
     opacity: 0.85;
   }
@@ -960,11 +909,11 @@
     position: absolute;
     top: 50%;
     left: 50%;
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
     background: var(--a2-surface);
-    border: 2px solid var(--gs-mode-color);
+    border: 2.5px solid var(--gs-mode-color);
     box-shadow: var(--a2-shadow-sm);
     transform: translate(-50%, -50%);
     display: flex;
@@ -976,7 +925,7 @@
       transform 0.16s ease;
   }
 
-  .gs-instrument.is-scrubbing .gs-rail__puck {
+  .gs-flow.is-scrubbing .gs-rail__puck {
     transition: border-color 0.16s ease;
     transform: translate(-50%, -50%) scale(1.1);
   }
@@ -993,227 +942,58 @@
     transition: background-color 0.24s ease;
   }
 
-  /* 3 Spectrum Stops */
-  .gs-stops {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    border-top: 1px solid var(--a2-border);
-  }
-
-  .gs-stop {
-    position: relative;
-    appearance: none;
-    border: none;
-    background: transparent;
-    padding: 16px 22px 18px;
-    text-align: left;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    cursor: pointer;
-    color: var(--a2-text-secondary);
-    font-family: inherit;
-    transition: background-color 0.18s ease, color 0.18s ease;
-  }
-
-  .gs-stop + .gs-stop {
-    border-left: 1px solid var(--a2-border);
-  }
-
-  .gs-stop:hover {
-    background: var(--a2-bg);
-    color: var(--a2-text);
-  }
-
-  .gs-stop.is-active {
-    background: var(--a2-surface);
-    color: var(--a2-text);
-  }
-
-  .gs-stop.is-active::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 2px;
-    background: var(--gs-mode-color);
-  }
-
-  .gs-stop:focus-visible {
-    outline: 2px solid var(--a2-accent);
-    outline-offset: -2px;
-  }
-
-  .gs-stop__top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    min-height: 20px;
-    margin-bottom: 2px;
-  }
-
-  .gs-stop__idx {
-    font-family: var(--a2-font-mono);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    color: var(--a2-text-muted);
-  }
-
-  .gs-stop.is-active .gs-stop__idx {
-    color: var(--gs-mode-strong);
-  }
-
-  .gs-stop__glyph {
-    color: var(--a2-text-muted);
-    display: inline-flex;
-  }
-
-  .gs-stop.is-active .gs-stop__glyph {
-    color: var(--gs-mode-color);
-  }
-
-  .gs-stop__pill {
-    font-family: var(--a2-font-mono);
-    font-size: 9.5px;
-    font-weight: 700;
-    letter-spacing: 0.07em;
-    padding: 1.5px 6px;
-    border-radius: 3px;
-    background: var(--a2-accent-soft);
-    border: 1px solid var(--a2-accent-border);
-    color: var(--a2-accent-strong);
-  }
-
-  .gs-stop__title {
-    font-family: var(--a2-font-display);
-    font-size: 16px;
-    font-weight: 680;
-    letter-spacing: -0.02em;
-    line-height: 1.25;
-    color: var(--a2-text);
-  }
-
-  .gs-stop__hint {
-    font-size: 12.5px;
-    line-height: 1.35;
-    color: var(--a2-text-muted);
-  }
-
-  @media (max-width: 680px) {
-    .gs-stop {
-      padding: 12px 8px 14px;
-      align-items: center;
-      text-align: center;
-    }
-
-    .gs-stop__top {
-      justify-content: center;
-      min-height: 0;
-    }
-
-    .gs-stop__idx {
-      font-size: 9px;
-      letter-spacing: 0.04em;
-      white-space: nowrap;
-    }
-
-    .gs-stop__glyph,
-    .gs-stop__pill {
-      display: none;
-    }
-
-    .gs-stop__title {
-      font-size: 13px;
-    }
-
-    .gs-stop__hint {
-      display: none;
-    }
-  }
-
   /* =========================================================================
-     STAGE BODY: LEFT PIPELINE + RIGHT VISUAL PROFILE
+     BODY: LEFT OUTCOME PREVIEW + RIGHT 3-POINT SUMMARY
      ========================================================================= */
   .gs-body {
     display: grid;
-    grid-template-columns: minmax(0, 1.44fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
     align-items: stretch;
   }
 
-  @media (max-width: 1040px) {
+  @media (max-width: 960px) {
     .gs-body {
       grid-template-columns: 1fr;
     }
   }
 
-  /* --- Left Visual Pipeline Canvas --- */
+  /* --- Left Visual Outcome --- */
   .gs-canvas {
-    padding: 24px 26px 28px;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
+    padding: 28px 32px 32px;
     background-color: var(--a2-bg);
     background-image: radial-gradient(var(--a2-dot-grid) 1px, transparent 1px);
     background-size: 14px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   @media (max-width: 640px) {
     .gs-canvas {
-      padding: 18px 16px 22px;
-      gap: 16px;
+      padding: 22px 16px 24px;
     }
   }
 
-  .gs-intent-bar {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 9px 13px;
-    border-radius: 6px;
-    background: var(--a2-surface);
-    border: 1px solid var(--a2-border-strong);
-    font-size: 13px;
-    color: var(--a2-text);
-  }
-
-  .gs-intent-bar__tag {
-    font-family: var(--a2-font-mono);
-    font-size: 9.5px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    padding: 2px 6px;
-    border-radius: 3px;
-    background: var(--a2-surface-subtle);
-    border: 1px solid var(--a2-border);
-    color: var(--a2-text-muted);
-    flex-shrink: 0;
-  }
-
-  .gs-intent-bar__text {
-    font-weight: 500;
-    line-height: 1.4;
-  }
-
-  /* Grid stack so switching scenes causes 0px height jump */
   .gs-scenes {
     display: grid;
-    flex: 1;
+    width: 100%;
+    max-width: 460px;
     align-items: center;
   }
 
   .gs-scene {
     grid-area: 1 / 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
     transform: translateY(6px);
     transition:
-      opacity 0.24s ease,
+      opacity 0.22s ease,
       transform 0.26s cubic-bezier(0.22, 1, 0.36, 1),
-      visibility 0.24s;
+      visibility 0.22s;
   }
 
   .gs-scene.is-active {
@@ -1223,264 +1003,66 @@
     transform: translateY(0);
   }
 
-  .gs-pipeline {
-    display: grid;
-    grid-template-columns: minmax(164px, 0.85fr) 130px minmax(232px, 1.18fr);
+  /* Compact wire pill showing what the agent sends */
+  .gs-wire-pill {
+    display: inline-flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 0;
-  }
-
-  @media (max-width: 720px) {
-    .gs-pipeline {
-      grid-template-columns: 1fr;
-      gap: 0;
-    }
-  }
-
-  /* Agent Node Card */
-  .gs-node {
-    border-radius: 8px;
-    border: 1px solid var(--a2-border-strong);
+    justify-content: center;
+    gap: 8px;
+    padding: 6px 13px;
+    border-radius: 999px;
     background: var(--a2-surface);
+    border: 1px solid var(--a2-border-strong);
+    font-size: 12px;
     box-shadow: var(--a2-shadow-sm);
-    overflow: hidden;
   }
 
-  .gs-node--a2ui {
+  .gs-wire-pill--cyan {
+    border-color: var(--a2-cyan-border);
+  }
+
+  .gs-wire-pill--blue {
     border-color: var(--a2-accent-border);
   }
 
-  .gs-node--amber {
+  .gs-wire-pill--amber {
     border-color: var(--a2-amber-border);
   }
 
-  .gs-node__hdr {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 6px;
-    padding: 8px 11px;
-    background: var(--a2-code-header);
-    border-bottom: 1px solid var(--a2-border);
-    font-family: var(--a2-font-mono);
-    font-size: 9.5px;
-  }
-
-  .gs-node__role {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-weight: 700;
-    letter-spacing: 0.07em;
+  .gs-wire-pill__verb {
+    font-weight: 650;
     color: var(--a2-text-secondary);
   }
 
-  .gs-node__role--blue {
-    color: var(--a2-accent-strong);
-  }
-
-  .gs-node__role--amber {
-    color: var(--a2-amber-strong);
-  }
-
-  .gs-live-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--a2-accent);
-    animation: gs-pulse 2s ease-in-out infinite;
-  }
-
-  .gs-node__kind {
-    color: var(--a2-text-muted);
-  }
-
-  .gs-code {
-    padding: 11px 12px;
-    background: var(--a2-code-bg);
+  .gs-wire-pill code {
     font-family: var(--a2-font-mono);
-    font-size: 11px;
-    line-height: 1.58;
-    color: var(--a2-syn-base);
+    font-size: 11.5px;
+    color: var(--a2-text);
   }
 
-  .gs-code__ln {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    border-radius: 3px;
-  }
-
-  .gs-code__ln.is-bound {
-    padding: 0 4px;
-    margin: 0 -4px;
-    background: var(--a2-accent-soft);
-  }
-
-  .gs-code__ln.is-flash {
-    animation: gs-bind-flash 0.55s ease;
-  }
-
-  .gs-code .k {
-    color: var(--a2-syn-comp);
-    font-weight: 600;
-  }
-
-  .gs-code .s {
-    color: var(--a2-syn-str);
-  }
-
-  .gs-code .m {
-    color: var(--a2-syn-comment);
-  }
-
-  .gs-code .a {
-    color: var(--a2-amber-strong);
-  }
-
-  .gs-node__foot {
-    display: block;
-    padding: 7px 11px;
-    border-top: 1px solid var(--a2-border);
-    font-family: var(--a2-font-mono);
-    font-size: 10px;
-    color: var(--a2-text-muted);
-  }
-
-  /* Boundary Connector + Gate */
-  .gs-bridge-col {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 0 6px;
-    min-height: 86px;
-  }
-
-  .gs-wire {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 50%;
-    height: 2px;
-    transform: translateY(-50%);
+  .gs-wire-drop {
+    width: 2px;
+    height: 16px;
     background: var(--a2-border-strong);
-    overflow: hidden;
   }
 
-  .gs-wire--cyan {
-    background: var(--a2-cyan-border);
-  }
-
-  .gs-wire--blue {
-    background: var(--a2-accent-border);
-  }
-
-  .gs-wire--amber {
-    background: var(--a2-amber-border);
-  }
-
-  .gs-pkt {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 28px;
-    border-radius: 999px;
-    animation: gs-flow-x 1.9s linear infinite;
-  }
-
-  .gs-wire--cyan .gs-pkt {
+  .gs-wire-drop--cyan {
     background: var(--a2-cyan);
   }
 
-  .gs-wire--blue .gs-pkt {
+  .gs-wire-drop--blue {
     background: var(--a2-accent);
   }
 
-  .gs-wire--amber .gs-pkt {
+  .gs-wire-drop--amber {
     background: var(--a2-amber);
   }
 
-  @media (max-width: 720px) {
-    .gs-bridge-col {
-      min-height: 56px;
-      padding: 8px 0;
-    }
-
-    .gs-wire {
-      left: 50%;
-      right: auto;
-      top: 0;
-      bottom: 0;
-      width: 2px;
-      height: auto;
-      transform: translateX(-50%);
-    }
-
-    .gs-pkt {
-      left: 0;
-      right: 0;
-      width: auto;
-      height: 18px;
-      animation: gs-flow-y 1.6s linear infinite;
-    }
-  }
-
-  .gs-gate-badge {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1px;
-    padding: 5px 8px;
-    border-radius: 5px;
-    background: var(--a2-surface);
-    border: 1px solid var(--a2-border-strong);
-    box-shadow: var(--a2-shadow-sm);
-    text-align: center;
-    font-family: var(--a2-font-mono);
-  }
-
-  .gs-gate-badge strong {
-    font-size: 8.5px;
-    font-weight: 700;
-    letter-spacing: 0.07em;
-    white-space: nowrap;
-  }
-
-  .gs-gate-badge span {
-    font-size: 8.5px;
-    color: var(--a2-text-muted);
-    white-space: nowrap;
-  }
-
-  .gs-gate-badge--cyan {
-    border-color: var(--a2-cyan-border);
-  }
-  .gs-gate-badge--cyan strong {
-    color: var(--a2-cyan-strong);
-  }
-
-  .gs-gate-badge--blue {
-    border-color: var(--a2-accent);
-  }
-  .gs-gate-badge--blue strong {
-    color: var(--a2-accent-strong);
-  }
-
-  .gs-gate-badge--amber {
-    border-style: dashed;
-    border-color: var(--a2-amber);
-  }
-  .gs-gate-badge--amber strong {
-    color: var(--a2-amber-strong);
-  }
-
-  /* Client App Surface Frame */
+  /* App Screen Frame */
   .gs-app {
-    border-radius: 9px;
+    width: 100%;
+    border-radius: 10px;
     border: 1px solid var(--a2-border-strong);
     background: var(--a2-surface);
     box-shadow: var(--a2-shadow-sm);
@@ -1496,7 +1078,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 12px;
+    padding: 9px 14px;
     background: var(--a2-surface-subtle);
     border-bottom: 1px solid var(--a2-border);
   }
@@ -1515,137 +1097,131 @@
 
   .gs-app__name {
     font-family: var(--a2-font-mono);
-    font-size: 10px;
+    font-size: 10.5px;
     font-weight: 600;
     color: var(--a2-text-muted);
   }
 
   .gs-app__body {
-    padding: 12px;
+    padding: 14px;
     display: flex;
     flex-direction: column;
-    gap: 9px;
+    gap: 10px;
   }
 
-  .gs-card-flight {
-    padding: 10px 11px;
-    border-radius: 6px;
+  .gs-flight {
+    padding: 11px 13px;
+    border-radius: 7px;
     background: var(--a2-surface-subtle);
     border: 1px solid var(--a2-border);
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 4px;
   }
 
-  .gs-card-flight--a2ui {
+  .gs-flight--a2ui {
     background: var(--a2-accent-soft);
     border-color: var(--a2-accent-border);
   }
 
-  .gs-card-flight__row {
+  .gs-flight__top {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 6px;
+    gap: 8px;
   }
 
-  .gs-chip {
+  .gs-badge {
     font-family: var(--a2-font-mono);
-    font-size: 9px;
+    font-size: 9.5px;
     font-weight: 700;
-    letter-spacing: 0.07em;
-    padding: 1.5px 5px;
+    letter-spacing: 0.06em;
+    padding: 1.5px 6px;
     border-radius: 3px;
   }
 
-  .gs-chip--cyan {
+  .gs-badge--cyan {
     background: var(--a2-cyan-soft);
     color: var(--a2-cyan-strong);
   }
 
-  .gs-chip--blue {
+  .gs-badge--blue {
     background: var(--a2-surface);
     color: var(--a2-accent-strong);
   }
 
-  .gs-card-flight__meta {
+  .gs-flight__meta {
     font-family: var(--a2-font-mono);
-    font-size: 10px;
+    font-size: 10.5px;
     color: var(--a2-text-muted);
   }
 
-  .gs-card-flight__route {
+  .gs-flight__route {
     font-family: var(--a2-font-display);
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 700;
     color: var(--a2-text);
   }
 
-  .gs-card-flight__sub {
-    font-size: 11.5px;
-    color: var(--a2-text-secondary);
-  }
-
-  /* Scene 01 locked slot */
-  .gs-locked-slot {
+  /* Slide 1 missing control */
+  .gs-missing {
     appearance: none;
     width: 100%;
-    padding: 10px 11px;
-    border-radius: 6px;
+    padding: 12px 13px;
+    border-radius: 7px;
     border: 1px dashed var(--a2-border-strong);
     background: transparent;
     text-align: left;
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 4px;
     cursor: pointer;
     font-family: inherit;
-    color: var(--a2-text-secondary);
     transition: border-color 0.16s ease, background-color 0.16s ease;
   }
 
-  .gs-locked-slot:hover {
+  .gs-missing:hover {
     border-color: var(--a2-cyan);
     background: var(--a2-surface-subtle);
   }
 
-  .gs-locked-slot.is-shake {
+  .gs-missing.is-shake {
     animation: gs-shake 0.34s ease;
     border-color: var(--a2-danger);
   }
 
-  .gs-locked-slot__hdr {
+  .gs-missing__hdr {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 650;
     color: var(--a2-text);
   }
 
-  .gs-locked-slot__sub {
-    font-family: var(--a2-font-mono);
-    font-size: 10px;
+  .gs-missing__sub {
+    font-size: 12px;
+    line-height: 1.4;
     color: var(--a2-text-muted);
   }
 
-  /* Scene 02 interactive native chips + CTA */
-  .gs-seat-group {
+  /* Slide 2 interactive native widgets */
+  .gs-seats {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 7px;
+    gap: 8px;
   }
 
   .gs-seat {
     appearance: none;
-    padding: 7px 9px;
-    border-radius: 6px;
+    padding: 8px 11px;
+    border-radius: 7px;
     border: 1px solid var(--a2-border-strong);
     background: var(--a2-surface);
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    gap: 4px;
+    gap: 6px;
     cursor: pointer;
     font-family: inherit;
     color: var(--a2-text);
@@ -1654,12 +1230,12 @@
 
   .gs-seat strong {
     font-family: var(--a2-font-mono);
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 700;
   }
 
   .gs-seat span {
-    font-size: 10.5px;
+    font-size: 11.5px;
     color: var(--a2-text-muted);
   }
 
@@ -1672,16 +1248,16 @@
     color: var(--a2-accent-strong);
   }
 
-  .gs-confirm-btn {
+  .gs-cta {
     appearance: none;
     width: 100%;
-    padding: 8px 12px;
-    border-radius: 6px;
+    padding: 10px 14px;
+    border-radius: 7px;
     border: 1px solid transparent;
     background: var(--a2-cta-bg);
     color: var(--a2-cta-fg);
     font-family: var(--a2-font-display);
-    font-size: 12.5px;
+    font-size: 13px;
     font-weight: 650;
     display: flex;
     align-items: center;
@@ -1690,53 +1266,33 @@
     transition: background-color 0.15s ease, border-color 0.15s ease;
   }
 
-  .gs-confirm-btn:hover {
+  .gs-cta:hover {
     background: var(--a2-cta-hover);
   }
 
-  .gs-confirm-btn.is-done {
+  .gs-cta.is-done {
     background: var(--a2-success-soft);
     color: var(--a2-success);
-    border: 1px solid var(--a2-success-border);
+    border-color: var(--a2-success-border);
   }
 
-  .gs-platforms {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px;
-    padding-top: 2px;
-    font-family: var(--a2-font-mono);
-    font-size: 9px;
-    color: var(--a2-text-muted);
-  }
-
-  .gs-platforms b {
-    font-weight: 600;
-    padding: 1px 4.5px;
-    border-radius: 3px;
-    background: var(--a2-surface-subtle);
-    border: 1px solid var(--a2-border);
-    color: var(--a2-text-secondary);
-  }
-
-  /* Scene 03 iframe sandbox box */
-  .gs-iframe-box {
-    border-radius: 6px;
+  /* Slide 3 sandboxed iframe preview */
+  .gs-sandbox-frame {
+    border-radius: 7px;
     border: 1.5px dashed var(--a2-amber);
     background: var(--a2-code-bg);
     overflow: hidden;
   }
 
-  .gs-iframe-box__bar {
+  .gs-sandbox-frame__bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 5px 9px;
+    padding: 6px 11px;
     background: var(--a2-amber-soft);
     border-bottom: 1px solid var(--a2-amber-border);
     font-family: var(--a2-font-mono);
-    font-size: 9.5px;
+    font-size: 10px;
     font-weight: 700;
     color: var(--a2-amber-strong);
   }
@@ -1746,7 +1302,7 @@
     width: 100%;
     height: auto;
     color: var(--a2-text);
-    padding: 4px 6px;
+    padding: 10px 10px 12px;
   }
 
   .gs-cabin-seats rect {
@@ -1756,279 +1312,139 @@
   .gs-cabin-pick {
     fill: var(--a2-amber-soft) !important;
     stroke: var(--a2-amber);
-    stroke-width: 1.3;
+    stroke-width: 1.4;
     cursor: pointer;
-    transition: fill 0.15s ease, transform 0.15s ease;
+    transition: fill 0.15s ease;
   }
 
   .gs-cabin-pick.is-picked {
     fill: var(--a2-amber) !important;
   }
 
-  .gs-iframe-box__foot {
-    padding: 5px 9px;
-    border-top: 1px solid var(--a2-border);
-    font-family: var(--a2-font-mono);
-    font-size: 9.5px;
-    color: var(--a2-text-muted);
-    text-align: center;
-  }
-
   /* =========================================================================
-     RIGHT PANEL: SPECTRUM METERS & BEST FIT
+     RIGHT PANEL: 1 HEADLINE + 3 POINTS (ZERO EYEBROWS)
      ========================================================================= */
-  .gs-profile {
-    padding: 24px 26px 28px;
+  .gs-details {
+    padding: 32px 34px;
     border-left: 1px solid var(--a2-border-strong);
     background: var(--a2-surface);
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    gap: 20px;
+    display: grid;
+    align-items: center;
   }
 
-  @media (max-width: 1040px) {
-    .gs-profile {
+  @media (max-width: 960px) {
+    .gs-details {
       border-left: none;
       border-top: 1px solid var(--a2-border-strong);
+      padding: 26px 24px 28px;
     }
   }
 
   @media (max-width: 640px) {
-    .gs-profile {
-      padding: 20px 16px 22px;
+    .gs-details {
+      padding: 22px 18px 24px;
     }
   }
 
-  .gs-profile__summaries {
-    display: grid;
-  }
-
-  .gs-summary {
+  .gs-detail {
     grid-area: 1 / 1;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
-    transition: opacity 0.2s ease;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
+    transition: opacity 0.2s ease, visibility 0.2s;
   }
 
-  .gs-summary.is-active {
+  .gs-detail.is-active {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
   }
 
-  .gs-summary__tag {
-    font-family: var(--a2-font-mono);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    padding: 2.5px 7px;
-    border-radius: 3px;
-  }
-
-  .gs-summary__tag--cyan {
-    background: var(--a2-cyan-soft);
-    border: 1px solid var(--a2-cyan-border);
-    color: var(--a2-cyan-strong);
-  }
-
-  .gs-summary__tag--blue {
-    background: var(--a2-accent-soft);
-    border: 1px solid var(--a2-accent-border);
-    color: var(--a2-accent-strong);
-  }
-
-  .gs-summary__tag--amber {
-    background: var(--a2-amber-soft);
-    border: 1px solid var(--a2-amber-border);
-    color: var(--a2-amber-strong);
-  }
-
-  .gs-summary__headline {
+  .gs-detail__title {
     margin: 0;
     font-family: var(--a2-font-display);
-    font-size: 15.5px;
-    font-weight: 620;
-    line-height: 1.42;
-    letter-spacing: -0.015em;
+    font-size: clamp(1.2rem, 1.8vw, 1.42rem);
+    font-weight: 700;
+    line-height: 1.28;
+    letter-spacing: -0.02em;
     color: var(--a2-text);
   }
 
-  /* 5 Animated Signal Bars */
-  .gs-meters {
+  .gs-points {
+    list-style: none;
+    margin: 0;
+    padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 13px;
+    gap: 16px;
   }
 
-  @media (min-width: 680px) and (max-width: 1040px) {
-    .gs-meters {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 14px 24px;
-    }
-  }
-
-  .gs-meter {
+  .gs-point {
     display: flex;
-    flex-direction: column;
-    gap: 5px;
-  }
-
-  .gs-meter__row {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 10px;
-  }
-
-  .gs-meter__lbl {
-    font-size: 12.5px;
-    font-weight: 600;
-    color: var(--a2-text);
-  }
-
-  .gs-meter__val {
-    font-family: var(--a2-font-mono);
-    font-size: 10.5px;
-    color: var(--a2-text-secondary);
-    white-space: nowrap;
-  }
-
-  .gs-meter__track {
-    height: 6px;
-    border-radius: 999px;
-    background: var(--a2-surface-subtle);
-    border: 1px solid var(--a2-border);
-    overflow: hidden;
-  }
-
-  .gs-meter__fill {
-    height: 100%;
-    border-radius: inherit;
-    background: var(--gs-mode-color);
-    transition:
-      width 0.38s cubic-bezier(0.22, 1, 0.36, 1),
-      background-color 0.24s ease;
-  }
-
-  /* Best-fit tags */
-  .gs-fits {
-    padding-top: 14px;
-    border-top: 1px solid var(--a2-border);
-    display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 12px;
   }
 
-  @media (max-width: 520px) {
-    .gs-fits {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 8px;
-    }
-  }
-
-  .gs-fits__lbl {
+  .gs-point__icon {
+    width: 22px;
+    height: 22px;
+    margin-top: 1px;
+    border-radius: 50%;
     font-family: var(--a2-font-mono);
-    font-size: 10px;
+    font-size: 13px;
     font-weight: 700;
-    letter-spacing: 0.08em;
-    color: var(--a2-text-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
   }
 
-  .gs-fits__stack {
-    display: grid;
-    flex: 1;
+  .gs-point__icon--pos {
+    background: var(--a2-cyan-soft);
+    color: var(--a2-cyan-strong);
+    border: 1px solid var(--a2-cyan-border);
   }
 
-  .gs-fit-tags {
-    grid-area: 1 / 1;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transition: opacity 0.2s ease;
+  .gs-point__icon--blue {
+    background: var(--a2-accent-soft);
+    color: var(--a2-accent-strong);
+    border: 1px solid var(--a2-accent-border);
   }
 
-  .gs-fit-tags.is-active {
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto;
+  .gs-point__icon--amber {
+    background: var(--a2-amber-soft);
+    color: var(--a2-amber-strong);
+    border: 1px solid var(--a2-amber-border);
   }
 
-  .gs-fit-tags span {
-    font-family: var(--a2-font-mono);
-    font-size: 10.5px;
-    padding: 3px 8px;
-    border-radius: 4px;
+  .gs-point__icon--lim {
     background: var(--a2-surface-subtle);
-    border: 1px solid var(--a2-border);
+    color: var(--a2-text-muted);
+    border: 1px solid var(--a2-border-strong);
+  }
+
+  .gs-point div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .gs-point strong {
+    font-size: 14.5px;
+    font-weight: 680;
+    color: var(--a2-text);
+    line-height: 1.35;
+  }
+
+  .gs-point span {
+    font-size: 13.5px;
+    line-height: 1.5;
     color: var(--a2-text-secondary);
   }
 
-  /* Animations */
-  @keyframes gs-flow-x {
-    0% {
-      left: -28px;
-      opacity: 0;
-    }
-    20% {
-      opacity: 1;
-    }
-    80% {
-      opacity: 1;
-    }
-    100% {
-      left: 100%;
-      opacity: 0;
-    }
-  }
-
-  @keyframes gs-flow-y {
-    0% {
-      top: -18px;
-      opacity: 0;
-    }
-    20% {
-      opacity: 1;
-    }
-    80% {
-      opacity: 1;
-    }
-    100% {
-      top: 100%;
-      opacity: 0;
-    }
-  }
-
-  @keyframes gs-pulse {
-    0%,
-    100% {
-      opacity: 1;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.45;
-      transform: scale(0.85);
-    }
-  }
-
-  @keyframes gs-bind-flash {
-    0% {
-      background: var(--a2-accent-border);
-    }
-    100% {
-      background: var(--a2-accent-soft);
-    }
   }
 
   @keyframes gs-shake {
@@ -2047,9 +1463,7 @@
   @media (prefers-reduced-motion: reduce) {
     .gs-rail__puck,
     .gs-scene,
-    .gs-meter__fill,
-    .gs-pkt,
-    .gs-live-dot {
+    .gs-detail {
       transition: none !important;
       animation: none !important;
     }
