@@ -35,6 +35,18 @@ export const SAMPLE_DIR = 'samples/travel-a2ui';
 export const REPO = `${LABS_REPO}/tree/main/${SAMPLE_DIR}`;
 export const BUILD_YOUR_OWN = `${REPO}#build-one-of-your-own`;
 
+/**
+ * Deploying the sample to Cloud Run: Cloud Shell, with the sample cloned and
+ * its guide (`docs/cloud-shell.md`) open beside the terminal. Everything runs
+ * as the visitor, in their own project.
+ */
+export const CLOUD_SHELL =
+  'https://shell.cloud.google.com/cloudshell/editor' +
+  `?cloudshell_git_repo=${LABS_REPO}&cloudshell_git_branch=main` +
+  `&cloudshell_workspace=${SAMPLE_DIR}&cloudshell_tutorial=docs/cloud-shell.md` +
+  '&show=ide%2Cterminal';
+export const DEPLOY_DOCS = `${LABS_REPO}/blob/main/${SAMPLE_DIR}/docs/deploying.md`;
+
 /** The two commands that get the code. */
 export const CLONE = `git clone ${LABS_REPO}\ncd labs/${SAMPLE_DIR}`;
 

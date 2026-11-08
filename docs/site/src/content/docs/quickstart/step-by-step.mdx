@@ -6,7 +6,15 @@ description: Run Travel A2UI yourself, with a React web client, a Flutter mobile
 import {Code, LinkCard, Steps} from '@astrojs/starlight/components';
 import {Image} from 'astro:assets';
 import flutterTrip from '../../../assets/quickstart/travel-a2ui/flutter-trip.png';
-import {A2UI, BUILD_YOUR_OWN, CLONE, OVERVIEW, REPO} from '../../../lib/travel-a2ui/site';
+import {
+  A2UI,
+  BUILD_YOUR_OWN,
+  CLONE,
+  CLOUD_SHELL,
+  DEPLOY_DOCS,
+  OVERVIEW,
+  REPO,
+} from '../../../lib/travel-a2ui/site';
 
 Run the app first, then read the second half with it open: every idea there is
 something you can see on screen. The app is <a href={REPO}>samples/travel-a2ui</a>
@@ -235,6 +243,29 @@ uses a MessageProcessor to apply messages. It holds no app logic.
 
 The server never knows which client it is talking to. Adding a platform means
 writing a renderer for the same catalog, with no change to the agent.
+
+## Deploy to Cloud Run
+
+Run the quickstart app in your own Google Cloud project: the server and both
+clients on one URL. You need a project with billing enabled.
+
+<a href={CLOUD_SHELL}>
+  <img src="https://gstatic.com/cloudssh/images/open-btn.svg" alt="Open in Cloud Shell" />
+</a>
+
+Cloud Shell opens with the sample and a short guide beside the terminal: sign
+in, choose a project, and run one script:
+
+```bash
+./scripts/deploy.sh
+```
+
+It turns on the services the deploy needs, lets the build use them, then builds
+and deploys (about ten minutes the first time) and prints the URL. No key is
+stored on the service: each visitor pastes their own. From your own clone, the
+same script works anywhere the gcloud CLI is signed in; see
+
+<a href={DEPLOY_DOCS}>deploying</a> for what it runs.
 
 ## Keep going
 

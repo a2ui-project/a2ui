@@ -29,6 +29,7 @@ import source from './agent-guide.md?raw';
 import {
   absolute,
   CLONE,
+  CLOUD_SHELL,
   LABS_REPO,
   OVERVIEW_PATH,
   REPO,
@@ -43,6 +44,7 @@ const BLOCK = /<!-- only:([a-z ]+) -->\n([\s\S]*?)<!-- \/only -->\n?/g;
 const VALUES: Record<string, string> = {
   LABS_REPO,
   CLONE,
+  CLOUD_SHELL,
   SAMPLE_DIR,
   REPO,
   STEP_BY_STEP: absolute(STEP_BY_STEP_PATH),

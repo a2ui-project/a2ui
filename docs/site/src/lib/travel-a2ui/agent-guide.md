@@ -247,5 +247,11 @@ If they would like it all in one place with screenshots, share
 - **Try the web app too:** `./scripts/quickstart.sh both` serves both clients
   from the same server, drawing the same messages.
 <!-- /only -->
+- **Deploy to Cloud Run:** `./scripts/deploy.sh` from the sample folder, in
+  their own Google Cloud project with billing enabled and the gcloud CLI
+  signed in. It turns on the services, lets the build use them, deploys and
+  prints the URL. Ask before running it: it creates resources in their
+  project. Without gcloud, the Open in Cloud Shell link does the same:
+  {{CLOUD_SHELL}}
 - **Build their own:** the sample README's section "Build one of your own".
 - **Read more:** {{DOCS}}
