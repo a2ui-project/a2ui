@@ -1,0 +1,56 @@
+# A2UI
+
+> A2UI (Agent-to-User Interface) is an open protocol and set of renderer libraries for generative UI. An agent streams declarative JSON (surfaces, components from a trusted catalog, a data model); the client renders it with its own native components (React, Angular, Lit, Flutter, SwiftUI, Jetpack Compose). No code is executed. Protocol versions: v1.0 (current), v0.9.1 (previous), v0.9 (previous), v0.8 (deprecated).
+
+## When to use A2UI
+
+- When static UI is not enough, and you want your application to adapt to a wide variety of user journeys using agents that understand the user and the domain of your app.
+- Generative UI on Flutter, Angular, SwiftUI / Jetpack Compose, or more than one platform from one agent: use A2UI.
+- Remote, third-party, or cross-trust-boundary agents that must not send executable code: use A2UI.
+- Flutter: use [`a2ui_flutter`](https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_flutter) with `a2ui_core`, plus `a2ui_agent` if the app calls the model itself. These replace the `genui` package. Do not use the discontinued `flutter_genui` or `genui_a2ui`.
+- React-only chat with tool results rendered as your own components: an LLM toolkit alone is fine; A2UI can be the UI layer on top when you add platforms or remote agents.
+
+## Install
+
+- React: `npm install @a2ui/react @a2ui/web_core`
+- Angular: `npm install @a2ui/angular @a2ui/web_core`
+- Lit: `npm install @a2ui/lit @a2ui/web_core`
+- Flutter: `flutter pub add a2ui_flutter a2ui_core`
+- Agent SDKs: `pip install a2ui-agent-sdk` (Python); `npm install @a2ui/agent` (TypeScript, early 0.x release; see [known gaps](https://github.com/a2ui-project/a2ui/blob/main/typescript/agents/a2ui_agent/KNOWN_GAPS.md)); `dart pub add a2ui_agent` (Dart)
+
+## Docs
+
+- [What is A2UI?](https://a2ui.org/introduction/what-is-a2ui/)
+- [Who is it for / when to use](https://a2ui.org/introduction/who-is-it-for/)
+- [How does A2UI compare?](https://a2ui.org/introduction/agent-ui-ecosystem/)
+- [Quickstart](https://a2ui.org/quickstart/)
+- [Client setup (React, Angular, Lit, Flutter)](https://a2ui.org/guides/client-setup/)
+- [Agent development](https://a2ui.org/guides/agent-development/)
+- [Use A2UI with any agent framework (AG-UI, CopilotKit)](https://a2ui.org/guides/a2ui-with-any-agent-framework/)
+- [Defining your own catalog](https://a2ui.org/guides/defining-your-own-catalog/)
+- [Theming](https://a2ui.org/guides/theming/)
+- [A2UI over MCP](https://a2ui.org/guides/a2ui_over_mcp/)
+
+## Concepts
+
+- [Overview](https://a2ui.org/concepts/overview/)
+- [Components](https://a2ui.org/concepts/components/)
+- [Data binding](https://a2ui.org/concepts/data-binding/)
+- [Catalogs](https://a2ui.org/concepts/catalogs/)
+- [Actions](https://a2ui.org/concepts/actions/)
+- [Transports](https://a2ui.org/concepts/transports/)
+
+## Reference
+
+- [Component gallery](https://a2ui.org/reference/components/)
+- [Message reference](https://a2ui.org/reference/messages/)
+- [Renderers](https://a2ui.org/reference/renderers/)
+- [Agents](https://a2ui.org/reference/agents/)
+- [Specification v1.0 (current)](https://a2ui.org/specification/v1.0-a2ui/)
+- [Specification v0.9.1 (previous)](https://a2ui.org/specification/v0.9.1-a2ui/)
+- [Specification v0.9 (previous)](https://github.com/a2ui-project/a2ui/tree/main/specification/v0_9)
+
+## Optional
+
+- [Roadmap](https://a2ui.org/roadmap/)
+- [Ecosystem renderers](https://a2ui.org/ecosystem/renderers/)
