@@ -185,7 +185,7 @@ one into the other line by line while the model writes. In the client, a
 **MessageProcessor** from the official SDK applies the messages: it keeps each
 surface's components and data, fills in bound values, and sends presses back
 as actions. React's is in `apps/web/src/surfaces.ts` (`@a2ui/web_core`);
-Flutter's is in `renderers/flutter/lib/chat.dart` (`a2ui_core`). Express is
+Flutter's is in `apps/flutter/lib/chat.dart` (`a2ui_core`). Express is
 optional; A2UI itself is the JSON.
 
 **Check:** *What does the model write, what travels on the wire, and what turns
