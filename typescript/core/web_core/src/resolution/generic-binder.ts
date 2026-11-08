@@ -664,7 +664,7 @@ export class GenericBinder<T> {
     };
     // Lets hosts inspect the unresolved action (event or function call)
     // before invoking it, for example to show a spinner only for server events.
-    (closure as unknown as Record<string, unknown>)['rawAction'] = value;
+    Object.assign(closure, {rawAction: value});
     this.actionClosures.set(cacheKey, {raw: value, closure});
     return closure;
   }
