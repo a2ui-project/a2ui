@@ -41,7 +41,7 @@
   --sl-color-gray-4: #80868b;
   --sl-color-gray-5: #303134;
   --sl-color-gray-6: #1e1f20;
-  --sl-nav-height: 60px;
+  --sl-nav-height: 64px;
   --sl-nav-pad-x: 24px;
   --sl-nav-pad-y: 0px;
 }
@@ -66,15 +66,22 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Header & Sidebar visual alignment with landing page */
+/* Header & Sidebar visual alignment with landing page (.a2-topbar / .a2-topbar__inner) */
 header.header {
-  height: 60px !important;
-  padding: 0 24px !important;
+  height: 64px !important;
+  padding: 0 !important;
   box-sizing: border-box;
   background: var(--a2-bg-nav) !important;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--a2-border);
+}
+
+header.header > .a2-sl-header {
+  box-sizing: border-box;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 24px;
 }
 
 .site-title {
