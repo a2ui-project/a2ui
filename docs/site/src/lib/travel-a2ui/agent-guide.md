@@ -247,8 +247,5 @@ If they would like it all in one place with screenshots, share
 - **Try the web app too:** `./scripts/quickstart.sh both` serves both clients
   from the same server, drawing the same messages.
 <!-- /only -->
-- **Put it online:** one click,
-  {{DEPLOY}},
-  deploys it to Cloud Run in their own Google Cloud project.
 - **Build their own:** the sample README's section "Build one of your own".
 - **Read more:** {{DOCS}}

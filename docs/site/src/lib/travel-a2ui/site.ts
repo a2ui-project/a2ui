@@ -41,7 +41,6 @@ export const LABS_REPO = 'https://github.com/vpm238/labs';
 export const LABS_BRANCH = 'travel-a2ui-sample';
 export const SAMPLE_DIR = 'samples/travel-a2ui';
 export const REPO = `${LABS_REPO}/tree/${LABS_BRANCH}/${SAMPLE_DIR}`;
-export const DEPLOY = `https://deploy.cloud.run/?git_repo=${LABS_REPO}&revision=${LABS_BRANCH}&dir=${SAMPLE_DIR}`;
 export const BUILD_YOUR_OWN = `${REPO}#build-one-of-your-own`;
 
 /** The two commands that get the code. */

@@ -29,7 +29,6 @@ import source from './agent-guide.md?raw';
 import {
   absolute,
   CLONE,
-  DEPLOY,
   LABS_REPO,
   OVERVIEW_PATH,
   REPO,
@@ -46,7 +45,6 @@ const VALUES: Record<string, string> = {
   CLONE,
   SAMPLE_DIR,
   REPO,
-  DEPLOY,
   STEP_BY_STEP: absolute(STEP_BY_STEP_PATH),
   OVERVIEW: absolute(OVERVIEW_PATH),
   RENDERERS: absolute('ecosystem/renderers/'),

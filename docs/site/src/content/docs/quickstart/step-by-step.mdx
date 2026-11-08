@@ -4,7 +4,9 @@ description: Run Travel A2UI yourself, with a React web client, a Flutter mobile
 ---
 
 import {Code, LinkCard, Steps} from '@astrojs/starlight/components';
-import {A2UI, BUILD_YOUR_OWN, CLONE, DEPLOY, OVERVIEW, REPO} from '../../../lib/travel-a2ui/site';
+import {Image} from 'astro:assets';
+import flutterTrip from '../../../assets/quickstart/travel-a2ui/flutter-trip.png';
+import {A2UI, BUILD_YOUR_OWN, CLONE, OVERVIEW, REPO} from '../../../lib/travel-a2ui/site';
 
 Run the app first, then read the second half with it open: every idea there is
 something you can see on screen. The app is <a href={REPO}>samples/travel-a2ui</a>
@@ -65,7 +67,12 @@ two of us, around $2,500 all in"_.
 
 ### The mobile app
 
-![The Flutter client in a phone layout, with the trip sheet open](../../../assets/quickstart/travel-a2ui/flutter-trip.png)
+<Image
+  src={flutterTrip}
+  width={288}
+  alt="The Flutter client in a phone layout, with the trip sheet open"
+  style="display: block; width: 100%; max-width: 18rem; height: auto; margin-inline: auto;"
+/>
 
 Paste your key, then try _"A weekend in Lisbon from JFK in May, two of us"_.
 Here Flutter is built for the web, in a phone layout; the same Dart code can
@@ -226,21 +233,8 @@ uses a MessageProcessor to apply messages. It holds no app logic.
 - **From the community:** SwiftUI and UIKit, Android Compose, React Native,
   Vue, Lynx, a terminal renderer and more.
 
-![The Flutter client drawing a flight list](../../../assets/quickstart/travel-a2ui/flutter.png)
-
 The server never knows which client it is talking to. Adding a platform means
 writing a renderer for the same catalog, with no change to the agent.
-
-## Put it online
-
-<a href={DEPLOY}>
-  <img src="https://deploy.cloud.run/button.svg" alt="Run on Google Cloud" />
-</a>
-
-One click deploys the server and both clients to Cloud Run in your own Google
-Cloud project. It asks for a project and a region, and the first build takes
-about ten minutes. No key is stored on the service: each visitor pastes their
-own.
 
 ## Keep going
 
