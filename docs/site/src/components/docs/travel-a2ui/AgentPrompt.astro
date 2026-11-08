@@ -120,10 +120,14 @@ const [first] = QUICKSTART_PROMPTS;
     const menu = root.querySelector<HTMLDetailsElement>('[data-qs-menu]')!;
     const options = [...root.querySelectorAll<HTMLButtonElement>('[data-qs-option]')];
 
+    // One reset at a time: a second click restarts the wait rather than
+    // letting the first click's timer put the label back early.
+    let reset: ReturnType<typeof setTimeout> | undefined;
     button.addEventListener('click', async () => {
       const done = await copy(button.dataset.prompt ?? '');
       label.textContent = done ? 'Copied' : 'Copy failed';
-      setTimeout(() => (label.textContent = 'Copy prompt'), 1400);
+      clearTimeout(reset);
+      reset = setTimeout(() => (label.textContent = 'Copy prompt'), 1400);
     });
 
     for (const option of options) {

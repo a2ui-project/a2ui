@@ -20,7 +20,9 @@
 // to be relative to), so they are built from the configured site and base,
 // which keeps them right on pull request previews too.
 
-const site = (import.meta.env.SITE ?? '').replace(/\/$/, '');
+// `astro.config.mjs` always sets a site; the fallback keeps an absolute URL
+// absolute if that ever changes.
+const site = (import.meta.env.SITE || 'https://a2ui.org').replace(/\/$/, '');
 const base = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
 
 /** A path inside this site, as an absolute URL. */

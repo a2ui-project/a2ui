@@ -6,7 +6,7 @@ description: Run a small A2UI app, a Python agent server with a React web client
 import {Aside} from '@astrojs/starlight/components';
 import AgentPrompt from '@components/docs/travel-a2ui/AgentPrompt.astro';
 import ArchitecturePipelineOverview from '@components/docs/overview/ArchitecturePipelineOverview.astro';
-import {A2UI, REPO, STEP_BY_STEP} from '../../lib/travel-a2ui/site';
+import {REPO, STEP_BY_STEP} from '../../lib/travel-a2ui/site';
 
 **A2UI** lets an AI agent answer with an interface instead of a paragraph:
 cards your users can tap, dates they can drag, a panel that keeps up with them.
@@ -45,7 +45,7 @@ part lives in Travel A2UI:
 One server serves the API, the React app at `/` and the Flutter app at
 `/flutter/`. The clients know nothing about travel: each knows how to draw the
 catalog's components. You, the builder, decide what is in the catalog; the
-agent decides what to draw from it. <a href={A2UI.overview}>How A2UI works</a>
+agent decides what to draw from it. [How A2UI works](../concepts/overview/)
 walks through the same picture for any A2UI app.
 
 ## What you will learn

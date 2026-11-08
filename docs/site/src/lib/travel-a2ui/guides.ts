@@ -54,7 +54,10 @@ const VALUES: Record<string, string> = {
 };
 
 export function guide(app: App): string {
+  // A checkout with Windows line endings would otherwise match none of the
+  // markers, which are written with `\n`.
   const text = source
+    .replace(/\r\n/g, '\n')
     .replace(BLOCK, (_match, apps: string, body: string) =>
       apps.split(' ').includes(app) ? body : '',
     )
