@@ -39,6 +39,7 @@ const VALUES: Record<string, string> = {
   REPO,
   DEPLOY,
   STEP_BY_STEP: absolute(STEP_BY_STEP_PATH),
+  IMAGES: absolute('quickstart/travel-a2ui/images/'),
   RENDERERS: absolute('ecosystem/renderers/'),
   DOCS: absolute('/'),
 };
