@@ -393,7 +393,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       }
 
       .a2-h1 {
-        margin: 0 0 0 -0.06em;
+        margin: 0;
         font-family: var(--a2-font-display);
         font-size: clamp(2.85rem, 5.4vw, 4.55rem);
         font-weight: 700;
@@ -416,6 +416,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
       .a2-lead {
         margin: 0;
+        padding-left: clamp(3px, 0.3vw, 4px);
         max-width: 52ch;
         font-size: 17px;
         line-height: 1.65;
@@ -428,6 +429,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         flex-wrap: wrap;
         align-items: stretch;
         gap: 14px;
+        padding-left: clamp(3px, 0.3vw, 4px);
       }
 
       /* Sharp Architectural Buttons (Zero Pill Rounding!) */
@@ -521,6 +523,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         gap: 22px;
         flex-wrap: wrap;
         margin-top: 44px;
+        margin-left: clamp(3px, 0.3vw, 4px);
         padding-top: 20px;
         border-top: 1px solid var(--a2-border);
       }
