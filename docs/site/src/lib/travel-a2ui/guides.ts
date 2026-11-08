@@ -26,7 +26,16 @@
 // handed match where the site is deployed.
 
 import source from './agent-guide.md?raw';
-import {absolute, CLONE, DEPLOY, LABS_REPO, REPO, SAMPLE_DIR, STEP_BY_STEP_PATH} from './site';
+import {
+  absolute,
+  CLONE,
+  DEPLOY,
+  LABS_REPO,
+  OVERVIEW_PATH,
+  REPO,
+  SAMPLE_DIR,
+  STEP_BY_STEP_PATH,
+} from './site';
 
 export type App = 'both' | 'web' | 'mobile';
 
@@ -39,7 +48,7 @@ const VALUES: Record<string, string> = {
   REPO,
   DEPLOY,
   STEP_BY_STEP: absolute(STEP_BY_STEP_PATH),
-  IMAGES: absolute('quickstart/travel-a2ui/images/'),
+  OVERVIEW: absolute(OVERVIEW_PATH),
   RENDERERS: absolute('ecosystem/renderers/'),
   DOCS: absolute('/'),
 };

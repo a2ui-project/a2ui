@@ -31,17 +31,10 @@ it sends.
 - **One step at a time.** After each step, ask whether to go on or dig in.
 - **Show the real file** when it helps: its path and the few lines that
   matter. Do not paste whole files.
-- **Pictures, when they help.** There is a diagram of the whole app and a
-  screenshot for most lessons, each at a stable image URL, and each lesson
-  names its section of the written quickstart ({{STEP_BY_STEP}}). Use one when
-  a picture would make the point faster: they cannot see the app, they ask
-  what to look for, or they are lost. Not on every step. Show it the best way
-  your interface allows:
-  - if it can display images, show the image URL inline;
-  - if you can open a browser, open the section next to the app
-    (`open <url>` on macOS, `xdg-open <url>` on Linux);
-  - otherwise share the link, and for the whole-app diagram, draw the text
-    version in Step 3.
+- **The app is the picture.** Point at what is on their screen. If they are
+  lost or cannot see the app, link the matching section of the written
+  quickstart, which has screenshots: {{STEP_BY_STEP}}. Do not download or
+  paste images.
 - **Ask before installing** anything that is not already on the machine.
 - **Never print, log or commit an API key**, and do not ask for one in chat.
 - **When something fails, find the cause** and fix it. Do not skip a step.
@@ -127,10 +120,8 @@ Five short lessons, in the order they meet them on screen. Each starts from
 something on screen and ends with one friendly check question.
 
 If they would like the whole picture first, or at the end to tie the lessons
-together, show the diagram of how A2UI fits into this app:
-{{IMAGES}}how-it-fits.png (the same diagram, live, at
-{{STEP_BY_STEP}}#how-a2ui-works). In a plain terminal, draw this text version
-of it:
+together, link the diagram of how A2UI fits into this app,
+{{OVERVIEW}}#how-a2ui-fits-into-this-app, or draw this text version of it:
 
 ```text
 SERVER · their agent                                   apps/server/
@@ -150,9 +141,6 @@ CLIENT · their app                          apps/web/ · apps/flutter/
     implementations (renderers/react/, renderers/flutter/)
   their app around it: the header, the chat, the key form
 ```
-
-Purple in the image is their agent's code, blue is their app, and the dashed
-teal lines are the A2UI SDKs.
 <!-- only:mobile -->
 Lessons 2 and 4 use the **Catalog** and **Wire** tabs, which only the web
 client has. For those, offer to restart with `./scripts/quickstart.sh both`,
@@ -171,9 +159,6 @@ Then name the pieces on a card: it is a **surface**, a region of UI the agent
 controls. It is made of **components** (`Text`, `Button`, `FlightOption`), the
 values they show come from the surface's **data model**, and a press sends an
 **action** back to the agent.
-
-Picture: {{IMAGES}}a2ui-vs-app.png (A2UI outlined in blue, app code in grey;
-section: {{STEP_BY_STEP}}#1-what-is-a2ui-and-what-is-app-code).
 
 **Check:** *Is the message box A2UI? Is the flight card?*
 
@@ -194,9 +179,6 @@ writes against it, and React and Flutter implement everything in it, so the
 agent can only ask for what the client can draw. The model decides whether and
 what to show; the builder (them, in their own app) decides what is in the
 catalog, the data inside it and what a press records.
-
-Picture: {{IMAGES}}catalog.png (the Catalog tab; section:
-{{STEP_BY_STEP}}#2-the-catalog-what-the-agent-may-draw).
 
 **Check:** *Why does the night count change without asking the agent?*
 
@@ -230,10 +212,6 @@ catalog functions and sends presses back as actions. React's is in
 `apps/flutter/lib/chat.dart` (`a2ui_core`). Express is optional; A2UI itself
 is the JSON.
 
-Picture: {{IMAGES}}wire.png (the Wire tab: what the model wrote beside what
-the client received; section:
-{{STEP_BY_STEP}}#4-what-the-model-writes-and-what-the-client-receives).
-
 **Check:** *What does the model write, what travels to the client, and what
 turns it into widgets?*
 
@@ -247,9 +225,6 @@ and Markdown renderers, and the community has SwiftUI and UIKit, Android
 Compose, React Native, Vue, Lynx, a terminal renderer and more
 ({{RENDERERS}}). The server never knows which client it is talking to; a new
 platform is a new renderer for the same catalog.
-
-Picture: {{IMAGES}}flutter.png (the Flutter client; section:
-{{STEP_BY_STEP}}#5-renderers).
 
 **Check:** *What would it take to add an iPhone app?*
 

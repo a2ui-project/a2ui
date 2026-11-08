@@ -23,9 +23,9 @@
 - [What is A2UI?](https://a2ui.org/introduction/what-is-a2ui/)
 - [Who is it for / when to use](https://a2ui.org/introduction/who-is-it-for/)
 - [How does A2UI compare?](https://a2ui.org/introduction/agent-ui-ecosystem/)
-- [Quickstart](https://a2ui.org/quickstart/)
-- [Quickstart: Travel A2UI](https://a2ui.org/quickstart/travel-a2ui/): a Python agent server with React and Flutter clients, from A2UI Labs
-- Travel A2UI agent guides, for coding agents asked to give someone the quickstart: [web and mobile apps](https://a2ui.org/quickstart/travel-a2ui/agent.md) (the default), [web app only](https://a2ui.org/quickstart/travel-a2ui/agent/web.md), [mobile app only](https://a2ui.org/quickstart/travel-a2ui/agent/mobile.md)
+- [Quickstart](https://a2ui.org/quickstart/): run Travel A2UI, a Python agent server with React and Flutter clients from A2UI Labs, from one prompt to a coding agent
+- [Step-by-step quickstart](https://a2ui.org/quickstart/step-by-step/): the same, by hand, then how A2UI works from what is on screen
+- Quickstart agent guides, for coding agents asked to give someone the quickstart: [web and mobile apps](https://a2ui.org/quickstart/agent.md) (the default), [web app only](https://a2ui.org/quickstart/agent/web.md), [mobile app only](https://a2ui.org/quickstart/agent/mobile.md)
 - [Client setup (React, Angular, Lit, Flutter)](https://a2ui.org/guides/client-setup/)
 - [Agent development](https://a2ui.org/guides/agent-development/)
 - [Use A2UI with any agent framework (AG-UI, CopilotKit)](https://a2ui.org/guides/a2ui-with-any-agent-framework/)

@@ -48,14 +48,15 @@ export const BUILD_YOUR_OWN = `${REPO}#build-one-of-your-own`;
 export const CLONE = `git clone --branch ${LABS_BRANCH} ${LABS_REPO}\ncd labs/${SAMPLE_DIR}`;
 
 /** The pages of this quickstart. */
-export const OVERVIEW_PATH = 'quickstart/travel-a2ui/';
-export const STEP_BY_STEP_PATH = 'quickstart/travel-a2ui/step-by-step/';
+export const OVERVIEW_PATH = 'quickstart/';
+export const OVERVIEW = local(OVERVIEW_PATH);
+export const STEP_BY_STEP_PATH = 'quickstart/step-by-step/';
 export const STEP_BY_STEP = local(STEP_BY_STEP_PATH);
 
 /** What a coding agent follows, served raw: web and mobile, or one of them. */
-export const PROMPT_PATH = 'quickstart/travel-a2ui/agent.md';
-export const PROMPT_WEB = 'quickstart/travel-a2ui/agent/web.md';
-export const PROMPT_MOBILE = 'quickstart/travel-a2ui/agent/mobile.md';
+export const PROMPT_PATH = 'quickstart/agent.md';
+export const PROMPT_WEB = 'quickstart/agent/web.md';
+export const PROMPT_MOBILE = 'quickstart/agent/mobile.md';
 
 /** The prompts the quickstart button copies: one line, one URL each. The first is the default. */
 export const QUICKSTART_PROMPTS = [

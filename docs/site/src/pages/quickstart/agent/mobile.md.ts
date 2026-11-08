@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-// The default agent guide: the web and mobile apps together.
+// What a coding agent follows to set up the mobile app (Python + Flutter).
 
 import type {APIRoute} from 'astro';
 import {markdownResponse} from '../../../lib/travel-a2ui/guides';
 
-export const GET: APIRoute = () => markdownResponse('both');
+export const GET: APIRoute = () => markdownResponse('mobile');

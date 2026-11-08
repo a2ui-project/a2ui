@@ -1,12 +1,12 @@
 ---
-title: 'Quickstart: Travel A2UI'
+title: Quickstart
 description: Run a small A2UI app, a Python agent server with a React web client and a Flutter mobile client, from one prompt to your coding agent or in three commands.
 ---
 
 import {Aside} from '@astrojs/starlight/components';
 import AgentPrompt from '@components/docs/travel-a2ui/AgentPrompt.astro';
-import HowItFits from '@components/docs/travel-a2ui/HowItFits.astro';
-import {REPO, STEP_BY_STEP} from '../../../lib/travel-a2ui/site';
+import ArchitecturePipelineOverview from '@components/docs/overview/ArchitecturePipelineOverview.astro';
+import {A2UI, REPO, STEP_BY_STEP} from '../../lib/travel-a2ui/site';
 
 **A2UI** lets an AI agent answer with an interface instead of a paragraph:
 cards your users can tap, dates they can drag, a panel that keeps up with them.
@@ -18,19 +18,35 @@ a **React** client (web) and a **Flutter** client (mobile) draw what it sends.
 <AgentPrompt />
 
 <Aside type="note" title="About this sample">
-  Travel A2UI lives in A2UI Labs, at <a href={REPO}>samples/travel-a2ui</a>. It is a worked example
-  for learning A2UI, not a reference implementation of the protocol, and is not meant for production
-  use.
+  Travel A2UI lives in A2UI Labs, at <a href={REPO}>samples/travel-a2ui</a>. It is a sample for
+  learning A2UI and is not meant for production use.
 </Aside>
 
-## What it sets up
+## How A2UI fits into this app
 
-<HowItFits />
+A2UI is an SDK for your agent and a renderer for your app. Here is where each
+part lives in Travel A2UI:
+
+<ArchitecturePipelineOverview
+  sdkLanguages="Python, in this app"
+  transport="Server-sent events, in this app"
+  renderers="React and Flutter, in this app"
+  paths={{
+    catalog: 'catalogs/a2ui-travel/catalog.json',
+    tools: 'data/tools.json',
+    skillGenerator: 'scripts/build_skills.py → skills/',
+    compiler: 'apps/server/src/travel_a2ui/brain/catalog.py',
+    agent: 'apps/server/src/travel_a2ui/brain/',
+    app: 'apps/web/ · apps/flutter/',
+    renderer: 'renderers/react/ · renderers/flutter/',
+  }}
+/>
 
 One server serves the API, the React app at `/` and the Flutter app at
 `/flutter/`. The clients know nothing about travel: each knows how to draw the
 catalog's components. You, the builder, decide what is in the catalog; the
-agent decides what to draw from it.
+agent decides what to draw from it. <a href={A2UI.overview}>How A2UI works</a>
+walks through the same picture for any A2UI app.
 
 ## What you will learn
 

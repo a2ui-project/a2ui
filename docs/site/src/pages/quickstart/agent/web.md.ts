@@ -17,6 +17,6 @@
 // What a coding agent follows to set up the web app (Python + React).
 
 import type {APIRoute} from 'astro';
-import {markdownResponse} from '../../../../lib/travel-a2ui/guides';
+import {markdownResponse} from '../../../lib/travel-a2ui/guides';
 
 export const GET: APIRoute = () => markdownResponse('web');
