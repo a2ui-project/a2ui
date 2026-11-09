@@ -62,9 +62,12 @@ class DirectJsonParser(Parser):
         self,
         catalogs: Sequence[CatalogApi],
         progressive_keys: Collection[str] = frozenset(),
+        *,
+        buffer_incomplete_components: bool = False,
     ):
         self._catalogs = check_catalogs(catalogs)
         self._progressive_keys = frozenset(progressive_keys)
+        self._buffer_incomplete_components = bool(buffer_incomplete_components)
         self._decompiler = DirectJsonDecompiler()
 
     @property
@@ -76,6 +79,11 @@ class DirectJsonParser(Parser):
     def progressive_keys(self) -> frozenset[str]:
         """The progressive string property keys healed while streaming."""
         return self._progressive_keys
+
+    @property
+    def buffer_incomplete_components(self) -> bool:
+        """Whether pre-v1.0 streams hold components until their JSON object closes."""
+        return self._buffer_incomplete_components
 
     @property
     def supports_streaming(self) -> bool:

@@ -313,6 +313,9 @@ Include data model references in `action.event.context` to send specific values 
 
 In v1.0, an interactive component such as a submit button can use `action.functionCall` to trigger an agent-side function (`callAgentFunction`) with arguments bound to paths in the data model. This is best when you want to send data model state directly to programmatic code on the agent side:
 
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0">
+
 ```json
 {
   "id": "saveButton",
@@ -328,6 +331,30 @@ In v1.0, an interactive component such as a submit button can use `action.functi
   }
 }
 ```
+
+  </TabItem>
+  <TabItem label="v0.9.1">
+
+Agent-side functions were introduced in v1.0. In v0.9.1, pass bound data model paths in `action.event.context` instead:
+
+```json
+{
+  "id": "saveButton",
+  "component": "Button",
+  "child": "saveLabel",
+  "action": {
+    "event": {
+      "name": "save_reservation",
+      "context": {
+        "email": {"path": "/reservation/guestEmail"}
+      }
+    }
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
 
 ### `sendDataModel: true`
 
@@ -400,6 +427,21 @@ final email = surface?.dataModel.get('/reservation/guestEmail');
 ```swift
 let surface = processor.surfaceGroupModel["booking"]
 let email = surface?.dataModel.get("/reservation/guestEmail")
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+import androidx.a2ui.engine.model.A2uiCoreSurfaceModel
+import androidx.a2ui.model.protocol.A2uiDataPath
+
+// Accessing the data model directly requires the androidx.a2ui:a2ui-engine
+// dependency (which provides A2uiCoreSurfaceModel and A2uiCoreDataModel).
+// Surface instances emitted by A2uiMessageProcessor implement A2uiCoreSurfaceModel:
+val surface =
+    processor.activeSurfaces.value.firstOrNull { it.id == "booking" } as? A2uiCoreSurfaceModel
+val email = surface?.dataModel?.get(A2uiDataPath("/reservation/guestEmail"))
 ```
 
   </TabItem>

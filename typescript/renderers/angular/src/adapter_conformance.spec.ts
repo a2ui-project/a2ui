@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
+import axe from 'axe-core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {
   assertAllUnsupportedMatched,
-  assertAxeRules,
   assertKnownAccessibilityCase,
   assertKnownAdapterCase,
   assertNodeAccessibility,
@@ -67,9 +67,26 @@ function ensureJasmineManifestReporter(): void {
 }
 
 afterAll(() => {
-  const {accessibility, adapterConformance} = getConformanceSuites();
-  assertAllUnsupportedMatched(accessibility, adapterConformance);
+  const {accessibility, adapterConformance, adapterConformanceV09 = []} = getConformanceSuites();
+  assertAllUnsupportedMatched(accessibility, adapterConformance, adapterConformanceV09);
 });
+
+async function runAxe(container: HTMLElement, rules: string[]): Promise<void> {
+  const results = await axe.run(container, {
+    runOnly: {
+      type: 'rule',
+      values: rules,
+    },
+  });
+  const violationSummary = results.violations
+    .map(v => `${v.id} (${v.nodes.map(n => n.target.join(' ')).join(', ')})`)
+    .join('; ');
+  expect(results.violations.length)
+    .withContext(
+      `Expected no axe violations for rules [${rules.join(', ')}], but got: ${violationSummary}`,
+    )
+    .toBe(0);
+}
 
 describe('@a2ui/angular Accessibility Conformance (conformance/core/accessibility.yaml)', () => {
   ensureJasmineManifestReporter();
@@ -125,7 +142,7 @@ describe('@a2ui/angular Accessibility Conformance (conformance/core/accessibilit
             assertNodeAccessibility(container, compId, expected);
           }
           if (step.assertions.axeCore) {
-            assertAxeRules(container, step.assertions.axeCore);
+            await runAxe(container, step.assertions.axeCore);
           }
         }
       } finally {
@@ -172,6 +189,48 @@ describe('@a2ui/angular Adapter Conformance (conformance/core/adapter_conformanc
         return;
       }
       assertKnownAdapterCase(testCase);
+
+      const state = mountSurface(testCase);
+      try {
+        for (const step of testCase.steps) {
+          await runStep(state, step);
+        }
+      } finally {
+        if (!state.unmounted) {
+          state.fixture?.destroy();
+        }
+      }
+    });
+  }
+});
+
+describe('@a2ui/angular Adapter Conformance v0.9 (conformance/adapter/adapter_conformance_v0_9.yaml)', () => {
+  ensureJasmineManifestReporter();
+  const suiteTitle =
+    '@a2ui/angular Adapter Conformance v0.9 (conformance/adapter/adapter_conformance_v0_9.yaml)';
+  const {adapterConformanceV09 = []} = getConformanceSuites();
+
+  beforeEach(() => {
+    spyOn(window, 'open').and.returnValue(null);
+  });
+
+  for (const testCase of adapterConformanceV09) {
+    const specTitle = `${testCase.name}: ${testCase.description ?? ''}`;
+    specMetadataByFullName.set(`${suiteTitle} ${specTitle}`, {
+      suite: 'adapter/adapter_conformance_v0_9.yaml',
+      caseName: testCase.name,
+    });
+
+    it(specTitle, async () => {
+      assertKnownAdapterCase(testCase);
+      const skipReason = findUnsupportedReason(
+        testCase.name,
+        testCase.steps as unknown as Array<Record<string, unknown>>,
+      );
+      if (skipReason) {
+        pending(skipReason);
+        return;
+      }
 
       const state = mountSurface(testCase);
       try {

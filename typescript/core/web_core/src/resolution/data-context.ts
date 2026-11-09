@@ -82,7 +82,8 @@ function getSystemFunctionCatalog(): Catalog<any> {
  * Extracts declared property keys from a Zod schema representing an object with fixed keys.
  *
  * Traverses Zod wrappers (`ZodEffects`, `ZodOptional`, `ZodNullable`, `ZodDefault`,
- * `ZodCatch`, `ZodIntersection`, `ZodUnion`) and returns the set of allowed key names.
+ * `ZodCatch`, `ZodIntersection`, `ZodUnion`, `ZodDiscriminatedUnion`) and returns the set
+ * of allowed key names.
  *
  * @param schema Zod schema to inspect.
  * @returns Set of allowed property names, or `null` if arbitrary keys are permitted or undetermined.
@@ -135,8 +136,13 @@ export function getKnownSchemaKeys(schema: z.ZodTypeAny): Set<string> | null {
         }
         return new Set([...leftKeys, ...rightKeys]);
       }
-      if (current instanceof z.ZodUnion || current._def?.typeName === 'ZodUnion') {
-        const options: z.ZodTypeAny[] = current._def.options;
+      if (
+        current instanceof z.ZodUnion ||
+        current instanceof z.ZodDiscriminatedUnion ||
+        current._def?.typeName === 'ZodUnion' ||
+        current._def?.typeName === 'ZodDiscriminatedUnion'
+      ) {
+        const options: Iterable<z.ZodTypeAny> = current._def.options;
         const allKeys = new Set<string>();
         for (const opt of options) {
           const k = getKnownSchemaKeys(opt);

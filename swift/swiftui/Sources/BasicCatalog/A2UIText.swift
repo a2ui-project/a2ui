@@ -15,6 +15,7 @@
 import A2UICore
 import A2UISwiftUI
 import BasicCatalog
+import Foundation
 import OrderedJSON
 import SwiftUI
 
@@ -31,6 +32,18 @@ extension BasicCatalogImplementation {
 
 /// SwiftUI component view for the A2UI Basic Catalog `Text` component.
 public struct A2UIText: View {
+  /// Summary of the visible text and semantic formatting constructs rendered by ``A2UIText``.
+  @_spi(Testing)
+  public struct RenderedMarkdown: Sendable, Equatable {
+    public let visibleText: String
+    public let presentSemantics: Set<String>
+
+    public init(visibleText: String, presentSemantics: Set<String>) {
+      self.visibleText = visibleText
+      self.presentSemantics = presentSemantics
+    }
+  }
+
   public let node: Node
 
   public init(node: Node) {
@@ -49,6 +62,36 @@ public struct A2UIText: View {
     textForVariant(textContent, variant: variant)
       .accessibilityIdentifier("a2ui-\(node.id)")
       .a2uiAccessibilityElement(for: node, children: .combine)
+  }
+
+  /// Evaluates the rendered visible text and semantic formatting constructs for this `Text` node.
+  @_spi(Testing)
+  public var renderedMarkdown: RenderedMarkdown {
+    switch variant {
+    case "h1", "h2", "h3", "h4", "h5":
+      let attributed = attributedMarkdown(textContent)
+      var semantics = inlineMarkdownSemantics(in: attributed)
+      semantics.insert("heading")
+      Self.collectRenderedViewSemantics(in: body, into: &semantics)
+      return RenderedMarkdown(
+        visibleText: String(attributed.characters),
+        presentSemantics: semantics
+      )
+    case "caption":
+      let attributed = attributedMarkdown(textContent)
+      var semantics = inlineMarkdownSemantics(in: attributed)
+      semantics.insert("emphasis")
+      Self.collectRenderedViewSemantics(in: body, into: &semantics)
+      return RenderedMarkdown(
+        visibleText: String(attributed.characters),
+        presentSemantics: semantics
+      )
+    default:
+      let summary = MarkdownBlockView(text: textContent).renderedMarkdown()
+      var semantics = summary.presentSemantics
+      Self.collectRenderedViewSemantics(in: body, into: &semantics)
+      return RenderedMarkdown(visibleText: summary.visibleText, presentSemantics: semantics)
+    }
   }
 
   /// Returns the font for a heading level, used by both the `h1`–`h5` variants and Markdown
@@ -84,6 +127,30 @@ public struct A2UIText: View {
       MarkdownBlockView(text: text)
     }
   }
+
+  private static func collectRenderedViewSemantics(
+    in value: Any,
+    into semantics: inout Set<String>
+  ) {
+    if let view = value as? any View {
+      let typeName = String(reflecting: type(of: view))
+      if typeName.hasPrefix("SwiftUI.Image") || typeName.hasPrefix("SwiftUI.AsyncImage") {
+        semantics.insert("image")
+        return
+      }
+      if typeName.hasPrefix("BasicCatalogSwiftUI.") {
+        collectRenderedViewSemantics(in: expandBody(of: view), into: &semantics)
+        return
+      }
+    }
+    for child in Mirror(reflecting: value).children {
+      collectRenderedViewSemantics(in: child.value, into: &semantics)
+    }
+  }
+
+  private static func expandBody<ViewType: View>(of view: ViewType) -> any View {
+    view.body
+  }
 }
 
 extension View {
@@ -108,21 +175,60 @@ extension View {
   }
 }
 
-/// Helper function to parse inline markdown into an AttributedString.
-func attributedMarkdown(_ text: String) -> AttributedString {
-  if let attr = try? AttributedString(
-    markdown: text,
-    options: AttributedString.MarkdownParsingOptions(
-      interpretedSyntax: .inlineOnlyPreservingWhitespace
+/// Parses inline Markdown into an `AttributedString`, stripping link and image URL attributes
+/// because Basic Catalog `Text` renders link and image syntax as plain text without targets.
+private func attributedMarkdown(_ text: String) -> AttributedString {
+  guard
+    var attributed = try? AttributedString(
+      markdown: text,
+      options: AttributedString.MarkdownParsingOptions(
+        interpretedSyntax: .inlineOnlyPreservingWhitespace
+      )
     )
-  ) {
-    return attr
+  else {
+    return AttributedString(text)
   }
-  return AttributedString(text)
+  for run in attributed.runs {
+    let linkURL: URL? = run.link
+    if linkURL != nil {
+      attributed[run.range].link = nil
+    }
+    let imageURL: URL? = run.imageURL
+    if imageURL != nil {
+      attributed[run.range].imageURL = nil
+    }
+  }
+  return attributed
 }
 
-/// A structured view that renders multi-block Markdown content (headings, lists, quotes, paragraphs).
-struct MarkdownBlockView: View {
+private func inlineMarkdownSemantics(in attributed: AttributedString) -> Set<String> {
+  var semantics: Set<String> = []
+  for run in attributed.runs {
+    if let intent: InlinePresentationIntent = run.inlinePresentationIntent {
+      if intent.contains(.stronglyEmphasized) {
+        semantics.insert("strong")
+      }
+      if intent.contains(.emphasized) {
+        semantics.insert("emphasis")
+      }
+      if intent.contains(.code) {
+        semantics.insert("code")
+      }
+    }
+    let linkURL: URL? = run.link
+    if linkURL != nil {
+      semantics.insert("link")
+    }
+    let imageURL: URL? = run.imageURL
+    if imageURL != nil {
+      semantics.insert("image")
+    }
+  }
+  return semantics
+}
+
+/// Structured view rendering multi-block Markdown content (headings, lists, quotes, paragraphs).
+private struct MarkdownBlockView: View {
   let text: String
 
   private enum MarkdownBlock: Identifiable {
@@ -135,13 +241,18 @@ struct MarkdownBlockView: View {
 
     var id: String {
       switch self {
-      case .heading(let level, let text): return "h\(level)_\(text)"
-      case .unorderedList(let items): return "ul_\(items.joined(separator: "_"))"
+      case .heading(let level, let headingText):
+        return "h\(level)_\(headingText)"
+      case .unorderedList(let items):
+        return "ul_\(items.joined(separator: "_"))"
       case .orderedList(let items):
         return "ol_\(items.map { "\($0.0)_\($0.1)" }.joined(separator: "_"))"
-      case .codeBlock(let code): return "code_\(code.hashValue)"
-      case .blockquote(let text): return "quote_\(text)"
-      case .paragraph(let text): return "p_\(text)"
+      case .codeBlock(let code):
+        return "code_\(code.hashValue)"
+      case .blockquote(let quoteText):
+        return "quote_\(quoteText)"
+      case .paragraph(let paragraphText):
+        return "p_\(paragraphText)"
       }
     }
   }
@@ -165,8 +276,8 @@ struct MarkdownBlockView: View {
   @ViewBuilder
   private func renderBlock(_ block: MarkdownBlock) -> some View {
     switch block {
-    case .heading(let level, let hText):
-      Text(attributedMarkdown(hText))
+    case .heading(let level, let headingText):
+      Text(attributedMarkdown(headingText))
         .font(A2UIText.headingFont(level: level))
         .a2uiHeading(level: level)
 
@@ -194,20 +305,28 @@ struct MarkdownBlockView: View {
         .background(Color.gray.opacity(0.12))
         .cornerRadius(6)
 
-    case .blockquote(let qText):
+    case .blockquote(let quoteText):
       HStack(spacing: 8) {
         Rectangle()
           .fill(Color.secondary.opacity(0.4))
           .frame(width: 3)
-        Text(attributedMarkdown(qText))
+        Text(attributedMarkdown(quoteText))
           .font(.body)
           .foregroundStyle(.secondary)
       }
 
-    case .paragraph(let pText):
-      Text(attributedMarkdown(pText))
+    case .paragraph(let paragraphText):
+      Text(attributedMarkdown(paragraphText))
         .font(.body)
     }
+  }
+
+  private static func isATXHeadingLine(_ line: String) -> Bool {
+    let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
+    let level = trimmedLine.prefix(while: { $0 == "#" }).count
+    let remainder = trimmedLine.dropFirst(level)
+    return (1...6).contains(level)
+      && (remainder.isEmpty || remainder.first?.isWhitespace == true)
   }
 
   private func parseBlocks(from raw: String) -> [MarkdownBlock] {
@@ -223,13 +342,23 @@ struct MarkdownBlockView: View {
         lines.removeFirst()
         if !lines.isEmpty { lines.removeLast() }
         result.append(.codeBlock(code: lines.joined(separator: "\n")))
-      } else if trimmed.hasPrefix("#") {
-        var level = 0
-        for char in trimmed {
-          if char == "#" { level += 1 } else { break }
+      } else if trimmed.hasPrefix("#"),
+        trimmed.components(separatedBy: "\n").contains(where: Self.isATXHeadingLine)
+      {
+        for line in trimmed.components(separatedBy: "\n") {
+          let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
+          guard !trimmedLine.isEmpty else { continue }
+          let level = trimmedLine.prefix(while: { $0 == "#" }).count
+          let remainder = trimmedLine.dropFirst(level)
+          if (1...6).contains(level),
+            remainder.isEmpty || remainder.first?.isWhitespace == true
+          {
+            let headingContent = remainder.trimmingCharacters(in: .whitespaces)
+            result.append(.heading(level: level, text: headingContent))
+          } else {
+            result.append(.paragraph(text: trimmedLine))
+          }
         }
-        let headingContent = String(trimmed.dropFirst(level)).trimmingCharacters(in: .whitespaces)
-        result.append(.heading(level: level, text: headingContent))
       } else if trimmed.hasPrefix("> ") {
         let quoteContent = trimmed.components(separatedBy: "\n").map { line in
           line.hasPrefix("> ")
@@ -239,36 +368,37 @@ struct MarkdownBlockView: View {
       } else {
         let lines = trimmed.components(separatedBy: "\n")
         let isUnordered = lines.allSatisfy { line in
-          let t = line.trimmingCharacters(in: .whitespaces)
-          return t.hasPrefix("- ") || t.hasPrefix("* ")
+          let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+          return trimmedLine.hasPrefix("- ") || trimmedLine.hasPrefix("* ")
         }
         let isOrdered = lines.allSatisfy { line in
-          let t = line.trimmingCharacters(in: .whitespaces)
-          if let dotIndex = t.firstIndex(of: ".") {
-            let numStr = t[..<dotIndex]
-            return Int(numStr) != nil && t[t.index(after: dotIndex)...].hasPrefix(" ")
+          let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+          if let dotIndex = trimmedLine.firstIndex(of: ".") {
+            let numberPrefix = trimmedLine[..<dotIndex]
+            return Int(numberPrefix) != nil
+              && trimmedLine[trimmedLine.index(after: dotIndex)...].hasPrefix(" ")
           }
           return false
         }
 
         if isUnordered {
           let items = lines.map { line -> String in
-            let t = line.trimmingCharacters(in: .whitespaces)
-            if t.hasPrefix("- ") || t.hasPrefix("* ") {
-              return String(t.dropFirst(2))
+            let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+            if trimmedLine.hasPrefix("- ") || trimmedLine.hasPrefix("* ") {
+              return String(trimmedLine.dropFirst(2))
             }
-            return t
+            return trimmedLine
           }
           result.append(.unorderedList(items: items))
         } else if isOrdered {
           let items = lines.compactMap { line -> (Int, String)? in
-            let t = line.trimmingCharacters(in: .whitespaces)
-            if let dotIndex = t.firstIndex(of: "."),
-              let num = Int(t[..<dotIndex])
+            let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+            if let dotIndex = trimmedLine.firstIndex(of: "."),
+              let itemNumber = Int(trimmedLine[..<dotIndex])
             {
-              let itemText = String(t[t.index(after: dotIndex)...]).trimmingCharacters(
-                in: .whitespaces)
-              return (num, itemText)
+              let itemText = String(trimmedLine[trimmedLine.index(after: dotIndex)...])
+                .trimmingCharacters(in: .whitespaces)
+              return (itemNumber, itemText)
             }
             return nil
           }
@@ -284,5 +414,51 @@ struct MarkdownBlockView: View {
     }
 
     return result
+  }
+
+  func renderedMarkdown() -> A2UIText.RenderedMarkdown {
+    var semantics: Set<String> = []
+    let blockTexts = blocks.map { block -> String in
+      switch block {
+      case .heading(_, let headingText):
+        semantics.insert("heading")
+        let attributed = attributedMarkdown(headingText)
+        semantics.formUnion(inlineMarkdownSemantics(in: attributed))
+        return String(attributed.characters)
+      case .unorderedList(let items):
+        if !items.isEmpty {
+          semantics.insert("list_item")
+        }
+        return items.map { item in
+          let attributed = attributedMarkdown(item)
+          semantics.formUnion(inlineMarkdownSemantics(in: attributed))
+          return String(attributed.characters)
+        }.joined(separator: " ")
+      case .orderedList(let items):
+        if !items.isEmpty {
+          semantics.insert("list_item")
+        }
+        return items.map { item in
+          let attributed = attributedMarkdown(item.1)
+          semantics.formUnion(inlineMarkdownSemantics(in: attributed))
+          return String(attributed.characters)
+        }.joined(separator: " ")
+      case .codeBlock(let code):
+        semantics.insert("code")
+        return code
+      case .blockquote(let quoteText):
+        let attributed = attributedMarkdown(quoteText)
+        semantics.formUnion(inlineMarkdownSemantics(in: attributed))
+        return String(attributed.characters)
+      case .paragraph(let paragraphText):
+        let attributed = attributedMarkdown(paragraphText)
+        semantics.formUnion(inlineMarkdownSemantics(in: attributed))
+        return String(attributed.characters)
+      }
+    }
+    return A2UIText.RenderedMarkdown(
+      visibleText: blockTexts.joined(separator: " "),
+      presentSemantics: semantics
+    )
   }
 }

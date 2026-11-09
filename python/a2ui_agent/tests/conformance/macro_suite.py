@@ -171,7 +171,8 @@ def load_cases() -> list[Case]:
             action=raw.get("action"),
             colliding_macro=raw.get("colliding_macro"),
             expect=raw.get("expect"),
-            envelope_version=raw.get("envelope_version"),
+            envelope_version=raw.get("envelope_version")
+            or ("1.0" if raw.get("version") in ("v1.0", "1.0") else None),
             passthrough_components=raw.get("passthrough_components"),
             macro_catalog_id=raw.get("macro_catalog_id"),
             expander_scoped=raw.get("expander_scoped", True),
@@ -945,14 +946,14 @@ def run_case(case: Case) -> Any:
     if case.action == "transform_to_inference":
         raw_components = case.input if isinstance(case.input, list) else [case.input]
         msg = {
-            "version": "v0.9",
+            "version": case.envelope_version or "v0.9",
             "updateComponents": {
                 "surfaceId": case.surface_id,
                 "components": raw_components,
             },
         }
         typed_msg = _message_adapter.validate_python(msg)
-        expander = MacroExpander(SUITE_MACROS)
+        expander = _build_expander(case)
         lowered = expander.transform_to_inference([typed_msg])
         return [m.model_dump(by_alias=True, exclude_none=True) for m in lowered]
 

@@ -17,12 +17,12 @@ A2UI (Agent to User Interface) enables AI agents to generate rich, interactive u
 
 ## Specification Versions
 
-| Version                                    | Status         | Description                                                                                                                                                                                                                  |
-| ------------------------------------------ | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **[v1.0](specification/v1.0-a2ui.md)**     | **Current**    | Current version. Adds client-to-server RPC (`actionResponse`), action IDs, and renames theme to surfaceProperties. (Previously designated as v0.10.) [Evolution guide →](specification/v1.0-evolution-guide.md)              |
-| **[v0.9.1](specification/v0.9.1-a2ui.md)** | Previous       | Minor refinements to v0.9, standardizing on the `application/a2ui+json` MIME type and relaxing surfaceId constraints. [Evolution guide →](specification/v0.9.1-evolution-guide.md)                                           |
-| **[v0.9](specification/v0.9-a2ui.md)**     | Previous       | Philosophical shift to Prompt-First. Introduces `createSurface`, client-side functions, custom catalogs, modular schemas, and validation failed error formatting. [Evolution guide →](specification/v0.9-evolution-guide.md) |
-| **[v0.8](specification/v0.8-a2ui.md)**     | **Deprecated** | Deprecated legacy version. Structured Output first. Baseline surfaces, components, data binding, and adjacency list model.                                                                                                   |
+| Version                                                                       | Status         | Description                                                                                                                                                                                                                                                                              |
+| ----------------------------------------------------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[v1.0](specification/v1.0-a2ui.md)**                                        | **Current**    | Current version. Adds bidirectional function calls (`callRendererFunction`, `callAgentFunction`), per-component catalog mixing, and inline `components` and `dataModel` on `createSurface`. (Previously designated as v0.10.) [Evolution guide →](specification/v1.0-evolution-guide.md) |
+| **[v0.9.1](specification/v0.9.1-a2ui.md)**                                    | Previous       | Minor refinements to v0.9, standardizing on the `application/a2ui+json` MIME type and relaxing surfaceId constraints. [Evolution guide →](specification/v0.9.1-evolution-guide.md)                                                                                                       |
+| **[v0.9](https://github.com/a2ui-project/a2ui/tree/main/specification/v0_9)** | Previous       | Philosophical shift to Prompt-First. Introduces `createSurface`, client-side functions, custom catalogs, modular schemas, and validation failed error formatting. [Evolution guide →](https://github.com/a2ui-project/a2ui/blob/main/specification/v0_9/docs/evolution_guide.md)         |
+| **[v0.8](https://github.com/a2ui-project/a2ui/tree/main/specification/v0_8)** | **Deprecated** | Deprecated legacy version. Structured Output first. Baseline surfaces, components, data binding, and adjacency list model.                                                                                                                                                               |
 
 A2UI is Apache 2.0 licensed,
 created by Google with contributions from
@@ -115,7 +115,7 @@ This repository contains:
 
     ***
 
-    Dive into the complete technical specs: [v1.0](specification/v1.0-a2ui.md) · [v0.9.1](specification/v0.9.1-a2ui.md) · [v0.9](specification/v0.9-a2ui.md) · [v0.8 (deprecated)](specification/v0.8-a2ui.md)
+    Dive into the complete technical specs: [v1.0](specification/v1.0-a2ui.md) · [v0.9.1](specification/v0.9.1-a2ui.md) · [v0.9](https://github.com/a2ui-project/a2ui/tree/main/specification/v0_9) · [v0.8 (deprecated)](https://github.com/a2ui-project/a2ui/tree/main/specification/v0_8)
 
     [:octicons-arrow-right-24: Read the v1.0 spec](specification/v1.0-a2ui.md)
 

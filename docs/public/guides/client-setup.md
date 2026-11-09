@@ -4,13 +4,15 @@ Integrate A2UI into your application using the renderer for your platform.
 
 ## Renderers
 
-| Renderer                                                                        | Platform           | v0.8 | v0.9 | Status    |
-| ------------------------------------------------------------------------------- | ------------------ | ---- | ---- | --------- |
-| **[React](../../../typescript/renderers/react)**                                | Web                | ✅   | ✅   | ✅ Stable |
-| **[Lit (Web Components)](../../../typescript/renderers/lit)**                   | Web                | ✅   | ✅   | ✅ Stable |
-| **[Angular](../../../typescript/renderers/angular)**                            | Web                | ✅   | ✅   | ✅ Stable |
-| **[Flutter (`a2ui_flutter`)](../../../dart/a2ui_flutter)**                      | Mobile/Desktop/Web | —    | ✅   | 🧪 Alpha  |
-| **[Jetpack Compose](https://developer.android.com/develop/ui/compose/agentic)** | Android            | —    | ✅   | 🧪 Alpha  |
+| Renderer                                                                        | Platform           | v1.0 | v0.9.1 | Status    |
+| ------------------------------------------------------------------------------- | ------------------ | ---- | ------ | --------- |
+| **[React](../../../typescript/renderers/react)**                                | Web                | ✅   | ✅     | ✅ Stable |
+| **[Lit (Web Components)](../../../typescript/renderers/lit)**                   | Web                | ✅   | ✅     | ✅ Stable |
+| **[Angular](../../../typescript/renderers/angular)**                            | Web                | ✅   | ✅     | ✅ Stable |
+| **[Flutter (`a2ui_flutter`)](../../../dart/a2ui_flutter)**                      | Mobile/Desktop/Web | ✅   | ✅     | 🧪 Alpha  |
+| **[Jetpack Compose](https://developer.android.com/develop/ui/compose/agentic)** | Android            | 🚧   | ✅     | 🧪 Alpha  |
+
+The React, Lit, and Angular renderers also support the deprecated v0.8. 🚧 means support is planned.
 
 For more see all [A2UI Renderers](../reference/renderers.md) and [Community A2UI Renderers](../ecosystem/renderers.md).
 
@@ -175,7 +177,7 @@ See the `@a2uiaction` event handler in `#maybeRenderData` in [samples/client/lit
 
 Common errors to handle:
 
-- **Invalid Surface ID**: Surface referenced before `beginRendering` (v0.8) or `createSurface` (v0.9) was received.
+- **Invalid Surface ID**: Surface referenced before `createSurface` was received.
 - **Invalid Component ID**: Component IDs must be unique within a surface.
 - **Invalid Data Path**: Check data model structure and JSON Pointer syntax.
 - **Schema Validation Failed**: Verify message format matches A2UI specification.
