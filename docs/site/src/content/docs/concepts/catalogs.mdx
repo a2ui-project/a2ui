@@ -591,7 +591,10 @@ fun createTravelProcessor(context: Context): A2uiMessageProcessor {
             functions = basicCatalog.functions,
             themeSchema = basicCatalog.themeSchema,
         )
-    return A2uiMessageProcessor(catalogs = listOf(travelCatalog))
+    // Launch processor.collectMessages() in a background coroutine scope
+    // (such as viewModelScope) to process queued messages:
+    val processor = A2uiMessageProcessor(catalogs = listOf(travelCatalog))
+    return processor
 }
 ```
 

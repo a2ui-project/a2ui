@@ -477,7 +477,10 @@ fun createProcessor(context: Context): A2uiMessageProcessor {
             audioPlayer = MaterialA2uiBasicCatalogV1Defaults.audioPlayer { _, _, _, _ -> },
             functions = A2uiBasicCatalogV1.Functions(context),
         )
-    return A2uiMessageProcessor(catalogs = listOf(basicCatalog, statusCatalog))
+    // Launch processor.collectMessages() in a background coroutine scope
+    // (such as viewModelScope) to process queued messages:
+    val processor = A2uiMessageProcessor(catalogs = listOf(basicCatalog, statusCatalog))
+    return processor
 }
 ```
 
@@ -1330,6 +1333,8 @@ let productCard = ComponentImplementation(
   <TabItem label="Jetpack Compose">
 
 ```kotlin
+import java.util.Locale
+
 import androidx.a2ui.compose.runtime.A2uiComponentProperties
 import androidx.a2ui.compose.runtime.A2uiComponentScope
 import androidx.a2ui.compose.runtime.A2uiComponentState
@@ -1348,7 +1353,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import java.util.Locale
 
 private val NameProp = A2uiProperty.dynamicString("name", required = true)
 private val PriceProp = A2uiProperty.dynamicNumber("price", required = true)

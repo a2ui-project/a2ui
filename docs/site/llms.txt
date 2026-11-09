@@ -26,7 +26,7 @@ Parallel Markdown editions of documentation pages are available by appending `.m
 - Angular: `npm install @a2ui/angular @a2ui/web_core`
 - Flutter: `flutter pub add a2ui_flutter a2ui_core`
 - Swift (SPM): `https://github.com/a2ui-project/a2ui` (`A2UISwiftCore`, `A2UISwiftUI`, `BasicCatalogSwiftUI`)
-- Android Jetpack Compose: `androidx.a2ui`, `androidx.a2ui.compose`, and `androidx.compose.material3:material3-a2ui`
+- Android Jetpack Compose (Google Maven): `androidx.compose.material3:material3-a2ui`, `androidx.a2ui.compose:compose-ui`, `androidx.a2ui.compose:compose-runtime`, and `androidx.a2ui:a2ui-model`
 - Agent SDKs: `pip install a2ui-agent-sdk` (Python, plus `a2ui-adk` and `a2ui-a2a`); `npm install @a2ui/agent` (TypeScript); `dart pub add a2ui_agent` (Dart)
 
 ## Getting Started & Concepts
