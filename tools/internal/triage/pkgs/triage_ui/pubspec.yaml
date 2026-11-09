@@ -25,8 +25,16 @@ environment:
 resolution: workspace
 
 dependencies:
+  a2ui_core:
+    path: ../../../../../dart/a2ui_core
+  a2ui_flutter:
+    path: ../../../../../dart/a2ui_flutter
   flutter:
     sdk: flutter
+  http: ^1.6.0
+  triage:
+    path: ../triage
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

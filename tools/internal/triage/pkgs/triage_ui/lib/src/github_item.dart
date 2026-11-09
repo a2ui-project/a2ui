@@ -44,7 +44,4 @@ final class GitHubItem {
   final String url;
   final bool isPullRequest;
   final int number;
-
-  /// A short name for the item, such as "Issue #123".
-  String get name => '${isPullRequest ? 'Pull request' : 'Issue'} #$number';
 }

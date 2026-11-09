@@ -86,6 +86,18 @@ final ComponentApi triageSuggestionApi = ComponentApi(
   ),
 );
 
+/// The id of [triageCatalog].
+const String triageCatalogId =
+    'https://github.com/a2ui-project/a2ui/tree/main/tools/internal/triage';
+
+/// The catalog of the triage components, which suggestion comments use.
+final Catalog<ComponentApi, FunctionApi> triageCatalog =
+    Catalog<ComponentApi, FunctionApi>(
+      id: triageCatalogId,
+      components: [triageSuggestionApi],
+      protocolVersion: A2uiProtocolVersion.v1_0,
+    );
+
 /// The names of the [triageSuggestionApi] component and its properties.
 abstract final class TriageSuggestionProps {
   static const String componentName = 'TriageSuggestion';

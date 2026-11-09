@@ -1,0 +1,315 @@
+// Copyright 2024 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:triage/triage.dart';
+
+import '../model/applier.dart';
+import '../model/suggestion_draft.dart';
+import '../model/triage_controller.dart';
+import '../model/triage_item.dart';
+import 'chip_list_field.dart';
+import 'links.dart';
+import 'triage_scope.dart';
+
+/// The triage suggestion for [item], which the triager edits and applies.
+///
+/// The edits are kept in the controller's draft for [item], which starts as
+/// [initial].
+class SuggestionEditor extends StatelessWidget {
+  const SuggestionEditor({
+    super.key,
+    required this.item,
+    this.initial = const TriageSuggestion(),
+  });
+
+  final TriageItem item;
+  final TriageSuggestion initial;
+
+  /// The value of the close choice that keeps the item open.
+  static const String _keepOpen = 'open';
+
+  @override
+  Widget build(BuildContext context) {
+    final TriageController controller = TriageScope.of(context);
+    final SuggestionDraft draft = controller.draftFor(item, initial);
+    return ListenableBuilder(
+      listenable: draft,
+      builder: (context, _) {
+        final String? summary = draft.summary;
+        final String? suggestion = draft.suggestion;
+        final String? problem = draft.problem;
+        final bool applying = controller.isApplying(item.number);
+        final ApplyResult? result = controller.lastResult(item.number);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 16,
+          children: [
+            if (summary != null) _Text('Summary', summary),
+            if (suggestion != null) _Text('Suggestion', suggestion),
+            _RelatedItems(item: item, draft: draft),
+            TextField(
+              controller: draft.reply,
+              minLines: 2,
+              maxLines: 10,
+              decoration: const InputDecoration(
+                labelText: 'Reply',
+                helperText:
+                    'Posted from your account. Leave it empty to post '
+                    'nothing.',
+                border: OutlineInputBorder(),
+                alignLabelWithHint: true,
+              ),
+            ),
+            Wrap(
+              spacing: 16,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                SegmentedButton<String>(
+                  showSelectedIcon: false,
+                  segments: [
+                    const ButtonSegment(
+                      value: _keepOpen,
+                      label: Text('Keep open'),
+                    ),
+                    if (item.isPullRequest)
+                      const ButtonSegment(
+                        value: TriageCloseReason.completed,
+                        label: Text('Close'),
+                      )
+                    else ...const [
+                      ButtonSegment(
+                        value: TriageCloseReason.completed,
+                        label: Text('Close as completed'),
+                      ),
+                      ButtonSegment(
+                        value: TriageCloseReason.notPlanned,
+                        label: Text('Close as not planned'),
+                      ),
+                      ButtonSegment(
+                        value: TriageCloseReason.duplicate,
+                        label: Text('Close as duplicate'),
+                      ),
+                    ],
+                  ],
+                  selected: {
+                    if (item.isPullRequest && draft.closeAs != null)
+                      TriageCloseReason.completed
+                    else
+                      draft.closeAs ?? _keepOpen,
+                  },
+                  onSelectionChanged: (Set<String> selected) {
+                    final String value = selected.single;
+                    draft.closeAs = value == _keepOpen ? null : value;
+                  },
+                ),
+                if (draft.closeAs == TriageCloseReason.duplicate &&
+                    !item.isPullRequest)
+                  SizedBox(
+                    width: 180,
+                    child: TextField(
+                      controller: draft.duplicateOf,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: const InputDecoration(
+                        labelText: 'Duplicate of',
+                        prefixText: '#',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            ChipListField(
+              label: 'Add labels',
+              values: draft.addedLabels,
+              options: [
+                for (final String label in controller.repositoryInfo.labels)
+                  if (!item.labels.contains(label)) label,
+              ],
+              onChanged: (List<String> v) => draft.addedLabels = v,
+            ),
+            ChipListField(
+              label: 'Remove labels',
+              values: draft.removedLabels,
+              options: item.labels,
+              onChanged: (List<String> v) => draft.removedLabels = v,
+            ),
+            ChipListField(
+              label: 'Assign',
+              values: draft.newAssignees,
+              options: controller.repositoryInfo.assignableUsers,
+              onChanged: (List<String> v) => draft.newAssignees = v,
+            ),
+            ChipListField(
+              label: 'Unassign',
+              values: draft.removedAssignees,
+              options: item.assignees,
+              onChanged: (List<String> v) => draft.removedAssignees = v,
+            ),
+            Row(
+              spacing: 16,
+              children: [
+                FilledButton(
+                  onPressed: problem == null && !applying
+                      ? () => controller.apply(item)
+                      : null,
+                  child: const Text('Apply'),
+                ),
+                if (applying)
+                  const SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else if (problem != null)
+                  Text(problem),
+              ],
+            ),
+            if (result != null && !applying) _ApplyResultView(result),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _Text extends StatelessWidget {
+  const _Text(this.title, this.text);
+
+  final String title;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    spacing: 4,
+    children: [
+      Text(title, style: Theme.of(context).textTheme.titleSmall),
+      SelectableText(text),
+    ],
+  );
+}
+
+/// Links to the items that the item is linked to, and to the ones the
+/// suggestion names.
+class _RelatedItems extends StatelessWidget {
+  const _RelatedItems({required this.item, required this.draft});
+
+  final TriageItem item;
+  final SuggestionDraft draft;
+
+  @override
+  Widget build(BuildContext context) {
+    final int? duplicateOf = draft.toSuggestion().duplicateOf;
+    final links = <(String, String)>[
+      for (final int n in item.linkedItems)
+        item.isPullRequest
+            ? ('Fixes issue #$n', issueUrl(n))
+            : ('Fixed by PR #$n', pullRequestUrl(n)),
+      if (duplicateOf != null)
+        ('Duplicate of #$duplicateOf', issueUrl(duplicateOf)),
+      for (final int n in draft.relatedIssues) ('Issue #$n', issueUrl(n)),
+      for (final int n in draft.relatedPrs) ('PR #$n', pullRequestUrl(n)),
+    ];
+    if (links.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 4,
+      children: [
+        Text('Related items', style: Theme.of(context).textTheme.titleSmall),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            for (final (String text, String url) in links)
+              ActionChip(
+                label: Text(text),
+                tooltip: url,
+                onPressed: () => openUrl(url),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ApplyResultView extends StatelessWidget {
+  const _ApplyResultView(this.result);
+
+  final ApplyResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 4,
+      children: [
+        Text(
+          result.succeeded
+              ? 'Applied.'
+              : 'Some changes failed. Fix the problem and click Apply again. '
+                    'A reply that was posted is not posted again.',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        for (final StepResult step in result.steps)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 8,
+            children: [
+              switch (step.status) {
+                StepStatus.done => Icon(
+                  Icons.check,
+                  size: 18,
+                  color: colors.primary,
+                  semanticLabel: 'Done',
+                ),
+                StepStatus.skipped => const Icon(
+                  Icons.redo,
+                  size: 18,
+                  semanticLabel: 'Skipped',
+                ),
+                StepStatus.failed => Icon(
+                  Icons.error_outline,
+                  size: 18,
+                  color: colors.error,
+                  semanticLabel: 'Failed',
+                ),
+                StepStatus.notRun => const Icon(
+                  Icons.remove,
+                  size: 18,
+                  semanticLabel: 'Not run',
+                ),
+              },
+              Expanded(
+                child: Text(
+                  [
+                    step.description,
+                    if (step.status == StepStatus.notRun) '(not run)',
+                    if (step.error case final String error) '\n$error',
+                  ].join(' '),
+                  style: step.status == StepStatus.failed
+                      ? TextStyle(color: colors.error)
+                      : null,
+                ),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+}

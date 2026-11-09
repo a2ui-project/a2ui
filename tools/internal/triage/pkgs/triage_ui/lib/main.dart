@@ -12,39 +12,43 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'src/github/github_client.dart';
+import 'src/github/github_token.dart';
+import 'src/github/triage_service.dart';
 import 'src/github_item.dart';
 import 'src/item_server.dart';
-import 'src/triage_app.dart';
+import 'src/model/triage_controller.dart';
+import 'src/ui/triage_app.dart';
 
-/// Starts the triage UI.
-///
-/// [args] may hold the URL of the item to open, as
-/// `tools/internal/triage/triage_ui.sh` passes it.
 Future<void> main(List<String> args) async {
-  final item = ValueNotifier<GitHubItem?>(_initialItem(args));
+  final controller = TriageController(
+    connect: () async =>
+        TriageService(GitHubClient(token: await findGitHubToken())),
+  );
 
-  // The web has no server sockets, and triage_ui.sh runs the app on macOS.
-  if (!kIsWeb) {
-    try {
-      await ItemServer.start(
-        onItem: (GitHubItem received) {
-          item.value = received;
-        },
-      );
-    } on SocketException catch (e) {
-      debugPrint(
-        'Cannot listen on port ${ItemServer.defaultPort}, so triage_ui.sh '
-        'cannot send items to this app: $e',
-      );
-    }
+  // Opened once the items are loaded.
+  if (_initialItem(args) case final GitHubItem item) {
+    unawaited(controller.open(item));
   }
 
-  runApp(TriageApp(item: item));
+  try {
+    await ItemServer.start(
+      onItem: (GitHubItem item) => unawaited(controller.open(item)),
+    );
+  } on SocketException catch (e) {
+    debugPrint(
+      'Cannot listen on port ${ItemServer.defaultPort}, so triage_ui.sh '
+      'cannot send items to this app: $e',
+    );
+  }
+
+  unawaited(controller.start());
+  runApp(TriageApp(controller: controller));
 }
 
 GitHubItem? _initialItem(List<String> args) {

@@ -23,7 +23,6 @@ void main() {
 
     expect(item.isPullRequest, isFalse);
     expect(item.number, 1235);
-    expect(item.name, 'Issue #1235');
   });
 
   test('parses a pull request URL', () {
@@ -33,7 +32,6 @@ void main() {
 
     expect(item.isPullRequest, isTrue);
     expect(item.number, 4026);
-    expect(item.name, 'Pull request #4026');
   });
 
   test('rejects URLs that are not a2ui issues or pull requests', () {
