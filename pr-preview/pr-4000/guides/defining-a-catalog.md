@@ -1,0 +1,1495 @@
+# How to Define a Catalog
+
+> Create a minimal catalog.json file, load it on your agent, register matching UI widgets on your client app, and explore advanced catalog features.
+
+Canonical URL: https://a2ui.org/guides/defining-a-catalog/
+
+Define a custom A2UI catalog by writing a `catalog.json` schema file, loading it on your agent, and registering matching UI widgets on your client app under the same `catalogId`.
+
+## When you need a catalog.json file
+
+If your agent and client share the same language and repository, you can define component schemas directly in code, as shown in [Catalogs](../../concepts/catalogs/#registering-a-catalog-in-a-renderer). Write a standalone `catalog.json` file when your backend agent and client app use different languages (for example, a Python agent serving a Flutter, React, or SwiftUI app) or when you publish a reusable catalog for other teams.
+
+In A2UI v1.0, your catalog works alongside the built-in [basic catalog](../../specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json), so you keep standard layout widgets (`Column`, `Row`, `Text`, `Button`) and define only the custom widgets unique to your app. See [Catalogs](../../concepts/catalogs/) for how catalog negotiation works at runtime.
+
+## Step 1: Create a minimal catalog.json
+
+Create a file named `status_catalog.json` that defines a single `StatusBadge` component with two properties: a bindable `label` string and a `status` tone.
+
+#### v1.0
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/catalogs/status/v1/catalog.json",
+  "catalogId": "https://example.com/catalogs/status/v1/catalog.json",
+  "protocolVersion": "1.0",
+  "title": "Status Catalog",
+  "components": {
+    "StatusBadge": {
+      "type": "object",
+      "description": "Displays a short status pill.",
+      "properties": {
+        "component": {"const": "StatusBadge"},
+        "label": {"$ref": "common_types.json#/$defs/DynamicString"},
+        "status": {
+          "type": "string",
+          "enum": ["info", "success", "warning"]
+        }
+      },
+      "required": ["component", "label", "status"]
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [{"$ref": "#/components/StatusBadge"}],
+      "discriminator": {"propertyName": "component"}
+    },
+    "anyFunction": {"not": {}}
+  }
+}
+```
+
+#### v0.9.1
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/catalogs/status/v0_9/catalog.json",
+  "catalogId": "https://example.com/catalogs/status/v0_9/catalog.json",
+  "title": "Status Catalog",
+  "components": {
+    "StatusBadge": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "type": "object",
+          "description": "Displays a short status pill.",
+          "properties": {
+            "component": {"const": "StatusBadge"},
+            "label": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "status": {
+              "type": "string",
+              "enum": ["info", "success", "warning"]
+            }
+          },
+          "required": ["component", "label", "status"]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [{"$ref": "#/components/StatusBadge"}],
+      "discriminator": {"propertyName": "component"}
+    },
+    "anyFunction": {"not": {}}
+  }
+}
+```
+
+| Field             | Purpose                                                                                                                                                                                                                                                                                                                               |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `catalogId`       | Unique URI shared by the agent and client renderer. Version the URI path (`v1/`, `v2/`) when making breaking changes.                                                                                                                                                                                                                 |
+| `protocolVersion` | Wire version (`"1.0"`, without a leading `v`) validated against [`catalog_definition.json`](../../specification/v1.0/schemas/#catalog_definition.json). Omitted in v0.9.1 standalone files.                                                                                                                                           |
+| `components`      | Map of component schemas. Referencing `DynamicString` lets `label` accept either literal text or a data-model binding (`{"@path": "/statusText"}` in v1.0; `{"path": "/statusText"}` in v0.9.1). In v0.9.1, components also compose [`ComponentCommon`](../../specification/v0.9.1/schemas/#common_types.json/$defs/ComponentCommon). |
+| `$defs`           | Declares `anyComponent` (union of all components) and `anyFunction` (`{"not": {}}` when the catalog defines no custom functions).                                                                                                                                                                                                     |
+
+## Step 2: Load the catalog on your agent
+
+Load `status_catalog.json` with `Catalog.fromJson` (`Catalog.from_json` in Python) and pass it to `A2uiGenerator` alongside the basic catalog. `A2uiGenerator` automatically includes your component schema in the LLM prompt and validates generated messages against it.
+
+#### TypeScript
+
+```typescript
+import {readFileSync} from 'node:fs';
+
+import {A2uiGenerator, CatalogConfig, ExpressFormatFactory} from '@a2ui/agent';
+import {Catalog} from '@a2ui/web_core';
+import {basicCatalog} from '@a2ui/web_core/v1_0';
+
+const statusCatalog = Catalog.fromJson(JSON.parse(readFileSync('./status_catalog.json', 'utf8')));
+
+export const generator = new A2uiGenerator(
+  [new CatalogConfig(basicCatalog), new CatalogConfig(statusCatalog)],
+  undefined,
+  new ExpressFormatFactory(),
+);
+```
+
+#### Python
+
+```python
+import json
+from pathlib import Path
+
+from a2ui.core import Catalog
+from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.inference_formats import ExpressFormatFactory
+from a2ui.processor import A2uiGenerator, CatalogConfig
+
+status_catalog = Catalog.from_json(
+    json.loads(Path("./status_catalog.json").read_text(encoding="utf-8"))
+)
+
+generator = A2uiGenerator(
+    catalogs=[
+        CatalogConfig(catalog=BasicCatalog("1.0")),
+        CatalogConfig(catalog=status_catalog),
+    ],
+    inference_format_factory=ExpressFormatFactory(),
+)
+```
+
+#### Dart
+
+```dart
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:a2ui_agent/a2ui_agent.dart';
+import 'package:a2ui_core/a2ui_core.dart';
+
+final CatalogApi statusCatalog = Catalog.fromJson(
+  jsonDecode(File('./status_catalog.json').readAsStringSync())
+      as Map<String, Object?>,
+);
+
+final generator = A2uiGenerator(
+  catalogs: [
+    CatalogConfig(BasicCatalog.v1_0()),
+    CatalogConfig(statusCatalog),
+  ],
+  inferenceFormatFactory: const ExpressFormatFactory(),
+);
+```
+
+Swift (`A2UISwiftCore` and `A2UISwiftUI`) is a client-side renderer SDK and does not include a server-side agent generator; see [How to Integrate with My Agent Server](../../guides/agent-integration/) for full backend setup.
+
+## Step 3: Register the widget on your client
+
+Implement `StatusBadge` in your UI framework, wrap it in a `Catalog` with the same `catalogId` (`https://example.com/catalogs/status/v1/catalog.json`), and register it alongside the basic catalog in `MessageProcessor` (or `provideA2UI` in Angular). Once this minimal widget works end to end, see [Child slots and layout constraints](#child-slots-and-layout-constraints) for how nested child slots and interactive actions map to widget code.
+
+#### Flutter
+
+```dart
+import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_flutter/a2ui_flutter.dart';
+import 'package:a2ui_flutter/basic_catalog.dart';
+import 'package:flutter/material.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
+
+final statusBadge = ComponentImplementation(
+  name: 'StatusBadge',
+  schema: Schema.object(
+    properties: {
+      'component': Schema.string(enumValues: ['StatusBadge']),
+      'label': CommonSchemasV1.dynamicString,
+      'status': Schema.string(enumValues: ['info', 'success', 'warning']),
+    },
+    required: ['component', 'label', 'status'],
+  ),
+  builder: (context, node, props, buildChild) {
+    final String label = props.string('label') ?? '';
+    final String status = props.string('status') ?? 'info';
+    return Chip(label: Text('$status: $label'));
+  },
+);
+
+final statusCatalog = Catalog<ComponentImplementation, FunctionImplementation>(
+  id: 'https://example.com/catalogs/status/v1/catalog.json',
+  protocolVersion: A2uiProtocolVersion.v1_0,
+  components: [statusBadge],
+);
+
+final processor = MessageProcessor(catalogs: [basicCatalog(), statusCatalog]);
+```
+
+#### React
+
+```tsx
+import {z} from 'zod';
+
+import {createComponentImplementation, type ReactCatalogComponent} from '@a2ui/react';
+import {Catalog, DynamicStringSchema, MessageProcessor, basicCatalog} from '@a2ui/web_core/v1_0';
+
+const StatusBadge = createComponentImplementation(
+  {
+    name: 'StatusBadge',
+    schema: z.object({
+      label: DynamicStringSchema,
+      status: z.enum(['info', 'success', 'warning']),
+    }),
+  },
+  ({props}) => <span className={`badge badge-${props.status}`}>{String(props.label ?? '')}</span>,
+);
+
+export const statusCatalog = new Catalog(
+  'https://example.com/catalogs/status/v1/catalog.json',
+  '1.0',
+  [StatusBadge],
+);
+
+export const processor = new MessageProcessor<ReactCatalogComponent>([basicCatalog, statusCatalog]);
+```
+
+#### Lit
+
+```typescript
+import {html} from 'lit';
+import {customElement} from 'lit/decorators.js';
+import {z} from 'zod';
+
+import {A2uiLitElement, type LitComponentApi} from '@a2ui/lit';
+import {Catalog, DynamicStringSchema, MessageProcessor, basicCatalog} from '@a2ui/web_core/v1_0';
+
+const StatusBadgeApi = {
+  name: 'StatusBadge',
+  schema: z.object({
+    label: DynamicStringSchema,
+    status: z.enum(['info', 'success', 'warning']),
+  }),
+};
+
+@customElement('app-status-badge')
+export class StatusBadgeElement extends A2uiLitElement<typeof StatusBadgeApi> {
+  static readonly tagName = 'app-status-badge';
+  protected override readonly api = StatusBadgeApi;
+
+  override render() {
+    const {label, status} = this.controller.props;
+    return html`<span class="badge badge-${status}">${label ?? ''}</span>`;
+  }
+}
+
+export const statusCatalog = new Catalog(
+  'https://example.com/catalogs/status/v1/catalog.json',
+  '1.0',
+  [
+    {
+      ...StatusBadgeApi,
+      tagName: StatusBadgeElement.tagName,
+      element: StatusBadgeElement,
+    } satisfies LitComponentApi,
+  ],
+);
+
+export const processor = new MessageProcessor<LitComponentApi>([basicCatalog, statusCatalog]);
+```
+
+#### Angular
+
+```typescript
+import {ChangeDetectionStrategy, Component, computed} from '@angular/core';
+import {bootstrapApplication} from '@angular/platform-browser';
+import {z} from 'zod';
+
+import {
+  AngularCatalog,
+  BasicCatalog,
+  CatalogComponent,
+  createComponentImplementation,
+  provideA2UI,
+} from '@a2ui/angular';
+import {type ComponentApi} from '@a2ui/web_core';
+import {DynamicStringSchema} from '@a2ui/web_core/v1_0';
+
+const StatusBadgeApi = {
+  name: 'StatusBadge',
+  schema: z.object({
+    label: DynamicStringSchema,
+    status: z.enum(['info', 'success', 'warning']),
+  }),
+} satisfies ComponentApi;
+
+@Component({
+  selector: 'app-status-badge',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<span [class]="'badge badge-' + status()">{{ label() }}</span>`,
+})
+export class StatusBadgeComponent extends CatalogComponent<typeof StatusBadgeApi> {
+  readonly label = computed(() => {
+    const value = this.props().label?.value();
+    return typeof value === 'string' ? value : '';
+  });
+  readonly status = computed(() => this.props().status?.value() ?? 'info');
+}
+
+export const statusCatalog = new AngularCatalog(
+  'https://example.com/catalogs/status/v1/catalog.json',
+  '1.0',
+  [createComponentImplementation(StatusBadgeApi, StatusBadgeComponent)],
+);
+
+bootstrapApplication(AppComponent, {
+  providers: [provideA2UI({catalogs: [new BasicCatalog(), statusCatalog]})],
+});
+```
+
+#### SwiftUI
+
+```swift
+import A2UICore
+import A2UISwiftUI
+import BasicCatalogSwiftUI
+import JSONSchema
+import SwiftUI
+
+let statusBadgeSchema = try! Schema(
+  instance: """
+    {
+      "type": "object",
+      "properties": {
+        "component": { "const": "StatusBadge" },
+        "label": { "$ref": "#/$defs/DynamicString" },
+        "status": { "type": "string", "enum": ["info", "success", "warning"] }
+      },
+      "required": ["component", "label", "status"],
+      "$defs": { "DynamicString": { "type": ["string", "object"] } }
+    }
+    """
+)
+
+@MainActor
+let statusBadge = ComponentImplementation(
+  api: AnyComponentAPI(name: "StatusBadge", schema: statusBadgeSchema)
+) { node in
+  let status = node.string(for: "status") ?? "info"
+  let label = node.string(for: "label") ?? ""
+  return Text("\(status.uppercased()): \(label)").font(.caption).bold()
+}
+
+@MainActor
+let statusCatalog = Catalog(
+  id: "https://example.com/catalogs/status/v1/catalog.json",
+  protocolVersion: .v10,
+  components: [statusBadge]
+)
+
+@MainActor
+let processor = MessageProcessor(
+  catalogs: [
+    BasicCatalogImplementation.makeCatalog(version: .v10),
+    statusCatalog,
+  ]
+)
+```
+
+#### Jetpack Compose
+
+The Jetpack Compose renderer is maintained in AndroidX rather than this repository. See the [Agentic UI documentation on Android Developers](https://developer.android.com/develop/ui/compose/agentic) for custom component and catalog registration in Compose.
+
+> **Note**
+  To share a single web widget across Lit, React, and Angular without rewriting view code, see
+  [Authoring Universal Web Components](../../guides/authoring-universal-components/).
+
+Once registered on both sides, your agent can combine basic layout components and `StatusBadge` on the same v1.0 surface by tagging the custom component with its `catalogId` (in v0.9.1, each surface binds to a single `catalogId`):
+
+#### v1.0
+
+```json
+{
+  "version": "1.0",
+  "createSurface": {
+    "surfaceId": "deploy-card",
+    "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+    "components": [
+      {
+        "id": "root",
+        "component": "Column",
+        "children": ["heading", "build_badge"]
+      },
+      {
+        "id": "heading",
+        "component": "Text",
+        "text": "Release pipeline"
+      },
+      {
+        "id": "build_badge",
+        "catalogId": "https://example.com/catalogs/status/v1/catalog.json",
+        "component": "StatusBadge",
+        "label": "All checks passing",
+        "status": "success"
+      }
+    ]
+  }
+}
+```
+
+#### v0.9.1
+
+```json
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "deploy-card",
+      "catalogId": "https://example.com/catalogs/status/v0_9/catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "deploy-card",
+      "components": [
+        {
+          "id": "root",
+          "component": "StatusBadge",
+          "label": "All checks passing",
+          "status": "success"
+        }
+      ]
+    }
+  }
+]
+```
+
+## Advanced catalog features
+
+### Custom functions and input validators
+
+A catalog's `functions` map exposes custom client capabilities to generated surfaces without requiring a server round-trip:
+
+| Capability                     | v1.0 `returnType` and callers                                         | Typical use                                                                                     |
+| ------------------------------ | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Device-local data and state    | `"string"`, `"number"`, `"boolean"`, or `"object"` (`"rendererOnly"`) | Reading device timezone, locale, or platform capabilities that are not stored on the server.    |
+| Device-local native actions    | `"void"` (`"rendererOnly"`, `"requiresUserActivation": true`)         | Triggering native share sheets, clipboard writes, or deep links from a user-initiated `Action`. |
+| Local formatting & computation | `"string"`, `"number"`, `"array"`, or `"any"` (`"rendererOrAgent"`)   | Computing derived values reactively from bound data-model fields.                               |
+| Input validation (`checks`)    | `"validationResult"` (`"rendererOnly"`; `"boolean"` in v0.9.1)        | Validating user input synchronously and returning `{"valid": false, "message": "..."}` in v1.0. |
+
+In v1.0, each [`FunctionDefinition`](../../specification/v1.0/schemas/#catalog_definition.json/$defs/FunctionDefinition) declares `returnType` at the top level of the function object and uses `"@call"` inside `properties`. You can set `allowedCallers` to `"rendererOnly"` (default), `"agentOnly"`, or `"rendererOrAgent"`. Side-effecting device functions can set `"requiresUserActivation": true` so they run only from direct user interactions; functions that require user activation must keep `allowedCallers` set to `"rendererOnly"` (or omit it).
+
+In v0.9.1 standalone files, functions place `"call"` and `"returnType": {"const": "..."}` inside `properties`, and validation rules return `"boolean"`. When a v0.9.1 renderer advertises inline catalogs in `a2uiClientCapabilities`, `MessageProcessor` converts the `functions` map into the array format defined by [`client_capabilities.json`](../../specification/v0.9.1/schemas/#client_capabilities.json/$defs/FunctionDefinition).
+
+#### v1.0
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/catalogs/pricing/v1/catalog.json",
+  "catalogId": "https://example.com/catalogs/pricing/v1/catalog.json",
+  "protocolVersion": "1.0",
+  "functions": {
+    "shareProduct": {
+      "type": "object",
+      "description": "Opens the device share sheet for a product link.",
+      "returnType": "void",
+      "allowedCallers": "rendererOnly",
+      "requiresUserActivation": true,
+      "properties": {
+        "@call": {"const": "shareProduct"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "title": {"$ref": "common_types.json#/$defs/DynamicString"},
+            "url": {"$ref": "common_types.json#/$defs/DynamicString"}
+          },
+          "required": ["title", "url"],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["@call", "args"]
+    },
+    "validDiscount": {
+      "type": "object",
+      "description": "Checks that a discount percentage is between 0 and 70.",
+      "returnType": "validationResult",
+      "allowedCallers": "rendererOnly",
+      "properties": {
+        "@call": {"const": "validDiscount"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "percentOff": {"$ref": "common_types.json#/$defs/DynamicNumber"}
+          },
+          "required": ["percentOff"],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["@call", "args"]
+    }
+  },
+  "$defs": {
+    "anyComponent": {"not": {}},
+    "anyFunction": {
+      "oneOf": [{"$ref": "#/functions/shareProduct"}, {"$ref": "#/functions/validDiscount"}]
+    }
+  }
+}
+```
+
+#### v0.9.1
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/catalogs/pricing/v0_9/catalog.json",
+  "catalogId": "https://example.com/catalogs/pricing/v0_9/catalog.json",
+  "functions": {
+    "shareProduct": {
+      "type": "object",
+      "description": "Opens the device share sheet for a product link.",
+      "properties": {
+        "call": {"const": "shareProduct"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "url": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["title", "url"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {"const": "void"}
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    },
+    "validDiscount": {
+      "type": "object",
+      "description": "Checks that a discount percentage is between 0 and 70.",
+      "properties": {
+        "call": {"const": "validDiscount"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "percentOff": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
+            }
+          },
+          "required": ["percentOff"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {"const": "boolean"}
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    }
+  },
+  "$defs": {
+    "anyComponent": {"not": {}},
+    "anyFunction": {
+      "oneOf": [{"$ref": "#/functions/shareProduct"}, {"$ref": "#/functions/validDiscount"}]
+    }
+  }
+}
+```
+
+On the client, register matching `FunctionImplementation` entries on your `Catalog`:
+
+#### TypeScript
+
+```typescript
+import {z} from 'zod';
+
+import {
+  Catalog,
+  DynamicNumberSchema,
+  DynamicStringSchema,
+  createFunctionImplementation,
+} from '@a2ui/web_core/v1_0';
+
+const shareProductFn = createFunctionImplementation(
+  {
+    name: 'shareProduct',
+    returnType: 'void',
+    allowedCallers: 'rendererOnly',
+    requiresUserActivation: true,
+    schema: z.object({title: DynamicStringSchema, url: DynamicStringSchema}),
+  },
+  ({title, url}) => {
+    void navigator.share?.({title: String(title), url: String(url)});
+  },
+);
+
+const validDiscountFn = createFunctionImplementation(
+  {
+    name: 'validDiscount',
+    returnType: 'validationResult',
+    allowedCallers: 'rendererOnly',
+    schema: z.object({percentOff: DynamicNumberSchema}),
+  },
+  ({percentOff}) => {
+    const pct = Number(percentOff);
+    return pct >= 0 && pct <= 70
+      ? {valid: true}
+      : {valid: false, message: 'Discount must be between 0% and 70%.'};
+  },
+);
+
+export const pricingCatalog = new Catalog(
+  'https://example.com/catalogs/pricing/v1/catalog.json',
+  '1.0',
+  [],
+  [shareProductFn, validDiscountFn],
+);
+```
+
+#### Dart
+
+```dart
+import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_flutter/a2ui_flutter.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
+
+final class ShareProductFunction extends FunctionImplementation {
+  ShareProductFunction()
+      : super(
+          name: 'shareProduct',
+          returnType: A2uiReturnType.void_,
+          allowedCallers: AllowedCallers.rendererOnly,
+          requiresUserActivation: true,
+          argumentSchema: Schema.object(
+            properties: {
+              'title': CommonSchemasV1.dynamicString,
+              'url': CommonSchemasV1.dynamicString,
+            },
+            required: ['title', 'url'],
+          ),
+        );
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) {
+    final String title = args['title']?.toString() ?? '';
+    final String url = args['url']?.toString() ?? '';
+    // Invoke platform share sheet with title and url.
+    return null;
+  }
+}
+
+final class ValidDiscountFunction extends FunctionImplementation {
+  ValidDiscountFunction()
+      : super(
+          name: 'validDiscount',
+          returnType: A2uiReturnType.validationResult,
+          allowedCallers: AllowedCallers.rendererOnly,
+          argumentSchema: Schema.object(
+            properties: {'percentOff': CommonSchemasV1.dynamicNumber},
+            required: ['percentOff'],
+          ),
+        );
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) {
+    final num pct = (args['percentOff'] as num?) ?? -1;
+    return pct >= 0 && pct <= 70
+        ? const ValidationResult.ok()
+        : const ValidationResult(
+            valid: false,
+            message: 'Discount must be between 0% and 70%.',
+          );
+  }
+}
+
+final pricingCatalog = Catalog<ComponentImplementation, FunctionImplementation>(
+  id: 'https://example.com/catalogs/pricing/v1/catalog.json',
+  protocolVersion: A2uiProtocolVersion.v1_0,
+  functions: [ShareProductFunction(), ValidDiscountFunction()],
+);
+```
+
+#### Swift
+
+```swift
+import A2UICore
+import JSONSchema
+import OrderedJSON
+
+struct ShareProductFunction: FunctionImplementation {
+  let api = FunctionAPI(
+    name: "shareProduct",
+    returnType: .void,
+    schema: try! Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "title": { "type": ["string", "object"] },
+            "url": { "type": ["string", "object"] }
+          },
+          "required": ["title", "url"]
+        }
+        """
+    ),
+    allowedCallers: .rendererOnly,
+    requiresUserActivation: true
+  )
+
+  @MainActor
+  func evaluate(
+    arguments: [String: JSONValue],
+    context: DataContext
+  ) throws -> JSONValue {
+    // Present ShareLink or UIActivityViewController with resolved title and url.
+    return .null
+  }
+}
+
+struct ValidDiscountFunction: FunctionImplementation {
+  let api = FunctionAPI(
+    name: "validDiscount",
+    returnType: .validationResult,
+    schema: try! Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "percentOff": { "type": ["number", "object"] }
+          },
+          "required": ["percentOff"]
+        }
+        """
+    ),
+    allowedCallers: .rendererOnly
+  )
+
+  @MainActor
+  func evaluate(
+    arguments: [String: JSONValue],
+    context: DataContext
+  ) throws -> JSONValue {
+    let pct = arguments["percentOff"]?.doubleValue
+      ?? arguments["percentOff"]?.intValue.map(Double.init)
+      ?? -1
+    if pct >= 0 && pct <= 70 {
+      return .object(["valid": .bool(true)])
+    }
+    return .object([
+      "valid": .bool(false),
+      "message": .string("Discount must be between 0% and 70%."),
+    ])
+  }
+}
+
+let pricingCatalog = Catalog<AnyComponentAPI>(
+  id: "https://example.com/catalogs/pricing/v1/catalog.json",
+  protocolVersion: .v10,
+  functions: [ShareProductFunction(), ValidDiscountFunction()]
+)
+```
+
+### Child slots and layout constraints
+
+Components that host nested widgets reference [`ChildList`](../../specification/v1.0/schemas/#common_types.json/$defs/ChildList) (an array of child IDs or a data-bound collection template) or [`ComponentId`](../../specification/v1.0/schemas/#common_types.json/$defs/ComponentId) (a single child slot).
+
+In v1.0, a [`ComponentDefinition`](../../specification/v1.0/schemas/#catalog_definition.json/$defs/ComponentDefinition) can also constrain placement with `allowedParents` (for example, `["Column", "List"]`, or `["Surface"]` for root-only modals) and `allowedChildren` (`["Button"]`). `"Surface"` is reserved and cannot be used as a component name, and v1.0 identifiers must follow Unicode UAX #31 without a leading `@`.
+
+#### v1.0
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/catalogs/shop/v1/catalog.json",
+  "catalogId": "https://example.com/catalogs/shop/v1/catalog.json",
+  "protocolVersion": "1.0",
+  "components": {
+    "ProductCard": {
+      "type": "object",
+      "allowedParents": ["Column", "List"],
+      "allowedChildren": ["Button"],
+      "properties": {
+        "component": {"const": "ProductCard"},
+        "name": {"$ref": "common_types.json#/$defs/DynamicString"},
+        "price": {"$ref": "common_types.json#/$defs/DynamicNumber"},
+        "children": {"$ref": "common_types.json#/$defs/ChildList"},
+        "onSelect": {"$ref": "common_types.json#/$defs/Action"}
+      },
+      "required": ["component", "name", "price"]
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [{"$ref": "#/components/ProductCard"}],
+      "discriminator": {"propertyName": "component"}
+    },
+    "anyFunction": {"not": {}}
+  }
+}
+```
+
+#### v0.9.1
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/catalogs/shop/v0_9/catalog.json",
+  "catalogId": "https://example.com/catalogs/shop/v0_9/catalog.json",
+  "components": {
+    "ProductCard": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {"const": "ProductCard"},
+            "name": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "price": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
+            },
+            "children": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+            },
+            "onSelect": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Action"
+            }
+          },
+          "required": ["component", "name", "price"]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [{"$ref": "#/components/ProductCard"}],
+      "discriminator": {"propertyName": "component"}
+    },
+    "anyFunction": {"not": {}}
+  }
+}
+```
+
+In your client renderer, `ChildList` slots resolve to child references that you render through the framework adapter (`buildChild`, `this.renderNode`, `ComponentHostComponent`, or `ComponentNodeView`), while `Action` properties resolve to callable callbacks:
+
+#### Flutter
+
+```dart
+import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_flutter/a2ui_flutter.dart';
+import 'package:flutter/material.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
+
+final productCard = ComponentImplementation(
+  name: 'ProductCard',
+  allowedParents: ['Column', 'List'],
+  allowedChildren: ['Button'],
+  schema: Schema.object(
+    properties: {
+      'component': Schema.string(enumValues: ['ProductCard']),
+      'name': CommonSchemasV1.dynamicString,
+      'price': CommonSchemasV1.dynamicNumber,
+      'children': CommonSchemas.childList,
+      'onSelect': CommonSchemas.action,
+    },
+    required: ['component', 'name', 'price'],
+  ),
+  builder: (context, node, props, buildChild) {
+    final String name = props.string('name') ?? '';
+    final num price = props.number('price') ?? 0;
+    final VoidCallback? onSelect = props.isValid ? props.action('onSelect') : null;
+    final List<Widget> children = [
+      for (final child in props.children('children')) buildChild(child),
+    ];
+    return Card(
+      child: InkWell(
+        onTap: onSelect,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('$name (USD $price)'),
+            Row(children: children),
+          ],
+        ),
+      ),
+    );
+  },
+);
+```
+
+#### React
+
+```tsx
+import {z} from 'zod';
+
+import {createComponentImplementation} from '@a2ui/react';
+import {
+  ActionSchema,
+  ChildListSchema,
+  DynamicNumberSchema,
+  DynamicStringSchema,
+} from '@a2ui/web_core/v1_0';
+
+export const ProductCard = createComponentImplementation(
+  {
+    name: 'ProductCard',
+    allowedParents: ['Column', 'List'],
+    allowedChildren: ['Button'],
+    schema: z.object({
+      name: DynamicStringSchema,
+      price: DynamicNumberSchema,
+      children: ChildListSchema.optional(),
+      onSelect: ActionSchema.optional(),
+    }),
+  },
+  ({props, buildChild}) => (
+    <article onClick={() => void props.onSelect?.()}>
+      <h3>
+        {String(props.name ?? '')} (USD {Number(props.price ?? 0)})
+      </h3>
+      <div>
+        {props.children?.map(ref =>
+          typeof ref === 'string' ? buildChild(ref) : buildChild(ref.id, ref.basePath),
+        )}
+      </div>
+    </article>
+  ),
+);
+```
+
+#### Lit
+
+```typescript
+import {html} from 'lit';
+import {customElement} from 'lit/decorators.js';
+import {z} from 'zod';
+
+import {A2uiLitElement} from '@a2ui/lit';
+import {
+  ActionSchema,
+  ChildListSchema,
+  DynamicNumberSchema,
+  DynamicStringSchema,
+} from '@a2ui/web_core/v1_0';
+
+const ProductCardApi = {
+  name: 'ProductCard',
+  allowedParents: ['Column', 'List'],
+  allowedChildren: ['Button'],
+  schema: z.object({
+    name: DynamicStringSchema,
+    price: DynamicNumberSchema,
+    children: ChildListSchema.optional(),
+    onSelect: ActionSchema.optional(),
+  }),
+};
+
+@customElement('app-product-card')
+export class ProductCardElement extends A2uiLitElement<typeof ProductCardApi> {
+  static readonly tagName = 'app-product-card';
+  protected override readonly api = ProductCardApi;
+
+  override render() {
+    const {name, price, children, onSelect} = this.controller.props;
+    return html`
+      <article @click=${() => void onSelect?.()}>
+        <h3>${name ?? ''} (USD ${price ?? 0})</h3>
+        <div>${children?.map(ref => this.renderNode(ref))}</div>
+      </article>
+    `;
+  }
+}
+```
+
+#### Angular
+
+```typescript
+import {ChangeDetectionStrategy, Component, computed} from '@angular/core';
+import {z} from 'zod';
+
+import {
+  CatalogComponent,
+  type Child,
+  ComponentHostComponent,
+  createComponentImplementation,
+} from '@a2ui/angular';
+import {type ComponentApi} from '@a2ui/web_core';
+import {
+  ActionSchema,
+  ChildListSchema,
+  DynamicNumberSchema,
+  DynamicStringSchema,
+} from '@a2ui/web_core/v1_0';
+
+const ProductCardApi = {
+  name: 'ProductCard',
+  allowedParents: ['Column', 'List'],
+  allowedChildren: ['Button'],
+  schema: z.object({
+    name: DynamicStringSchema,
+    price: DynamicNumberSchema,
+    children: ChildListSchema.optional(),
+    onSelect: ActionSchema.optional(),
+  }),
+} satisfies ComponentApi;
+
+@Component({
+  selector: 'app-product-card',
+  imports: [ComponentHostComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <article (click)="handleSelect()">
+      <h3>{{ name() }} (USD {{ price() }})</h3>
+      @for (child of children(); track trackChild($index, child)) {
+        <a2ui-v09-component-host [componentKey]="child" [surfaceId]="surfaceId()" />
+      }
+    </article>
+  `,
+})
+export class ProductCardComponent extends CatalogComponent<typeof ProductCardApi> {
+  readonly name = computed(() => {
+    const value = this.props().name?.value();
+    return typeof value === 'string' ? value : '';
+  });
+  readonly price = computed(() => {
+    const value = this.props().price?.value();
+    return typeof value === 'number' ? value : 0;
+  });
+  readonly children = computed(() => this.props().children?.value() ?? []);
+  readonly trackChild = (_index: number, item: Child) => `${item.basePath}/${item.id}`;
+
+  protected handleSelect(): void {
+    const action: unknown = this.props().onSelect?.value();
+    if (typeof action === 'function') action();
+  }
+}
+
+export const ProductCard = createComponentImplementation(ProductCardApi, ProductCardComponent);
+```
+
+#### SwiftUI
+
+```swift
+import A2UICore
+import A2UISwiftUI
+import JSONSchema
+import SwiftUI
+
+let productCardSchema = try! Schema(
+  instance: """
+    {
+      "type": "object",
+      "properties": {
+        "component": { "const": "ProductCard" },
+        "name": { "type": ["string", "object"] },
+        "price": { "type": ["number", "object"] },
+        "children": { "type": ["array", "object"] },
+        "onSelect": { "type": "object" }
+      },
+      "required": ["component", "name", "price"]
+    }
+    """
+)
+
+@MainActor
+let productCard = ComponentImplementation(
+  api: AnyComponentAPI(
+    name: "ProductCard",
+    schema: productCardSchema,
+    allowedParents: ["Column", "List"],
+    allowedChildren: ["Button"]
+  )
+) { node in
+  let name = node.string(for: "name") ?? ""
+  let price = node.double(for: "price") ?? 0
+  let onSelect = node.action(for: "onSelect", userActivation: true)
+  return VStack(alignment: .leading) {
+    Button(action: { onSelect?() }) {
+      Text("\(name) (USD \(price, specifier: "%.2f"))")
+    }
+    HStack {
+      ForEach(node.children(for: "children")) { child in
+        ComponentNodeView(node: child)
+      }
+    }
+  }
+}
+```
+
+#### Jetpack Compose
+
+The Jetpack Compose renderer is maintained in AndroidX rather than this repository. See the [Agentic UI documentation on Android Developers](https://developer.android.com/develop/ui/compose/agentic) for rendering child slots and dispatching actions in Compose.
+
+### Interactive actions and input checks
+
+Reference [`Action`](../../specification/v1.0/schemas/#common_types.json/$defs/Action) on interactive properties to let surfaces dispatch server events or run local functions (such as `shareProduct`). When an input component supports client-side validation rules (`checks`), compose [`Checkable`](../../specification/v1.0/schemas/#common_types.json/$defs/Checkable) via `allOf` so the renderer evaluates bound `CheckRule` conditions and exposes `isValid` and `validationErrors` to your widget.
+
+#### v1.0
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/catalogs/checkout/v1/catalog.json",
+  "catalogId": "https://example.com/catalogs/checkout/v1/catalog.json",
+  "protocolVersion": "1.0",
+  "components": {
+    "DiscountInput": {
+      "type": "object",
+      "allOf": [{"$ref": "common_types.json#/$defs/Checkable"}],
+      "properties": {
+        "component": {"const": "DiscountInput"},
+        "label": {"$ref": "common_types.json#/$defs/DynamicString"},
+        "percentOff": {"$ref": "common_types.json#/$defs/DynamicNumber"},
+        "onApply": {"$ref": "common_types.json#/$defs/Action"}
+      },
+      "required": ["component", "label", "percentOff"]
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [{"$ref": "#/components/DiscountInput"}],
+      "discriminator": {"propertyName": "component"}
+    },
+    "anyFunction": {"not": {}}
+  }
+}
+```
+
+#### v0.9.1
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/catalogs/checkout/v0_9/catalog.json",
+  "catalogId": "https://example.com/catalogs/checkout/v0_9/catalog.json",
+  "components": {
+    "DiscountInput": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Checkable"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {"const": "DiscountInput"},
+            "label": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "percentOff": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
+            },
+            "onApply": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Action"
+            }
+          },
+          "required": ["component", "label", "percentOff"]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [{"$ref": "#/components/DiscountInput"}],
+      "discriminator": {"propertyName": "component"}
+    },
+    "anyFunction": {"not": {}}
+  }
+}
+```
+
+### Prompt instructions and catalog metadata
+
+In v1.0, top-level `instructions` holds Markdown guidance that `A2uiGenerator` appends to the LLM system prompt whenever the catalog is active. You can also attach custom key-value pairs under `metadata.extensions` (keys must follow Unicode UAX #31, and keys starting with `a2ui_` are reserved for official protocol extensions). In v0.9.1, `instructions` and `metadata` are not top-level catalog fields; place prompt guidance in component and property `description` strings instead.
+
+#### v1.0
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/catalogs/shop/v1/catalog.json",
+  "catalogId": "https://example.com/catalogs/shop/v1/catalog.json",
+  "protocolVersion": "1.0",
+  "instructions": "Place `ProductCard` inside `Column` or `List` and pass `Button` IDs to `children`.",
+  "metadata": {
+    "extensions": {
+      "storefrontOwner": "commerce-ui"
+    }
+  },
+  "components": {},
+  "$defs": {
+    "anyComponent": {"not": {}},
+    "anyFunction": {"not": {}}
+  }
+}
+```
+
+#### v0.9.1
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/catalogs/shop/v0_9/catalog.json",
+  "catalogId": "https://example.com/catalogs/shop/v0_9/catalog.json",
+  "description": "Place ProductCard inside Column or List and pass Button IDs to children.",
+  "components": {},
+  "$defs": {
+    "anyComponent": {"not": {}},
+    "anyFunction": {"not": {}}
+  }
+}
+```
+
+### Reusable schema definitions ($defs) and theming
+
+Place shared scalar or enum schemas (such as `BadgeTone`) under `$defs` alongside `anyComponent` and `anyFunction`. Under the v1.0 specification, a catalog is self-contained: `$ref` targets inside a catalog may point only to local `#/$defs/...`, `#/components/...`, or `#/functions/...` entries and allowlisted `common_types.json#/$defs/...` definitions, never to an external `catalog.json`. In v0.9.1, you can also declare `$defs.theme` to schema-validate catalog-level theme tokens.
+
+#### v1.0
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/catalogs/shop/v1/catalog.json",
+  "catalogId": "https://example.com/catalogs/shop/v1/catalog.json",
+  "protocolVersion": "1.0",
+  "components": {
+    "PromoBanner": {
+      "type": "object",
+      "properties": {
+        "component": {"const": "PromoBanner"},
+        "headline": {"$ref": "common_types.json#/$defs/DynamicString"},
+        "tone": {"$ref": "#/$defs/BadgeTone"}
+      },
+      "required": ["component", "headline"]
+    }
+  },
+  "$defs": {
+    "BadgeTone": {
+      "type": "string",
+      "enum": ["sale", "new", "limited"]
+    },
+    "anyComponent": {
+      "oneOf": [{"$ref": "#/components/PromoBanner"}],
+      "discriminator": {"propertyName": "component"}
+    },
+    "anyFunction": {"not": {}}
+  }
+}
+```
+
+#### v0.9.1
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/catalogs/shop/v0_9/catalog.json",
+  "catalogId": "https://example.com/catalogs/shop/v0_9/catalog.json",
+  "components": {
+    "PromoBanner": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {"const": "PromoBanner"},
+            "headline": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "tone": {"$ref": "#/$defs/BadgeTone"}
+          },
+          "required": ["component", "headline"]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  },
+  "$defs": {
+    "BadgeTone": {
+      "type": "string",
+      "enum": ["sale", "new", "limited"]
+    },
+    "theme": {
+      "type": "object",
+      "properties": {
+        "primaryColor": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        }
+      },
+      "additionalProperties": true
+    },
+    "anyComponent": {
+      "oneOf": [{"$ref": "#/components/PromoBanner"}],
+      "discriminator": {"propertyName": "component"}
+    },
+    "anyFunction": {"not": {}}
+  }
+}
+```
+
+### Schema parity tests in CI
+
+When your backend agent loads `status_catalog.json` and your client defines schemas in code (with Zod, `json_schema_builder`, or `JSONSchema`), avoid comparing serialized JSON files as raw strings. Code-built schemas and hand-authored JSON files often differ in key order, `$schema` or `instructions` fields, and localized `#/$defs/...` pointers inside `validationSchema`.
+
+Instead, parse `status_catalog.json` in a unit test with `Catalog.fromJson` (TypeScript and Dart), `Catalog.from_json` (Python), or `JSONSerialization` (Swift), and compare the normalized `Catalog` properties (`id`, `protocolVersion`, component names and `allowedParents`/`allowedChildren`, and function `returnType` and `allowedCallers`) against your client catalog.
+
+#### TypeScript
+
+```typescript
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {test} from 'node:test';
+
+import {Catalog} from '@a2ui/web_core';
+
+import {statusCatalog} from './status_catalog.js';
+
+test('client statusCatalog matches status_catalog.json', () => {
+  const specCatalog = Catalog.fromJson(JSON.parse(readFileSync('./status_catalog.json', 'utf8')));
+
+  assert.equal(statusCatalog.id, specCatalog.id);
+  assert.equal(statusCatalog.protocolVersion, specCatalog.protocolVersion);
+  assert.deepEqual(
+    [...statusCatalog.components.keys()].sort(),
+    [...specCatalog.components.keys()].sort(),
+  );
+  assert.deepEqual(
+    [...statusCatalog.functions.keys()].sort(),
+    [...specCatalog.functions.keys()].sort(),
+  );
+
+  for (const [name, specComp] of specCatalog.components) {
+    const clientComp = statusCatalog.components.get(name)!;
+    assert.deepEqual(clientComp.allowedParents, specComp.allowedParents);
+    assert.deepEqual(clientComp.allowedChildren, specComp.allowedChildren);
+  }
+
+  for (const [name, specFn] of specCatalog.functions) {
+    const clientFn = statusCatalog.functions.get(name)!;
+    assert.equal(clientFn.returnType, specFn.returnType);
+    assert.equal(clientFn.allowedCallers, specFn.allowedCallers);
+  }
+});
+```
+
+#### Python
+
+```python
+import json
+from pathlib import Path
+
+from a2ui.core import Catalog
+from my_app.catalog import code_status_catalog
+
+def test_status_catalog_parity() -> None:
+    spec_catalog = Catalog.from_json(
+        json.loads(Path("./status_catalog.json").read_text(encoding="utf-8"))
+    )
+
+    assert code_status_catalog.catalog_id == spec_catalog.catalog_id
+    assert code_status_catalog.protocol_version == spec_catalog.protocol_version
+    assert set(code_status_catalog.components) == set(spec_catalog.components)
+    assert set(code_status_catalog.functions) == set(spec_catalog.functions)
+
+    for name, spec_comp in spec_catalog.components.items():
+        code_comp = code_status_catalog.components[name]
+        assert code_comp.allowed_parents == spec_comp.allowed_parents
+        assert code_comp.allowed_children == spec_comp.allowed_children
+        assert set(code_comp.schema.get("properties", {})) == set(
+            spec_comp.schema.get("properties", {})
+        )
+
+    for name, spec_fn in spec_catalog.functions.items():
+        code_fn = code_status_catalog.functions[name]
+        assert code_fn.return_type == spec_fn.return_type
+        assert code_fn.allowed_callers == spec_fn.allowed_callers
+```
+
+#### Dart
+
+```dart
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:a2ui_core/a2ui_core.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:my_app/status_catalog.dart';
+
+void main() {
+  test('Flutter statusCatalog matches status_catalog.json', () {
+    final CatalogApi specCatalog = Catalog.fromJson(
+      jsonDecode(File('./status_catalog.json').readAsStringSync())
+          as Map<String, Object?>,
+    );
+
+    expect(statusCatalog.id, specCatalog.id);
+    expect(statusCatalog.protocolVersion, specCatalog.protocolVersion);
+    expect(
+      statusCatalog.components.keys.toSet(),
+      specCatalog.components.keys.toSet(),
+    );
+    expect(
+      statusCatalog.functions.keys.toSet(),
+      specCatalog.functions.keys.toSet(),
+    );
+
+    for (final MapEntry<String, ComponentApi> entry
+        in specCatalog.components.entries) {
+      final ComponentApi clientComp = statusCatalog.components[entry.key]!;
+      expect(clientComp.allowedParents, entry.value.allowedParents);
+      expect(clientComp.allowedChildren, entry.value.allowedChildren);
+    }
+
+    for (final MapEntry<String, FunctionApi> entry
+        in specCatalog.functions.entries) {
+      final FunctionApi clientFn = statusCatalog.functions[entry.key]!;
+      expect(clientFn.returnType, entry.value.returnType);
+      expect(clientFn.allowedCallers, entry.value.allowedCallers);
+    }
+  });
+}
+```
+
+#### Swift
+
+```swift
+import A2UICore
+import Foundation
+import Testing
+
+@testable import MyApp
+
+@Test @MainActor
+func statusCatalogMatchesSpec() throws {
+  let data = try Data(contentsOf: URL(fileURLWithPath: "./status_catalog.json"))
+  let spec = try #require(
+    JSONSerialization.jsonObject(with: data) as? [String: Any]
+  )
+  let specComponents = (spec["components"] as? [String: [String: Any]]) ?? [:]
+  let specFunctions = (spec["functions"] as? [String: [String: Any]]) ?? [:]
+
+  #expect(statusCatalog.id == spec["catalogId"] as? String)
+  #expect(statusCatalog.protocolVersion == spec["protocolVersion"] as? String)
+  #expect(Set(statusCatalog.components.keys) == Set(specComponents.keys))
+  #expect(
+    Set(statusCatalog.functions.keys).subtracting(["@index"])
+      == Set(specFunctions.keys)
+  )
+
+  for (name, specFn) in specFunctions {
+    let clientFn = try #require(statusCatalog.functions[name])
+    #expect(clientFn.api.returnType.rawValue == specFn["returnType"] as? String)
+    let expectedCallers = (specFn["allowedCallers"] as? String) ?? "rendererOnly"
+    #expect(clientFn.api.allowedCallers.rawValue == expectedCallers)
+  }
+}
+```
