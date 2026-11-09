@@ -8,9 +8,9 @@ Define a custom A2UI catalog by writing a `catalog.json` schema file, loading it
 
 ## When you need a catalog.json file
 
-If your agent and client share the same language and repository, you can define component schemas directly in code, as shown in [Catalogs](../../concepts/catalogs/#registering-a-catalog-in-a-renderer). Write a standalone `catalog.json` file when your backend agent and client app use different languages (for example, a Python agent serving a Flutter, React, SwiftUI, or Jetpack Compose app) or when you publish a reusable catalog for other teams.
+If your agent and client share the same language and repository, you can define component schemas directly in code, as shown in [Catalogs](/concepts/catalogs/#registering-a-catalog-in-a-renderer). Write a standalone `catalog.json` file when your backend agent and client app use different languages (for example, a Python agent serving a Flutter, React, SwiftUI, or Jetpack Compose app) or when you publish a reusable catalog for other teams.
 
-In A2UI v1.0, your catalog works alongside the built-in [basic catalog](../../specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json), so you keep standard layout widgets (`Column`, `Row`, `Text`, `Button`) and define only the custom widgets unique to your app. See [Catalogs](../../concepts/catalogs/) for how catalog negotiation works at runtime.
+In A2UI v1.0, your catalog works alongside the built-in [basic catalog](/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json), so you keep standard layout widgets (`Column`, `Row`, `Text`, `Button`) and define only the custom widgets unique to your app. See [Catalogs](/concepts/catalogs/) for how catalog negotiation works at runtime.
 
 ## Step 1: Create a minimal catalog.json
 
@@ -97,8 +97,8 @@ Create a file named `status_catalog.json` that defines a single `StatusBadge` co
 | Field             | Purpose                                                                                                                                                                                                                                                                                                                               |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `catalogId`       | Unique URI shared by the agent and client renderer. Version the URI path (`v1/`, `v2/`) when making breaking changes.                                                                                                                                                                                                                 |
-| `protocolVersion` | Wire version (`"1.0"`, without a leading `v`) validated against [`catalog_definition.json`](../../specification/v1.0/schemas/#catalog_definition.json). Omitted in v0.9.1 standalone files.                                                                                                                                           |
-| `components`      | Map of component schemas. Referencing `DynamicString` lets `label` accept either literal text or a data-model binding (`{"@path": "/statusText"}` in v1.0; `{"path": "/statusText"}` in v0.9.1). In v0.9.1, components also compose [`ComponentCommon`](../../specification/v0.9.1/schemas/#common_types.json/$defs/ComponentCommon). |
+| `protocolVersion` | Wire version (`"1.0"`, without a leading `v`) validated against [`catalog_definition.json`](/specification/v1.0/schemas/#catalog_definition.json). Omitted in v0.9.1 standalone files.                                                                                                                                           |
+| `components`      | Map of component schemas. Referencing `DynamicString` lets `label` accept either literal text or a data-model binding (`{"@path": "/statusText"}` in v1.0; `{"path": "/statusText"}` in v0.9.1). In v0.9.1, components also compose [`ComponentCommon`](/specification/v0.9.1/schemas/#common_types.json/$defs/ComponentCommon). |
 | `$defs`           | Declares `anyComponent` (union of all components) and `anyFunction` (`{"not": {}}` when the catalog defines no custom functions).                                                                                                                                                                                                     |
 
 ## Step 2: Load the catalog on your agent
@@ -170,7 +170,7 @@ final generator = A2uiGenerator(
 );
 ```
 
-Swift (`A2UISwiftCore` and `A2UISwiftUI`) and Kotlin (`androidx.a2ui` and `androidx.a2ui.compose`) are client-side renderer SDKs and do not include a server-side agent generator; see [How to Integrate with My Agent Server](../../guides/agent-integration/) for full backend setup.
+Swift (`A2UISwiftCore` and `A2UISwiftUI`) and Kotlin (`androidx.a2ui` and `androidx.a2ui.compose`) are client-side renderer SDKs and do not include a server-side agent generator; see [How to Integrate with My Agent Server](/guides/agent-integration/) for full backend setup.
 
 ## Step 3: Register the widget on your client
 
@@ -468,7 +468,7 @@ fun createProcessor(context: Context): A2uiMessageProcessor {
 
 > **Note**
   To share a single web widget across Lit, React, and Angular without rewriting view code, see
-  [Authoring Universal Web Components](../../guides/authoring-universal-components/).
+  [Authoring Universal Web Components](/guides/authoring-universal-components/).
 
 Once registered on both sides, your agent can combine basic layout components and `StatusBadge` on the same v1.0 surface by tagging the custom component with its `catalogId` (in v0.9.1, each surface binds to a single `catalogId`):
 
@@ -544,9 +544,9 @@ A catalog's `functions` map exposes custom client capabilities to generated surf
 | Local formatting & computation | `"string"`, `"number"`, `"array"`, or `"any"` (`"rendererOrAgent"`)   | Computing derived values reactively from bound data-model fields.                               |
 | Input validation (`checks`)    | `"validationResult"` (`"rendererOnly"`; `"boolean"` in v0.9.1)        | Validating user input synchronously and returning `{"valid": false, "message": "..."}` in v1.0. |
 
-In v1.0, each [`FunctionDefinition`](../../specification/v1.0/schemas/#catalog_definition.json/$defs/FunctionDefinition) declares `returnType` at the top level of the function object and uses `"@call"` inside `properties`. You can set `allowedCallers` to `"rendererOnly"` (default), `"agentOnly"`, or `"rendererOrAgent"`. Side-effecting device functions can set `"requiresUserActivation": true` so they run only from direct user interactions; functions that require user activation must keep `allowedCallers` set to `"rendererOnly"` (or omit it).
+In v1.0, each [`FunctionDefinition`](/specification/v1.0/schemas/#catalog_definition.json/$defs/FunctionDefinition) declares `returnType` at the top level of the function object and uses `"@call"` inside `properties`. You can set `allowedCallers` to `"rendererOnly"` (default), `"agentOnly"`, or `"rendererOrAgent"`. Side-effecting device functions can set `"requiresUserActivation": true` so they run only from direct user interactions; functions that require user activation must keep `allowedCallers` set to `"rendererOnly"` (or omit it).
 
-In v0.9.1 standalone files, functions place `"call"` and `"returnType": {"const": "..."}` inside `properties`, and validation rules return `"boolean"`. When a v0.9.1 renderer advertises inline catalogs in `a2uiClientCapabilities`, `MessageProcessor` converts the `functions` map into the array format defined by [`client_capabilities.json`](../../specification/v0.9.1/schemas/#client_capabilities.json/$defs/FunctionDefinition).
+In v0.9.1 standalone files, functions place `"call"` and `"returnType": {"const": "..."}` inside `properties`, and validation rules return `"boolean"`. When a v0.9.1 renderer advertises inline catalogs in `a2uiClientCapabilities`, `MessageProcessor` converts the `functions` map into the array format defined by [`client_capabilities.json`](/specification/v0.9.1/schemas/#client_capabilities.json/$defs/FunctionDefinition).
 
 #### v1.0
 
@@ -950,9 +950,9 @@ val pricingCatalog =
 
 ### Child slots and layout constraints
 
-Components that host nested widgets reference [`ChildList`](../../specification/v1.0/schemas/#common_types.json/$defs/ChildList) (an array of child IDs or a data-bound collection template) or [`ComponentId`](../../specification/v1.0/schemas/#common_types.json/$defs/ComponentId) (a single child slot).
+Components that host nested widgets reference [`ChildList`](/specification/v1.0/schemas/#common_types.json/$defs/ChildList) (an array of child IDs or a data-bound collection template) or [`ComponentId`](/specification/v1.0/schemas/#common_types.json/$defs/ComponentId) (a single child slot).
 
-In v1.0, a [`ComponentDefinition`](../../specification/v1.0/schemas/#catalog_definition.json/$defs/ComponentDefinition) can also constrain placement with `allowedParents` (for example, `["Column", "List"]`, or `["Surface"]` for root-only modals) and `allowedChildren` (`["Button"]`). `"Surface"` is reserved and cannot be used as a component name, and v1.0 identifiers must follow Unicode UAX #31 without a leading `@`.
+In v1.0, a [`ComponentDefinition`](/specification/v1.0/schemas/#catalog_definition.json/$defs/ComponentDefinition) can also constrain placement with `allowedParents` (for example, `["Column", "List"]`, or `["Surface"]` for root-only modals) and `allowedChildren` (`["Button"]`). `"Surface"` is reserved and cannot be used as a component name, and v1.0 identifiers must follow Unicode UAX #31 without a leading `@`.
 
 #### v1.0
 
@@ -1365,7 +1365,7 @@ val ProductCard: A2uiComponent =
 
 ### Interactive actions and input checks
 
-Reference [`Action`](../../specification/v1.0/schemas/#common_types.json/$defs/Action) on interactive properties to let surfaces dispatch server events or run local functions (such as `shareProduct`). When an input component supports client-side validation rules (`checks`), compose [`Checkable`](../../specification/v1.0/schemas/#common_types.json/$defs/Checkable) via `allOf` so the renderer evaluates bound `CheckRule` conditions and exposes `isValid` and `validationErrors` to your widget.
+Reference [`Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action) on interactive properties to let surfaces dispatch server events or run local functions (such as `shareProduct`). When an input component supports client-side validation rules (`checks`), compose [`Checkable`](/specification/v1.0/schemas/#common_types.json/$defs/Checkable) via `allOf` so the renderer evaluates bound `CheckRule` conditions and exposes `isValid` and `validationErrors` to your widget.
 
 #### v1.0
 

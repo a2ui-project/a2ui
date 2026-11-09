@@ -1,118 +1,56 @@
-# Quickstart: Run A2UI in 5 Minutes
+# Quickstart
 
-> Get hands-on with A2UI by running the restaurant finder demo and experiencing agent-generated UI in less than 5 minutes.
+> Run a small A2UI app, a Python agent server with a React web client and a Flutter mobile client, from one prompt to your coding agent or in three commands.
 
 Canonical URL: https://a2ui.org/quickstart/
 
-Get hands-on with A2UI by running the restaurant finder demo. This guide will have you experiencing agent-generated UI in less than 5 minutes.
+**A2UI** lets an AI agent answer with an interface instead of a paragraph:
+cards your users can tap, dates they can drag, a panel that keeps up with them.
 
-## What You'll Build
+This quickstart runs **Travel A2UI**, a small trip planner built on the official
+A2UI SDKs. It is simple on purpose: **one Python server** holds the agent, and
+a **React** client (web) and a **Flutter** client (mobile) draw what it sends.
+Paste one of these prompts into your coding agent:
+- **Web + Mobile (Python + React + Flutter):** `Follow the steps at https://a2ui.org/quickstart/agent.md to set up the A2UI quickstart web and mobile apps and explain them to me.`
+- **Web only (Python + React):** `Follow the steps at https://a2ui.org/quickstart/agent/web.md to set up the A2UI quickstart web app and explain it to me.`
+- **Mobile only (Python + Flutter):** `Follow the steps at https://a2ui.org/quickstart/agent/mobile.md to set up the A2UI quickstart mobile app and explain it to me.`
 
-By the end of this quickstart, you'll have:
+Or follow the [step-by-step walkthrough](/quickstart/step-by-step/).
+> **Note**
+  Travel A2UI lives in A2UI Labs, at
+  [samples/travel-a2ui](https://github.com/a2ui-project/labs/tree/main/samples/travel-a2ui). It is a
+  sample for learning A2UI and is not meant for production use.
 
-- A running app with an A2UI renderer (**Lit Web Components** or **Flutter**).
-- A Gemini-powered agent that generates dynamic, stateful UIs.
-- An interactive restaurant finder with form generation, time selection, and confirmation flows.
-- Understanding of how A2UI messages (`createSurface`, `updateComponents`, `updateDataModel`) flow from agent to UI.
+## How A2UI fits into this app
 
-## Fast Paths: Agent Harnesses and Visual Tools
+A2UI is an SDK for your agent and a renderer for your app. Here is where each
+part lives in Travel A2UI:
 
-Before cloning the full repository, you can equip your coding agent or test surfaces directly in the browser:
+One server serves the API, the React app at `/` and the Flutter app at
+`/flutter/`. The clients know nothing about travel: each knows how to draw the
+catalog's components. You, the builder, decide what is in the catalog; the
+agent decides what to draw from it. [How A2UI works](/concepts/overview/)
+walks through the same picture for any A2UI app.
 
-- **Agent Harness Skills**: Run `npx skills add a2ui-project/a2ui` in your project to load A2UI protocol rules, SDK integration guides, and catalog authoring workflows into coding agents (see [Get Help](/get-help/)).
-- **[A2UI Composer](https://a2ui-editor.ag-ui.com)** ([source](https://github.com/a2ui-project/a2ui/tree/main/tools/composer)): Visual workspace for prompting an assistant, inspecting streamed envelopes and `dataModel` updates, and editing surfaces side by side.
-- **[A2UI Playground](https://go.copilotkit.ai/a2ui-playground)**: Browser sandbox for testing A2UI prompts and component catalogs with zero local setup.
+## What you will learn
 
-## Prerequisites
+Once it runs, your agent (or the [step-by-step walkthrough](/quickstart/step-by-step/))
+explains, with the app open:
 
-- **Node.js** (v18 or later with [Corepack](https://nodejs.org/api/corepack.html) enabled) — [Download here](https://nodejs.org/)
-- **Flutter SDK** _(optional, for the Flutter client)_ — [Install here](https://docs.flutter.dev/install)
-- **uv** (Python package manager) — [Install here](https://docs.astral.sh/uv/getting-started/installation/) (used to run the Python agent backend)
-- **A Gemini API key** — [Get one free from Google AI Studio](https://aistudio.google.com/apikey)
+1. **What on screen is A2UI** and what is ordinary app code: surfaces, the
+   components in them, and the data they show.
+2. **The catalog**: the components and client functions the agent may use,
+   and why it is the guardrail.
+3. **Agent skills**: how the model is taught to write A2UI for the catalog.
+4. **What the model writes versus what the client receives**: A2UI Express,
+   the A2UI messages the agent SDK turns it into, and the MessageProcessor
+   that applies them.
+5. **Renderers**: the two here, and the others A2UI has.
 
-> [!WARNING] Security Notice
-> This demo runs an A2A agent that uses Gemini to generate A2UI responses. The agent has access to your API key and will make requests to Google's Gemini API. Always review agent code before running it in production environments.
+## Other fast paths
 
-## Step 1: Clone the Repository
+To try A2UI without cloning anything:
 
-```bash
-git clone https://github.com/a2ui-project/a2ui.git
-cd a2ui
-```
-
-## Step 2: Set Your API Key
-
-Export your Gemini API key as an environment variable:
-
-```bash
-export GEMINI_API_KEY="your_gemini_api_key_here"
-```
-
-## Step 3: Run the Agent and Client
-
-### Option A: Lit Web Components Client
-
-The client application source code is located in `samples/client/lit/shell`. Navigate to the parent samples directory to run both the agent and web client:
-
-```bash
-cd samples/client/lit
-corepack enable
-yarn install
-yarn demo:restaurant
-```
-
-> [!NOTE] About Package Managers
-> The A2UI repository uses `yarn` for its monorepo development, but `yarn` is not required to **use** A2UI. You may use the package manager of your choice (`npm`, `pnpm`, `yarn`) in your own projects.
-
-### Option B: Flutter Client
-
-In your first terminal, start the Python agent backend:
-
-```bash
-cd samples/agent/adk/restaurant_finder
-uv run .
-```
-
-In a second terminal, launch the Flutter application:
-
-```bash
-cd samples/client/flutter/restaurant_finder/app
-flutter run -d chrome
-```
-
-> [!TIP] Demo Running
-> Once running, open `http://localhost:5173` in your browser. The agent is now ready to stream interactive UI surfaces!
-
-## Step 4: Try It Out
-
-In the app, try these prompts:
-
-1. **"Book a table for 2"**
-    - Watch the agent respond with a list of restaurant cards.
-    - Click **"Book Now"** on a restaurant.
-    - The agent generates a custom reservation form populated with your party size.
-2. **"Find Italian restaurants in New York"**
-    - See how the UI adapts dynamically to your query.
-3. **Complete a booking**
-    - Fill out the form (date, time, special requests) and click **Submit**.
-    - The client sends a structured `action` back to the agent, which responds with a confirmation surface.
-
-## What's Happening Behind the Scenes?
-
-1. **User Input**: You type `"Book a table for 2"`.
-2. **Agent Processing**:
-    - The Python ADK agent receives your message via the **A2A Protocol**.
-    - Gemini analyzes the intent and generates A2UI messages (compiled from **A2UI Express**, decision models, or server-side macros).
-3. **Streaming & Rendering**:
-    - The agent streams `createSurface`, `updateComponents`, and `updateDataModel` envelopes to the client.
-    - The client renderer maps abstract components (`Card`, `Row`, `Button`, `DateTimeInput`) to native platform widgets and binds inputs to the local `dataModel` via JSON Pointers.
-
-```json
-{
-  "version": "1.0",
-  "createSurface": {
-    "surfaceId": "restaurant-results",
-    "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-  }
-}
-```
+- **Agent skills**: run `npx skills add a2ui-project/a2ui` in your project to give your coding agent A2UI's protocol rules, SDK integration guides and catalog authoring workflows (see [Get Help](/get-help/)).
+- **[A2UI Composer](https://a2ui-editor.ag-ui.com)** ([source](https://github.com/a2ui-project/a2ui/tree/main/tools/composer)): a visual workspace for prompting an assistant, inspecting streamed messages and `dataModel` updates, and editing surfaces side by side.
+- **[A2UI Playground](https://go.copilotkit.ai/a2ui-playground)**: a browser sandbox for trying A2UI prompts and component catalogs with no local setup.

@@ -5,7 +5,7 @@
 Canonical URL: https://a2ui.org/specification/v0.9.1-a2ui/
 
 > [!NOTE] Supersedes v0.9
-> **A2UI v0.9.1** supersedes `v0.9` with minor schema and patch refinements while retaining `v0.9` / `v0_9` in wire `"version"` examples and `$id` URIs for compatibility. See the [v0.9.1 Evolution Guide](./v0.9.1-evolution-guide.md), [v0.9.1 JSON Schemas](./v0.9.1-schemas.mdx), and [v1.0 Protocol Specification](./v1.0-a2ui.md). New projects should target v1.0, the current version.
+> **A2UI v0.9.1** supersedes `v0.9` with minor schema and patch refinements while retaining `v0.9` / `v0_9` in wire `"version"` examples and `$id` URIs for compatibility. See the [v0.9.1 Evolution Guide](/specification/v0.9.1-a2ui/v0.9.1-evolution-guide.md), [v0.9.1 JSON Schemas](/specification/v0.9.1-a2ui/v0.9.1-schemas.mdx), and [v1.0 Protocol Specification](/specification/v0.9.1-a2ui/v1.0-a2ui.md). New projects should target v1.0, the current version.
 
 A Specification for a JSON-Based, Streaming UI Protocol.
 
@@ -584,7 +584,7 @@ _Replace the entire data model:_
 
 ### Client to server updates
 
-When `sendDataModel` is set to `true` for a surface, the client automatically appends the **entire data model** of that surface to the metadata of every message (such as `action` or user query) sent to the server that created the surface. The data model is included using the transport's metadata facility (e.g., the `metadata` field in A2A or a header in HTTP). The payload follows the schema in [`client_data_model.json`](../json/client_data_model.json).
+When `sendDataModel` is set to `true` for a surface, the client automatically appends the **entire data model** of that surface to the metadata of every message (such as `action` or user query) sent to the server that created the surface. The data model is included using the transport's metadata facility (e.g., the `metadata` field in A2A or a header in HTTP). The payload follows the schema in [`client_data_model.json`](/specification/json/client_data_model.json).
 
 - **Targeted Delivery**: The data model is sent exclusively to the server that created the surface. Data cannot leak to other agents or servers.
 - **Trigger:** Data is sent only when a client-to-server message is triggered (e.g., by a user action like a button click). Passive data changes (like typing in a text field) do not trigger a network request on their own; they simply update the local state, which will be sent with the next action.

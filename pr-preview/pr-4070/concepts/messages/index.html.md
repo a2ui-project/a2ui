@@ -48,7 +48,7 @@ Agent-to-renderer messages construct surfaces, update component hierarchies and 
   ]}
 />
 
-The `createSurface` message allocates a new UI surface identified by `surfaceId`. The `surfaceId` must be globally unique within the rendering context (the `MessageProcessor` instance on the renderer), which is typically a conversation. Creating a surface implicitly instantiates the reserved [`Surface`](../../specification/v1.0/schemas/#common_types.json/$defs/Surface) container component with `child: "root"`. In v1.0, `createSurface` can also include optional surface-level custom extensions under `metadata.extensions` ([`Extensions`](../../specification/v1.0/schemas/#common_types.json/$defs/Extensions)).
+The `createSurface` message allocates a new UI surface identified by `surfaceId`. The `surfaceId` must be globally unique within the rendering context (the `MessageProcessor` instance on the renderer), which is typically a conversation. Creating a surface implicitly instantiates the reserved [`Surface`](/specification/v1.0/schemas/#common_types.json/$defs/Surface) container component with `child: "root"`. In v1.0, `createSurface` can also include optional surface-level custom extensions under `metadata.extensions` ([`Extensions`](/specification/v1.0/schemas/#common_types.json/$defs/Extensions)).
 
 #### Properties
 
@@ -59,7 +59,7 @@ The `createSurface` message allocates a new UI surface identified by `surfaceId`
 | `sendDataModel` | boolean | Optional                      | When `true`, the renderer attaches the full surface data model in transport metadata (`a2uiRendererDataModel` in v1.0 / `a2uiClientDataModel` in v0.9.1) on every message to the creating agent. |
 | `components`    | array   | Optional (v1.0)               | Initial flat list of component definitions, allowing single-message surface creation.                                                                                                            |
 | `dataModel`     | object  | Optional (v1.0)               | Initial root data model JSON object for the surface.                                                                                                                                             |
-| `metadata`      | object  | Optional (v1.0)               | Surface-level extensions container with optional `extensions` ([`Extensions`](../../specification/v1.0/schemas/#common_types.json/$defs/Extensions)).                                            |
+| `metadata`      | object  | Optional (v1.0)               | Surface-level extensions container with optional `extensions` ([`Extensions`](/specification/v1.0/schemas/#common_types.json/$defs/Extensions)).                                            |
 
 > **Note**
   In v1.0, `catalogId` is optional, `components` and `dataModel` can be passed inline to initialize
@@ -142,7 +142,7 @@ Creating a `"flight_search"` surface:
   ]}
 />
 
-The `updateComponents` message adds or replaces component definitions in an existing surface. Relationships between components are expressed by ID references in a flat adjacency list rather than nested JSON trees, and one component in the surface must have `id: "root"`. In v1.0, individual component definitions in `components` can also carry optional component-level extensions via `metadata.extensions` ([`ComponentCommon`](../../specification/v1.0/schemas/#common_types.json/$defs/ComponentCommon)).
+The `updateComponents` message adds or replaces component definitions in an existing surface. Relationships between components are expressed by ID references in a flat adjacency list rather than nested JSON trees, and one component in the surface must have `id: "root"`. In v1.0, individual component definitions in `components` can also carry optional component-level extensions via `metadata.extensions` ([`ComponentCommon`](/specification/v1.0/schemas/#common_types.json/$defs/ComponentCommon)).
 
 #### Properties
 
@@ -418,7 +418,7 @@ The `callRendererFunction` message is an agent-initiated remote procedure call (
 | Property         | Type   | Required | Description                                                                                                                                                       |
 | :--------------- | :----- | :------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `functionCallId` | string | Yes      | Unique correlation identifier for this call, copied verbatim into [`rendererFunctionResponse`](#rendererfunctionresponse-v10-only).                               |
-| `callFunction`   | object | Yes      | [`FunctionCall`](../../specification/v1.0/schemas/#common_types.json/$defs/FunctionCall) object with required `@call`, required `catalogId`, and optional `args`. |
+| `callFunction`   | object | Yes      | [`FunctionCall`](/specification/v1.0/schemas/#common_types.json/$defs/FunctionCall) object with required `@call`, required `catalogId`, and optional `args`. |
 | `surfaceId`      | string | Optional | Surface ID whose data model provides the evaluation context. When omitted, the function executes in an isolated root context with `{}`.                           |
 
 #### Example
@@ -522,7 +522,7 @@ Renderer-to-agent messages report user interactions, invoke remote functions on 
   ]}
 />
 
-The `action` message notifies the agent that the user triggered an event action on an interactive component (such as clicking a `Button` configured with `action.event`). Before dispatching the message, the renderer resolves any data bindings inside `action.event.context` and `action.event.userMessage` against the local data model. In v1.0, `action` can also include optional renderer-side custom extensions under `metadata.extensions` ([`Extensions`](../../specification/v1.0/schemas/#common_types.json/$defs/Extensions)).
+The `action` message notifies the agent that the user triggered an event action on an interactive component (such as clicking a `Button` configured with `action.event`). Before dispatching the message, the renderer resolves any data bindings inside `action.event.context` and `action.event.userMessage` against the local data model. In v1.0, `action` can also include optional renderer-side custom extensions under `metadata.extensions` ([`Extensions`](/specification/v1.0/schemas/#common_types.json/$defs/Extensions)).
 
 #### Properties
 
@@ -534,7 +534,7 @@ The `action` message notifies the agent that the user triggered an event action 
 | `timestamp`         | string | Yes             | ISO 8601 date-time string indicating when the event occurred.                                                                                        |
 | `context`           | object | Yes             | Resolved key-value dictionary from `action.event.context` with all data bindings evaluated to current values.                                        |
 | `userMessage`       | string | Optional (v1.0) | Human-readable string resolved from `action.event.userMessage`, suitable for adding to LLM conversation history.                                     |
-| `metadata`          | object | Optional (v1.0) | Action-level extensions container with optional `extensions` ([`Extensions`](../../specification/v1.0/schemas/#common_types.json/$defs/Extensions)). |
+| `metadata`          | object | Optional (v1.0) | Action-level extensions container with optional `extensions` ([`Extensions`](/specification/v1.0/schemas/#common_types.json/$defs/Extensions)). |
 
 #### Example
 
@@ -599,7 +599,7 @@ The `callAgentFunction` message is a renderer-initiated RPC requesting that the 
 | :--------------- | :----- | :------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `surfaceId`      | string | Yes      | Surface ID where the call originated.                                                                                                                             |
 | `functionCallId` | string | Yes      | Unique correlation identifier for this call, copied verbatim into [`agentFunctionResponse`](#agentfunctionresponse-v10-only).                                     |
-| `callFunction`   | object | Yes      | [`FunctionCall`](../../specification/v1.0/schemas/#common_types.json/$defs/FunctionCall) object with required `@call`, optional `catalogId`, and optional `args`. |
+| `callFunction`   | object | Yes      | [`FunctionCall`](/specification/v1.0/schemas/#common_types.json/$defs/FunctionCall) object with required `@call`, optional `catalogId`, and optional `args`. |
 
 #### Example
 
@@ -700,7 +700,7 @@ Transport metadata lets the renderer attach A2UI context to outgoing requests se
 | `a2uiRendererCapabilities` | `a2uiClientCapabilities` | Advertises supported protocol versions, `supportedCatalogIds`, and optional `inlineCatalogs`. |
 | `a2uiRendererDataModel`    | `a2uiClientDataModel`    | Sends full local data models for active surfaces created with `sendDataModel: true`.          |
 
-Renderer capabilities (`a2uiRendererCapabilities` in v1.0 / `a2uiClientCapabilities` in v0.9.1) are an optional mechanism that loosely coupled systems can use to negotiate which protocol versions and catalogs can be used when they are not known in advance. Systems where the agent and client are owned by the same party may not need capability negotiation if the protocol version and catalogs are agreed in advance. Agents can also advertise their static catalog support ahead of time via [`agent_capabilities.json`](../../specification/v1.0/schemas/#agent_capabilities.json) (v1.0) or [`server_capabilities.json`](../../specification/v0.9.1/schemas/#server_capabilities.json) (v0.9.1), such as in an A2A Agent Card.
+Renderer capabilities (`a2uiRendererCapabilities` in v1.0 / `a2uiClientCapabilities` in v0.9.1) are an optional mechanism that loosely coupled systems can use to negotiate which protocol versions and catalogs can be used when they are not known in advance. Systems where the agent and client are owned by the same party may not need capability negotiation if the protocol version and catalogs are agreed in advance. Agents can also advertise their static catalog support ahead of time via [`agent_capabilities.json`](/specification/v1.0/schemas/#agent_capabilities.json) (v1.0) or [`server_capabilities.json`](/specification/v0.9.1/schemas/#server_capabilities.json) (v0.9.1), such as in an A2A Agent Card.
 
 When any active surface was created with `sendDataModel: true`, the renderer attaches `a2uiRendererDataModel` (or `a2uiClientDataModel` in v0.9.1) on outgoing messages to that agent so local input state stays synchronized without embedding full data models inside `action` payloads.
 
