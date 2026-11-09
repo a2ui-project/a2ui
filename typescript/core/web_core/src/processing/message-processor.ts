@@ -319,7 +319,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
             if (compareSemVer(ver, '1.0') >= 0) {
               return this.generateInlineCatalog(c);
             }
-            return this.generateLegacyInlineCatalog(
+            return this.generateV09InlineCatalog(
               c,
               options?.componentEnvelopeRef ?? 'common_types.json#/$defs/ComponentCommon',
             );
@@ -376,9 +376,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    *
    * @param catalog The catalog instance to serialize.
    * @param componentEnvelopeRef Reference URI for the component base envelope.
-   * @returns Legacy inline catalog object with array-based functions and flat theme properties.
+   * @returns Pre-1.0 inline catalog object with array-based functions and flat theme properties.
    */
-  private generateLegacyInlineCatalog(
+  private generateV09InlineCatalog(
     catalog: Catalog<T>,
     componentEnvelopeRef = 'common_types.json#/$defs/ComponentCommon',
   ): Record<string, unknown> {
