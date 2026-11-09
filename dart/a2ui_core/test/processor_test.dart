@@ -1922,6 +1922,9 @@ void main() {
           if (mode == 'throw') {
             throw StateError('sync listener failure');
           }
+          if (mode == 'reject_object') {
+            return Future<Object?>.error(StateError('non-void future failure'));
+          }
           return Future<void>.error(StateError('async listener failure'));
         },
         unifiedOutbound: true,
@@ -1945,10 +1948,43 @@ void main() {
         {'name': 'second', 'context': <String, Object?>{}},
         'btn',
       );
+      mode = 'reject_object';
+      await surface.dispatchAction(
+        {'name': 'third', 'context': <String, Object?>{}},
+        'btn',
+      );
       await Future<void>.delayed(Duration.zero);
 
-      expect(onActionCalls.map((a) => a.name), ['first', 'second']);
-      expect(laterSubscriberCalls.map((a) => a.name), ['first', 'second']);
+      expect(
+        onActionCalls.map((a) => a.name),
+        ['first', 'second', 'third'],
+      );
+      expect(
+        laterSubscriberCalls.map((a) => a.name),
+        ['first', 'second', 'third'],
+      );
+    });
+
+    test(
+        'normalizes semver surface protocolVersion formats '
+        'with tryParseSemVer', () async {
+      final outbound = <RendererToAgentMessage>[];
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [v09Catalog, v10Catalog],
+        outboundListener: outbound.add,
+        unifiedOutbound: true,
+      );
+      addTearDown(processor.dispose);
+
+      final semverSurface =
+          SurfaceModel<ComponentApi>('s-semver', protocolVersion: '0.9.1');
+      processor.model.addSurface(semverSurface);
+      await semverSurface.dispatchAction(
+        {'name': 'ping', 'context': <String, Object?>{}},
+        'btn',
+      );
+
+      expect((outbound.single as ActionMessage).version, 'v0.9.1');
     });
 
     test('forwards no ActionMessage after dispose', () async {

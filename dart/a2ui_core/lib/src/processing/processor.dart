@@ -665,16 +665,17 @@ class MessageProcessor<T extends ComponentApi> {
   void _forwardAction(A2uiRendererAction action) {
     if (_disposed) return;
     final SurfaceModel<T>? surface = model.getSurface(action.surfaceId);
-    final String version =
-        A2uiProtocolVersion.tryParse(surface?.protocolVersion ?? '')
-                ?.jsonValue ??
-            _fallbackWireVersion();
+    final String? protocolVersion = surface?.protocolVersion;
+    final String version = (protocolVersion != null
+            ? A2uiProtocolVersion.tryParseSemVer(protocolVersion)?.jsonValue
+            : null) ??
+        _fallbackWireVersion();
     final message = ActionMessage(version: version, action: action);
     final OutboundMessageListener? listener = _outboundListener;
     if (listener != null) {
       try {
         final FutureOr<void> result = listener(message);
-        if (result is Future<void>) {
+        if (result is Future) {
           unawaited(result.catchError((Object _) {}));
         }
       } catch (_) {}
@@ -700,7 +701,7 @@ class MessageProcessor<T extends ComponentApi> {
     if (listener != null) {
       try {
         final FutureOr<void> result = listener(errorMessage);
-        if (result is Future<void>) {
+        if (result is Future) {
           unawaited(result.catchError((Object _) {}));
         }
       } catch (_) {}
