@@ -6,9 +6,9 @@ description: 'How A2UI decouples the wire protocol from model generation with Ex
 import {Tabs, TabItem} from '@astrojs/starlight/components';
 import InferencePipeline from '@components/docs/InferencePipeline.astro';
 
-An inference format defines the structured notation that a language model reads in its system prompt and writes in its response before the server compiles that output into standard A2UI [wire messages](/concepts/messages/). Because compilation happens on the server, every client [renderer](/concepts/sdks/#renderer-sdk) receives the same A2UI JSON over the wire regardless of how the model produced it.
+An inference format defines the structured notation that a language model reads in its system prompt and writes in its response before the server compiles that output into standard A2UI [wire messages](../messages/). Because compilation happens on the server, every client [renderer](../sdks/#renderer-sdk) receives the same A2UI JSON over the wire regardless of how the model produced it.
 
-In the diagram below, `A2uiRequestProcessor` coordinates three server-side stages. First, `PromptGenerator` turns the negotiated [catalog](/concepts/catalogs/) schemas, `instructions`, and few-shot `examples` into a format-specific prompt snippet. Next, the model writes UI blocks inside sentinel tags (`<a2ui>...</a2ui>` for Express or `<a2ui-json>...</a2ui-json>` for Direct JSON) alongside conversational prose. Finally, `Parser` or `ResponseStream` heals streaming chunks, compiles each block into wire JSON, and validates every message against `RendererState`.
+In the diagram below, `A2uiRequestProcessor` coordinates three server-side stages. First, `PromptGenerator` turns the negotiated [catalog](../catalogs/) schemas, `instructions`, and few-shot `examples` into a format-specific prompt snippet. Next, the model writes UI blocks inside sentinel tags (`<a2ui>...</a2ui>` for Express or `<a2ui-json>...</a2ui-json>` for Direct JSON) alongside conversational prose. Finally, `Parser` or `ResponseStream` heals streaming chunks, compiles each block into wire JSON, and validates every message against `RendererState`.
 
 <InferencePipeline />
 
@@ -20,7 +20,7 @@ Standard JSON is well suited as a wire protocol between an agent server and a cl
 2. Embedding full JSON Schemas in the system prompt consumes roughly twice as many input tokens as compact component signatures.
 3. Deeply nested braces, quotes, and manual component IDs increase syntax and reference errors, especially on smaller, faster models.
 
-Inference formats separate what is best for the model to generate from what is best for the renderer to consume. The [Agent SDKs](/concepts/sdks/#agent-sdk) include two built-in formats and allow custom implementations:
+Inference formats separate what is best for the model to generate from what is best for the renderer to consume. The [Agent SDKs](../sdks/#agent-sdk) include two built-in formats and allow custom implementations:
 
 | Format      | Sentinel tags                | SDK support                        | How it represents UI                                                                                                    |
 | :---------- | :--------------------------- | :--------------------------------- | :---------------------------------------------------------------------------------------------------------------------- |
@@ -28,11 +28,11 @@ Inference formats separate what is best for the model to generate from what is b
 | Direct JSON | `<a2ui-json>...</a2ui-json>` | TypeScript, Python, Dart           | Standard A2UI wire JSON emitted directly by the model, with Markdown fence stripping and incremental string healing.    |
 | Custom      | Format-defined               | TypeScript, Python, Dart           | Any domain-specific grammar or model-tailored notation implemented against the SDK's `InferenceFormatFactory` contract. |
 
-Not every A2UI agent uses free-form model generation. Regulated or deterministic workflows can also construct wire messages directly in server code (driven by a classifier, state machine, or [macro](/guides/macros/)) and send the resulting JSON to the renderer without an LLM compilation step.
+Not every A2UI agent uses free-form model generation. Regulated or deterministic workflows can also construct wire messages directly in server code (driven by a classifier, state machine, or [macro](../../guides/macros/)) and send the resulting JSON to the renderer without an LLM compilation step.
 
 ## Express vs. wire JSON
 
-In Express, the model calls component constructors with positional or keyword arguments, writes [data model](/concepts/data-binding/) values with `$/path = value`, and nests child components inline instead of inventing string IDs by hand.
+In Express, the model calls component constructors with positional or keyword arguments, writes [data model](../data-binding/) values with `$/path = value`, and nests child components inline instead of inventing string IDs by hand.
 
 The example below uses `Card`, `Column`, `Text`, and `Button` from the Basic Catalog; Express derives signatures dynamically for any custom `catalog.json` you register (whitespace and indentation are optional):
 
@@ -198,7 +198,7 @@ For the full grammar of Express, see the [A2UI Express specification proposal](h
 
 <span id="configuring-inference-formats-across-sdks"></span>
 
-Swapping an inference format requires no changes to catalogs, few-shot examples, or client renderers because every format in the [Agent SDK](/concepts/sdks/#agent-sdk) shares three design properties:
+Swapping an inference format requires no changes to catalogs, few-shot examples, or client renderers because every format in the [Agent SDK](../sdks/#agent-sdk) shares three design properties:
 
 1. Catalog-agnostic prompt synthesis: Rather than hardcoding component names, a format's `PromptGenerator` inspects the negotiated `Catalog` schemas at runtime to derive component signatures, function signatures, and dynamic binding rules.
 2. Bidirectional translation (`compile` and `decompile`): Alongside compiling model output into wire messages, each format's `Parser` can decompile wire messages back into the format's text notation. Structured few-shot `examples`, fenced `json` message blocks inside a catalog's `instructions`, and prior conversation turns can therefore be authored once as wire messages and rendered automatically in whichever format is active.
