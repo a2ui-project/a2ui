@@ -2290,10 +2290,15 @@ struct NodeResolverTests {
       "root": ComponentModel(
         id: "root",
         type: "Container",
-        properties: ["children": .array([.string("b"), .string("a")])]
+        properties: ["children": .array([.string("b1"), .string("b2"), .string("a")])]
       ),
-      "b": ComponentModel(
-        id: "b",
+      "b1": ComponentModel(
+        id: "b1",
+        type: "Container",
+        properties: ["children": .array([.string("closer")])]
+      ),
+      "b2": ComponentModel(
+        id: "b2",
         type: "Container",
         properties: ["children": .array([.string("closer")])]
       ),
@@ -2322,12 +2327,12 @@ struct NodeResolverTests {
     )
 
     let initialRoot = try #require(resolver.resolveTree())
-    let bInitial = try #require(initialRoot.children(for: "children").first)
-    let closerInitial = try #require(bInitial.children(for: "children").first)
+    let b1Initial = try #require(initialRoot.children(for: "children").first)
+    let closerInitial = try #require(b1Initial.children(for: "children").first)
     #expect(closerInitial.children(for: "children").first?.state == .cyclic)
 
-    // Breaking the cycle at an intermediate node (`mid`) without modifying `a` or `closer` must
-    // re-resolve `closer` so its reference to `a` updates from `.cyclic` to `.resolved`.
+    // Breaking the cycle at `mid` while two non-cyclic parents (`b1`, `b2`) still reference
+    // `closer` must re-resolve `closer` from `.cyclic` to `.resolved`.
     componentsModel.addComponent(
       ComponentModel(id: "mid", type: "Container", properties: ["children": .array([])])
     )
@@ -2363,6 +2368,170 @@ struct NodeResolverTests {
       dataModel: DataModel()
     )
     #expect(afterTargetLeaf == fullAfterTargetLeaf.resolveTree())
+  }
+
+  @Test func incrementalBatchSharedAncestorDisconnectAndDescendantChanges() throws {
+    let catalog = try makeCatalog()
+    let componentsModel = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("p2"), .string("p1")])]
+      ),
+      "p2": ComponentModel(
+        id: "p2",
+        type: "Container",
+        properties: ["children": .array([.string("s")])]
+      ),
+      "p1": ComponentModel(
+        id: "p1",
+        type: "Container",
+        properties: ["children": .array([.string("s")])]
+      ),
+      "s": ComponentModel(
+        id: "s",
+        type: "Container",
+        properties: ["children": .array([.string("leaf")])]
+      ),
+    ])
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: DataModel()
+    )
+
+    let initialRoot = try #require(resolver.resolveTree())
+    let p1Initial = try #require(initialRoot.children(for: "children").last)
+    let sInitial = try #require(p1Initial.children(for: "children").first)
+    #expect(sInitial.children(for: "children").first?.state == .pending)
+
+    // Disconnecting `p2` from `s` in the same batch that `leaf` arrives must still resolve `leaf`
+    // and patch `s` even though `p1` hits the cache fast path on `s`.
+    componentsModel.addComponent(
+      ComponentModel(id: "p2", type: "Container", properties: ["children": .array([])])
+    )
+    componentsModel.addComponent(
+      ComponentModel(id: "leaf", type: "Text", properties: ["text": .string("Arrived")])
+    )
+    let afterArrival = try #require(resolver.resolveTree())
+    let fullAfterArrival = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: componentsModel.components),
+      dataModel: DataModel()
+    )
+    #expect(afterArrival == fullAfterArrival.resolveTree())
+
+    // Re-share `s` under `p2`, then disconnect `p2` in the same batch that `leaf` changes type.
+    componentsModel.addComponent(
+      ComponentModel(id: "p2", type: "Container", properties: ["children": .array([.string("s")])])
+    )
+    _ = try #require(resolver.resolveTree())
+
+    componentsModel.addComponent(
+      ComponentModel(id: "p2", type: "Container", properties: ["children": .array([])])
+    )
+    componentsModel.addComponent(
+      ComponentModel(id: "leaf", type: "Container", properties: ["children": .array([])])
+    )
+    let afterTypeChange = try #require(resolver.resolveTree())
+    let fullAfterTypeChange = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: componentsModel.components),
+      dataModel: DataModel()
+    )
+    #expect(afterTypeChange == fullAfterTypeChange.resolveTree())
+
+    // Re-share `s` under `p2`, then disconnect `p2` in the same batch that `leaf` is removed.
+    componentsModel.addComponent(
+      ComponentModel(id: "p2", type: "Container", properties: ["children": .array([.string("s")])])
+    )
+    _ = try #require(resolver.resolveTree())
+
+    componentsModel.addComponent(
+      ComponentModel(id: "p2", type: "Container", properties: ["children": .array([])])
+    )
+    componentsModel.removeComponent("leaf")
+    let afterRemoval = try #require(resolver.resolveTree())
+    let fullAfterRemoval = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: componentsModel.components),
+      dataModel: DataModel()
+    )
+    #expect(afterRemoval == fullAfterRemoval.resolveTree())
+  }
+
+  @Test func incrementalThreeParentSharedContainerDropsOneParentAndReferencesIt() throws {
+    let catalog = try makeCatalog()
+    let incrementalHandler = ExpressionErrorCaptureHandler()
+    let componentsModel = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("p1"), .string("p3"), .string("p2")])]
+      ),
+      "p1": ComponentModel(
+        id: "p1",
+        type: "Container",
+        properties: ["children": .array([.string("shared")])]
+      ),
+      "p3": ComponentModel(
+        id: "p3",
+        type: "Container",
+        properties: ["children": .array([.string("shared")])]
+      ),
+      "p2": ComponentModel(
+        id: "p2",
+        type: "Container",
+        properties: ["children": .array([.string("shared")])]
+      ),
+      "shared": ComponentModel(
+        id: "shared",
+        type: "Container",
+        properties: ["children": .array([])]
+      ),
+    ])
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: DataModel(),
+      actionHandler: incrementalHandler
+    )
+
+    _ = try #require(resolver.resolveTree())
+
+    componentsModel.addComponent(
+      ComponentModel(id: "p2", type: "Container", properties: ["children": .array([])])
+    )
+    _ = try #require(resolver.resolveTree())
+
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "shared",
+        type: "Container",
+        properties: ["children": .array([.string("p2")])]
+      )
+    )
+    let updatedRoot = try #require(resolver.resolveTree())
+    #expect(genericErrors(incrementalHandler).isEmpty)
+
+    let fullResolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: componentsModel.components),
+      dataModel: DataModel()
+    )
+    #expect(updatedRoot == fullResolver.resolveTree())
   }
 }
 

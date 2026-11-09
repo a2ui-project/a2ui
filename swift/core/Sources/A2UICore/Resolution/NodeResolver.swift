@@ -441,9 +441,10 @@ public final class NodeResolver: Sendable {
               if currentIdentity != nil {
                 affectedNodeIDs.insert(nodeKey)
               }
-            } else if let splitParents = multiParentSplitAncestors(for: nodeKey) {
-              affectedNodeIDs.formUnion(splitParents)
             } else {
+              if let splitParents = multiParentSplitAncestors(for: nodeKey) {
+                affectedNodeIDs.formUnion(splitParents)
+              }
               affectedNodeIDs.insert(nodeKey)
             }
           }
@@ -540,31 +541,45 @@ public final class NodeResolver: Sendable {
       )
     }
 
-    // Re-resolve any surviving cycle closer whose live ancestor set no longer contains its cyclic
-    // target (for example, when an intermediate node dropped the branch that closed the cycle).
+    // Re-resolve any surviving cycle closer whose cyclic target is no longer a live ancestor
+    // (for example, when an intermediate node dropped the branch that closed the cycle).
     if !closersByCyclicTargetNodeKey.isEmpty {
-      var brokenClosers: [String] = []
+      var brokenClosers: Set<String> = []
       for (targetKey, closers) in closersByCyclicTargetNodeKey {
         for closerKey in closers where !resolvedInCurrentPass.contains(closerKey) {
-          guard let closerRecord = nodeRecords[closerKey] else { continue }
-          if !liveVisited(for: closerKey, fallback: closerRecord.visited).contains(targetKey) {
-            brokenClosers.append(closerKey)
+          guard nodeRecords[closerKey] != nil else { continue }
+          if !isLiveAncestor(targetKey, of: closerKey) {
+            brokenClosers.insert(closerKey)
           }
         }
       }
-      for closerKey in brokenClosers where !resolvedInCurrentPass.contains(closerKey) {
-        guard let record = nodeRecords[closerKey] else { continue }
-        _ = resolveNode(
-          definitionID: record.definitionID,
-          instanceID: record.instanceID,
-          basePath: record.basePath,
-          index: record.index,
-          instanceSuffix: record.instanceSuffix,
-          visited: liveVisited(for: closerKey, fallback: record.visited),
-          components: components,
-          data: currentData,
-          recurseIntoChildren: false
-        )
+      if !brokenClosers.isEmpty {
+        var closerDepths: [String: Int] = [:]
+        closerDepths.reserveCapacity(brokenClosers.count)
+        for closerKey in brokenClosers {
+          closerDepths[closerKey] =
+            liveVisited(
+              for: closerKey,
+              fallback: nodeRecords[closerKey]?.visited ?? []
+            ).count
+        }
+        let sortedClosers = brokenClosers.sorted {
+          (closerDepths[$0] ?? 0) < (closerDepths[$1] ?? 0)
+        }
+        for closerKey in sortedClosers where !resolvedInCurrentPass.contains(closerKey) {
+          guard let record = nodeRecords[closerKey] else { continue }
+          _ = resolveNode(
+            definitionID: record.definitionID,
+            instanceID: record.instanceID,
+            basePath: record.basePath,
+            index: record.index,
+            instanceSuffix: record.instanceSuffix,
+            visited: liveVisited(for: closerKey, fallback: record.visited),
+            components: components,
+            data: currentData,
+            recurseIntoChildren: false
+          )
+        }
       }
     }
 
@@ -618,16 +633,17 @@ public final class NodeResolver: Sendable {
     return nil
   }
 
-  /// Computes the live ancestor `visited` set for `nodeKey` along single-parent edges so that a
-  /// node whose sibling parent branch was previously pruned does not reuse stale ancestors.
+  /// Computes a live ancestor `visited` set for `nodeKey` so that a node whose previous parent
+  /// branch was pruned does not reuse stale ancestors.
   private func liveVisited(for nodeKey: String, fallback: Set<String>) -> Set<String> {
     if nodeKey == "root" { return [] }
+    let cleanFallback = fallback.contains(nodeKey) ? fallback.subtracting([nodeKey]) : fallback
     guard let directParents = parentsByChildInstanceID[nodeKey] else {
-      return fallback.contains(nodeKey) ? fallback.subtracting([nodeKey]) : fallback
+      return cleanFallback
     }
     if directParents.count == 1, let firstParent = directParents.first {
       if firstParent == "root" {
-        return fallback.count == 1 && fallback.contains("root") ? fallback : ["root"]
+        return cleanFallback.count == 1 && cleanFallback.contains("root") ? cleanFallback : ["root"]
       }
       var ancestors: Set<String> = [firstParent]
       var current = firstParent
@@ -635,20 +651,79 @@ public final class NodeResolver: Sendable {
         let parent = parents.first
       {
         guard parent != nodeKey, ancestors.insert(parent).inserted else {
-          return fallback.contains(nodeKey) ? fallback.subtracting([nodeKey]) : fallback
+          return cleanFallback
         }
         current = parent
       }
       if current == "root" {
         return ancestors
       }
-      if let currentVisited = nodeRecords[current]?.visited {
-        var combined = ancestors.union(currentVisited)
-        combined.remove(nodeKey)
-        return combined
+    }
+    if let preserved = findLiveAncestorPath(for: nodeKey, within: cleanFallback) {
+      return preserved
+    }
+    if let reconstructed = findLiveAncestorPath(for: nodeKey, within: nil) {
+      return reconstructed
+    }
+    return cleanFallback
+  }
+
+  private func isLiveAncestor(_ targetKey: String, of nodeKey: String) -> Bool {
+    guard targetKey == "root" || activeNodes[targetKey] != nil else {
+      return false
+    }
+    var seen: Set<String> = [nodeKey]
+    var stack: [String] = [nodeKey]
+    while let current = stack.popLast() {
+      guard let parents = parentsByChildInstanceID[current] else { continue }
+      for parent in parents {
+        if parent == targetKey {
+          return targetKey == "root"
+            || findLiveAncestorPath(for: targetKey, within: nil, excluding: nodeKey) != nil
+        }
+        if seen.insert(parent).inserted {
+          stack.append(parent)
+        }
       }
     }
-    return fallback.contains(nodeKey) ? fallback.subtracting([nodeKey]) : fallback
+    return false
+  }
+
+  private func findLiveAncestorPath(
+    for nodeKey: String,
+    within allowedAncestors: Set<String>?,
+    excluding excludedKey: String? = nil
+  ) -> Set<String>? {
+    if nodeKey == "root" { return [] }
+    if let allowedAncestors, !allowedAncestors.contains("root") { return nil }
+    var childByAncestor: [String: String] = [:]
+    var queue: [String] = [nodeKey]
+    var head = 0
+    while head < queue.count {
+      let current = queue[head]
+      head += 1
+      guard let parents = parentsByChildInstanceID[current] else { continue }
+      if parents.contains("root") {
+        var path: Set<String> = ["root"]
+        var step = current
+        while step != nodeKey {
+          path.insert(step)
+          guard let next = childByAncestor[step] else { break }
+          step = next
+        }
+        return path
+      }
+      for parent in parents
+      where parent != nodeKey
+        && parent != excludedKey
+        && childByAncestor[parent] == nil
+        && (allowedAncestors?.contains(parent) ?? true)
+      {
+        childByAncestor[parent] = current
+        queue.append(parent)
+      }
+    }
+    return nil
   }
 
   private func recordNodeReplacementIfNeeded(for nodeKey: String, newNode: Node) {
