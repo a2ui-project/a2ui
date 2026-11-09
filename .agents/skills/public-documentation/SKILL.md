@@ -82,6 +82,7 @@ Whenever a page presents tabbed code or wire payloads, use the canonical Starlig
   - Human-browsable explorer in prose: `/specification/v1_0/schemas/#<schema-file>.json/<json-pointer>`
   - Raw schema files: `/specification/v1_0/<schema-file>.json` (reserve full `https://a2ui.org/specification/...` URLs for JSON `$id` and `$ref` fields).
 - **No raw GitHub blobs or unmerged routes**: Never link to `github.com/.../blob/...` or `raw.githubusercontent.com` for content hosted on the site, and never link to placeholder or unmerged pages.
+- **No binary raster images or videos in git (use GitHub Release assets)**: Never commit `.png`, `.jpg`, `.webp`, `.gif`, or `.mp4` files to `docs/site/src/assets/`. When a guide or quickstart needs raster screenshots, stage raw images in `temp_docs/assets/` and upload them via `node docs/site/scripts/upload-doc-asset.mjs --id <logical-id> --file <path>` (which optimizes to content-addressed `.webp`, uploads to the `docs-assets` GitHub release without clobbering existing files, and updates `docs/site/assets-manifest.json`).
 
 ---
 
@@ -98,7 +99,7 @@ Run this checklist before opening or updating any pull request touching `docs/si
    ```bash
    npm --prefix docs/site run build
    ```
-   This compiles Astro/MDX, generates `llms-full.txt` and `.md` mirrors, verifies `--8<--` spec inclusions and schema pointers (`verify-spec-links.mjs`), and runs `check-links.mjs` to validate every internal route, `ASTRO_BASE` boundary, and `#fragment` HTML anchor. If you modified custom scripts or link logic, also run `npm --prefix docs/site test`.
+   This compiles Astro/MDX, generates `llms-full.txt` and `.md` mirrors, verifies `--8<--` spec inclusions and schema pointers (`verify-spec-links.mjs`), verifies the release assets manifest (`upload-doc-asset.mjs --verify`), and runs `check-links.mjs` to validate every internal route, `ASTRO_BASE` boundary, and `#fragment` HTML anchor. If you modified custom scripts or link logic, also run `npm --prefix docs/site test`.
 4. **Audit writing style and list formatting**: Check all prose against [`natural-writing`](../natural-writing/SKILL.md) and confirm that headings are unnumbered, non-sequential lists use unordered bullets (`-`), and numbered lists (`1.`) appear only on true sequential steps.
 5. **Include the mandatory live preview URL in the PR description**: Every PR modifying `docs/site/`, `specification/`, or `catalogs/` deploys an automated preview via GitHub Actions. Always include the root preview link and direct deep links to each modified page in the PR description using this exact format (note `/pr-preview/`, not `/preview/`, and include trailing slashes):
 

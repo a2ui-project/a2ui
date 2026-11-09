@@ -1,0 +1,47 @@
+{
+  "repo": "a2ui-project/a2ui",
+  "releaseTag": "docs-assets",
+  "baseUrl": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets",
+  "assets": {
+    "quickstart/travel-a2ui/a2ui-vs-app": {
+      "filename": "quickstart--travel-a2ui--a2ui-vs-app.6cf941df.webp",
+      "url": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--a2ui-vs-app.6cf941df.webp",
+      "sha256": "6cf941df4f0c3cbd3f896e6c956ca642717d7b3e3a27be3c4cf84afa5204e763",
+      "width": 1920,
+      "height": 1500,
+      "bytes": 138708
+    },
+    "quickstart/travel-a2ui/catalog": {
+      "filename": "quickstart--travel-a2ui--catalog.f3f5e3ff.webp",
+      "url": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--catalog.f3f5e3ff.webp",
+      "sha256": "f3f5e3ffe6edc8ee7c5aedf9addaed2ff7a698bb0de32ef3d9abfa4ceb301a55",
+      "width": 1920,
+      "height": 1253,
+      "bytes": 79740
+    },
+    "quickstart/travel-a2ui/chat": {
+      "filename": "quickstart--travel-a2ui--chat.a481b6c8.webp",
+      "url": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--chat.a481b6c8.webp",
+      "sha256": "a481b6c835808eb61038c48d40d10d12bfacfe9efd36fa1bc56f0ab792a45d83",
+      "width": 1920,
+      "height": 1253,
+      "bytes": 89196
+    },
+    "quickstart/travel-a2ui/flutter-trip": {
+      "filename": "quickstart--travel-a2ui--flutter-trip.8afa2402.webp",
+      "url": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--flutter-trip.8afa2402.webp",
+      "sha256": "8afa2402853335d1a37943917b55cc140f04a6cfcedb67804be9a9959be92536",
+      "width": 780,
+      "height": 1688,
+      "bytes": 38746
+    },
+    "quickstart/travel-a2ui/wire": {
+      "filename": "quickstart--travel-a2ui--wire.4515c08f.webp",
+      "url": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--wire.4515c08f.webp",
+      "sha256": "4515c08f56835663c51a00719f3510bd9a6edc6a30e7c6f323f92babacb7f00b",
+      "width": 1920,
+      "height": 1253,
+      "bytes": 122786
+    }
+  }
+}
