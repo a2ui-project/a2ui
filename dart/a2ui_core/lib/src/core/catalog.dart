@@ -26,8 +26,8 @@ import '../primitives/reference_schema.dart';
 import '../primitives/uax31.dart';
 import '../resolution/data_context.dart';
 import '../validation/schema_resolution.dart';
-import 'legacy_inline_catalog.dart';
 import 'metadata.dart';
+import 'v09_inline_catalog.dart';
 
 /// A definition of a UI component's API.
 ///
@@ -2330,7 +2330,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// `{"not": {}}`, since JSON Schema requires `oneOf` to be non-empty.
   ///
   /// To advertise a catalog to an agent below protocol v1.0, whose inline
-  /// catalog shape differs, use [toLegacyInlineCatalog].
+  /// catalog shape differs, use [toV09InlineCatalog].
   Map<String, Object?> toJson() =>
       _deepCopyValue(_document)! as Map<String, Object?>;
 
@@ -2690,7 +2690,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// the theme are written as defined, without the `unevaluatedProperties`
   /// and `additionalProperties` that [validationSchema] adds. From v1.0, a
   /// renderer sends [toJson] instead.
-  Map<String, Object?> toLegacyInlineCatalog() {
+  Map<String, Object?> toV09InlineCatalog() {
     final document = _deepCopyValue(validationSchema)! as Map<String, Object?>;
     Object? asDefined(Schema schema) {
       final Object? value = _deepCopyValue(schema.value);
@@ -2710,8 +2710,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     if (themeSchema != null && document[r'$defs'] is Map) {
       (document[r'$defs']! as Map)['theme'] = asDefined(themeSchema!);
     }
-    return legacyInlineCatalog(document);
+    return v09InlineCatalog(document);
   }
+
+  /// The former name of [toV09InlineCatalog].
+  @Deprecated('Use toV09InlineCatalog.')
+  Map<String, Object?> toLegacyInlineCatalog() => toV09InlineCatalog();
 
   /// The union of the components [names], `$defs/anyComponent`.
   ///

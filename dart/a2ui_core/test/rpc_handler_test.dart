@@ -618,18 +618,18 @@ void main() {
     });
 
     test('reports a protocol version mismatch', () async {
-      final Catalog<ComponentApi, FunctionImplementation> legacy = _catalog(
-          'legacy', [_Fn('echo', (a, _) => a['value'])],
+      final Catalog<ComponentApi, FunctionImplementation> v09Catalog = _catalog(
+          'v09', [_Fn('echo', (a, _) => a['value'])],
           protocolVersion: 'v0.9');
       final Catalog<ComponentApi, FunctionImplementation> unversioned =
           _catalog('old', [_Fn('echo', (a, _) => a['value'])],
               protocolVersion: null);
       final h = RpcHandler(
-        catalogs: [legacy, unversioned],
+        catalogs: [v09Catalog, unversioned],
         outboundListener: sent.add,
       );
       addTearDown(h.dispose);
-      for (final id in ['legacy', 'old']) {
+      for (final id in ['v09', 'old']) {
         final A2uiFunctionResponse r =
             await run(h, _inbound('echo', catalogId: id), withSurface: false);
         expectError(
