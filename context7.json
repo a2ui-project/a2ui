@@ -1,5 +1,7 @@
 {
   "$schema": "https://context7.com/schema/context7.json",
+  "url": "https://context7.com/a2ui-project/a2ui",
+  "public_key": "pk_j60Nf3uNhwMEyGUfa4zvW",
   "projectTitle": "A2UI (Agent-to-User Interface)",
   "description": "Open protocol and renderers for agent-generated UI: agents stream layout data, apps render it with native React, Angular, Lit, Flutter, SwiftUI and Jetpack Compose components.",
   "folders": [
