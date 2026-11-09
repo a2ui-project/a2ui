@@ -25,7 +25,7 @@ import antigravity from '../../../assets/quickstart/travel-a2ui/agents/antigravi
 import claude from '../../../assets/quickstart/travel-a2ui/agents/claude.svg';
 import codex from '../../../assets/quickstart/travel-a2ui/agents/codex.svg';
 import cursor from '../../../assets/quickstart/travel-a2ui/agents/cursor.svg';
-import {absolute, QUICKSTART_PROMPTS, STEP_BY_STEP} from '../../../lib/travel-a2ui/site';
+import {local, QUICKSTART_PROMPTS, STEP_BY_STEP} from '../../../lib/travel-a2ui/site';
 
 const agents = [
   {name: 'Antigravity', logo: antigravity},
@@ -49,10 +49,10 @@ const [first] = QUICKSTART_PROMPTS;
         <span class="qs__logos" aria-hidden="true">
           {agents.map(agent => <img src={agent.logo.src} alt="" width="18" height="18" />)}
         </span>
-        <span class="qs__label" data-qs-label>Copy prompt</span>
+        <span class="qs__label" data-qs-label aria-live="polite">Copy prompt</span>
       </button>
       <details class="qs__menu" data-qs-menu>
-        <summary class="qs__toggle" aria-label="Choose which apps to set up">
+        <summary class="qs__toggle" data-qs-summary aria-label={`Choose which apps to set up: ${first.app}`}>
           <span id="qs-choice" class="qs__choice" data-qs-choice>{first.app}</span>
           <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14"
             ><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2"></path></svg
@@ -69,7 +69,7 @@ const [first] = QUICKSTART_PROMPTS;
                 data-qs-option
                 data-app={entry.app}
                 data-prompt={entry.prompt}
-                data-guide={absolute(entry.guide)}
+                data-guide={local(entry.guide)}
               >
                 <span class="qs__option-title">
                   {entry.app}
@@ -82,7 +82,7 @@ const [first] = QUICKSTART_PROMPTS;
         </div>
       </details>
     </div>
-    <a class="qs__view" data-qs-view href={absolute(first.guide)}>View prompt →</a>
+    <a class="qs__view" data-qs-view href={local(first.guide)}>View prompt →</a>
     <a class="qs__alt" href={STEP_BY_STEP}>Or follow the step-by-step walkthrough</a>
   </div>
   <p class="qs__note">
@@ -99,6 +99,7 @@ const [first] = QUICKSTART_PROMPTS;
     } catch {
       // Without the async clipboard (an insecure origin, an old browser), a
       // selected textarea and the legacy command still copy.
+      const prevFocus = document.activeElement as HTMLElement | null;
       const area = document.createElement('textarea');
       area.value = text;
       area.setAttribute('readonly', '');
@@ -106,8 +107,10 @@ const [first] = QUICKSTART_PROMPTS;
       area.style.opacity = '0';
       document.body.append(area);
       area.select();
+      area.setSelectionRange(0, text.length);
       const done = document.execCommand('copy');
       area.remove();
+      prevFocus?.focus();
       return done;
     }
   }
@@ -116,6 +119,7 @@ const [first] = QUICKSTART_PROMPTS;
     const button = root.querySelector<HTMLButtonElement>('[data-qs-copy]')!;
     const label = root.querySelector<HTMLElement>('[data-qs-label]')!;
     const choice = root.querySelector<HTMLElement>('[data-qs-choice]')!;
+    const summary = root.querySelector<HTMLElement>('[data-qs-summary]');
     const view = root.querySelector<HTMLAnchorElement>('[data-qs-view]')!;
     const menu = root.querySelector<HTMLDetailsElement>('[data-qs-menu]')!;
     const options = [...root.querySelectorAll<HTMLButtonElement>('[data-qs-option]')];
@@ -134,10 +138,12 @@ const [first] = QUICKSTART_PROMPTS;
       option.addEventListener('click', () => {
         for (const other of options) other.setAttribute('aria-checked', String(other === option));
         button.dataset.prompt = option.dataset.prompt;
-        choice.textContent = option.dataset.app ?? '';
+        const appName = option.dataset.app ?? '';
+        choice.textContent = appName;
+        summary?.setAttribute('aria-label', `Choose which apps to set up: ${appName}`);
         view.href = option.dataset.guide ?? view.href;
         menu.open = false;
-        menu.querySelector('summary')?.focus();
+        summary?.focus();
       });
     }
 

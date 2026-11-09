@@ -13,7 +13,7 @@ for mobile.
 ## Run it
 
 You need **Python 3.11+**, plus **Node 20+** for the web app and
-**Flutter 3.47+** for the mobile app.
+**Flutter 3.38+** for the mobile app.
 
 <Steps>
 
@@ -87,8 +87,7 @@ same thing: the same messages, drawn by two renderers.
 Five short steps, in the order you meet them on screen: what on the screen is
 A2UI, what the agent is allowed to draw, how the model learns it, what travels
 to the client, and what draws it. For all of it in one picture, see
-
-[how A2UI fits into this app](../#how-a2ui-fits-into-this-app).
+[how A2UI fits into this app](/quickstart/#how-a2ui-fits-into-this-app).
 
 ### 1. What is A2UI, and what is app code
 
@@ -196,15 +195,14 @@ to ids and links): each component names its children by id, starting from
 
 ```json
 [
-  {"id": "root", "component": "Column", "children": ["fares"]},
-  {"id": "fares__text_1", "component": "Text", "text": "### Outbound · JFK → MAD"},
-  {"id": "fares__flightoption_1", "component": "FlightOption"},
+  {"id": "root", "component": "Column", "children": ["head", "list"]},
+  {"id": "head", "component": "Text", "text": "### Flights to Madrid"},
+  {"id": "fare", "component": "FlightOption"},
   {
-    "id": "fares__list_1",
+    "id": "list",
     "component": "List",
-    "children": {"path": "/flights", "componentId": "fares__flightoption_1"}
-  },
-  {"id": "fares", "component": "Column", "children": ["fares__text_1", "fares__list_1"]}
+    "children": {"path": "/flights", "componentId": "fare"}
+  }
 ]
 ```
 
@@ -232,8 +230,8 @@ uses a MessageProcessor to apply messages. It holds no app logic.
   `renderers/flutter/`. The apps around them are `apps/web/` and
   `apps/flutter/`.
 - **Maintained by the A2UI project:** Lit (web components), Angular, React,
-  Flutter and Markdown.
-- **From the community:** SwiftUI and UIKit, Android Compose, React Native,
+  Flutter, SwiftUI, Jetpack Compose and Markdown.
+- **From the community:** UIKit, React Native,
   Vue, Lynx, a terminal renderer and more.
 
 The server never knows which client it is talking to. Adding a platform means
@@ -264,6 +262,6 @@ for what it runs.
 
 - [Build your own](https://github.com/a2ui-project/labs/tree/main/samples/travel-a2ui#build-one-of-your-own): what to change to make
   this app about something other than travel.
-- [A2UI renderers](../../ecosystem/renderers/): the renderers A2UI has.
-- [How A2UI works](../../concepts/overview/): the concepts, in depth.
-- [A2UI v1.0 specification](../../specification/v1.0-a2ui/).
+- [A2UI renderers](/ecosystem/renderers/): the renderers A2UI has.
+- [How A2UI works](/concepts/overview/): the concepts, in depth.
+- [A2UI v1.0 specification](/specification/v1.0-a2ui/).

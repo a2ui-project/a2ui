@@ -39,6 +39,7 @@ import {
 
 export type App = 'both' | 'web' | 'mobile';
 
+const APPS: ReadonlyArray<App> = ['both', 'web', 'mobile'];
 const BLOCK = /<!-- only:([a-z ]+) -->\n([\s\S]*?)<!-- \/only -->\n?/g;
 
 const VALUES: Record<string, string> = {
@@ -58,14 +59,23 @@ export function guide(app: App): string {
   // markers, which are written with `\n`.
   const text = source
     .replace(/\r\n/g, '\n')
-    .replace(BLOCK, (_match, apps: string, body: string) =>
-      apps.split(' ').includes(app) ? body : '',
-    )
+    .replace(BLOCK, (_match, apps: string, body: string) => {
+      const names = apps.trim().split(/\s+/);
+      for (const name of names) {
+        if (!APPS.includes(name as App)) {
+          throw new Error(`Unknown app "${name}" in agent-guide.md`);
+        }
+      }
+      return names.includes(app) ? body : '';
+    })
     .replace(/\{\{([A-Z_]+)\}\}/g, (match, name: string) => {
       if (!(name in VALUES)) throw new Error(`Unknown placeholder ${match} in agent-guide.md`);
       return VALUES[name];
     })
     .replace(/\n{3,}/g, '\n\n');
+  if (/<!--[\s\S]*?\/?only\b/.test(text)) {
+    throw new Error('Unclosed or malformed <!-- only:... --> marker in agent-guide.md');
+  }
   return text;
 }
 
