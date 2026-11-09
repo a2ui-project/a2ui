@@ -20,22 +20,26 @@ import assetsManifest from '../../assets-manifest.json';
 import GenUiSpectrum from '../components/GenUiSpectrum.astro';
 import ProductionShowcase from '../components/ProductionShowcase.astro';
 import StarlightHeader from '../components/StarlightHeader.astro';
+import {docAssetSrc} from '../lib/doc-assets.mjs';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 /**
  * Screenshots are listed in assets-manifest.json. The build downloads them from
  * the docs-assets release into public/docs-assets/ (scripts/fetch-doc-assets.mjs),
- * so the page serves its own copies.
+ * so the page serves its own copies, or the release URL if a download failed.
  */
 function releaseAsset(id: string) {
   const asset = (
-    assetsManifest.assets as Record<string, {filename: string; width: number; height: number}>
+    assetsManifest.assets as Record<
+      string,
+      {filename: string; url: string; width: number; height: number}
+    >
   )[id];
   if (!asset) {
     throw new Error(`Missing "${id}" in docs/site/assets-manifest.json.`);
   }
-  return {url: `${base}/docs-assets/${asset.filename}`, width: asset.width, height: asset.height};
+  return {url: docAssetSrc(asset, base), width: asset.width, height: asset.height};
 }
 
 interface StoryLink {
