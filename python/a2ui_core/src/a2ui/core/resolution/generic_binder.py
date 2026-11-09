@@ -125,6 +125,36 @@ _SPECIAL_BEHAVIORS: Final[frozenset[BehaviorType]] = frozenset({
     BehaviorType.DYNAMIC,
 })
 
+_ACCESSIBILITY_BEHAVIOR: Final[BehaviorNode] = BehaviorNode(
+    BehaviorType.OBJECT,
+    shape={
+        "label": BehaviorNode(BehaviorType.DYNAMIC),
+        "description": BehaviorNode(BehaviorType.DYNAMIC),
+        "live": BehaviorNode(BehaviorType.STATIC),
+        "hidden": BehaviorNode(BehaviorType.DYNAMIC, is_boolean=True),
+    },
+)
+"""The behavior of the `AccessibilityAttributes` mixin."""
+
+
+def _with_envelope_mixin_behaviors(
+    shape: dict[str, BehaviorNode],
+) -> dict[str, BehaviorNode]:
+    """Adds the behaviors of the envelope mixins a component doesn't declare.
+
+    These are `accessibility` (below v1.0, or a legacy v1.0 payload), and the
+    v1.0 `@accessibility` and `@checks`, under which `MessageProcessor` stores
+    a v1.0 component's accessibility attributes and check rules.
+
+    A component that declares its own `accessibility` keeps that behavior, so
+    a custom property of that name is bound as the component declares it.
+    """
+    result = dict(shape)
+    result.setdefault("accessibility", _ACCESSIBILITY_BEHAVIOR)
+    result.setdefault("@accessibility", _ACCESSIBILITY_BEHAVIOR)
+    result.setdefault("@checks", BehaviorNode(BehaviorType.CHECKABLE))
+    return result
+
 
 def _merge_all_of_branch(
     branch: Any,
@@ -176,13 +206,6 @@ def _classify_all_of(
         and merged_shape["checks"].type == BehaviorType.CHECKABLE
     ):
         merged_shape.setdefault("@checks", BehaviorNode(BehaviorType.CHECKABLE))
-    if (
-        "accessibility" in merged_shape
-        and merged_shape["accessibility"].type == BehaviorType.OBJECT
-        and merged_shape["accessibility"].shape
-        and "label" in merged_shape["accessibility"].shape
-    ):
-        merged_shape.setdefault("@accessibility", merged_shape["accessibility"])
     if found_object or merged_shape:
         return BehaviorNode(BehaviorType.OBJECT, shape=merged_shape)
     return first_special
@@ -260,13 +283,6 @@ def _classify_container(
             }
             if "checks" in shape and shape["checks"].type == BehaviorType.CHECKABLE:
                 shape.setdefault("@checks", BehaviorNode(BehaviorType.CHECKABLE))
-            if (
-                "accessibility" in shape
-                and shape["accessibility"].type == BehaviorType.OBJECT
-                and shape["accessibility"].shape
-                and "label" in shape["accessibility"].shape
-            ):
-                shape.setdefault("@accessibility", shape["accessibility"])
             return BehaviorNode(BehaviorType.OBJECT, shape=shape)
 
     return None
@@ -433,6 +449,10 @@ class GenericBinder:
         )
         if self.behavior_tree.type != BehaviorType.OBJECT:
             self.behavior_tree = BehaviorNode(BehaviorType.OBJECT, shape={})
+        self.behavior_tree = BehaviorNode(
+            BehaviorType.OBJECT,
+            shape=_with_envelope_mixin_behaviors(self.behavior_tree.shape or {}),
+        )
 
         sub = self.context.component_model.on_updated.subscribe(
             lambda _: self._rebuild_all_bindings()

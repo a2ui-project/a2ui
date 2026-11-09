@@ -34,7 +34,7 @@ void main() {
       expect(updateCount, 3, reason: 'third update should also notify');
     });
 
-    test('toJson emits catalogId and metadata only when set', () {
+    test('toJson emits @catalogId and @metadata only when set', () {
       expect(ComponentModel('c1', 'Text', {'text': 'a'}).toJson(), {
         'id': 'c1',
         'component': 'Text',
@@ -58,8 +58,8 @@ void main() {
       expect(comp.toJson(), {
         'id': 'c1',
         'component': 'Text',
-        'catalogId': 'cat',
-        'metadata': {
+        '@catalogId': 'cat',
+        '@metadata': {
           'extensions': {'k': 'v'},
         },
         'text': 'a',

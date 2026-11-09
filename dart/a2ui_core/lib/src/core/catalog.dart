@@ -1868,22 +1868,40 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     return (customProperties: customProperties, isCheckable: isCheckable);
   }
 
+  /// Whether the property [key] with schema [propSchema], declared in a
+  /// `properties` block, is a protocol mixin rather than one of the
+  /// component's own properties.
+  ///
+  /// A bare `catalogId` or `metadata` written inline is the `ComponentCommon`
+  /// mixin only when its `properties` block also declares `id`
+  /// ([hasInlineId]), as an inlined copy of `ComponentCommon` does, and it has
+  /// the standard shape: a `catalogId` of `type: string`, or a `metadata` of
+  /// `type: object` whose only property is `extensions`. A reference to
+  /// `ComponentCommonMetadata` is the `metadata` mixin wherever it appears.
   static bool _isProtocolMixinProperty(
     String key,
     Object? propSchema,
     bool hasInlineId,
   ) {
     if (key.startsWith('@')) return true;
-    if (key == 'catalogId') return hasInlineId;
     if (propSchema is! Map) return false;
     final Object? ref = propSchema['commonTypesRef'] ?? propSchema[r'$ref'];
+    if (key == 'catalogId') {
+      return hasInlineId && propSchema['type'] == 'string';
+    }
     if (key == 'accessibility') {
       return ref is String && ref.endsWith('/AccessibilityAttributes');
     }
     if (key == 'metadata') {
+      if (ref is String && ref.endsWith('/ComponentCommonMetadata')) {
+        return true;
+      }
+      final Object? metaProps = propSchema['properties'];
       return hasInlineId &&
-          propSchema['properties'] is Map &&
-          (propSchema['properties']! as Map).containsKey('extensions');
+          propSchema['type'] == 'object' &&
+          metaProps is Map &&
+          metaProps.length == 1 &&
+          metaProps.containsKey('extensions');
     }
     if (key == 'checks') return _isChecksRuleArraySchema(propSchema, ref);
     return false;

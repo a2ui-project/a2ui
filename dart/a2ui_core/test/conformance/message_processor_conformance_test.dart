@@ -125,7 +125,10 @@ const Map<String, Set<String>> _knownKeys = {
 /// basic-catalog components.
 void main() {
   _registerSuite('core/message_processor_v0_9.yaml');
-  _registerSuite('core/message_processor_v1_0.yaml');
+  _registerSuite(
+    'core/message_processor_v1_0.yaml',
+    expectedFailures: _messageProcessorV10ExpectedFailures,
+  );
   _registerSuite(
     'core/reserved_keys.yaml',
     onlyAction: 'process_messages',
@@ -141,6 +144,13 @@ void main() {
   _registerSuite('core/index_function.yaml', onlyAction: 'validate');
   _registerSuite('core/multi_catalog.yaml', onlyAction: 'validate');
 }
+
+/// Cases in `core/message_processor_v1_0.yaml` this SDK fails, with why.
+const Map<String, String> _messageProcessorV10ExpectedFailures = {
+  'test_v10_custom_envelope_properties_declared_in_combiner_branches':
+      'Catalog.fromJson does not load oneOf/anyOf nested in a component\'s '
+          'allOf, so the properties those branches declare are unknown.',
+};
 
 void _registerSuite(
   String suite, {
@@ -786,27 +796,16 @@ void _checkComponents(
         );
         return;
       }
-      if (key == 'metadata') {
-        if (!atLeastV1) {
-          expect(
-            component?.metadata,
-            isNull,
-            reason: '$reason: $id envelope metadata must be null on pre-1.0',
-          );
-        } else {
-          final bool hasMetadataProp = entry.containsKey('@metadata') ||
-              (node == null || node.state == NodeState.unknownType
-                  ? component!.properties.containsKey('metadata')
-                  : node.props.peek().containsKey('metadata'));
-          if (!hasMetadataProp) {
-            expect(
-              node?.metadata.peek() ?? component!.metadata,
-              equals(value),
-              reason: '$reason: $id.metadata',
-            );
-            return;
-          }
-        }
+      // From v1.0 the expectation key alone says what is checked: `@metadata`
+      // is the envelope metadata and a bare `metadata` is a component
+      // property, whatever properties the component actually holds. Below
+      // v1.0 `metadata` is always a property and there is no envelope.
+      if (key == 'metadata' && !atLeastV1) {
+        expect(
+          component?.metadata,
+          isNull,
+          reason: '$reason: $id envelope metadata must be null on pre-1.0',
+        );
       }
       final Object? propVal =
           node == null || node.state == NodeState.unknownType

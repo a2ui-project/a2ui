@@ -196,8 +196,10 @@ class SurfaceComponentsModel:
 
         From v1.0, a function call that names no `catalogId` runs in the surface
         default catalog. When the component's catalog is another one, the
-        validator is given the component's `catalogId` so it leaves those calls
-        to `MessageProcessor`, which checks them against the surface default.
+        validator is given the component's `@catalogId` so it leaves those
+        calls to `MessageProcessor`, which checks them against the surface
+        default. The `@` key keeps it apart from a `catalogId` property the
+        component declares.
         """
         comp_dict = comp.component_tree
         ver = comp.catalog.protocol_version
@@ -206,8 +208,7 @@ class SurfaceComponentsModel:
             and ver
             and is_at_least_version(ver, ProtocolVersion.V1_0)
         ):
-            cat_key = "@catalogId" if "catalogId" in comp.properties else "catalogId"
-            comp_dict[cat_key] = comp.catalog.catalog_id
+            comp_dict["@catalogId"] = comp.catalog.catalog_id
         PayloadValidator(comp.catalog, config=config).validate_component(
             comp_dict,
             component_index=component_index,

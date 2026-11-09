@@ -1254,6 +1254,33 @@ public final class MessageProcessor: ObservableObject {
     return surface.getCatalog(id: surface.defaultCatalogID)?.components[type]?.schema.jsonValue
   }
 
+  /// Returns a v1.0 component with the legacy bare `catalogId` that routes it renamed to
+  /// `@catalogId`, or the component unchanged when no bare `catalogId` routes it.
+  ///
+  /// The component's schema in the surface default catalog decides whether a bare `catalogId`
+  /// routes it. A routing `catalogId` is the mixin even when the component's schema in the
+  /// catalog it routes to declares a `catalogId` property of its own, so that schema must not
+  /// read it as that property.
+  private func routedV10Component(
+    _ component: [String: JSONValue],
+    on surface: SurfaceViewModel
+  ) -> [String: JSONValue] {
+    let mixin = ComponentEnvelope.Mixin.catalogID
+    guard
+      let entry = ComponentEnvelope.catalogIDEntry(
+        in: component,
+        defaultCatalogSchema: defaultCatalogSchema(for: component, on: surface)
+      ),
+      entry.key == mixin.bareKey
+    else {
+      return component
+    }
+    var routed = component
+    routed.removeValue(forKey: mixin.bareKey)
+    routed[mixin.prefixedKey] = entry.value
+    return routed
+  }
+
   /// The ids of the components that `component` references, read through the schema of its
   /// type as ``GraphTopologyValidator`` reads them. `component` is a ``topologyComponent(_:on:)``.
   private func componentReferences(
@@ -1307,7 +1334,10 @@ public final class MessageProcessor: ObservableObject {
     let validator = payloadValidator(for: targetCatalog, config: config)
     do {
       if surface.protocolVersion.isAtLeastV10 {
-        let envelope = try componentEnvelope(componentDict, id: id, catalog: targetCatalog)
+        // Validate against the target catalog with the routing `catalogId` as `@catalogId`, so a
+        // `catalogId` property declared there doesn't check the routing value.
+        let routedDict = routedV10Component(componentDict, on: surface)
+        let envelope = try componentEnvelope(routedDict, id: id, catalog: targetCatalog)
         if let rawMeta = envelope[.metadata] {
           let key = envelope.key(of: .metadata) ?? ComponentEnvelope.Mixin.metadata.prefixedKey
           _ = try MetadataValidator.validate(rawMeta, pathPrefix: "components.\(id).\(key)")
@@ -1316,11 +1346,11 @@ public final class MessageProcessor: ObservableObject {
         // catalog, so it names one only when the component's catalog isn't the default.
         let componentInDefault = targetCatalog.id == surface.defaultCatalogID
         try validator.validateComponent(
-          componentDict,
+          routedDict,
           componentNamesCatalog: !componentInDefault
         )
         try validateNestedFunctionCalls(
-          in: componentDict,
+          in: routedDict,
           envelope: envelope,
           componentID: id,
           componentCatalog: targetCatalog,
@@ -1675,24 +1705,20 @@ public final class MessageProcessor: ObservableObject {
     type: String,
     on surface: SurfaceViewModel
   ) -> ComponentModel {
-    let catalogEntry = ComponentEnvelope.catalogIDEntry(
-      in: componentDict,
-      defaultCatalogSchema: defaultCatalogSchema(for: componentDict, on: surface)
-    )
-    let catalogID = catalogEntry?.value.stringValue ?? surface.defaultCatalogID
+    // A bare `catalogId` that routed the component (its schema in the default catalog declares
+    // none) is the mixin even if the target catalog declares a `catalogId` of its own.
+    let routedDict = routedV10Component(componentDict, on: surface)
+    let catalogID =
+      routedDict[ComponentEnvelope.Mixin.catalogID.prefixedKey]?.stringValue
+      ?? surface.defaultCatalogID
     let envelope = try? componentEnvelope(
-      componentDict,
+      routedDict,
       id: id,
       catalog: surface.getCatalog(id: catalogID)
     )
     var properties =
       envelope?.properties
-      ?? componentDict.filter { $0.key != "id" && $0.key != "component" }
-    if catalogEntry?.key == ComponentEnvelope.Mixin.catalogID.bareKey {
-      // The bare `catalogId` routed the component (its schema in the default catalog declares
-      // none), so it is the mixin even if the target catalog declares a `catalogId` of its own.
-      properties.removeValue(forKey: ComponentEnvelope.Mixin.catalogID.bareKey)
-    }
+      ?? routedDict.filter { $0.key != "id" && $0.key != "component" }
     for mixin in [ComponentEnvelope.Mixin.accessibility, .checks] {
       if let value = envelope?[mixin] {
         properties[mixin.prefixedKey] = value

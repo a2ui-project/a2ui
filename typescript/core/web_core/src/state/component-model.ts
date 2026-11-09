@@ -209,18 +209,18 @@ export class ComponentModel {
   /**
    * Serialized JSON representation of the component definition.
    *
-   * The component's envelope metadata is written as `metadata`, or as
-   * `@metadata` when the component has a property named `metadata` of its
-   * own, so that neither overwrites the other.
+   * The component's envelope metadata, which only v1.0 components carry, is
+   * always written as `@metadata`. A bare `metadata` key is left to the
+   * component's own property of that name, so the tree reads back the same
+   * way whether or not the schema declares one.
    */
   get componentTree(): any {
     const metadata = this.metadata;
-    const metadataKey = 'metadata' in this._properties ? '@metadata' : 'metadata';
     return {
       ...this._properties,
       id: this.id,
       component: this.type,
-      ...(metadata !== undefined ? {[metadataKey]: metadata} : {}),
+      ...(metadata !== undefined ? {'@metadata': metadata} : {}),
     };
   }
 }

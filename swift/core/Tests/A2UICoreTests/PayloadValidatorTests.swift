@@ -430,7 +430,8 @@ struct PayloadValidatorTests {
   private static let commonTypesURI = "https://a2ui.org/specification/v1_0/common_types.json"
 
   /// A catalog whose `Table` declares properties of its own named `metadata`, `catalogId`,
-  /// `accessibility`, and `checks`, and whose `Input` is checkable.
+  /// `accessibility`, and `checks`, and whose `Input` is checkable. `Table` declares `id` inline,
+  /// so its `catalogId` is not `type: string`, which would make it the standard mixin.
   private func makeMixinCatalog(protocolVersion: A2UIProtocolVersion) throws -> AnyCatalog {
     let tableSchema = try Schema(
       instance: """
@@ -444,7 +445,7 @@ struct PayloadValidatorTests {
               "properties": { "pageNumber": { "type": "number" } },
               "additionalProperties": false
             },
-            "catalogId": { "type": "string" },
+            "catalogId": { "const": "source-catalog" },
             "accessibility": { "type": "string" },
             "checks": { "type": "array", "items": { "type": "string" } }
           },
@@ -729,6 +730,121 @@ struct PayloadValidatorTests {
       ])
     }
     #expect(error.details.map(\.path) == ["@checks"])
+  }
+
+  @Test func validateComponentKeepsCheckableWithCustomChecksPropertyInV10() throws {
+    // `Field` mixes in `Checkable` and also declares a `checks` property of its own that is not
+    // a `CheckRule` list. It is still checkable, so it accepts the `@checks` mixin.
+    let fieldSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "allOf": [
+            { "$ref": "\(Self.commonTypesURI)#/$defs/Checkable" },
+            {
+              "properties": {
+                "id": { "type": "string" },
+                "component": { "const": "Field" },
+                "checks": { "type": "array" }
+              },
+              "required": ["id", "component"]
+            }
+          ]
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let validator = PayloadValidator(
+      catalog: Catalog(
+        id: "fields",
+        protocolVersion: .v10,
+        components: [AnyComponentAPI(name: "Field", schema: fieldSchema)]
+      ).eraseToAnyCatalog(),
+      config: ValidationConfig(protocolVersion: .v10)
+    )
+    try validator.validateComponent([
+      "id": .string("field"),
+      "component": .string("Field"),
+      "@checks": .array([
+        .object([
+          "condition": .object(["@path": .string("/accepted")]),
+          "message": .string("Required"),
+        ])
+      ]),
+    ])
+  }
+
+  /// Returns a v1.0 validator for a catalog holding one `Widget` component with `schemaJSON`.
+  private func makeWidgetValidator(_ schemaJSON: String) throws -> PayloadValidator {
+    PayloadValidator(
+      catalog: Catalog(
+        id: "widgets",
+        protocolVersion: .v10,
+        components: [AnyComponentAPI(name: "Widget", schema: try Schema(instance: schemaJSON))]
+      ).eraseToAnyCatalog(),
+      config: ValidationConfig(protocolVersion: .v10)
+    )
+  }
+
+  /// A `Widget` schema that declares `property` in one `properties` block, beside `id` when
+  /// `besideID` is true, or with `id` in a separate `allOf` branch otherwise.
+  private func widgetSchema(declaring property: String, besideID: Bool) -> String {
+    let id = #""id": { "type": "string" }"#
+    guard besideID else {
+      return """
+        { "allOf": [{ "properties": { \(id) } }, { "properties": { \(property) } }] }
+        """
+    }
+    return #"{ "properties": { \#(id), \#(property) } }"#
+  }
+
+  private func widget(_ properties: [String: JSONValue]) -> [String: JSONValue] {
+    properties.merging(["id": .string("w"), "component": .string("Widget")]) { _, new in new }
+  }
+
+  @Test func validateComponentTreatsInlineCatalogIDAsMixinOnlyBesideIDInV10() throws {
+    // Beside `id`, a `catalogId` of type string is an inlined `ComponentCommon` mixin, so naming
+    // it both ways is a conflict.
+    let stringCatalogID = #""catalogId": { "type": "string" }"#
+    let standard = try makeWidgetValidator(widgetSchema(declaring: stringCatalogID, besideID: true))
+    let error = try #require(throws: A2UIValidationError.self) {
+      try standard.validateComponent(
+        widget(["@catalogId": .string("widgets"), "catalogId": .string("widgets")])
+      )
+    }
+    #expect(error.details.map(\.path) == ["@catalogId"])
+
+    // With another shape, or without `id` in the same `properties` block, it is the component's
+    // own property.
+    let integerCatalogID = #""catalogId": { "type": "integer" }"#
+    try makeWidgetValidator(widgetSchema(declaring: integerCatalogID, besideID: true))
+      .validateComponent(widget(["@catalogId": .string("widgets"), "catalogId": .integer(1)]))
+    try makeWidgetValidator(widgetSchema(declaring: stringCatalogID, besideID: false))
+      .validateComponent(widget(["@catalogId": .string("widgets"), "catalogId": .string("own")]))
+  }
+
+  @Test func validateComponentTreatsInlineMetadataAsMixinOnlyBesideIDInV10() throws {
+    let extensions: JSONValue = .object(["extensions": .object([:])])
+    // Beside `id`, an object `metadata` holding only `extensions` is an inlined
+    // `ComponentCommon` mixin, so naming it both ways is a conflict.
+    let extensionsMetadata = """
+      "metadata": { "type": "object", "properties": { "extensions": { "type": "object" } } }
+      """
+    let standard = try makeWidgetValidator(
+      widgetSchema(declaring: extensionsMetadata, besideID: true)
+    )
+    let error = try #require(throws: A2UIValidationError.self) {
+      try standard.validateComponent(widget(["@metadata": extensions, "metadata": extensions]))
+    }
+    #expect(error.details.map(\.path) == ["@metadata"])
+
+    // With another shape, or without `id` in the same `properties` block, it is the component's
+    // own property.
+    let stringMetadata = #""metadata": { "type": "string" }"#
+    try makeWidgetValidator(widgetSchema(declaring: stringMetadata, besideID: true))
+      .validateComponent(widget(["@metadata": extensions, "metadata": .string("own")]))
+    try makeWidgetValidator(widgetSchema(declaring: extensionsMetadata, besideID: false))
+      .validateComponent(widget(["@metadata": extensions, "metadata": extensions]))
   }
 
   @Test func validateComponentRejectsPrefixedMixinNestedInPropertyInV10() throws {

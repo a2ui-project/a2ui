@@ -852,9 +852,10 @@ struct MessageProcessorConformanceTests {
   /// Checks a v1.0 component's `@catalogId` and `@metadata` mixins, and returns the expectation
   /// keys it checked.
   ///
-  /// Bare `catalogId` and `metadata` are the component's own properties when the expectation
-  /// also names the prefixed mixin, or the component holds a property of that name; otherwise
-  /// they are legacy names of the mixins.
+  /// A bare `catalogId` is the component's own property when the expectation also names
+  /// `@catalogId`, or the component holds a property of that name; otherwise it is the legacy
+  /// name of the mixin. Only `@metadata` names the metadata mixin: a bare `metadata` is always
+  /// the component's own property, so the expectation alone decides which one is checked.
   private func verifyV10ComponentEnvelope(
     _ compObj: [String: Any],
     actualComp: ComponentModel,
@@ -874,12 +875,9 @@ struct MessageProcessorConformanceTests {
         "[\(name)] Component '\(id)' catalogId mismatch"
       )
     }
-    let bareMetadataIsProperty =
-      compObj.keys.contains("@metadata") || actualComp.properties["metadata"] != nil
-    for key in ["@metadata", "metadata"] where compObj.keys.contains(key) {
-      guard key == "@metadata" || !bareMetadataIsProperty else { continue }
-      checkedKeys.insert(key)
-      let expectedMeta = compObj[key].map { ConformanceTestHelper.toJSONValue($0) } ?? .null
+    if compObj.keys.contains("@metadata") {
+      checkedKeys.insert("@metadata")
+      let expectedMeta = compObj["@metadata"].map { ConformanceTestHelper.toJSONValue($0) } ?? .null
       if expectedMeta == .null {
         #expect(
           actualComp.metadata == nil,

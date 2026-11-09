@@ -1255,18 +1255,12 @@ def _assert_single_component_state(
     if not is_at_least_v10:
         if "metadata" in c_exp and comp is not None:
             assert comp.metadata is None
-    else:
-        if "@metadata" in c_exp:
-            assert comp is not None
-            assert comp.metadata == c_exp["@metadata"]
-        if (
-            "metadata" in c_exp
-            and "@metadata" not in c_exp
-            and "metadata" not in node_props
-        ):
-            assert comp is not None
-            assert comp.metadata == c_exp["metadata"]
-            skip_keys.add("metadata")
+    elif "@metadata" in c_exp:
+        # On v1.0, `@metadata` is always envelope metadata and a bare
+        # `metadata` is always a component property, whatever the component
+        # ended up with.
+        assert comp is not None
+        assert comp.metadata == c_exp["@metadata"]
     if not node_info:
         return
     for p_key, p_val in c_exp.items():

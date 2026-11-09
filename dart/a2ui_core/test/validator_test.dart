@@ -1051,6 +1051,23 @@ void v1RulesTests() {
         throwsA(_validationError(path: '/@checks')),
       );
     });
+
+    test('rejects a null @catalogId or legacy bare catalogId on v1.0', () {
+      expect(
+        () => _versionedValidator('1.0').validateComponent({
+          ..._box('x'),
+          'catalogId': null,
+        }),
+        throwsA(_validationError(path: '/catalogId')),
+      );
+      expect(
+        () => _versionedValidator('1.0').validateComponent({
+          ..._box('x'),
+          '@catalogId': null,
+        }),
+        throwsA(_validationError(path: '/@catalogId')),
+      );
+    });
   });
 
   group('PayloadValidator v1.0 identifiers', () {

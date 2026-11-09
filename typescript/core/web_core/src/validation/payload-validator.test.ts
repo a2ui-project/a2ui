@@ -573,7 +573,15 @@ describe('PayloadValidator', () => {
               '@accessibility': {label: 'New'},
               'accessibility': {label: 'Old'},
             }),
-          /cannot specify both '@accessibility' and legacy 'accessibility'/,
+          (err: unknown) => {
+            assert.ok(err instanceof A2uiValidationError);
+            assert.match(
+              err.message,
+              /cannot specify both '@accessibility' and legacy 'accessibility'/,
+            );
+            assert.match(err.details[0].path, /\/@accessibility$/);
+            return true;
+          },
         );
         assert.throws(
           () =>
@@ -583,7 +591,12 @@ describe('PayloadValidator', () => {
               '@metadata': {},
               'metadata': {},
             }),
-          /cannot specify both '@metadata' and legacy 'metadata'/,
+          (err: unknown) => {
+            assert.ok(err instanceof A2uiValidationError);
+            assert.match(err.message, /cannot specify both '@metadata' and legacy 'metadata'/);
+            assert.match(err.details[0].path, /\/@metadata$/);
+            return true;
+          },
         );
       });
 

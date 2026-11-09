@@ -92,13 +92,14 @@ def _schema_has_property(schema: Any, prop_name: str) -> bool:
         and prop_name in schema["properties"]
     ):
         return True
-    if "allOf" in schema and isinstance(schema["allOf"], list):
-        return any(_schema_has_property(sub, prop_name) for sub in schema["allOf"])
-    if "anyOf" in schema and isinstance(schema["anyOf"], list):
-        return any(_schema_has_property(sub, prop_name) for sub in schema["anyOf"])
-    if "oneOf" in schema and isinstance(schema["oneOf"], list):
-        return any(_schema_has_property(sub, prop_name) for sub in schema["oneOf"])
-    return False
+    # A schema can combine several combiners (e.g. `allOf` and `oneOf`), so
+    # every branch of each is checked.
+    return any(
+        _schema_has_property(sub, prop_name)
+        for combiner in ("allOf", "anyOf", "oneOf")
+        if isinstance(schema.get(combiner), list)
+        for sub in schema[combiner]
+    )
 
 
 def _is_unknown_property_error(

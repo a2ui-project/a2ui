@@ -992,11 +992,13 @@ class MessageProcessor:
                 if has_at_cat:
                     comp_cat_id = comp_dict["@catalogId"]
                     cat_id_key = "@catalogId"
-                    names_catalog = comp_cat_id is not None
+                    # An explicit `null` names no catalog and is rejected below,
+                    # rather than falling back to the surface default.
+                    names_catalog = True
                 elif has_bare_cat and not bare_cat_is_custom:
                     comp_cat_id = comp_dict["catalogId"]
                     cat_id_key = "catalogId"
-                    names_catalog = comp_cat_id is not None
+                    names_catalog = True
                 else:
                     comp_cat_id = None
                     cat_id_key = None

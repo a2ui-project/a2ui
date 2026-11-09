@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from collections import deque
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 import copy
 from dataclasses import dataclass
 import re
@@ -954,8 +954,25 @@ _COMPONENT_AT_MIXIN_KEYS: Final[frozenset[str]] = frozenset(
 _STANDARD_MIXIN_DEFS = frozenset({"ComponentCommon", "Checkable"})
 
 
-def _is_standard_mixin_property_schema(prop_name: str, prop_schema: Any) -> bool:
-    """Returns whether `prop_schema` is the standard ComponentCommon/Checkable mixin schema for `prop_name`."""
+def _is_standard_mixin_property_schema(
+    prop_name: str, prop_schema: Any, *, has_inline_id: bool = False
+) -> bool:
+    """Returns whether `prop_schema` is the standard ComponentCommon/Checkable mixin schema for `prop_name`.
+
+    A `$ref` to `AccessibilityAttributes`, `Checkable`, `CheckRule`, or
+    `ComponentCommonMetadata` is always the standard mixin. A bare `catalogId`
+    or `metadata` declared inline is the standard mixin only where
+    `ComponentCommon` was inlined: when the same `properties` block also
+    declares `id` (`has_inline_id`), and the property has the standard shape
+    (a string `catalogId`, or an object `metadata` whose only property is
+    `extensions`). Otherwise it is a property the component declares itself.
+
+    Args:
+        prop_name: The property's key.
+        prop_schema: The property's schema.
+        has_inline_id: Whether the `properties` block that declares the
+            property also declares `id`.
+    """
     if not isinstance(prop_schema, Mapping):
         return False
     ref = prop_schema.get("$ref")
@@ -974,25 +991,16 @@ def _is_standard_mixin_property_schema(prop_name: str, prop_schema: Any) -> bool
         if isinstance(ref, str) and ref.endswith("/ComponentCommonMetadata"):
             return True
         props = prop_schema.get("properties")
-        if (
-            prop_schema.get("type") == "object"
+        return (
+            (has_inline_id or prop_name == "@metadata")
+            and prop_schema.get("type") == "object"
             and isinstance(props, Mapping)
             and set(props.keys()) == {"extensions"}
-        ):
-            ext = props.get("extensions")
-            return isinstance(ext, Mapping) and (
-                (
-                    isinstance(ext.get("$ref"), str)
-                    and ext["$ref"].endswith("/Extensions")
-                )
-                or "patternProperties" in ext
-            )
-        return False
-    if prop_name in ("catalogId", "@catalogId"):
-        return prop_schema.get("description") == (
-            "The catalog ID for this component, overriding any surface-level"
-            " default catalogId."
         )
+    if prop_name in ("catalogId", "@catalogId"):
+        return (has_inline_id or prop_name == "@catalogId") and prop_schema.get(
+            "type"
+        ) == "string"
     return False
 
 
@@ -1179,6 +1187,13 @@ def get_custom_envelope_properties(
     """Returns which of `{'metadata', 'catalogId', 'accessibility', 'checks'}`
     are declared as custom component properties by `comp_type` in `catalog`
     (rather than inherited from `ComponentCommon` or `Checkable`).
+
+    A property declared in any `allOf`, `anyOf`, or `oneOf` branch counts. On a
+    v1.0 surface, a bare key that isn't custom is read as the legacy form of
+    its `@`-prefixed envelope mixin.
+
+    TODO(#4082): remove the legacy bare v1.0 mixin fallback. It only exists so
+    agents still sending bare v1.0 keys keep working during the transition.
     """
     if catalog is None or not comp_type or not isinstance(comp_type, str):
         return frozenset()
@@ -1239,20 +1254,50 @@ def get_custom_envelope_properties(
     local_defs = (
         catalog.defs if isinstance(getattr(catalog, "defs", None), Mapping) else {}
     )
-    _, local, common_inline, specific_inline = _collect_component_sub_schemas(
-        raw_schema, local_defs, {}, set(), set()
-    )
     custom_props: set[str] = set()
-    for piece in [*local, *common_inline, *specific_inline]:
-        piece_props = piece.get("properties")
-        if not isinstance(piece_props, Mapping):
-            continue
+    for piece_props in _declared_property_blocks(raw_schema, local_defs, set()):
         for key in _ENVELOPE_MIXIN_CANDIDATE_KEYS:
             if key in piece_props and not _is_standard_mixin_property_schema(
-                key, piece_props[key]
+                key, piece_props[key], has_inline_id="id" in piece_props
             ):
                 custom_props.add(key)
     return frozenset(custom_props)
+
+
+def _declared_property_blocks(
+    schema: Any, local_defs: Mapping[str, Any], visited: set[str]
+) -> Iterator[Mapping[str, Any]]:
+    """Yields every `properties` block a component schema declares.
+
+    Follows local `$ref`s (other than the standard `ComponentCommon` and
+    `Checkable` mixins) and `allOf`, `anyOf`, and `oneOf` branches, so a
+    property declared in any branch of a combiner is found.
+    """
+    if not isinstance(schema, Mapping):
+        return
+    props = schema.get("properties")
+    if isinstance(props, Mapping):
+        yield props
+    ref = schema.get("$ref")
+    if isinstance(ref, str):
+        def_name = _local_def_name(ref)
+        if def_name is None and "#/$defs/" in ref:
+            def_name = ref.split("#/$defs/")[-1].split("/")[0]
+        if (
+            def_name is not None
+            and def_name not in _STANDARD_MIXIN_DEFS
+            and def_name in local_defs
+            and def_name not in visited
+        ):
+            visited.add(def_name)
+            yield from _declared_property_blocks(
+                local_defs[def_name], local_defs, visited
+            )
+    for combiner in ("allOf", "anyOf", "oneOf"):
+        branches = schema.get(combiner)
+        if isinstance(branches, list):
+            for branch in branches:
+                yield from _declared_property_blocks(branch, local_defs, visited)
 
 
 def _schema_references_checkable(
@@ -2362,7 +2407,9 @@ class Catalog(Generic[TComponent, TFunction]):
                             if prop_name in skip_keys or (
                                 prop_name in ("catalogId", "@catalogId")
                                 and _is_standard_mixin_property_schema(
-                                    prop_name, prop_schema
+                                    prop_name,
+                                    prop_schema,
+                                    has_inline_id="id" in piece_props,
                                 )
                             ):
                                 continue

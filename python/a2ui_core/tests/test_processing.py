@@ -1554,3 +1554,180 @@ def test_v10_at_prefixed_mixins_coexistence_and_conflict_detection():
                 }],
             },
         }])
+
+
+def _resolve_root(
+    components: dict[str, Any],
+    root: dict[str, Any],
+    *,
+    protocol_version: str = "1.0",
+    data_model: dict[str, Any] | None = None,
+) -> tuple[NodeResolver, Any]:
+    """Processes `root` on a new surface of an inline catalog and resolves it."""
+    cat = Catalog.from_json(
+        {
+            "catalogId": "https://a2ui.org/test-envelope-binding",
+            "components": components,
+            "functions": {},
+        },
+        protocol_version=protocol_version,
+    )
+    version = "1.0" if protocol_version == "1.0" else PROTOCOL_VERSION
+    create: dict[str, Any] = {"surfaceId": "s_bind", "catalogId": cat.catalog_id}
+    if data_model is not None and protocol_version == "1.0":
+        create["dataModel"] = data_model
+    processor = MessageProcessor(catalogs=[cat])
+    processor.process_messages([
+        {"version": version, "createSurface": create},
+        {
+            "version": version,
+            "updateComponents": {"surfaceId": "s_bind", "components": [root]},
+        },
+    ])
+    surface = processor.model.get_surface("s_bind")
+    assert surface is not None
+    if data_model is not None and protocol_version != "1.0":
+        for key, value in data_model.items():
+            surface.data_model.set(f"/{key}", value)
+    return NodeResolver(surface, cat), surface
+
+
+_PANEL_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "component": {"const": "Panel"},
+        "title": {"$ref": "common_types.json#/$defs/DynamicString"},
+    },
+    "required": ["component"],
+}
+
+
+@pytest.mark.parametrize("a11y_key", ["@accessibility", "accessibility"])
+def test_v10_accessibility_binds_without_component_common_ref(a11y_key: str):
+    from a2ui.core.resolution import WritableBinding
+
+    resolver, _ = _resolve_root(
+        {"Panel": _PANEL_SCHEMA},
+        {
+            "id": "root",
+            "component": "Panel",
+            "title": "Totals",
+            a11y_key: {
+                "label": {"@path": "/a11y/label"},
+                "hidden": {"@path": "/a11y/hidden"},
+            },
+        },
+        data_model={"a11y": {"label": "Totals table", "hidden": True}},
+    )
+    assert resolver.root is not None
+    # A legacy bare `accessibility` is stored as `@accessibility` on v1.0.
+    a11y = resolver.root.props["@accessibility"]
+    assert isinstance(a11y["label"], WritableBinding)
+    assert a11y["label"].value == "Totals table"
+    assert isinstance(a11y["hidden"], WritableBinding)
+    assert a11y["hidden"].value is True
+    resolver.dispose()
+
+
+def test_v10_custom_accessibility_property_stays_static_beside_at_accessibility():
+    from a2ui.core.resolution import WritableBinding
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "component": {"const": "Panel"},
+            "accessibility": {"type": "string"},
+        },
+        "required": ["component"],
+    }
+    resolver, _ = _resolve_root(
+        {"Panel": schema},
+        {
+            "id": "root",
+            "component": "Panel",
+            "accessibility": "compact",
+            "@accessibility": {"label": {"@path": "/a11y/label"}},
+        },
+        data_model={"a11y": {"label": "Totals table"}},
+    )
+    assert resolver.root is not None
+    assert resolver.root.props["accessibility"] == "compact"
+    label = resolver.root.props["@accessibility"]["label"]
+    assert isinstance(label, WritableBinding)
+    assert label.value == "Totals table"
+    resolver.dispose()
+
+
+def test_v10_nested_checks_key_not_declared_as_check_rules_is_kept():
+    schema = {
+        "type": "object",
+        "properties": {
+            "component": {"const": "Box"},
+            "opts": {"type": "object", "properties": {"x": {"type": "number"}}},
+        },
+        "required": ["component"],
+    }
+    resolver, _ = _resolve_root(
+        {"Box": schema},
+        {"id": "root", "component": "Box", "opts": {"x": 1, "checks": ["keep"]}},
+    )
+    assert resolver.root is not None
+    assert resolver.root.props["opts"]["checks"] == ["keep"]
+    resolver.dispose()
+
+
+def test_v09_checkable_component_checks_stay_out_of_node_props():
+    schema = {
+        "type": "object",
+        "allOf": [{"$ref": "common_types.json#/$defs/Checkable"}],
+        "properties": {
+            "component": {"const": "Field"},
+            "value": {"$ref": "common_types.json#/$defs/DynamicString"},
+        },
+        "required": ["component"],
+    }
+    resolver, _ = _resolve_root(
+        {"Field": schema},
+        {
+            "id": "root",
+            "component": "Field",
+            "value": {"path": "/name"},
+            "checks": [{
+                "condition": {"call": "required", "args": {"value": {"path": "/name"}}},
+                "message": "Name is required",
+            }],
+        },
+        protocol_version=PROTOCOL_VERSION,
+        data_model={"name": ""},
+    )
+    assert resolver.root is not None
+    assert "checks" not in resolver.root.props
+    assert resolver.root.is_valid is False
+    assert resolver.root.validation_errors == ["Name is required"]
+    resolver.dispose()
+
+
+@pytest.mark.parametrize(
+    ("protocol_version", "keeps_bare_checks"),
+    [("1.0", True), (PROTOCOL_VERSION, False)],
+)
+def test_wrap_and_stabilize_props_fallback_drops_bare_checks_only_below_v10(
+    protocol_version: str, keeps_bare_checks: bool
+):
+    resolver, _ = _resolve_root(
+        {"Panel": _PANEL_SCHEMA},
+        {"id": "root", "component": "Panel", "title": "Totals"},
+        protocol_version=protocol_version,
+    )
+    record = resolver._root_record
+    assert record is not None
+    # Without a behavior tree the props are copied by the fallback filter.
+    record.behavior = None
+    wrapped = resolver._wrap_and_stabilize_props(
+        record, {"title": "Totals", "checks": ["keep"], "@checks": [], "weight": 1}
+    )
+    expected: dict[str, Any] = {"title": "Totals"}
+    if keeps_bare_checks:
+        expected["checks"] = ["keep"]
+    assert wrapped == expected
+    resolver.dispose()

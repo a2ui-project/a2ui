@@ -433,15 +433,16 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
         );
       }
     }
-    if (!catalog.customComponentProperties(type).contains('catalogId')) {
-      final Object? rawCatalogId = component['catalogId'];
-      if (rawCatalogId != null && rawCatalogId is! String) {
-        _throwDetail(
-          '/catalogId',
-          'invalid_value',
-          "Component '$id' has a non-string 'catalogId'.",
-        );
-      }
+    if (!catalog.customComponentProperties(type).contains('catalogId') &&
+        component.containsKey('catalogId') &&
+        component['catalogId'] is! String) {
+      // A present legacy bare `catalogId` names a catalog, so null is
+      // rejected like any other non-string rather than read as absent.
+      _throwDetail(
+        '/catalogId',
+        'invalid_value',
+        "Component '$id' has a non-string 'catalogId'.",
+      );
     }
   }
 

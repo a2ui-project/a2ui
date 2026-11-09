@@ -27,6 +27,9 @@ import OrderedJSON
 ///
 /// Before v1.0 a component has no mixins beyond `id` and `component`, so this type is not used:
 /// bare `catalogId` and `metadata` are ordinary properties there.
+///
+/// TODO(#4082): remove the legacy bare v1.0 mixin fallback. It exists only until v1.0 schemas,
+/// catalogs, and agent emitters all use the `@`-prefixed names.
 struct ComponentEnvelope {
   /// A component mixin, by its legacy bare name.
   enum Mixin: String, CaseIterable {
@@ -130,24 +133,29 @@ struct ComponentEnvelope {
   ///
   /// A property is the component's own unless its schema has the mixin's shape: an
   /// `AccessibilityAttributes` reference for `accessibility`, a `CheckRule` list for `checks`,
-  /// and a `ComponentCommonMetadata` reference or an object holding only `extensions` for
-  /// `metadata`. A shared `ComponentCommon` or `Checkable` definition in another document
+  /// and a `ComponentCommonMetadata` reference for `metadata`. A `catalogId` of type `string`, or
+  /// a `metadata` object holding only `extensions`, is the mixin only when the same `properties`
+  /// block also declares `id`, as an inlined `ComponentCommon` does; elsewhere it is the
+  /// component's own. A shared `ComponentCommon` or `Checkable` definition in another document
   /// declares no property of the component's own.
   static func declaresOwnProperty(_ mixin: Mixin, in schema: JSONValue?) -> Bool {
     guard let schema,
-      let declared = declaredPropertySchema(mixin.bareKey, in: schema, root: schema, visited: [])
+      let block = declaringProperties(mixin.bareKey, in: schema, root: schema, visited: []),
+      let declared = block.objectValue?[mixin.bareKey]
     else {
       return false
     }
+    let inlinesComponentCommon = block.objectValue?["id"] != nil
     switch mixin {
     case .catalogID:
-      return true
+      return !(inlinesComponentCommon && declared["type"]?.stringValue == "string")
     case .metadata:
       if referencedDefinition(of: declared) == "ComponentCommonMetadata" {
         return false
       }
       let keys = declared["properties"]?.objectValue?.keys.map { $0 } ?? []
-      return keys != ["extensions"]
+      let hasMixinShape = declared["type"]?.stringValue == "object" && keys == ["extensions"]
+      return !(inlinesComponentCommon && hasMixinShape)
     case .accessibility:
       return referencedDefinition(of: declared) != "AccessibilityAttributes"
     case .checks:
@@ -156,14 +164,22 @@ struct ComponentEnvelope {
   }
 
   /// Returns whether a component schema accepts checks: it mixes in `Checkable`, or declares a
-  /// `CheckRule` list as `checks` or `@checks`. An unknown schema is taken to accept them.
+  /// `CheckRule` list as `checks` or `@checks`.
+  ///
+  /// A component that mixes in `Checkable` stays checkable when it also declares a `checks`
+  /// property of its own. An unknown schema (nil) is not checkable, so an unknown component keeps
+  /// a bare `checks` among its properties.
   static func isCheckable(_ schema: JSONValue?) -> Bool {
-    guard let schema else { return true }
-    if let declared = declaredPropertySchema("@checks", in: schema, root: schema, visited: []) {
-      return isCheckRuleList(declared)
+    guard let schema else { return false }
+    if let declared = declaredPropertySchema("@checks", in: schema, root: schema, visited: []),
+      isCheckRuleList(declared)
+    {
+      return true
     }
-    if let declared = declaredPropertySchema("checks", in: schema, root: schema, visited: []) {
-      return isCheckRuleList(declared)
+    if let declared = declaredPropertySchema("checks", in: schema, root: schema, visited: []),
+      isCheckRuleList(declared)
+    {
+      return true
     }
     return mixesIn("Checkable", schema: schema, root: schema, visited: [])
   }
@@ -189,20 +205,31 @@ struct ComponentEnvelope {
     root: JSONValue,
     visited: Set<String>
   ) -> JSONValue? {
-    if let declared = schema["properties"]?.objectValue?[key] {
-      return declared
+    declaringProperties(key, in: schema, root: root, visited: visited)?.objectValue?[key]
+  }
+
+  /// Finds the `properties` object that declares a property, directly, through a local `$ref`,
+  /// or through `allOf`, `anyOf`, or `oneOf`.
+  private static func declaringProperties(
+    _ key: String,
+    in schema: JSONValue,
+    root: JSONValue,
+    visited: Set<String>
+  ) -> JSONValue? {
+    if let properties = schema["properties"], properties.objectValue?[key] != nil {
+      return properties
     }
     var visited = visited
     if let ref = schema["$ref"]?.stringValue, ref.hasPrefix("#"), visited.insert(ref).inserted,
       let target = resolveLocalRef(ref, in: root),
-      let declared = declaredPropertySchema(key, in: target, root: root, visited: visited)
+      let properties = declaringProperties(key, in: target, root: root, visited: visited)
     {
-      return declared
+      return properties
     }
     for combiner in ["allOf", "anyOf", "oneOf"] {
       for subSchema in schema[combiner]?.arrayValue ?? [] {
-        if let declared = declaredPropertySchema(key, in: subSchema, root: root, visited: visited) {
-          return declared
+        if let properties = declaringProperties(key, in: subSchema, root: root, visited: visited) {
+          return properties
         }
       }
     }

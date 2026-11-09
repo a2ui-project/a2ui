@@ -1636,14 +1636,16 @@ class MessageProcessor<T extends ComponentApi> {
             .contains('catalogId') ??
         false;
     if (!customCatalogId && entry.containsKey('catalogId')) {
+      // A legacy bare `catalogId` that is present names a catalog, so null
+      // is rejected like any other non-string rather than read as absent.
       final Object? raw = entry['catalogId'];
-      if (raw != null && raw is! String) {
+      if (raw is! String) {
         throw A2uiValidationError(
           "Component '$id' has a non-string 'catalogId'.",
           path: '/catalogId',
         );
       }
-      return raw as String?;
+      return raw;
     }
     return null;
   }
@@ -1672,6 +1674,17 @@ class MessageProcessor<T extends ComponentApi> {
     return (null, null);
   }
 
+  /// [entry] with its v1.0 envelope mixins moved to their `@`-prefixed keys.
+  ///
+  /// `@catalogId` and `@metadata` are set from [envCatalogId] and
+  /// [envMetadata]. `@accessibility` and `@checks` are read from their `@`
+  /// keys, or else from a legacy bare `accessibility` or `checks` that
+  /// [customProps] does not list (a bare `checks` only when [isCheckable]).
+  /// Every bare mixin key that is not one of the component's own properties is
+  /// dropped, so the result holds only `@` mixins and component properties.
+  ///
+  /// TODO(#4082): remove the legacy bare v1.0 mixin fallback. It only exists
+  /// while v1.0 schemas, catalogs, and agent emitters move to the `@` names.
   static Map<String, Object?> _normalizeV1Component(
     Map<String, Object?> entry, {
     required String type,

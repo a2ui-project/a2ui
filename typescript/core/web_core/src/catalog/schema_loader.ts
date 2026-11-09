@@ -594,6 +594,38 @@ function isEnvelopeField(propName: string): boolean {
 }
 
 /**
+ * Whether a `properties` block declares `catalogId` or `metadata` as part of
+ * an inlined `ComponentCommon`, as flattened validation schemas do: beside
+ * `id`, and with the standard shape (a string `catalogId`, or a `metadata`
+ * object whose only property is `extensions`). Such a property is the
+ * standard mixin rather than a custom property of the same name.
+ *
+ * @param properties The `properties` block that declares the property.
+ * @param propName The property's name.
+ * @param propSchema The property's JSON Schema.
+ * @returns Whether the property is the inlined standard mixin.
+ */
+function isInlineStandardMixinProperty(
+  properties: Record<string, unknown>,
+  propName: string,
+  propSchema: unknown,
+): boolean {
+  if (!Object.hasOwn(properties, 'id') || !isPlainObject(propSchema)) return false;
+  switch (propName) {
+    case 'catalogId':
+      return propSchema.type === 'string';
+    case 'metadata': {
+      const metadataProps = propSchema.properties;
+      if (propSchema.type !== 'object' || !isPlainObject(metadataProps)) return false;
+      const keys = Object.keys(metadataProps);
+      return keys.length === 1 && keys[0] === 'extensions';
+    }
+    default:
+      return false;
+  }
+}
+
+/**
  * Converts a dictionary of property definitions into a Zod raw shape map.
  *
  * Marks fields as optional unless present in `requiredSet`.
@@ -646,6 +678,14 @@ function convertPropertiesToShape(
       }, zodField);
     } else {
       shape[propName] = zodField;
+    }
+  }
+  for (const [propName, propSchema] of Object.entries(properties)) {
+    if (
+      Object.hasOwn(shape, propName) &&
+      isInlineStandardMixinProperty(properties, propName, propSchema)
+    ) {
+      markStandardMixinSchema(shape[propName]);
     }
   }
   return shape;

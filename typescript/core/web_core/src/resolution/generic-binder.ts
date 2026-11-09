@@ -27,6 +27,7 @@ import {
 import {childRefKindOf} from '../types/child-ref-helpers.js';
 import type {Action as V1Action, CheckRule as V1CheckRule} from '../v1_0/schema/common-types.js';
 import {extractRefDefName} from '../catalog/reference-map.js';
+import {componentMixinLayout} from '../catalog/component_envelope.js';
 import {
   coerceDynamicBoolean,
   isDynamicBooleanSchema,
@@ -502,20 +503,22 @@ export interface ResolvedAccessibility {
 /**
  * Finalizes a component's resolved props: removes raw v1.0 `@checks` rules
  * (which the binder has already evaluated into `isValid`, `validationErrors`,
- * and `validationResults`) and mirrors `@accessibility` onto `accessibility`
- * when the component has no custom `accessibility` property of its own.
+ * and `validationResults`) and, if `mirrorsAccessibility` is set, mirrors
+ * `@accessibility` onto `accessibility`.
  *
  * @param resolved The resolved props, if any.
- * @param rawProps The raw properties stored on `ComponentModel`.
+ * @param mirrorsAccessibility Whether the component's schema leaves
+ *   `accessibility` free for the mirror, by declaring no custom property of
+ *   that name.
  * @returns The finalized resolved props.
  */
 function finalizeResolvedProps(
   resolved: unknown,
-  rawProps: Readonly<Record<string, unknown>>,
+  mirrorsAccessibility: boolean,
 ): Record<string, unknown> {
   if (!resolved || typeof resolved !== 'object') return {};
   const {[AT_CHECKS]: _checks, ...rest} = resolved as Record<string, unknown>;
-  if (AT_ACCESSIBILITY in rest && !('accessibility' in rawProps)) {
+  if (mirrorsAccessibility && AT_ACCESSIBILITY in rest) {
     rest['accessibility'] = rest[AT_ACCESSIBILITY];
   }
   return rest;
@@ -558,6 +561,12 @@ export class GenericBinder<T> {
 
   private context: ComponentContext;
   private behaviorTree: BehaviorNode;
+  /**
+   * Whether `@accessibility` is mirrored onto `accessibility`. Decided by the
+   * schema, not the payload, so that a custom `accessibility` property the
+   * payload omits is not filled with the accessibility attributes.
+   */
+  private readonly mirrorsAccessibility: boolean;
   // Actions resolve to closures, which downstream value comparison cannot
   // inspect; reusing the closure while the raw payload is unchanged keeps
   // unchanged action props reference-identical across rebuilds.
@@ -579,6 +588,7 @@ export class GenericBinder<T> {
   constructor(context: ComponentContext, schema: z.ZodTypeAny) {
     this.context = context;
     this.behaviorTree = scrapeSchemaBehavior(schema);
+    this.mirrorsAccessibility = !componentMixinLayout(schema).customKeys.has('accessibility');
 
     if (this.behaviorTree.type !== 'OBJECT') {
       this.behaviorTree = {type: 'OBJECT', shape: {}};
@@ -590,7 +600,7 @@ export class GenericBinder<T> {
   private resolveInitialProps() {
     const props = this.context.componentModel.properties;
     const resolved = this.resolveAndBind(props, this.behaviorTree, [], true);
-    this.currentProps = finalizeResolvedProps(resolved, props) as Partial<T>;
+    this.currentProps = finalizeResolvedProps(resolved, this.mirrorsAccessibility) as Partial<T>;
   }
 
   private connect() {
@@ -620,7 +630,7 @@ export class GenericBinder<T> {
     } finally {
       this.prevActionClosures = undefined;
     }
-    this.currentProps = finalizeResolvedProps(resolved, props) as Partial<T>;
+    this.currentProps = finalizeResolvedProps(resolved, this.mirrorsAccessibility) as Partial<T>;
 
     this.notify();
   }
@@ -1070,11 +1080,7 @@ export class GenericBinder<T> {
       string,
       unknown
     >;
-    if (
-      path[0] === AT_ACCESSIBILITY &&
-      AT_ACCESSIBILITY in updated &&
-      !('accessibility' in this.context.componentModel.properties)
-    ) {
+    if (this.mirrorsAccessibility && path[0] === AT_ACCESSIBILITY && AT_ACCESSIBILITY in updated) {
       updated['accessibility'] = updated[AT_ACCESSIBILITY];
     }
     this.currentProps = updated as Partial<T>;

@@ -25,6 +25,9 @@
  * `checks` mixin, as long as its schema does not declare a custom property of
  * that name. Below v1.0 the bare `accessibility` and `checks` are the mixins,
  * and `metadata` and `catalogId` are ordinary component properties.
+ *
+ * TODO(#4082): remove the legacy bare v1.0 mixin fallback. It only exists so
+ * agents written before the `@` keys keep working during the transition.
  */
 
 import {z} from 'zod';
@@ -125,27 +128,69 @@ function unwrapSchemaLayer(def: any): any {
   return undefined;
 }
 
+/** A property a component schema declares, with the object that declares it. */
+interface PropertyDeclaration {
+  /** The property's schema. */
+  readonly schema: z.ZodTypeAny;
+  /** The shape of the object that declares it, including the property. */
+  readonly siblings: Readonly<Record<string, z.ZodTypeAny>>;
+}
+
 /**
- * Unwraps Zod wrappers to reach a component schema's object shape.
+ * Collects every property a component schema declares, keyed by name.
+ *
+ * Unwraps Zod wrappers and walks intersections and the options of unions and
+ * discriminated unions (JSON Schema `allOf`, `anyOf`, and `oneOf`), so a
+ * property declared in any branch counts as declared. A name declared in
+ * several branches keeps each of its declarations.
  *
  * @param schema A component schema.
- * @returns The merged object shape, or `undefined` if the schema has none.
+ * @param declared The map to add the declarations to.
+ * @param visited The schemas already walked, so that a schema shared by
+ *   several branches, or reached again through `z.lazy`, is walked once.
+ * @returns `declared`.
  */
-function objectShapeOf(schema: z.ZodTypeAny | undefined): Record<string, z.ZodTypeAny> | undefined {
+function collectDeclaredProperties(
+  schema: z.ZodTypeAny | undefined,
+  declared = new Map<string, PropertyDeclaration[]>(),
+  visited = new Set<object>(),
+): Map<string, PropertyDeclaration[]> {
   let current: any = schema;
-  while (current) {
+  while (current && !visited.has(current)) {
+    visited.add(current);
     const def = current._def;
-    if (def?.typeName === 'ZodObject') {
-      return typeof current.shape === 'function' ? current.shape() : current.shape;
-    }
-    if (def?.typeName === 'ZodIntersection') {
-      const left = objectShapeOf(def.left);
-      const right = objectShapeOf(def.right);
-      return left || right ? {...left, ...right} : undefined;
+    switch (def?.typeName) {
+      case 'ZodObject': {
+        const siblings: Record<string, z.ZodTypeAny> =
+          typeof current.shape === 'function' ? current.shape() : current.shape;
+        for (const [key, prop] of Object.entries(siblings)) {
+          const declaration = {schema: prop, siblings};
+          const declarations = declared.get(key);
+          if (declarations) {
+            declarations.push(declaration);
+          } else {
+            declared.set(key, [declaration]);
+          }
+        }
+        return declared;
+      }
+      case 'ZodIntersection':
+        collectDeclaredProperties(def.left, declared, visited);
+        collectDeclaredProperties(def.right, declared, visited);
+        return declared;
+      case 'ZodUnion':
+      case 'ZodDiscriminatedUnion':
+        for (const option of def.options) collectDeclaredProperties(option, declared, visited);
+        return declared;
+      case 'ZodPipeline':
+        // `exclusiveUnion` (JSON Schema `oneOf`) pipes a guard into a union.
+        collectDeclaredProperties(def.in, declared, visited);
+        collectDeclaredProperties(def.out, declared, visited);
+        return declared;
     }
     current = unwrapSchemaLayer(def);
   }
-  return undefined;
+  return declared;
 }
 
 /** Unwraps optional, nullable, default, and effect wrappers of a property schema. */
@@ -170,11 +215,16 @@ function refDefName(schema: any): string | undefined {
 /**
  * Whether a property schema a component declares under a mixin's bare name
  * is the standard mixin schema rather than a custom property.
+ *
+ * A `catalogId` or `metadata` declared inline is the standard mixin only as
+ * part of an inlined `ComponentCommon`: the object that declares it must also
+ * declare `id`, and it must have the standard shape (a string `catalogId`, or
+ * a `metadata` object whose only property is `extensions`).
  */
 function isStandardMixinProperty(
   componentSchema: z.ZodTypeAny,
   key: ComponentMixinKey,
-  prop: z.ZodTypeAny,
+  {schema: prop, siblings}: PropertyDeclaration,
 ): boolean {
   const inner = unwrapProperty(prop);
   if (standardMixinSchemas.has(prop) || standardMixinSchemas.has(inner)) return true;
@@ -188,8 +238,13 @@ function isStandardMixinProperty(
     }
     case 'accessibility':
       return refDefName(inner) === 'AccessibilityAttributes';
-    default:
-      return false;
+    case 'catalogId':
+      return Object.hasOwn(siblings, 'id') && inner?._def?.typeName === 'ZodString';
+    case 'metadata': {
+      if (!Object.hasOwn(siblings, 'id') || inner?._def?.typeName !== 'ZodObject') return false;
+      const keys = Object.keys(typeof inner.shape === 'function' ? inner.shape() : inner.shape);
+      return keys.length === 1 && keys[0] === 'extensions';
+    }
   }
 }
 
@@ -198,6 +253,10 @@ function isStandardMixinProperty(
  * mixin names it declares as custom properties, and under which keys it
  * declares the standard mixins.
  *
+ * Properties declared in any branch of an intersection or union count. A bare
+ * mixin name is the standard mixin only if every branch that declares it uses
+ * the standard schema; otherwise it is a custom property.
+ *
  * @param schema The component's schema, if known.
  * @returns The component's mixin layout.
  */
@@ -205,17 +264,17 @@ export function componentMixinLayout(schema: z.ZodTypeAny | undefined): Componen
   if (!schema) return EMPTY_LAYOUT;
   const cached = layoutCache.get(schema);
   if (cached) return cached;
-  const shape = objectShapeOf(schema) ?? {};
+  const declared = collectDeclaredProperties(schema);
   const customKeys = new Set<ComponentMixinKey>();
   const schemaKeys = new Map<ComponentMixinKey, string>();
   for (const key of COMPONENT_MIXIN_KEYS) {
     const atKey = atMixinKey(key);
-    const bare = Object.hasOwn(shape, key) ? shape[key] : undefined;
-    if (Object.hasOwn(shape, atKey)) {
+    const bare = declared.get(key);
+    if (declared.has(atKey)) {
       schemaKeys.set(key, atKey);
       if (bare) customKeys.add(key);
     } else if (bare) {
-      if (isStandardMixinProperty(schema, key, bare)) {
+      if (bare.every(declaration => isStandardMixinProperty(schema, key, declaration))) {
         schemaKeys.set(key, key);
       } else {
         customKeys.add(key);
@@ -315,9 +374,9 @@ export function splitComponentEnvelope(
       const msg = `Component '${String(comp['id'])}' cannot specify both '${atKey}' and legacy '${key}'.`;
       throw new A2uiValidationError(
         msg,
-        [{path: `/${key}`, code: 'invalid_value', message: msg}],
+        [{path: `/${atKey}`, code: 'invalid_value', message: msg}],
         'VALIDATION_ERROR',
-        {path: `/${key}`},
+        {path: `/${atKey}`},
       );
     }
     if (hasAt) {

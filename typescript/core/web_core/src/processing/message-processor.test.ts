@@ -2671,6 +2671,55 @@ describe('MessageProcessor component envelope mixins', () => {
       proc.dispose();
     });
 
+    it('serializes @metadata when an optional custom metadata is omitted', () => {
+      const chart: ComponentApi = {
+        name: 'Chart',
+        schema: z.object({title: z.string(), metadata: z.string().optional()}).strict(),
+      };
+      const proc = v10Processor(new Catalog<ComponentApi>('main', '1.0', [chart]));
+      process(proc, [
+        {
+          'id': 'root',
+          'component': 'Chart',
+          'title': 'Sales',
+          '@metadata': {extensions: {com_example_trace: 't1'}},
+        },
+      ]);
+      const root = proc.getSurface('s')!.componentsModel.get('root')!;
+      assert.deepStrictEqual(root.properties, {title: 'Sales'});
+      assert.deepStrictEqual(root.componentTree, {
+        'id': 'root',
+        'component': 'Chart',
+        'title': 'Sales',
+        '@metadata': {extensions: {com_example_trace: 't1'}},
+      });
+      proc.dispose();
+    });
+
+    it('keeps a bare metadata declared in a union option as a property', () => {
+      const widget: ComponentApi = {
+        name: 'Widget',
+        schema: z.union([
+          z.object({kind: z.literal('a'), metadata: z.string().optional()}).strict(),
+          z.object({kind: z.literal('b'), label: z.string().optional()}).strict(),
+        ]),
+      };
+      const proc = v10Processor(new Catalog<ComponentApi>('main', '1.0', [widget]));
+      process(proc, [
+        {
+          'id': 'root',
+          'component': 'Widget',
+          'kind': 'a',
+          'metadata': 'x',
+          '@metadata': {extensions: {com_example_trace: 't1'}},
+        },
+      ]);
+      const root = proc.getSurface('s')!.componentsModel.get('root')!;
+      assert.deepStrictEqual(root.properties, {kind: 'a', metadata: 'x'});
+      assert.deepStrictEqual(root.metadata, {extensions: {com_example_trace: 't1'}});
+      proc.dispose();
+    });
+
     it('rejects @metadata with invalid extension keys and conflicting mixins', () => {
       const proc = v10Processor(gcbpCatalog('main', '1.0'));
       assert.throws(
@@ -2690,7 +2739,15 @@ describe('MessageProcessor component envelope mixins', () => {
               'accessibility': {label: 'Old'},
             },
           ]),
-        /cannot specify both '@accessibility' and legacy 'accessibility'/,
+        (err: unknown) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.match(
+            err.message,
+            /cannot specify both '@accessibility' and legacy 'accessibility'/,
+          );
+          assert.match(err.details[0].path, /\/@accessibility$/);
+          return true;
+        },
       );
       proc.dispose();
     });

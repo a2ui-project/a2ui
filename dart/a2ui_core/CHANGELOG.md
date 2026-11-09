@@ -2,7 +2,13 @@
 
 ## Unreleased
 
-- **Breaking:** Gate component-level `metadata` and `catalogId` envelope handling on v1.0+ surfaces so pre-1.0 surfaces (`v0.8`, `v0.9`, `v0.9.1`) treat `metadata` and `catalogId` as ordinary component properties in `PayloadValidator` and `MessageProcessor`, and accept `@metadata`, `@catalogId`, `@accessibility`, and `@checks` on v1.0 components while continuing to read legacy bare `metadata`, `catalogId`, `accessibility`, and `checks` when undeclared by the component schema. `PayloadValidator` now validates `@metadata.extensions` keys against UAX 31 vendor namespace identifier syntax (`<namespace>:<field>`) and rejects components that specify both `@`-prefixed and legacy bare forms of the same mixin ([#1376](https://github.com/a2ui-project/a2ui/issues/1376), [#3466](https://github.com/a2ui-project/a2ui/issues/3466), [#4012](https://github.com/a2ui-project/a2ui/issues/4012)). Recommended migration: below v1.0 a component's `catalogId` no longer selects the catalog the component renders from, so move surfaces that mix catalogs per component to v1.0 and name the catalog with `@catalogId`; a pre-1.0 component that sends `catalogId` or `metadata` without declaring it now fails its schema's validation.
+- Gate component-level `metadata` and `catalogId` envelope handling on v1.0+ surfaces so pre-1.0 surfaces (`v0.8`, `v0.9`, `v0.9.1`) treat `metadata` and `catalogId` as ordinary component properties in `PayloadValidator` and `MessageProcessor`, and accept `@metadata`, `@catalogId`, `@accessibility`, and `@checks` on v1.0 components while continuing to read legacy bare `metadata`, `catalogId`, `accessibility`, and `checks` when undeclared by the component schema. `PayloadValidator` now validates `@metadata.extensions` keys as UAX #31 identifiers and rejects components that specify both `@`-prefixed and legacy bare forms of the same mixin ([#1376](https://github.com/a2ui-project/a2ui/issues/1376), [#3466](https://github.com/a2ui-project/a2ui/issues/3466), [#4012](https://github.com/a2ui-project/a2ui/issues/4012), [#4037](https://github.com/a2ui-project/a2ui/pull/4037)).
+- (v1_0) `ComponentModel.toJson` writes a component's catalog and envelope
+  metadata as `@catalogId` and `@metadata`, so a bare `catalogId` or
+  `metadata` in its output is always one of the component's own properties.
+  `MessageProcessor` and `PayloadValidator` reject a legacy bare
+  `catalogId: null`, as they already did `@catalogId: null`
+  ([#4037](https://github.com/a2ui-project/a2ui/pull/4037)).
 - **Breaking:** (v1_0) `PayloadValidator.validateComponent`, and
   `MessageProcessor` for calls into another catalog, reject a call to a
   function whose `allowedCallers` is `agentOnly` in a property binding, a

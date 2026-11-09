@@ -16,11 +16,7 @@
 
 import {html, nothing, css} from 'lit';
 import {classMap} from 'lit/directives/class-map.js';
-import {
-  getAccessibilityDescription,
-  getAccessibilityLabel,
-  resolveAccessibilityProps,
-} from './accessibility.js';
+import {getAccessibilityDescription, getAccessibilityLabel} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {ButtonSupportedApis} from './supported_apis.js';
 
@@ -107,8 +103,8 @@ export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<ButtonSup
       <button
         type="button"
         class=${classMap(classes)}
-        aria-label=${getAccessibilityLabel(resolveAccessibilityProps(props))}
-        aria-description=${getAccessibilityDescription(resolveAccessibilityProps(props))}
+        aria-label=${getAccessibilityLabel(props.accessibility)}
+        aria-description=${getAccessibilityDescription(props.accessibility)}
         @click=${() => {
           if (isDisabled) return;
           props.action?.();

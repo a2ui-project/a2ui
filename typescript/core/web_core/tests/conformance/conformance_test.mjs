@@ -185,6 +185,15 @@ const KNOWN_DIVERGENCES = new Map([
       ],
     ]),
   ],
+  [
+    'core/message_processor_v1_0.yaml',
+    new Map([
+      [
+        'test_v10_custom_envelope_properties_declared_in_combiner_branches',
+        "TS Catalog.fromJson does not load oneOf/anyOf nested in a component's allOf",
+      ],
+    ]),
+  ],
 ]);
 
 /**
@@ -3378,15 +3387,13 @@ const SURFACE_EXPECT_KNOWN_KEYS = {
  * Whether an expected component key names the component's envelope metadata
  * rather than one of its properties.
  *
- * From v1.0 `@metadata` names the envelope metadata. A bare `metadata` names
- * it too, as a legacy expectation, unless the expectation also lists
- * `@metadata` or the component has a `metadata` property of its own. Below
- * v1.0 `metadata` is always an ordinary property.
+ * Decided by the expectation key alone, so a processor that stores envelope
+ * metadata as a property, or the reverse, fails the case: from v1.0
+ * `@metadata` names the envelope metadata and a bare `metadata` names a
+ * component property. Below v1.0 `metadata` is always an ordinary property.
  */
-function isEnvelopeMetadataExpectation(propKey, expectedComp, actualProps, atLeastV1) {
-  if (!atLeastV1) return false;
-  if (propKey === '@metadata') return true;
-  return propKey === 'metadata' && !('@metadata' in expectedComp) && !('metadata' in actualProps);
+function isEnvelopeMetadataExpectation(propKey, atLeastV1) {
+  return atLeastV1 && propKey === '@metadata';
 }
 
 function assertSurfacesMatch(processor, expect) {
@@ -3459,7 +3466,7 @@ function assertSurfacesMatch(processor, expect) {
             const atLeastV1 = isAtLeastVersion(surface.protocolVersion, '1.0');
             for (const [propKey, expectedVal] of Object.entries(expectedComp)) {
               if (propKey === 'id' || propKey === 'component') continue;
-              if (isEnvelopeMetadataExpectation(propKey, expectedComp, actualProps, atLeastV1)) {
+              if (isEnvelopeMetadataExpectation(propKey, atLeastV1)) {
                 assert.deepStrictEqual(
                   actualMeta,
                   expectedVal,

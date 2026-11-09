@@ -675,6 +675,11 @@ export class NodeResolver<
     for (const key of Object.keys(wrapped)) {
       wrapped[key] = stabilize(previous[key], wrapped[key]);
     }
+    if (next['accessibility'] !== undefined && next['accessibility'] === next['@accessibility']) {
+      // The binder's `accessibility` mirror shares the wrapped `@accessibility`
+      // and its writable bindings, which the payload declares only there.
+      wrapped['accessibility'] = wrapped['@accessibility'];
+    }
     record.node.setProps(wrapped);
   }
 
@@ -889,8 +894,9 @@ const VALIDATION_STATE_KEYS = new Set(['isValid', 'validationErrors', 'validatio
 
 /**
  * Returns a copy of `resolved` containing only properties still present on
- * `rawProps`, plus binder-synthesized dynamic setters and validation state for
- * active `CHECKABLE` fields at each object schema level.
+ * `rawProps`, plus binder-synthesized dynamic setters, validation state for
+ * active `CHECKABLE` fields at each object schema level, and the binder's
+ * `accessibility` mirror of a kept `@accessibility`.
  */
 function pruneOmittedProps(
   resolved: Record<string, unknown>,
@@ -924,6 +930,16 @@ function pruneOmittedProps(
       continue;
     }
     out[key] = pruneOmittedValue(val, rawProps[key], shape?.[key]);
+  }
+  // `GenericBinder` mirrors `@accessibility` onto `accessibility` when the
+  // component declares no custom `accessibility`. The payload carries only
+  // `@accessibility`, so keep the mirror wherever its source is kept.
+  if (
+    Object.hasOwn(resolved, 'accessibility') &&
+    !Object.hasOwn(rawProps, 'accessibility') &&
+    Object.hasOwn(out, '@accessibility')
+  ) {
+    out['accessibility'] = out['@accessibility'];
   }
   return out;
 }

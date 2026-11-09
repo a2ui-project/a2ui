@@ -1037,8 +1037,8 @@ void main() {
       expect(root.toJson(), {
         'id': 'root',
         'component': 'Alpha',
-        'catalogId': 'cat2',
-        'metadata': {
+        '@catalogId': 'cat2',
+        '@metadata': {
           'extensions': {'k': 'v'},
         },
         'a': 'x',
@@ -1074,6 +1074,115 @@ void main() {
       });
       expect(events, ['deleted:root', 'created:root']);
       expect(components().get('root')!.catalog, 'cat2');
+    });
+
+    test(
+        'toJson output reads back when a v1.0 schema declares an optional '
+        'catalogId and metadata that the payload omits', () {
+      Catalog<ComponentApi, FunctionImplementation> tableCatalog(String id) =>
+          Catalog<ComponentApi, FunctionImplementation>(
+            id: id,
+            protocolVersion: A2uiProtocolVersion.v1_0,
+            components: [
+              ComponentApi(
+                name: 'Table',
+                schema: Schema.object(
+                  properties: {
+                    'a': Schema.string(),
+                    'catalogId': Schema.integer(),
+                    'metadata': Schema.string(),
+                  },
+                  required: ['a'],
+                ),
+              ),
+            ],
+          );
+      ComponentModel render(Map<String, Object?> component) {
+        final tableProcessor = MessageProcessor<ComponentApi>(
+          catalogs: [tableCatalog('main'), tableCatalog('other')],
+          defaultVersion: A2uiProtocolVersion.v1_0,
+        );
+        tableProcessor.processMessages(
+          AgentToRendererMessagePayload([
+            CreateSurfaceMessage(
+              version: '1.0',
+              surfaceId: 's',
+              catalogId: 'main',
+            ),
+            UpdateComponentsMessage(
+              version: '1.0',
+              surfaceId: 's',
+              components: [component],
+            ),
+          ]),
+        );
+        return tableProcessor.model.getSurface('s')!.componentsModel.get(
+              'root',
+            )!;
+      }
+
+      final ComponentModel first = render({
+        'id': 'root',
+        'component': 'Table',
+        'a': 'x',
+        '@catalogId': 'other',
+        '@metadata': {
+          'extensions': {'k': 'v'},
+        },
+      });
+      final Map<String, dynamic> json = first.toJson();
+      expect(json, {
+        'id': 'root',
+        'component': 'Table',
+        'a': 'x',
+        '@catalogId': 'other',
+        '@metadata': {
+          'extensions': {'k': 'v'},
+        },
+      });
+
+      // A bare `catalogId` or `metadata` here would be read as the declared
+      // integer and string properties, and fail their schemas.
+      final ComponentModel second = render(json);
+      expect(second.properties, {'a': 'x'});
+      expect(second.catalog, 'other');
+      expect(second.metadata, {
+        'extensions': {'k': 'v'},
+      });
+    });
+
+    test('rejects a null @catalogId or legacy bare catalogId on v1.0', () {
+      expect(
+        () => update({
+          'id': 'root',
+          'component': 'Alpha',
+          'a': 'x',
+          'catalogId': null,
+        }),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains("non-string 'catalogId'"),
+          ),
+        ),
+      );
+      expect(
+        () => update({
+          'id': 'root',
+          'component': 'Alpha',
+          'a': 'x',
+          '@catalogId': null,
+        }),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains("invalid '@catalogId'"),
+          ),
+        ),
+      );
+      expect(components().get('root'), isNull);
     });
 
     test(

@@ -113,6 +113,20 @@ describe('ComponentModel', () => {
     });
   });
 
+  it('writes the component metadata as @metadata when no property is named metadata', () => {
+    const chart = new ComponentModel('chart1', 'Chart', {title: 'Sales'}, defaultCatalog, {
+      extensions: {owner: 'agent'},
+    });
+    const tree = chart.componentTree;
+    assert.deepStrictEqual(tree, {
+      'id': 'chart1',
+      'component': 'Chart',
+      '@metadata': {extensions: {owner: 'agent'}},
+      'title': 'Sales',
+    });
+    assert.ok(!('metadata' in tree));
+  });
+
   it('stores and exposes a Catalog reference', () => {
     assert.strictEqual(component.catalog, defaultCatalog);
     assert.strictEqual(component.catalog.id, 'default');

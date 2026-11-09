@@ -21,7 +21,6 @@ import {
   getValidationErrorId,
   hasAttributeValue,
   renderValidationErrors,
-  resolveAccessibilityProps,
 } from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {SliderSupportedApis} from './supported_apis.js';
@@ -98,8 +97,8 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<SliderSupporte
           min=${min}
           max=${max}
           step=${stepVal}
-          aria-label=${getAccessibilityLabel(resolveAccessibilityProps(props))}
-          aria-description=${getAccessibilityDescription(resolveAccessibilityProps(props))}
+          aria-label=${getAccessibilityLabel(props.accessibility)}
+          aria-description=${getAccessibilityDescription(props.accessibility)}
           aria-invalid=${isInvalid ? 'true' : nothing}
           aria-describedby=${getValidationErrorId(this.domId, props)}
           .value=${props.value?.toString() || '0'}
