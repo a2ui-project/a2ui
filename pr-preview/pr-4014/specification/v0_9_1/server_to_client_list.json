@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v0_9/server_to_client_list.json",
+  "title": "A2UI Server-to-Client Message List",
+  "description": "A list of A2UI Server-to-Client messages.",
+  "type": "array",
+  "items": {
+    "$ref": "server_to_client.json"
+  }
+}
