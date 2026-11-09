@@ -12,11 +12,11 @@ _Examples of UI compositions that A2UI can express._
 
 ## Quick links
 
-* [Main website](https://a2ui.org).
-* Try it in your browser using [A2UI Composer](https://a2ui-project.github.io/composer/).
-* [Supported renderers](https://a2ui.org/reference/renderers/).
-* [Supported agents](https://a2ui.org/reference/agents/).
-* [Protocol specification](https://a2ui.org/specification/v1.0-a2ui/).
+- [Main website](https://a2ui.org).
+- Try it in your browser using [A2UI Composer](https://a2ui-project.github.io/composer/).
+- [Supported renderers](https://a2ui.org/reference/renderers/).
+- [Supported agents](https://a2ui.org/reference/agents/).
+- [Protocol specification](https://a2ui.org/specification/v1.0-a2ui/).
 
 ## Introduction
 
@@ -36,21 +36,21 @@ user experience, making the result expressive and high-performance.
 
 Use A2UI when your application needs any combination of the following:
 
-* Parts of your application that are agent- and/or server-driven. By design
-  A2UI supported remote rendering.
-* You want the UI to be composed dynamically, tailored to the user's immediate
+- Parts of your application that are agent- and/or server-driven. By design,
+  A2UI supports remote rendering.
+- You want the UI to be composed dynamically, tailored to the user's immediate
   need. Instead of making your users navigate through multiple screens to solve
   their problems, have the agent build the right flow of UI that guides users
   directly to solutions.
-* You need the UI to have the highest performance, and higest visual fidelity.
+- You need the UI to have the highest performance, and highest visual fidelity.
   A2UI renders UI using the framework of your choice, typically one that the
   host app itself is written in. WebViews or HTML are not required.
-* The same agent streams UI to multiple platforms or frameworks, such as
+- The same agent streams UI to multiple platforms or frameworks, such as
   Flutter, React, SwiftUI, and Jetpack Compose. A2UI will help keep the user
   experience compatible and consistent across all screens.
-* The agent is remote, third-party, or operates across a trust boundary. For
+- The agent is remote, third-party, or operates across a trust boundary. For
   example, the agent must not be able to handle certain kinds of data (credit
-  card/account numbers, PII, financial data). A2UI will help enfoce the trust
+  card/account numbers, PII, financial data). A2UI will help enforce the trust
   boundary and protect your app's critical functionality from hallucinations
   using a strict schema, and by expressing UI using validated data rather than
   executable code.
@@ -89,23 +89,23 @@ connects the agent to the application:
    to the wire-stable _A2UI Transport_ protocol messages, which are sent to the
    renderer.
 3. **Rendering**: A renderer is made of an _A2UI Core_ library (e.g. the
-  `@a2ui/web_core` NPM package, or `a2ui_core` Dart package), a UI framework
-  adapter (e.g. `@a2ui/react` ReactJS adapter, or `a2ui_flutter` Flutter
-  adapter), and a widget catalog. The core library parses the incoming
-  messages, and creates a framework-agnostic in-memory representation of the UI
-  and data. The framework adapter maps the in-memory representation to concrete
-  framework-specific UI widgets. The widget catalog provides access to the
-  widgets the agent is allowed to compose.
+   `@a2ui/web_core` NPM package, or `a2ui_core` Dart package), a UI framework
+   adapter (e.g. `@a2ui/react` ReactJS adapter, or `a2ui_flutter` Flutter
+   adapter), and a widget catalog. The core library parses the incoming
+   messages, and creates a framework-agnostic in-memory representation of the UI
+   and data. The framework adapter maps the in-memory representation to concrete
+   framework-specific UI widgets. The widget catalog provides access to the
+   widgets the agent is allowed to compose.
 
 ## Getting started
 
 Pick the path that matches where you want to start:
 
-| Path                                                                                                      | What you get                                                                                                                            | Time   |
-| --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| 🍜 **[Quickstart](https://a2ui.org/quickstart/)**                                                         | Full-stack A2UI app (Restaurant Finder) running locally with a Gemini powered ADK agent and Lit renderer. Learn A2UI end-to-end and customize to your use case. | ~5 min |
-| 🎨 **[A2UI Composer](https://a2ui-project.github.io/composer/)**                                          | Generate A2UI JSON from a visual editor and paste it into any agent prompt — no install required.                                       | ~1 min |
-| 🎬 **[A2UI Theater](https://a2ui-composer.ag-ui.com/theater)**                                            | Step through pre-built A2UI streaming scenarios across Lit, React, and Angular renderers — no install required.                         | ~1 min |
+| Path                                                             | What you get                                                                                                                                                    | Time   |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 🍜 **[Quickstart](https://a2ui.org/quickstart/)**                | Full-stack A2UI app (Restaurant Finder) running locally with a Gemini powered ADK agent and Lit renderer. Learn A2UI end-to-end and customize to your use case. | ~5 min |
+| 🎨 **[A2UI Composer](https://a2ui-project.github.io/composer/)** | Generate A2UI JSON from a visual editor and paste it into any agent prompt — no install required.                                                               | ~1 min |
+| 🎬 **[A2UI Theater](https://a2ui-composer.ag-ui.com/theater)**   | Step through pre-built A2UI streaming scenarios across Lit, React, and Angular renderers — no install required.                                                 | ~1 min |
 
 ## Packages
 
@@ -123,16 +123,16 @@ yet" can be used from source.
 
 ### TypeScript
 
-| Package                                                   | Description                                                                                                | Version                                                                                                           |
-| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| [@a2ui/web_core](typescript/core/web_core/)               | Protocol messages, state management, expressions, and basic catalog shared by renderers and `@a2ui/agent`. | [![npm](https://img.shields.io/npm/v/@a2ui/web_core.svg)](https://www.npmjs.com/package/@a2ui/web_core)           |
-| [@a2ui/lit](typescript/renderers/lit/)                    | Lit (web components) renderer.                                                                             | [![npm](https://img.shields.io/npm/v/@a2ui/lit.svg)](https://www.npmjs.com/package/@a2ui/lit)                     |
-| [@a2ui/angular](typescript/renderers/angular/)            | Angular renderer.                                                                                          | [![npm](https://img.shields.io/npm/v/@a2ui/angular.svg)](https://www.npmjs.com/package/@a2ui/angular)             |
-| [@a2ui/react](typescript/renderers/react/)                | React renderer.                                                                                            | [![npm](https://img.shields.io/npm/v/@a2ui/react.svg)](https://www.npmjs.com/package/@a2ui/react)                 |
-| [@a2ui/markdown-it](typescript/renderers/markdown-it/)    | Markdown rendering with markdown-it and DOMPurify, shared by the web renderers.                            | [![npm](https://img.shields.io/npm/v/@a2ui/markdown-it.svg)](https://www.npmjs.com/package/@a2ui/markdown-it)     |
-| [@a2ui/agent](typescript/agents/a2ui_agent/)              | Agent SDK: negotiates catalogs, generates prompts and skills, and compiles model output into A2UI.         | [![npm](https://img.shields.io/npm/v/@a2ui/agent.svg)](https://www.npmjs.com/package/@a2ui/agent)                 |
-| [@a2ui/catalog-mcp](typescript/catalogs/mcp/)             | MCP catalog: calls MCP tools and renders A2UI messages returned in tool results and UI resources.          | [![npm](https://img.shields.io/npm/v/@a2ui/catalog-mcp.svg)](https://www.npmjs.com/package/@a2ui/catalog-mcp)     |
-| [@a2ui/catalog-vegachart](typescript/catalogs/vegachart/) | VegaChart catalog: renders Vega and Vega-Lite chart specifications on A2UI surfaces.                       | Not published yet                                                                                                 |
+| Package                                                   | Description                                                                                                | Version                                                                                                       |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| [@a2ui/web_core](typescript/core/web_core/)               | Protocol messages, state management, expressions, and basic catalog shared by renderers and `@a2ui/agent`. | [![npm](https://img.shields.io/npm/v/@a2ui/web_core.svg)](https://www.npmjs.com/package/@a2ui/web_core)       |
+| [@a2ui/lit](typescript/renderers/lit/)                    | Lit (web components) renderer.                                                                             | [![npm](https://img.shields.io/npm/v/@a2ui/lit.svg)](https://www.npmjs.com/package/@a2ui/lit)                 |
+| [@a2ui/angular](typescript/renderers/angular/)            | Angular renderer.                                                                                          | [![npm](https://img.shields.io/npm/v/@a2ui/angular.svg)](https://www.npmjs.com/package/@a2ui/angular)         |
+| [@a2ui/react](typescript/renderers/react/)                | React renderer.                                                                                            | [![npm](https://img.shields.io/npm/v/@a2ui/react.svg)](https://www.npmjs.com/package/@a2ui/react)             |
+| [@a2ui/markdown-it](typescript/renderers/markdown-it/)    | Markdown rendering with markdown-it and DOMPurify, shared by the web renderers.                            | [![npm](https://img.shields.io/npm/v/@a2ui/markdown-it.svg)](https://www.npmjs.com/package/@a2ui/markdown-it) |
+| [@a2ui/agent](typescript/agents/a2ui_agent/)              | Agent SDK: negotiates catalogs, generates prompts and skills, and compiles model output into A2UI.         | [![npm](https://img.shields.io/npm/v/@a2ui/agent.svg)](https://www.npmjs.com/package/@a2ui/agent)             |
+| [@a2ui/catalog-mcp](typescript/catalogs/mcp/)             | MCP catalog: calls MCP tools and renders A2UI messages returned in tool results and UI resources.          | [![npm](https://img.shields.io/npm/v/@a2ui/catalog-mcp.svg)](https://www.npmjs.com/package/@a2ui/catalog-mcp) |
+| [@a2ui/catalog-vegachart](typescript/catalogs/vegachart/) | VegaChart catalog: renders Vega and Vega-Lite chart specifications on A2UI surfaces.                       | Not published yet                                                                                             |
 
 ### Dart and Flutter
 
@@ -148,10 +148,10 @@ yet" can be used from source.
 The Swift libraries are distributed via Swift Package Manager from
 [Package.swift](Package.swift) at the root of this repository.
 
-| Package                                            | Description                                                                   |
-| -------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Package                                            | Description                                                                          |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------ |
 | [A2UISwiftCore, BasicCatalog](swift/core/)         | Message processor, data model, expression evaluation, and basic catalog definitions. |
-| [A2UISwiftUI, BasicCatalogSwiftUI](swift/swiftui/) | SwiftUI renderer and basic catalog views.                                     |
+| [A2UISwiftUI, BasicCatalogSwiftUI](swift/swiftui/) | SwiftUI renderer and basic catalog views.                                            |
 
 ## Roadmap
 
