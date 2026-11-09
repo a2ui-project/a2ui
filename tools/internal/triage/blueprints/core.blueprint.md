@@ -28,7 +28,7 @@ The triage process is described in [triage.md](../../../../docs/contributing/tri
    2. Started by: a scheduled agent that runs the [a2ui-triage-advisor](../../../../.agents/skills/a2ui-triage-advisor/SKILL.md) skill.
    3. Needs to: query an AI agent, and comment on items.
 
-4. The [triage UI](features/ui.blueprint.md) helps the triager finalize the suggestions and apply them. Once an item is triaged, the flagger removes its `status: needs-triage`.
+4. The [triage UI](features/ui.blueprint.md) helps the triager finalize the suggestions and apply them, or postpone the items till the team discussion with `status: needs-team-input`. Once an item is triaged, the flagger removes its `status: needs-triage`.
 
    1. Runs: weekly.
    2. Started by: the triager, a person.
