@@ -295,18 +295,29 @@ class DataContext {
     }
     final hasCall = part['call'] is String;
     final hasAtCall = part['@call'] is String;
-    final String? callName = hasCall && !hasAtCall
-        ? part['call'] as String
-        : (hasAtCall ? part['@call'] as String : null);
-    if (callName != null) {
+    if (hasAtCall) {
+      final Object? rawArgs = part['args'];
+      return <String, Object?>{
+        for (final MapEntry<Object?, Object?> entry in part.entries)
+          if (entry.key != 'args') entry.key.toString(): entry.value,
+        'args': <String, Object?>{
+          if (rawArgs is Map)
+            for (final MapEntry<Object?, Object?> entry in rawArgs.entries)
+              entry.key.toString(): adaptExpressionPart(entry.value),
+        },
+      };
+    }
+    if (hasCall) {
+      final callName = part['call'] as String;
       final Object? rawArgs = part['args'];
       final Object? existingCatalogId = part['catalogId'];
-      final String? catalogId = _activeCallCatalogId;
+      final String? catalogId =
+          !callName.startsWith('@') ? _activeCallCatalogId : null;
       return <String, Object?>{
         '@call': callName,
         if (existingCatalogId != null)
           'catalogId': existingCatalogId
-        else if (!callName.startsWith('@') && catalogId != null)
+        else if (catalogId != null)
           'catalogId': catalogId,
         'args': <String, Object?>{
           if (rawArgs is Map)
@@ -848,20 +859,21 @@ class DataContext {
     }
     final String? catalogId = atLeastV10 ? call.catalogId : null;
     if (catalogId == null) return _invoke(name, args, this);
-    final CatalogInvokerResolver? invokerForCatalog = _invokerForCatalog;
-    if (invokerForCatalog != null) {
-      return invokerForCatalog(catalogId)(
-        name,
-        args,
-        _withCallCatalog(catalogId),
-      );
-    }
     final FunctionInvoker? activeInvoker = _activeInvokerFor(catalogId);
     if (activeInvoker != null) {
       return activeInvoker(
         name,
         args,
         _withCallCatalog(catalogId, activeInvoker),
+      );
+    }
+    final CatalogInvokerResolver? invokerForCatalog = _invokerForCatalog;
+    if (invokerForCatalog != null) {
+      final FunctionInvoker resolvedInvoker = invokerForCatalog(catalogId);
+      return resolvedInvoker(
+        name,
+        args,
+        _withCallCatalog(catalogId, resolvedInvoker),
       );
     }
     throw A2uiCatalogResolutionError(
@@ -2088,9 +2100,7 @@ extension CatalogInvokerExtension
         details: callArgs,
       );
     }
-    final DataContext callContext = context.atLeastV10 &&
-            (context._activeCallCatalogId != id ||
-                context._activeInvokerFor(id) == null)
+    final DataContext callContext = context.atLeastV10 && !name.startsWith('@')
         ? context._withCallCatalog(id, invoke)
         : context;
     if (!context._marksExecutionFailures) {

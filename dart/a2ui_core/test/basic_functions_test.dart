@@ -13,7 +13,26 @@
 // limitations under the License.
 
 import 'package:a2ui_core/a2ui_core.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
+
+class _TestFn extends FunctionImplementation {
+  _TestFn(
+    String name,
+    this.body, {
+    Schema? argumentSchema,
+  }) : super(name: name, argumentSchema: argumentSchema ?? Schema.object());
+
+  final Object? Function(Map<String, dynamic> args, DataContext context) body;
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) =>
+      body(args, context);
+}
 
 void main() {
   group('FormatStringFunction', () {
@@ -230,6 +249,105 @@ void main() {
           standaloneRes is ReadonlySignal ? standaloneRes.value : standaloneRes,
           'Standalone: item',
         );
+
+        // Direct `extCat.invoke(...)` over a surface DataContext where
+        // `extCat` is not in `surface.availableCatalogs`:
+        final FunctionImplementation formatString =
+            basic.functions['formatString']!;
+        final extCat = Catalog<ComponentApi, FunctionImplementation>(
+          id: 'https://example.com/ext-direct/catalog.json',
+          components: const [],
+          protocolVersion: A2uiProtocolVersion.v1_0,
+          functions: [
+            formatString,
+            _TestFn('extOnly', (args, ctx) => 'from-ext'),
+          ],
+        );
+        final Object? extRes = extCat.invoke(
+          'formatString',
+          {'value': r'Got ${extOnly()}'},
+          rootCtx,
+        );
+        expect(
+          extRes is ReadonlySignal ? extRes.value : extRes,
+          'Got from-ext',
+        );
+        expect(errors, isEmpty);
+
+        // Same-ID catalog invoker replacement: an outer catalog without
+        // `pluralize` invokes an executable catalog sharing the same ID.
+        final fullSameId = Catalog<ComponentApi, FunctionImplementation>(
+          id: basic.id,
+          components: const [],
+          protocolVersion: A2uiProtocolVersion.v1_0,
+          functions: [formatString, basic.functions['pluralize']!],
+        );
+        final partialSameId = Catalog<ComponentApi, FunctionImplementation>(
+          id: basic.id,
+          components: const [],
+          protocolVersion: A2uiProtocolVersion.v1_0,
+          functions: [
+            _TestFn(
+              'delegateFormat',
+              (args, ctx) => fullSameId.invoke('formatString', args, ctx),
+              argumentSchema: Schema.object(
+                properties: {'value': Schema.string()},
+              ),
+            ),
+          ],
+        );
+        final Object? delegatedRes = partialSameId.invoke(
+          'delegateFormat',
+          {
+            'value':
+                r"SameId: ${pluralize(value: 2, one: 'drop', other: 'drops')}",
+          },
+          standaloneCtx,
+        );
+        expect(
+          delegatedRes is ReadonlySignal ? delegatedRes.value : delegatedRes,
+          'SameId: drops',
+        );
+
+        // Pre-adapted `@call` AST parts keep their catalogless shape while
+        // parser `{call, ...}` nodes inherit the active catalog.
+        var checkedPreAdapted = false;
+        final inspectCat = Catalog<ComponentApi, FunctionImplementation>(
+          id: 'https://example.com/inspect/catalog.json',
+          components: const [],
+          protocolVersion: A2uiProtocolVersion.v1_0,
+          functions: [
+            _TestFn('inspectAdapt', (args, ctx) {
+              final Object? preAdapted = ctx.adaptExpressionPart({
+                '@call': 'otherFn',
+                'args': {
+                  'inner': {'call': 'nestedFn', 'args': <String, Object?>{}},
+                },
+              });
+              expect(
+                preAdapted,
+                {
+                  '@call': 'otherFn',
+                  'args': {
+                    'inner': {
+                      '@call': 'nestedFn',
+                      'catalogId': 'https://example.com/inspect/catalog.json',
+                      'args': <String, Object?>{},
+                      'returnType': 'any',
+                    },
+                  },
+                },
+              );
+              checkedPreAdapted = true;
+              return 'ok';
+            }),
+          ],
+        );
+        expect(
+          inspectCat.invoke('inspectAdapt', {}, standaloneCtx),
+          'ok',
+        );
+        expect(checkedPreAdapted, isTrue);
       },
     );
   });

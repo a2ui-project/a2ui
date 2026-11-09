@@ -813,6 +813,86 @@ void main() {
       );
       expect(r.error, isNull);
       expect(r.value, 'Count 2: drops');
+
+      // Dynamic `@call` inside `call.args` targeting `standalone-fmt` resolves
+      // before the outer RPC function executes.
+      final Catalog<ComponentApi, FunctionImplementation> echoStandalone =
+          _catalog(
+        'standalone-echo',
+        [
+          _Fn(
+            'echo',
+            (args, _) => args['value'],
+            allowedCallers: AllowedCallers.agentOnly,
+          ),
+          _Fn(
+            'formatString',
+            fs.execute,
+            allowedCallers: AllowedCallers.rendererOrAgent,
+          ),
+          pluralize,
+        ],
+      );
+      final echoHandler = RpcHandler(
+        catalogs: [catalog, echoStandalone],
+        outboundListener: sent.add,
+      );
+      addTearDown(echoHandler.dispose);
+      final A2uiFunctionResponse argRes = await run(
+        echoHandler,
+        _inbound(
+          'echo',
+          catalogId: 'standalone-echo',
+          args: {
+            'value': {
+              '@call': 'formatString',
+              'catalogId': 'standalone-echo',
+              'args': {
+                'value': r'Arg: '
+                    r"${pluralize(value: /count, one: 'drop', other: 'drops')}",
+              },
+            },
+          },
+        ),
+        withSurface: true,
+      );
+      expect(argRes.error, isNull);
+      expect(argRes.value, 'Arg: drops');
+
+      // Pruned surface catalog sharing `basic` ID omits an agent-callable RPC
+      // function registered on `RpcHandler.catalogs`:
+      final Catalog<ComponentApi, FunctionImplementation> fullRpcBasic =
+          _catalog(
+        'basic',
+        [
+          ...catalog.functions.values,
+          _Fn(
+            'rpcTemplate',
+            fs.execute,
+            allowedCallers: AllowedCallers.agentOnly,
+          ),
+          pluralize,
+        ],
+      );
+      final prunedHandler = RpcHandler(
+        catalogs: [fullRpcBasic],
+        outboundListener: sent.add,
+      );
+      addTearDown(prunedHandler.dispose);
+      final A2uiFunctionResponse prunedRes = await run(
+        prunedHandler,
+        _inbound(
+          'rpcTemplate',
+          catalogId: 'basic',
+          args: {
+            'value': r'Pruned: '
+                r"${pluralize(value: /count, one: 'drop', other: 'drops')}",
+          },
+        ),
+        withSurface: true,
+      );
+      expect(prunedRes.error, isNull);
+      expect(prunedRes.value, 'Pruned: drops');
     });
   });
 }

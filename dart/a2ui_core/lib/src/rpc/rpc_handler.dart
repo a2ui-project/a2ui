@@ -334,7 +334,7 @@ class RpcHandler {
     }
     final String name = call.call;
     final Catalog<ComponentApi, FunctionImplementation> catalog =
-        _resolveCatalog(call.catalogId, surface);
+        _resolveCatalog(call.catalogId, name, surface);
     if (!isCatalogVersionCompatible(
       catalog.protocolVersion?.jsonValue,
       message.version,
@@ -366,11 +366,15 @@ class RpcHandler {
         RpcErrorCode.invalidFunctionCall,
       );
     }
-    final DataContext dataContext = _dataContextFor(
-      surface,
-      catalog,
-      message.version,
-      execution,
+    final DataContext dataContext = dataContextWithCallCatalog(
+      _dataContextFor(
+        surface,
+        catalog,
+        message.version,
+        execution,
+      ),
+      catalog.id,
+      catalog.invoke,
     );
     final Map<String, dynamic> resolvedArgs;
     try {
@@ -400,10 +404,7 @@ class RpcHandler {
     }
 
     try {
-      Object? result = fn.execute(
-        resolvedArgs,
-        dataContextWithCallCatalog(dataContext, catalog.id, catalog.invoke),
-      );
+      Object? result = fn.execute(resolvedArgs, dataContext);
       if (result is Future) result = await result;
       if (result is ReadonlySignal) result = result.value;
       return A2uiFunctionResponse.value(functionCallId, result);
@@ -422,16 +423,21 @@ class RpcHandler {
 
   Catalog<ComponentApi, FunctionImplementation> _resolveCatalog(
     String? catalogId,
+    String functionName,
     SurfaceModel<ComponentApi>? surface,
   ) {
     if (catalogId != null) {
       final Catalog<ComponentApi, FunctionImplementation>? fromSurface =
           surface?.availableCatalogs[catalogId];
-      if (fromSurface != null) return fromSurface;
+      if (fromSurface != null &&
+          fromSurface.functions.containsKey(functionName)) {
+        return fromSurface;
+      }
       for (final Catalog<ComponentApi, FunctionImplementation> candidate
           in catalogs) {
         if (candidate.id == catalogId) return candidate;
       }
+      if (fromSurface != null) return fromSurface;
       throw A2uiRpcError(
         'Catalog not found: $catalogId',
         RpcErrorCode.invalidFunctionCall,
@@ -463,8 +469,7 @@ class RpcHandler {
                 surface.protocolVersion!,
               ),
         invokerForCatalog: (catalogId) {
-          if (catalogId == catalog.id &&
-              !surface.availableCatalogs.containsKey(catalogId)) {
+          if (catalogId == catalog.id) {
             return catalog.invoke;
           }
           return surface.resolveCatalog(catalogId).invoke;
