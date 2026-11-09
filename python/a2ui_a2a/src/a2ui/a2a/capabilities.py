@@ -25,6 +25,31 @@ from a2ui.core.schema import ProtocolVersion
 from a2ui.utils import read_renderer_capabilities
 
 
+def _data_parts_from_message(message: Message) -> list[DataPart]:
+    data_parts: list[DataPart] = []
+    for part in message.parts or []:
+        inner = part.root if isinstance(part, Part) else part
+        if isinstance(inner, DataPart):
+            data_parts.append(inner)
+    return data_parts
+
+
+def _capabilities_from_legacy_data(
+    data_parts: list[DataPart],
+    version: ProtocolVersion | str,
+) -> dict[str, Any] | None:
+    for data_part in data_parts:
+        if not isinstance(data_part.data, Mapping):
+            continue
+        legacy_metadata = data_part.data.get("metadata")
+        if not isinstance(legacy_metadata, Mapping):
+            continue
+        capabilities = read_renderer_capabilities(legacy_metadata, version)
+        if capabilities is not None:
+            return capabilities
+    return None
+
+
 def renderer_capabilities_from_message(
     message: Message | None,
     version: ProtocolVersion | str = ProtocolVersion.V1_0,
@@ -55,24 +80,15 @@ def renderer_capabilities_from_message(
         if capabilities is not None:
             return capabilities
 
-    data_parts: list[DataPart] = []
-    for part in message.parts or []:
-        inner = part.root if isinstance(part, Part) else part
-        if isinstance(inner, DataPart):
-            data_parts.append(inner)
-
+    data_parts = _data_parts_from_message(message)
     for data_part in data_parts:
         if data_part.metadata is not None:
             capabilities = read_renderer_capabilities(data_part.metadata, version)
             if capabilities is not None:
                 return capabilities
 
-    for data_part in data_parts:
-        if isinstance(data_part.data, Mapping) and "metadata" in data_part.data:
-            capabilities = read_renderer_capabilities(
-                data_part.data.get("metadata"), version
-            )
-            if capabilities is not None:
-                return capabilities
+    legacy = _capabilities_from_legacy_data(data_parts, version)
+    if legacy is not None:
+        return legacy
 
     return read_renderer_capabilities(None, version)

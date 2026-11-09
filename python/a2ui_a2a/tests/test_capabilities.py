@@ -115,6 +115,32 @@ def test_legacy_data_part_dict_metadata_fallback() -> None:
     }
 
 
+def test_legacy_fallback_ignores_non_mapping_data_metadata() -> None:
+    unrelated_part = Part(root=DataPart(data={"title": "doc", "metadata": "draft"}))
+    assert (
+        renderer_capabilities_from_message(
+            _make_message(parts=[unrelated_part]), ProtocolVersion.V1_0
+        )
+        is None
+    )
+
+    legacy_caps_part = Part(
+        root=DataPart(
+            data={
+                "metadata": {
+                    "a2uiRendererCapabilities": {
+                        "1.0": {"supportedCatalogIds": ["cat-v10"]}
+                    }
+                }
+            }
+        )
+    )
+    msg = _make_message(parts=[unrelated_part, legacy_caps_part])
+    assert renderer_capabilities_from_message(msg, ProtocolVersion.V1_0) == {
+        "1.0": {"supportedCatalogIds": ["cat-v10"]}
+    }
+
+
 def test_no_capabilities_or_none_message_returns_none() -> None:
     assert renderer_capabilities_from_message(None, ProtocolVersion.V1_0) is None
     assert (

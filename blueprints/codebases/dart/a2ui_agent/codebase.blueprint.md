@@ -1,7 +1,7 @@
 ---
 codebase_path: dart/a2ui_agent
 associated_module: a2ui_agent
-module_blueprint_commit: ccf5dc20d0b0ed041b03e3913d807420ff45e178
+module_blueprint_commit: 87b945802660c507bc84f7f47a25199b4939efbe
 implemented_features:
   agent_renderer_app: 21e8df7f8e67619c30682ede25f17f0a9cfa96f8
 local_development:
@@ -19,7 +19,7 @@ The official Dart implementation of the A2UI Agent SDK (`a2ui_agent`), targeting
 - **Inference Formats & Prompt Generation**: Implements `InferenceFormat` and `PromptGenerator` (`lib/src/inference_format.dart`, `lib/src/prompt/generator.dart`) with concrete strategies for Direct JSON (`lib/src/inference_formats/direct_json/`) and Express (`lib/src/inference_formats/express/`).
 - **Parser & Streaming Layer**: `Parser`, `BlockLexer`, `ResponsePart`, and `ResponseStream` (`lib/src/parser/`) tokenize sentinel-wrapped model responses and support incremental Direct JSON streaming.
 - **Express Compiler & Decompiler**: `ExpressCompiler` and `ExpressDecompiler` (`lib/src/inference_formats/express/`) compile A2UI Express DSL scopes into protocol messages and decompile messages back into Express syntax using an ANTLR-generated parser (`generated/`).
-- **Processor Facades & Catalog Negotiation**: `A2uiGenerator`, `A2uiRequestProcessor`, `CatalogConfig`, `CatalogProvider`, and `RendererState` (`lib/src/processor/`, `lib/src/utils/`) manage capability negotiation, pruning transformers (`lib/src/catalog_transformers/`), and multi-catalog surface validation against `a2ui_core`.
+- **Processor Facades & Catalog Negotiation**: `A2uiGenerator`, `A2uiRequestProcessor`, `CatalogConfig`, `CatalogProvider`, `readRendererCapabilities` (with `a2uiClientCapabilitiesKey` and `a2uiRendererCapabilitiesKey` in `lib/src/utils/renderer_capabilities.dart`), `resolveCatalogs`, and `RendererState` (`lib/src/processor/`, `lib/src/utils/`) manage capability extraction and negotiation, pruning transformers (`lib/src/catalog_transformers/`), and multi-catalog surface validation against `a2ui_core`.
 
 ## **Local Technical Decisions & Overrides**
 

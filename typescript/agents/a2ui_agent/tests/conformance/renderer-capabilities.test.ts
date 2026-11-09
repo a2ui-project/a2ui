@@ -17,12 +17,14 @@
 import {describe, expect, test} from 'vitest';
 
 import {
+  A2UI_CLIENT_CAPABILITIES_KEY,
   A2UI_RENDERER_CAPABILITIES_KEY,
+  A2uiCatalogError,
   CatalogConfig,
   readRendererCapabilities,
   resolveCatalogs,
 } from '../../src/index.js';
-import {loadCases} from './loader.js';
+import {classify, loadCases} from './loader.js';
 import {
   assertExpectedError,
   assertKnownKeys,
@@ -62,26 +64,76 @@ describe('renderer_capabilities.yaml invariants', () => {
     const resolved = resolveCatalogs([config], capabilities);
     expect(resolved.map(c => c.id)).toEqual(['conformance/simplified']);
   });
+
+  test('canonicalizes patch-zero SemVer strings and supports v0.9.1', () => {
+    expect(
+      readRendererCapabilities(
+        {
+          [A2UI_RENDERER_CAPABILITIES_KEY]: {
+            '1.0': {supportedCatalogIds: ['cat-v10']},
+          },
+        },
+        '1.0.0',
+      ),
+    ).toEqual({'1.0': {supportedCatalogIds: ['cat-v10']}});
+
+    expect(
+      readRendererCapabilities(
+        {
+          [A2UI_CLIENT_CAPABILITIES_KEY]: {
+            'v0.9': {supportedCatalogIds: ['cat-v09']},
+          },
+        },
+        '0.9.1',
+      ),
+    ).toEqual({'v0.9': {supportedCatalogIds: ['cat-v09']}});
+  });
+
+  test('throws A2uiCatalogError for unsupported or invalid version strings', () => {
+    for (const badVersion of ['v0.8', '0.8', '2.0', 'banana', '']) {
+      expect(() => readRendererCapabilities({}, badVersion)).toThrow(A2uiCatalogError);
+    }
+  });
+
+  test('throws A2uiCatalogError for non-plain object instances', () => {
+    expect(() => readRendererCapabilities(new Date(), '1.0')).toThrow(A2uiCatalogError);
+    expect(() =>
+      readRendererCapabilities({[A2UI_RENDERER_CAPABILITIES_KEY]: new Map()}, '1.0'),
+    ).toThrow(A2uiCatalogError);
+    expect(() =>
+      readRendererCapabilities({[A2UI_RENDERER_CAPABILITIES_KEY]: {'1.0': new Date()}}, '1.0'),
+    ).toThrow(A2uiCatalogError);
+  });
 });
 
-describeSuite('Conformance: renderer_capabilities.yaml', cases, testCase => {
-  expect(testCase.action).toBe('read_renderer_capabilities');
-  assertKnownKeys(
-    testCase as unknown as Record<string, unknown>,
-    CASE_KEYS,
-    'read_renderer_capabilities case',
-  );
-  const args = testCase.args as Record<string, unknown>;
-  assertKnownKeys(args, ARGS_KEYS, 'read_renderer_capabilities args');
+describeSuite(
+  'Conformance: renderer_capabilities.yaml',
+  cases,
+  testCase => {
+    expect(testCase.action).toBe('read_renderer_capabilities');
+    assertKnownKeys(
+      testCase as unknown as Record<string, unknown>,
+      CASE_KEYS,
+      'read_renderer_capabilities case',
+    );
+    const args = testCase.args as Record<string, unknown>;
+    assertKnownKeys(args, ARGS_KEYS, 'read_renderer_capabilities args');
 
-  const version = args.version as string;
-  const read = () => readRendererCapabilities(args.metadata ?? null, version);
+    const version = args.version as string;
+    const read = () => readRendererCapabilities(args.metadata ?? null, version);
 
-  if (testCase.expect_error) {
-    assertExpectedError(read, testCase);
-    return;
-  }
+    if (testCase.expect_error) {
+      assertExpectedError(read, testCase);
+      return;
+    }
 
-  const result = read() ?? null;
-  expect(result).toEqual(testCase.expect);
-});
+    const result = read() ?? null;
+    expect(result).toEqual(testCase.expect);
+  },
+  {
+    skipReason: testCase => {
+      const verdict = classify(testCase);
+      return verdict.runnable ? undefined : verdict.reason;
+    },
+  },
+);

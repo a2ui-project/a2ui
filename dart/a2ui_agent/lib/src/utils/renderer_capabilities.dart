@@ -51,7 +51,9 @@ A2uiRendererCapabilities? readRendererCapabilities(
     );
   }
 
-  final entryKey = version.isAtLeast(A2uiProtocolVersion.v1_0) ? '1.0' : 'v0.9';
+  final String entryKey = version.isAtLeast(A2uiProtocolVersion.v1_0)
+      ? version.jsonValue
+      : 'v0.9';
   if (!raw.containsKey(entryKey) || raw[entryKey] == null) {
     return null;
   }

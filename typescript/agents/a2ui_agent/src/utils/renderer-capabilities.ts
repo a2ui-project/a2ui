@@ -15,10 +15,9 @@
  */
 
 import {A2uiCatalogError} from '../errors.js';
-import {RendererCapabilities} from '../internal/web-core.js';
+import {RendererCapabilities, toCanonicalVersion} from '../internal/web-core.js';
 import {catalogFromDocument} from '../processor/catalog-providers.js';
 import {ProtocolVersion} from '../types.js';
-import {toWireProtocolVersion} from './protocol-version.js';
 
 /** Transport metadata key for v0.8 and v0.9 client capabilities. */
 export const A2UI_CLIENT_CAPABILITIES_KEY = 'a2uiClientCapabilities';
@@ -28,8 +27,66 @@ export const A2UI_RENDERER_CAPABILITIES_KEY = 'a2uiRendererCapabilities';
 
 const ALLOWED_ENTRY_KEYS = new Set(['supportedCatalogIds', 'inlineCatalogs']);
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const proto = Object.getPrototypeOf(value);
+  return proto === null || proto === Object.prototype;
+}
+
+function resolveCapabilitiesTarget(version: ProtocolVersion | string): {
+  wireVersion: ProtocolVersion;
+  metadataKey: string;
+  entryKey: string;
+} {
+  const canonical = typeof version === 'string' ? toCanonicalVersion(version) : null;
+  switch (canonical) {
+    case '1.0':
+      return {
+        wireVersion: '1.0',
+        metadataKey: A2UI_RENDERER_CAPABILITIES_KEY,
+        entryKey: '1.0',
+      };
+    case '0.9':
+      return {
+        wireVersion: 'v0.9',
+        metadataKey: A2UI_CLIENT_CAPABILITIES_KEY,
+        entryKey: 'v0.9',
+      };
+    case '0.9.1':
+      return {
+        wireVersion: 'v0.9.1',
+        metadataKey: A2UI_CLIENT_CAPABILITIES_KEY,
+        entryKey: 'v0.9',
+      };
+    default:
+      throw new A2uiCatalogError(`Unsupported protocol version '${String(version)}'.`);
+  }
+}
+
+function validateInlineCatalogs(
+  rawInline: unknown,
+  entryKey: string,
+  metadataKey: string,
+  wireVersion: ProtocolVersion,
+): Record<string, unknown>[] {
+  if (!Array.isArray(rawInline)) {
+    throw new A2uiCatalogError(
+      `The 'inlineCatalogs' field in '${entryKey}' renderer capabilities under '${metadataKey}' must be an array of catalog objects.`,
+    );
+  }
+  const inlineCatalogs: Record<string, unknown>[] = [];
+  for (const cat of rawInline) {
+    if (!isPlainObject(cat) || typeof cat.catalogId !== 'string' || cat.catalogId.trim() === '') {
+      throw new A2uiCatalogError(
+        `Each inline catalog in '${entryKey}' renderer capabilities under '${metadataKey}' must be an object with a non-empty string 'catalogId'.`,
+      );
+    }
+    catalogFromDocument(cat, 'inlineCatalogs', wireVersion);
+    inlineCatalogs.push({...cat});
+  }
+  return inlineCatalogs;
 }
 
 function validateCapabilitiesEntry(
@@ -55,25 +112,10 @@ function validateCapabilitiesEntry(
     );
   }
 
-  let inlineCatalogs: Record<string, unknown>[] | undefined;
-  if (Object.hasOwn(entry, 'inlineCatalogs') && entry.inlineCatalogs !== undefined) {
-    const rawInline = entry.inlineCatalogs;
-    if (!Array.isArray(rawInline)) {
-      throw new A2uiCatalogError(
-        `The 'inlineCatalogs' field in '${entryKey}' renderer capabilities under '${metadataKey}' must be an array of catalog objects.`,
-      );
-    }
-    inlineCatalogs = [];
-    for (const cat of rawInline) {
-      if (!isRecord(cat) || typeof cat.catalogId !== 'string' || cat.catalogId.trim() === '') {
-        throw new A2uiCatalogError(
-          `Each inline catalog in '${entryKey}' renderer capabilities under '${metadataKey}' must be an object with a non-empty string 'catalogId'.`,
-        );
-      }
-      catalogFromDocument(cat, 'inlineCatalogs', wireVersion);
-      inlineCatalogs.push({...cat});
-    }
-  }
+  const inlineCatalogs =
+    Object.hasOwn(entry, 'inlineCatalogs') && entry.inlineCatalogs !== undefined
+      ? validateInlineCatalogs(entry.inlineCatalogs, entryKey, metadataKey, wireVersion)
+      : undefined;
 
   return {
     supportedCatalogIds: [...rawIds],
@@ -85,10 +127,9 @@ function validateCapabilitiesEntry(
  * Reads and validates renderer capabilities for `version` from transport `metadata`.
  *
  * Looks up `a2uiRendererCapabilities` for v1.0 and `a2uiClientCapabilities` for
- * v0.8, v0.9, and v0.9.1 (supporting both the `v0.8`-keyed and bare v0.8 forms).
- * Returns `undefined` when `metadata` is `null`/`undefined` or the version's
- * capabilities entry is absent, and throws `A2uiCatalogError` when the metadata
- * key or version entry is malformed.
+ * v0.9 and v0.9.1. Returns `undefined` when `metadata` is `null`/`undefined` or
+ * the version's capabilities entry is absent, and throws `A2uiCatalogError` when
+ * `version` is unsupported or the metadata key or version entry is malformed.
  *
  * @param metadata The transport message metadata object, or `null`/`undefined`.
  * @param version The A2UI protocol version to read capabilities for.
@@ -99,43 +140,28 @@ export function readRendererCapabilities(
   metadata: unknown,
   version: ProtocolVersion | string = '1.0',
 ): Record<string, RendererCapabilities> | undefined {
-  let wireVersion: ProtocolVersion;
-  try {
-    wireVersion = toWireProtocolVersion(version);
-  } catch (e) {
-    throw new A2uiCatalogError(e instanceof Error ? e.message : String(e));
-  }
+  const {wireVersion, metadataKey, entryKey} = resolveCapabilitiesTarget(version);
 
   if (metadata === null || metadata === undefined) {
     return undefined;
   }
-  if (!isRecord(metadata)) {
+  if (!isPlainObject(metadata)) {
     throw new A2uiCatalogError('Transport metadata must be a JSON object.');
   }
 
-  const metadataKey =
-    wireVersion === '1.0' ? A2UI_RENDERER_CAPABILITIES_KEY : A2UI_CLIENT_CAPABILITIES_KEY;
   const raw = Object.hasOwn(metadata, metadataKey) ? metadata[metadataKey] : undefined;
   if (raw === undefined || raw === null) {
     return undefined;
   }
-  if (!isRecord(raw)) {
+  if (!isPlainObject(raw)) {
     throw new A2uiCatalogError(`The '${metadataKey}' metadata value must be a JSON object.`);
   }
 
-  const entryKey = wireVersion === '1.0' ? '1.0' : wireVersion === 'v0.8' ? 'v0.8' : 'v0.9';
-  let entry = Object.hasOwn(raw, entryKey) ? raw[entryKey] : undefined;
-  if (
-    (entry === undefined || entry === null) &&
-    entryKey === 'v0.8' &&
-    (Object.hasOwn(raw, 'supportedCatalogIds') || Object.hasOwn(raw, 'inlineCatalogs'))
-  ) {
-    entry = raw;
-  }
+  const entry = Object.hasOwn(raw, entryKey) ? raw[entryKey] : undefined;
   if (entry === undefined || entry === null) {
     return undefined;
   }
-  if (!isRecord(entry)) {
+  if (!isPlainObject(entry)) {
     throw new A2uiCatalogError(
       `The '${entryKey}' capabilities entry under '${metadataKey}' must be a JSON object.`,
     );
