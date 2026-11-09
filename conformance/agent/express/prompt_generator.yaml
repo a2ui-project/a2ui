@@ -261,6 +261,24 @@
   expect_contains: ["Event("]
   expect_absent: ["userMessage="]
 
+- name: test_express_snippet_lists_system_functions_from_v1_0
+  description: From v1.0, the snippet lists the protocol's system functions, such as `@index`, in the same signature format as catalog functions, although no catalog defines them.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  expect_contains: ["@index(offset?)"]
+
+- name: test_express_snippet_omits_system_functions_before_v1_0
+  description: Before v1.0 the protocol defines no system functions, so the snippet does not mention `@index`.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/list_item_action_catalog_v09.json"
+  expect_absent: ["@index"]
+
 - name: test_express_snippet_describes_only_the_allowed_envelopes
   description: An allowlist of payload envelopes decides which of them the snippet describes, and Express describes an envelope by the statement that compiles to it.
   action: generate_prompt_snippet

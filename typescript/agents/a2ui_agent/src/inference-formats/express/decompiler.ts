@@ -282,6 +282,32 @@ export class ExpressDecompiler {
   }
 
   /**
+   * Returns a helper that reads the system function a call names.
+   *
+   * A system function, such as `@index`, is defined by the protocol rather than a
+   * catalog, so every helper of the version reads it.
+   *
+   * @throws {A2uiValidationError} If the version defines no system function of
+   *   that name, or the call names a `catalogId`.
+   */
+  private systemFunctionHelper(
+    funcCall: Record<string, unknown>,
+    name: string,
+  ): CatalogSchemaHelper {
+    const helper = this.helpers.values().next().value!;
+    if (!helper.systemFunctions.has(name)) {
+      throw new A2uiValidationError(`Unknown system function '${name}'.`);
+    }
+    if ('catalogId' in funcCall) {
+      throw new A2uiValidationError(
+        `System function '${name}' is defined by the protocol, not a catalog, so it takes` +
+          ' no catalogId.',
+      );
+    }
+    return helper;
+  }
+
+  /**
    * Resolves a component or function against its explicit or surface catalog, returning
    * the catalog's schema helper and the `catalogId` to write (if any).
    */
@@ -913,12 +939,9 @@ export class ExpressDecompiler {
       ? {}
       : optionalObjectField(rawArgs, `Function call '${funcName}'`, 'args');
 
-    const {helper, catalogId: emitCatalogId} = this.resolveSymbol(
-      'function',
-      funcName,
-      funcCall.catalogId,
-      surfaceCatalogId,
-    );
+    const {helper, catalogId: emitCatalogId} = funcName.startsWith('@')
+      ? {helper: this.systemFunctionHelper(funcCall, funcName), catalogId: undefined}
+      : this.resolveSymbol('function', funcName, funcCall.catalogId, surfaceCatalogId);
 
     const fnProps = helper.getFunctionProperties(funcName);
     const argsReprs: string[] = [];
