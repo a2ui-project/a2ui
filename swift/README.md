@@ -32,9 +32,11 @@ targets: [
 In Xcode, open `File > Add Package Dependencies...`, enter `https://github.com/a2ui-project/a2ui`,
 select version `0.10.0` (Up to Next Major Version), and add the library products to your target.
 
-`A2UISwiftCore` exposes the `A2UICore` and `A2UIJSON` modules for `import`. Targets that do not use
-SwiftUI can depend on `A2UISwiftCore` and `BasicCatalog` directly. See
-[core/README.md](core/README.md) and [swiftui/README.md](swiftui/README.md) for usage examples.
+Swift Package Manager derives the `package: "a2ui"` identifier from the repository URL rather than
+the manifest's `name` field. `A2UISwiftCore` exposes the `A2UICore` and `A2UIJSON` modules for
+`import`. Targets that do not use SwiftUI can depend on `A2UISwiftCore` and `BasicCatalog`
+directly. See [core/README.md](core/README.md) and [swiftui/README.md](swiftui/README.md) for usage
+examples.
 
 ---
 
