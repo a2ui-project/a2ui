@@ -21,9 +21,28 @@
  * and markdown rendering type definitions.
  */
 
-export * from './component-context.js';
-export * from './data-context.js';
-export * from './generic-binder.js';
+export {ComponentContext} from './component-context.js';
+export {
+  getKnownSchemaKeys,
+  validateFunctionArgs,
+  isSingleAtKey,
+  unescapeObjectKey,
+  validateReservedDirectives,
+  resolveContextIndex,
+  MAX_DYNAMIC_VALUE_DEPTH,
+  DataContext,
+} from './data-context.js';
+export {
+  scrapeSchemaBehavior,
+  getSafeChildList,
+  type BehaviorNode,
+  type ResolvedChildRef,
+  type ResolveA2uiProp,
+  type GenerateSetters,
+  type ResolveA2uiProps,
+  MAX_DYNAMIC_CHILD_LIST_SIZE,
+  GenericBinder,
+} from './generic-binder.js';
 export {
   /** The component type name used for pending and cyclic placeholder nodes. */
   PLACEHOLDER_TYPE,
@@ -38,9 +57,9 @@ export {
   /** Resolution state of a component node in the rendered tree. */
   type NodeState,
 } from './component-node.js';
-export * from './node-resolver.js';
-export * from './ref-fields.js';
-export * from './resolved-binding.js';
+export {NodeResolver} from './node-resolver.js';
+export {extractRefFields, type RefKind, type RefFields} from './ref-fields.js';
+export {isWritable, sameBinding, ResolvedBinding, WritableBinding} from './resolved-binding.js';
 export type {
   /** Asynchronous markdown rendering function. */
   MarkdownRenderer,

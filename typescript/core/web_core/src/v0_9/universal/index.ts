@@ -14,4 +14,21 @@
  * limitations under the License.
  */
 
-export * from '../../universal/index.js';
+export {
+  type A2uiChildRef,
+  A2uiLitElement,
+  type CheckableResolvedProps,
+  type ResolvedAccessibilityAttributes,
+  type ResolvedChildList,
+  type ResolvedChildRef,
+  A2uiController,
+  type A2uiWebComponentElement,
+  registerUniversalElement,
+  isWebComponentImplementation,
+  renderA2uiNode,
+  sanitizeMediaUrl,
+  bindHostAccessibility,
+  createAccessibilityTargets,
+  type AccessibilityTargets,
+  type WebComponentImplementation,
+} from '../../universal/index.js';

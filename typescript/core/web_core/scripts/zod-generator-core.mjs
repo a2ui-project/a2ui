@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-import {readdirSync, writeFileSync} from 'node:fs';
+import {readFileSync, readdirSync, writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {jsonSchemaToZod} from 'json-schema-to-zod';
+import ts from 'typescript';
 
 /**
  * Returns the standard Apache 2.0 file header for generated files.
@@ -332,6 +333,106 @@ export function compileDefToZod(rawDef, name, options = {}) {
  * @param {string} version Version identifier.
  * @param {string} [generatorSource] Generator script name.
  */
+function extractExportedSymbolsFromFile(filePath) {
+  const sourceText = readFileSync(filePath, 'utf-8');
+  const sf = ts.createSourceFile(filePath, sourceText, ts.ScriptTarget.Latest, true);
+  const typeOnlyImports = new Set();
+
+  for (const stmt of sf.statements) {
+    if (ts.isImportDeclaration(stmt) && stmt.importClause) {
+      const clause = stmt.importClause;
+      if (clause.isTypeOnly) {
+        if (clause.name) typeOnlyImports.add(clause.name.text);
+        if (clause.namedBindings) {
+          if (ts.isNamespaceImport(clause.namedBindings)) {
+            typeOnlyImports.add(clause.namedBindings.name.text);
+          } else if (ts.isNamedImports(clause.namedBindings)) {
+            for (const el of clause.namedBindings.elements) {
+              typeOnlyImports.add(el.name.text);
+            }
+          }
+        }
+      } else if (clause.namedBindings && ts.isNamedImports(clause.namedBindings)) {
+        for (const el of clause.namedBindings.elements) {
+          if (el.isTypeOnly) {
+            typeOnlyImports.add(el.name.text);
+          }
+        }
+      }
+    }
+  }
+
+  /** @type {Map<string, boolean>} */
+  const symbols = new Map();
+  const record = (name, isTypeOnly) => {
+    if (name === 'default') return;
+    if (!symbols.has(name)) {
+      symbols.set(name, isTypeOnly);
+    } else if (!isTypeOnly) {
+      symbols.set(name, false);
+    }
+  };
+
+  const hasExport = stmt => {
+    const mods = ts.canHaveModifiers(stmt) ? ts.getModifiers(stmt) : undefined;
+    if (!mods) return false;
+    return (
+      mods.some(m => m.kind === ts.SyntaxKind.ExportKeyword) &&
+      !mods.some(m => m.kind === ts.SyntaxKind.DefaultKeyword)
+    );
+  };
+
+  for (const stmt of sf.statements) {
+    if (ts.isExportDeclaration(stmt) && stmt.exportClause && ts.isNamedExports(stmt.exportClause)) {
+      for (const el of stmt.exportClause.elements) {
+        const name = el.name.text;
+        const orig = (el.propertyName || el.name).text;
+        const isTypeOnly = Boolean(
+          stmt.isTypeOnly || el.isTypeOnly || (!stmt.moduleSpecifier && typeOnlyImports.has(orig)),
+        );
+        record(name, isTypeOnly);
+      }
+    } else if (hasExport(stmt)) {
+      if (ts.isVariableStatement(stmt)) {
+        for (const decl of stmt.declarationList.declarations) {
+          if (ts.isIdentifier(decl.name)) {
+            record(decl.name.text, false);
+          }
+        }
+      } else if (
+        (ts.isFunctionDeclaration(stmt) ||
+          ts.isClassDeclaration(stmt) ||
+          ts.isEnumDeclaration(stmt)) &&
+        stmt.name &&
+        ts.isIdentifier(stmt.name)
+      ) {
+        record(stmt.name.text, false);
+      } else if (
+        (ts.isInterfaceDeclaration(stmt) || ts.isTypeAliasDeclaration(stmt)) &&
+        stmt.name &&
+        ts.isIdentifier(stmt.name)
+      ) {
+        record(stmt.name.text, true);
+      }
+    }
+  }
+
+  return Array.from(symbols.entries(), ([name, isTypeOnly]) => ({name, isTypeOnly}));
+}
+
+function formatNamedExportStatement(items, moduleSpecifier) {
+  const allTypeOnly = items.every(item => item.isTypeOnly);
+  const specifiers = allTypeOnly
+    ? items.map(item => item.name)
+    : items.map(item => (item.isTypeOnly ? `type ${item.name}` : item.name));
+  const prefix = allTypeOnly ? 'export type {' : 'export {';
+  const singleLine = `${prefix}${specifiers.join(', ')}} from '${moduleSpecifier}';`;
+  if (singleLine.length <= 100) {
+    return `${singleLine}\n`;
+  }
+  return `${prefix}\n  ${specifiers.join(',\n  ')},\n} from '${moduleSpecifier}';\n`;
+}
+
 export function writeIndexFile(destDir, version, generatorSource) {
   const generatedFiles = readdirSync(destDir)
     .filter(
@@ -339,11 +440,19 @@ export function writeIndexFile(destDir, version, generatorSource) {
     )
     .sort();
 
+  const seenNames = new Set();
   let indexTs = getHeader(version, generatorSource);
-  for (const file of generatedFiles) {
-    indexTs += `export * from './${file.replace('.ts', '.js')}';\n`;
+
+  for (const file of [...generatedFiles, 'helpers.ts']) {
+    const exported = extractExportedSymbolsFromFile(join(destDir, file)).filter(item => {
+      if (seenNames.has(item.name)) return false;
+      seenNames.add(item.name);
+      return true;
+    });
+    if (exported.length > 0) {
+      indexTs += formatNamedExportStatement(exported, `./${file.replace('.ts', '.js')}`);
+    }
   }
-  indexTs += `export * from './helpers.js';\n`;
 
   writeFileSync(join(destDir, 'index.ts'), indexTs);
 }

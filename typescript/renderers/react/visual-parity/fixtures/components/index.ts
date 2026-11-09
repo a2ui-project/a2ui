@@ -18,24 +18,32 @@
  * Component fixtures aggregation.
  */
 
-export * from './text';
-export * from './button';
-export * from './icon';
-export * from './image';
-export * from './divider';
-export * from './card';
-export * from './row';
-export * from './column';
-export * from './list';
-export * from './tabs';
-export * from './checkbox';
-export * from './textField';
-export * from './slider';
-export * from './dateTimeInput';
+export {textBasic, textH1, textH2, textH3, textH4, textH5, textBody, textCaption} from './text';
+export {buttonPrimary, buttonSecondary, buttonWithIcon} from './button';
+export {icon, iconMultiple} from './icon';
+export {
+  imageBasic,
+  imageAvatar,
+  imageHeader,
+  imageIcon,
+  imageLargeFeature,
+  imageMediumFeature,
+  imageSmallFeature,
+} from './image';
+export {dividerHorizontal, dividerVertical} from './divider';
+export {card, cardWithImage, cardComplex} from './card';
+export {row, rowWithText, rowStart, rowCenter, rowEnd, rowSpaceBetween} from './row';
+export {column, columnStart, columnCenter, columnEnd, columnMixed} from './column';
+export {listVertical, listHorizontal, listWithCards, listMixed} from './list';
+export {tabsBasic, tabsMultiple, tabsComplex} from './tabs';
+export {checkboxUnchecked, checkboxChecked, checkboxLongLabel} from './checkbox';
+export {textField, textFieldWithValue} from './textField';
+export {slider} from './slider';
+export {dateTimeInputDate, dateTimeInputTime, dateTimeInputBoth} from './dateTimeInput';
 export {multipleChoice} from './multipleChoice';
-export * from './video';
-export * from './audioPlayer';
-export * from './modal';
+export {videoBasic, videoWithPathBinding} from './video';
+export {audioPlayerBasic, audioPlayerWithPathBinding} from './audioPlayer';
+export {modalBasic, modalWithCard} from './modal';
 
 // Re-export fixture groups
 export {textFixtures} from './text';

@@ -14,7 +14,24 @@
  * limitations under the License.
  */
 
-export * from './message-processor.js';
+export {
+  type ProcessableMessage,
+  type ProcessableMessagePayload,
+  type RendererCapabilities,
+  type ClientCapabilities,
+  type ValidationConfig,
+  type OutboundMessageListener,
+  type CallOptions,
+  STRICT_VALIDATION,
+  RELAXED_VALIDATION,
+  A2uiRpcError,
+  RpcErrorCode,
+  type ExecutionContext,
+  type CapabilitiesOptions,
+  type MessageProcessorOptions,
+  formatZodIssue,
+  MessageProcessor,
+} from './message-processor.js';
 export {
   mapErrorToRendererMessage,
   extractEnvelopeErrorContext,
@@ -25,6 +42,27 @@ export {
   type GenericErrorBody,
   type ErrorEnvelopeContext,
 } from './message-error-mapper.js';
-export * from './adapters/factory.js';
-export * from './adapters/base.js';
-export * from '../errors.js';
+export {VersionAdapterFactory, defaultVersionAdapterFactory} from './adapters/factory.js';
+export {
+  isCatalogVersionCompatible,
+  registerKnownActionsProvider,
+  type ProtocolVersion,
+  SUPPORTED_PROTOCOL_VERSIONS,
+  DEFAULT_CATALOG_COMPATIBILITY,
+  type VersionAdapterResolver,
+  type VersionAdapter,
+  type KnownActionsProvider,
+  BaseVersionAdapter,
+} from './adapters/base.js';
+export {
+  type A2uiErrorDetail,
+  type A2uiErrorContext,
+  A2uiError,
+  A2uiValidationError,
+  A2uiDataError,
+  A2uiExpressionError,
+  A2uiStateError,
+  A2uiCatalogError,
+  A2uiIntegrityError,
+  A2uiRecursionError,
+} from '../errors.js';

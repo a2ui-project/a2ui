@@ -14,4 +14,11 @@
  * limitations under the License.
  */
 
-export * from './rpc-handler.js';
+export {
+  A2uiRpcError,
+  RpcErrorCode,
+  type OutboundMessageListener,
+  type RpcHandlerOptions,
+  type CallOptions,
+  RpcHandler,
+} from './rpc-handler.js';
