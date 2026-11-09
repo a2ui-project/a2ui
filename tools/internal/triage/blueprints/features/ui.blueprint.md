@@ -31,8 +31,21 @@ Flags:
 - has recommendation
 - has PR (for issues)
 - has issue (for PRs)
+- needs teem input
 
-Ordered by: type and time (olderst first)
+Groups:
+
+- New:
+    - Issues
+    - PRs with issues
+    - PRs without issues
+
+- Need team input:
+    - Issues
+    - PRs with issues
+    - PRs without issues
+
+Ordered by: update time (oldest first)
 
 ### Details
 
@@ -42,7 +55,7 @@ Editable recommendation for the selected item and all related items (linked PRs 
 
 It is A2UI component implementation for TriageRecommenation that parses the recommendation on the item.
 
-The recommendation is editable, there is button 'Apply'.
+The recommendation is editable, there are buttons 'Apply', and 'Needs teem input'.
 
 ## CUJ
 
