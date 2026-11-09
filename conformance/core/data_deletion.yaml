@@ -13,6 +13,7 @@
 # limitations under the License.
 
 - name: test_data_deletion_value_null
+  features: [F-CORE-03]
   description: Verifies that updateDataModel with value=null deletes the specified JSON Pointer path.
   catalog:
     protocolVersion: "1.0"
@@ -75,6 +76,7 @@
               sms: true
 
 - name: test_data_deletion_top_level_key
+  features: [F-CORE-03]
   description: Verifies deleting a top-level JSON Pointer path via value=null.
   catalog:
     protocolVersion: "1.0"
@@ -183,6 +185,7 @@
           items: ["a", null, "c"]
 
 - name: test_data_deletion_root_replacement
+  features: [F-CORE-03]
   description: Verifies updating root path / with value=null resets data model to empty object.
   catalog:
     protocolVersion: "1.0"

@@ -23,24 +23,28 @@
 # not how an implementation happens to split its literal runs.
 
 - name: test_expr_plain_text_is_one_literal
+  features: [F-CORE-19]
   description: A template with no interpolation yields the input unchanged.
   action: parse_expression_template
   input: "hello world"
   expect: ["hello world"]
 
 - name: test_expr_empty_template
+  features: [F-CORE-19]
   description: An empty template yields no content.
   action: parse_expression_template
   input: ""
   expect: []
 
 - name: test_expr_relative_path
+  features: [F-CORE-15, F-CORE-19]
   description: A bare identifier is a relative data binding.
   action: parse_expression_template
   input: "${user}"
   expect: [{path: "user"}]
 
 - name: test_expr_absolute_path
+  features: [F-CORE-14, F-CORE-19]
   description: An identifier starting with a slash is an absolute data binding.
   action: parse_expression_template
   input: "value is ${/user/name}"
@@ -807,6 +811,7 @@
     message: "after argument name"
 
 - name: test_expr_max_depth_nested_interpolations
+  features: [F-CORE-19]
   description: >-
     An interpolation nested right at the recursion limit of 100 is accepted.
   action: parse_expression_template
