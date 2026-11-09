@@ -14,7 +14,7 @@ npm install @a2ui/web_core lit zod
 
 ## Step 1: Define the component schema
 
-Create a `ComponentApi` object with the component `name` used in A2UI JSON payloads and a Zod `schema` describing its properties. Use `DynamicStringSchema` so each field accepts either a literal string or a data-model binding (see [Catalogs, Components, and Functions](../../concepts/catalogs/) and [How to Define a Catalog](../../guides/defining-a-catalog/)).
+Create a `ComponentApi` object with the component `name` used in A2UI JSON payloads and a Zod `schema` describing its properties. Use `DynamicStringSchema` so each field accepts either a literal string or a data-model binding (see [Catalogs, Components, and Functions](/concepts/catalogs/) and [How to Define a Catalog](/guides/defining-a-catalog/)).
 
 #### v1.0
 
@@ -243,7 +243,7 @@ export const appConfig: ApplicationConfig = {
 export class AppComponent {}
 ```
 
-If your app targets v0.9.1, pass `'0.9'` as the catalog version and import from `'@a2ui/lit/v0_9'`, `'@a2ui/react/v0_9'`, `'@a2ui/web_core/v0_9'`, `'@a2ui/web_core/v0_9/basic_catalog'`, or `provideA2Ui({useUniversalComponents: true, ...})` from `'@a2ui/angular/v0_9'`. For agent transport setup, see [How to Integrate A2UI into a Client](../../guides/client-integration/).
+If your app targets v0.9.1, pass `'0.9'` as the catalog version and import from `'@a2ui/lit/v0_9'`, `'@a2ui/react/v0_9'`, `'@a2ui/web_core/v0_9'`, `'@a2ui/web_core/v0_9/basic_catalog'`, or `provideA2Ui({useUniversalComponents: true, ...})` from `'@a2ui/angular/v0_9'`. For agent transport setup, see [How to Integrate A2UI into a Client](/guides/client-integration/).
 
 When your agent streams a `createSurface` and `updateComponents` message pair, the host renderer mounts `<a2ui-stat-card>` with the resolved properties:
 
@@ -297,10 +297,10 @@ When your agent streams a `createSurface` and `updateComponents` message pair, t
 
 `@a2ui/lit` re-exports `A2uiLitElement` from `@a2ui/web_core/universal`, so universal components and [`@a2ui/lit` custom components](https://github.com/a2ui-project/a2ui/blob/main/typescript/renderers/lit/README.md) access resolved schema properties on `this.controller.props` in the same way:
 
-- **Actions** (`ActionSchema` / [`Action`](../../specification/v1.0/schemas/#common_types.json/$defs/Action)): resolves to an async `() => Promise<void>` callback (`props.action?.()`) that dispatches an agent `event` or executes a catalog `functionCall` (see [Actions and Functions](../../concepts/actions-and-functions/)).
-- **Child components** (`ChildSchema` / [`ComponentId`](../../specification/v1.0/schemas/#common_types.json/$defs/ComponentId) and `ChildListSchema` / [`ChildList`](../../specification/v1.0/schemas/#common_types.json/$defs/ChildList)): resolves to a child reference or array of references. Pass each entry to `this.renderNode(ref)` inside `render()` to mount Basic Catalog, universal, or native React and Angular children.
-- **Two-way data binding** (`DynamicStringSchema`, `DynamicNumberSchema`, `DynamicBooleanSchema`, `DynamicStringListSchema`, `DynamicValueSchema` / [`DynamicValue`](../../specification/v1.0/schemas/#common_types.json/$defs/DynamicValue)): generates a `props.set<CapitalizedProp>(nextValue)` setter (such as `props.setValue(e.target.value)`) that writes to the bound JSON Pointer (`@path` in v1.0, `path` in v0.9.1) in the surface `DataModel` (see [Data Model and Data Binding](../../concepts/data-binding/)).
-- **Validation checks** (`z.object({...}).merge(CheckableSchema)` / [`Checkable`](../../specification/v1.0/schemas/#common_types.json/$defs/Checkable)): evaluates `checks` rules reactively and populates `props.isValid` (`boolean`) and `props.validationErrors` (`string[]`). Bind `aria-invalid` and `aria-describedby` on the inner input control rather than `role="alert"` so initial validation checks do not trigger unsolicited screen-reader announcements on mount.
+- **Actions** (`ActionSchema` / [`Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action)): resolves to an async `() => Promise<void>` callback (`props.action?.()`) that dispatches an agent `event` or executes a catalog `functionCall` (see [Actions and Functions](/concepts/actions-and-functions/)).
+- **Child components** (`ChildSchema` / [`ComponentId`](/specification/v1.0/schemas/#common_types.json/$defs/ComponentId) and `ChildListSchema` / [`ChildList`](/specification/v1.0/schemas/#common_types.json/$defs/ChildList)): resolves to a child reference or array of references. Pass each entry to `this.renderNode(ref)` inside `render()` to mount Basic Catalog, universal, or native React and Angular children.
+- **Two-way data binding** (`DynamicStringSchema`, `DynamicNumberSchema`, `DynamicBooleanSchema`, `DynamicStringListSchema`, `DynamicValueSchema` / [`DynamicValue`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicValue)): generates a `props.set<CapitalizedProp>(nextValue)` setter (such as `props.setValue(e.target.value)`) that writes to the bound JSON Pointer (`@path` in v1.0, `path` in v0.9.1) in the surface `DataModel` (see [Data Model and Data Binding](/concepts/data-binding/)).
+- **Validation checks** (`z.object({...}).merge(CheckableSchema)` / [`Checkable`](/specification/v1.0/schemas/#common_types.json/$defs/Checkable)): evaluates `checks` rules reactively and populates `props.isValid` (`boolean`) and `props.validationErrors` (`string[]`). Bind `aria-invalid` and `aria-describedby` on the inner input control rather than `role="alert"` so initial validation checks do not trigger unsolicited screen-reader announcements on mount.
 
 ## Advanced topics
 

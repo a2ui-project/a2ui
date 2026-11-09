@@ -4,16 +4,16 @@
 
 Canonical URL: https://a2ui.org/guides/a2ui-over-mcp/
 
-A **[Model Context Protocol (MCP)](https://modelcontextprotocol.io/)** server can deliver interactive A2UI surfaces by publishing static layout templates as `a2ui://` resources (`application/a2ui+json`) and returning per-call [`updateDataModel`](../../specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) messages from tools.
+A **[Model Context Protocol (MCP)](https://modelcontextprotocol.io/)** server can deliver interactive A2UI surfaces by publishing static layout templates as `a2ui://` resources (`application/a2ui+json`) and returning per-call [`updateDataModel`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) messages from tools.
 
 Instead of repeating the component tree on every tool invocation, the server sends the layout once through `resources/read` and returns only JSON values on `tools/call`. Clients cache the layout by URI and update the surface state whenever a tool runs.
 
 > **Note**
-  See the [MCP Integration Overview](../mcp-overview/) to compare all four MCP patterns. To
+  See the [MCP Integration Overview](/guides/mcp-overview/) to compare all four MCP patterns. To
   configure `@a2ui/catalog-mcp` and invoke MCP tools from Lit, React, or Angular surfaces, see [Call
-  MCP Tools from A2UI](../mcp-catalog/). If your MCP server ships a sandboxed HTML widget (`ui://`,
+  MCP Tools from A2UI](/guides/mcp-catalog/). If your MCP server ships a sandboxed HTML widget (`ui://`,
   `text/html;profile=mcp-app`) rather than A2UI JSON messages, see [Embed MCP Apps in A2UI
-  Surfaces](../mcp-apps-in-a2ui/).
+  Surfaces](/guides/mcp-apps-in-a2ui/).
 
 <video
   width="100%"
@@ -104,9 +104,9 @@ Browse additional MCP integrations in [`samples/community/mcp/`](https://github.
 
 Delivering A2UI over MCP splits an interface into cached presentation resources and per-call data updates:
 
-1. MCP resources (`resources/read`) publish static component layouts ([`createSurface`](../../specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage) and [`updateComponents`](../../specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateComponentsMessage)) under `a2ui://` URIs with MIME type `application/a2ui+json`. Because component properties bind to JSON Pointers such as `/title` and `/cookTime` (see [Data Model and Data Binding](../../concepts/data-binding/)) instead of hardcoded values, clients fetch each template once and reuse it across calls.
+1. MCP resources (`resources/read`) publish static component layouts ([`createSurface`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage) and [`updateComponents`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateComponentsMessage)) under `a2ui://` URIs with MIME type `application/a2ui+json`. Because component properties bind to JSON Pointers such as `/title` and `/cookTime` (see [Data Model and Data Binding](/concepts/data-binding/)) instead of hardcoded values, clients fetch each template once and reuse it across calls.
 2. Tool metadata (`_meta.ui`) connects a tool to its layout resource by setting `resourceUri` (for example, `"a2ui://recipe-card"`) and `mimeType` (`"application/a2ui+json"`) on the tool descriptor in `tools/list`, on the `CallToolResult`, or on both. When a `CallToolResult` sets `_meta.ui.resourceUri`, its URI overrides any default URI declared on the tool descriptor.
-3. Tool execution (`tools/call`) computes the values for the current request and returns an `EmbeddedResource` (`mimeType: "application/a2ui+json"`) containing an [`updateDataModel`](../../specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) message, paired with a plain `TextContent` summary for text-only MCP hosts.
+3. Tool execution (`tools/call`) computes the values for the current request and returns an `EmbeddedResource` (`mimeType: "application/a2ui+json"`) containing an [`updateDataModel`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) message, paired with a plain `TextContent` summary for text-only MCP hosts.
 4. Client hydration resolves `_meta.ui.resourceUri` from its local cache (calling `resources/read` only on a cache miss), initializes the surface if it is not already live, and applies the `updateDataModel` payload to update bound components.
 
 The sequence diagram below traces how an MCP client and MCP server exchange these messages: the client invokes `tools/call` for `get_recipe_a2ui`, receives a `CallToolResult` carrying both `_meta.ui.resourceUri` and an inline `updateDataModel` resource, fetches `a2ui://recipe-card` via `resources/read` only when the template is not yet cached, and applies both payloads to its local `MessageProcessor`.
@@ -133,7 +133,7 @@ The three steps below build a minimal recipe-card tool over MCP and connect it t
 
 ### Step 1: Expose a layout template as an MCP resource
 
-Create a JSON array that initializes the `recipe-card` surface and declares its component tree with data bindings instead of literal values. The example below uses the Basic Catalog, though A2UI catalogs are domain-specific and your template can target any custom catalog your client supports (see [How to Define a Catalog](../defining-a-catalog/)).
+Create a JSON array that initializes the `recipe-card` surface and declares its component tree with data bindings instead of literal values. The example below uses the Basic Catalog, though A2UI catalogs are domain-specific and your template can target any custom catalog your client supports (see [How to Define a Catalog](/guides/defining-a-catalog/)).
 
 In `v1.0`, protocol messages set `"version": "1.0"`, data bindings use `{"@path": "..."}`, component IDs follow UAX #31 identifier syntax (such as `main_column`), and `Text` uses Markdown headings or `"variant": "body" | "caption"`. In `v0.9.1`, messages set `"version": "v0.9"`, data bindings use `{"path": "..."}`, and `Text.variant` includes heading variants such as `"h3"`.
 
@@ -478,7 +478,7 @@ async def handle_call_tool(
 
 ### Step 3: Connect the client and hydrate the surface
 
-On web clients, [`callMcpTool`](../mcp-catalog/#mcp_catalog.json/functions/callMcpTool) in `@a2ui/catalog-mcp` handles template discovery, URI caching, and message forwarding automatically once you pass your `MessageProcessor` to `configureMcpCatalog`. In `v1.0`, register `mcpCatalog` alongside `basicCatalog`; in `v0.9.1` (where each surface binds to a single catalog), compose `CallMcpToolImplementation` into a `'0.9'` `Catalog` and pass `defaultVersion: 'v0.9'`:
+On web clients, [`callMcpTool`](/guides/mcp-catalog/#mcp_catalog.json/functions/callMcpTool) in `@a2ui/catalog-mcp` handles template discovery, URI caching, and message forwarding automatically once you pass your `MessageProcessor` to `configureMcpCatalog`. In `v1.0`, register `mcpCatalog` alongside `basicCatalog`; in `v0.9.1` (where each surface binds to a single catalog), compose `CallMcpToolImplementation` into a `'0.9'` `Catalog` and pass `defaultVersion: 'v0.9'`:
 
 #### v1.0
 
@@ -570,7 +570,7 @@ An interactive A2UI component (such as a **Get Recipe** button on another surfac
 }
 ```
 
-When `callMcpTool` executes, it reads `_meta.ui.resourceUri`, fetches and caches `a2ui://recipe-card` on first use (skipping `createSurface` if `recipe-card` is already active), and forwards the inline `updateDataModel` messages to `processor`. For Lit, React, and Angular setup details, see [Call MCP Tools from A2UI](../mcp-catalog/).
+When `callMcpTool` executes, it reads `_meta.ui.resourceUri`, fetches and caches `a2ui://recipe-card` on first use (skipping `createSurface` if `recipe-card` is already active), and forwards the inline `updateDataModel` messages to `processor`. For Lit, React, and Angular setup details, see [Call MCP Tools from A2UI](/guides/mcp-catalog/).
 
 ---
 
@@ -580,7 +580,7 @@ When `callMcpTool` executes, it reads `_meta.ui.resourceUri`, fetches and caches
 
 Before serving static templates or generated tool payloads from an MCP server, validate them against the target catalog with the A2UI Agent SDK. `validatePayload` (`validate_payload` in Python) checks message schemas, component properties, and surface tree topology (such as missing roots or unresolved child IDs) the same way a renderer does.
 
-Swift (`A2UISwiftCore` and `A2UISwiftUI`) targets client-side rendering rather than server-side agent generation, so Agent SDK validation is provided in TypeScript, Python, and Dart:
+Swift (`A2UISwiftCore` and `A2UISwiftUI`) and Kotlin (`androidx.a2ui` and `androidx.a2ui.compose`) target client-side rendering rather than server-side agent generation, so Agent SDK validation is provided in TypeScript, Python, and Dart:
 
 #### TypeScript
 
@@ -616,7 +616,7 @@ final parsed = AgentToRendererMessagePayload.fromJson(
 validatePayload([BasicCatalog.v1_0()], parsed.messages);
 ```
 
-For prompt generation, streaming parsers, and stateful validation across turns with `RendererState`, see [How to Integrate with My Agent Server](../agent-integration/).
+For prompt generation, streaming parsers, and stateful validation across turns with `RendererState`, see [How to Integrate with My Agent Server](/guides/agent-integration/).
 
 ### Control LLM context visibility
 
@@ -668,7 +668,7 @@ In Steps 1 to 3 above, UI buttons invoke domain MCP tools (`get_recipe_a2ui`) di
 
 ### Negotiate supported catalogs
 
-When an MCP server supports multiple catalogs or protocol versions, the client advertises which catalogs its renderer can display ([`renderer_capabilities.json`](../../specification/v1.0/schemas/#renderer_capabilities.json) in `v1.0`, `client_capabilities.json` in `v0.9.1`). On web clients, `processor.getRendererCapabilities({versions: ['1.0']})` builds this capabilities object from the catalogs registered on `MessageProcessor`.
+When an MCP server supports multiple catalogs or protocol versions, the client advertises which catalogs its renderer can display ([`renderer_capabilities.json`](/specification/v1.0/schemas/#renderer_capabilities.json) in `v1.0`, `client_capabilities.json` in `v0.9.1`). On web clients, `processor.getRendererCapabilities({versions: ['1.0']})` builds this capabilities object from the catalogs registered on `MessageProcessor`.
 
 #### Stateful sessions via MCP initialization
 
@@ -787,7 +787,7 @@ When an HTTP MCP server handles each request without session state, pass the sam
 
 ### Forward user actions and client errors as MCP tools
 
-When a component uses `functionCall` with `callMcpTool` (as in Step 3), the client calls the target MCP tool directly. Alternatively, components can emit an A2UI [`action`](../../specification/v1.0/schemas/#renderer_to_agent.json/properties/action) event (see [Actions and Functions](../../concepts/actions-and-functions/)), and the host application can forward both user actions and renderer [`error`](../../specification/v1.0/schemas/#renderer_to_agent.json/properties/error) events to dedicated MCP tools on the server.
+When a component uses `functionCall` with `callMcpTool` (as in Step 3), the client calls the target MCP tool directly. Alternatively, components can emit an A2UI [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) event (see [Actions and Functions](/concepts/actions-and-functions/)), and the host application can forward both user actions and renderer [`error`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/error) events to dedicated MCP tools on the server.
 
 #### Forward `action.event` payloads to `a2ui_action`
 
@@ -939,7 +939,7 @@ Pass an `errorHandler` in `MessageProcessorOptions` (or call `processor.processM
 
 ## Next steps
 
-1. Configure `@a2ui/catalog-mcp`, `callMcpTool`, and client-side data functions (`transformData`, `split`, `regexCapture`) in [Call MCP Tools from A2UI](../mcp-catalog/).
-2. Embed sandboxed HTML MCP Apps (`ui://`) inside A2UI surfaces in [Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/).
-3. Render A2UI surfaces inside a standalone MCP App iframe in [Render A2UI Inside an MCP App](../a2ui-in-mcp-apps/).
+1. Configure `@a2ui/catalog-mcp`, `callMcpTool`, and client-side data functions (`transformData`, `split`, `regexCapture`) in [Call MCP Tools from A2UI](/guides/mcp-catalog/).
+2. Embed sandboxed HTML MCP Apps (`ui://`) inside A2UI surfaces in [Embed MCP Apps in A2UI Surfaces](/guides/mcp-apps-in-a2ui/).
+3. Render A2UI surfaces inside a standalone MCP App iframe in [Render A2UI Inside an MCP App](/guides/a2ui-in-mcp-apps/).
 4. Explore runnable MCP servers and clients in [`samples/community/mcp/`](https://github.com/a2ui-project/a2ui/tree/main/samples/community/mcp).

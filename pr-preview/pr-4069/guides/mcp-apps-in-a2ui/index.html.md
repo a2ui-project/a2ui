@@ -9,10 +9,10 @@ The `McpApp` component in `@a2ui/catalog-mcp` embeds interactive **[Model Contex
 Standard A2UI components cover forms, cards, and lists, while MCP Apps let an MCP server ship a custom HTML widget, such as a drag-and-drop Kanban board or a 3D canvas, alongside its tools. When you place `McpApp` on a surface, `@a2ui/catalog-mcp` runs that HTML inside an isolated sandbox and connects its state and tool calls to the surrounding UI.
 
 > **Note**
-  See the [MCP Integration Overview](../mcp-overview/) to compare all four MCP patterns. Install
+  See the [MCP Integration Overview](/guides/mcp-overview/) to compare all four MCP patterns. Install
   `@a2ui/catalog-mcp` and register `mcpCatalog` with `configureMcpCatalog` first in [Call MCP Tools
-  from A2UI](../mcp-catalog/#quick-setup). If your MCP server returns `a2ui://` JSON layouts rather
-  than HTML widgets, see [Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/).
+  from A2UI](/guides/mcp-catalog/#quick-setup). If your MCP server returns `a2ui://` JSON layouts rather
+  than HTML widgets, see [Serve A2UI Layouts from an MCP Server](/guides/a2ui-over-mcp/).
 
 <img
   src={`${baseUrl}/assets/mcp-apps-calculator-demo.gif`}
@@ -23,7 +23,7 @@ Standard A2UI components cover forms, cards, and lists, while MCP Apps let an MC
 
 ## Set up McpApp in your web app
 
-After registering `mcpCatalog` and `configureMcpCatalog` in your Lit, React, or Angular app (see [Call MCP Tools from A2UI](../mcp-catalog/#quick-setup)), serve the sandbox relay files and add [`McpApp`](../mcp-catalog/#mcp_catalog.json/components/McpApp) to your surface.
+After registering `mcpCatalog` and `configureMcpCatalog` in your Lit, React, or Angular app (see [Call MCP Tools from A2UI](/guides/mcp-catalog/#quick-setup)), serve the sandbox relay files and add [`McpApp`](/guides/mcp-catalog/#mcp_catalog.json/components/McpApp) to your surface.
 
 ### Serve the sandbox files
 
@@ -337,7 +337,7 @@ If you are authoring an MCP App to run inside this sandbox, keep three browser r
 2. `window.parent.document` and `window.top` are blocked. Request iframe height updates with `ui/notifications/size-changed`, and open external `http:` or `https:` links in a new tab with `ui/open-link`.
 3. External network requests, images, fonts, and subframes inside `srcdoc` are blocked unless the MCP resource lists their domains under `_meta.ui.csp` (`connectDomains`, `resourceDomains`, `frameDomains`, `baseUriDomains`).
 
-To serve `/a2ui-sandbox/` in your bundler and configure [`McpApp`](../mcp-catalog/#mcp_catalog.json/components/McpApp) properties, see [Set up McpApp in your web app](#set-up-mcpapp-in-your-web-app). For the startup handshake (`ui/notifications/sandbox-proxy-ready`, `ui/notifications/sandbox-resource-ready`, and `ui/initialize`), see the [MCP App component specification](https://github.com/a2ui-project/a2ui/blob/main/catalogs/mcp/v1/mcp_app_specification.md).
+To serve `/a2ui-sandbox/` in your bundler and configure [`McpApp`](/guides/mcp-catalog/#mcp_catalog.json/components/McpApp) properties, see [Set up McpApp in your web app](#set-up-mcpapp-in-your-web-app). For the startup handshake (`ui/notifications/sandbox-proxy-ready`, `ui/notifications/sandbox-resource-ready`, and `ui/initialize`), see the [MCP App component specification](https://github.com/a2ui-project/a2ui/blob/main/catalogs/mcp/v1/mcp_app_specification.md).
 
 </details>
 
@@ -408,7 +408,7 @@ Check the browser console for warnings. Every MCP tool the widget calls must be 
 
 ## Next steps
 
-1. Install `@a2ui/catalog-mcp` and invoke headless MCP tools in [Call MCP Tools from A2UI](../mcp-catalog/).
+1. Install `@a2ui/catalog-mcp` and invoke headless MCP tools in [Call MCP Tools from A2UI](/guides/mcp-catalog/).
 2. Review the handshake lifecycle, JSON-RPC message schemas, and cycle-prevention rules in the [MCP App component specification](https://github.com/a2ui-project/a2ui/blob/main/catalogs/mcp/v1/mcp_app_specification.md).
-3. Build an MCP server that returns reusable A2UI component layouts in [Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/).
-4. Bundle an A2UI renderer inside an MCP App in [Render A2UI Inside an MCP App](../a2ui-in-mcp-apps/).
+3. Build an MCP server that returns reusable A2UI component layouts in [Serve A2UI Layouts from an MCP Server](/guides/a2ui-over-mcp/).
+4. Bundle an A2UI renderer inside an MCP App in [Render A2UI Inside an MCP App](/guides/a2ui-in-mcp-apps/).
