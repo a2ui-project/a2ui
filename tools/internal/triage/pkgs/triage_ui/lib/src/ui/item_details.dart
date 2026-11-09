@@ -17,6 +17,7 @@ import 'package:triage/triage.dart';
 
 import '../model/triage_controller.dart';
 import '../model/triage_item.dart';
+import 'label_colors.dart';
 import 'links.dart';
 import 'suggestion_editor.dart';
 import 'suggestion_surface.dart';
@@ -83,11 +84,32 @@ class ItemCard extends StatelessWidget {
               url: item.url,
               style: theme.textTheme.titleLarge,
             ),
-            Text(
-              'Opened ${ago(item.createdAt)} by '
-              '${item.author ?? 'a deleted account'}.\n'
-              'Labels: ${none(item.labels)}.\n'
-              'Assignees: ${none(item.assignees)}.',
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 4,
+              children: [
+                Text(
+                  'Opened ${ago(item.createdAt)} by '
+                  '${item.author ?? 'a deleted account'}.',
+                ),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    const Text('Labels:'),
+                    if (item.labels.isEmpty) const Text('none.'),
+                    for (final String label in item.labels)
+                      LabelPill(
+                        label,
+                        colors: labelColors(
+                          controller.repositoryInfo.labelColors[label],
+                        ),
+                      ),
+                  ],
+                ),
+                Text('Assignees: ${none(item.assignees)}.'),
+              ],
             ),
             if (controller.session.isApplied(item.number))
               const _Notice(

@@ -21,6 +21,7 @@ import '../model/suggestion_draft.dart';
 import '../model/triage_controller.dart';
 import '../model/triage_item.dart';
 import 'chip_list_field.dart';
+import 'label_colors.dart';
 import 'links.dart';
 import 'triage_scope.dart';
 
@@ -144,6 +145,8 @@ class SuggestionEditor extends StatelessWidget {
             ),
             ChipListField(
               label: 'Add labels',
+              colorsOf: (String name) =>
+                  labelColors(controller.repositoryInfo.labelColors[name]),
               chooseTooltip: 'Choose labels to add',
               values: draft.addedLabels,
               options: _prioritiesFirst([
@@ -154,6 +157,8 @@ class SuggestionEditor extends StatelessWidget {
             ),
             ChipListField(
               label: 'Remove labels',
+              colorsOf: (String name) =>
+                  labelColors(controller.repositoryInfo.labelColors[name]),
               chooseTooltip: 'Choose labels to remove',
               values: draft.removedLabels,
               options: _prioritiesFirst(item.labels),

@@ -112,7 +112,7 @@ const String repositoryQuery = r'''
 query($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
     labels(first: 100, orderBy: {field: NAME, direction: ASC}) {
-      nodes { name }
+      nodes { name color }
     }
     assignableUsers(first: 100) { nodes { login } }
   }

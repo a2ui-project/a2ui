@@ -14,6 +14,8 @@
 
 import 'package:flutter/material.dart';
 
+import 'label_colors.dart';
+
 /// A field that holds a list of names, such as labels or logins, as chips.
 ///
 /// The triager adds a name by typing it and pressing Enter, by picking one
@@ -28,7 +30,13 @@ class ChipListField extends StatefulWidget {
     required this.label,
     required this.chooseTooltip,
     this.options = const [],
+    this.colorsOf,
   });
+
+  /// The colors to show a name in, such as a label's colors on GitHub.
+  /// Names without colors, and every name if this is null, have the theme's
+  /// colors.
+  final LabelColors? Function(String name)? colorsOf;
 
   /// The title on the field's border, such as "Add labels".
   final String label;
@@ -85,6 +93,16 @@ class _ChipListFieldState extends State<ChipListField> {
           ],
   );
 
+  Widget _chip(String value, LabelColors? colors) => InputChip(
+    label: Text(value),
+    backgroundColor: colors?.background,
+    labelStyle: colors == null ? null : TextStyle(color: colors.foreground),
+    deleteIconColor: colors?.foreground,
+    side: colors == null ? null : BorderSide.none,
+    onDeleted: () => widget.onChanged([...widget.values]..remove(value)),
+    deleteButtonTooltipMessage: 'Remove $value',
+  );
+
   @override
   void dispose() {
     _search.dispose();
@@ -126,12 +144,7 @@ class _ChipListFieldState extends State<ChipListField> {
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           for (final String value in widget.values)
-            InputChip(
-              label: Text(value),
-              onDeleted: () =>
-                  widget.onChanged([...widget.values]..remove(value)),
-              deleteButtonTooltipMessage: 'Remove $value',
-            ),
+            _chip(value, widget.colorsOf?.call(value)),
           SizedBox(
             width: 240,
             child: RawAutocomplete<String>(
@@ -212,6 +225,7 @@ class _ChipListFieldState extends State<ChipListField> {
               for (final String choice in shown)
                 _Choice(
                   choice,
+                  colors: widget.colorsOf?.call(choice),
                   checked: widget.values.contains(choice),
                   // A choice under the mouse would take the cursor from
                   // the search field.
@@ -242,9 +256,13 @@ class _Choice extends StatelessWidget {
     required this.checked,
     required this.requestFocusOnHover,
     required this.onChanged,
+    this.colors,
   });
 
   final String name;
+
+  /// The colors of the name, shown as a dot before it, as GitHub does.
+  final LabelColors? colors;
   final bool checked;
   final bool requestFocusOnHover;
   final ValueChanged<bool> onChanged;
@@ -260,7 +278,21 @@ class _Choice extends StatelessWidget {
         color: checked ? Theme.of(context).colorScheme.primary : null,
       ),
       onPressed: () => onChanged(!checked),
-      child: Text(name),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: 8,
+        children: [
+          if (colors case final LabelColors colors)
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: colors.background,
+                shape: BoxShape.circle,
+              ),
+              child: const SizedBox.square(dimension: 12),
+            ),
+          Text(name),
+        ],
+      ),
     ),
   );
 }

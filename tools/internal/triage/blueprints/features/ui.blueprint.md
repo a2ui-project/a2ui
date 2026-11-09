@@ -56,7 +56,7 @@ Nothing is selected when the tool starts, unless it starts with an item from a s
 
 The editable suggestion is the triage UI's implementation of the [`TriageSuggestion`](triage_item.blueprint.md#the-triagesuggestion-component) A2UI component. It renders the component from the item's suggestion comment, or an empty one when the item has no suggestion.
 
-The `summary` and the `suggestion` are shown as text. The triager can change the other properties: the reply, how to close the item, the labels and the assignees. The triager types labels and logins, or checks them in a dropdown of the possible options: the repository's labels and the people who can be assigned for the labels and assignees to add, and the item's own labels and assignees for the ones to remove. The dropdown lists the checked options first. A dropdown with more than 7 options has a search field at the top. The related issues and PRs are links.
+The `summary` and the `suggestion` are shown as text. The triager can change the other properties: the reply, how to close the item, the labels and the assignees. The triager types labels and logins, or checks them in a dropdown of the possible options: the repository's labels and the people who can be assigned for the labels and assignees to add, and the item's own labels and assignees for the ones to remove. Labels have their colors from the repository, as on GitHub. The dropdown lists the checked options first. A dropdown with more than 7 options has a search field at the top. The related issues and PRs are links.
 
 There are two buttons:
 

@@ -24,10 +24,15 @@ import 'queries.dart';
 final class RepositoryInfo {
   const RepositoryInfo({
     this.labels = const [],
+    this.labelColors = const {},
     this.assignableUsers = const [],
   });
 
   final List<String> labels;
+
+  /// The color of each label, as GitHub gives it: six hex digits, such as
+  /// `d73a4a`.
+  final Map<String, String> labelColors;
   final List<String> assignableUsers;
 }
 
@@ -101,11 +106,14 @@ class TriageService {
     final Map<String, Object?> repository = asMap(
       (await _client.graphql(repositoryQuery, _repository))['repository'],
     );
+    final List<Map<String, Object?>> labels = nodesOf(repository['labels']);
     return RepositoryInfo(
-      labels: [
-        for (final Map<String, Object?> label in nodesOf(repository['labels']))
-          label['name']! as String,
-      ],
+      labels: [for (final label in labels) label['name']! as String],
+      labelColors: {
+        for (final label in labels)
+          if (label['color'] case final String color)
+            label['name']! as String: color,
+      },
       assignableUsers: [
         for (final Map<String, Object?> user in nodesOf(
           repository['assignableUsers'],

@@ -22,6 +22,7 @@ import 'package:triage_ui/src/model/triage_controller.dart';
 import 'package:triage_ui/src/model/triage_item.dart';
 import 'package:triage_ui/src/ui/chip_list_field.dart';
 import 'package:triage_ui/src/ui/item_list.dart';
+import 'package:triage_ui/src/ui/label_colors.dart';
 import 'package:triage_ui/src/ui/triage_app.dart';
 
 import '../../support/fake_github.dart';
@@ -177,14 +178,65 @@ void main() {
     expect(find.text('Issue #11: Docs are unclear'), findsOneWidget);
   });
 
+  testWidgets('shows labels in their GitHub colors', (tester) async {
+    github.items[10]!['labels'] = {
+      'nodes': [
+        {'name': needsTriageLabel},
+        {'name': 'type: bug'},
+      ],
+    };
+    await pumpApp(tester);
+
+    // P1 is dark, so its name is white.
+    final InputChip p1 = tester.widget(find.widgetWithText(InputChip, 'P1'));
+    expect(p1.backgroundColor, const Color(0xFFB60205));
+    expect(p1.labelStyle!.color, Colors.white);
+
+    // On the item card, a light label has black text, and a label without a
+    // color has the theme's colors.
+    final DecoratedBox bug = tester.widget(
+      find
+          .ancestor(
+            of: find.text('type: bug'),
+            matching: find.byType(DecoratedBox),
+          )
+          .first,
+    );
+    expect((bug.decoration as BoxDecoration).color, const Color(0xFFFBCA04));
+    expect(
+      tester.widget<Text>(find.text('type: bug').first).style!.color,
+      Colors.black,
+    );
+    // On the cards of the issue and of its linked PR.
+    expect(find.widgetWithText(LabelPill, needsTriageLabel), findsNWidgets(2));
+
+    // The dropdown shows a dot of the label's color.
+    await tester.tap(find.byTooltip('Choose labels to add').first);
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.widgetWithText(MenuItemButton, 'P1'),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is DecoratedBox &&
+              (w.decoration as BoxDecoration).color == const Color(0xFFB60205),
+        ),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('picks labels from the dropdown', (tester) async {
     await pumpApp(tester);
 
     List<String> choices() => [
-      for (final MenuItemButton b in tester.widgetList(
-        find.byType(MenuItemButton),
+      for (final Text text in tester.widgetList(
+        find.descendant(
+          of: find.byType(MenuItemButton),
+          matching: find.byType(Text),
+        ),
       ))
-        (b.child! as Text).data!,
+        text.data!,
     ];
     await tester.tap(find.byTooltip('Choose labels to add').first);
     await tester.pumpAndSettle();

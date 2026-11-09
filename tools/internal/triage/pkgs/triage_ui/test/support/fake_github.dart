@@ -139,6 +139,10 @@ class FakeGitHub {
     needsTriageLabel,
     needsTeamInputLabel,
   ];
+
+  /// The colors of some of the [labels]; the others have none.
+  Map<String, String> labelColors = {'P1': 'b60205', 'type: bug': 'fbca04'};
+
   List<String> assignableUsers = ['hubot', 'octocat'];
 
   var _clock = 100;
@@ -239,7 +243,7 @@ class FakeGitHub {
           'repository': {
             'labels': {
               'nodes': [
-                for (final l in labels) {'name': l},
+                for (final l in labels) {'name': l, 'color': labelColors[l]},
               ],
             },
             'assignableUsers': {
