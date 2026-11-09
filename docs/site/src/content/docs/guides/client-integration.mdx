@@ -92,9 +92,9 @@ dependencies {
 
 ## Step 2: Initialize MessageProcessor
 
-Create one [`MessageProcessor`](../../concepts/glossary/#messageprocessor) instance per conversation or rendering session inside a session controller or service (`AgentSession` on Flutter, React, and Lit; `appConfig` plus `AgentSessionService` on Angular; `A2UISessionController` on SwiftUI; `AgentSessionViewModel` on Jetpack Compose), wired at the app entry point in [Step 5](#step-5-wire-everything-at-the-app-entry-point).
+Create a [`MessageProcessor`](../../concepts/glossary/#messageprocessor) instance inside a session controller or service with the built-in [Basic catalog](../../specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json) and an action callback that forwards user events to the transport method you will add in [Step 4](#step-4-connect-transport-and-handle-actions).
 
-Register the built-in [Basic catalog](../../specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json) (`Column`, `Row`, `Card`, `Text`, `Button`, `TextField`, and standard formatting and validation functions), configure styles and sanitized Markdown on Web, and forward user actions to the `sendToAgent` transport method you will add in [Step 4](#step-4-connect-transport-and-handle-actions). To register domain-specific widgets or custom local functions alongside the Basic catalog, see [How to Define a Catalog](../../guides/defining-a-catalog/).
+The scope of the rendering session determines which [surfaces](../../concepts/glossary/#surface) the agent can modify. In a chat app, you can use one `MessageProcessor` per conversation to allow the agent to update or delete any surface in the conversation at any time by its `surfaceId`, or use one `MessageProcessor` per chat turn so the agent only modifies surfaces in the active turn and does not need unique surface IDs across turns. To register custom components or local functions alongside the Basic catalog, see [How to Define a Catalog](../../guides/defining-a-catalog/).
 
 <Tabs syncKey="renderer-framework">
   <TabItem label="Flutter">
@@ -313,7 +313,7 @@ class AgentSessionViewModel(application: Application) : AndroidViewModel(applica
 
 ## Step 3: Mount surface views
 
-Observe the surface group managed by `MessageProcessor` so your layout mounts new [surfaces](../../concepts/glossary/#surface) when `createSurface` arrives and unmounts them when `deleteSurface` arrives (`AgentSurfacesView` on Flutter and SwiftUI, `AgentSurfaces` on React, `<agent-surfaces>` on Lit, `<app-agent-surfaces>` on Angular, and `AgentSurfacesScreen` on Jetpack Compose). Once mounted, each surface widget observes its own component graph and `DataModel` signals internally, updating individual child widgets in place as `updateComponents` and `updateDataModel` messages arrive.
+Create a container view that subscribes to the active [surfaces](../../concepts/glossary/#surface) on `MessageProcessor` and renders an A2UI surface component for each one. Your container mounts new surfaces when `createSurface` arrives and unmounts them when `deleteSurface` arrives, while each mounted surface observes its own component tree and `DataModel` internally to update child components in place as `updateComponents` and `updateDataModel` messages arrive.
 
 <Tabs syncKey="renderer-framework">
   <TabItem label="Flutter">
@@ -582,7 +582,7 @@ fun AgentSurfacesScreen(viewModel: AgentSessionViewModel, modifier: Modifier = M
 
 ## Step 4: Connect transport and handle actions
 
-A2UI is transport-agnostic: your app can exchange messages over Server-Sent Events (SSE), WebSockets, HTTP chunked responses, [A2A](../../specification/v1.0-a2ui-extension-specification/), or [MCP](../../guides/mcp-overview/). Add inbound and outbound transport methods to the session controller or service from [Step 2](#step-2-initialize-messageprocessor): decode incoming JSON envelopes (or arrays of envelopes on Flutter, Web, and Swift; one JSON message object per call on Jetpack Compose) and pass them to `MessageProcessor`, and send resolved [`action`](../../concepts/messages/#action) messages back to your agent endpoint. On Web, `processMessagesAsync()` awaits any asynchronous renderer functions invoked via [`callRendererFunction`](../../concepts/messages/#callrendererfunction-v10-only).
+Add inbound and outbound transport methods to your session controller or service to decode incoming JSON payloads into `MessageProcessor` and send resolved [`action`](../../concepts/messages/#action) messages back to your agent. A2UI is transport-agnostic, so these methods can exchange messages over HTTP responses, Server-Sent Events (SSE), WebSockets, [A2A](../../specification/v1.0-a2ui-extension-specification/), or [MCP](../../guides/mcp-overview/).
 
 <Tabs syncKey="renderer-framework">
   <TabItem label="Flutter">
@@ -702,7 +702,7 @@ extension A2UISessionController {
   </TabItem>
   <TabItem label="Jetpack Compose">
 
-Because `1.0.0-alpha02` targets A2UI `v0.9.1`, `A2uiMessageParser` expects one `"version": "v0.9"` (or `"v0.9.1"`) JSON message object per call with `https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json` and `{"path": "..."}` data bindings, and outbound envelopes set `"version"` to `"v0.9"`:
+Because `1.0.0-alpha02` targets A2UI `v0.9.1`, `A2uiMessageParser` expects one `"version": "v0.9"` (or `"v0.9.1"`) JSON message object per call rather than a JSON array, with `https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json` and `{"path": "..."}` data bindings, and outbound envelopes set `"version"` to `"v0.9"`:
 
 ```kotlin
 import androidx.a2ui.model.protocol.A2uiClientErrorMessage
@@ -933,7 +933,7 @@ When the user clicks **Confirm order**, `MessageProcessor` resolves `context` bi
 
 ## Step 5: Wire everything at the app entry point
 
-Connect the session controller or service and mounted surface view at your application's entry point (`main.dart` on Flutter, `App.tsx` on React, `my-app.ts` on Lit, `app.component.ts` and `main.ts` on Angular, `MyApp.swift` on SwiftUI, and `MainActivity.kt` on Jetpack Compose) so user prompts, incoming updates, outbound actions, and the rendered UI share one `MessageProcessor`:
+Instantiate your session controller or service at the application entry point and pass its `MessageProcessor` to the surface container view from [Step 3](#step-3-mount-surface-views). Sharing this session connects user prompts and bidirectional agent messages to the rendered surfaces:
 
 <Tabs syncKey="renderer-framework">
   <TabItem label="Flutter">
@@ -1170,7 +1170,7 @@ class MainActivity : ComponentActivity() {
 
 ### Customize Basic Catalog theme tokens on Web
 
-On Web (`@a2ui/react`, `@a2ui/lit`, and `@a2ui/angular`), `injectBasicCatalogStyles()` adopts default styles into `document.adoptedStyleSheets` (and no-ops during server-side rendering). Override the `--a2ui-*` CSS custom properties on `:root` or on a container element, or apply the `.a2ui-dark` and `.a2ui-light` classes to lock a color scheme:
+Override the `--a2ui-*` CSS custom properties on `:root` or a container element to match your application's theme, or apply the `.a2ui-dark` and `.a2ui-light` classes to lock a color scheme. Calling `injectBasicCatalogStyles()` in [Step 2](#step-2-initialize-messageprocessor) adopts the default stylesheet into `document.adoptedStyleSheets` (and no-ops during server-side rendering):
 
 ```css
 :root {
@@ -1188,7 +1188,7 @@ In React, `setMarkdownRenderer(renderMarkdown)` from [Step 2](#step-2-initialize
 
 ### Advertise renderer capabilities
 
-If your team owns both the agent and the client app, the agent can target your known catalogs directly without runtime negotiation. When a client connects to external or multi-tenant agents, or when shipped client versions support different catalog sets, attach `getRendererCapabilities()` from your session controller or service to transport request [metadata](../../concepts/messages/#metadata) under `a2uiRendererCapabilities`. Keep `includeInlineCatalogs` at its default `false` in production when the agent already holds matching `catalogId` schemas; set it to `true` only during prototyping when the agent accepts client-supplied inline schemas.
+Call `getRendererCapabilities()` on `MessageProcessor` and attach the result to your outbound transport [metadata](../../concepts/messages/#metadata) under `a2uiRendererCapabilities` so the agent knows which catalogs and protocol versions your client supports. If your team owns both the agent and the client app with a fixed catalog set, you can skip runtime negotiation and target those catalogs directly on the agent. Keep `includeInlineCatalogs` at its default `false` in production when the agent already holds matching `catalogId` schemas; set it to `true` only during prototyping when the agent accepts client-supplied inline schemas.
 
 <Tabs syncKey="renderer-framework">
   <TabItem label="Flutter">
@@ -1355,7 +1355,7 @@ fun buildCapabilitiesMetadata(): Map<String, Map<String, Any?>> {
 
 ### Synchronize client data models and forward RPCs
 
-When an active surface is created with `"sendDataModel": true` (for example, a multi-field form where local `TextField`, `CheckBox`, or `Slider` edits mutate the client `DataModel` without firing individual events), call `getRendererDataModel()` and attach the snapshot under `a2uiRendererDataModel` in your outbound transport metadata alongside `action` messages and subsequent user prompts.
+Call `getRendererDataModel()` on `MessageProcessor` and attach the returned snapshot under `a2uiRendererDataModel` in your outbound transport metadata alongside `action` messages and user prompts. `MessageProcessor` returns data models for active surfaces created with `"sendDataModel": true`, such as multi-field forms where local input edits update the client `DataModel` without firing separate action events.
 
 If your catalogs use v1.0 remote agent functions ([`callAgentFunction`](../../concepts/messages/#callagentfunction-v10-only)) or agent-initiated client calls ([`callRendererFunction`](../../concepts/messages/#callrendererfunction-v10-only)), pass `outboundListener` to `MessageProcessor` (`processorOptions.outboundListener` in Angular) to forward those envelopes through `sendToAgent`. To report malformed incoming payloads back to the agent as structured [`error`](../../specification/v1.0/schemas/#renderer_to_agent.json/properties/error) messages instead of throwing exceptions, set `reportErrorsOnly: true` (paired with `errorHandler` on Web, or `outboundListener` on Flutter; SwiftUI and Jetpack Compose already emit validation errors on `outboundListener` and `outboundEvents`).
 
