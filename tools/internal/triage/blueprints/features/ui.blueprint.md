@@ -97,14 +97,25 @@ Ann clicks **Apply**, and GitHub refuses to assign one of the assignees. The too
 
 While Ann works, a new issue arrives, and a team member triages another item on GitHub. Ann clicks **Refresh** in the hamburger menu. The list shows the new issue and drops the item that no longer has `status: needs-triage`. If the selected item changed on GitHub, the details show its current state, so Ann doesn't apply a suggestion to an old view of the item.
 
-### Summary of the session
+### Report the session
 
-Ann needs to report what was done to the team chat. She selects menu item "Session Report"
-and sees popup with copyable text, that contains both statistics and list of items.
+Ann wants to tell the team what was triaged.
 
-Ann, clicks 'Copy' and pastes the report to the team chat.
+1. Ann selects **Session report** in the hamburger menu.
+2. A dialog shows the report as text. It starts with the numbers: how many items Ann applied, how many of them were issues and PRs, how many were closed, and how many items still need triage. A list follows with each applied item's number, title and what was applied.
+3. Ann clicks **Copy** and pastes the report into the team chat.
 
-If Ann forgot to check report, and closed the app, the app shows the report with two buttons: Close, Copy and Close.
+For example:
+
+```
+Triaged 3 items: 2 issues and 1 PR. Closed 1. 4 items still need triage.
+
+- #1235 Flutter renderer crashes on an empty Row: added P1, assigned octocat
+- #1240 Support dark theme in the Lit renderer: closed as duplicate of #1100
+- #1251 Fix typo in the quickstart: added P3, assigned octocat
+```
+
+If Ann closes the tool after applying items, but without copying the report, the tool shows the report first, with two buttons: **Copy and close** and **Close**.
 
 
 
