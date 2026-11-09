@@ -105,8 +105,8 @@ class A2uiVersionCapabilities {
   ///
   /// The shape of each inline catalog depends on [version]. From v1.0 it is
   /// the catalog document, [Catalog.toJson], the shape
-  /// `catalog_definition.json` describes. Below v1.0 it is the legacy inline
-  /// catalog of `client_capabilities.json`, [Catalog.toLegacyInlineCatalog]:
+  /// `catalog_definition.json` describes. Below v1.0 it is the v0.9 inline
+  /// catalog of `client_capabilities.json`, [Catalog.toV09InlineCatalog]:
   /// components wrapped in `common_types.json#/$defs/ComponentCommon`,
   /// `functions` as a list of definitions, and `theme` as the theme's
   /// property map.
@@ -118,7 +118,7 @@ class A2uiVersionCapabilities {
               if (version.isAtLeast(A2uiProtocolVersion.v1_0))
                 catalog.toJson()
               else
-                catalog.toLegacyInlineCatalog(),
+                catalog.toV09InlineCatalog(),
           ],
       };
 }

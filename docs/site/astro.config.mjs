@@ -15,11 +15,14 @@
  */
 
 // @ts-check
+import fs from 'node:fs';
+
 import starlight from '@astrojs/starlight';
 import {defineConfig} from 'astro/config';
 
 import {normalizeBasePrefix} from './src/lib/spec-schemas.mjs';
 import {googleAnalytics} from './src/plugins/google-analytics.mjs';
+import {rehypeLocalDocAssets} from './src/plugins/rehype-local-doc-assets.mjs';
 import {rehypeWrapTables} from './src/plugins/rehype-wrap-tables.mjs';
 import {remarkA2uiIncludes} from './src/plugins/remark-a2ui-includes.mjs';
 
@@ -45,6 +48,9 @@ function rehypePreserveJsonHeadingIds() {
 }
 
 const basePrefix = normalizeBasePrefix(process.env.ASTRO_BASE);
+const docAssetsManifest = JSON.parse(
+  fs.readFileSync(new URL('./assets-manifest.json', import.meta.url), 'utf8'),
+);
 
 export default defineConfig({
   site: process.env.ASTRO_SITE || 'https://a2ui.org',
@@ -73,7 +79,11 @@ export default defineConfig({
   },
   markdown: {
     remarkPlugins: [remarkA2uiIncludes],
-    rehypePlugins: [rehypeWrapTables, rehypePreserveJsonHeadingIds],
+    rehypePlugins: [
+      rehypeWrapTables,
+      rehypePreserveJsonHeadingIds,
+      [rehypeLocalDocAssets, {manifest: docAssetsManifest, basePrefix}],
+    ],
   },
   integrations: [
     googleAnalytics('G-YX9TPV8DCC'),

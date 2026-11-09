@@ -51,9 +51,9 @@ struct A2UIIconTests {
     _ = view.body
   }
 
-  @Test func iconInitializesWithLegacyPathKey() {
+  @Test func iconInitializesWithUnprefixedPathKey() {
     let node = Node(
-      id: "iconLegacyPath",
+      id: "iconUnprefixedPath",
       type: "Icon",
       properties: [
         "name": ResolvedDictionary([
