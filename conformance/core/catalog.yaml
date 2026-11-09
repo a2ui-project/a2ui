@@ -217,7 +217,7 @@
     message: "requiresUserActivation"
 
 - name: test_v09_catalog_from_json_user_activation_agent_only_loads
-  features: [F-CORE-03, F-CORE-37]
+  features: [F-CORE-37]
   description: Tests that a v0.9 catalog function with requiresUserActivation set to true and allowedCallers set to agentOnly loads, because only the v1.0 catalog_definition.json restricts that pair.
   action: from_json
   catalog:

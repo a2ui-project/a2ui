@@ -20,7 +20,6 @@
   features:
     - F-RND-02
     - F-RND-12
-    - F-RND-13
     - F-RND-14
     - F-BP-01
     - F-BP-02
@@ -480,7 +479,7 @@
             badgeText: "Operational"
 
 - name: validation_results_error_disables_warning_allows
-  features: [F-RND-09, F-RND-10, F-RND-11, F-BP-16]
+  features: [F-RND-09, F-BP-16]
   description: Verifies that a failing check with severity=error marks the control invalid (isValid=false), whereas severity=warning and severity=info surface diagnostic feedback and hints while keeping the control valid/enabled (isValid=true).
   protocolVersion: "1.0"
   catalogPaths:
@@ -755,6 +754,7 @@
       expectActiveSubscriptions: 0
 
 - name: delete_surface_unmounts_view
+  features: [F-RND-01, F-RND-21, F-BP-08]
   description: Verifies that processing a deleteSurface message removes the surface from the group, unmounts the rendered view, and releases all active reactive subscriptions.
   protocolVersion: "1.0"
   catalogPaths:
@@ -793,6 +793,7 @@
       expectActiveSubscriptions: 0
 
 - name: type_change_under_same_id_resets_view_state
+  features: [F-RND-01, F-RND-21, F-BP-04, F-BP-08]
   description: Verifies that replacing a component with a different type under the same id creates a new view identity rather than reusing the prior component's stateful view.
   protocolVersion: "1.0"
   catalogPaths:
@@ -848,6 +849,7 @@
             text: "Now a static label"
 
 - name: removed_components_release_subscriptions
+  features: [F-RND-21, F-BP-08]
   description: Verifies that when a parent component removes a child from its children list, the unreferenced child node is disposed and releases its data model subscriptions.
   protocolVersion: "1.0"
   catalogPaths:
@@ -905,6 +907,7 @@
             text: "Kept"
 
 - name: two_way_binding_inputs_checkbox_choice_slider_datetime
+  features: [F-RND-05, F-RND-14, F-BP-05]
   description: Verifies that user_input on CheckBox, ChoicePicker, Slider, and DateTimeInput writes back to bound @path entries in DataModel and updates dependent views.
   protocolVersion: "1.0"
   catalogPaths:
@@ -1115,6 +1118,7 @@
 # 16. Media, Tabs, Modal, Divider, Slider, and DateTimeInput Components
 # =============================================================================
 - name: media_components_bind_url_and_name
+  features: [F-RND-04, F-RND-13, F-BP-05]
   description: >
     Verifies that Image, Video, AudioPlayer, and Icon resolve bound and
     literal url and name properties and update when the data model changes.
@@ -1200,6 +1204,7 @@
             name: "check"
 
 - name: tabs_switch_content
+  features: [F-RND-12, F-BP-05]
   description: >
     Verifies that Tabs initially renders the first tab's child component and
     switches to the selected tab's child component on user_input.
@@ -1247,6 +1252,7 @@
             text: "Second tab content"
 
 - name: modal_open_shows_content
+  features: [F-RND-06, F-RND-12, F-BP-05]
   description: >
     Verifies that Modal initially mounts its trigger child and mounts its
     content child once the trigger is activated via user_gesture.
@@ -1310,6 +1316,7 @@
             text: "Modal dialog content"
 
 - name: divider_and_slider_datetime_render
+  features: [F-RND-12, F-RND-14, F-BP-05]
   description: >
     Verifies that Divider renders its axis property alongside bound Slider
     and DateTimeInput components.
@@ -1366,6 +1373,7 @@
             value: "2025-06-15"
 
 - name: agent_function_action_failure_reports_expression_error
+  features: [F-RND-11, F-BP-06]
   description: Verifies that when an agent function called by a button action returns an error response, the pipeline halts, subsequent local data model mutations do not execute, the surface reports EXPRESSION_ERROR, an error outbound envelope is emitted, and the view tree remains mounted.
   protocolVersion: "1.0"
   catalogs:

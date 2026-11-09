@@ -67,7 +67,7 @@
 # --- Which catalogs become active ---
 
 - name: test_named_catalog_becomes_active
-  features: [F-AGT-17, F-AGT-30]
+  features: [F-AGT-17]
   description: The renderer names one of the two registered catalogs and only that one is active.
   action: resolve_catalogs
   args:
@@ -487,7 +487,7 @@
 # --- Malformed capabilities ---
 
 - name: test_capabilities_without_the_catalogs_version_are_invalid
-  features: [F-AGT-17, F-AGT-18]
+  features: [F-AGT-17]
   description: A capabilities object with no entry for the catalogs' protocol version is malformed rather than a statement of no preference.
   action: resolve_catalogs
   args:

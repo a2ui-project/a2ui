@@ -597,6 +597,8 @@
     - python-agent
     - ts-agent
     - dart-agent
+  uncovered: Covered by per-language read_renderer_capabilities unit tests pending
+    shared conformance action.
 - id: F-AGT-19
   title: DirectJsonFormat prompt generation, JSON fence stripping, and response parsing
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#usage-pattern-the-prompt-generate-validate-loop
@@ -616,7 +618,7 @@
     - dart-agent
 - id: F-AGT-21
   title: ExpressFormat prompt generation, compiler, and decompiler
-  specAnchor: specification/proposals/atom/a2ui_atom.md#a2ui-atom-technical-specification
+  specAnchor: specification/proposals/express/a2ui_express.md#a2ui-express-technical-specification
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#b-express-format-a2uiinference_formatsexpress
   claimedBy:
     - python-agent
@@ -624,7 +626,7 @@
     - dart-agent
 - id: F-AGT-22
   title: ExpressResponseStream incremental streaming compilation and delta emission
-  specAnchor: specification/proposals/atom/a2ui_atom.md#compilation-example
+  specAnchor: specification/proposals/express/a2ui_express.md#compilation-example
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#incremental-streaming-expressresponsestream
   claimedBy:
     - python-agent
@@ -632,7 +634,7 @@
     - dart-agent
 - id: F-AGT-23
   title: Express data model compilation and decompilation
-  specAnchor: specification/proposals/atom/a2ui_atom.md#data-model-population
+  specAnchor: specification/proposals/express/a2ui_express.md#data-model-population
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#data-model-compilation-and-decompilation
   claimedBy:
     - python-agent
@@ -640,7 +642,7 @@
     - dart-agent
 - id: F-AGT-24
   title: Express ANTLR4 grammar and parser parity across SDKs
-  specAnchor: specification/proposals/atom/a2ui_atom.md#syntax-and-grammar
+  specAnchor: specification/proposals/express/a2ui_express.md#syntax-and-grammar
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#grammar-and-parser-generation
   claimedBy:
     - python-agent
@@ -674,26 +676,12 @@
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#1-unified-architecture-overview
   claimedBy:
     - python-a2a
-    - ts-agent
-    - dart-agent
-  knownGaps:
-    ts-agent: The A2A extension conformance suite runs against the Python a2ui_a2a
-      package.
-    dart-agent: The A2A extension conformance suite runs against the Python a2ui_a2a
-      package.
 - id: F-AGT-28
   title: A2A DataPart serialization and deserialization with mimeType application/json+a2ui
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#data-encoding
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#1-unified-architecture-overview
   claimedBy:
     - python-a2a
-    - ts-agent
-    - dart-agent
-  knownGaps:
-    ts-agent: The A2A extension conformance suite runs against the Python a2ui_a2a
-      package.
-    dart-agent: The A2A extension conformance suite runs against the Python a2ui_a2a
-      package.
 - id: F-AGT-29
   title: A2A part serialization and deserialization (a2ui_part_serde)
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#data-encoding
@@ -705,7 +693,8 @@
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#a2uirenderercapabilities
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#read_renderer_capabilities
   claimedBy:
-    - python-agent
+    - python-a2a
+  uncovered: Covered by Python A2A unit tests in python/a2ui_a2a/tests/.
 - id: F-AGT-31
   title: A2A extension activation header negotiation (try_activate_a2ui_extension)
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#a2a-extension-activation
@@ -732,8 +721,9 @@
   claimedBy:
     - python-adk
 - id: F-AGT-35
-  title: ADK A2uiPartConverter factories (create_from_prompt_parser and create_from_stream_parser)
-  specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#agent-to-renderer-messages
+  title: ADK A2uiSubagentMap surface ownership tracking, collision rejection, and
+    data-model stripping
+  specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#a2uirendererdatamodel
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#5-agent-workflow-execution-walkthroughs
   claimedBy:
     - python-adk
@@ -825,7 +815,7 @@
 - id: F-AGT-46
   title: Express streaming compilation resilience when an earlier surface statement
     fails
-  specAnchor: specification/proposals/atom/a2ui_atom.md#messages-and-surfaces
+  specAnchor: specification/proposals/express/a2ui_express.md#error-recovery-and-micro-refinement-loops
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#incremental-streaming-expressresponsestream
   claimedBy:
     - python-agent
@@ -833,7 +823,7 @@
     - dart-agent
 - id: F-AGT-47
   title: Express decompile and recompile round-trip equivalence
-  specAnchor: specification/proposals/atom/a2ui_atom.md#compilation-example
+  specAnchor: specification/proposals/express/a2ui_express.md#compilation-example
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#format-round-trip-and-specification-example-testing
   claimedBy:
     - python-agent
@@ -841,7 +831,7 @@
     - dart-agent
 - id: F-AGT-48
   title: Prompt token overhead and scaling budgets across inference formats
-  specAnchor: specification/proposals/atom/a2ui_atom.md#core-design-goals
+  specAnchor: specification/proposals/express/a2ui_express.md#core-design-goals
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#6-conformance-test-plan
   claimedBy:
     - python-agent
@@ -880,7 +870,7 @@
 - id: F-AGT-52
   title: Express component declaration field ordering (positional vs named properties,
     checks, and bindings)
-  specAnchor: specification/proposals/atom/a2ui_atom.md#expressions-and-component-declarations
+  specAnchor: specification/proposals/express/a2ui_express.md#argument-passing-positional-and-keyword
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#b-express-format-a2uiinference_formatsexpress
   claimedBy:
     - python-agent
@@ -888,7 +878,7 @@
     - dart-agent
 - id: F-AGT-53
   title: Express function call compilation for local and agent-side functions
-  specAnchor: specification/proposals/atom/a2ui_atom.md#validation-and-logic-expressions
+  specAnchor: specification/proposals/express/a2ui_express.md#nested-function-calls-and-actions
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#b-express-format-a2uiinference_formatsexpress
   claimedBy:
     - python-agent
@@ -972,12 +962,12 @@
     - ts-agent
     - dart-agent
 - id: F-AGT-62
-  title: ADK A2uiInboundPartConverter inbound DataPart routing for actions, errors,
-    and RPC
+  title: ADK a2ui_rpc_callback and a2ui_rpc_interceptor inbound DataPart routing for
+    RPC, actions, and errors
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#renderer-to-agent-events
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#5-agent-workflow-execution-walkthroughs
   claimedBy:
-    - python-agent
+    - python-adk
   uncovered: Covered by Python ADK unit tests in python/a2ui_adk/tests/ and live E2E
     agent servers.
 - id: F-AGT-63
@@ -989,6 +979,13 @@
     - python-agent
     - ts-agent
     - dart-agent
+- id: F-AGT-64
+  title: ADK A2uiPartConverter processor-aware GenAI-to-A2A part conversion and validation
+  specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#agent-to-renderer-messages
+  blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#5-agent-workflow-execution-walkthroughs
+  claimedBy:
+    - python-adk
+  uncovered: Covered by Python ADK unit and integration tests in python/a2ui_adk/tests/.
 - id: F-RND-01
   title: Surface lifecycle rendering (createSurface, incremental updateComponents,
     deleteSurface)
@@ -1085,6 +1082,13 @@
     - angular-renderer
     - flutter-renderer
     - swiftui-renderer
+  knownGaps:
+    lit-renderer: Skips validation_results_error_disables_warning_allows pending warning/info
+      hints rendering.
+    react-renderer: Skips validation_results_error_disables_warning_allows pending
+      warning/info hints rendering.
+    angular-renderer: Skips validation_results_error_disables_warning_allows pending
+      warning/info hints rendering.
 - id: F-RND-10
   title: Asynchronous function binding pending state and settled value re-render
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#2-asynchronous-evaluation-pending-states
@@ -1095,6 +1099,9 @@
     - angular-renderer
     - flutter-renderer
     - swiftui-renderer
+  uncovered: Pending async binding rendering is covered by core rpc_functions.yaml
+    and per-renderer unit tests; no adapter YAML case suspends an async property binding
+    yet.
 - id: F-RND-11
   title: Function failure recovery in property bindings, CheckRules, and action pre-flight
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#3-failure-propagation-recovery-rules
@@ -1159,7 +1166,13 @@
     - flutter-renderer
     - swiftui-renderer
     - markdown-it-renderer
-  uncovered: Covered by per-renderer Markdown and Text component unit tests.
+  knownGaps:
+    lit-renderer: adapter/markdown_subset.yaml runs against standalone markdown-it;
+      Text component Markdown rendering is covered by renderer unit tests.
+    react-renderer: adapter/markdown_subset.yaml runs against standalone markdown-it;
+      Text component Markdown rendering is covered by renderer unit tests.
+    angular-renderer: adapter/markdown_subset.yaml runs against standalone markdown-it;
+      Text component Markdown rendering is covered by renderer unit tests.
 - id: F-RND-17
   title: Placeholder node rendering for unresolved or unknown component IDs without
     crashing

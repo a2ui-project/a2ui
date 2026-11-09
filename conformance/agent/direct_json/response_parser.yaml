@@ -471,6 +471,7 @@
     - text: "No interface this turn, just an answer."
 
 - name: test_parse_response_express_tags_remain_plain_text
+  features: [F-AGT-44]
   description: Express <a2ui> tags inside a Direct JSON session are not recognized as payload sentinels and remain conversational text.
   action: parse_response
   args:

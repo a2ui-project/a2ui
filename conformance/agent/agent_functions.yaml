@@ -1263,7 +1263,7 @@
 # --- Validating model output that calls agent functions ---
 
 - name: test_validate_payload_with_a_call_to_a_declared_agent_function
-  features: [F-AGT-41, F-AGT-63]
+  features: [F-AGT-11, F-AGT-41, F-AGT-63]
   description: >-
     Model output that calls an agent function the catalog declares validates like a call to any other declared function.
   action: validate_payload
@@ -1294,7 +1294,7 @@
   expect_valid: true
 
 - name: test_validate_payload_with_a_call_to_an_undeclared_function
-  features: [F-AGT-63]
+  features: [F-AGT-11, F-AGT-63]
   description: >-
     Declaring agent functions does not open the catalog: a call to a function that is neither declared nor an agent function is still rejected.
   action: validate_payload
@@ -1327,7 +1327,7 @@
     message: fetchFarewell
 
 - name: test_validate_payload_with_invalid_arguments_to_an_agent_function
-  features: [F-AGT-63]
+  features: [F-AGT-11, F-AGT-63]
   description: Model output that calls an agent function with arguments its schema rejects is invalid.
   action: validate_payload
   args:

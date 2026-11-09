@@ -343,7 +343,7 @@
 # --- Errors ---
 
 - name: test_express_no_active_catalogs_is_an_error
-  features: [F-AGT-11, F-AGT-41]
+  features: [F-AGT-04]
   description: Generating a snippet with no active catalogs fails, because there is no component the model could be told to write.
   action: generate_prompt_snippet
   args:

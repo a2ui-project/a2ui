@@ -48,7 +48,7 @@ HARNESS_ALIASES: dict[str, frozenset[str]] = {
     "web_core": frozenset({"ts-web-core", "web_core"}),
     "dart-core": frozenset({"dart-core"}),
     "swift-core": frozenset({"swift-core"}),
-    "python-agent": frozenset({"python-agent", "python-a2a", "python-adk"}),
+    "python-agent": frozenset({"python-agent"}),
     "python-a2a": frozenset({"python-a2a"}),
     "python-adk": frozenset({"python-adk"}),
     "ts-agent": frozenset({"ts-agent"}),
@@ -282,6 +282,30 @@ def resolve_anchor(repo_root: Path | str, anchor: str) -> bool:
     return fragment.lower() in slugs
 
 
+def _find_duplicate_ids(raw_data: list[Any], registry_path: Path) -> list[Finding]:
+    """Finds duplicate non-empty feature IDs in `raw_data`."""
+    findings: list[Finding] = []
+    seen_ids: set[str] = set()
+    for item in raw_data:
+        if not isinstance(item, dict):
+            continue
+        fid = item.get("id")
+        if not fid:
+            continue
+        fid_str = str(fid)
+        if fid_str in seen_ids:
+            findings.append(
+                Finding(
+                    kind="schema_error",
+                    feature_id=fid_str,
+                    message=f"Duplicate feature id '{fid_str}' in registry.",
+                    location=str(registry_path),
+                )
+            )
+        seen_ids.add(fid_str)
+    return findings
+
+
 def _validate_registry_schema(registry_path: Path, schema_path: Path) -> list[Finding]:
     """Validates `registry_path` against `features.schema.json`."""
     try:
@@ -308,24 +332,7 @@ def _validate_registry_schema(registry_path: Path, schema_path: Path) -> list[Fi
             )
         )
     if isinstance(raw_data, list):
-        seen_ids: set[str] = set()
-        for item in raw_data:
-            if not isinstance(item, dict):
-                continue
-            fid = item.get("id")
-            if not fid:
-                continue
-            fid_str = str(fid)
-            if fid_str in seen_ids:
-                findings.append(
-                    Finding(
-                        kind="schema_error",
-                        feature_id=fid_str,
-                        message=f"Duplicate feature id '{fid_str}' in registry.",
-                        location=str(registry_path),
-                    )
-                )
-            seen_ids.add(fid_str)
+        findings.extend(_find_duplicate_ids(raw_data, registry_path))
     return findings
 
 
@@ -353,6 +360,55 @@ def _check_feature_anchors(
                     location=str(reg_path),
                 )
             )
+    return findings
+
+
+def _check_feature_coverage_consistency(
+    features: list[Feature],
+    collected_tags: dict[str, set[CaseRef]],
+    reg_path: Path,
+) -> list[Finding]:
+    """Checks uncovered vs. tagged-case consistency and knownGaps membership."""
+    findings: list[Finding] = []
+    for feature in features:
+        tagged_refs = collected_tags.get(feature.id, set())
+        if not feature.uncovered and not tagged_refs:
+            findings.append(
+                Finding(
+                    kind="untagged_feature",
+                    feature_id=feature.id,
+                    message=(
+                        f"Feature '{feature.id}' ({feature.title}) has no "
+                        "uncovered reason and zero tagged conformance cases."
+                    ),
+                    location=str(reg_path),
+                )
+            )
+        elif feature.uncovered and tagged_refs:
+            findings.append(
+                Finding(
+                    kind="stale_uncovered",
+                    feature_id=feature.id,
+                    message=(
+                        f"Feature '{feature.id}' sets uncovered while "
+                        f"{len(tagged_refs)} conformance case(s) reference it."
+                    ),
+                    location=str(reg_path),
+                )
+            )
+        for gap_harness, _ in feature.known_gaps:
+            if gap_harness not in feature.claimed_by:
+                findings.append(
+                    Finding(
+                        kind="invalid_known_gap",
+                        feature_id=feature.id,
+                        message=(
+                            f"Feature '{feature.id}' declares knownGaps for "
+                            f"'{gap_harness}', which is not in claimedBy."
+                        ),
+                        location=str(reg_path),
+                    )
+                )
     return findings
 
 
@@ -397,67 +453,59 @@ def check_static(
                 )
             )
 
-    for feature in features:
-        if not feature.uncovered and not collected_tags.get(feature.id):
-            findings.append(
-                Finding(
-                    kind="untagged_feature",
-                    feature_id=feature.id,
-                    message=(
-                        f"Feature '{feature.id}' ({feature.title}) has no "
-                        "uncovered reason and zero tagged conformance cases."
-                    ),
-                    location=str(reg_path),
-                )
-            )
+    findings.extend(
+        _check_feature_coverage_consistency(features, collected_tags, reg_path)
+    )
     return findings
+
+
+def _parse_executed_line(
+    raw_line: str, harness_aliases: frozenset[str]
+) -> CaseRef | None:
+    """Parses one manifest JSONL line into a passed `CaseRef` if it matches `harness_aliases`."""
+    line = raw_line.strip()
+    if not line:
+        return None
+    try:
+        record = json.loads(line)
+    except ValueError:
+        return None
+    if (
+        not isinstance(record, dict)
+        or record.get("status") != "passed"
+        or str(record.get("harness", "")) not in harness_aliases
+    ):
+        return None
+    suite = str(record.get("suite", "")).strip()
+    case_id = str(record.get("case", "")).strip()
+    if not suite or not case_id:
+        return None
+    return CaseRef(suite=suite, case_id=case_id)
 
 
 def _load_executed_cases(
     manifest_dir: Path, harness_aliases: frozenset[str]
-) -> tuple[set[CaseRef], set[str]]:
-    """Loads executed `(suite, case_id)` pairs and bare case IDs for `harness_aliases`."""
+) -> set[CaseRef]:
+    """Loads executed `(suite, case_id)` pairs for `harness_aliases`."""
     executed_refs: set[CaseRef] = set()
-    executed_ids: set[str] = set()
     if not manifest_dir.is_dir():
-        return executed_refs, executed_ids
+        return executed_refs
     for jsonl_path in sorted(manifest_dir.rglob("*.jsonl")):
         for raw_line in jsonl_path.read_text(
             encoding="utf-8", errors="replace"
         ).splitlines():
-            line = raw_line.strip()
-            if not line:
-                continue
-            try:
-                record = json.loads(line)
-            except ValueError:
-                continue
-            if (
-                not isinstance(record, dict)
-                or record.get("status") not in ("passed", "executed")
-                or str(record.get("harness", "")) not in harness_aliases
-            ):
-                continue
-            suite = str(record.get("suite", "")).strip()
-            case_id = str(record.get("case") or record.get("id") or "").strip()
-            if suite and case_id:
-                executed_refs.add(CaseRef(suite=suite, case_id=case_id))
-                executed_ids.add(case_id)
-    return executed_refs, executed_ids
+            ref = _parse_executed_line(raw_line, harness_aliases)
+            if ref is not None:
+                executed_refs.add(ref)
+    return executed_refs
 
 
 def _case_was_executed(
     tagged_refs: set[CaseRef],
     executed_refs: set[CaseRef],
-    executed_ids: set[str],
 ) -> bool:
-    """Checks whether any tagged case was recorded as executed by the harness."""
-    if tagged_refs & executed_refs:
-        return True
-    for ref in tagged_refs:
-        if ref.case_id in executed_ids:
-            return True
-    return False
+    """Checks whether any tagged `(suite, case_id)` case was executed."""
+    return bool(tagged_refs & executed_refs)
 
 
 def check_harness(
@@ -482,7 +530,7 @@ def check_harness(
     aliases = HARNESS_ALIASES.get(harness, frozenset({harness}))
     features = load_registry(registry_path)
     collected_tags = collect_tags(corpus_dir)
-    executed_refs, executed_ids = _load_executed_cases(manifest_path, aliases)
+    executed_refs = _load_executed_cases(manifest_path, aliases)
 
     findings: list[Finding] = []
     for feature in features:
@@ -493,7 +541,7 @@ def check_harness(
         if any(gap_h in aliases for gap_h, _ in feature.known_gaps):
             continue
         tagged_refs = collected_tags.get(feature.id, set())
-        if not _case_was_executed(tagged_refs, executed_refs, executed_ids):
+        if not _case_was_executed(tagged_refs, executed_refs):
             findings.append(
                 Finding(
                     kind="unexecuted_feature",

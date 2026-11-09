@@ -73,7 +73,7 @@ def test_real_registry_validates_against_schema_and_resolves_anchors() -> None:
     jsonschema.Draft202012Validator(schema).validate(raw_features)
 
     features = cfc.load_registry(FEATURES_YAML_PATH)
-    assert len(features) == 145
+    assert len(features) == 146
 
     for feature in features:
         assert cfc.resolve_anchor(
@@ -194,16 +194,14 @@ def test_unexecuted_claimed_feature_in_harness_manifest(tmp_path: Path) -> None:
     manifest_dir.mkdir(parents=True, exist_ok=True)
     records = [
         {
-            "corpus": "core",
             "suite": "core/sample_suite.yaml",
-            "id": "case_exec",
+            "case": "case_exec",
             "harness": "python-core",
-            "status": "executed",
+            "status": "passed",
         },
         {
-            "corpus": "core",
             "suite": "core/sample_suite.yaml",
-            "id": "case_skip",
+            "case": "case_skip",
             "harness": "python-core",
             "status": "skipped",
             "reason": "Not yet wired",
@@ -327,11 +325,10 @@ def test_load_executed_cases_ignores_malformed_and_non_dict_jsonl_lines(
     manifest_dir = tmp_path / "manifests"
     manifest_dir.mkdir(parents=True, exist_ok=True)
     valid_record = json.dumps({
-        "corpus": "core",
         "suite": "core/sample_suite.yaml",
-        "id": "case_exec",
+        "case": "case_exec",
         "harness": "python-core",
-        "status": "executed",
+        "status": "passed",
     }).encode("utf-8")
     raw_payload = (
         b'{malformed json\n["not", "a", "dict"]\n123\n"string_line"\n\xff\xfe\n'
@@ -394,3 +391,125 @@ def test_check_harness_reports_missing_manifest_dir(tmp_path: Path) -> None:
     )
     assert len(file_findings) == 1
     assert file_findings[0].kind == "manifest_error"
+
+
+def test_same_case_name_in_other_suite_does_not_satisfy_coverage(
+    tmp_path: Path,
+) -> None:
+    """Requires suite-qualified CaseRef match rather than bare case name."""
+    _, registry_path, corpus_dir = _write_temp_corpus(
+        tmp_path,
+        features=[{
+            "id": "F-RND-01",
+            "title": "Delete surface",
+            "specAnchor": "specification/spec.md#spec-heading",
+            "blueprintAnchor": "blueprints/bp.md#blueprint-heading",
+            "claimedBy": ["lit-renderer"],
+        }],
+        cases=[{"name": "delete_surface_unmounts_view", "features": ["F-RND-01"]}],
+    )
+    adapter_dir = corpus_dir / "adapter"
+    adapter_dir.mkdir(parents=True, exist_ok=True)
+    (adapter_dir / "other_suite.yaml").write_text(
+        yaml.safe_dump([{"name": "delete_surface_unmounts_view"}], sort_keys=False),
+        encoding="utf-8",
+    )
+    manifest_dir = tmp_path / "manifests"
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+    records = [
+        {
+            "suite": "core/sample_suite.yaml",
+            "case": "delete_surface_unmounts_view",
+            "harness": "lit",
+            "status": "skipped",
+            "reason": "Skipped in core suite",
+        },
+        {
+            "suite": "adapter/other_suite.yaml",
+            "case": "delete_surface_unmounts_view",
+            "harness": "lit",
+            "status": "passed",
+        },
+    ]
+    (manifest_dir / "lit.jsonl").write_text(
+        "\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8"
+    )
+    findings = cfc.check_harness(
+        manifest_dir=manifest_dir,
+        harness="lit",
+        registry_path=registry_path,
+        corpus_dir=corpus_dir,
+    )
+    assert len(findings) == 1
+    assert findings[0].kind == "unexecuted_feature"
+    assert findings[0].feature_id == "F-RND-01"
+
+
+def test_stale_uncovered_and_invalid_known_gap_findings(tmp_path: Path) -> None:
+    """Detects features that set both `uncovered` and tags, or `knownGaps` outside `claimedBy`."""
+    repo_root, registry_path, corpus_dir = _write_temp_corpus(
+        tmp_path,
+        features=[
+            {
+                "id": "F-CORE-01",
+                "title": "Stale uncovered",
+                "specAnchor": "specification/spec.md#spec-heading",
+                "blueprintAnchor": "blueprints/bp.md#blueprint-heading",
+                "claimedBy": ["python-core"],
+                "uncovered": "Stale reason.",
+            },
+            {
+                "id": "F-CORE-02",
+                "title": "Unclaimed gap",
+                "specAnchor": "specification/spec.md#spec-heading",
+                "blueprintAnchor": "blueprints/bp.md#blueprint-heading",
+                "claimedBy": ["python-core"],
+                "knownGaps": {"dart-core": "Not claimed by dart-core."},
+            },
+        ],
+        cases=[
+            {"id": "case_1", "features": ["F-CORE-01", "F-CORE-02"]},
+        ],
+    )
+    findings = cfc.check_static(repo_root, registry_path, corpus_dir)
+    stale = [f for f in findings if f.kind == "stale_uncovered"]
+    invalid_gap = [f for f in findings if f.kind == "invalid_known_gap"]
+    assert len(stale) == 1
+    assert stale[0].feature_id == "F-CORE-01"
+    assert len(invalid_gap) == 1
+    assert invalid_gap[0].feature_id == "F-CORE-02"
+
+
+def test_python_agent_aliases_do_not_cross_credit_extensions(tmp_path: Path) -> None:
+    """Ensures `python-agent` does not inherit execution records from `python-a2a` or `python-adk`."""
+    _, registry_path, corpus_dir = _write_temp_corpus(
+        tmp_path,
+        features=[{
+            "id": "F-AGT-01",
+            "title": "Agent feature",
+            "specAnchor": "specification/spec.md#spec-heading",
+            "blueprintAnchor": "blueprints/bp.md#blueprint-heading",
+            "claimedBy": ["python-agent"],
+        }],
+        cases=[{"id": "case_agent", "features": ["F-AGT-01"]}],
+    )
+    manifest_dir = tmp_path / "manifests"
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+    record = {
+        "suite": "core/sample_suite.yaml",
+        "case": "case_agent",
+        "harness": "python-a2a",
+        "status": "passed",
+    }
+    (manifest_dir / "python-a2a.jsonl").write_text(
+        json.dumps(record) + "\n", encoding="utf-8"
+    )
+    findings = cfc.check_harness(
+        manifest_dir=manifest_dir,
+        harness="python-agent",
+        registry_path=registry_path,
+        corpus_dir=corpus_dir,
+    )
+    assert len(findings) == 1
+    assert findings[0].kind == "unexecuted_feature"
+    assert findings[0].feature_id == "F-AGT-01"

@@ -112,7 +112,6 @@
     - a2ui_raw: 'root = Text("Hello")'
 
 - name: test_unwrap_express_response_without_tags_is_one_text_part
-  features: [F-AGT-44]
   description: An Express response with no tags is conversational text, as it is for direct JSON.
   action: unwrap
   args:
