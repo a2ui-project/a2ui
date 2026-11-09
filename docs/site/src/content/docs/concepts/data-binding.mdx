@@ -430,4 +430,16 @@ let email = surface?.dataModel.get("/reservation/guestEmail")
 ```
 
   </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+import androidx.a2ui.engine.model.A2uiCoreSurfaceModel
+import androidx.a2ui.model.protocol.A2uiDataPath
+
+val surface =
+    processor.activeSurfaces.value.firstOrNull { it.id == "booking" } as? A2uiCoreSurfaceModel
+val email = surface?.dataModel?.get(A2uiDataPath("/reservation/guestEmail"))
+```
+
+  </TabItem>
 </Tabs>
