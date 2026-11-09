@@ -69,6 +69,21 @@ export default [
       'preserve-caught-error': 'off',
     },
   },
+  // Disallow wildcard barrel exports outside deprecated v0_8
+  {
+    files: ['**/*.{ts,tsx,mts,cts}'],
+    ignores: ['**/v0_8/**', '**/0.8/**'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'ExportAllDeclaration[exported=null]',
+          message:
+            'Avoid wildcard barrel exports (`export *`). Use explicit named exports (`export { ... }`) or namespace exports (`export * as ...`).',
+        },
+      ],
+    },
+  },
   {
     ignores: [
       'dist/**',
