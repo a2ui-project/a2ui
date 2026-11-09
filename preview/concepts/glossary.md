@@ -263,7 +263,7 @@ A UI-framework-specific client library (also called a Renderer SDK), built on to
 
 Framework adapters include a built-in implementation of the [Basic catalog](#basic-catalog), map A2UI `AccessibilityAttributes` (`label`, `description`, `live`, `hidden`) to platform accessibility APIs, and let teams register custom [catalog](#catalog) component views and local [functions](#function) while the adapter handles reactive state updates.
 
-See [Renderer SDK](/concepts/sdks/#renderer-sdk) for official package names and [How to Integrate with My Client](../../guides/client-integration/).
+See [Renderer SDK](/concepts/sdks/#renderer-sdk) for official package names and [How to Integrate A2UI into a Client](../../guides/client-integration/).
 
 ### Function
 
@@ -314,7 +314,7 @@ Common application layouts for presenting agent-generated [surfaces](#surface) (
 3. Dashboard: Generated surfaces are arranged by topic or role rather than time and remain pinned in fixed regions of the screen.
 4. Wizard: Generated surfaces appear step by step to gather structured input for a multi-stage task.
 
-See [Overview: How A2UI Works](../overview/) and [How to Integrate with My Client](../../guides/client-integration/).
+See [Overview: How A2UI Works](../overview/) and [How to Integrate A2UI into a Client](../../guides/client-integration/).
 
 ## I
 
@@ -358,7 +358,7 @@ The stateful controller class in each language's [Core SDK](#core-sdk) that proc
 
 `MessageProcessor` validates incoming payloads against registered [catalogs](#catalog), mutates reactive surface and [data model](#data-model) state containers (`SurfaceGroupModel`, `SurfaceModel` or `SurfaceViewModel` in Swift, `ComponentModel`, and `DataModel`), resolves JSON Pointers and [`@call`](#call) expressions, enforces function caller and user-activation rules, emits outbound [`renderer_to_agent`](#renderer_to_agent) messages (`action`, `callAgentFunction`, `rendererFunctionResponse`, and `error`), and builds renderer [capabilities](#capabilities) and `a2uiRendererDataModel` metadata snapshots.
 
-See [Core SDK](/concepts/sdks/#core-sdk) and [How to Integrate with My Client](../../guides/client-integration/).
+See [Core SDK](/concepts/sdks/#core-sdk) and [How to Integrate A2UI into a Client](../../guides/client-integration/).
 
 ## N
 
@@ -386,7 +386,7 @@ See [Data binding](#data-binding), [Data Model and Data Binding](../data-binding
 
 The client-side runtime inside a host application that advertises supported [catalogs](#catalog) via [capabilities](#capabilities), applies [`agent_to_renderer`](#agent_to_renderer) messages through [`MessageProcessor`](#messageprocessor), renders [surfaces](#surface) as native widgets via a [framework adapter](#framework-adapter), maintains per-surface [data models](#data-model), runs local [functions](#function), and sends [`renderer_to_agent`](#renderer_to_agent) messages back to the [agent](#agent).
 
-See [Renderer SDK](/concepts/sdks/#renderer-sdk) and [How to Integrate with My Client](../../guides/client-integration/).
+See [Renderer SDK](/concepts/sdks/#renderer-sdk) and [How to Integrate A2UI into a Client](../../guides/client-integration/).
 
 ### renderer_to_agent
 
