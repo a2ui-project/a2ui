@@ -94,7 +94,6 @@ class _ItemListState extends State<ItemList> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const _Legend(),
           for (final (String title, List<TriageItem> items) in sections) ...[
             _GroupHeader(
               '$title (${items.length})',
@@ -271,45 +270,6 @@ class _ItemTile extends StatelessWidget {
       onTap: () => controller.select(item.number),
     );
   }
-}
-
-/// What the colors of the items mean.
-class _Legend extends StatelessWidget {
-  const _Legend();
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-    child: Wrap(
-      spacing: 16,
-      runSpacing: 4,
-      children: [
-        for (final ItemKind kind in ItemKind.values)
-          if (kindStyle(context, kind) case (
-            final String name,
-            final IconData icon,
-            final Color color,
-          ))
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: kindBackground(color),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  spacing: 4,
-                  children: [
-                    Icon(icon, size: 16, color: color),
-                    Text(name, style: Theme.of(context).textTheme.labelMedium),
-                  ],
-                ),
-              ),
-            ),
-      ],
-    ),
-  );
 }
 
 class _Flag extends StatelessWidget {

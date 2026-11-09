@@ -144,6 +144,7 @@ class SuggestionEditor extends StatelessWidget {
             ),
             ChipListField(
               label: 'Add labels',
+              hint: 'Labels to add',
               chooseTooltip: 'Choose labels to add',
               values: draft.addedLabels,
               options: _prioritiesFirst([
@@ -154,6 +155,7 @@ class SuggestionEditor extends StatelessWidget {
             ),
             ChipListField(
               label: 'Remove labels',
+              hint: 'Labels to remove',
               chooseTooltip: 'Choose labels to remove',
               values: draft.removedLabels,
               options: _prioritiesFirst(item.labels),
@@ -161,6 +163,7 @@ class SuggestionEditor extends StatelessWidget {
             ),
             ChipListField(
               label: 'Assign',
+              hint: 'People to assign',
               chooseTooltip: 'Choose people to assign',
               values: draft.newAssignees,
               options: controller.repositoryInfo.assignableUsers,
@@ -168,6 +171,7 @@ class SuggestionEditor extends StatelessWidget {
             ),
             ChipListField(
               label: 'Unassign',
+              hint: 'People to unassign',
               chooseTooltip: 'Choose people to unassign',
               values: draft.removedAssignees,
               options: item.assignees,

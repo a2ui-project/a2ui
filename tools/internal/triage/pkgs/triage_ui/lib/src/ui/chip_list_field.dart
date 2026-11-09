@@ -26,9 +26,13 @@ class ChipListField extends StatefulWidget {
     required this.label,
     required this.values,
     required this.onChanged,
+    required this.hint,
     required this.chooseTooltip,
     this.options = const [],
   });
+
+  /// The hint in the empty text field, such as "Labels to add".
+  final String hint;
 
   final String label;
   final List<String> values;
@@ -46,9 +50,21 @@ class ChipListField extends StatefulWidget {
   State<ChipListField> createState() => _ChipListFieldState();
 }
 
+/// The dropdown has a search field when it has more choices than this.
+const int _searchThreshold = 7;
+
 class _ChipListFieldState extends State<ChipListField> {
   final TextEditingController _text = TextEditingController();
   final FocusNode _focus = FocusNode();
+
+  /// The text in the dropdown's search field.
+  final TextEditingController _search = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _search.addListener(() => setState(() {}));
+  }
 
   void _add(String value) {
     final String name = value.trim();
@@ -68,6 +84,7 @@ class _ChipListFieldState extends State<ChipListField> {
 
   @override
   void dispose() {
+    _search.dispose();
     _text.dispose();
     _focus.dispose();
     super.dispose();
@@ -81,6 +98,12 @@ class _ChipListFieldState extends State<ChipListField> {
       for (final v in widget.values)
         if (!widget.options.contains(v)) v,
       ...widget.options,
+    ];
+    final bool searchable = choices.length > _searchThreshold;
+    final String query = searchable ? _search.text.trim().toLowerCase() : '';
+    final List<String> shown = [
+      for (final c in choices)
+        if (c.toLowerCase().contains(query)) c,
     ];
     return InputDecorator(
       decoration: InputDecoration(
@@ -119,7 +142,7 @@ class _ChipListFieldState extends State<ChipListField> {
                     controller: controller,
                     focusNode: focusNode,
                     decoration: InputDecoration.collapsed(
-                      hintText: 'Add to ${widget.label.toLowerCase()}',
+                      hintText: widget.hint,
                     ),
                     onSubmitted: (String text) {
                       _add(text);
@@ -153,8 +176,31 @@ class _ChipListFieldState extends State<ChipListField> {
             ),
           ),
           MenuAnchor(
+            onClose: _search.clear,
             menuChildren: [
-              for (final String choice in choices)
+              if (searchable)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+                  child: SizedBox(
+                    width: 280,
+                    child: TextField(
+                      controller: _search,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        hintText: 'Filter',
+                        prefixIcon: Icon(Icons.search, size: 20),
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                ),
+              if (shown.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Text('Nothing matches'),
+                ),
+              for (final String choice in shown)
                 CheckboxMenuButton(
                   value: widget.values.contains(choice),
                   closeOnActivate: false,

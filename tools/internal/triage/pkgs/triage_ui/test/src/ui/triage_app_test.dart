@@ -146,7 +146,7 @@ void main() {
     await tester.tap(find.byTooltip('Remove P1'));
     await tester.pump();
     await tester.enterText(
-      find.widgetWithText(TextField, 'Add to add labels').first,
+      find.widgetWithText(TextField, 'Labels to add').first,
       'P2',
     );
     await tester.testTextInput.receiveAction(TextInputAction.done);
@@ -194,6 +194,41 @@ void main() {
     expect(p2.value, isTrue);
     expect(find.widgetWithText(InputChip, 'P2'), findsOneWidget);
     expect(find.widgetWithText(InputChip, 'P1'), findsNothing);
+  });
+
+  testWidgets('filters a dropdown with more than 7 choices', (tester) async {
+    github.labels.addAll(['area: lit', 'area: angular']);
+    await pumpApp(tester);
+    Finder filter() => find.widgetWithText(TextField, 'Filter');
+
+    // Item 10 has one label, so there is nothing to filter.
+    await tester.tap(find.byTooltip('Choose labels to remove').first);
+    await tester.pumpAndSettle();
+    expect(filter(), findsNothing);
+    await tester.tapAt(Offset.zero);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Choose labels to add').first);
+    await tester.pumpAndSettle();
+    expect(filter(), findsOneWidget);
+    await tester.enterText(filter(), 'AREA');
+    await tester.pumpAndSettle();
+    expect(find.byType(CheckboxMenuButton), findsNWidgets(3));
+
+    await tester.tap(find.widgetWithText(CheckboxMenuButton, 'area: lit'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(InputChip, 'area: lit'), findsOneWidget);
+
+    await tester.enterText(filter(), 'nothing like this');
+    await tester.pumpAndSettle();
+    expect(find.text('Nothing matches'), findsOneWidget);
+
+    // Closing the dropdown clears the filter.
+    await tester.tapAt(Offset.zero);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Choose labels to add').first);
+    await tester.pumpAndSettle();
+    expect(find.byType(CheckboxMenuButton), findsNWidgets(9));
   });
 
   testWidgets('sends an item to the team', (tester) async {
