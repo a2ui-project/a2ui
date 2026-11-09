@@ -75,12 +75,12 @@ _VERSION_FILES: dict[str, _VersionFiles] = {
         to_renderer="agent_to_renderer.json",
         from_renderer="renderer_to_agent.json",
     ),
-    # The v0.9.1 schemas keep `v0_9` in their `$id`s, so the v0.9 schemas must
-    # never be loaded into the same registry.
+    # common_types.json keeps v0.9's `$id`, since v0.9.1 publishes it
+    # unchanged; the other v0.9.1 schemas declare their own.
     V0_9_1: _VersionFiles(
         json_dir=REPO_ROOT / "specification/v0_9_1/json",
         catalog=REPO_ROOT / "specification/v0_9_1/catalogs/basic/catalog.json",
-        base=f"{_SPEC_BASE}/v0_9",
+        base=f"{_SPEC_BASE}/v0_9_1",
         to_renderer="server_to_client.json",
         from_renderer="client_to_server.json",
     ),
@@ -285,17 +285,22 @@ class SchemaSet:
             resources.append(
                 (uri, referencing.jsonschema.DRAFT202012.create_resource(schema))
             )
-        # The message schemas reference the catalog as "catalog.json" relative
-        # to their own `$id`, which differs from the catalog's `$id`. Register
-        # the catalog under the referenced URI, without its `$id`, so its own
-        # relative references (such as "common_types.json") resolve against it.
+        # The schemas reference the catalog as "catalog.json" relative to their
+        # own `$id`, which differs from the catalog's `$id`. Register the
+        # catalog under each URI that resolves to, without its `$id`, so its
+        # own relative references (such as "common_types.json") resolve
+        # against it. In v0.9.1, common_types.json keeps v0.9's `$id`, so it
+        # reaches the catalog under v0.9 while the message schemas reach it
+        # under v0.9.1.
         catalog = copy.deepcopy(_load(files.catalog))
         catalog.pop("$id", None)
         _allow_other_catalogs(catalog, call_key="@call" if version == V1_0 else "call")
         catalog_uri = f"{base}/catalog.json"
-        resources.append(
-            (catalog_uri, referencing.jsonschema.DRAFT202012.create_resource(catalog))
-        )
+        catalog_uris = {uri.rsplit("/", 1)[0] + "/catalog.json" for uri, _ in resources}
+        for uri in sorted(catalog_uris | {catalog_uri}):
+            resources.append(
+                (uri, referencing.jsonschema.DRAFT202012.create_resource(catalog))
+            )
         self.registry: referencing.Registry[Any] = (
             referencing.Registry().with_resources(resources)
         )
