@@ -1,0 +1,245 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "gallery-purchase-complete",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Card": {
+              "child": "main-column"
+            }
+          }
+        },
+        {
+          "id": "main-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": [
+                  "success-icon",
+                  "title",
+                  "product-row",
+                  "divider",
+                  "details-col",
+                  "view-btn"
+                ]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "success-icon",
+          "component": {
+            "Icon": {
+              "name": {
+                "literalString": "check"
+              }
+            }
+          }
+        },
+        {
+          "id": "title",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Purchase Complete"
+              },
+              "usageHint": "h2"
+            }
+          }
+        },
+        {
+          "id": "product-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["product-image", "product-info"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "product-image",
+          "component": {
+            "Image": {
+              "url": {
+                "path": "/productImage"
+              },
+              "fit": "cover"
+            }
+          }
+        },
+        {
+          "id": "product-info",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["product-name", "product-price"]
+              }
+            }
+          }
+        },
+        {
+          "id": "product-name",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/productName"
+              },
+              "usageHint": "h4"
+            }
+          }
+        },
+        {
+          "id": "product-price",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/price"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "divider",
+          "component": {
+            "Divider": {}
+          }
+        },
+        {
+          "id": "details-col",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["delivery-row", "seller-row"]
+              }
+            }
+          }
+        },
+        {
+          "id": "delivery-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["delivery-icon", "delivery-text"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "delivery-icon",
+          "component": {
+            "Icon": {
+              "name": {
+                "literalString": "arrowForward"
+              }
+            }
+          }
+        },
+        {
+          "id": "delivery-text",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/deliveryDate"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "seller-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["seller-label", "seller-name"]
+              }
+            }
+          }
+        },
+        {
+          "id": "seller-label",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Sold by:"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "seller-name",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/seller"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "view-btn-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "View Order Details"
+              }
+            }
+          }
+        },
+        {
+          "id": "view-btn",
+          "component": {
+            "Button": {
+              "child": "view-btn-text",
+              "action": {
+                "name": "view_details",
+                "context": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "gallery-purchase-complete",
+      "contents": [
+        {
+          "key": "productImage",
+          "valueString": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100&h=100&fit=crop"
+        },
+        {
+          "key": "productName",
+          "valueString": "Wireless Headphones Pro"
+        },
+        {
+          "key": "price",
+          "valueString": "$199.99"
+        },
+        {
+          "key": "deliveryDate",
+          "valueString": "Arrives Dec 18 - Dec 20"
+        },
+        {
+          "key": "seller",
+          "valueString": "TechStore Official"
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "gallery-purchase-complete",
+      "root": "root"
+    }
+  }
+]
