@@ -77,7 +77,7 @@ Otherwise the suggestion is outdated. Skip items with a current suggestion. For 
      | sort | uniq -c | sort -rn
    ```
 
-   Skip bots and people who stopped committing a long time ago. Check that the person can be assigned: `gh api repos/a2ui-project/a2ui/assignees/<login> --silent` succeeds only for logins that can be assigned.
+   Skip bots and people who stopped committing a long time ago. Check that the person can be assigned to the item: `gh api repos/a2ui-project/a2ui/issues/<number>/assignees/<login> --silent` succeeds only for logins that can be assigned. It works for PRs too. Besides team members, GitHub accepts out-of-team contributors who opened the item or commented on it.
 
 ## Step 5: Decide
 
