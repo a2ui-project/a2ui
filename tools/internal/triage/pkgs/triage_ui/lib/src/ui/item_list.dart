@@ -212,10 +212,17 @@ class _ItemTile extends StatelessWidget {
       context,
       item.kind,
     );
-    return ListTile(
-      selected: controller.selected?.number == item.number,
+    final selected = controller.selected?.number == item.number;
+    // The selected item has a border. Its colors stay the same, so that the
+    // kind's background still shows; ListTile.selected would change them.
+    final tile = ListTile(
       tileColor: kindBackground(color),
-      selectedTileColor: theme.colorScheme.secondaryContainer,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(6),
+        side: selected
+            ? BorderSide(color: theme.colorScheme.primary, width: 2)
+            : BorderSide.none,
+      ),
       leading: Tooltip(
         message: kind,
         child: Icon(icon, color: color, semanticLabel: kind),
@@ -269,6 +276,7 @@ class _ItemTile extends StatelessWidget {
           : null,
       onTap: () => controller.select(item.number),
     );
+    return Semantics(selected: selected, child: tile);
   }
 }
 

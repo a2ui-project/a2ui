@@ -176,22 +176,25 @@ void main() {
     await tester.pumpAndSettle();
     // The priority labels come first.
     final List<String> choices = [
-      for (final CheckboxMenuButton b in tester.widgetList(
-        find.byType(CheckboxMenuButton),
+      for (final MenuItemButton b in tester.widgetList(
+        find.byType(MenuItemButton),
       ))
         (b.child! as Text).data!,
     ];
     expect(choices.take(4), ['P0', 'P1', 'P2', 'P3']);
-    await tester.tap(find.widgetWithText(CheckboxMenuButton, 'P2'));
+    await tester.tap(find.widgetWithText(MenuItemButton, 'P2'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(CheckboxMenuButton, 'P1'));
+    await tester.tap(find.widgetWithText(MenuItemButton, 'P1'));
     await tester.pumpAndSettle();
 
     // The dropdown stays open, and shows what is checked.
-    final CheckboxMenuButton p2 = tester.widget(
-      find.widgetWithText(CheckboxMenuButton, 'P2'),
+    expect(
+      find.descendant(
+        of: find.widgetWithText(MenuItemButton, 'P2'),
+        matching: find.byIcon(Icons.check_box),
+      ),
+      findsOneWidget,
     );
-    expect(p2.value, isTrue);
     expect(find.widgetWithText(InputChip, 'P2'), findsOneWidget);
     expect(find.widgetWithText(InputChip, 'P1'), findsNothing);
   });
@@ -208,14 +211,33 @@ void main() {
     await tester.tapAt(Offset.zero);
     await tester.pumpAndSettle();
 
+    // Another field has the cursor when the triager opens the dropdown.
+    await tester.tap(find.widgetWithText(TextField, 'Reply').first);
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Choose labels to add').first);
     await tester.pumpAndSettle();
     expect(filter(), findsOneWidget);
+    // The cursor is in the search field, so the triager can type right away.
+    final EditableText search = tester.widget(
+      find.descendant(of: filter(), matching: find.byType(EditableText)),
+    );
+    expect(search.focusNode.hasFocus, isTrue);
+    // It keeps the cursor when the mouse moves over the choices.
+    final TestGesture mouse = await tester.createGesture(
+      kind: PointerDeviceKind.mouse,
+    );
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(
+      tester.getCenter(find.widgetWithText(MenuItemButton, 'P2')),
+    );
+    await tester.pumpAndSettle();
+    expect(search.focusNode.hasFocus, isTrue);
     await tester.enterText(filter(), 'AREA');
     await tester.pumpAndSettle();
-    expect(find.byType(CheckboxMenuButton), findsNWidgets(3));
+    expect(find.byType(MenuItemButton), findsNWidgets(3));
 
-    await tester.tap(find.widgetWithText(CheckboxMenuButton, 'area: lit'));
+    await tester.tap(find.widgetWithText(MenuItemButton, 'area: lit'));
     await tester.pumpAndSettle();
     expect(find.widgetWithText(InputChip, 'area: lit'), findsOneWidget);
 
@@ -228,8 +250,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Choose labels to add').first);
     await tester.pumpAndSettle();
-    expect(find.byType(CheckboxMenuButton), findsNWidgets(9));
-  });
+    expect(find.byType(MenuItemButton), findsNWidgets(9));
+  }, variant: TargetPlatformVariant.desktop());
 
   testWidgets('sends an item to the team', (tester) async {
     await pumpApp(tester);
@@ -277,7 +299,7 @@ void main() {
         matching: find.byType(ListTile),
       ),
     );
-    expect(tile.selected, isTrue);
+    expect((tile.shape! as RoundedRectangleBorder).side.width, 2);
   });
 
   testWidgets('the divider resizes the item list', (tester) async {

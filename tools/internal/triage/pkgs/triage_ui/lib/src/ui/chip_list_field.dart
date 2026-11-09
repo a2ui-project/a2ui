@@ -201,12 +201,14 @@ class _ChipListFieldState extends State<ChipListField> {
                   child: Text('Nothing matches'),
                 ),
               for (final String choice in shown)
-                CheckboxMenuButton(
-                  value: widget.values.contains(choice),
-                  closeOnActivate: false,
-                  onChanged: (bool? checked) =>
-                      _toggle(choice, checked: checked ?? false),
-                  child: Text(choice),
+                _Choice(
+                  choice,
+                  checked: widget.values.contains(choice),
+                  // A choice under the mouse would take the cursor from
+                  // the search field.
+                  requestFocusOnHover: !searchable,
+                  onChanged: (bool checked) =>
+                      _toggle(choice, checked: checked),
                 ),
             ],
             builder: (context, menu, _) => IconButton(
@@ -221,4 +223,35 @@ class _ChipListFieldState extends State<ChipListField> {
       ),
     );
   }
+}
+
+/// A choice in the dropdown, with a checkbox. Unlike [CheckboxMenuButton],
+/// it can keep the mouse from taking the focus.
+class _Choice extends StatelessWidget {
+  const _Choice(
+    this.name, {
+    required this.checked,
+    required this.requestFocusOnHover,
+    required this.onChanged,
+  });
+
+  final String name;
+  final bool checked;
+  final bool requestFocusOnHover;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    checked: checked,
+    child: MenuItemButton(
+      closeOnActivate: false,
+      requestFocusOnHover: requestFocusOnHover,
+      leadingIcon: Icon(
+        checked ? Icons.check_box : Icons.check_box_outline_blank,
+        color: checked ? Theme.of(context).colorScheme.primary : null,
+      ),
+      onPressed: () => onChanged(!checked),
+      child: Text(name),
+    ),
+  );
 }
