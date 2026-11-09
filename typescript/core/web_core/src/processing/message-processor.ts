@@ -749,7 +749,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       this.model.emitError(payload);
     }
     this.errorHandler?.(errorMsg);
-    if (this.unifiedOutbound && errorMsg.version !== 'v0.8') {
+    if (this.unifiedOutbound && compareSemVer(errorMsg.version, '0.8') !== 0) {
       this.invokeOutboundListener(errorMsg);
     }
     return errorMsg;
