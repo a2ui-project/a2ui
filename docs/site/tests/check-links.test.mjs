@@ -22,6 +22,7 @@ import test from 'node:test';
 
 import {checkDistLinks, parseHtmlDocument} from '../scripts/check-links.mjs';
 import {cleanMdxOutsideFences, renderLlmsHeader} from '../scripts/emit-markdown-bundle.mjs';
+import {formatAssetFilename, verifyManifestAndRepoAssets} from '../scripts/upload-doc-asset.mjs';
 import {findRepoRoot, normalizeBasePrefix} from '../src/lib/spec-schemas.mjs';
 import {resolveAstUrl} from '../src/plugins/remark-a2ui-includes.mjs';
 
@@ -371,4 +372,38 @@ export const keepInsideFence = {
   const header = renderLlmsHeader();
   assert.match(header, /^# A2UI\b/);
   assert.doesNotMatch(header, /\{\{[A-Z0-9_]+\}\}/);
+});
+
+test('upload-doc-asset formats content-addressed filenames, verifies live manifest, and rejects binary raster images in src/assets/', t => {
+  const sha = 'a481b6c835808eb61038c48d40d10d12bfacfe9efd36fa1bc56f0ab792a45d83';
+  assert.equal(
+    formatAssetFilename('quickstart/travel-a2ui/chat', sha),
+    'quickstart--travel-a2ui--chat.a481b6c8.webp',
+  );
+
+  // Verify live repository manifest and src/assets/
+  const liveResult = verifyManifestAndRepoAssets();
+  assert.equal(liveResult.ok, true, `Live asset errors: ${liveResult.errors.join('; ')}`);
+  assert.ok(liveResult.checkedAssets >= 5);
+
+  // Rejects raster binary files inside src/assets/
+  const tempDir = createTempDist(t, {
+    'src/assets/logo.svg': '<svg></svg>',
+    'src/assets/quickstart/screenshot.png': 'binary-png',
+    'assets-manifest.json': JSON.stringify({
+      repo: 'a2ui-project/a2ui',
+      releaseTag: 'docs-assets',
+      assets: {},
+    }),
+  });
+  const badResult = verifyManifestAndRepoAssets({
+    manifestPath: path.join(tempDir, 'assets-manifest.json'),
+    srcAssetsDir: path.join(tempDir, 'src/assets'),
+  });
+  assert.equal(badResult.ok, false);
+  assert.equal(badResult.errors.length, 1);
+  assert.match(
+    badResult.errors[0],
+    /Binary media file .*screenshot\.png.* checked into src\/assets\//,
+  );
 });

@@ -4,8 +4,6 @@ description: Run Travel A2UI yourself, with a React web client, a Flutter mobile
 ---
 
 import {Steps} from '@astrojs/starlight/components';
-import {Image} from 'astro:assets';
-import flutterTrip from '../../../assets/quickstart/travel-a2ui/flutter-trip.png';
 
 Run the app first, then read the second half with it open: every idea there is
 something you can see on screen. The app is [samples/travel-a2ui](https://github.com/a2ui-project/labs/tree/main/samples/travel-a2ui)
@@ -60,7 +58,7 @@ You need **Python 3.11+**, plus **Node 20+** for the web app and
 
 ### The web app
 
-![The React client: flight cards in the conversation, the trip so far beside it](../../../assets/quickstart/travel-a2ui/chat.png)
+![The React client: flight cards in the conversation, the trip so far beside it](https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--chat.a481b6c8.webp)
 
 You land on a recorded sample trip, no key needed. To talk to the agent, paste
 a free Gemini key from [AI Studio](https://aistudio.google.com/apikey) when the
@@ -69,9 +67,12 @@ two of us, around $2,500 all in"_.
 
 ### The mobile app
 
-<Image
-  src={flutterTrip}
-  width={224}
+<img
+  src="https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--flutter-trip.8afa2402.webp"
+  width="224"
+  height="485"
+  loading="lazy"
+  decoding="async"
   alt="The Flutter client in a phone layout, with the trip sheet open"
   style="display: block; width: 100%; max-width: 14rem; height: auto; margin-inline: auto;"
 />
@@ -94,7 +95,7 @@ to the client, and what draws it. For all of it in one picture, see
 Not everything on screen is A2UI. Blue is composed by the agent; grey is app
 code, written by you, the builder, and the same on every turn:
 
-![The app with A2UI surfaces outlined in blue (a cost card in the conversation and the trip panel) and app code outlined in grey (the header, the message box and the reply text)](../../../assets/quickstart/travel-a2ui/a2ui-vs-app.png)
+![The app with A2UI surfaces outlined in blue (a cost card in the conversation and the trip panel) and app code outlined in grey (the header, the message box and the reply text)](https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--a2ui-vs-app.6cf941df.webp)
 
 - **A2UI, composed by the agent:** the cards in the conversation, the trip
   panel (the trip sheet in Flutter) and the web client's Home dashboard.
@@ -132,7 +133,7 @@ agent may use, and it holds two kinds of thing:
 
 The web client's **Catalog** tab draws every component with the real renderer:
 
-![The Catalog tab: every component the agent may use, drawn by the real renderer](../../../assets/quickstart/travel-a2ui/catalog.png)
+![The Catalog tab: every component the agent may use, drawn by the real renderer](https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--catalog.f3f5e3ff.webp)
 
 The catalog is also the **guardrail**. The server checks every message the
 model writes against it before sending anything, and each client implements
@@ -216,7 +217,7 @@ catalog functions, and sends presses back as actions. React uses
 The web client's **Wire** tab shows both forms of every surface side by side,
 what the model wrote and what the client received:
 
-![The Wire tab: the Express the model wrote, beside the A2UI JSON the client received](../../../assets/quickstart/travel-a2ui/wire.png)
+![The Wire tab: the Express the model wrote, beside the A2UI JSON the client received](https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--wire.4515c08f.webp)
 
 Express is one way for a model to write A2UI, chosen because it is short. A2UI
 itself is the JSON.

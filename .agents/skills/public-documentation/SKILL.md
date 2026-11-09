@@ -128,6 +128,16 @@ To balance visual quality with ease of maintenance, public documentation uses a 
   - _How_: Author the documentation page as `.mdx` and import reusable visual Astro components (e.g., from `src/components/docs/`).
 - **Use Static Vector Graphics (SVGs) for Fixed Architectural Hero Art**:
   - For complex marketing illustrations or logos, place SVGs under `src/assets/` and import them into the page.
+- **Never Commit Raster Binary Screenshots or Videos to `docs/site/src/assets/` (Use GitHub Release Assets)**:
+  - Do not check `.png`, `.jpg`, `.webp`, `.gif`, or `.mp4` files into `docs/site/src/assets/`.
+  - When a tutorial or quickstart requires raster screenshots, stage the raw images in an untracked folder (such as `temp_docs/assets/`) and upload them to the `docs-assets` GitHub release via `docs/site/scripts/upload-doc-asset.mjs`:
+    ```bash
+    node docs/site/scripts/upload-doc-asset.mjs \
+      --id quickstart/travel-a2ui/chat \
+      --file temp_docs/assets/chat.png
+    ```
+  - The script optimizes images to `.webp` via `sharp`, assigns an immutable content-addressed filename (`<namespace--name>.<sha256_8>.webp`), uploads missing assets to the `docs-assets` release on `a2ui-project/a2ui` without overwriting existing files, and records the canonical URL and dimensions in `docs/site/assets-manifest.json`.
+  - Run `node docs/site/scripts/upload-doc-asset.mjs --verify` (included in `npm --prefix docs/site run check`) to verify the manifest and confirm no binary raster images exist in `docs/site/src/assets/`.
 
 ---
 

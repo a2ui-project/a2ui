@@ -7,11 +7,13 @@
     "predev": "node scripts/prepare-spec-assets.mjs && node scripts/emit-markdown-bundle.mjs",
     "dev": "astro dev",
     "test": "node tests/check-links.test.mjs",
+    "upload:asset": "node scripts/upload-doc-asset.mjs",
+    "verify:assets": "node scripts/upload-doc-asset.mjs --verify",
     "verify:specs": "node scripts/verify-spec-links.mjs",
     "check:links": "node scripts/check-links.mjs",
-    "prebuild": "node scripts/prepare-spec-assets.mjs && node scripts/emit-markdown-bundle.mjs && node scripts/verify-spec-links.mjs",
+    "prebuild": "node scripts/prepare-spec-assets.mjs && node scripts/emit-markdown-bundle.mjs && node scripts/verify-spec-links.mjs && node scripts/upload-doc-asset.mjs --verify",
     "build": "astro build && node scripts/emit-markdown-bundle.mjs --dist && node scripts/verify-spec-links.mjs --check-dist && node scripts/check-links.mjs",
-    "check": "node scripts/prepare-spec-assets.mjs && node scripts/verify-spec-links.mjs",
+    "check": "node scripts/prepare-spec-assets.mjs && node scripts/verify-spec-links.mjs && node scripts/upload-doc-asset.mjs --verify",
     "preview": "astro preview"
   },
   "dependencies": {
