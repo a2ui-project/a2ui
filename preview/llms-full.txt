@@ -13025,9 +13025,10 @@ Our goal is for your agent to know when and how to use each component.
 
 **On the roadmap**
 
-1. Clearer error handling and diagnostics in the skill generator when a catalog or inference format cannot be compiled.
-2. Skill generation in the Dart Agent SDK, which does not support it yet.
-3. Integrations with more agent frameworks.
+1. Official Agent SDK support for decision models, such as [Jev](https://docs.typesafe.ai/) from TypeSafe, as an inference format. A decision model answers typed questions about layouts you define in advance instead of generating the component tree token by token, which makes layout decisions up to 80x faster. [Fast, reliable A2UI](https://developers.googleblog.com/fast-reliable-a2ui/) describes the approach, and [jev2ui](https://github.com/dglazkov/jev2ui) is an open-source example that builds A2UI screens from Jev decisions (try it hosted as [Apparite](https://apparite.cnfg.ai/)).
+2. Clearer error handling and diagnostics in the skill generator when a catalog or inference format cannot be compiled.
+3. Skill generation in the Dart Agent SDK, which does not support it yet.
+4. Integrations with more agent frameworks.
 
 ## Evaluate gen-UI quality
 
