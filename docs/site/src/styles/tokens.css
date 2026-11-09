@@ -224,3 +224,7 @@
   --a2-shadow-md: 0 14px 34px -8px rgba(60, 64, 67, 0.12), 0 2px 6px rgba(60, 64, 67, 0.06);
   --a2-shadow-lg: 0 28px 64px -16px rgba(60, 64, 67, 0.16), 0 1px 3px rgba(60, 64, 67, 0.06);
 }
+
+html {
+  scrollbar-gutter: stable;
+}
