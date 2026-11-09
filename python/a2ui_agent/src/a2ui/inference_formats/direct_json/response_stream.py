@@ -144,10 +144,15 @@ class DirectJsonResponseStream(ResponseStream[PartT], Generic[PartT]):
         self._wrapped = wrapped
         self._state = state
         self._continues = after_rejected_block == "continue"
-        self._v10 = is_at_least_version(
-            parser.catalogs[0].protocol_version, ProtocolVersion.V1_0
+        self._buffers_components = (
+            parser.buffer_incomplete_components
+            or is_at_least_version(
+                parser.catalogs[0].protocol_version, ProtocolVersion.V1_0
+            )
         )
-        self._whole_item_keys = frozenset({"components"}) if self._v10 else frozenset()
+        self._whole_item_keys = (
+            frozenset({"components"}) if self._buffers_components else frozenset()
+        )
         self._closed = False
         # Text outside blocks.
         self._held = ""
@@ -409,7 +414,7 @@ class DirectJsonResponseStream(ResponseStream[PartT], Generic[PartT]):
             try:
                 model = self._check(envelope, closed=closed)
             except A2uiError:
-                if self._v10 and _has_closed_components(envelope):
+                if self._buffers_components and _has_closed_components(envelope):
                     # No later chunk can change it.
                     raise
                 # Not ready. The block raises when it closes if it still is.

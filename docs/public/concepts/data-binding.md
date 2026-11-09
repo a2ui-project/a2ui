@@ -49,49 +49,35 @@ Each surface has a JSON object holding state:
 
 ## Literal vs. Path Values
 
-=== "v0.9"
+**Literal (fixed):**
 
-    **Literal (fixed):**
+```json
+{
+  "id": "title",
+  "component": "Text",
+  "text": "Welcome"
+}
+```
+
+**Data-bound (reactive):**
+
+=== "v1.0"
+
     ```json
     {
-      "id": "title",
+      "id": "username",
       "component": "Text",
-      "text": "Welcome"
+      "text": { "@path": "/user/name" }
     }
     ```
 
-    **Data-bound (reactive):**
+=== "v0.9.1"
+
     ```json
     {
       "id": "username",
       "component": "Text",
       "text": { "path": "/user/name" }
-    }
-    ```
-
-=== "v0.8"
-
-    **Literal (fixed):**
-    ```json
-    {
-      "id": "title",
-      "component": {
-        "Text": {
-          "text": { "literalString": "Welcome" }
-        }
-      }
-    }
-    ```
-
-    **Data-bound (reactive):**
-    ```json
-    {
-      "id": "username",
-      "component": {
-        "Text": {
-          "text": { "path": "/user/name" }
-        }
-      }
     }
     ```
 
@@ -101,26 +87,23 @@ When `/user/name` changes from "Alice" to "Bob", the text **automatically update
 
 Components bound to data paths automatically update when the data changes:
 
-=== "v0.9"
+=== "v1.0"
+
+    ```json
+    {
+      "id": "status",
+      "component": "Text",
+      "text": {"@path": "/order/status"}
+    }
+    ```
+
+=== "v0.9.1"
 
     ```json
     {
       "id": "status",
       "component": "Text",
       "text": {"path": "/order/status"}
-    }
-    ```
-
-=== "v0.8"
-
-    ```json
-    {
-      "id": "status",
-      "component": {
-        "Text": {
-          "text": {"path": "/order/status"}
-        }
-      }
     }
     ```
 
@@ -133,36 +116,16 @@ No component updates needed—just data updates.
 
 Use templates to render arrays:
 
-=== "v0.9"
-
-    ```json
-    {
-      "id": "product-list",
-      "component": "Column",
-      "children": {
-        "path": "/products",
-        "componentId": "product-card"
-      }
-    }
-    ```
-
-=== "v0.8"
-
-    ```json
-    {
-      "id": "product-list",
-      "component": {
-        "Column": {
-          "children": {
-            "template": {
-              "dataBinding": "/products",
-              "componentId": "product-card"
-            }
-          }
-        }
-      }
-    }
-    ```
+```json
+{
+  "id": "product-list",
+  "component": "Column",
+  "children": {
+    "path": "/products",
+    "componentId": "product-card"
+  }
+}
+```
 
 **Data:**
 
@@ -181,7 +144,17 @@ Use templates to render arrays:
 
 Inside a template, paths are scoped to the array item:
 
-=== "v0.9"
+=== "v1.0"
+
+    ```json
+    {
+      "id": "product-name",
+      "component": "Text",
+      "text": {"@path": "name"}
+    }
+    ```
+
+=== "v0.9.1"
 
     ```json
     {
@@ -191,24 +164,8 @@ Inside a template, paths are scoped to the array item:
     }
     ```
 
-    - For `/products/0`, `name` resolves to `/products/0/name` → "Widget"
-    - For `/products/1`, `name` resolves to `/products/1/name` → "Gadget"
-
-=== "v0.8"
-
-    ```json
-    {
-      "id": "product-name",
-      "component": {
-        "Text": {
-          "text": {"path": "/name"}
-        }
-      }
-    }
-    ```
-
-    - For `/products/0`, `/name` resolves to `/products/0/name` → "Widget"
-    - For `/products/1`, `/name` resolves to `/products/1/name` → "Gadget"
+- For `/products/0`, `name` resolves to `/products/0/name` → "Widget"
+- For `/products/1`, `name` resolves to `/products/1/name` → "Gadget"
 
 Adding/removing items automatically updates the rendered components.
 
@@ -216,31 +173,31 @@ Adding/removing items automatically updates the rendered components.
 
 Interactive components update the data model bidirectionally:
 
-=== "v0.9"
+=== "v1.0"
 
-    | Component          | Example                                     | User Action      | Data Update                |
-    | ------------------ | ------------------------------------------- | ---------------- | -------------------------- |
-    | **TextField**      | `{"value": {"path": "/form/name"}}`         | Types "Alice"    | `/form/name` = `"Alice"`   |
-    | **CheckBox**       | `{"value": {"path": "/form/agreed"}}`       | Checks box       | `/form/agreed` = `true`    |
-    | **ChoicePicker**   | `{"value": {"path": "/form/country"}}`      | Selects "Canada" | `/form/country` = `["ca"]` |
+    | Component        | Example                                | User Action      | Data Update                |
+    | ---------------- | -------------------------------------- | ---------------- | -------------------------- |
+    | **TextField**    | `{"value": {"@path": "/form/name"}}`    | Types "Alice"    | `/form/name` = `"Alice"`   |
+    | **CheckBox**     | `{"value": {"@path": "/form/agreed"}}`  | Checks box       | `/form/agreed` = `true`    |
+    | **ChoicePicker** | `{"value": {"@path": "/form/country"}}` | Selects "Canada" | `/form/country` = `["ca"]` |
 
-=== "v0.8"
+=== "v0.9.1"
 
-    | Component          | Example                                     | User Action      | Data Update                |
-    | ------------------ | ------------------------------------------- | ---------------- | -------------------------- |
-    | **TextField**      | `{"text": {"path": "/form/name"}}`          | Types "Alice"    | `/form/name` = `"Alice"`   |
-    | **CheckBox**       | `{"value": {"path": "/form/agreed"}}`       | Checks box       | `/form/agreed` = `true`    |
-    | **MultipleChoice** | `{"selections": {"path": "/form/country"}}` | Selects "Canada" | `/form/country` = `["ca"]` |
+    | Component        | Example                               | User Action      | Data Update                |
+    | ---------------- | ------------------------------------- | ---------------- | -------------------------- |
+    | **TextField**    | `{"value": {"path": "/form/name"}}`    | Types "Alice"    | `/form/name` = `"Alice"`   |
+    | **CheckBox**     | `{"value": {"path": "/form/agreed"}}`  | Checks box       | `/form/agreed` = `true`    |
+    | **ChoicePicker** | `{"value": {"path": "/form/country"}}` | Selects "Canada" | `/form/country` = `["ca"]` |
 
 ## Best Practices
 
 - **Use granular updates**: Update only changed paths.
 
-=== "v0.9"
+=== "v1.0"
 
     ```json
     {
-      "version": "v0.9.1",
+      "version": "1.0",
       "updateDataModel": {
         "surfaceId": "user_profile",
         "path": "/user/name",
@@ -249,13 +206,15 @@ Interactive components update the data model bidirectionally:
     }
     ```
 
-=== "v0.8"
+=== "v0.9.1"
 
     ```json
     {
-      "dataModelUpdate": {
-        "path": "/user",
-        "contents": [{"key": "name", "valueString": "Alice"}]
+      "version": "v0.9.1",
+      "updateDataModel": {
+        "surfaceId": "user_profile",
+        "path": "/user/name",
+        "value": "Alice"
       }
     }
     ```

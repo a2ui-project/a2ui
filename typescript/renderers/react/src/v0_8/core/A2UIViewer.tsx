@@ -16,12 +16,13 @@
 
 'use client';
 
-import React, {useId, useMemo, useEffect, useRef} from 'react';
+import React, {useEffect, useMemo, useRef} from 'react';
 import type * as Types from '@a2ui/web_core/types/types';
-import {A2UIProvider, useA2UIActions} from './A2UIProvider';
-import {A2UIRenderer} from './A2UIRenderer';
+import {useIdCompat} from '../hooks/useIdCompat';
 import {litTheme} from '../theme/litTheme';
 import type {OnActionCallback} from '../types';
+import {A2UIProvider, useA2UIActions} from './A2UIProvider';
+import {A2UIRenderer} from './A2UIRenderer';
 
 /**
  * Component instance format for static A2UI definitions.
@@ -87,7 +88,7 @@ export function A2UIViewer({
   className,
 }: A2UIViewerProps) {
   // Generate a stable surface ID based on the definition
-  const baseId = useId();
+  const baseId = useIdCompat();
   const surfaceId = useMemo(() => {
     const definitionKey = `${root}-${JSON.stringify(components)}`;
     let hash = 0;

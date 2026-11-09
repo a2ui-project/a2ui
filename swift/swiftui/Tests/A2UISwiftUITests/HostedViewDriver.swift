@@ -119,15 +119,27 @@ final class HostedViewDriver {
     }
   #endif
 
+  private struct ResolvedTabEntry {
+    let index: Int
+    let title: String
+    let child: A2UICore.Node?
+  }
+
   let surface: Surface
   private var isTornDown = false
 
   #if canImport(AppKit)
+    private static let enhancedUserInterfaceKey = "accessibilityEnhancedUserInterface"
     private let hostingView: NSHostingView<AnyView>
     private let window: NSWindow
   #elseif canImport(UIKit)
     private let hostingController: UIHostingController<AnyView>
     private let window: UIWindow
+    private var fallbackSelectedTabIndices: [String: Int] = [:]
+    private var fallbackOpenModalIDs: Set<String> = []
+  #else
+    private var fallbackSelectedTabIndices: [String: Int] = [:]
+    private var fallbackOpenModalIDs: Set<String> = []
   #endif
 
   init(surface: Surface) {
@@ -137,25 +149,26 @@ final class HostedViewDriver {
       let frame = NSRect(x: 0, y: 0, width: 800, height: 600)
       let hosting = NSHostingView(rootView: rootView)
       hosting.frame = frame
-      let win = NSWindow(
+      let hostWindow = NSWindow(
         contentRect: frame,
         styleMask: [.borderless],
         backing: .buffered,
         defer: false
       )
-      win.isReleasedWhenClosed = false
-      win.contentView = hosting
+      hostWindow.isReleasedWhenClosed = false
+      hostWindow.contentView = hosting
+      hostWindow.makeKeyAndOrderFront(nil)
       self.hostingView = hosting
-      self.window = win
+      self.window = hostWindow
     #elseif canImport(UIKit)
       let frame = CGRect(x: 0, y: 0, width: 800, height: 600)
       let controller = UIHostingController(rootView: rootView)
-      let win = UIWindow(frame: frame)
-      win.rootViewController = controller
-      win.makeKeyAndVisible()
-      controller.view.frame = win.bounds
+      let hostWindow = UIWindow(frame: frame)
+      hostWindow.rootViewController = controller
+      hostWindow.makeKeyAndVisible()
+      controller.view.frame = hostWindow.bounds
       self.hostingController = controller
-      self.window = win
+      self.window = hostWindow
     #endif
     flush()
   }
@@ -180,6 +193,11 @@ final class HostedViewDriver {
       hostingView.needsLayout = true
       hostingView.layoutSubtreeIfNeeded()
       window.displayIfNeeded()
+      if let sheetView = window.attachedSheet?.contentView {
+        sheetView.needsLayout = true
+        sheetView.layoutSubtreeIfNeeded()
+        window.attachedSheet?.displayIfNeeded()
+      }
       RunLoop.main.run(until: Date())
       hostingView.layoutSubtreeIfNeeded()
     #elseif canImport(UIKit)
@@ -195,6 +213,9 @@ final class HostedViewDriver {
     guard !isTornDown else { return }
     isTornDown = true
     #if canImport(AppKit)
+      if let sheet = window.attachedSheet {
+        window.endSheet(sheet)
+      }
       hostingView.rootView = AnyView(EmptyView())
       window.contentView = nil
       window.orderOut(nil)
@@ -207,33 +228,158 @@ final class HostedViewDriver {
     RunLoop.main.run(until: Date())
   }
 
-  // SwiftUI does not vend its accessibility tree to an `NSHostingView` in a `swift test` process
-  // (no assistive client is attached), so buttons, text, and their accessibility attributes have
-  // no native element to find or press: the hosting view's accessibility children are only focus
-  // rings. Controls that SwiftUI backs with an AppKit or UIKit view, such as text fields, are in
-  // the hierarchy, and text entry goes through them. Presses and accessibility reads go through
-  // the mounted surface's resolved nodes and `A2UIAccessibilityModifier` instead.
-
   /// Simulates a user-initiated press on the hosted component identified by `componentID`.
   ///
-  /// Runs the mounted node's action with user activation, as a press of the rendered control
-  /// would; a disabled button or an invalid component is not pressed.
+  /// On AppKit, activates the rendered SwiftUI control through its accessibility press action so
+  /// hosted `A2UIButton` and `A2UIModal` triggers run their real view actions and sheet bindings;
+  /// falls back to invoking the resolved node's action when the component has no pressable
+  /// accessibility element.
   func press(componentID: String) throws {
     flush()
     guard let targetNode = findNode(componentID: componentID) else {
-      throw AdapterConformanceError("Component '\(componentID)' not found in hosted surface")
+      throw AdapterHarness.ConformanceError(
+        "Component '\(componentID)' not found in hosted surface"
+      )
     }
-    if targetNode.type == "Button" {
-      guard !A2UIButton(node: targetNode).isDisabled else { return }
-    } else if targetNode.type == "CheckBox" {
+    if targetNode.type == "CheckBox" {
       A2UICheckBox(node: targetNode).isOn.wrappedValue.toggle()
       flush()
       return
+    }
+    if targetNode.type == "Button" {
+      guard !A2UIButton(node: targetNode).isDisabled else { return }
     } else {
       guard targetNode.isValid else { return }
     }
-    targetNode.action(for: "action", userActivation: true)?()
+
+    #if canImport(AppKit)
+      let pressTargetNode =
+        targetNode.type == "Modal"
+        ? (targetNode.child(for: "trigger") ?? targetNode)
+        : targetNode
+      let handledByHostedControl = withAccessibilityTree {
+        guard let element = findPressableElement(for: pressTargetNode) else {
+          return false
+        }
+        let handled = element.accessibilityPerformPress?() ?? false
+        if handled {
+          settleHostedHierarchy()
+        }
+        return handled
+      }
+      if !handledByHostedControl {
+        targetNode.action(for: "action", userActivation: true)?()
+        flush()
+      }
+    #else
+      targetNode.action(for: "action", userActivation: true)?()
+      if let rootNode = surface.viewModel.rootNode {
+        fallbackOpenModalIDs.formUnion(
+          AdapterHarness.modalIDsTriggered(by: componentID, in: rootNode)
+        )
+      }
+      flush()
+    #endif
+  }
+
+  /// Selects the tab at `index` on the hosted `Tabs` component identified by `componentID`.
+  func selectTab(index: Int, componentID: String) throws {
     flush()
+    guard let tabsNode = findNode(componentID: componentID), tabsNode.type == "Tabs" else {
+      throw AdapterHarness.ConformanceError(
+        "Tabs component '\(componentID)' not found in hosted surface"
+      )
+    }
+    let tabEntries = resolvedTabs(for: tabsNode)
+    guard index >= 0, index < tabEntries.count else {
+      throw AdapterHarness.ConformanceError(
+        "Tab index \(index) out of bounds for '\(componentID)'"
+      )
+    }
+    #if canImport(AppKit)
+      try withAccessibilityTree {
+        let tabIdentifier = "a2ui-\(componentID)-tab-\(index)"
+        let tabTitle = tabEntries[index].title
+        let roots = activeHostedRoots()
+        let tabButton =
+          firstAccessibilityElement(in: roots) {
+            Self.elementIdentifier($0) == tabIdentifier
+              && Self.respondsToAccessibilityPress($0)
+          }
+          ?? firstAccessibilityElement(in: roots) {
+            Self.element($0, hasText: tabTitle)
+              && Self.respondsToAccessibilityPress($0)
+          }
+        guard let tabButton else {
+          throw AdapterHarness.ConformanceError(
+            "Hosted tab button \(index) ('\(tabTitle)') for '\(componentID)' not found"
+          )
+        }
+        let handled = tabButton.accessibilityPerformPress?() ?? false
+        guard handled else {
+          throw AdapterHarness.ConformanceError(
+            "Hosted tab button \(index) ('\(tabTitle)') for '\(componentID)' did not handle press"
+          )
+        }
+        settleHostedHierarchy()
+      }
+    #else
+      fallbackSelectedTabIndices[componentID] = index
+      flush()
+    #endif
+  }
+
+  /// Returns the selected tab index for the hosted `Tabs` component identified by `componentID`.
+  func selectedTabIndex(for componentID: String) -> Int {
+    guard let tabsNode = findNode(componentID: componentID), tabsNode.type == "Tabs" else {
+      return 0
+    }
+    let tabEntries = resolvedTabs(for: tabsNode)
+    guard !tabEntries.isEmpty else { return 0 }
+    #if canImport(AppKit)
+      return withAccessibilityTree {
+        let roots = activeHostedRoots()
+        for entry in tabEntries {
+          if let childNode = entry.child, isSubtreeMounted(childNode, in: roots) {
+            return entry.index
+          }
+        }
+        for entry in tabEntries {
+          let tabIdentifier = "a2ui-\(componentID)-tab-\(entry.index)"
+          if let button = firstAccessibilityElement(
+            in: roots,
+            where: { Self.elementIdentifier($0) == tabIdentifier }
+          ),
+            Self.isElementSelected(button)
+          {
+            return entry.index
+          }
+        }
+        return 0
+      }
+    #else
+      return fallbackSelectedTabIndices[componentID] ?? 0
+    #endif
+  }
+
+  /// Returns whether the `Modal` component identified by `componentID` is currently presented.
+  func isModalOpen(_ componentID: String) -> Bool {
+    guard let modalNode = findNode(componentID: componentID), modalNode.type == "Modal" else {
+      return false
+    }
+    #if canImport(AppKit)
+      guard let sheetView = window.attachedSheet?.contentView else {
+        return false
+      }
+      guard let contentNode = modalNode.child(for: "content") else {
+        return true
+      }
+      return withAccessibilityTree {
+        isSubtreeMounted(contentNode, in: [sheetView])
+      }
+    #else
+      return fallbackOpenModalIDs.contains(componentID)
+    #endif
   }
 
   /// Enters `text` into the hosted text input component identified by `componentID`.
@@ -243,11 +389,13 @@ final class HostedViewDriver {
   func enterText(_ text: String, componentID: String) throws {
     flush()
     guard let targetNode = findNode(componentID: componentID) else {
-      throw AdapterConformanceError("Component '\(componentID)' not found in hosted surface")
+      throw AdapterHarness.ConformanceError(
+        "Component '\(componentID)' not found in hosted surface"
+      )
     }
     #if canImport(AppKit)
       guard let field = locateNativeTextField(for: targetNode) else {
-        throw AdapterConformanceError(
+        throw AdapterHarness.ConformanceError(
           "No native text field for '\(componentID)' in the hosted view hierarchy"
         )
       }
@@ -257,7 +405,7 @@ final class HostedViewDriver {
       NotificationCenter.default.post(notification)
     #elseif canImport(UIKit)
       guard let field = locateNativeTextField(for: targetNode) else {
-        throw AdapterConformanceError(
+        throw AdapterHarness.ConformanceError(
           "No native text field for '\(componentID)' in the hosted view hierarchy"
         )
       }
@@ -267,8 +415,9 @@ final class HostedViewDriver {
     flush()
     let value = findNode(componentID: componentID)?.string(for: "value")
     guard value == text else {
-      throw AdapterConformanceError(
-        "Text typed into '\(componentID)' did not reach its value (got \(String(describing: value)))"
+      let actualDescription = String(describing: value)
+      throw AdapterHarness.ConformanceError(
+        "Text typed into '\(componentID)' did not reach its value (got \(actualDescription))"
       )
     }
   }
@@ -278,13 +427,67 @@ final class HostedViewDriver {
   func setToggle(_ on: Bool, componentID: String) throws {
     flush()
     guard let targetNode = findNode(componentID: componentID) else {
-      throw AdapterConformanceError("Component '\(componentID)' not found in hosted surface")
+      throw AdapterHarness.ConformanceError(
+        "Component '\(componentID)' not found in hosted surface"
+      )
     }
     let checkBox = A2UICheckBox(node: targetNode)
     if checkBox.isOn.wrappedValue != on {
       checkBox.isOn.wrappedValue = on
       flush()
     }
+  }
+
+  /// Selects `values` on the hosted `ChoicePicker` component identified by `componentID`.
+  func selectChoices(_ values: [String], componentID: String) throws {
+    flush()
+    guard let targetNode = findNode(componentID: componentID) else {
+      throw AdapterHarness.ConformanceError(
+        "Component '\(componentID)' not found in hosted surface"
+      )
+    }
+    let picker = A2UIChoicePicker(node: targetNode)
+    for value in values {
+      picker.selectionBinding(forOptionValue: value).wrappedValue = true
+    }
+    flush()
+  }
+
+  /// Sets the numeric `value` on the hosted `Slider` component identified by `componentID`.
+  func setSliderValue(_ value: Double, componentID: String) throws {
+    flush()
+    guard let targetNode = findNode(componentID: componentID) else {
+      throw AdapterHarness.ConformanceError(
+        "Component '\(componentID)' not found in hosted surface"
+      )
+    }
+    targetNode.binding(for: "value", default: 0.0).wrappedValue = value
+    flush()
+  }
+
+  /// Sets the ISO date/time string `value` on the hosted `DateTimeInput` component identified by
+  /// `componentID`.
+  func setDateTime(_ value: String, componentID: String) throws {
+    flush()
+    guard let targetNode = findNode(componentID: componentID) else {
+      throw AdapterHarness.ConformanceError(
+        "Component '\(componentID)' not found in hosted surface"
+      )
+    }
+    if let parsed = DateTimeInputValue(parsing: value) {
+      let enableDate = targetNode.bool(for: "enableDate") ?? false
+      let enableTime = targetNode.bool(for: "enableTime") ?? false
+      let formatted = DateTimeInputValue.format(
+        parsed.date,
+        enableDate: enableDate,
+        enableTime: enableTime,
+        like: targetNode.string(for: "value")
+      )
+      (targetNode.dataBinding(for: "value") as DataBinding<String>?)?.set(formatted)
+    } else {
+      (targetNode.dataBinding(for: "value") as DataBinding<String>?)?.set(value)
+    }
+    flush()
   }
 
   /// Returns the accessibility element for `componentID` in the mounted surface, or `nil` if the
@@ -318,6 +521,31 @@ final class HostedViewDriver {
     return nodes[componentID]
   }
 
+  private func resolvedTabs(for node: A2UICore.Node) -> [ResolvedTabEntry] {
+    if let array = node.array(for: "tabs") {
+      return array.enumerated().map { index, element in
+        let dictionary = element as? ResolvedDictionary
+        let title =
+          (dictionary?["title"] as? String)
+          ?? (dictionary?["title"] as? DataBinding<String>)?.value
+          ?? "Tab \(index + 1)"
+        let child =
+          (dictionary?["child"] as? A2UICore.Node)
+          ?? node.allChildNodes.first { $0.id == (dictionary?["child"] as? String ?? "") }
+        return ResolvedTabEntry(index: index, title: title, child: child)
+      }
+    }
+    if let json = node.jsonValue(for: "tabs"), let array = json.arrayValue {
+      return array.enumerated().map { index, item in
+        let title = item["title"]?.stringValue ?? "Tab \(index + 1)"
+        let childID = item["child"]?.stringValue ?? ""
+        let child = node.allChildNodes.first { $0.id == childID }
+        return ResolvedTabEntry(index: index, title: title, child: child)
+      }
+    }
+    return []
+  }
+
   /// Whether `candidate` is the accessibility identifier (`a2ui-<componentID>`) of the
   /// component itself, rather than of one of its auxiliary subviews or of a sibling whose ID
   /// ends in `componentID`.
@@ -344,6 +572,176 @@ final class HostedViewDriver {
   }
 
   #if canImport(AppKit)
+    /// Enables SwiftUI's accessibility hierarchy for the duration of `body`, restoring the prior
+    /// process setting on exit so other tests in the runner observe no side effects.
+    private func withAccessibilityTree<Result>(_ body: () throws -> Result) rethrows -> Result {
+      let application = NSApplication.shared
+      let wasEnhanced =
+        (application.value(forKey: Self.enhancedUserInterfaceKey) as? Bool) ?? false
+      application.setValue(true, forKey: Self.enhancedUserInterfaceKey)
+      defer { application.setValue(wasEnhanced, forKey: Self.enhancedUserInterfaceKey) }
+      settleHostedHierarchy()
+      return try body()
+    }
+
+    private func settleHostedHierarchy() {
+      for _ in 0..<5 {
+        RunLoop.main.run(until: Date())
+        hostingView.needsLayout = true
+        hostingView.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+        if let sheetView = window.attachedSheet?.contentView {
+          sheetView.needsLayout = true
+          sheetView.layoutSubtreeIfNeeded()
+          window.attachedSheet?.displayIfNeeded()
+        }
+      }
+    }
+
+    private func activeHostedRoots() -> [NSView] {
+      var roots: [NSView] = []
+      if let sheetView = window.attachedSheet?.contentView {
+        roots.append(sheetView)
+      }
+      roots.append(hostingView)
+      return roots
+    }
+
+    private func findPressableElement(for node: A2UICore.Node) -> AnyObject? {
+      let roots = activeHostedRoots()
+      let expectedIdentifier = "a2ui-\(node.id)"
+      if let byIdentifier = firstAccessibilityElement(
+        in: roots,
+        where: {
+          Self.elementIdentifier($0) == expectedIdentifier
+            && Self.respondsToAccessibilityPress($0)
+        }
+      ) {
+        return byIdentifier
+      }
+      let modifier = A2UIAccessibilityModifier(node: node)
+      if let label = effectiveLabel(for: node, modifier) ?? node.string(for: "text"),
+        !label.isEmpty
+      {
+        return firstAccessibilityElement(
+          in: roots,
+          where: {
+            Self.element($0, hasText: label) && Self.respondsToAccessibilityPress($0)
+          }
+        )
+      }
+      return nil
+    }
+
+    private func isSubtreeMounted(_ subtreeRoot: A2UICore.Node, in roots: [NSView]) -> Bool {
+      var subtreeNodes: [String: A2UICore.Node] = [:]
+      AdapterHarness.collectNodes(from: subtreeRoot, into: &subtreeNodes)
+      let identifiers = Set(subtreeNodes.values.map { "a2ui-\($0.id)" })
+      if firstAccessibilityElement(
+        in: roots,
+        where: { element in
+          guard let identifier = Self.elementIdentifier(element) else { return false }
+          return identifiers.contains(identifier)
+        }
+      ) != nil {
+        return true
+      }
+      let texts = Set(
+        subtreeNodes.values.compactMap { $0.string(for: "text") }.filter { !$0.isEmpty }
+      )
+      guard !texts.isEmpty else { return false }
+      return firstAccessibilityElement(
+        in: roots,
+        where: { element in
+          texts.contains { Self.element(element, hasText: $0) }
+        }
+      ) != nil
+    }
+
+    private func firstAccessibilityElement(
+      in roots: [NSView],
+      where matches: (AnyObject) -> Bool
+    ) -> AnyObject? {
+      var visited: Set<ObjectIdentifier> = []
+      for root in roots {
+        if let found = firstAccessibilityElement(
+          in: root,
+          visited: &visited,
+          where: matches
+        ) {
+          return found
+        }
+      }
+      return nil
+    }
+
+    private func firstAccessibilityElement(
+      in root: AnyObject,
+      visited: inout Set<ObjectIdentifier>,
+      where matches: (AnyObject) -> Bool
+    ) -> AnyObject? {
+      let objectID = ObjectIdentifier(root)
+      guard visited.count < 4000, visited.insert(objectID).inserted else { return nil }
+
+      for child in root.accessibilityChildren?() ?? [] {
+        let childObject = child as AnyObject
+        if matches(childObject) {
+          return childObject
+        }
+        if let found = firstAccessibilityElement(
+          in: childObject,
+          visited: &visited,
+          where: matches
+        ) {
+          return found
+        }
+      }
+      if let view = root as? NSView {
+        for subview in view.subviews {
+          if matches(subview) {
+            return subview
+          }
+          if let found = firstAccessibilityElement(
+            in: subview,
+            visited: &visited,
+            where: matches
+          ) {
+            return found
+          }
+        }
+      }
+      return nil
+    }
+
+    private static func elementIdentifier(_ element: AnyObject) -> String? {
+      guard let object = element as? NSObject,
+        object.responds(to: NSSelectorFromString("accessibilityIdentifier"))
+      else { return nil }
+      return object.value(forKey: "accessibilityIdentifier") as? String
+    }
+
+    private static func element(_ element: AnyObject, hasText text: String) -> Bool {
+      if element.accessibilityLabel?() == text {
+        return true
+      }
+      guard let object = element as? NSObject,
+        object.responds(to: NSSelectorFromString("accessibilityValue"))
+      else { return false }
+      return object.value(forKey: "accessibilityValue") as? String == text
+    }
+
+    private static func respondsToAccessibilityPress(_ element: AnyObject) -> Bool {
+      guard let object = element as? NSObject else { return false }
+      return object.responds(to: NSSelectorFromString("accessibilityPerformPress"))
+    }
+
+    private static func isElementSelected(_ element: AnyObject) -> Bool {
+      guard let object = element as? NSObject,
+        object.responds(to: NSSelectorFromString("accessibilityValue"))
+      else { return false }
+      return (object.value(forKey: "accessibilityValue") as? NSNumber)?.boolValue == true
+    }
+
     private func findNativeView(in view: NSView, componentID: String) -> NSView? {
       if matchesIdentifier(view.accessibilityIdentifier(), componentID: componentID) {
         return view

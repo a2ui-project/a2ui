@@ -136,9 +136,13 @@ export interface VersionAdapter {
    * Converts a raw message payload or payload list into canonical internal operations.
    *
    * @param payload The raw JSON message payload or message array.
+   * @param options Optional validation configuration options.
    * @returns Array of canonical internal operations.
    */
-  extractOperations(payload: unknown): InternalOperation[];
+  extractOperations(
+    payload: unknown,
+    options?: {allowUnknownElements?: boolean},
+  ): InternalOperation[];
 }
 
 /** Provider callback returning the set of all known action keys across registered adapters. */
@@ -242,14 +246,17 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
 
   protected abstract getNativeActionKeys(): string[];
 
-  extractOperations(payload: unknown): InternalOperation[] {
+  extractOperations(
+    payload: unknown,
+    options?: {allowUnknownElements?: boolean},
+  ): InternalOperation[] {
     if (!payload || typeof payload !== 'object') return [];
     if (Array.isArray(payload)) {
-      return payload.flatMap(item => this.extractOperations(item));
+      return payload.flatMap(item => this.extractOperations(item, options));
     }
     const msgObj = payload as Record<string, unknown>;
     if (Array.isArray(msgObj.messages)) {
-      return this.extractOperations(msgObj.messages);
+      return this.extractOperations(msgObj.messages, options);
     }
 
     const nativeActionKeys = this.getNativeActionKeys();
@@ -285,7 +292,7 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
       );
     }
 
-    const preparedPayload = this.preparePayloadForValidation(msgObj);
+    const preparedPayload = this.preparePayloadForValidation(msgObj, options);
     const parseResult = this.schema.safeParse(preparedPayload);
     if (!parseResult.success) {
       const scopedError = selectActionUnionError(
@@ -307,7 +314,7 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
       throw preliminaryErr;
     }
 
-    return this.extractOperationsFromObject(msgObj);
+    return this.extractOperationsFromObject(preparedPayload);
   }
 
   /**
@@ -316,9 +323,13 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
    * Defaults to attaching `version` if not present.
    *
    * @param msgObj Raw message object.
+   * @param _options Optional validation configuration options.
    * @returns Normalized message payload for schema validation.
    */
-  protected preparePayloadForValidation(msgObj: Record<string, unknown>): Record<string, unknown> {
+  protected preparePayloadForValidation(
+    msgObj: Record<string, unknown>,
+    _options?: {allowUnknownElements?: boolean},
+  ): Record<string, unknown> {
     return 'version' in msgObj ? msgObj : {version: this.version, ...msgObj};
   }
 

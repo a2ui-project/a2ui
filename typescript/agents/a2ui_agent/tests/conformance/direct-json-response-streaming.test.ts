@@ -22,12 +22,20 @@ import {ResponseStream} from '../../src/parser/response-stream.js';
 import {FileSystemCatalogProvider} from '../../src/processor/catalog-providers.js';
 import {LoadedCase, loadCases} from './loader.js';
 import {
+  SuiteVersion,
+  caseDeclaresV1,
+  injectedCatalogId,
+  liftParts,
+  loadCatalogFromRelativePath,
+  lowerText,
+} from './lowering.js';
+import {
   assertKnownKeys,
   CASE_METADATA_KEYS,
   categoryOf,
   conformancePath,
-  describeSuite,
   EXPECT_ERROR_KEYS,
+  forEachSuiteVersion,
   KNOWN_FAILURES,
 } from './suite-helpers.js';
 
@@ -98,15 +106,18 @@ function declaredVersion(args: StreamingArgs): string | undefined {
   return document.protocolVersion?.replace(/^v/, '');
 }
 
-function makeParser(args: StreamingArgs): DirectJsonParser {
+function makeParser(
+  args: StreamingArgs,
+  lower = false,
+  bufferIncompleteComponents = false,
+): DirectJsonParser {
   if (args.format !== 'direct_json') {
     throw new Error(`Unexpected format '${args.format}'`);
   }
-  const catalogs = catalogPaths(args).map(file =>
-    new FileSystemCatalogProvider(conformancePath(file)).load(),
-  );
+  const catalogs = catalogPaths(args).map(file => loadCatalogFromRelativePath(file, lower));
   return new DirectJsonParser(catalogs, {
     progressiveKeys: args.progressive_keys ?? [],
+    bufferIncompleteComponents,
   });
 }
 
@@ -152,8 +163,14 @@ function mergeAdjacentText(parts: Array<Record<string, unknown>>): Array<Record<
   return merged;
 }
 
-function runCase(testCase: LoadedCase): void {
+function runCase(testCase: LoadedCase, version: SuiteVersion): void {
   assertKnownKeys(testCase, PARSE_CHUNK_CASE_KEYS, 'parse_chunk case');
+  const isLowered = version === 'v0.9-lowered';
+  const injId = isLowered ? injectedCatalogId(testCase) : undefined;
+  const toExpected = (parts: StreamPart[]) => {
+    const dicts = parts.map(partToDict);
+    return isLowered ? liftParts(dicts, {injectedCatalogId: injId}) : dicts;
+  };
   const args = testCase.args as unknown as StreamingArgs;
   assertKnownKeys(
     args as unknown as Record<string, unknown>,
@@ -161,7 +178,7 @@ function runCase(testCase: LoadedCase): void {
     'parse_chunk args',
   );
   const wrapped = args.wrapped ?? true;
-  const parser = makeParser(args);
+  const parser = makeParser(args, isLowered, isLowered && caseDeclaresV1(testCase.args));
   const stream: ResponseStream<StreamPart> = parser.openStream({
     wrapped,
     afterRejectedBlock: args.after_rejected_block ?? 'end',
@@ -175,12 +192,13 @@ function runCase(testCase: LoadedCase): void {
       PARSE_CHUNK_STEP_KEYS,
       'parse_chunk step',
     );
-    chunks.push(step.input);
+    const chunk = isLowered ? lowerText(step.input, injId) : step.input;
+    chunks.push(chunk);
     if (step.expect_error) {
-      const error = expectError(() => stream.feed(step.input), step.expect_error);
+      const error = expectError(() => stream.feed(chunk), step.expect_error);
       if (step.expect_partial_results) {
         const partial = (error as {partialResults?: StreamPart[]}).partialResults ?? [];
-        expect(partial.map(partToDict), `step ${index}: partial results`).toEqual(
+        expect(toExpected(partial), `step ${index}: partial results`).toEqual(
           step.expect_partial_results,
         );
       }
@@ -189,7 +207,7 @@ function runCase(testCase: LoadedCase): void {
       }
       return;
     }
-    const parts = stream.feed(step.input).map(partToDict);
+    const parts = toExpected(stream.feed(chunk));
     expect(parts, `step ${index}: ${step.input}`).toEqual(step.expect);
     if (step.expect_in_block !== undefined) {
       expect(stream.isInBlock, `step ${index}: in block`).toBe(step.expect_in_block);
@@ -202,22 +220,22 @@ function runCase(testCase: LoadedCase): void {
     return;
   }
 
-  const closed = stream.close().map(partToDict);
+  const closed = toExpected(stream.close());
   if (testCase.expect_close) {
     expect(closed, 'close').toEqual(testCase.expect_close);
   }
   yielded.push(...closed);
 
   if (testCase.expect_matches_single_shot) {
-    const singleShot = makeParser(args).parseResponse(chunks.join(''), {wrapped});
-    expect(mergeAdjacentText(yielded)).toEqual(mergeAdjacentText(singleShot.map(partToDict)));
+    const singleShot = makeParser(args, isLowered).parseResponse(chunks.join(''), {wrapped});
+    expect(mergeAdjacentText(yielded)).toEqual(mergeAdjacentText(toExpected(singleShot)));
   }
 }
 
-describeSuite(
+forEachSuiteVersion(
   'Conformance: direct_json/response_streaming.yaml',
   loadCases([conformancePath('agent/direct_json/response_streaming.yaml')]),
-  testCase => runCase(testCase),
+  (testCase, version) => runCase(testCase, version),
   {
     knownFailures: KNOWN_FAILURES,
     skipReason: testCase => {
