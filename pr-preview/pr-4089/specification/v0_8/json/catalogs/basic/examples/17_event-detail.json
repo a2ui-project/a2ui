@@ -1,0 +1,209 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "gallery-event-detail",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Card": {
+              "child": "main-column"
+            }
+          }
+        },
+        {
+          "id": "main-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": [
+                  "title",
+                  "time-row",
+                  "location-row",
+                  "description",
+                  "divider",
+                  "actions"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "title",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/title"
+              },
+              "usageHint": "h2"
+            }
+          }
+        },
+        {
+          "id": "time-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["time-icon", "time-text"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "time-icon",
+          "component": {
+            "Icon": {
+              "name": {
+                "literalString": "calendarToday"
+              }
+            }
+          }
+        },
+        {
+          "id": "time-text",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/dateTime"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "location-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["location-icon", "location-text"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "location-icon",
+          "component": {
+            "Icon": {
+              "name": {
+                "literalString": "locationOn"
+              }
+            }
+          }
+        },
+        {
+          "id": "location-text",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/location"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "description",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/description"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "divider",
+          "component": {
+            "Divider": {}
+          }
+        },
+        {
+          "id": "actions",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["accept-btn", "decline-btn"]
+              }
+            }
+          }
+        },
+        {
+          "id": "accept-btn-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Accept"
+              }
+            }
+          }
+        },
+        {
+          "id": "accept-btn",
+          "component": {
+            "Button": {
+              "child": "accept-btn-text",
+              "action": {
+                "name": "accept",
+                "context": []
+              }
+            }
+          }
+        },
+        {
+          "id": "decline-btn-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Decline"
+              }
+            }
+          }
+        },
+        {
+          "id": "decline-btn",
+          "component": {
+            "Button": {
+              "child": "decline-btn-text",
+              "action": {
+                "name": "decline",
+                "context": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "gallery-event-detail",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Product Launch Meeting"
+        },
+        {
+          "key": "dateTime",
+          "valueString": "Thu, Dec 19 \u2022 2:00 PM - 3:30 PM"
+        },
+        {
+          "key": "location",
+          "valueString": "Conference Room A, Building 2"
+        },
+        {
+          "key": "description",
+          "valueString": "Review final product specs and marketing materials before the Q1 launch."
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "gallery-event-detail",
+      "root": "root"
+    }
+  }
+]
