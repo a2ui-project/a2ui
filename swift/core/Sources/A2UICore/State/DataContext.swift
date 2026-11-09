@@ -270,7 +270,7 @@ public final class DataContext {
     }
 
     let previousCatalogID = activeFunctionCatalogID
-    if atLeastV10 && !callName.hasPrefix("@"), let resolvedCatalogID {
+    if atLeastV10 && !callName.hasPrefix("@") {
       activeFunctionCatalogID = resolvedCatalogID
     }
     runningFunctionDepth += 1

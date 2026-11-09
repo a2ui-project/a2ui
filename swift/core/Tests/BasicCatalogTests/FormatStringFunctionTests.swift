@@ -267,8 +267,8 @@ struct FormatStringFunctionTests {
     #expect(ctx.activeFunctionCatalogID == nil)
   }
 
-  @Test func preservesOuterCatalogIDWhenNestedCallOmitsCatalogIDOnCustomHandler() throws {
-    let customHandler = PreservingCatalogFunctionHandler()
+  @Test func clearsOuterCatalogIDWhenNestedCallResolvesToNilCatalogIDOnCustomHandler() throws {
+    let customHandler = CataloglessCustomFunctionHandler()
     let ctx = DataContext(
       dataModel: DataModel(),
       path: "/",
@@ -282,7 +282,7 @@ struct FormatStringFunctionTests {
         "args": .object([:]),
       ])
     )
-    #expect(resolved == .string("https://example.com/outer.json"))
+    #expect(resolved == .string("none"))
     #expect(ctx.activeFunctionCatalogID == nil)
   }
 
@@ -345,8 +345,25 @@ struct FormatStringFunctionTests {
       id: standaloneID,
       protocolVersion: .v10,
       components: [],
-      functions: [AgentFormatStringFunction(), ActiveCatalogFunction()]
+      functions: [
+        AgentEchoFunction(),
+        FormatStringFunction(),
+        AgentFormatStringFunction(),
+        ActiveCatalogFunction(),
+      ]
     )
+    let unnegotiatedID = "https://example.com/unnegotiated-rpc.json"
+    let unnegotiatedCatalog = AnyCatalog(
+      id: unnegotiatedID,
+      protocolVersion: .v10,
+      components: [],
+      functions: [ActiveCatalogFunction()]
+    )
+    let allCatalogs: [String: AnyCatalog] = [
+      surfaceCatalogID: surfaceCatalog,
+      standaloneID: standaloneCatalog,
+      unnegotiatedID: unnegotiatedCatalog,
+    ]
     let message = CallRendererFunctionMessage(
       surfaceID: "s-surface",
       functionCallID: "rpc-1",
@@ -359,18 +376,69 @@ struct FormatStringFunctionTests {
     )
     let response = await RPCHandler().handleIncomingCall(
       message,
-      catalogs: [surfaceCatalogID: surfaceCatalog, standaloneID: standaloneCatalog],
+      catalogs: allCatalogs,
       defaultCatalogID: surfaceCatalogID,
       dataContext: surfaceContext
     )
     #expect(response.error == nil)
     #expect(response.value == .string("ok:\(standaloneID)"))
     #expect(surfaceContext.activeFunctionCatalogID == nil)
+
+    // Dynamic `@call` in `callFunction.args` targeting `standaloneID` resolves cleanly.
+    let argMessage = CallRendererFunctionMessage(
+      surfaceID: "s-surface",
+      functionCallID: "rpc-2",
+      callFunction: CallFunctionPayload(
+        call: "rpcEcho",
+        catalogID: standaloneID,
+        args: [
+          "value": .object([
+            "@call": .string("formatString"),
+            "catalogId": .string(standaloneID),
+            "args": .object(["value": .string("arg:${activeCat()}")]),
+          ])
+        ]
+      ),
+      version: .v10
+    )
+    let argResponse = await RPCHandler().handleIncomingCall(
+      argMessage,
+      catalogs: allCatalogs,
+      defaultCatalogID: surfaceCatalogID,
+      dataContext: surfaceContext
+    )
+    #expect(argResponse.error == nil)
+    #expect(argResponse.value == .string("arg:\(standaloneID)"))
+
+    // Other unnegotiated catalogs in `allCatalogs` do not leak into surface-bound RPC calls.
+    let leakMessage = CallRendererFunctionMessage(
+      surfaceID: "s-surface",
+      functionCallID: "rpc-3",
+      callFunction: CallFunctionPayload(
+        call: "rpcEcho",
+        catalogID: standaloneID,
+        args: [
+          "value": .object([
+            "@call": .string("activeCat"),
+            "catalogId": .string(unnegotiatedID),
+            "args": .object([:]),
+          ])
+        ]
+      ),
+      version: .v10
+    )
+    let leakResponse = await RPCHandler().handleIncomingCall(
+      leakMessage,
+      catalogs: allCatalogs,
+      defaultCatalogID: surfaceCatalogID,
+      dataContext: surfaceContext
+    )
+    #expect(leakResponse.error?.code == "EXECUTION_ERROR")
   }
 }
 
 @MainActor
-private final class PreservingCatalogFunctionHandler: FunctionHandler {
+private final class CataloglessCustomFunctionHandler: FunctionHandler {
   func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
     switch name {
     case "outer":
@@ -406,6 +474,20 @@ private struct ActiveCatalogFunction: FunctionImplementation, Sendable {
   @MainActor
   func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     .string(context.activeFunctionCatalogID ?? "none")
+  }
+}
+
+private struct AgentEchoFunction: FunctionImplementation, Sendable {
+  let api = FunctionAPI(
+    name: "rpcEcho",
+    returnType: .string,
+    schema: FormatStringFunction().api.schema,
+    allowedCallers: .agentOnly
+  )
+
+  @MainActor
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+    arguments["value"] ?? .null
   }
 }
 

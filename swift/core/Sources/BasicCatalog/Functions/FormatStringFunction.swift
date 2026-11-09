@@ -93,15 +93,18 @@ public final class FormatStringFunction: FunctionImplementation, Sendable {
       if let path = dict["path"]?.stringValue, dict["componentId"] == nil, dict["@path"] == nil {
         return .object(["@path": .string(path)])
       }
-      let callName: String?
-      if let atCall = dict["@call"]?.stringValue {
-        callName = atCall
-      } else if dict["@call"] == nil, let call = dict["call"]?.stringValue {
-        callName = call
-      } else {
-        callName = nil
+      if dict["@call"]?.stringValue != nil {
+        var adapted = dict
+        if case .object(let rawArgs)? = dict["args"] {
+          var args: OrderedDictionary<String, JSONValue> = [:]
+          for (key, value) in rawArgs {
+            args[key] = adaptedForV10(value, catalogID: catalogID)
+          }
+          adapted["args"] = .object(args)
+        }
+        return .object(adapted)
       }
-      if let callName {
+      if dict["@call"] == nil, let callName = dict["call"]?.stringValue {
         var args: OrderedDictionary<String, JSONValue> = [:]
         if case .object(let rawArgs)? = dict["args"] {
           for (key, value) in rawArgs {

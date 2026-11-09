@@ -167,6 +167,7 @@ public final class RPCHandler {
     let fallbackHandler = DummyContextFunctionHandler(catalogs: catalogs)
     let argHandler = RPCArgumentFunctionHandler(
       delegate: dataContext?.functionHandler,
+      resolvedCatalog: catalog,
       fallback: fallbackHandler
     )
     let argResolutionContext = DataContext(
@@ -177,8 +178,10 @@ public final class RPCHandler {
       index: dataContext?.index,
       isUserActivated: userActivationPresent
     )
+    argResolutionContext.activeFunctionCatalogID = catalog.id
     let execHandler = RPCArgumentFunctionHandler(
       delegate: dataContext?.functionHandler,
+      resolvedCatalog: catalog,
       fallback: fallbackHandler
     )
     let effectiveContext = DataContext(
@@ -225,6 +228,17 @@ public final class RPCHandler {
 
     do {
       let result = try function.evaluate(arguments: resolvedArgs, context: effectiveContext)
+      if let capturedError = execHandler.capturedError {
+        let errorPayload = FunctionErrorPayload(
+          code: .executionError,
+          message: Self.argumentErrorMessage(capturedError)
+        )
+        return RendererFunctionResponseMessage(
+          functionCallID: message.functionCallID,
+          error: errorPayload,
+          version: message.version
+        )
+      }
       return RendererFunctionResponseMessage(
         functionCallID: message.functionCallID,
         value: result,
@@ -397,23 +411,31 @@ public final class RPCHandler {
 
 private final class RPCArgumentFunctionHandler: FunctionHandler {
   private let delegate: FunctionHandler?
+  private let resolvedCatalog: AnyCatalog
   private let fallback: DummyContextFunctionHandler
   private(set) var capturedError: Error?
 
-  init(delegate: FunctionHandler?, fallback: DummyContextFunctionHandler) {
+  init(
+    delegate: FunctionHandler?,
+    resolvedCatalog: AnyCatalog,
+    fallback: DummyContextFunctionHandler
+  ) {
     self.delegate = delegate
+    self.resolvedCatalog = resolvedCatalog
     self.fallback = fallback
   }
 
   func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
     if let delegate {
-      if let found = delegate.function(named: name, catalogID: catalogID) {
+      if let found = delegate.function(named: name, catalogID: catalogID),
+        found.hasLocalImplementation
+      {
         return found
       }
-      if catalogID != nil {
-        return fallback.function(named: name, catalogID: catalogID)
+      if catalogID == resolvedCatalog.id {
+        return resolvedCatalog.functions[name]
       }
-      return nil
+      return delegate.function(named: name, catalogID: catalogID)
     }
     return fallback.function(named: name, catalogID: catalogID)
   }
@@ -422,12 +444,11 @@ private final class RPCArgumentFunctionHandler: FunctionHandler {
     if capturedError == nil {
       capturedError = error
     }
-    delegate?.handleFunctionError(error, functionName: functionName)
   }
 
   func validateFunctionCatalog(id catalogID: String?, functionName: String) throws {
     if let delegate {
-      if let catalogID, fallback.hasCatalog(id: catalogID) {
+      if catalogID == resolvedCatalog.id {
         return
       }
       try delegate.validateFunctionCatalog(id: catalogID, functionName: functionName)
@@ -437,6 +458,9 @@ private final class RPCArgumentFunctionHandler: FunctionHandler {
   }
 
   func resolvedFunctionCatalogID(forCallCatalogID catalogID: String?) -> String? {
+    if catalogID == resolvedCatalog.id {
+      return resolvedCatalog.id
+    }
     if let delegate {
       return delegate.resolvedFunctionCatalogID(forCallCatalogID: catalogID)
     }
@@ -449,10 +473,6 @@ private final class DummyContextFunctionHandler: FunctionHandler {
 
   init(catalogs: [String: AnyCatalog]) {
     self.catalogs = catalogs
-  }
-
-  func hasCatalog(id catalogID: String) -> Bool {
-    catalogs[catalogID] != nil
   }
 
   func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
