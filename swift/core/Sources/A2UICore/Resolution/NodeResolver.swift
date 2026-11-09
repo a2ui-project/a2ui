@@ -47,6 +47,29 @@ public final class NodeResolver: Sendable {
     let state: NodeState
   }
 
+  private struct SlotLocation {
+    let property: String
+    var steps: [NodeBox.SlotStep] = []
+
+    func appending(_ step: NodeBox.SlotStep) -> SlotLocation {
+      var copy = self
+      copy.steps.append(step)
+      return copy
+    }
+
+    func makeSlot() -> NodeBox.ChildSlot {
+      steps.isEmpty
+        ? .direct(property: property)
+        : .nested(property: property, steps: steps)
+    }
+
+    func makeListSlot(index: Int) -> NodeBox.ChildSlot {
+      steps.isEmpty
+        ? .listElement(property: property, index: index)
+        : .nested(property: property, steps: steps + [.nodeListIndex(index)])
+    }
+  }
+
   private struct NodeResolutionRecord {
     let nodeKey: String
     let definitionID: String
@@ -56,14 +79,14 @@ public final class NodeResolver: Sendable {
     let instanceSuffix: String?
     let visited: Set<String>
     var componentSnapshot: ComponentModel?
-    var childIdentities: [String: ComponentIdentity?]
     var readValues: [String: JSONValue?]
     var templateCounts: [String: Int]
-    var directChildInstances: Set<String>
     var childSlots: [String: [NodeBox.ChildSlot]] = [:]
     var agentCalls: Set<AgentFunctionCall>
     /// The keys in `activeCyclicNodes` of the cyclic placeholders this node references.
     var cyclicKeys: [String] = []
+    /// Ancestor node keys whose cyclic placeholders this node references.
+    var cyclicTargetNodeKeys: Set<String> = []
   }
 
   private struct ExpressionErrorKey: Hashable {
@@ -81,8 +104,8 @@ public final class NodeResolver: Sendable {
   private var schemaCache: [String: CachedComponentSchema] = [:]
   private var nodeRecords: [String: NodeResolutionRecord] = [:]
   private var nodesByDefinitionID: [String: Set<String>] = [:]
-  private var parentsByChildDefinitionID: [String: Set<String>] = [:]
   private var parentsByChildInstanceID: [String: Set<String>] = [:]
+  private var closersByCyclicTargetNodeKey: [String: Set<String>] = [:]
   private var nodesByReadPath: [String: Set<String>] = [:]
   private var readPathsByAncestorPath: [String: Set<String>] = [:]
   private var nodesByTemplatePath: [String: Set<String>] = [:]
@@ -90,13 +113,15 @@ public final class NodeResolver: Sendable {
   private var dirtyDataPaths: Set<String> = []
   private var needsFullResolve = false
   private var resolvedInCurrentPass: Set<String> = []
+  private var isTrackingNodeReplacements = false
+  private var replacedNodesInCurrentPass:
+    OrderedDictionary<String, (oldBox: NodeBox, newNode: Node)> = [:]
   private var currentNodeReadValues: [String: JSONValue?]?
   private var currentNodeTemplateCounts: [String: Int]?
-  private var currentNodeChildIdentities: [String: ComponentIdentity?]?
-  private var currentNodeDirectChildren: Set<String>?
   private var currentNodeChildSlots: [String: [NodeBox.ChildSlot]]?
   /// The cyclic placeholder keys the node being resolved references, in order.
   private var currentNodeCyclicKeys: [String]?
+  private var currentNodeCyclicTargetNodeKeys: Set<String>?
   private var reportedExpressionErrors: Set<ExpressionErrorKey> = []
   /// The error keys each node reported in the current pass, by node key. A node shared by several
   /// parents resolves once per parent, so these are committed to `reportedExpressionErrors` when
@@ -329,15 +354,17 @@ public final class NodeResolver: Sendable {
     activeCyclicNodes.removeAll()
     nodeRecords.removeAll()
     nodesByDefinitionID.removeAll()
-    parentsByChildDefinitionID.removeAll()
     parentsByChildInstanceID.removeAll()
+    closersByCyclicTargetNodeKey.removeAll()
     nodesByReadPath.removeAll()
     readPathsByAncestorPath.removeAll()
     nodesByTemplatePath.removeAll()
     dirtyComponentIDs.removeAll()
     dirtyDataPaths.removeAll()
     needsFullResolve = false
+    isTrackingNodeReplacements = false
     resolvedInCurrentPass.removeAll()
+    replacedNodesInCurrentPass.removeAll()
     sharedErrorsInCurrentPass.removeAll()
     reportedExpressionErrors.removeAll()
     expressionErrorsInCurrentPass.removeAll()
@@ -390,6 +417,11 @@ public final class NodeResolver: Sendable {
         for nodeKey in instances {
           guard let record = nodeRecords[nodeKey] else { continue }
           if record.componentSnapshot != currentComp || hadClearedErrors {
+            if !closersByCyclicTargetNodeKey.isEmpty,
+              let closers = closersByCyclicTargetNodeKey[nodeKey]
+            {
+              affectedNodeIDs.formUnion(closers)
+            }
             let previousIdentity = record.componentSnapshot.map {
               componentIdentity(for: $0)
             }
@@ -409,27 +441,11 @@ public final class NodeResolver: Sendable {
               if currentIdentity != nil {
                 affectedNodeIDs.insert(nodeKey)
               }
+            } else if let splitParents = multiParentSplitAncestors(for: nodeKey) {
+              affectedNodeIDs.formUnion(splitParents)
             } else {
-              let parentInstances = parentsByChildInstanceID[nodeKey] ?? []
-              if parentInstances.count > 1 {
-                affectedNodeIDs.formUnion(parentInstances)
-              } else {
-                affectedNodeIDs.insert(nodeKey)
-              }
+              affectedNodeIDs.insert(nodeKey)
             }
-          }
-        }
-      }
-
-      if let parentInstances = parentsByChildDefinitionID[compID] {
-        for parentNodeKey in parentInstances where !affectedNodeIDs.contains(parentNodeKey) {
-          if let recordedIdentity = nodeRecords[parentNodeKey]?.childIdentities[compID],
-            recordedIdentity != currentIdentity
-          {
-            nodeRecords[parentNodeKey]?.childIdentities.updateValue(
-              currentIdentity,
-              forKey: compID
-            )
           }
         }
       }
@@ -478,54 +494,93 @@ public final class NodeResolver: Sendable {
       return activeNodes["root"]
     }
 
+    var depths: [String: Int] = [:]
+    depths.reserveCapacity(affectedNodeIDs.count)
+    for nodeKey in affectedNodeIDs {
+      depths[nodeKey] =
+        liveVisited(
+          for: nodeKey,
+          fallback: nodeRecords[nodeKey]?.visited ?? []
+        ).count
+    }
     let sortedAffected = affectedNodeIDs.sorted {
-      (nodeRecords[$0]?.visited.count ?? 0) < (nodeRecords[$1]?.visited.count ?? 0)
+      (depths[$0] ?? 0) < (depths[$1] ?? 0)
     }
 
     isResolvingTree = true
+    isTrackingNodeReplacements = true
     resolvedInCurrentPass.removeAll()
+    replacedNodesInCurrentPass.removeAll()
     sharedErrorsInCurrentPass.removeAll()
     defer {
       commitExpressionErrorsOfCurrentPass()
       resolvedInCurrentPass.removeAll()
+      replacedNodesInCurrentPass.removeAll()
       sharedErrorsInCurrentPass.removeAll()
+      isTrackingNodeReplacements = false
       isResolvingTree = false
     }
 
-    var pendingParentReplacements: OrderedDictionary<String, [NodeBox.ChildSlotReplacement]> = [:]
-
     for nodeKey in sortedAffected {
       guard !resolvedInCurrentPass.contains(nodeKey),
-        let record = nodeRecords[nodeKey],
-        let oldNode = activeNodes[nodeKey]
+        let record = nodeRecords[nodeKey]
       else {
         continue
       }
-      let newNode = resolveNode(
+      _ = resolveNode(
         definitionID: record.definitionID,
         instanceID: record.instanceID,
         basePath: record.basePath,
         index: record.index,
         instanceSuffix: record.instanceSuffix,
-        visited: record.visited,
+        visited: liveVisited(for: nodeKey, fallback: record.visited),
         components: components,
         data: currentData,
         recurseIntoChildren: false
       )
-      if let newNode, newNode.box !== oldNode.box,
-        let parentKeys = parentsByChildInstanceID[nodeKey]
-      {
-        for parentKey in parentKeys
-        where !affectedNodeIDs.contains(parentKey) && !resolvedInCurrentPass.contains(parentKey) {
-          guard let slots = nodeRecords[parentKey]?.childSlots[nodeKey] else { continue }
-          pendingParentReplacements[parentKey, default: []].append(
-            NodeBox.ChildSlotReplacement(
-              slots: slots,
-              oldBox: oldNode.box,
-              newNode: newNode
-            )
-          )
+    }
+
+    // Re-resolve any surviving cycle closer whose live ancestor set no longer contains its cyclic
+    // target (for example, when an intermediate node dropped the branch that closed the cycle).
+    if !closersByCyclicTargetNodeKey.isEmpty {
+      var brokenClosers: [String] = []
+      for (targetKey, closers) in closersByCyclicTargetNodeKey {
+        for closerKey in closers where !resolvedInCurrentPass.contains(closerKey) {
+          guard let closerRecord = nodeRecords[closerKey] else { continue }
+          if !liveVisited(for: closerKey, fallback: closerRecord.visited).contains(targetKey) {
+            brokenClosers.append(closerKey)
+          }
         }
+      }
+      for closerKey in brokenClosers where !resolvedInCurrentPass.contains(closerKey) {
+        guard let record = nodeRecords[closerKey] else { continue }
+        _ = resolveNode(
+          definitionID: record.definitionID,
+          instanceID: record.instanceID,
+          basePath: record.basePath,
+          index: record.index,
+          instanceSuffix: record.instanceSuffix,
+          visited: liveVisited(for: closerKey, fallback: record.visited),
+          components: components,
+          data: currentData,
+          recurseIntoChildren: false
+        )
+      }
+    }
+
+    var pendingParentReplacements: OrderedDictionary<String, [NodeBox.ChildSlotReplacement]> = [:]
+    for (nodeKey, replacement) in replacedNodesInCurrentPass
+    where activeNodes[nodeKey]?.box === replacement.newNode.box {
+      guard let parentKeys = parentsByChildInstanceID[nodeKey] else { continue }
+      for parentKey in parentKeys where !resolvedInCurrentPass.contains(parentKey) {
+        guard let slots = nodeRecords[parentKey]?.childSlots[nodeKey] else { continue }
+        pendingParentReplacements[parentKey, default: []].append(
+          NodeBox.ChildSlotReplacement(
+            slots: slots,
+            oldBox: replacement.oldBox,
+            newNode: replacement.newNode
+          )
+        )
       }
     }
 
@@ -534,6 +589,77 @@ public final class NodeResolver: Sendable {
     }
 
     return activeNodes["root"]
+  }
+
+  /// Returns the parent set at the nearest multi-parent ancestor of `nodeKey` (including
+  /// `nodeKey` itself), or `nil` when `nodeKey` has a single path from `"root"`.
+  private func multiParentSplitAncestors(for nodeKey: String) -> Set<String>? {
+    guard let directParents = parentsByChildInstanceID[nodeKey] else { return nil }
+    guard directParents.count == 1, let firstParent = directParents.first else {
+      return directParents.count > 1 ? directParents : nil
+    }
+    if firstParent == "root" {
+      return nil
+    }
+    var visitedAncestors: Set<String> = [nodeKey, firstParent]
+    var current = firstParent
+    while let parents = parentsByChildInstanceID[current] {
+      guard parents.count == 1, let parent = parents.first else {
+        return parents.count > 1 ? parents : nil
+      }
+      if parent == "root" {
+        return nil
+      }
+      guard visitedAncestors.insert(parent).inserted else {
+        return parents
+      }
+      current = parent
+    }
+    return nil
+  }
+
+  /// Computes the live ancestor `visited` set for `nodeKey` along single-parent edges so that a
+  /// node whose sibling parent branch was previously pruned does not reuse stale ancestors.
+  private func liveVisited(for nodeKey: String, fallback: Set<String>) -> Set<String> {
+    if nodeKey == "root" { return [] }
+    guard let directParents = parentsByChildInstanceID[nodeKey] else {
+      return fallback.contains(nodeKey) ? fallback.subtracting([nodeKey]) : fallback
+    }
+    if directParents.count == 1, let firstParent = directParents.first {
+      if firstParent == "root" {
+        return fallback.count == 1 && fallback.contains("root") ? fallback : ["root"]
+      }
+      var ancestors: Set<String> = [firstParent]
+      var current = firstParent
+      while let parents = parentsByChildInstanceID[current], parents.count == 1,
+        let parent = parents.first
+      {
+        guard parent != nodeKey, ancestors.insert(parent).inserted else {
+          return fallback.contains(nodeKey) ? fallback.subtracting([nodeKey]) : fallback
+        }
+        current = parent
+      }
+      if current == "root" {
+        return ancestors
+      }
+      if let currentVisited = nodeRecords[current]?.visited {
+        var combined = ancestors.union(currentVisited)
+        combined.remove(nodeKey)
+        return combined
+      }
+    }
+    return fallback.contains(nodeKey) ? fallback.subtracting([nodeKey]) : fallback
+  }
+
+  private func recordNodeReplacementIfNeeded(for nodeKey: String, newNode: Node) {
+    guard isTrackingNodeReplacements,
+      let previousBox = activeNodes[nodeKey]?.box,
+      previousBox !== newNode.box
+    else {
+      return
+    }
+    let originalOldBox = replacedNodesInCurrentPass[nodeKey]?.oldBox ?? previousBox
+    replacedNodesInCurrentPass[nodeKey] = (oldBox: originalOldBox, newNode: newNode)
   }
 
   private func componentIdentity(
@@ -625,15 +751,11 @@ public final class NodeResolver: Sendable {
 
   private func registerNodeDependencies(_ record: NodeResolutionRecord) {
     let nodeKey = record.nodeKey
-    var removedChildren: Set<String> = []
+    var removedChildren: [String] = []
 
     if let oldRecord = nodeRecords[nodeKey] {
       if oldRecord.definitionID != record.definitionID {
         nodesByDefinitionID[oldRecord.definitionID]?.remove(nodeKey)
-      }
-      for oldChildDefID in oldRecord.childIdentities.keys
-      where !record.childIdentities.keys.contains(oldChildDefID) {
-        parentsByChildDefinitionID[oldChildDefID]?.remove(nodeKey)
       }
       for oldReadPath in oldRecord.readValues.keys
       where !record.readValues.keys.contains(oldReadPath) {
@@ -655,23 +777,28 @@ public final class NodeResolver: Sendable {
       for oldCyclicKey in Set(oldRecord.cyclicKeys).subtracting(record.cyclicKeys) {
         activeCyclicNodes.removeValue(forKey: oldCyclicKey)
       }
+      for oldTarget in oldRecord.cyclicTargetNodeKeys
+      where !record.cyclicTargetNodeKeys.contains(oldTarget) {
+        closersByCyclicTargetNodeKey[oldTarget]?.remove(nodeKey)
+        if closersByCyclicTargetNodeKey[oldTarget]?.isEmpty == true {
+          closersByCyclicTargetNodeKey.removeValue(forKey: oldTarget)
+        }
+      }
 
-      removedChildren = oldRecord.directChildInstances.subtracting(record.directChildInstances)
-      let addedChildren = record.directChildInstances.subtracting(oldRecord.directChildInstances)
-      for addedChild in addedChildren {
+      for oldChild in oldRecord.childSlots.keys where record.childSlots[oldChild] == nil {
+        removedChildren.append(oldChild)
+      }
+      for addedChild in record.childSlots.keys where oldRecord.childSlots[addedChild] == nil {
         parentsByChildInstanceID[addedChild, default: []].insert(nodeKey)
       }
     } else {
-      for child in record.directChildInstances {
+      for child in record.childSlots.keys {
         parentsByChildInstanceID[child, default: []].insert(nodeKey)
       }
     }
 
     nodeRecords[nodeKey] = record
     nodesByDefinitionID[record.definitionID, default: []].insert(nodeKey)
-    for childDefID in record.childIdentities.keys {
-      parentsByChildDefinitionID[childDefID, default: []].insert(nodeKey)
-    }
     for readPath in record.readValues.keys {
       nodesByReadPath[readPath, default: []].insert(nodeKey)
       for ancestor in ancestorPaths(of: readPath) {
@@ -683,6 +810,9 @@ public final class NodeResolver: Sendable {
     }
     for call in record.agentCalls {
       nodesByAgentCall[call, default: []].insert(nodeKey)
+    }
+    for target in record.cyclicTargetNodeKeys {
+      closersByCyclicTargetNodeKey[target, default: []].insert(nodeKey)
     }
 
     for removedChild in removedChildren {
@@ -706,9 +836,6 @@ public final class NodeResolver: Sendable {
     guard let record = nodeRecords.removeValue(forKey: nodeKey) else { return }
 
     nodesByDefinitionID[record.definitionID]?.remove(nodeKey)
-    for childDefID in record.childIdentities.keys {
-      parentsByChildDefinitionID[childDefID]?.remove(nodeKey)
-    }
     for readPath in record.readValues.keys {
       nodesByReadPath[readPath]?.remove(nodeKey)
       if nodesByReadPath[readPath]?.isEmpty == true {
@@ -727,8 +854,14 @@ public final class NodeResolver: Sendable {
     for cyclicKey in record.cyclicKeys {
       activeCyclicNodes.removeValue(forKey: cyclicKey)
     }
+    for target in record.cyclicTargetNodeKeys {
+      closersByCyclicTargetNodeKey[target]?.remove(nodeKey)
+      if closersByCyclicTargetNodeKey[target]?.isEmpty == true {
+        closersByCyclicTargetNodeKey.removeValue(forKey: target)
+      }
+    }
 
-    for childNodeKey in record.directChildInstances {
+    for childNodeKey in record.childSlots.keys {
       parentsByChildInstanceID[childNodeKey]?.remove(nodeKey)
       if parentsByChildInstanceID[childNodeKey]?.isEmpty ?? true {
         parentsByChildInstanceID.removeValue(forKey: childNodeKey)
@@ -758,6 +891,9 @@ public final class NodeResolver: Sendable {
     activeNodes.removeAll()
     activeCyclicNodes.removeAll()
     nodeRecords.removeAll()
+    closersByCyclicTargetNodeKey.removeAll()
+    replacedNodesInCurrentPass.removeAll()
+    isTrackingNodeReplacements = false
   }
 
   private func cachedSchema(
@@ -843,29 +979,26 @@ public final class NodeResolver: Sendable {
     let previousPropertyPath = currentPropertyPath
     let previousReadValues = currentNodeReadValues
     let previousTemplateCounts = currentNodeTemplateCounts
-    let previousChildIdentities = currentNodeChildIdentities
-    let previousDirectChildren = currentNodeDirectChildren
     let previousChildSlots = currentNodeChildSlots
     let previousAgentCalls = currentNodeAgentCalls
     let previousCyclicKeys = currentNodeCyclicKeys
+    let previousCyclicTargetNodeKeys = currentNodeCyclicTargetNodeKeys
     currentComponentID = nodeKey
     currentNodeReadValues = [:]
     currentNodeTemplateCounts = [:]
-    currentNodeChildIdentities = [:]
-    currentNodeDirectChildren = []
     currentNodeChildSlots = [:]
     currentNodeAgentCalls = []
     currentNodeCyclicKeys = []
+    currentNodeCyclicTargetNodeKeys = []
     defer {
       currentComponentID = previousComponentID
       currentPropertyPath = previousPropertyPath
       currentNodeReadValues = previousReadValues
       currentNodeTemplateCounts = previousTemplateCounts
-      currentNodeChildIdentities = previousChildIdentities
-      currentNodeDirectChildren = previousDirectChildren
       currentNodeChildSlots = previousChildSlots
       currentNodeAgentCalls = previousAgentCalls
       currentNodeCyclicKeys = previousCyclicKeys
+      currentNodeCyclicTargetNodeKeys = previousCyclicTargetNodeKeys
     }
 
     let type = component.type
@@ -920,6 +1053,7 @@ public final class NodeResolver: Sendable {
         instanceSuffix: instanceSuffix,
         componentID: instanceID,
         propertyKey: key,
+        slotLocation: SlotLocation(property: key),
         visited: visited,
         components: components,
         data: data,
@@ -939,13 +1073,12 @@ public final class NodeResolver: Sendable {
       instanceSuffix: instanceSuffix,
       visited: ancestorVisited,
       componentSnapshot: component,
-      childIdentities: currentNodeChildIdentities ?? [:],
       readValues: currentNodeReadValues ?? [:],
       templateCounts: currentNodeTemplateCounts ?? [:],
-      directChildInstances: currentNodeDirectChildren ?? [],
       childSlots: currentNodeChildSlots ?? [:],
       agentCalls: currentNodeAgentCalls ?? [],
-      cyclicKeys: currentNodeCyclicKeys ?? []
+      cyclicKeys: currentNodeCyclicKeys ?? [],
+      cyclicTargetNodeKeys: currentNodeCyclicTargetNodeKeys ?? []
     )
     registerNodeDependencies(record)
 
@@ -968,6 +1101,7 @@ public final class NodeResolver: Sendable {
       properties: resolvedProperties,
       metadata: component.metadata
     )
+    recordNodeReplacementIfNeeded(for: nodeKey, newNode: node)
     activeNodes[nodeKey] = node
     return node
   }
@@ -992,10 +1126,8 @@ public final class NodeResolver: Sendable {
       instanceSuffix: instanceSuffix,
       visited: visited,
       componentSnapshot: nil,
-      childIdentities: [:],
       readValues: [:],
       templateCounts: [:],
-      directChildInstances: [],
       agentCalls: []
     )
     registerNodeDependencies(record)
@@ -1004,6 +1136,7 @@ public final class NodeResolver: Sendable {
       return existing
     }
     let node = Node.pending(id: instanceID, scopeKey: basePath, dataContextPath: dataContextPath)
+    recordNodeReplacementIfNeeded(for: nodeKey, newNode: node)
     activeNodes[nodeKey] = node
     return node
   }
@@ -1031,22 +1164,13 @@ public final class NodeResolver: Sendable {
     let occurrence = currentNodeCyclicKeys?.filter { $0.hasPrefix("\(slotKey)#") }.count ?? 0
     let cyclicKey = "\(slotKey)#\(occurrence)"
     currentNodeCyclicKeys?.append(cyclicKey)
+    currentNodeCyclicTargetNodeKeys?.insert(nodeKey)
     if let existing = activeCyclicNodes[cyclicKey] {
       return existing
     }
     let node = Node.cyclic(id: instanceID, scopeKey: basePath, dataContextPath: dataContextPath)
     activeCyclicNodes[cyclicKey] = node
     return node
-  }
-
-  private func childSlot(for propertyKey: String, elementIndex: Int? = nil) -> NodeBox.ChildSlot {
-    if let slashIndex = propertyKey.firstIndex(of: "/") {
-      return .nested(property: String(propertyKey[..<slashIndex]))
-    }
-    if let elementIndex {
-      return .listElement(property: propertyKey, index: elementIndex)
-    }
-    return .direct(property: propertyKey)
   }
 
   private func resolveChildReference(
@@ -1062,7 +1186,6 @@ public final class NodeResolver: Sendable {
     recurseIntoChildren: Bool
   ) -> Node? {
     let childIdentity = componentIdentity(for: childID, in: components)
-    currentNodeChildIdentities?.updateValue(childIdentity, forKey: childID)
 
     let childNodeKey = makeNodeKey(instanceID: childInstanceID, basePath: basePath)
     if visited.contains(childNodeKey) {
@@ -1090,7 +1213,6 @@ public final class NodeResolver: Sendable {
       existing.state == expectedState,
       existing.type == expectedType && existing.catalogID == childIdentity?.catalogID
     {
-      currentNodeDirectChildren?.insert(childNodeKey)
       currentNodeChildSlots?[childNodeKey, default: []].append(slot)
       return existing
     }
@@ -1113,7 +1235,6 @@ public final class NodeResolver: Sendable {
       data: data,
       recurseIntoChildren: shouldRecurse
     ) {
-      currentNodeDirectChildren?.insert(childNodeKey)
       currentNodeChildSlots?[childNodeKey, default: []].append(slot)
       return childNode
     }
@@ -1228,6 +1349,7 @@ public final class NodeResolver: Sendable {
     instanceSuffix: String? = nil,
     componentID: String,
     propertyKey: String,
+    slotLocation: SlotLocation,
     visited: Set<String>,
     components: [String: ComponentModel],
     data: JSONValue,
@@ -1268,7 +1390,7 @@ public final class NodeResolver: Sendable {
         index: index,
         instanceSuffix: instanceSuffix,
         componentID: componentID,
-        propertyKey: propertyKey,
+        slotLocation: slotLocation,
         visited: visited,
         components: components,
         data: data,
@@ -1277,7 +1399,7 @@ public final class NodeResolver: Sendable {
     case .componentID:
       return resolveComponentIDProperty(
         value: value,
-        propertyKey: propertyKey,
+        slotLocation: slotLocation,
         basePath: basePath,
         index: index,
         instanceSuffix: instanceSuffix,
@@ -1299,6 +1421,7 @@ public final class NodeResolver: Sendable {
         instanceSuffix: instanceSuffix,
         componentID: componentID,
         propertyKey: propertyKey,
+        slotLocation: slotLocation,
         visited: visited,
         components: components,
         data: data,
@@ -1310,7 +1433,7 @@ public final class NodeResolver: Sendable {
 
   private func resolveComponentIDProperty(
     value: JSONValue,
-    propertyKey: String,
+    slotLocation: SlotLocation,
     basePath: String?,
     index: Int?,
     instanceSuffix: String?,
@@ -1325,7 +1448,7 @@ public final class NodeResolver: Sendable {
     return resolveChildReference(
       definitionID: childID,
       instanceID: childInstanceID,
-      slot: childSlot(for: propertyKey),
+      slot: slotLocation.makeSlot(),
       basePath: basePath,
       index: index,
       instanceSuffix: effectiveSuffix,
@@ -1344,6 +1467,7 @@ public final class NodeResolver: Sendable {
     instanceSuffix: String?,
     componentID: String,
     propertyKey: String,
+    slotLocation: SlotLocation,
     visited: Set<String>,
     components: [String: ComponentModel],
     data: JSONValue,
@@ -1360,6 +1484,7 @@ public final class NodeResolver: Sendable {
         instanceSuffix: instanceSuffix,
         componentID: componentID,
         propertyKey: propertyKey,
+        slotLocation: slotLocation,
         visited: visited,
         components: components,
         data: data,
@@ -1378,6 +1503,7 @@ public final class NodeResolver: Sendable {
           instanceSuffix: instanceSuffix,
           componentID: componentID,
           propertyKey: propertyKey,
+          slotLocation: slotLocation,
           visited: visited,
           components: components,
           data: data,
@@ -1398,6 +1524,7 @@ public final class NodeResolver: Sendable {
     instanceSuffix: String?,
     componentID: String,
     propertyKey: String,
+    slotLocation: SlotLocation,
     visited: Set<String>,
     components: [String: ComponentModel],
     data: JSONValue,
@@ -1409,7 +1536,10 @@ public final class NodeResolver: Sendable {
     if itemType == .checks {
       return resolveChecks(rawValue, basePath: basePath, index: index, data: data)
     }
-    let resolvedArray = array.enumerated().compactMap { itemIndex, item -> (any Resolved)? in
+    var resolvedArray: [any Resolved] = []
+    resolvedArray.reserveCapacity(array.count)
+    for (itemIndex, item) in array.enumerated() {
+      let itemSlotLocation = slotLocation.appending(.arrayIndex(resolvedArray.count))
       if let resolved = resolveProperty(
         value: item,
         schema: itemsSchema,
@@ -1419,15 +1549,17 @@ public final class NodeResolver: Sendable {
         instanceSuffix: instanceSuffix,
         componentID: componentID,
         propertyKey: "\(propertyKey)/\(itemIndex)",
+        slotLocation: itemSlotLocation,
         visited: visited,
         components: components,
         data: data,
         checks: checks,
         recurseIntoChildren: recurseIntoChildren
       ) {
-        return resolved
+        resolvedArray.append(resolved)
+      } else if item == .null {
+        resolvedArray.append(item)
       }
-      return item == .null ? item : nil
     }
     return ResolvedArray(resolvedArray)
   }
@@ -1440,6 +1572,7 @@ public final class NodeResolver: Sendable {
     instanceSuffix: String?,
     componentID: String,
     propertyKey: String,
+    slotLocation: SlotLocation,
     visited: Set<String>,
     components: [String: ComponentModel],
     data: JSONValue,
@@ -1463,6 +1596,7 @@ public final class NodeResolver: Sendable {
         instanceSuffix: instanceSuffix,
         componentID: componentID,
         propertyKey: "\(propertyKey)/\(key)",
+        slotLocation: slotLocation.appending(.key(key)),
         visited: visited,
         components: components,
         data: data,
@@ -2277,7 +2411,7 @@ public final class NodeResolver: Sendable {
     index: Int? = nil,
     instanceSuffix: String? = nil,
     componentID: String,
-    propertyKey: String,
+    slotLocation: SlotLocation,
     visited: Set<String>,
     components: [String: ComponentModel],
     data: JSONValue,
@@ -2287,7 +2421,7 @@ public final class NodeResolver: Sendable {
     case .array(let arr):
       return resolveStaticChildList(
         arr,
-        propertyKey: propertyKey,
+        slotLocation: slotLocation,
         basePath: basePath,
         index: index,
         instanceSuffix: instanceSuffix,
@@ -2299,7 +2433,7 @@ public final class NodeResolver: Sendable {
     case .object(let dict):
       return resolveTemplateChildList(
         dict,
-        propertyKey: propertyKey,
+        slotLocation: slotLocation,
         basePath: basePath,
         instanceSuffix: instanceSuffix,
         visited: visited,
@@ -2314,7 +2448,7 @@ public final class NodeResolver: Sendable {
 
   private func resolveStaticChildList(
     _ arr: [JSONValue],
-    propertyKey: String,
+    slotLocation: SlotLocation,
     basePath: String?,
     index: Int?,
     instanceSuffix: String?,
@@ -2328,7 +2462,7 @@ public final class NodeResolver: Sendable {
     for item in arr {
       guard let childID = item.stringValue else { continue }
       let childInstanceID = effectiveSuffix.map { "\(childID)_\($0)" } ?? childID
-      let slot = childSlot(for: propertyKey, elementIndex: resolvedNodes.count)
+      let slot = slotLocation.makeListSlot(index: resolvedNodes.count)
       if let childNode = resolveChildReference(
         definitionID: childID,
         instanceID: childInstanceID,
@@ -2349,7 +2483,7 @@ public final class NodeResolver: Sendable {
 
   private func resolveTemplateChildList(
     _ dict: OrderedDictionary<String, JSONValue>,
-    propertyKey: String,
+    slotLocation: SlotLocation,
     basePath: String?,
     instanceSuffix: String?,
     visited: Set<String>,
@@ -2365,10 +2499,6 @@ public final class NodeResolver: Sendable {
     }
     let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
     let normalizedTemplatePath = normalizePath(absPath)
-    currentNodeChildIdentities?.updateValue(
-      componentIdentity(for: templateID, in: components),
-      forKey: templateID
-    )
     guard let dataItems = data[normalizedTemplatePath]?.arrayValue else {
       currentNodeTemplateCounts?[normalizedTemplatePath] = 0
       return []
@@ -2379,7 +2509,7 @@ public final class NodeResolver: Sendable {
       let itemSuffix = instanceSuffix.map { "\($0)_\(itemIndex)" } ?? "\(itemIndex)"
       let itemID = "\(templateID)_\(itemSuffix)"
       let itemBasePath = "\(normalizedTemplatePath)/\(itemIndex)"
-      let slot = childSlot(for: propertyKey, elementIndex: expandedNodes.count)
+      let slot = slotLocation.makeListSlot(index: expandedNodes.count)
       if let itemNode = resolveChildReference(
         definitionID: templateID,
         instanceID: itemID,

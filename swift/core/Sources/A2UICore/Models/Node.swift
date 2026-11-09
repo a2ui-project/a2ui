@@ -97,10 +97,16 @@ package final class NodeBox: Observable {
     }
   }
 
-  enum ChildSlot: Sendable {
+  enum SlotStep: Sendable, Equatable {
+    case nodeListIndex(Int)
+    case arrayIndex(Int)
+    case key(String)
+  }
+
+  enum ChildSlot: Sendable, Equatable {
     case direct(property: String)
     case listElement(property: String, index: Int)
-    case nested(property: String)
+    case nested(property: String, steps: [SlotStep])
   }
 
   struct ChildSlotReplacement {
@@ -154,9 +160,10 @@ package final class NodeBox: Observable {
         nodes[index] = newNode
       }
       _properties[property] = nodes
-    case .nested(let property):
-      guard let existing = _properties.removeValue(forKey: property) else { return }
-      _properties[property] = Self.replacingNode(in: existing, from: oldBox, to: newNode).value
+    case .nested(let property, let steps):
+      guard var rootValue = _properties.removeValue(forKey: property) else { return }
+      Self.updateSlot(in: &rootValue, steps: steps[...], from: oldBox, to: newNode)
+      _properties[property] = rootValue
     }
   }
 
@@ -170,70 +177,95 @@ package final class NodeBox: Observable {
           return false
         }
         return nodes[index].box === target
-      case .nested(let property):
+      case .nested(let property, let steps):
         guard let existing = _properties[property] else { return false }
-        return Self.containsNode(target, in: existing)
+        return Self.slotHolds(target, in: existing, steps: steps[...])
       }
     }
   }
 
-  private static func containsNode(_ target: NodeBox, in value: any Resolved) -> Bool {
-    if let node = value as? Node {
-      return node.box === target
+  private static func slotHolds(
+    _ target: NodeBox,
+    in value: any Resolved,
+    steps: ArraySlice<SlotStep>
+  ) -> Bool {
+    guard let step = steps.first else {
+      return (value as? Node)?.box === target
     }
-    if let nodes = value as? [Node] {
-      return nodes.contains { $0.box === target }
+    let rest = steps.dropFirst()
+    switch step {
+    case .nodeListIndex(let index):
+      guard rest.isEmpty, let nodes = value as? [Node], nodes.indices.contains(index) else {
+        return false
+      }
+      return nodes[index].box === target
+    case .arrayIndex(let index):
+      guard let arr = value as? ResolvedArray, arr.elements.indices.contains(index) else {
+        return false
+      }
+      return slotHolds(target, in: arr.elements[index], steps: rest)
+    case .key(let key):
+      guard let dict = value as? ResolvedDictionary, let child = dict.storage[key] else {
+        return false
+      }
+      return slotHolds(target, in: child, steps: rest)
     }
-    if let dict = value as? ResolvedDictionary {
-      return dict.storage.values.contains { containsNode(target, in: $0) }
-    }
-    if let arr = value as? ResolvedArray {
-      return arr.elements.contains { containsNode(target, in: $0) }
-    }
-    return false
   }
 
-  private static func replacingNode(
-    in value: any Resolved,
+  /// Replaces a nested child slot in `O(depth)`, moving each container out of its existential
+  /// before mutating so `[Node]`, `ResolvedArray`, and `ResolvedDictionary` buffers stay uniquely
+  /// referenced and avoid Copy-on-Write clones.
+  private static func updateSlot(
+    in value: inout any Resolved,
+    steps: ArraySlice<SlotStep>,
     from oldBox: NodeBox,
     to newNode: Node
-  ) -> (value: any Resolved, changed: Bool) {
-    if let node = value as? Node {
-      return node.box === oldBox ? (newNode, true) : (value, false)
+  ) {
+    guard let step = steps.first else {
+      if let node = value as? Node, node.box === oldBox {
+        value = newNode
+      }
+      return
     }
-    if var nodes = value as? [Node] {
-      var changed = false
-      for index in nodes.indices where nodes[index].box === oldBox {
+    let rest = steps.dropFirst()
+    var taken: any Resolved = false
+    swap(&value, &taken)
+    switch step {
+    case .nodeListIndex(let index):
+      guard var nodes = taken as? [Node] else {
+        value = taken
+        return
+      }
+      taken = false
+      if rest.isEmpty, nodes.indices.contains(index), nodes[index].box === oldBox {
         nodes[index] = newNode
-        changed = true
       }
-      return (nodes, changed)
-    }
-    if let dict = value as? ResolvedDictionary {
-      var updated = dict.storage
-      var changed = false
-      for (key, elem) in dict.storage {
-        let result = replacingNode(in: elem, from: oldBox, to: newNode)
-        if result.changed {
-          updated[key] = result.value
-          changed = true
-        }
+      value = nodes
+    case .arrayIndex(let index):
+      guard var arr = taken as? ResolvedArray, arr.elements.indices.contains(index) else {
+        value = taken
+        return
       }
-      return changed ? (ResolvedDictionary(updated), true) : (value, false)
-    }
-    if let arr = value as? ResolvedArray {
-      var updated = arr.elements
-      var changed = false
-      for index in arr.elements.indices {
-        let result = replacingNode(in: arr.elements[index], from: oldBox, to: newNode)
-        if result.changed {
-          updated[index] = result.value
-          changed = true
-        }
+      taken = false
+      var child: any Resolved = false
+      swap(&arr.elements[index], &child)
+      updateSlot(in: &child, steps: rest, from: oldBox, to: newNode)
+      swap(&arr.elements[index], &child)
+      value = arr
+    case .key(let key):
+      guard var dict = taken as? ResolvedDictionary else {
+        value = taken
+        return
       }
-      return changed ? (ResolvedArray(updated), true) : (value, false)
+      taken = false
+      guard var child = dict.storage.removeValue(forKey: key) else {
+        value = dict
+        return
+      }
+      updateSlot(in: &child, steps: rest, from: oldBox, to: newNode)
+      dict.storage[key] = child
+      value = dict
     }
-    return (value, false)
   }
 
   private static func arePropertiesShallowEqual(

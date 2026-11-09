@@ -1824,6 +1824,19 @@ struct NodeResolverTests {
     #expect(pendingChildren.allSatisfy { $0.state == .pending })
     #expect(pendingChildren[0].box === pendingChildren[2].box)
 
+    let rootPropChanges = ObservationCounterBox()
+    let rootMetaChanges = ObservationCounterBox()
+    _ = withObservationTracking {
+      root.children(for: "children")
+    } onChange: {
+      rootPropChanges.increment()
+    }
+    _ = withObservationTracking {
+      root.extensions
+    } onChange: {
+      rootMetaChanges.increment()
+    }
+
     componentsModel.addComponent(
       ComponentModel(id: "first", type: "Text", properties: ["text": .string("One")])
     )
@@ -1834,6 +1847,8 @@ struct NodeResolverTests {
     _ = try #require(resolver.resolveTree())
     #expect(resolver.lastResolvedNodeCount == 2)
     #expect(root.box.propsRevision == 1)
+    #expect(rootPropChanges.count == 1)
+    #expect(rootMetaChanges.count == 0)
 
     let resolvedChildren = root.children(for: "children")
     #expect(resolvedChildren.count == 3)
@@ -1855,6 +1870,9 @@ struct NodeResolverTests {
               "properties": {
                 "id": { "type": "string" },
                 "component": { "type": "string" },
+                "ui/header": {
+                  "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/ComponentId"
+                },
                 "tabs": {
                   "type": "array",
                   "items": {
@@ -1900,8 +1918,10 @@ struct NodeResolverTests {
         id: "root",
         type: "Tabs",
         properties: [
+          "ui/header": .string("header"),
           "tabs": .array([
-            .object(["title": .string("Tab A"), "child": .string("pane")])
+            .object(["title": .string("Tab A"), "child": .string("paneA")]),
+            .object(["title": .string("Tab B"), "child": .string("paneB")]),
           ]),
           "children": .object([
             "componentId": .string("row"),
@@ -1920,18 +1940,30 @@ struct NodeResolverTests {
 
     let root = try #require(resolver.resolveTree())
     #expect(resolver.lastResolvedNodeCount == 1)
-    #expect(root.allChildNodes.count == 3)
+    #expect(root.allChildNodes.count == 5)
     #expect(root.allChildNodes.allSatisfy { $0.state == .pending })
 
     componentsModel.addComponent(
-      ComponentModel(id: "pane", type: "Text", properties: ["text": .string("Pane Body")])
+      ComponentModel(id: "header", type: "Text", properties: ["text": .string("Header")])
+    )
+    componentsModel.addComponent(
+      ComponentModel(id: "paneA", type: "Text", properties: ["text": .string("Pane A Body")])
+    )
+    componentsModel.addComponent(
+      ComponentModel(id: "paneB", type: "Text", properties: ["text": .string("Pane B Body")])
     )
     _ = try #require(resolver.resolveTree())
-    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(resolver.lastResolvedNodeCount == 3)
     #expect(root.box.propsRevision == 1)
-    let paneNode = try #require(root.allChildNodes.first { $0.id == "pane" })
-    #expect(paneNode.state == .resolved)
-    #expect(paneNode.string(for: "text") == "Pane Body")
+    let headerNode = try #require(root.child(for: "ui/header"))
+    #expect(headerNode.state == .resolved)
+    #expect(headerNode.string(for: "text") == "Header")
+    let paneANode = try #require(root.allChildNodes.first { $0.id == "paneA" })
+    let paneBNode = try #require(root.allChildNodes.first { $0.id == "paneB" })
+    #expect(paneANode.state == .resolved)
+    #expect(paneANode.string(for: "text") == "Pane A Body")
+    #expect(paneBNode.state == .resolved)
+    #expect(paneBNode.string(for: "text") == "Pane B Body")
 
     componentsModel.addComponent(
       ComponentModel(
@@ -1956,12 +1988,17 @@ struct NodeResolverTests {
       "root": ComponentModel(
         id: "root",
         type: "Container",
-        properties: ["children": .array([.string("p1"), .string("p2")])]
+        properties: ["children": .array([.string("p1"), .string("wrapper")])]
       ),
       "p1": ComponentModel(
         id: "p1",
         type: "Container",
         properties: ["children": .array([.string("shared")])]
+      ),
+      "wrapper": ComponentModel(
+        id: "wrapper",
+        type: "Container",
+        properties: ["children": .array([.string("p2")])]
       ),
       "p2": ComponentModel(
         id: "p2",
@@ -1985,7 +2022,8 @@ struct NodeResolverTests {
     )
     let afterArrival = try #require(resolver.resolveTree())
     let p1AfterArrival = try #require(afterArrival.children(for: "children").first)
-    let p2AfterArrival = try #require(afterArrival.children(for: "children").last)
+    let wrapperAfterArrival = try #require(afterArrival.children(for: "children").last)
+    let p2AfterArrival = try #require(wrapperAfterArrival.children(for: "children").first)
     let p1Shared = try #require(p1AfterArrival.children(for: "children").first)
     let p2Shared = try #require(p2AfterArrival.children(for: "children").first)
     #expect(p1Shared.state == .resolved)
@@ -1995,7 +2033,7 @@ struct NodeResolverTests {
     let cyclicShared = ComponentModel(
       id: "shared",
       type: "Container",
-      properties: ["children": .array([.string("root")])]
+      properties: ["children": .array([.string("p1")])]
     )
     componentsModel.addComponent(cyclicShared)
     let incrementalRoot = try #require(resolver.resolveTree())
@@ -2008,6 +2046,7 @@ struct NodeResolverTests {
       componentsModel: SurfaceComponentsModel(components: [
         "root": try #require(componentsModel.get("root")),
         "p1": try #require(componentsModel.get("p1")),
+        "wrapper": try #require(componentsModel.get("wrapper")),
         "p2": try #require(componentsModel.get("p2")),
         "shared": cyclicShared,
       ]),
@@ -2020,6 +2059,310 @@ struct NodeResolverTests {
     #expect(
       genericErrors(incrementalHandler).map(\.code) == genericErrors(fullHandler).map(\.code)
     )
+
+    let recoveredShared = ComponentModel(
+      id: "shared",
+      type: "Text",
+      properties: ["text": .string("Recovered")]
+    )
+    componentsModel.addComponent(recoveredShared)
+    let recoveredIncrementalRoot = try #require(resolver.resolveTree())
+    let recoveredFullResolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: [
+        "root": try #require(componentsModel.get("root")),
+        "p1": try #require(componentsModel.get("p1")),
+        "wrapper": try #require(componentsModel.get("wrapper")),
+        "p2": try #require(componentsModel.get("p2")),
+        "shared": recoveredShared,
+      ]),
+      dataModel: DataModel()
+    )
+    let recoveredFullRoot = try #require(recoveredFullResolver.resolveTree())
+    #expect(recoveredIncrementalRoot == recoveredFullRoot)
+  }
+
+  @Test func incrementalSingleParentChildCycleAndCloserRecoveryMatchesFullResolution() throws {
+    let catalog = try makeCatalog()
+    let incrementalHandler = ExpressionErrorCaptureHandler()
+    let componentsModel = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("p1")])]
+      ),
+      "p1": ComponentModel(
+        id: "p1",
+        type: "Container",
+        properties: ["children": .array([.string("leaf")])]
+      ),
+    ])
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: DataModel(),
+      actionHandler: incrementalHandler
+    )
+
+    let initialRoot = try #require(resolver.resolveTree())
+    let p1Node = try #require(initialRoot.children(for: "children").first)
+    #expect(p1Node.box.propsRevision == 0)
+
+    componentsModel.addComponent(
+      ComponentModel(id: "leaf", type: "Text", properties: ["text": .string("Leaf")])
+    )
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(p1Node.box.propsRevision == 1)
+    #expect(p1Node.children(for: "children").first?.string(for: "text") == "Leaf")
+
+    let cyclicLeaf = ComponentModel(
+      id: "leaf",
+      type: "Container",
+      properties: ["children": .array([.string("p1")])]
+    )
+    componentsModel.addComponent(cyclicLeaf)
+    let incrementalRoot = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(p1Node.box.propsRevision == 2)
+
+    let fullHandler = ExpressionErrorCaptureHandler()
+    let fullResolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: [
+        "root": try #require(componentsModel.get("root")),
+        "p1": try #require(componentsModel.get("p1")),
+        "leaf": cyclicLeaf,
+      ]),
+      dataModel: DataModel(),
+      actionHandler: fullHandler
+    )
+    let fullRoot = try #require(fullResolver.resolveTree())
+    #expect(incrementalRoot == fullRoot)
+    #expect(
+      genericErrors(incrementalHandler).map(\.code) == genericErrors(fullHandler).map(\.code)
+    )
+  }
+
+  @Test func incrementalBatchNewSiblingReferenceAndChildArrivalPatchesExistingParent() throws {
+    let catalog = try makeCatalog()
+    let componentsModel = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("a"), .string("wrapper")])]
+      ),
+      "a": ComponentModel(id: "a", type: "Container", properties: [:]),
+      "wrapper": ComponentModel(
+        id: "wrapper",
+        type: "Container",
+        properties: ["child": .string("b")]
+      ),
+    ])
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: DataModel()
+    )
+
+    let root = try #require(resolver.resolveTree())
+    let wrapperBefore = try #require(root.children(for: "children").last)
+    #expect(wrapperBefore.child(for: "child")?.state == .pending)
+
+    componentsModel.addComponent(
+      ComponentModel(id: "a", type: "Container", properties: ["child": .string("b")])
+    )
+    componentsModel.addComponent(
+      ComponentModel(id: "b", type: "Text", properties: ["text": .string("Hello")])
+    )
+
+    let updatedRoot = try #require(resolver.resolveTree())
+    let aAfter = try #require(updatedRoot.children(for: "children").first)
+    let wrapperAfter = try #require(updatedRoot.children(for: "children").last)
+    let aChild = try #require(aAfter.child(for: "child"))
+    let wrapperChild = try #require(wrapperAfter.child(for: "child"))
+    #expect(aChild.state == .resolved)
+    #expect(wrapperChild.state == .resolved)
+    #expect(wrapperChild.string(for: "text") == "Hello")
+    #expect(aChild.box === wrapperChild.box)
+  }
+
+  @Test func incrementalFormerlySharedChildUsesLiveVisitedOnTypeAndPropertyChanges() throws {
+    let catalog = try makeCatalog()
+    let incrementalHandler = ExpressionErrorCaptureHandler()
+    let componentsModel = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("p1"), .string("p2")])]
+      ),
+      "p1": ComponentModel(
+        id: "p1",
+        type: "Container",
+        properties: ["children": .array([.string("shared")])]
+      ),
+      "p2": ComponentModel(
+        id: "p2",
+        type: "Container",
+        properties: ["children": .array([.string("shared")])]
+      ),
+      "shared": ComponentModel(
+        id: "shared",
+        type: "Text",
+        properties: ["text": .string("Initial")]
+      ),
+    ])
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: DataModel(),
+      actionHandler: incrementalHandler
+    )
+
+    let initialRoot = try #require(resolver.resolveTree())
+    let p1Node = try #require(initialRoot.children(for: "children").first)
+    #expect(p1Node.box.propsRevision == 0)
+
+    componentsModel.addComponent(
+      ComponentModel(id: "p2", type: "Container", properties: ["children": .array([])])
+    )
+    _ = try #require(resolver.resolveTree())
+
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "shared",
+        type: "Container",
+        properties: ["children": .array([.string("p2")])]
+      )
+    )
+    let acyclicRoot = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 2)
+    #expect(p1Node.box.propsRevision == 1)
+    #expect(genericErrors(incrementalHandler).isEmpty)
+
+    let acyclicFullResolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: componentsModel.components),
+      dataModel: DataModel()
+    )
+    #expect(acyclicRoot == acyclicFullResolver.resolveTree())
+
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "shared",
+        type: "Container",
+        properties: ["children": .array([.string("p1")])]
+      )
+    )
+    let cyclicRoot = try #require(resolver.resolveTree())
+    #expect(genericErrors(incrementalHandler).map(\.code) == ["CYCLIC_REFERENCE"])
+
+    let cyclicFullHandler = ExpressionErrorCaptureHandler()
+    let cyclicFullResolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: componentsModel.components),
+      dataModel: DataModel(),
+      actionHandler: cyclicFullHandler
+    )
+    #expect(cyclicRoot == cyclicFullResolver.resolveTree())
+    #expect(
+      genericErrors(incrementalHandler).map(\.code) == genericErrors(cyclicFullHandler).map(\.code)
+    )
+  }
+
+  @Test func incrementalCycleCloserReResolvesWhenCycleBreaks() throws {
+    let catalog = try makeCatalog()
+    let componentsModel = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("b"), .string("a")])]
+      ),
+      "b": ComponentModel(
+        id: "b",
+        type: "Container",
+        properties: ["children": .array([.string("closer")])]
+      ),
+      "a": ComponentModel(
+        id: "a",
+        type: "Container",
+        properties: ["children": .array([.string("mid")])]
+      ),
+      "mid": ComponentModel(
+        id: "mid",
+        type: "Container",
+        properties: ["children": .array([.string("closer")])]
+      ),
+      "closer": ComponentModel(
+        id: "closer",
+        type: "Container",
+        properties: ["children": .array([.string("a")])]
+      ),
+    ])
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: DataModel()
+    )
+
+    let initialRoot = try #require(resolver.resolveTree())
+    let bInitial = try #require(initialRoot.children(for: "children").first)
+    let closerInitial = try #require(bInitial.children(for: "children").first)
+    #expect(closerInitial.children(for: "children").first?.state == .cyclic)
+
+    // Breaking the cycle at an intermediate node (`mid`) without modifying `a` or `closer` must
+    // re-resolve `closer` so its reference to `a` updates from `.cyclic` to `.resolved`.
+    componentsModel.addComponent(
+      ComponentModel(id: "mid", type: "Container", properties: ["children": .array([])])
+    )
+    let afterMidBreak = try #require(resolver.resolveTree())
+    let fullAfterMidBreak = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: componentsModel.components),
+      dataModel: DataModel()
+    )
+    #expect(afterMidBreak == fullAfterMidBreak.resolveTree())
+
+    // Re-closing the cycle and then changing `a` to a leaf `Text` must also re-resolve `closer`.
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "mid",
+        type: "Container",
+        properties: ["children": .array([.string("closer")])]
+      )
+    )
+    _ = try #require(resolver.resolveTree())
+
+    componentsModel.addComponent(
+      ComponentModel(id: "a", type: "Text", properties: ["text": .string("Leaf A")])
+    )
+    let afterTargetLeaf = try #require(resolver.resolveTree())
+    let fullAfterTargetLeaf = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: componentsModel.components),
+      dataModel: DataModel()
+    )
+    #expect(afterTargetLeaf == fullAfterTargetLeaf.resolveTree())
   }
 }
 
