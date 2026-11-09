@@ -3,6 +3,38 @@
   "releaseTag": "docs-assets",
   "baseUrl": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets",
   "assets": {
+    "build-with-a2ui/alation-feed": {
+      "filename": "build-with-a2ui--alation-feed.5602582c.webp",
+      "url": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets/build-with-a2ui--alation-feed.5602582c.webp",
+      "sha256": "5602582c9381dd654f572a813468037499fbfa89307ae7a271dbd9f0c4a1ebb7",
+      "width": 1920,
+      "height": 832,
+      "bytes": 58648
+    },
+    "build-with-a2ui/gemini-notebook-cards": {
+      "filename": "build-with-a2ui--gemini-notebook-cards.498faab5.webp",
+      "url": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets/build-with-a2ui--gemini-notebook-cards.498faab5.webp",
+      "sha256": "498faab57d06b335f105ff36e4e0b7e4f533c0ed1b7c0df73c03b8e366d7cf00",
+      "width": 1920,
+      "height": 944,
+      "bytes": 67578
+    },
+    "build-with-a2ui/jira-follow-up": {
+      "filename": "build-with-a2ui--jira-follow-up.1451f432.webp",
+      "url": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets/build-with-a2ui--jira-follow-up.1451f432.webp",
+      "sha256": "1451f432542a2aeba5495e1ffb3795536a56bad4064df7dd1875a174c5329701",
+      "width": 1520,
+      "height": 1640,
+      "bytes": 68216
+    },
+    "build-with-a2ui/lynx-kyoto": {
+      "filename": "build-with-a2ui--lynx-kyoto.47709914.webp",
+      "url": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets/build-with-a2ui--lynx-kyoto.47709914.webp",
+      "sha256": "477099146cfe8869383b33c4fb657a1e0ed727871e2b5c0242a05ae960f7d89d",
+      "width": 1920,
+      "height": 1104,
+      "bytes": 62296
+    },
     "quickstart/travel-a2ui/a2ui-vs-app": {
       "filename": "quickstart--travel-a2ui--a2ui-vs-app.6cf941df.webp",
       "url": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--a2ui-vs-app.6cf941df.webp",

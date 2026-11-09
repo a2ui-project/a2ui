@@ -14,27 +14,44 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+interface Props {
+  /** Show the link to the full stories. Turn off on the page that already shows them. */
+  showStoriesLink?: boolean;
+}
+
+const {showStoriesLink = true} = Astro.props;
+const stories = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/build-with-a2ui/`;
 ---
 
 <section class="a2-section a2-section--alt ps-section" id="customers">
   <div class="ps-wrap">
-    <!-- Minimal editorial header -->
     <div class="ps-head">
       <h2 class="ps-h2">
         Shipping across <span class="ps-accent">Google and the industry.</span>
       </h2>
+      {
+        showStoriesLink && (
+          <a href={stories} class="ps-more">
+            <span>See what they built</span>
+            <span aria-hidden="true">→</span>
+          </a>
+        )
+      }
     </div>
 
-    <!-- Architectural 5-cell brand logo & name showcase -->
+    <div class="ps-groups" aria-hidden="true">
+      <span>Outside Google</span>
+      <span>Inside Google</span>
+    </div>
+
     <ul class="ps-brands" aria-label="Teams and products shipping with A2UI">
       <!-- 1. Alation -->
       <li class="ps-brand">
         <a
-          href="https://www.alation.com"
-          target="_blank"
-          rel="noopener noreferrer"
+          href={`${stories}#alation`}
           class="ps-brand__inner"
-          aria-label="Alation"
+          aria-label="Alation, Alation AIOS: read the story"
         >
           <div class="ps-brand__lockup">
             <svg
@@ -66,17 +83,16 @@
               </defs>
             </svg>
           </div>
+          <span class="ps-brand__product">Alation AIOS</span>
         </a>
       </li>
 
       <!-- 2. ByteDance -->
       <li class="ps-brand">
         <a
-          href="https://lynxjs.org/react/genui/a2ui.html"
-          target="_blank"
-          rel="noopener noreferrer"
+          href={`${stories}#bytedance`}
           class="ps-brand__inner"
-          aria-label="ByteDance"
+          aria-label="ByteDance, Lynx: read the story"
         >
           <div class="ps-brand__lockup">
             <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
@@ -87,17 +103,16 @@
             </svg>
             <span class="ps-brand__name">ByteDance</span>
           </div>
+          <span class="ps-brand__product">Lynx</span>
         </a>
       </li>
 
       <!-- 3. Atlassian -->
       <li class="ps-brand">
         <a
-          href="https://support.atlassian.com/jira-software-cloud/docs/work-with-ai-agents-in-jira/"
-          target="_blank"
-          rel="noopener noreferrer"
+          href={`${stories}#atlassian`}
           class="ps-brand__inner"
-          aria-label="Atlassian"
+          aria-label="Atlassian, Jira: read the story"
         >
           <div class="ps-brand__lockup">
             <svg viewBox="0 0 256 256" width="25" height="25" aria-hidden="true">
@@ -124,17 +139,16 @@
             </svg>
             <span class="ps-brand__name">Atlassian</span>
           </div>
+          <span class="ps-brand__product">Jira</span>
         </a>
       </li>
 
       <!-- 4. Google Cloud -->
       <li class="ps-brand">
         <a
-          href="https://cloud.google.com/gemini-enterprise"
-          target="_blank"
-          rel="noopener noreferrer"
+          href={`${stories}#gemini-enterprise`}
           class="ps-brand__inner"
-          aria-label="Google Cloud"
+          aria-label="Google Cloud, Gemini Enterprise: read the story"
         >
           <div class="ps-brand__lockup">
             <svg viewBox="0 0 256 206" width="30" height="24" aria-hidden="true">
@@ -157,12 +171,17 @@
             </svg>
             <span class="ps-brand__name">Google Cloud</span>
           </div>
+          <span class="ps-brand__product">Gemini Enterprise</span>
         </a>
       </li>
 
       <!-- 5. Gemini -->
       <li class="ps-brand">
-        <div class="ps-brand__inner">
+        <a
+          href={`${stories}#gemini-notebook`}
+          class="ps-brand__inner"
+          aria-label="Gemini, Gemini Notebook: read the story"
+        >
           <div class="ps-brand__lockup">
             <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
               <defs>
@@ -219,37 +238,38 @@
             </svg>
             <span class="ps-brand__name">Gemini</span>
           </div>
-        </div>
+          <span class="ps-brand__product">Gemini Notebook</span>
+        </a>
       </li>
     </ul>
 
-    <!-- Restrained 2-column partner quotes (only where quotes exist) -->
+    <!-- Partner quotes (only where approved quotes exist) -->
     <div class="ps-quotes">
       <blockquote class="ps-quote">
         <p>
-          "The Alation Intelligence Operating System (AIOS) brings artifacts with data, charts, and
+          The Alation Intelligence Operating System (AIOS) brings artifacts with data, charts, and
           insights directly to where teams work with transparency about where each figure comes
           from. A2UI provides the interactive UI scaffolding that makes these artifacts feel like
           high-touch, tailored applications, whether they are used in Alation or in the AI
-          Assistants our customers already use."
+          Assistants our customers already use.
         </p>
         <footer>
           <strong>GT Volpe</strong>
-          <span>VP of Product Management, Alation</span>
+          <span>Vice President of Product Management, Alation</span>
         </footer>
       </blockquote>
 
       <blockquote class="ps-quote">
         <p>
-          "A2UI is headed in the right direction: it separates how a model produces an interface
+          A2UI is headed in the right direction: it separates how a model produces an interface
           from how an app renders it. Swappable inference formats and macros keep generation
           efficient, and even the model can be swapped. In our playground, a decision model like
           Jev, which picks components and values instead of writing text, builds A2UI screens that
-          Lynx renders natively."
+          Lynx renders natively.
         </p>
         <footer>
           <strong>Shouqun Liu</strong>
-          <span>Engineering Lead for Lynx, ByteDance</span>
+          <span>Engineering Lead for Lynx at ByteDance</span>
         </footer>
       </blockquote>
     </div>
@@ -284,9 +304,63 @@
     }
   }
 
-  /* Compact single-axis header */
   .ps-head {
     margin-bottom: 32px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px 32px;
+  }
+
+  .ps-more {
+    display: inline-flex;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--a2-accent);
+    text-decoration: none;
+  }
+
+  .ps-more:hover span:first-child {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+
+  /* Outside Google = first three cells, inside Google = last two */
+  .ps-groups {
+    display: grid;
+    grid-template-columns: 3fr 2fr;
+    margin-bottom: 10px;
+  }
+
+  .ps-groups span {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: var(--a2-font-mono);
+    font-size: 11px;
+    letter-spacing: var(--a2-tracking-mono-wide);
+    text-transform: uppercase;
+    color: var(--a2-text-muted);
+  }
+
+  .ps-groups span::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    margin-right: 16px;
+    background: var(--a2-border-strong);
+  }
+
+  .ps-groups span:last-child::after {
+    margin-right: 0;
+  }
+
+  @media (max-width: 1040px) {
+    .ps-groups {
+      display: none;
+    }
   }
 
   .ps-h2 {
@@ -366,8 +440,10 @@
   .ps-brand__inner {
     height: 100%;
     min-height: 98px;
-    padding: 26px 16px;
+    padding: 26px 16px 22px;
     display: flex;
+    flex-direction: column;
+    gap: 10px;
     align-items: center;
     justify-content: center;
     text-align: center;
@@ -399,6 +475,19 @@
     height: 25px;
   }
 
+  .ps-brand__product {
+    font-family: var(--a2-font-mono);
+    font-size: 11.5px;
+    line-height: 1.3;
+    color: var(--a2-text-muted);
+    transition: color 0.16s ease;
+  }
+
+  a.ps-brand__inner:hover .ps-brand__product,
+  a.ps-brand__inner:focus-visible .ps-brand__product {
+    color: var(--a2-accent);
+  }
+
   .ps-brand__name {
     font-family: var(--a2-font-display);
     font-size: 19.5px;
@@ -427,9 +516,8 @@
     }
   }
 
-  /* Restrained 2-column quotes */
   .ps-quotes {
-    margin-top: 40px;
+    margin-top: 56px;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     column-gap: 64px;
@@ -476,9 +564,23 @@
 
   .ps-quote p {
     margin: 0;
-    font-size: 14px;
-    line-height: 1.66;
-    color: var(--a2-text-secondary);
+    font-family: var(--a2-font-display);
+    font-size: clamp(1.05rem, 1.45vw, 1.25rem);
+    font-weight: 500;
+    line-height: 1.55;
+    letter-spacing: -0.012em;
+    color: var(--a2-text);
+  }
+
+  .ps-quote p::before {
+    content: '\201C';
+    display: block;
+    height: 0.62em;
+    margin-bottom: 10px;
+    font-size: 3.4rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--a2-heading-accent);
   }
 
   .ps-quote footer {
@@ -486,7 +588,7 @@
     flex-wrap: wrap;
     align-items: baseline;
     gap: 6px 10px;
-    font-size: 12.5px;
+    font-size: 14px;
   }
 
   .ps-quote strong {
@@ -496,7 +598,7 @@
 
   .ps-quote span {
     font-family: var(--a2-font-mono);
-    font-size: 11px;
+    font-size: 12px;
     color: var(--a2-text-muted);
   }
 </style>

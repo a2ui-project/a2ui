@@ -8,7 +8,7 @@ Parallel Markdown editions of documentation pages are available by appending `.m
 
 - Agent skills CLI (Claude Code, Gemini CLI, Cursor, Codex, Windsurf): `npx skills add a2ui-project/a2ui`
 - [Get Help & Agent Skills](https://a2ui.org/get-help/)
-- [Showcase Gallery](https://a2ui.org/showcase/)
+- [Build with A2UI: generative UI spectrum and production stories](https://a2ui.org/build-with-a2ui/)
 - [A2UI Composer & Inspector](https://a2ui-editor.ag-ui.com)
 - [A2UI Playground](https://go.copilotkit.ai/a2ui-playground)
 
