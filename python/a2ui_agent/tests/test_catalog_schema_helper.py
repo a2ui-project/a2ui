@@ -244,3 +244,89 @@ def test_own_definition_wins_over_nested_local_mixin(nested_mixin_helper):
         "display"
     ]
     assert nested_mixin_helper.get_property_type("MaterialHeading", "weight") == "Child"
+
+
+@pytest.fixture
+def envelope_helper() -> CatalogSchemaHelper:
+    catalog = Catalog.from_json({
+        "catalogId": "envelope",
+        "protocolVersion": "1.0",
+        "components": {
+            # Inlines the v1.0 `@`-prefixed envelope mixin properties.
+            "AtInline": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "AtInline"},
+                    "label": {"type": "string"},
+                    "@catalogId": {"type": "string"},
+                    "@accessibility": {
+                        "$ref": "common_types.json#/$defs/AccessibilityAttributes"
+                    },
+                    "@metadata": {"type": "object"},
+                    "@checks": {
+                        "type": "array",
+                        "items": {"$ref": "common_types.json#/$defs/CheckRule"},
+                    },
+                },
+                "required": ["component"],
+            },
+            # Declares the checks mixin inline as a bare array of check rules.
+            "BareChecks": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "BareChecks"},
+                    "checks": {
+                        "type": "array",
+                        "items": {"$ref": "common_types.json#/$defs/CheckRule"},
+                    },
+                    "label": {"type": "string"},
+                },
+                "required": ["component"],
+            },
+            # Declares custom properties named after the envelope mixins.
+            "Custom": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "Custom"},
+                    "metadata": {"type": "string"},
+                    "accessibility": {"type": "boolean"},
+                    "checks": {"type": "integer"},
+                    "catalogId": {"type": "string"},
+                },
+                "required": ["component"],
+            },
+        },
+    })
+    return CatalogSchemaHelper(catalog)
+
+
+def test_at_prefixed_envelope_properties_are_not_dsl_parameters(envelope_helper):
+    assert envelope_helper.get_component_properties("AtInline") == ["label", "checks"]
+    assert envelope_helper.is_checkable("AtInline")
+    assert envelope_helper.get_custom_envelope_properties("AtInline") == frozenset()
+
+
+def test_bare_standard_checks_property_makes_the_component_checkable(
+    envelope_helper,
+):
+    assert envelope_helper.get_component_properties("BareChecks") == [
+        "label",
+        "checks",
+    ]
+    assert envelope_helper.is_checkable("BareChecks")
+    assert envelope_helper.get_custom_envelope_properties("BareChecks") == frozenset()
+
+
+def test_custom_properties_named_after_envelope_mixins_are_ordinary(
+    envelope_helper,
+):
+    assert envelope_helper.get_component_properties("Custom") == [
+        "metadata",
+        "accessibility",
+        "checks",
+        "catalogId",
+    ]
+    assert not envelope_helper.is_checkable("Custom")
+    assert envelope_helper.get_custom_envelope_properties("Custom") == frozenset(
+        {"metadata", "accessibility", "checks", "catalogId"}
+    )

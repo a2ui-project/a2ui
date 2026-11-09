@@ -134,7 +134,7 @@ describe('ExpressPromptGenerator', () => {
         '## Positional Component Signatures\n\n' +
         'Use these exact positional signatures to instantiate components. Do not output property keys:\n' +
         '• TextField(label, value?, placeholder?, checks? (static))\n' +
-        '  - Description: A single line text input.\n\n' +
+        "  - Description: A single line text input. It composes the protocol's Checkable mixin, so its validation checks travel in `@checks`.\n\n" +
         '## Positional Function Signatures\n\n' +
         'Use these exact positional signatures to instantiate check rules or logic functions:\n' +
         '• regex(value, pattern)\n' +

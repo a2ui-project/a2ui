@@ -249,47 +249,109 @@ class CatalogSchemaHelper {
     };
   }
 
-  _ComponentSignature _signature(String component) =>
-      _components.putIfAbsent(component, () {
-        final Map<String, Object?> schema = catalog
-            .resolvedComponentSchema(component)!
-            .value;
-        final List<Map<String, Object?>> subschemas = _subschemas(schema);
-        final schemas = <String, Map<String, Object?>>{};
-        final required = <String>[];
-        var isCheckable = false;
-        for (final sub in subschemas) {
-          _properties(sub).forEach((name, value) {
-            if (value is Map) schemas[name] = value.cast<String, Object?>();
-          });
-          for (final Object? name in sub['required'] as List<Object?>? ?? []) {
-            required.add(name! as String);
-          }
-          if (_refName(sub)?.endsWith('Checkable') ?? false) isCheckable = true;
-          if (_properties(sub).containsKey('checks')) isCheckable = true;
+  _ComponentSignature _signature(String component) => _components.putIfAbsent(
+    component,
+    () {
+      final Map<String, Object?> schema = catalog
+          .resolvedComponentSchema(component)!
+          .value;
+      final List<Map<String, Object?>> subschemas = _subschemas(schema);
+      final schemas = <String, Map<String, Object?>>{};
+      final required = <String>[];
+      var isCheckable = false;
+      for (final sub in subschemas) {
+        _properties(sub).forEach((name, value) {
+          if (value is Map) schemas[name] = value.cast<String, Object?>();
+        });
+        for (final Object? name in sub['required'] as List<Object?>? ?? []) {
+          required.add(name! as String);
         }
-        const structural = {'component', 'id', 'checks'};
-        schemas.removeWhere((name, _) => structural.contains(name));
-        const commonKeys = {'accessibility', 'weight'};
-        final List<String> specificProperties = [
-          for (final key in schemas.keys)
-            if (!commonKeys.contains(key)) key,
-        ];
-        final List<String> commonProperties = [
-          for (final key in const ['weight'])
-            if (schemas.containsKey(key)) key,
-        ];
-        final orderedProperties = [...specificProperties, ...commonProperties];
-        return _ComponentSignature(
-          properties: orderedProperties,
-          required: [
-            for (final String name in orderedProperties)
-              if (required.contains(name)) name,
-          ],
-          schemas: schemas,
-          isCheckable: isCheckable,
-        );
-      });
+        if (_refName(sub)?.endsWith('Checkable') ?? false) isCheckable = true;
+        if (_properties(sub).containsKey('@checks') ||
+            _isStandardChecksSchema(_properties(sub)['checks'])) {
+          isCheckable = true;
+        }
+      }
+      final bool v1 =
+          catalog.protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
+      const structural = {
+        'component',
+        'id',
+        '@catalogId',
+        '@metadata',
+        '@accessibility',
+        '@checks',
+      };
+      schemas.removeWhere(
+        (name, propSchema) =>
+            structural.contains(name) ||
+            (name == 'checks' &&
+                (isCheckable || !v1) &&
+                _isStandardChecksSchema(propSchema)) ||
+            (name == 'accessibility' &&
+                (!v1 || _isStandardAccessibilitySchema(propSchema))) ||
+            (name == 'metadata' && v1 && _isStandardMetadataSchema(propSchema)),
+      );
+      final List<String> specificProperties = [
+        for (final key in schemas.keys)
+          if (key != 'weight') key,
+      ];
+      final List<String> commonProperties = [
+        for (final key in const ['weight'])
+          if (schemas.containsKey(key)) key,
+      ];
+      final orderedProperties = [...specificProperties, ...commonProperties];
+      return _ComponentSignature(
+        properties: orderedProperties,
+        required: [
+          for (final String name in orderedProperties)
+            if (required.contains(name)) name,
+        ],
+        schemas: schemas,
+        isCheckable: isCheckable,
+      );
+    },
+  );
+}
+
+bool _isStandardChecksSchema(Object? propSchema) {
+  if (propSchema is! Map) return false;
+  final Object? ref = propSchema[r'$ref'] ?? propSchema['commonTypesRef'];
+  if (ref is String &&
+      (ref.endsWith('/Checkable') ||
+          ref.endsWith('/Checkable/properties/checks') ||
+          ref.endsWith('/CheckRule'))) {
+    return true;
+  }
+  if (propSchema['type'] != 'array') return false;
+  final Object? items = propSchema['items'];
+  if (items == null) return true;
+  if (items is! Map) return false;
+  final Object? itemRef = items[r'$ref'] ?? items['commonTypesRef'];
+  if (itemRef is String && itemRef.endsWith('/CheckRule')) return true;
+  final Map<String, Object?> itemProps = _properties(
+    items.cast<String, Object?>(),
+  );
+  if (itemProps.containsKey('condition') && itemProps.containsKey('message')) {
+    return true;
+  }
+  return items['type'] == 'object' && !items.containsKey('properties');
+}
+
+bool _isStandardAccessibilitySchema(Map<String, Object?> propSchema) {
+  final Object? ref = propSchema[r'$ref'] ?? propSchema['commonTypesRef'];
+  if (ref is String && ref.endsWith('/AccessibilityAttributes')) return true;
+  final Map<String, Object?> props = _properties(propSchema);
+  return props.containsKey('label') &&
+      props.containsKey('description') &&
+      propSchema['additionalProperties'] == false;
+}
+
+bool _isStandardMetadataSchema(Map<String, Object?> propSchema) {
+  final Map<String, Object?> props = _properties(propSchema);
+  return props.length == 1 &&
+      props.containsKey('extensions') &&
+      propSchema['additionalProperties'] == false;
 }
 
 class _ComponentSignature {

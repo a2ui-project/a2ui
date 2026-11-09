@@ -336,7 +336,7 @@ public final class PayloadValidator: Sendable {
   ///
   /// The instance holds the component's own properties, and `id` and `component` when the schema
   /// declares them. Checks stay in it, under the name the component schema gives them (the shared
-  /// `Checkable` definition calls them `checks`), so the schema checks their rules.
+  /// v1.0 `Checkable` definition calls them `@checks`), so the schema checks their rules.
   ///
   /// - Throws: `A2UIValidationError` when a mixin is invalid, or when a component that is not
   ///   checkable carries checks.
@@ -371,13 +371,24 @@ public final class PayloadValidator: Sendable {
           details: [A2UIErrorDetail(path: key, code: "invalid_value", message: msg)]
         )
       }
+      // The shared v1.0 `Checkable` definition names the mixin `@checks`, so the checks go
+      // under `@checks` unless the component schema itself declares a bare `checks` list of
+      // check rules as the mixin. A custom bare `checks` property is never overwritten.
+      let declaresBare = Self.schemaDeclaresProperty(
+        ComponentEnvelope.Mixin.checks.bareKey,
+        in: schema,
+        root: schema,
+        visitedRefs: []
+      )
       let declaresPrefixed = Self.schemaDeclaresProperty(
         ComponentEnvelope.Mixin.checks.prefixedKey,
         in: schema,
         root: schema,
         visitedRefs: []
       )
-      instance[declaresPrefixed ? "@checks" : "checks"] = checks
+      let bareIsChecksMixin =
+        declaresBare && !ComponentEnvelope.declaresOwnProperty(.checks, in: schema)
+      instance[declaresPrefixed || !bareIsChecksMixin ? "@checks" : "checks"] = checks
     }
     return instance
   }

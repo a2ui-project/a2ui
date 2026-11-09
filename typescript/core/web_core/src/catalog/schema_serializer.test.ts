@@ -1030,16 +1030,16 @@ describe('Catalog.fromJson', () => {
     assert.deepStrictEqual(reloadedValidation, originalCatalog.validationSchema);
 
     const basePayload = {
-      id: 'root',
-      catalogId: roundTripped.id,
-      accessibility: {
+      'id': 'root',
+      '@catalogId': roundTripped.id,
+      '@accessibility': {
         label: 'Welcome banner',
         description: 'Primary surface greeting',
         live: 'polite',
       },
-      metadata: {extensions: {vendor_ext: {featured: true}}},
-      text: 'Hello world',
-      weight: 2,
+      '@metadata': {extensions: {vendor_ext: {featured: true}}},
+      'text': 'Hello world',
+      'weight': 2,
     };
 
     // 1. Validate against official v1.0 protocol schemas (agent_to_renderer.json#/$defs/Component).
@@ -1075,13 +1075,13 @@ describe('Catalog.fromJson', () => {
       assert.strictEqual(
         evaluateJsonSchema(
           {
-            id: 'root',
-            component: 'OpenBanner',
-            catalogId: roundTripped.id,
-            accessibility: basePayload.accessibility,
-            metadata: basePayload.metadata,
-            text: 'Hello world',
-            customExtra: 42,
+            'id': 'root',
+            'component': 'OpenBanner',
+            '@catalogId': roundTripped.id,
+            '@accessibility': basePayload['@accessibility'],
+            '@metadata': basePayload['@metadata'],
+            'text': 'Hello world',
+            'customExtra': 42,
           },
           componentWireSchema,
           'agent_to_renderer.json',
@@ -1190,13 +1190,13 @@ describe('Catalog.fromJson', () => {
         surfaceId: 's1',
         components: [
           {
-            id: 'root',
-            component: 'OpenBanner',
-            catalogId: roundTripped.id,
-            accessibility: basePayload.accessibility,
-            metadata: basePayload.metadata,
-            text: 'Hello world',
-            customExtra: 42,
+            'id': 'root',
+            'component': 'OpenBanner',
+            '@catalogId': roundTripped.id,
+            '@accessibility': basePayload['@accessibility'],
+            '@metadata': basePayload['@metadata'],
+            'text': 'Hello world',
+            'customExtra': 42,
           },
         ],
       },

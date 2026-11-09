@@ -469,9 +469,9 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       const compiler = new ExpressCompiler([basicCatalogV10], '1.0');
       const [root] = createSurfaceComponents(
         compiler.compile('root = TextField("L", {"@path": "/x"}, ?required)'),
-      ) as Array<{checks: Array<{condition: {args: Record<string, unknown>}}>}>;
+      ) as Array<{'@checks': Array<{condition: {args: Record<string, unknown>}}>}>;
 
-      expect(root.checks[0].condition.args).toEqual({});
+      expect(root['@checks'][0].condition.args).toEqual({});
     });
   });
 
@@ -905,26 +905,26 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
               {
                 id: 'root',
                 component: 'Column',
-                catalogId: simplifiedCatalog.id,
+                '@catalogId': simplifiedCatalog.id,
                 children: ['g', 'f'],
               },
               {
                 id: 'g',
                 component: 'Gauge',
-                catalogId: customCatalog.id,
+                '@catalogId': customCatalog.id,
                 value: 0.75,
               },
               {
                 id: 'f',
                 component: 'TextField',
-                catalogId: formsCatalog.id,
+                '@catalogId': formsCatalog.id,
                 label: {
                   '@call': 'formatString',
                   catalogId: simplifiedCatalog.id,
                   args: {value: 'Zip'},
                 },
                 value: {'@path': '/zip'},
-                checks: [
+                '@checks': [
                   {
                     condition: {
                       '@call': 'regex',
@@ -958,13 +958,13 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
               {
                 id: 'root',
                 component: 'Column',
-                catalogId: simplifiedCatalog.id,
+                '@catalogId': simplifiedCatalog.id,
                 children: ['t1', 't2', 'tf'],
               },
               {
                 id: 't1',
                 component: 'Text',
-                catalogId: simplifiedCatalog.id,
+                '@catalogId': simplifiedCatalog.id,
                 text: {
                   '@call': 'formatString',
                   catalogId: simplifiedCatalog.id,
@@ -974,7 +974,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
               {
                 id: 't2',
                 component: 'Text',
-                catalogId: 'test/labels',
+                '@catalogId': 'test/labels',
                 label: {
                   '@call': 'formatString',
                   catalogId: 'test/labels',
@@ -984,10 +984,10 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
               {
                 id: 'tf',
                 component: 'TextField',
-                catalogId: formsCatalog.id,
+                '@catalogId': formsCatalog.id,
                 label: 'Name',
                 value: {'@path': '/name'},
-                checks: [
+                '@checks': [
                   {
                     condition: {
                       '@call': 'required',
@@ -1137,7 +1137,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
               {
                 id: 'root',
                 component: 'Chart',
-                catalogId: customCatalog.id,
+                '@catalogId': customCatalog.id,
                 values: [1, 2],
                 caption: {
                   '@call': 'formatString',
@@ -1257,7 +1257,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
                 id: 'root',
                 component: 'Text',
                 text: 'Hello',
-                metadata: {extensions: {trace: {spanId: '1'}}},
+                '@metadata': {extensions: {trace: {spanId: '1'}}},
               },
             ],
           },

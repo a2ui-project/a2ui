@@ -778,8 +778,10 @@ describe('Catalog.fromJson & schema_loader', () => {
     assert.ok(!schema.safeParse({size: true}).success, 'top level beats the local definition');
     assert.deepStrictEqual(Object.keys(schema.shape), [
       'checks',
+      '@checks',
       'accessibility',
-      'metadata',
+      '@accessibility',
+      '@metadata',
       'label',
       'size',
     ]);
@@ -798,7 +800,8 @@ describe('Catalog.fromJson & schema_loader', () => {
     const catalog = Catalog.fromJson(precedenceCatalog);
     const schema = catalog.components.get('Toggle')!.schema as z.ZodObject<z.ZodRawShape>;
     assert.ok(!('catalogId' in schema.shape));
-    assert.ok('metadata' in schema.shape);
+    assert.ok(!('@catalogId' in schema.shape));
+    assert.ok('@metadata' in schema.shape);
     new PayloadValidator(catalog, STRICT_VALIDATION).validateComponent({
       id: 'toggle1',
       component: 'Toggle',
@@ -1068,5 +1071,38 @@ describe('Catalog.fromJson & schema_loader', () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+
+  it('preserves custom checks property on a v1.0 Checkable component that also accepts @checks', () => {
+    const catalog = Catalog.fromJson(
+      {
+        catalogId: 'https://example.com/checkable_custom_checks_v1_0.json',
+        protocolVersion: '1.0',
+        components: {
+          ScoreInput: {
+            type: 'object',
+            allOf: [
+              {$ref: 'common_types.json#/$defs/Checkable'},
+              {
+                type: 'object',
+                properties: {
+                  component: {const: 'ScoreInput'},
+                  checks: {type: 'integer'},
+                },
+                required: ['component', 'checks'],
+              },
+            ],
+          },
+        },
+      },
+      '1.0',
+    );
+    const validator = new PayloadValidator(catalog, STRICT_VALIDATION);
+    validator.validateComponent({
+      id: 'score_1',
+      component: 'ScoreInput',
+      checks: 3,
+      '@checks': [{condition: true, message: 'Must pass'}],
+    });
   });
 });

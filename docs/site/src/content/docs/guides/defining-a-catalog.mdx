@@ -492,7 +492,7 @@ fun createProcessor(context: Context): A2uiMessageProcessor {
   [Authoring Universal Web Components](../../guides/authoring-universal-components/).
 </Aside>
 
-Once registered on both sides, your agent can combine basic layout components and `StatusBadge` on the same v1.0 surface by tagging the custom component with its `catalogId` (in v0.9.1, each surface binds to a single `catalogId`):
+Once registered on both sides, your agent can combine basic layout components and `StatusBadge` on the same v1.0 surface by tagging the custom component with its catalog ID in `@catalogId` (in v0.9.1, each surface binds to a single `catalogId`):
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0">
@@ -516,7 +516,7 @@ Once registered on both sides, your agent can combine basic layout components an
       },
       {
         "id": "build_badge",
-        "catalogId": "https://example.com/catalogs/status/v1/catalog.json",
+        "@catalogId": "https://example.com/catalogs/status/v1/catalog.json",
         "component": "StatusBadge",
         "label": "All checks passing",
         "status": "success"
@@ -569,7 +569,7 @@ A catalog's `functions` map exposes custom client capabilities to generated surf
 | Device-local data and state    | `"string"`, `"number"`, `"boolean"`, or `"object"` (`"rendererOnly"`) | Reading device timezone, locale, or platform capabilities that are not stored on the server.    |
 | Device-local native actions    | `"void"` (`"rendererOnly"`, `"requiresUserActivation": true`)         | Triggering native share sheets, clipboard writes, or deep links from a user-initiated `Action`. |
 | Local formatting & computation | `"string"`, `"number"`, `"array"`, or `"any"` (`"rendererOrAgent"`)   | Computing derived values reactively from bound data-model fields.                               |
-| Input validation (`checks`)    | `"validationResult"` (`"rendererOnly"`; `"boolean"` in v0.9.1)        | Validating user input synchronously and returning `{"valid": false, "message": "..."}` in v1.0. |
+| Input validation (`@checks`)   | `"validationResult"` (`"rendererOnly"`; `"boolean"` in v0.9.1)        | Validating user input synchronously and returning `{"valid": false, "message": "..."}` in v1.0. |
 
 In v1.0, each [`FunctionDefinition`](../../specification/v1.0/schemas/#catalog_definition.json/$defs/FunctionDefinition) declares `returnType` at the top level of the function object and uses `"@call"` inside `properties`. You can set `allowedCallers` to `"rendererOnly"` (default), `"agentOnly"`, or `"rendererOrAgent"`. Side-effecting device functions can set `"requiresUserActivation": true` so they run only from direct user interactions; functions that require user activation must keep `allowedCallers` set to `"rendererOnly"` (or omit it).
 
@@ -1418,7 +1418,7 @@ val ProductCard: A2uiComponent =
 
 ### Interactive actions and input checks
 
-Reference [`Action`](../../specification/v1.0/schemas/#common_types.json/$defs/Action) on interactive properties to let surfaces dispatch server events or run local functions (such as `shareProduct`). When an input component supports client-side validation rules (`checks`), compose [`Checkable`](../../specification/v1.0/schemas/#common_types.json/$defs/Checkable) via `allOf` so the renderer evaluates bound `CheckRule` conditions and exposes `isValid` and `validationErrors` to your widget.
+Reference [`Action`](../../specification/v1.0/schemas/#common_types.json/$defs/Action) on interactive properties to let surfaces dispatch server events or run local functions (such as `shareProduct`). When an input component supports client-side validation rules (`@checks` in v1.0, `checks` in v0.9.1), compose [`Checkable`](../../specification/v1.0/schemas/#common_types.json/$defs/Checkable) via `allOf` so the renderer evaluates bound `CheckRule` conditions and exposes `isValid` and `validationErrors` to your widget.
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0">
@@ -1657,11 +1657,11 @@ Domain-specific components such as `UsernameInput` or `SearchSubmitButton` alrea
 
 #### Inherited accessibility attributes and renderer mapping
 
-In v1.0, every component inherits the optional `accessibility` object from [`ComponentCommon`](../../specification/v1.0/schemas/#common_types.json/$defs/ComponentCommon) at the message envelope level. Do not redeclare `accessibility` or wrap v1.0 component definitions with `ComponentCommon`. In v0.9 and v0.9.1, reference [`ComponentCommon`](../../specification/v0.9.1/schemas/#common_types.json/$defs/ComponentCommon) once via `allOf` in each component schema without redeclaring `id` or `accessibility`.
+In v1.0, every component inherits the optional `@accessibility` object from [`ComponentCommon`](../../specification/v1.0/schemas/#common_types.json/$defs/ComponentCommon) at the message envelope level. Do not redeclare `@accessibility` or wrap v1.0 component definitions with `ComponentCommon`. In v0.9 and v0.9.1, reference [`ComponentCommon`](../../specification/v0.9.1/schemas/#common_types.json/$defs/ComponentCommon) once via `allOf` in each component schema without redeclaring `id` or `accessibility`.
 
 In v0.9, v0.9.1, and v1.0, [`AccessibilityAttributes`](../../specification/v1.0/schemas/#common_types.json/$defs/AccessibilityAttributes) provides `label` and `description`, and both accept literal strings, data bindings, or function calls. Version 1.0 also adds `live` (`"off"`, `"polite"`, or `"assertive"`) for live-region announcements and `hidden` for excluding decorative elements from assistive technologies.
 
-Agents can set `accessibility` on any component instance to supply or override assistive text when visual context is missing, such as an icon-only `Button`:
+Agents can set `@accessibility` (or `accessibility` in v0.9 and v0.9.1) on any component instance to supply or override assistive text when visual context is missing, such as an icon-only `Button`:
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0">
@@ -1672,7 +1672,7 @@ Agents can set `accessibility` on any component instance to supply or override a
   "component": "Button",
   "child": "close_icon",
   "action": {"event": {"name": "close_dialog"}},
-  "accessibility": {
+  "@accessibility": {
     "label": "Close dialog",
     "description": {"@path": "/dialog/unsavedWarning"}
   }
@@ -1698,9 +1698,9 @@ Agents can set `accessibility` on any component instance to supply or override a
   </TabItem>
 </Tabs>
 
-Notice that v1.0 data bindings use `@path`, whereas v0.9.1 bindings use `path`.
+Notice that v1.0 uses `@accessibility` and `@path`, whereas v0.9.1 uses `accessibility` and `path`.
 
-In your native component implementation, map resolved `AccessibilityAttributes` and visible child text or titles to platform accessibility APIs. Use WAI-ARIA attributes on the web, `Semantics` widgets in Flutter, and `.accessibilityLabel` or `.accessibilityHint` modifiers in SwiftUI. When an instance sets `accessibility.label` or `accessibility.description`, let those values override any label inferred from visible text (see [Catalog-Agnostic Accessibility Requirements](../../specification/v1.0-a2ui/#catalog-agnostic-accessibility-requirements)).
+In your native component implementation, map resolved `AccessibilityAttributes` and visible child text or titles to platform accessibility APIs. Use WAI-ARIA attributes on the web, `Semantics` widgets in Flutter, and `.accessibilityLabel` or `.accessibilityHint` modifiers in SwiftUI. When an instance sets `@accessibility.label` or `@accessibility.description` (or `accessibility.label` and `accessibility.description` in v0.9 and v0.9.1), let those values override any label inferred from visible text (see [Catalog-Agnostic Accessibility Requirements](../../specification/v1.0-a2ui/#catalog-agnostic-accessibility-requirements)).
 
 ### Schema parity tests in CI
 

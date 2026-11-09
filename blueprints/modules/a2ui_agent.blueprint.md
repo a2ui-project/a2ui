@@ -498,7 +498,8 @@ reaches validation through the first of them:
 
 - **`MessageProcessor` (`a2ui.core.processing`)** is the entry point. It holds every
   active catalog, resolves each component and function call to the catalog it belongs to
-  (the item's own `catalogId`, else the surface default, else `A2uiCatalogError`), and hands
+  (the item's own `@catalogId` or function call `catalogId`, else the surface default, else
+  `A2uiCatalogError`), and hands
   the item to that catalog's validator. It also owns the checks that need more than one
   item: surface lifecycle, component uniqueness, root reachability, cycles, recursion
   depth caps, and data binding JSON Pointer syntax. A surface whose components come from
@@ -862,6 +863,8 @@ def read_renderer_capabilities(
 
 ## 4. Inference Format Strategy Implementations
 
+**Component envelope keys.** On v1.0 surfaces, every Agent SDK component writer (format compilers, typed builders, macro expanders, and streaming readers that emit or re-emit components) writes the optional component envelope mixins only as `@catalogId`, `@accessibility`, `@metadata`, and `@checks`, and never as the bare keys. A bare `catalogId`, `accessibility`, `metadata`, or `checks` on a v1.0 component is written only when the component schema declares it as its own property. Readers of existing payloads, such as the Express decompiler, also accept a legacy bare envelope key during the transition when the component schema does not declare a property of that name. Pre-1.0 output keeps bare `accessibility` and `checks`. See [Component Envelope Keys](a2ui_core.blueprint.md#component-envelope-keys) in the core blueprint.
+
 ### A. DIRECT_JSON Format (`a2ui.inference_formats.direct_json`)
 
 Standard A2UI JSON payload format enclosed in `<a2ui-json>` sentinel tags.
@@ -1094,7 +1097,7 @@ class ExpressFormatFactory(InferenceFormatFactory):
 4. **Hybrid v1.0 Envelope & Delta Updates**: When an `<a2ui>` block opens and closes within a single `feed()` call, it emits the single-shot `createSurface(components, dataModel)` message. When a block spans multiple chunks, the first ready batch on a new surface emits `createSurface` (or in v0.9: `[createSurface, updateComponents, updateDataModel(path="/", value=...)]` in that chunk's `A2uiPart`), and subsequent chunks emit delta `updateComponents` (containing only newly compiled or mutated components) and per-path `updateDataModel` messages.
 5. **Forward Component References vs. Value Variables**: Forward component ID references in `ComponentId` and `ChildList` slots emit immediately using the variable name as the provisional ID (re-emitting the parent component if the referenced child later declares an explicit `id="..."`). Components that reference an undefined value variable (`Event`, function call, `_template`, check, map, or primitive) wait until that variable is defined. At `</a2ui>`, any still-undefined reference or broken topology raises `A2uiCompilationValidationError` inside a `RendererState` transaction. Unlike one-shot `parse_response`, which checks topology after all blocks in the response have been applied and can recover a single block whose opening `<a2ui>` tag was omitted, `open_stream` requires the opening `<a2ui>` sentinel tag in `wrapped=True` mode, strips Markdown fences and inline backticks placed either inside or immediately outside `<a2ui>` and `</a2ui>`, and checks surface topology as each block closes.
 
-For protocol v1.0 and later, `surface(...)` and every component call accept one reserved keyword argument, `extensions=`, that compiles to the envelope's `metadata: {extensions: ...}` container (`createSurface.metadata` or `ComponentCommon.metadata`). The compiler validates each key as a UAX #31 identifier and rejects the block otherwise, and the decompiler emits `extensions=` back for any envelope that carries `metadata.extensions`. The keyword is catalog-agnostic and is never listed in the default prompt instructions, so an agent that does not use extensions spends no prompt tokens on it. There is no `metadata=` keyword: the v1.0 common envelope already appears as a `metadata` property on every component schema, so a `metadata=` keyword would be ambiguous between the property and the envelope.
+For protocol v1.0 and later, `surface(...)` and every component call accept one reserved keyword argument, `extensions=`, that compiles to the envelope's metadata container: `createSurface.metadata: {extensions: ...}` for a surface and `@metadata: {extensions: ...}` (`ComponentCommon.@metadata`) for a component. The compiler validates each key as a UAX #31 identifier and rejects the block otherwise, and the decompiler emits `extensions=` back for any envelope that carries `extensions`, reading a component's `@metadata` (or, during the transition, a legacy bare `metadata` that the component schema does not declare). The keyword is catalog-agnostic and is never listed in the default prompt instructions, so an agent that does not use extensions spends no prompt tokens on it. There is no `metadata=` keyword for the envelope: a v1.0 component may declare its own `metadata` property, so `metadata=` is that property's ordinary argument when the schema declares it.
 
 #### Data Model Compilation and Decompilation
 
