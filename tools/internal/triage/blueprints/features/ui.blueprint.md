@@ -108,11 +108,15 @@ Ann wants to tell the team what was triaged.
 For example:
 
 ```
-Triaged 3 items: 2 issues and 1 PR. Closed 1. 4 items still need triage.
+Triaged 3 items: 2 issues and 1 PR. 
+4 items still need triage.
 
-- #1235 Flutter renderer crashes on an empty Row: added P1, assigned octocat
-- #1240 Support dark theme in the Lit renderer: closed as duplicate of #1100
-- #1251 Fix typo in the quickstart: added P3, assigned octocat
+- Closed: 1 PR
+  - #1235 Flutter renderer crashes on an empty Row: added P1, assigned octocat
+
+- Assigned for triage: 2 issues 
+  - #1240 Support dark theme in the Lit renderer: closed as duplicate of #1100
+  - #1251 Fix typo in the quickstart: added P3, assigned octocat
 ```
 
 If Ann closes the tool after applying items, but without copying the report, the tool shows the report first, with two buttons: **Copy and close** and **Close**.
