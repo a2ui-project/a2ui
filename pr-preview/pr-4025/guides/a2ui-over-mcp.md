@@ -616,7 +616,7 @@ final parsed = AgentToRendererMessagePayload.fromJson(
 validatePayload([BasicCatalog.v1_0()], parsed.messages);
 ```
 
-For prompt generation, streaming parsers, and stateful validation across turns with `RendererState`, see [How to Integrate with My Agent Server](/guides/agent-integration/).
+For prompt generation, streaming parsers, and stateful validation across turns with `RendererState`, see [How to Integrate A2UI into an Agent](/guides/agent-integration/).
 
 ### Control LLM context visibility
 
