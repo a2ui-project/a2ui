@@ -42,7 +42,8 @@
   on `model.onAction`, carrying the surface's protocol version; `onAction` and
   `model.onAction` still fire. Setting `unifiedOutbound: true` without an
   `outboundListener` throws `ArgumentError`
-  ([#4015](https://github.com/a2ui-project/a2ui/issues/4015)).
+  ([#4015](https://github.com/a2ui-project/a2ui/issues/4015),
+  [#4079](https://github.com/a2ui-project/a2ui/pull/4079)).
 - (v1_0) `MessageProcessor` checks a call nested in the arguments of a
   `callRendererFunction` that names no `catalogId` against the default catalog
   of the surface the message names, where the renderer runs it, rather than

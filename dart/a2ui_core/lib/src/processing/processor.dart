@@ -698,7 +698,7 @@ class MessageProcessor<T extends ComponentApi> {
       model.emitError(errorMessage.error);
     }
     final OutboundMessageListener? listener = _outboundListener;
-    if (listener != null) {
+    if (!_disposed && listener != null) {
       try {
         final FutureOr<void> result = listener(errorMessage);
         if (result is Future) {

@@ -1987,7 +1987,7 @@ void main() {
       expect((outbound.single as ActionMessage).version, 'v0.9.1');
     });
 
-    test('forwards no ActionMessage after dispose', () async {
+    test('forwards no ActionMessage or ErrorMessage after dispose', () async {
       final outbound = <RendererToAgentMessage>[];
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [v10Catalog],
@@ -2006,6 +2006,13 @@ void main() {
         {'name': 'after-dispose', 'context': <String, Object?>{}},
         'btn',
       );
+      processor.processMessagesWithErrors({
+        'version': '1.0',
+        'updateComponents': {
+          'surfaceId': 'missing-after-dispose',
+          'components': <Object?>[],
+        },
+      });
 
       expect(outbound, isEmpty);
     });
