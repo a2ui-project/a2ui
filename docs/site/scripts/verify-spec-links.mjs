@@ -22,6 +22,7 @@ import {fileURLToPath} from 'node:url';
 import {
   findRepoRoot,
   loadVersionSchemas,
+  normalizeBasePrefix,
   SPEC_CATALOG_SCHEMAS,
   SPEC_DOC_ROUTES,
   SPEC_SCHEMAS,
@@ -211,7 +212,7 @@ if (checkDist) {
   if (!fs.existsSync(distDir)) {
     errors.push(`--check-dist requested, but dist/ directory not found at ${distDir}`);
   } else {
-    const basePrefix = (process.env.ASTRO_BASE || '').replace(/\/$/, '');
+    const basePrefix = normalizeBasePrefix(process.env.ASTRO_BASE);
     const allHtmlFiles = walkFiles(distDir, /\.html$/);
     const htmlIdCache = new Map();
 
