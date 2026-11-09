@@ -9,6 +9,35 @@ For the platform-agnostic protocol specifications and guidelines, see
 
 ---
 
+## Installation
+
+Add this repository to your `Package.swift` dependencies using Swift Package Manager:
+
+```swift
+dependencies: [
+  .package(url: "https://github.com/a2ui-project/a2ui", from: "0.10.0"),
+],
+targets: [
+  .target(
+    name: "YourApp",
+    dependencies: [
+      .product(name: "A2UISwiftCore", package: "a2ui"),
+      .product(name: "A2UISwiftUI", package: "a2ui"),
+      .product(name: "BasicCatalogSwiftUI", package: "a2ui"),
+    ]
+  ),
+]
+```
+
+In Xcode, open `File > Add Package Dependencies...`, enter `https://github.com/a2ui-project/a2ui`,
+select version `0.10.0` (Up to Next Major Version), and add the library products to your target.
+
+`A2UISwiftCore` exposes the `A2UICore` and `A2UIJSON` modules for `import`. Targets that do not use
+SwiftUI can depend on `A2UISwiftCore` and `BasicCatalog` directly. See
+[core/README.md](core/README.md) and [swiftui/README.md](swiftui/README.md) for usage examples.
+
+---
+
 ## Directory structure and modules
 
 The Swift library packages are governed by root [Package.swift](../Package.swift):
