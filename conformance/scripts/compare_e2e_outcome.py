@@ -145,6 +145,7 @@ def main(argv: list[str] | None = None) -> int:
             report_content += "All scenario outcomes match.\n"
         else:
             report_content += "\n".join(diff_report)
+        report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(report_content, encoding="utf-8")
 
     return 0 if matches else 1

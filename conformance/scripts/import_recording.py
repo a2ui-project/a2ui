@@ -219,6 +219,11 @@ def import_chunk_recording(
             "expectWire": _parse_chunks(parser, state, list(chunks)),
         })
 
+    if len(requests) > len(replies) and turns:
+        _, trailing_outbound = _split_request(requests[len(replies)])
+        if trailing_outbound is not None:
+            turns[-1]["expectOutbound"] = _wildcard_renderer_values(trailing_outbound)
+
     return {
         "name": name or _scenario_name(path),
         "action": "e2e_scenario",

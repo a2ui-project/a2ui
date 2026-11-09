@@ -186,7 +186,7 @@ def test_cli_output_feeds_the_outcome_comparer(
     written = yaml.safe_load(output.read_text(encoding="utf-8"))
     assert written[0]["name"] == golden["name"]
 
-    report = tmp_path / "report.md"
+    report = tmp_path / "nested" / "reports" / "report.md"
     assert (
         compare_main([
             "--golden",
@@ -199,6 +199,29 @@ def test_cli_output_feeds_the_outcome_comparer(
         == 0
     )
     assert "All scenario outcomes match." in report.read_text(encoding="utf-8")
+
+
+def test_chunk_recording_attaches_trailing_action_request_to_last_turn(
+    golden: dict, recording_with_action: Path, tmp_path: Path
+):
+    recording = json.loads(recording_with_action.read_text(encoding="utf-8"))
+    trailing_action = json.loads(json.dumps(golden["turns"][0]["expectOutbound"][0]))
+    trailing_action["action"]["name"] = "dismiss"
+    trailing_action["action"]["timestamp"] = "2026-01-02T00:00:00Z"
+    recording["requests"].append(json.dumps({"a2ui": {"messages": [trailing_action]}}))
+    trailing_path = tmp_path / "newsletter_trailing.json"
+    trailing_path.write_text(json.dumps(recording), encoding="utf-8")
+
+    scenario = import_chunk_recording(trailing_path, name=golden["name"])
+
+    assert scenario["turns"][-1]["expectOutbound"] == [{
+        **golden["turns"][0]["expectOutbound"][0],
+        "action": {
+            **golden["turns"][0]["expectOutbound"][0]["action"],
+            "name": "dismiss",
+            "timestamp": {"$match": "any"},
+        },
+    }]
 
 
 def test_cli_reports_an_unreadable_recording(tmp_path: Path):
