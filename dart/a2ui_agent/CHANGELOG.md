@@ -1,6 +1,9 @@
 # [a2ui_agent](https://pub.dev/packages/a2ui_agent) Changelog
 
-## Unreleased
+## 0.2.0
+
+- **Breaking:** Requires `a2ui_core` `^0.6.0`, whose types this library
+  re-exports.
 
 - (v1_0) `validatePayload` accepts a `callRendererFunction` on a surface the
   payload never named, as it does an update to one, since an earlier payload
