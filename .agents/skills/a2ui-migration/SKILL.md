@@ -1,5 +1,5 @@
 ---
-name: migration
+name: a2ui-migration
 description: >-
   Migrates an app, renderer, catalog or agent that uses A2UI (or a predecessor
   such as Flutter `genui`) to a newer SDK or protocol version. Use when a task
