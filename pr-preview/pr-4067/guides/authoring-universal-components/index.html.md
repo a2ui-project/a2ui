@@ -243,7 +243,7 @@ export const appConfig: ApplicationConfig = {
 export class AppComponent {}
 ```
 
-If your app targets v0.9.1, pass `'0.9'` as the catalog version and import from `'@a2ui/lit/v0_9'`, `'@a2ui/react/v0_9'`, `'@a2ui/web_core/v0_9'`, `'@a2ui/web_core/v0_9/basic_catalog'`, or `provideA2Ui({useUniversalComponents: true, ...})` from `'@a2ui/angular/v0_9'`. For agent transport setup, see [How to Integrate with My Client](../../guides/client-integration/).
+If your app targets v0.9.1, pass `'0.9'` as the catalog version and import from `'@a2ui/lit/v0_9'`, `'@a2ui/react/v0_9'`, `'@a2ui/web_core/v0_9'`, `'@a2ui/web_core/v0_9/basic_catalog'`, or `provideA2Ui({useUniversalComponents: true, ...})` from `'@a2ui/angular/v0_9'`. For agent transport setup, see [How to Integrate A2UI into a Client](../../guides/client-integration/).
 
 When your agent streams a `createSurface` and `updateComponents` message pair, the host renderer mounts `<a2ui-stat-card>` with the resolved properties:
 

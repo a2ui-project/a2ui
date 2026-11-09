@@ -46,7 +46,7 @@ Parallel Markdown editions of documentation pages are available by appending `.m
 - [How to Integrate with My Client](https://a2ui.org/guides/client-integration/) ([Markdown](https://a2ui.org/guides/client-integration.md))
 - [How to Integrate with My Agent Server](https://a2ui.org/guides/agent-integration/) ([Markdown](https://a2ui.org/guides/agent-integration.md))
 - [How to Define a Catalog](https://a2ui.org/guides/defining-a-catalog/) ([Markdown](https://a2ui.org/guides/defining-a-catalog.md))
-- [Macros](https://a2ui.org/guides/macros/) ([Markdown](https://a2ui.org/guides/macros.md))
+- [Using Macros](https://a2ui.org/guides/macros/) ([Markdown](https://a2ui.org/guides/macros.md))
 - [MCP Overview](https://a2ui.org/guides/mcp-overview/) ([Markdown](https://a2ui.org/guides/mcp-overview.md))
 - [Call MCP Tools from A2UI](https://a2ui.org/guides/mcp-catalog/) ([Markdown](https://a2ui.org/guides/mcp-catalog.md))
 - [Serve A2UI Layouts from an MCP Server](https://a2ui.org/guides/a2ui-over-mcp/) ([Markdown](https://a2ui.org/guides/a2ui-over-mcp.md))
