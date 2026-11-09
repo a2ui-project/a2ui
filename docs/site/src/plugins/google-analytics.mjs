@@ -57,6 +57,16 @@ export function injectGoogleAnalyticsHead(html, measurementId = DEFAULT_GA_MEASU
 
 export async function onRequest(_context, next) {
   const response = await next();
+  if (
+    !response.body ||
+    response.status === 204 ||
+    response.status === 205 ||
+    response.status === 304 ||
+    (response.status >= 300 && response.status < 400)
+  ) {
+    return response;
+  }
+
   const contentType = response.headers.get('content-type') || '';
   if (!contentType.toLowerCase().includes('text/html')) {
     return response;
@@ -67,16 +77,10 @@ export async function onRequest(_context, next) {
     typeof __A2UI_GA_ID__ !== 'undefined' ? __A2UI_GA_ID__ : DEFAULT_GA_MEASUREMENT_ID;
   const originalHtml = await response.text();
   const updatedHtml = injectGoogleAnalyticsHead(originalHtml, measurementId);
-  if (updatedHtml === originalHtml) {
-    return new Response(originalHtml, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers,
-    });
-  }
 
   const headers = new Headers(response.headers);
   headers.delete('content-length');
+  headers.delete('content-encoding');
   return new Response(updatedHtml, {
     status: response.status,
     statusText: response.statusText,

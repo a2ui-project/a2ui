@@ -70,19 +70,40 @@ test('injectGoogleAnalyticsHead injects gtag.js into <head>, is idempotent, and 
   assert.throws(() => googleAnalytics('invalid-id'), /Invalid Google Analytics measurement ID/);
 });
 
-test('onRequest middleware injects analytics on text/html responses and ignores non-HTML responses', async () => {
+test('onRequest middleware injects analytics on text/html responses and skips redirects, empty statuses, and non-HTML', async () => {
   const htmlResponse = await onRequest({}, async () => {
     return new Response(
       '<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>',
       {
         status: 200,
-        headers: {'content-type': 'text/html; charset=utf-8', 'content-length': '76'},
+        headers: {
+          'content-type': 'text/html; charset=utf-8',
+          'content-length': '76',
+          'content-encoding': 'gzip',
+        },
       },
     );
   });
   assert.equal(htmlResponse.headers.get('content-length'), null);
+  assert.equal(htmlResponse.headers.get('content-encoding'), null);
   const body = await htmlResponse.text();
   assert.match(body, new RegExp(`googletagmanager\\.com/gtag/js\\?id=${EXPECTED_GA_ID}`));
+
+  for (const status of [204, 304]) {
+    const emptyRes = new Response(null, {
+      status,
+      headers: {'content-type': 'text/html; charset=utf-8'},
+    });
+    const returned = await onRequest({}, async () => emptyRes);
+    assert.equal(returned, emptyRes);
+  }
+
+  const redirectRes = new Response('<a href="/quickstart/">Moved</a>', {
+    status: 302,
+    headers: {'content-type': 'text/html; charset=utf-8', location: '/quickstart/'},
+  });
+  const returnedRedirect = await onRequest({}, async () => redirectRes);
+  assert.equal(returnedRedirect, redirectRes);
 
   const jsonPayload = JSON.stringify({ok: true});
   const jsonResponse = await onRequest({}, async () => {
