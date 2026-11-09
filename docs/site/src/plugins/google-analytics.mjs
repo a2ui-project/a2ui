@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import {normalizeBasePrefix} from '../lib/spec-schemas.mjs';
+
 export const DEFAULT_GA_MEASUREMENT_ID = 'G-YX9TPV8DCC';
 
 function validateMeasurementId(measurementId) {
@@ -88,10 +90,23 @@ export async function onRequest(_context, next) {
   });
 }
 
+export function isPrPreviewBase(base) {
+  const normalized = normalizeBasePrefix(base);
+  return normalized === '/pr-preview' || normalized.startsWith('/pr-preview/');
+}
+
+export function shouldEnableGoogleAnalytics({command, base} = {}) {
+  if (command !== 'build') {
+    return false;
+  }
+  return !isPrPreviewBase(base);
+}
+
 /**
  * Astro integration that injects Google Analytics (`gtag.js`) globally into the
  * `<head>` of every HTML page rendered by Astro (both Starlight docs routes and
- * standalone `.astro` pages) during `astro dev` and `astro build`.
+ * standalone `.astro` pages) during production `astro build` runs, skipping
+ * local `astro dev` and `/pr-preview/` pull-request preview builds.
  *
  * @param {string} [measurementId]
  * @returns {import('astro').AstroIntegration}
@@ -101,7 +116,10 @@ export function googleAnalytics(measurementId = DEFAULT_GA_MEASUREMENT_ID) {
   return {
     name: 'a2ui-google-analytics',
     hooks: {
-      'astro:config:setup': ({addMiddleware, updateConfig}) => {
+      'astro:config:setup': ({addMiddleware, command, config, updateConfig}) => {
+        if (!shouldEnableGoogleAnalytics({command, base: config?.base})) {
+          return;
+        }
         updateConfig({
           vite: {
             define: {

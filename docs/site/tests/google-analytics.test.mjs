@@ -24,7 +24,9 @@ import {
   DEFAULT_GA_MEASUREMENT_ID,
   googleAnalytics,
   injectGoogleAnalyticsHead,
+  isPrPreviewBase,
   onRequest,
+  shouldEnableGoogleAnalytics,
 } from '../src/plugins/google-analytics.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -115,12 +117,63 @@ test('onRequest middleware injects analytics on text/html responses and skips re
   assert.equal(await jsonResponse.text(), jsonPayload);
 });
 
+test('googleAnalytics only registers middleware for non-PR-preview production builds', () => {
+  assert.equal(shouldEnableGoogleAnalytics({command: 'dev', base: '/'}), false);
+  assert.equal(shouldEnableGoogleAnalytics({command: 'preview', base: '/'}), false);
+  assert.equal(shouldEnableGoogleAnalytics({command: 'sync', base: '/'}), false);
+  assert.equal(shouldEnableGoogleAnalytics({command: 'build', base: '/pr-preview'}), false);
+  assert.equal(
+    shouldEnableGoogleAnalytics({command: 'build', base: '/pr-preview/pr-4068/'}),
+    false,
+  );
+  assert.equal(shouldEnableGoogleAnalytics({command: 'build', base: '/'}), true);
+  assert.equal(shouldEnableGoogleAnalytics({command: 'build', base: '/preview/'}), true);
+
+  const integration = googleAnalytics(EXPECTED_GA_ID);
+  const setupHook = integration.hooks['astro:config:setup'];
+
+  for (const skippedCase of [
+    {command: 'dev', config: {base: '/'}},
+    {command: 'preview', config: {base: '/'}},
+    {command: 'build', config: {base: '/pr-preview/pr-4068/'}},
+  ]) {
+    let middlewareCalls = 0;
+    let configCalls = 0;
+    setupHook({
+      ...skippedCase,
+      addMiddleware: () => {
+        middlewareCalls++;
+      },
+      updateConfig: () => {
+        configCalls++;
+      },
+    });
+    assert.equal(middlewareCalls, 0);
+    assert.equal(configCalls, 0);
+  }
+
+  for (const enabledBase of ['/', '/preview/']) {
+    const middlewares = [];
+    const configUpdates = [];
+    setupHook({
+      command: 'build',
+      config: {base: enabledBase},
+      addMiddleware: mw => middlewares.push(mw),
+      updateConfig: cfg => configUpdates.push(cfg),
+    });
+    assert.equal(middlewares.length, 1);
+    assert.equal(middlewares[0].order, 'post');
+    assert.equal(configUpdates.length, 1);
+    assert.equal(configUpdates[0].vite.define.__A2UI_GA_ID__, JSON.stringify(EXPECTED_GA_ID));
+  }
+});
+
 test('astro.config.mjs registers global googleAnalytics integration with G-YX9TPV8DCC', () => {
   const astroConfig = fs.readFileSync(path.join(siteRoot, 'astro.config.mjs'), 'utf8');
   assert.match(astroConfig, new RegExp(`googleAnalytics\\(\\s*['"]${EXPECTED_GA_ID}['"]\\s*\\)`));
 });
 
-test('all built non-redirect HTML pages in dist/ contain Google Analytics tag when built', t => {
+test('built HTML pages in dist/ include Google Analytics only on non-PR-preview builds', t => {
   const distDir = path.join(siteRoot, 'dist');
   if (!fs.existsSync(distDir)) {
     t.skip('dist/ has not been built yet');
@@ -129,6 +182,11 @@ test('all built non-redirect HTML pages in dist/ contain Google Analytics tag wh
 
   const htmlFiles = walkFiles(distDir, '.html');
   assert.ok(htmlFiles.length > 0, 'Expected built HTML files inside dist/');
+
+  const indexPath = path.join(distDir, 'index.html');
+  const indexHtml = fs.existsSync(indexPath) ? fs.readFileSync(indexPath, 'utf8') : '';
+  const builtForPrPreview =
+    isPrPreviewBase(process.env.ASTRO_BASE) || /["']\/pr-preview\//.test(indexHtml);
 
   let checkedCount = 0;
   for (const htmlFile of htmlFiles) {
@@ -141,16 +199,24 @@ test('all built non-redirect HTML pages in dist/ contain Google Analytics tag wh
     const relHtml = path.relative(distDir, htmlFile);
     const headMatch = /<head\b[^>]*>([\s\S]*?)<\/head>/i.exec(html);
     assert.ok(headMatch, `${relHtml} is missing <head>`);
-    assert.match(
-      headMatch[1],
-      new RegExp(`https://www\\.googletagmanager\\.com/gtag/js\\?id=${EXPECTED_GA_ID}`),
-      `${relHtml} is missing gtag.js loader in <head>`,
-    );
-    assert.match(
-      headMatch[1],
-      new RegExp(`gtag\\(['"]config['"],\\s*['"]${EXPECTED_GA_ID}['"]\\)`),
-      `${relHtml} is missing gtag('config', '${EXPECTED_GA_ID}') in <head>`,
-    );
+    if (builtForPrPreview) {
+      assert.doesNotMatch(
+        headMatch[1],
+        /googletagmanager\.com\/gtag\/js/,
+        `${relHtml} should omit gtag.js in PR preview builds`,
+      );
+    } else {
+      assert.match(
+        headMatch[1],
+        new RegExp(`https://www\\.googletagmanager\\.com/gtag/js\\?id=${EXPECTED_GA_ID}`),
+        `${relHtml} is missing gtag.js loader in <head>`,
+      );
+      assert.match(
+        headMatch[1],
+        new RegExp(`gtag\\(['"]config['"],\\s*['"]${EXPECTED_GA_ID}['"]\\)`),
+        `${relHtml} is missing gtag('config', '${EXPECTED_GA_ID}') in <head>`,
+      );
+    }
   }
 
   assert.ok(checkedCount > 0, 'Expected at least one non-redirect HTML page in dist/');
