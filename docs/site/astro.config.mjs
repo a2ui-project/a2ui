@@ -19,6 +19,7 @@ import starlight from '@astrojs/starlight';
 import {defineConfig} from 'astro/config';
 
 import {normalizeBasePrefix} from './src/lib/spec-schemas.mjs';
+import {googleAnalytics} from './src/plugins/google-analytics.mjs';
 import {rehypeWrapTables} from './src/plugins/rehype-wrap-tables.mjs';
 import {remarkA2uiIncludes} from './src/plugins/remark-a2ui-includes.mjs';
 
@@ -49,7 +50,8 @@ export default defineConfig({
   site: process.env.ASTRO_SITE || 'https://a2ui.org',
   base: process.env.ASTRO_BASE || undefined,
   redirects: {
-    '/gallery': `${basePrefix}/showcase/`,
+    '/gallery': `${basePrefix}/build-with-a2ui/`,
+    '/showcase': `${basePrefix}/build-with-a2ui/`,
     '/specification/v0.9-a2ui': `${basePrefix}/specification/v0.9.1-a2ui/`,
     '/specification/v0.9-evolution-guide': `${basePrefix}/specification/v0.9.1-evolution-guide/`,
     '/concepts/actions': `${basePrefix}/concepts/actions-and-functions/`,
@@ -58,6 +60,7 @@ export default defineConfig({
     '/concepts/data-flow': `${basePrefix}/concepts/data-binding/`,
     '/concepts/renderer-sdks': `${basePrefix}/concepts/sdks/#renderer-sdk`,
     '/concepts/transports': `${basePrefix}/concepts/messages/`,
+    '/concepts/macros': `${basePrefix}/guides/macros/`,
     '/guides/a2ui_over_mcp': `${basePrefix}/guides/a2ui-over-mcp/`,
     '/guides/defining-your-own-catalog': `${basePrefix}/guides/defining-a-catalog/`,
     '/guides/client-setup': `${basePrefix}/guides/client-integration/`,
@@ -73,6 +76,7 @@ export default defineConfig({
     rehypePlugins: [rehypeWrapTables, rehypePreserveJsonHeadingIds],
   },
   integrations: [
+    googleAnalytics('G-YX9TPV8DCC'),
     starlight({
       title: 'A2UI',
       description:
@@ -128,15 +132,15 @@ export default defineConfig({
           label: 'Getting Started',
           items: [
             {
-              label: 'Quick start',
+              label: 'Quickstart',
               slug: 'quickstart',
             },
             {
-              label: 'Showcase',
-              link: '/showcase/',
+              label: 'Step-by-Step Walkthrough',
+              slug: 'quickstart/step-by-step',
             },
             {
-              label: 'Playground',
+              label: 'Playground ↗',
               link: 'https://go.copilotkit.ai/a2ui-playground',
               attrs: {target: '_blank', rel: 'noopener noreferrer'},
             },
@@ -166,16 +170,12 @@ export default defineConfig({
               slug: 'concepts/actions-and-functions',
             },
             {
-              label: 'SDKs',
-              slug: 'concepts/sdks',
-            },
-            {
-              label: 'Swappable Inference Formats',
+              label: 'Inference Formats',
               slug: 'concepts/inference-formats',
             },
             {
-              label: 'Macros',
-              slug: 'concepts/macros',
+              label: 'SDKs',
+              slug: 'concepts/sdks',
             },
             {
               label: 'Glossary',
@@ -197,6 +197,10 @@ export default defineConfig({
             {
               label: 'How to Define a Catalog',
               slug: 'guides/defining-a-catalog',
+            },
+            {
+              label: 'Using Macros',
+              slug: 'guides/macros',
             },
             {
               label: 'Model Context Protocol (MCP)',
@@ -234,16 +238,16 @@ export default defineConfig({
           label: 'Ecosystem',
           items: [
             {
-              label: 'Ecosystem Renderers & Tools',
+              label: 'Roadmap',
+              slug: 'roadmap',
+            },
+            {
+              label: 'Community Projects',
               slug: 'ecosystem/renderers',
             },
             {
               label: 'Get Help',
               link: '/get-help/',
-            },
-            {
-              label: 'Roadmap',
-              slug: 'roadmap',
             },
           ],
         },

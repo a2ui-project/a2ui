@@ -1,14 +1,14 @@
 ---
-title: 'Macros'
+title: 'Using Macros'
 description: 'Define composite UI components on the server with @macro and expand them into reusable catalog components supported by the client.'
 ---
 
 import {Aside, Tabs, TabItem} from '@astrojs/starlight/components';
 
-Macros let you define composite UI components on the server that can programmatically inject server-side data and expand into the flexible, reusable [catalog](/concepts/catalogs/) components your client supports (from the Basic Catalog, your own custom catalogs, or both) before any messages reach the renderer. Because the renderer only receives components the client already implements, you can add or change macros on the server without shipping new client code.
+Macros let you define composite UI components on the server that can programmatically inject server-side data and expand into the flexible, reusable [catalog](../../concepts/catalogs/) components your client supports (from the Basic Catalog, your own custom catalogs, or both) before any messages reach the renderer. Because the renderer only receives components the client already implements, you can add or change macros on the server without shipping new client code.
 
 <Aside type="note" title="Language support">
-  Macros are currently available in the Python [agent SDK](/concepts/sdks/#agent-sdk)
+  Macros are currently available in the Python [agent SDK](../../concepts/sdks/#agent-sdk)
   (`a2ui-agent-sdk`), with support for other languages coming next.
 </Aside>
 
@@ -23,7 +23,7 @@ Macros are useful when you want to:
 3. Look up data from server-side databases and APIs, accepting an identifier from the model and populating the components on the server.
 4. Ship new domain components with a server deployment alone, using catalog components the client already renders.
 
-In the sequence below, [`MacroExpander`](/concepts/glossary/#macroexpander) works on both sides of the model call. Before inference, it adds each macro's component schema to the catalog in the system prompt. After inference, it intercepts each macro call, runs your macro function, and outputs flat catalog components for the renderer.
+In the sequence below, [`MacroExpander`](../../concepts/glossary/#macroexpander) works on both sides of the model call. Before inference, it adds each macro's component schema to the catalog in the system prompt. After inference, it intercepts each macro call, runs your macro function, and outputs flat catalog components for the renderer.
 
 ```mermaid
 sequenceDiagram
@@ -42,7 +42,7 @@ sequenceDiagram
 
 ### Example: macro, model call, and expanded output
 
-Here is a `FlightCard` macro. The `flight` and `route` parameters take static strings, while `status` uses `DynamicString` so it can bind to the [data model](/concepts/data-binding/):
+Here is a `FlightCard` macro. The `flight` and `route` parameters take static strings, while `status` uses `DynamicString` so it can bind to the [data model](../../concepts/data-binding/):
 
 ```python title="flight_macros.py"
 from a2ui.builder.v1_0 import Card, Column, DynamicString, Text
@@ -69,7 +69,7 @@ def FlightCard(flight: str, route: str, status: DynamicString) -> Card:
     )
 ```
 
-Using the [Express](/concepts/inference-formats/) inference format, the model calls `FlightCard` in a single line:
+Using the [Express](../../concepts/inference-formats/) inference format, the model calls `FlightCard` in a single line:
 
 ```text title="Model output"
 Your flight is boarding.
@@ -303,7 +303,7 @@ Send `wire_payload` over your transport to the renderer alongside any conversati
 
 ## Macros with custom catalogs
 
-Macros build component trees using typed Python builder classes. Builder classes for the Basic Catalog ship in `a2ui.builder.v1_0` and `a2ui.builder.v0_9`. When you define a [custom catalog](/guides/defining-a-catalog/), the A2UI CLI (`a2ui`) generates those Python builder classes directly from your catalog JSON file.
+Macros build component trees using typed Python builder classes. Builder classes for the Basic Catalog ship in `a2ui.builder.v1_0` and `a2ui.builder.v0_9`. When you define a [custom catalog](../defining-a-catalog/), the A2UI CLI (`a2ui`) generates those Python builder classes directly from your catalog JSON file.
 
 ### Step 1: Install the A2UI CLI
 
@@ -509,4 +509,4 @@ When multiple registered v1.0 catalogs define a component with the same name, sp
 
 - [Macros README](https://github.com/a2ui-project/a2ui/blob/main/python/a2ui_agent/src/a2ui/transformers/macros/README.md) for full `@macro` and `MacroExpander` API details.
 - [Macros community sample](https://github.com/a2ui-project/a2ui/tree/main/samples/community/macros) for a runnable FastAPI agent and React client using server-side macros.
-- [Swappable Inference Formats](/concepts/inference-formats/) for details on Express and Direct JSON.
+- [Inference Formats](../../concepts/inference-formats/) for details on Express and Direct JSON.

@@ -33,7 +33,7 @@ A delimiter tag in model-to-agent text output, such as `<a2ui>...</a2ui>` (used 
 
 Because a single model response can interleave conversational prose with one or more UI blocks, the [Agent SDK](#agent-sdk) parser scans for A2UI tags to separate prose from raw UI blocks before compiling those blocks into [`agent_to_renderer`](#agent_to_renderer) messages.
 
-See [Swappable Inference Formats](../inference-formats/).
+See [Inference Formats](../inference-formats/).
 
 ### A2uiGenerator
 
@@ -41,7 +41,7 @@ The top-level coordinator class in an [Agent SDK](#agent-sdk) that holds the age
 
 For each session or request, calling `createProcessor` (in TypeScript and Dart) or `create_processor` (in Python) with the renderer's [capabilities](#capabilities) negotiates the active [catalogs](#catalog) and returns an `A2uiRequestProcessor` that generates system prompt instructions and parses and validates model responses against `RendererState`.
 
-See [Agent SDK](/concepts/sdks/#agent-sdk) and [How to Integrate with My Agent Server](../../guides/agent-integration/).
+See [Agent SDK](../sdks/#agent-sdk) and [How to Integrate with My Agent Server](../../guides/agent-integration/).
 
 ### Action
 
@@ -71,7 +71,7 @@ A first-party agent-side library (published for TypeScript, Python, and Dart on 
 
 An Agent SDK loads and prunes [catalogs](#catalog) via [catalog transformers](#catalog-transformer), negotiates renderer [capabilities](#capabilities) through [`A2uiGenerator`](#a2uigenerator), generates model skills and system prompt snippets, compiles [inference format](#inference-format) output into wire JSON, and validates payloads against `RendererState` so errors can be fed back to the model for self-correction.
 
-See [Agent SDK](/concepts/sdks/#agent-sdk) for official package names and capabilities.
+See [Agent SDK](../sdks/#agent-sdk) for official package names and capabilities.
 
 ### agent_to_renderer
 
@@ -162,7 +162,7 @@ An [Agent SDK](#agent-sdk) interface (`CatalogTransformer`) that filters or adap
 
 Pruning unused components and functions lowers prompt token consumption and restricts what UI capabilities a model can emit for a specific task or user role. Built-in implementations in the TypeScript, Python, and Dart Agent SDKs include `ComponentPruningTransformer` (which keeps an allowlist of component names) and `FunctionPruningTransformer` (which keeps an allowlist of function names). For server-side composite component expansion, see [`MacroExpander`](#macroexpander).
 
-See [Agent SDK](/concepts/sdks/#agent-sdk).
+See [Agent SDK](../sdks/#agent-sdk).
 
 ### CheckRule
 
@@ -202,9 +202,9 @@ See [Catalogs](../catalogs/) and [Component model](../../specification/v1.0-a2ui
 
 The UI-framework-agnostic foundational library in each language, shared by both [Agent SDKs](#agent-sdk) and client [framework adapters](#framework-adapter).
 
-The Core SDK implements protocol message models, `Catalog` schemas, reactive surface and [data model](#data-model) state containers (`SurfaceGroupModel`, `SurfaceModel` or `SurfaceViewModel` in Swift, `ComponentModel`, and `DataModel`), JSON Pointer resolution, [`@path`](#path) and [`@call`](#call) expression evaluation, [`MessageProcessor`](#messageprocessor), and payload validation.
+The Core SDK implements protocol message models, `Catalog` schemas, reactive surface and [data model](#data-model) state containers (`SurfaceGroupModel`, `SurfaceModel`, `ComponentModel`, and `DataModel`, named `SurfaceViewModel` in Swift and `A2uiCoreSurfaceGroupModel`, `A2uiCoreSurfaceModel`, `A2uiCoreComponentRegistry`, and `A2uiCoreDataModel` in Kotlin, with `A2uiComponentModel` in `compose-runtime`), JSON Pointer resolution, [`@path`](#path) and [`@call`](#call) expression evaluation, [`MessageProcessor`](#messageprocessor), and payload validation.
 
-See [Core SDK](/concepts/sdks/#core-sdk) for official package names across languages.
+See [Core SDK](../sdks/#core-sdk) for official package names across languages.
 
 ## D
 
@@ -262,7 +262,7 @@ A UI-framework-specific client library (also called a Renderer SDK), built on to
 
 Framework adapters include a built-in implementation of the [Basic catalog](#basic-catalog), map A2UI `AccessibilityAttributes` (`label`, `description`, `live`, `hidden`) to platform accessibility APIs, and let teams register custom [catalog](#catalog) component views and local [functions](#function) while the adapter handles reactive state updates.
 
-See [Renderer SDK](/concepts/sdks/#renderer-sdk) for official package names and [How to Integrate A2UI into a Client](../../guides/client-integration/).
+See [Renderer SDK](../sdks/#renderer-sdk) for official package names and [How to Integrate A2UI into a Client](../../guides/client-integration/).
 
 ### Function
 
@@ -339,7 +339,7 @@ When reading a model response (`parseResponse` / `parse_response` or streaming `
 2. Compilation (`compile`): Translates each raw block from format notation into `agent_to_renderer` messages without checking catalogs or `RendererState`.
 3. Validation and state tracking: `parseResponse` / `parse_response` and `openStream` / `open_stream` validate compiled messages against the active [catalogs](#catalog) and update `RendererState`.
 
-See [Swappable Inference Formats](../inference-formats/).
+See [Inference Formats](../inference-formats/).
 
 ## M
 
@@ -349,15 +349,15 @@ An asymmetric catalog and message transformer in the Python [Agent SDK](#agent-s
 
 `MacroExpander.transform_to_inference_catalog` augments a base catalog with component schemas synthesized from `@macro` function type annotations and docstrings for model prompting, and `MacroExpander.transform_to_transport` expands macro components emitted by the model into primitive `createSurface` and `updateComponents` subtrees so client [renderers](#renderer) need no custom widget code.
 
-See [Agent SDK](/concepts/sdks/#agent-sdk).
+See [Using Macros](../../guides/macros/) and [Agent SDK](../sdks/#agent-sdk).
 
 ### MessageProcessor
 
-The stateful controller class in each language's [Core SDK](#core-sdk) that processes incoming [`agent_to_renderer`](#agent_to_renderer) (and v0.9.1 `server_to_client`) message streams.
+The stateful controller class in each language's [Core SDK](#core-sdk) (`A2uiMessageProcessor` in Kotlin) that processes incoming [`agent_to_renderer`](#agent_to_renderer) (and v0.9.1 `server_to_client`) message streams.
 
-`MessageProcessor` validates incoming payloads against registered [catalogs](#catalog), mutates reactive surface and [data model](#data-model) state containers (`SurfaceGroupModel`, `SurfaceModel` or `SurfaceViewModel` in Swift, `ComponentModel`, and `DataModel`), resolves JSON Pointers and [`@call`](#call) expressions, enforces function caller and user-activation rules, emits outbound [`renderer_to_agent`](#renderer_to_agent) messages (`action`, `callAgentFunction`, `rendererFunctionResponse`, and `error`), and builds renderer [capabilities](#capabilities) and `a2uiRendererDataModel` metadata snapshots.
+`MessageProcessor` validates incoming payloads against registered [catalogs](#catalog), mutates reactive surface and [data model](#data-model) state containers (`SurfaceGroupModel`, `SurfaceModel`, `ComponentModel`, and `DataModel`, named `SurfaceViewModel` in Swift and `A2uiCoreSurfaceGroupModel`, `A2uiCoreSurfaceModel`, `A2uiCoreComponentRegistry`, and `A2uiCoreDataModel` in Kotlin, with `A2uiComponentModel` in `compose-runtime`), resolves JSON Pointers and [`@call`](#call) expressions, enforces function caller and user-activation rules, emits outbound [`renderer_to_agent`](#renderer_to_agent) messages (`action`, `callAgentFunction`, `rendererFunctionResponse`, and `error`), and builds renderer [capabilities](#capabilities) and `a2uiRendererDataModel` metadata snapshots.
 
-See [Core SDK](/concepts/sdks/#core-sdk) and [How to Integrate A2UI into a Client](../../guides/client-integration/).
+See [Core SDK](../sdks/#core-sdk) and [How to Integrate A2UI into a Client](../../guides/client-integration/).
 
 ## N
 
@@ -385,7 +385,7 @@ See [Data binding](#data-binding), [Data Model and Data Binding](../data-binding
 
 The client-side runtime inside a host application that advertises supported [catalogs](#catalog) via [capabilities](#capabilities), applies [`agent_to_renderer`](#agent_to_renderer) messages through [`MessageProcessor`](#messageprocessor), renders [surfaces](#surface) as native widgets via a [framework adapter](#framework-adapter), maintains per-surface [data models](#data-model), runs local [functions](#function), and sends [`renderer_to_agent`](#renderer_to_agent) messages back to the [agent](#agent).
 
-See [Renderer SDK](/concepts/sdks/#renderer-sdk) and [How to Integrate A2UI into a Client](../../guides/client-integration/).
+See [Renderer SDK](../sdks/#renderer-sdk) and [How to Integrate A2UI into a Client](../../guides/client-integration/).
 
 ### renderer_to_agent
 
