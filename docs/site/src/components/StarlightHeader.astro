@@ -65,14 +65,14 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
     <span class="a2-sl-header__slash" aria-hidden="true">/</span>
     <nav class="a2-sl-header__tabs" aria-label="Primary section navigation">
       <a
-        href={`${base}/built-with-a2ui/`}
-        class:list={['a2-sl-tab', { 'is-active': isBuiltWith }]}
-        aria-current={isBuiltWith ? 'page' : undefined}>Built<span class="a2-sl-tab__xlong"> with A2UI</span></a
-      >
-      <a
         href={`${base}/quickstart/`}
         class:list={['a2-sl-tab', { 'is-active': isDocs }]}
         aria-current={isDocs ? 'page' : undefined}>Docs</a
+      >
+      <a
+        href={`${base}/built-with-a2ui/`}
+        class:list={['a2-sl-tab', { 'is-active': isBuiltWith }]}
+        aria-current={isBuiltWith ? 'page' : undefined}>Built<span class="a2-sl-tab__xlong"> with A2UI</span></a
       >
       <a
         href={`${base}/get-help/`}
