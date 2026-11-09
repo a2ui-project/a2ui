@@ -6,7 +6,7 @@
   "scripts": {
     "predev": "node scripts/prepare-spec-assets.mjs && node scripts/emit-markdown-bundle.mjs",
     "dev": "astro dev",
-    "test": "node tests/check-links.test.mjs",
+    "test": "node tests/check-links.test.mjs && node tests/google-analytics.test.mjs",
     "verify:specs": "node scripts/verify-spec-links.mjs",
     "check:links": "node scripts/check-links.mjs",
     "prebuild": "node scripts/prepare-spec-assets.mjs && node scripts/emit-markdown-bundle.mjs && node scripts/verify-spec-links.mjs",
