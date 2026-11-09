@@ -134,13 +134,13 @@ mobile app at <a href="http://127.0.0.1:8080/flutter/">http://127.0.0.1:8080/flu
 </li>
 </ol>
 <h3 id="the-web-app">The web app</h3>
-<p><img src="https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--chat.a481b6c8.webp" alt="The React client: flight cards in the conversation, the trip so far beside it"></p>
+<p><img src="/preview/docs-assets/quickstart--travel-a2ui--chat.a481b6c8.webp" alt="The React client: flight cards in the conversation, the trip so far beside it" width="1920" height="1253"></p>
 <p>You land on a recorded sample trip, no key needed. To talk to the agent, paste
 a free Gemini key from <a href="https://aistudio.google.com/apikey">AI Studio</a> when the
 app asks (it stays in your browser), then try <em>“Six days in Madrid in April,
 two of us, around $2,500 all in”</em>.</p>
 <h3 id="the-mobile-app">The mobile app</h3>
-<img src="https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--flutter-trip.8afa2402.webp" width="224" height="485" loading="lazy" decoding="async" alt="The Flutter client in a phone layout, with the trip sheet open" style="display: block; width: 100%; max-width: 14rem; height: auto; margin-inline: auto;"/>
+<img src="/preview/docs-assets/quickstart--travel-a2ui--flutter-trip.8afa2402.webp" width="224" height="485" loading="lazy" decoding="async" alt="The Flutter client in a phone layout, with the trip sheet open" style="display: block; width: 100%; max-width: 14rem; height: auto; margin-inline: auto;"/>
 <p>Paste your key, then try <em>“A weekend in Lisbon from JFK in May, two of us”</em>.
 Here Flutter is built for the web, in a phone layout; the same Dart code can
 target iOS and Android, which this sample does not set up. Ask both apps the
@@ -153,7 +153,7 @@ to the client, and what draws it. For all of it in one picture, see
 <h3 id="1-what-is-a2ui-and-what-is-app-code">1. What is A2UI, and what is app code</h3>
 <p>Not everything on screen is A2UI. Blue is composed by the agent; grey is app
 code, written by you, the builder, and the same on every turn:</p>
-<p><img src="https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--a2ui-vs-app.6cf941df.webp" alt="The app with A2UI surfaces outlined in blue (a cost card in the conversation and the trip panel) and app code outlined in grey (the header, the message box and the reply text)"></p>
+<p><img src="/preview/docs-assets/quickstart--travel-a2ui--a2ui-vs-app.6cf941df.webp" alt="The app with A2UI surfaces outlined in blue (a cost card in the conversation and the trip panel) and app code outlined in grey (the header, the message box and the reply text)" width="1920" height="1500"></p>
 <ul>
 <li><strong>A2UI, composed by the agent:</strong> the cards in the conversation, the trip
 panel (the trip sheet in Flutter) and the web client’s Home dashboard.</li>
@@ -188,7 +188,7 @@ the night count follows the dates the user picks, with no turn to the agent:</p>
 </li>
 </ul>
 <p>The web client’s <strong>Catalog</strong> tab draws every component with the real renderer:</p>
-<p><img src="https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--catalog.f3f5e3ff.webp" alt="The Catalog tab: every component the agent may use, drawn by the real renderer"></p>
+<p><img src="/preview/docs-assets/quickstart--travel-a2ui--catalog.f3f5e3ff.webp" alt="The Catalog tab: every component the agent may use, drawn by the real renderer" width="1920" height="1253"></p>
 <p>The catalog is also the <strong>guardrail</strong>. The server checks every message the
 model writes against it before sending anything, and each client implements
 every component and function in it, so the agent can only ask for what the
@@ -247,7 +247,7 @@ catalog functions, and sends presses back as actions. React uses
 (<code dir="auto">apps/flutter/lib/chat.dart</code>).</p>
 <p>The web client’s <strong>Wire</strong> tab shows both forms of every surface side by side,
 what the model wrote and what the client received:</p>
-<p><img src="https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--wire.4515c08f.webp" alt="The Wire tab: the Express the model wrote, beside the A2UI JSON the client received"></p>
+<p><img src="/preview/docs-assets/quickstart--travel-a2ui--wire.4515c08f.webp" alt="The Wire tab: the Express the model wrote, beside the A2UI JSON the client received" width="1920" height="1253"></p>
 <p>Express is one way for a model to write A2UI, chosen because it is short. A2UI
 itself is the JSON.</p>
 <h3 id="5-renderers">5. Renderers</h3>
