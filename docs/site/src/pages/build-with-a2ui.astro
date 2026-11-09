@@ -1,0 +1,768 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+import '../styles/tokens.css';
+
+import GenUiSpectrum from '../components/GenUiSpectrum.astro';
+import ProductionShowcase from '../components/ProductionShowcase.astro';
+import StarlightHeader from '../components/StarlightHeader.astro';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+interface StoryLink {
+  label: string;
+  href: string;
+}
+
+interface Story {
+  /** Anchor that the logos in ProductionShowcase link to. */
+  id: string;
+  team: string;
+  product: string;
+  title: string;
+  body: string[];
+  image?: {src: string; alt: string; caption: string; tall?: boolean};
+  /** Shown in place of an image when a team has no approved screenshot. */
+  docs?: (StoryLink & {kind: string})[];
+  links: StoryLink[];
+}
+
+const stories: Story[] = [
+  {
+    id: 'alation',
+    team: 'Alation',
+    product: 'Alation AIOS',
+    title:
+      'Alation shows its AI-generated data feeds with A2UI, in its own app and inside AI assistants such as Claude.',
+    body: [
+      'The Alation Intelligence Operating System (AIOS) builds its feeds using A2UI: metric cards, charts, and more. Each chart can show the SQL query and data behind it.',
+      'Ask Claude for a feed about profitable products, and the feed renders in the conversation using A2UI to render metric cards, charts, and custom components. The same feed with the same information can be viewed directly inside Alation with a nearly identical layout.',
+    ],
+    image: {
+      src: `${base}/assets/build-with/alation-feed-claude-and-alation.webp`,
+      alt: 'An Office Supplies Profitability Tracker feed with metric cards and bar charts, shown in a Claude conversation and in the Alation Data Products App.',
+      caption:
+        "The same Alation feed rendered in Claude (left) and in Alation's Data Products App (right).",
+    },
+    links: [{label: 'Alation', href: 'https://www.alation.com'}],
+  },
+  {
+    id: 'bytedance',
+    team: 'ByteDance',
+    product: 'Lynx',
+    title:
+      'ByteDance built an A2UI renderer into Lynx, its open-source framework for mobile, web and desktop apps.',
+    body: [
+      'ByteDance released an A2UI renderer for Lynx, its cross-platform framework, in June. Lynx keeps streamed screens smooth and ships a default set of components built on its lynx-ui library.',
+      'In the Lynx GenUI Playground you can watch A2UI messages render natively, for example as a two-day trip planner for Kyoto. Lynx supports A2UI 0.9 today and is working with the A2UI team on 1.0 and A2UI Express.',
+    ],
+    image: {
+      src: `${base}/assets/build-with/lynx-genui-playground-kyoto.webp`,
+      alt: 'The Lynx GenUI Playground with A2UI createSurface and updateComponents messages on the left and a Kyoto trip planner rendered in a phone frame on the right.',
+      caption:
+        'In the Lynx GenUI Playground, A2UI messages (left) render natively in Lynx as a Kyoto trip planner (right).',
+    },
+    links: [
+      {label: 'Lynx GenUI Playground', href: 'https://lynx-stack.dev/genui/#/a2ui'},
+      {label: 'Lynx A2UI docs', href: 'https://lynxjs.org/next/react/genui/a2ui.html'},
+      {
+        label: 'Source',
+        href: 'https://github.com/lynx-family/lynx-stack/tree/main/packages/genui/a2ui',
+      },
+    ],
+  },
+  {
+    id: 'atlassian',
+    team: 'Atlassian',
+    product: 'Jira',
+    title:
+      'Atlassian is bringing A2UI to Jira, where teams can assign work items to AI agents.',
+    body: [
+      'When an agent needs a follow-up from the team to finish a work item, such as a missing detail or a decision, it asks with an interactive card in the work item, and the team answers right there in Jira.',
+    ],
+    image: {
+      src: `${base}/assets/build-with/jira-agent-follow-up.webp`,
+      alt: 'An agent in Jira asks how many test cases to write for a sticky note colour feature, with four options, a field for another answer, and Skip and Send answers buttons.',
+      caption: 'An agent asks the team for a follow-up inside a Jira work item.',
+      tall: true,
+    },
+    links: [
+      {
+        label: 'AI agents in Jira',
+        href: 'https://support.atlassian.com/jira-software-cloud/docs/work-with-ai-agents-in-jira/',
+      },
+    ],
+  },
+  {
+    id: 'gemini-enterprise',
+    team: 'Google Cloud',
+    product: 'Gemini Enterprise',
+    title: 'Gemini Enterprise supports A2UI agents that organizations build and register.',
+    body: [
+      'Organizations can register their own agents that respond with A2UI. Gemini Enterprise renders those responses using the components in its A2UI component gallery, and supports A2UI 0.9.1 today.',
+      'The Google Cloud documentation covers registering an agent and hosting one on Cloud Run.',
+    ],
+    docs: [
+      {
+        kind: 'Google Cloud blog',
+        label: 'Guide to Gemini Enterprise and A2UI integration',
+        href: 'https://cloud.google.com/blog/topics/developers-practitioners/guide-to-gemini-enterprise-and-a2ui-integration',
+      },
+      {
+        kind: 'Documentation',
+        label: 'Register and manage an A2UI agent',
+        href: 'https://docs.cloud.google.com/gemini/enterprise/docs/a2ui-agents/register-and-manage-an-a2ui-agent',
+      },
+      {
+        kind: 'Reference',
+        label: 'A2UI component gallery',
+        href: 'https://docs.cloud.google.com/gemini/enterprise/docs/a2ui-agents/a2ui-component-gallery-reference',
+      },
+      {
+        kind: 'Tutorial',
+        label: 'Host an A2UI agent on Cloud Run',
+        href: 'https://docs.cloud.google.com/gemini/enterprise/docs/a2ui-agents/tutorial-host-agent-cloud-run',
+      },
+    ],
+    links: [],
+  },
+  {
+    id: 'gemini-notebook',
+    team: 'Gemini',
+    product: 'Gemini Notebook',
+    title: 'Gemini Notebook uses A2UI cards to confirm what you want before it creates a slide deck.',
+    body: [
+      'Ask Gemini Notebook for a slide deck and it replies with a card that asks two things: presenter slides or a detailed deck, and which topics to focus on. A review card follows with the format, focus and visual style, which you can edit before it generates.',
+      'The same cards guide Video Overviews on the web and on mobile.',
+    ],
+    image: {
+      src: `${base}/assets/build-with/gemini-notebook-planning-cards.webp`,
+      alt: 'Two Gemini Notebook cards for a Neapolitan pizza slide deck: an options card to pick the deck type and focus topics, and a review card to edit format, focus and visual style.',
+      caption: 'The options card (left) and the review card (right) in Gemini Notebook.',
+    },
+    links: [],
+  },
+];
+---
+
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Build with A2UI | A2UI</title>
+    <meta
+      name="description"
+      content="How A2UI helps across the generative UI spectrum, and what teams at Alation, ByteDance, Atlassian, and Google ship with it."
+    />
+    <link rel="icon" type="image/svg+xml" href={`${base}/assets/favicon.svg`} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <script is:inline>
+      (() => {
+        try {
+          const saved =
+            localStorage.getItem('starlight-theme') || localStorage.getItem('a2ui-theme');
+          document.documentElement.setAttribute(
+            'data-theme',
+            saved === 'dark' || saved === 'light' ? saved : 'light'
+          );
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      })();
+    </script>
+  </head>
+
+  <body class="a2-page">
+    <header class="a2-topbar">
+      <div class="a2-topbar__inner">
+        <StarlightHeader />
+      </div>
+    </header>
+
+    <main data-pagefind-body>
+      <section class="a2-hero b-hero" id="hero">
+        <div class="a2-hero__grid-bg" aria-hidden="true"></div>
+
+        <div class="a2-wrap b-hero__inner">
+          <h1 class="a2-h1 b-h1">Build with <span class="a2-h-accent">A2UI.</span></h1>
+          <p class="a2-lead">
+            A2UI works whether the model picks a pre-built widget, composes a new screen, or writes
+            its own code. Teams at Google and at other companies use it in their products.
+          </p>
+          <div class="a2-hero__actions">
+            <a
+              href="https://go.copilotkit.ai/a2ui-playground"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="a2-btn b-playground"
+            >
+              <span>Try the A2UI Playground</span>
+              <span class="b-playground__by">
+                by
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true" class="b-ck-logo"><defs><linearGradient gradientUnits="userSpaceOnUse" id="b-ck-kite-0" x1="17.852" x2="14.202" y1="1.467" y2="11.504"><stop stop-color="#6430AB"/><stop offset="1" stop-color="#AA89D8"/></linearGradient><linearGradient gradientUnits="userSpaceOnUse" id="b-ck-kite-1" x1="15.024" x2="10.324" y1="7.125" y2="16.204"><stop stop-color="#005DBB"/><stop offset="1" stop-color="#3D92E8"/></linearGradient><linearGradient gradientUnits="userSpaceOnUse" id="b-ck-kite-2" x1="17.122" x2="15.707" y1="1.467" y2="5.892"><stop stop-color="#1B70C4"/><stop offset="1" stop-color="#54A4F2"/></linearGradient><linearGradient gradientUnits="userSpaceOnUse" id="b-ck-kite-3" x1="6.577" x2="21.506" y1="21.758" y2="21.758"><stop stop-color="#4497EA"/><stop offset=".255" stop-color="#1463B2"/><stop offset=".499" stop-color="#0A437D"/><stop offset=".667" stop-color="#2476C8"/><stop offset=".973" stop-color="#0C549A"/></linearGradient></defs><path d="M8.162 7.758c2.093-2.738 3.831-5.445 4.498-7.63a.093.093 0 01.14-.051c2.324 1.539 6.558 2.552 10.301 2.576a.09.09 0 01.085.124c-1.243 3.158-2.765 8.817-2.823 15.28-.001.095-.135.13-.183.046-2.131-3.729-8.955-8.968-11.982-10.205a.09.09 0 01-.036-.14z" fill="url(#b-ck-kite-0)"></path><path d="M15.223 6.083A61.492 61.492 0 018.25 7.827c-.045.008-.055.071-.012.089 3.05 1.267 9.84 6.492 11.952 10.206a.017.017 0 00.022.007.018.018 0 00.01-.024l-4.999-12.02z" fill="url(#b-ck-kite-1)"></path><path d="M12.81.07c2.8 1.528 6.037 2.214 10.33 2.575.028.002.036.039.012.051-.55.282-3.695 1.883-6.03 2.74-.626.23-1.256.443-1.876.64a.028.028 0 01-.033-.016L12.746.128c-.017-.04.027-.078.065-.058z" fill="url(#b-ck-kite-2)"></path><path d="M12.725.075c.046-.019.1.003.119.05l7.514 17.923a.091.091 0 01-.148.1l-.02-.03L12.675.195a.091.091 0 01.049-.12z" fill="#513C9F"></path><path d="M23.06 2.66c.044-.025.1-.01.125.034.025.044.009.1-.035.124v.001l-.008.004-.025.015-.1.054a41.384 41.384 0 01-1.811.92A47.05 47.05 0 0116.33 5.82c-1.954.674-3.97 1.197-5.497 1.552a66.27 66.27 0 01-2.38.507l-.138.026-.036.007h-.01l-.002.002a.091.091 0 11-.033-.18l.016.09-.015-.09h.002l.01-.002.035-.007.137-.025a66.16 66.16 0 002.373-.506c1.524-.354 3.533-.876 5.479-1.547a46.857 46.857 0 006.276-2.709c.166-.087.295-.156.381-.204l.099-.054.024-.014.008-.004z" fill="#513C9F"></path><path d="M13.838 2.272a.16.16 0 01.107.2l-2.72 9.055h6.4l.061.013a.16.16 0 010 .295l-.061.013h-6.541L.679 24.099l-.05.04a.16.16 0 01-.194-.245l10.43-12.285 2.773-9.23a.16.16 0 01.2-.107z" fill="#ABABAB"></path><path d="M7.809 21.461l-1.232.173c.638 1.69 1.949 2.427 3.514 2.427 3.831 0 2.661-4.334 4.883-4.334 1.61 0 .956 3.513 4.423 3.513 2.116 0 2.326-2.131 1.966-3.048l-.008-.016-.567-.868c-.037-.058-.127-.036-.133.032l-.106 1.053a1.01 1.01 0 00.003.219c.088.727.144 2.491-1.155 2.491-1.37 0-1.7-3.467-4.423-3.467-3.196 0-2.785 4.289-4.747 4.289-1.294 0-2.28-1.46-2.418-2.464z" fill="url(#b-ck-kite-3)"></path><defs><linearGradient gradientUnits="userSpaceOnUse" id="b-ck-kite-0" x1="17.852" x2="14.202" y1="1.467" y2="11.504"><stop stop-color="#6430AB"/><stop offset="1" stop-color="#AA89D8"/></linearGradient><linearGradient gradientUnits="userSpaceOnUse" id="b-ck-kite-1" x1="15.024" x2="10.324" y1="7.125" y2="16.204"><stop stop-color="#005DBB"/><stop offset="1" stop-color="#3D92E8"/></linearGradient><linearGradient gradientUnits="userSpaceOnUse" id="b-ck-kite-2" x1="17.122" x2="15.707" y1="1.467" y2="5.892"><stop stop-color="#1B70C4"/><stop offset="1" stop-color="#54A4F2"/></linearGradient><linearGradient gradientUnits="userSpaceOnUse" id="b-ck-kite-3" x1="6.577" x2="21.506" y1="21.758" y2="21.758"><stop stop-color="#4497EA"/><stop offset=".255" stop-color="#1463B2"/><stop offset=".499" stop-color="#0A437D"/><stop offset=".667" stop-color="#2476C8"/><stop offset=".973" stop-color="#0C549A"/></linearGradient></defs></svg>
+                CopilotKit
+              </span>
+              <span aria-hidden="true">↗</span>
+            </a>
+            <a href={`${base}/quickstart/`} class="a2-btn a2-btn--primary">
+              <span>Run the quickstart</span>
+              <span aria-hidden="true">→</span>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <GenUiSpectrum />
+
+      <ProductionShowcase showStoriesLink={false} />
+
+      <section class="a2-section b-stories" id="stories" aria-labelledby="b-stories-title">
+        <div class="a2-wrap">
+          <h2 class="a2-h2 b-stories__title" id="b-stories-title">What each team built</h2>
+
+          <div class="b-list">
+            {
+              stories.map((story) => (
+                <article
+                  class:list={['b-story', {'b-story--tall': story.image?.tall}]}
+                  id={story.id}
+                  aria-labelledby={`${story.id}-title`}
+                >
+                  <div class="b-story__media">
+                    {story.image ? (
+                      <figure class="b-figure">
+                        <img
+                          src={story.image.src}
+                          alt={story.image.alt}
+                          loading="lazy"
+                          decoding="async"
+                        />
+                        <figcaption>{story.image.caption}</figcaption>
+                      </figure>
+                    ) : (
+                      <ul class="b-docs" aria-label={`${story.product} resources`}>
+                        {story.docs?.map((doc) => (
+                          <li>
+                            <a href={doc.href} target="_blank" rel="noopener noreferrer">
+                              <span class="b-docs__kind">{doc.kind}</span>
+                              <span class="b-docs__label">
+                                {doc.label} <span aria-hidden="true">↗</span>
+                              </span>
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  <div class="b-story__copy">
+                    <p class="b-story__eyebrow">
+                      <span>{story.team}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>{story.product}</span>
+                    </p>
+                    <h3 class="b-story__title" id={`${story.id}-title`}>
+                      {story.title}
+                    </h3>
+                    {story.body.map((paragraph) => (
+                      <p class="b-story__body">{paragraph}</p>
+                    ))}
+                    {story.links.length > 0 && (
+                      <ul class="b-links">
+                        {story.links.map((link) => (
+                          <li>
+                            <a href={link.href} target="_blank" rel="noopener noreferrer">
+                              {link.label} <span aria-hidden="true">↗</span>
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </article>
+              ))
+            }
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="a2-footer">
+      <div class="a2-wrap a2-footer__inner">
+        <div class="a2-footer__brand">
+          <strong>A2UI</strong>
+          <span>/</span>
+          <span>Apache 2.0 Open Source Project</span>
+        </div>
+        <nav class="a2-footer__links" aria-label="Footer links">
+          <a href={`${base}/quickstart/`}>Quickstart</a>
+          <a href={`${base}/concepts/overview/`}>Concepts</a>
+          <a href={`${base}/concepts/sdks/`}>SDKs</a>
+          <a href={`${base}/ecosystem/renderers/`}>Ecosystem</a>
+          <a href={`${base}/specification/v1.0-a2ui/`}>Specification</a>
+          <a href={`${base}/get-help/`}>Get Help</a>
+          <a href="https://github.com/a2ui-project/a2ui" target="_blank" rel="noopener noreferrer"
+            >GitHub</a
+          >
+        </nav>
+      </div>
+    </footer>
+
+    <style>
+      :global(*, *::before, *::after) {
+        box-sizing: border-box;
+      }
+
+      :global(html) {
+        scroll-behavior: smooth;
+        background: var(--a2-bg);
+        color: var(--a2-text);
+        font-family: var(--a2-font-sans);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      .a2-page {
+        margin: 0;
+        background: var(--a2-bg);
+        color: var(--a2-text);
+        overflow-x: clip;
+      }
+
+      .a2-wrap {
+        width: 100%;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 36px;
+      }
+
+      @media (max-width: 640px) {
+        .a2-wrap {
+          padding: 0 20px;
+        }
+      }
+
+      .a2-topbar {
+        position: sticky;
+        top: 0;
+        z-index: 60;
+        height: 64px;
+        background: var(--a2-bg-nav);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-bottom: 1px solid var(--a2-border);
+      }
+
+      .a2-topbar__inner {
+        max-width: 1280px;
+        height: 100%;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+
+      .a2-hero {
+        position: relative;
+        padding: 72px 0 80px;
+        overflow: clip;
+      }
+
+      .a2-hero__grid-bg {
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(to right, var(--a2-border-subtle) 1px, transparent 1px),
+          linear-gradient(to bottom, var(--a2-border-subtle) 1px, transparent 1px);
+        background-size: 64px 64px;
+        mask-image: radial-gradient(ellipse 90% 60% at 50% 18%, #000 15%, transparent 75%);
+        -webkit-mask-image: radial-gradient(ellipse 90% 60% at 50% 18%, #000 15%, transparent 75%);
+        pointer-events: none;
+      }
+
+      .b-hero__inner {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 24px;
+      }
+
+      .a2-h1 {
+        margin: 0;
+        font-family: var(--a2-font-display);
+        font-weight: 700;
+        letter-spacing: var(--a2-tracking-display);
+        color: var(--a2-text);
+      }
+
+      .b-h1 {
+        font-size: clamp(2.5rem, 4.6vw, 3.8rem);
+        line-height: 1.04;
+      }
+
+      .a2-h-accent {
+        color: var(--a2-heading-accent);
+      }
+
+      .a2-lead {
+        margin: 0;
+        max-width: 58ch;
+        font-size: 17px;
+        line-height: 1.65;
+        letter-spacing: var(--a2-tracking-body);
+        color: var(--a2-text-secondary);
+      }
+
+      .a2-hero__actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .a2-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        height: 44px;
+        padding: 0 20px;
+        border-radius: 3px;
+        font-family: var(--a2-font-sans);
+        font-size: 13.5px;
+        font-weight: 600;
+        text-decoration: none;
+        cursor: pointer;
+        transition:
+          background-color 0.15s ease,
+          border-color 0.15s ease,
+          color 0.15s ease,
+          transform 0.15s ease;
+      }
+
+      .a2-btn--primary {
+        background: var(--a2-cta-bg);
+        color: var(--a2-cta-fg);
+        border: 1px solid var(--a2-cta-bg);
+      }
+
+      .a2-btn--primary:hover {
+        background: var(--a2-cta-hover);
+        border-color: var(--a2-cta-hover);
+        transform: translateY(-1px);
+      }
+
+      .b-playground {
+        height: 48px;
+        background: var(--a2-surface);
+        color: var(--a2-text);
+        border: 1px solid var(--a2-accent-border);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+      }
+
+      .b-playground:hover {
+        border-color: var(--a2-accent);
+        transform: translateY(-1px);
+      }
+
+      .b-playground__by {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding-left: 12px;
+        border-left: 1px solid var(--a2-border-strong);
+        font-weight: 500;
+        color: var(--a2-text-secondary);
+      }
+
+      .b-ck-logo {
+        flex-shrink: 0;
+      }
+
+      .a2-section {
+        position: relative;
+        padding: 112px 0 128px;
+        border-top: 1px solid var(--a2-border-strong);
+        scroll-margin-top: 72px;
+      }
+
+      @media (max-width: 720px) {
+        .a2-section {
+          padding: 80px 0 88px;
+        }
+      }
+
+      .a2-h2 {
+        margin: 0;
+        font-family: var(--a2-font-display);
+        font-size: clamp(1.85rem, 3vw, 2.45rem);
+        font-weight: 700;
+        line-height: 1.1;
+        letter-spacing: var(--a2-tracking-h2);
+        color: var(--a2-text);
+      }
+
+      .b-stories__title {
+        margin-bottom: 56px;
+      }
+
+      .b-list {
+        display: flex;
+        flex-direction: column;
+        gap: 88px;
+      }
+
+      .b-story {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+        gap: 56px;
+        align-items: center;
+        scroll-margin-top: 88px;
+      }
+
+      .b-story:nth-child(even) .b-story__media {
+        order: 2;
+      }
+
+      .b-story--tall {
+        grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr);
+      }
+
+      @media (max-width: 900px) {
+        .b-story,
+        .b-story--tall {
+          grid-template-columns: 1fr;
+          gap: 28px;
+        }
+
+        .b-story:nth-child(even) .b-story__media {
+          order: 0;
+        }
+
+        .b-list {
+          gap: 64px;
+        }
+      }
+
+      .b-story__media {
+        min-width: 0;
+      }
+
+      .b-figure {
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .b-figure img {
+        display: block;
+        width: 100%;
+        height: auto;
+        border: 1px solid var(--a2-border-strong);
+        border-radius: 8px;
+        background: var(--a2-surface);
+      }
+
+      .b-story--tall .b-figure img {
+        max-width: 460px;
+        margin: 0 auto;
+      }
+
+      .b-figure figcaption {
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--a2-text-muted);
+      }
+
+      .b-docs {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      @media (max-width: 520px) {
+        .b-docs {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .b-docs a {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 18px;
+        border: 1px solid var(--a2-border-strong);
+        border-radius: 8px;
+        background: var(--a2-surface);
+        color: var(--a2-text);
+        text-decoration: none;
+        transition: border-color 0.15s ease;
+      }
+
+      .b-docs a:hover {
+        border-color: var(--a2-accent-border);
+      }
+
+      .b-docs__kind {
+        font-family: var(--a2-font-mono);
+        font-size: 11px;
+        letter-spacing: var(--a2-tracking-mono-wide);
+        text-transform: uppercase;
+        color: var(--a2-text-muted);
+      }
+
+      .b-docs__label {
+        font-size: 15px;
+        font-weight: 650;
+        line-height: 1.4;
+      }
+
+      .b-story__copy {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .b-story__eyebrow {
+        margin: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        font-family: var(--a2-font-mono);
+        font-size: 11.5px;
+        letter-spacing: var(--a2-tracking-mono-wide);
+        text-transform: uppercase;
+        color: var(--a2-accent);
+      }
+
+      .b-story__title {
+        margin: 0;
+        font-family: var(--a2-font-display);
+        font-size: clamp(1.3rem, 2vw, 1.6rem);
+        font-weight: 700;
+        line-height: 1.25;
+        letter-spacing: var(--a2-tracking-h3);
+        color: var(--a2-text);
+        text-wrap: balance;
+      }
+
+      .b-story__body {
+        margin: 0;
+        max-width: 60ch;
+        font-size: 15.5px;
+        line-height: 1.7;
+        color: var(--a2-text-secondary);
+      }
+
+      .b-links {
+        list-style: none;
+        margin: 4px 0 0;
+        padding: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 20px;
+      }
+
+      .b-links a {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--a2-accent);
+        text-decoration: none;
+      }
+
+      .b-links a:hover {
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+
+      .a2-btn:focus-visible,
+      .b-docs a:focus-visible,
+      .b-links a:focus-visible,
+      .a2-footer__links a:focus-visible {
+        outline: 2px solid var(--a2-accent);
+        outline-offset: 2px;
+      }
+
+      .a2-footer {
+        border-top: 1px solid var(--a2-border-strong);
+        padding: 40px 0 56px;
+      }
+
+      .a2-footer__inner {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+      }
+
+      .a2-footer__brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        color: var(--a2-text-muted);
+      }
+
+      .a2-footer__brand strong {
+        color: var(--a2-text);
+        font-weight: 650;
+      }
+
+      .a2-footer__links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+      }
+
+      .a2-footer__links a {
+        font-size: 13px;
+        color: var(--a2-text-secondary);
+        text-decoration: none;
+      }
+
+      .a2-footer__links a:hover {
+        color: var(--a2-text);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        :global(html) {
+          scroll-behavior: auto;
+        }
+
+        .a2-btn,
+        .b-docs a {
+          transition: none;
+        }
+
+        .a2-btn--primary:hover,
+        .b-playground:hover {
+          transform: none;
+        }
+      }
+    </style>
+  </body>
+</html>
