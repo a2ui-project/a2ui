@@ -1,0 +1,27 @@
+$/avatar = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop"
+$/email = "david.park@company.com"
+$/location = "San Francisco, CA"
+$/name = "David Park"
+$/phone = "+1 (555) 234-5678"
+$/title = "Engineering Manager"
+root = Card(main_column)
+main_column = Column([avatar_image, name, title, divider, contact_info, actions], _, "center")
+avatar_image = Image($/avatar, _, "cover", "avatar")
+name = Text($/name)
+title = Text($/title, "body")
+divider = Divider()
+contact_info = Column([phone_row, email_row, location_row])
+phone_row = Row([phone_icon, phone_text], _, "center")
+phone_icon = Icon("phone")
+phone_text = Text($/phone, "body")
+email_row = Row([email_icon, email_text], _, "center")
+email_icon = Icon("mail")
+email_text = Text($/email, "body")
+location_row = Row([location_icon, location_text], _, "center")
+location_icon = Icon("locationOn")
+location_text = Text($/location, "body")
+actions = Row([call_btn, message_btn])
+call_btn_text = Text("Call")
+call_btn = Button(call_btn_text, _, Event("call"))
+message_btn_text = Text("Message")
+message_btn = Button(message_btn_text, _, Event("message"))

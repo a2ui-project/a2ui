@@ -1,0 +1,27 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "1_simple_text",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Hello, Minimal Catalog!"
+              },
+              "usageHint": "h1"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "1_simple_text",
+      "root": "root",
+      "catalogId": "https://a2ui.org/specification/v0_8/catalogs/minimal/minimal_catalog.json"
+    }
+  }
+]

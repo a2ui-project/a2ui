@@ -1,0 +1,27 @@
+$/avatar = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop"
+$/bio = "Product Designer at Tech Co. Creating delightful experiences."
+$/followText = "Follow"
+$/followers = 12400
+$/following = 892
+$/name = "Sarah Chen"
+$/posts = 347
+$/username = "@sarahchen"
+root = Card(main_column)
+main_column = Column([header, info, bio, stats_row, follow_btn], _, "center")
+header = Image($/avatar, _, "cover", "avatar")
+info = Column([name, username], _, "center")
+name = Text($/name)
+username = Text($/username, "caption")
+bio = Text($/bio, "body")
+stats_row = Row([followers_col, following_col, posts_col], "spaceAround")
+followers_col = Column([followers_count, followers_label], _, "center")
+followers_count = Text(formatNumber($/followers))
+followers_label = Text("Followers", "caption")
+following_col = Column([following_count, following_label], _, "center")
+following_count = Text(formatNumber($/following))
+following_label = Text("Following", "caption")
+posts_col = Column([posts_count, posts_label], _, "center")
+posts_count = Text(formatNumber($/posts))
+posts_label = Text("Posts", "caption")
+follow_btn_text = Text($/followText)
+follow_btn = Button(follow_btn_text, _, Event("follow"))
