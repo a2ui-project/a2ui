@@ -15,11 +15,12 @@
  * limitations under the License.
  */
 import '../styles/tokens.css';
+import GenUiSpectrum from '../components/GenUiSpectrum.astro';
 import HeroChatGeneration from '../components/HeroChatGeneration.astro';
 import HeroFormFactors from '../components/HeroFormFactors.astro';
-import ProductionShowcase from '../components/ProductionShowcase.astro';
 import RendererLogo from '../components/RendererLogo.astro';
 import StarlightHeader from '../components/StarlightHeader.astro';
+import TeamLogo from '../components/TeamLogo.astro';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
@@ -121,6 +122,43 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
               </div>
             </div>
 
+            <!-- Team strip: products shipping A2UI, each linking to its story -->
+            <div class="a2-renderers a2-renderers--teams">
+              <span class="a2-renderers__lbl">SHIPPING IN</span>
+              <ul class="a2-renderers__list" aria-label="Teams shipping A2UI">
+                <li>
+                  <a href={`${base}/built-with-a2ui/#alation`} title="Alation: Alation AIOS"
+                    ><TeamLogo team="alation" size={18} idPrefix="hero-alation" /></a
+                  >
+                </li>
+                <li>
+                  <a href={`${base}/built-with-a2ui/#bytedance`} title="ByteDance: Lynx"
+                    ><TeamLogo team="bytedance" size={18} idPrefix="hero-bytedance" /></a
+                  >
+                </li>
+                <li>
+                  <a href={`${base}/built-with-a2ui/#atlassian`} title="Atlassian: Jira"
+                    ><TeamLogo team="atlassian" size={18} idPrefix="hero-atlassian" /></a
+                  >
+                </li>
+                <li>
+                  <a href={`${base}/built-with-a2ui/#gemini-enterprise`} title="Google Cloud: Gemini Enterprise"
+                    ><TeamLogo team="google-cloud" size={18} idPrefix="hero-google-cloud" /></a
+                  >
+                </li>
+                <li>
+                  <a href={`${base}/built-with-a2ui/#gemini-notebook`} title="Gemini: Gemini Notebook"
+                    ><TeamLogo team="gemini" size={18} idPrefix="hero-gemini" /></a
+                  >
+                </li>
+                <li class="a2-renderers__more">
+                  <a href={`${base}/built-with-a2ui/`}
+                    ><span>See what they built</span><span aria-hidden="true">→</span></a
+                  >
+                </li>
+              </ul>
+            </div>
+
             <!-- Renderer strip: the same stream renders natively in each of these -->
             <div class="a2-renderers">
               <span class="a2-renderers__lbl">RENDERS NATIVELY IN</span>
@@ -180,8 +218,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
                 Custom UI for <span class="a2-h-accent">each user's intent.</span>
               </h2>
               <div class="a2-stage__actions">
-                <a href={`${base}/build-with-a2ui/`} class="a2-btn a2-btn--primary">
-                  <span>Build with A2UI</span>
+                <a href={`${base}/built-with-a2ui/`} class="a2-btn a2-btn--primary">
+                  <span>Built with A2UI</span>
                   <span aria-hidden="true">→</span>
                 </a>
                 <a
@@ -206,9 +244,9 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       </section>
 
       <!-- =================================================================
-           IN PRODUCTION — 1P & 3P BRANDS & PARTNER QUOTES
+           ARCHITECTURE — THE GENERATIVE UI SPECTRUM
            ================================================================= -->
-      <ProductionShowcase />
+      <GenUiSpectrum />
 
       <!-- =================================================================
            CLOSING ARCHITECTURAL BANNER
@@ -246,7 +284,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         </div>
         <nav class="a2-footer__links" aria-label="Footer links">
           <a href={`${base}/quickstart/`}>Quickstart</a>
-          <a href={`${base}/build-with-a2ui/`}>Build with A2UI</a>
+          <a href={`${base}/built-with-a2ui/`}>Built with A2UI</a>
           <a href={`${base}/concepts/overview/`}>Concepts</a>
           <a href={`${base}/concepts/sdks/`}>SDKs</a>
           <a href={`${base}/specification/v1.0-a2ui/`}>Specification</a>
@@ -523,6 +561,48 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         border-top: 1px solid var(--a2-border);
       }
 
+      /* The team strip sits directly above the renderer strip and shares its style */
+      .a2-renderers--teams + .a2-renderers {
+        margin-top: 0;
+        padding-top: 14px;
+        border-top: 0;
+      }
+
+      .a2-renderers--teams {
+        padding-bottom: 14px;
+        border-bottom: 1px dashed var(--a2-border);
+      }
+
+      .a2-renderers--teams .a2-renderers__list a :global(.team-logo__name) {
+        font-weight: 600;
+      }
+
+      .a2-renderers--teams .a2-renderers__list a :global(.team-logo__wordmark) {
+        height: 15px;
+      }
+
+      /* Logos stay muted like the renderer marks until hovered */
+      .a2-renderers--teams .a2-renderers__list a :global(.team-logo__mark) {
+        filter: grayscale(1);
+        opacity: 0.75;
+        transition:
+          filter 0.15s ease,
+          opacity 0.15s ease;
+      }
+
+      .a2-renderers--teams .a2-renderers__list a:hover :global(.team-logo__mark),
+      .a2-renderers--teams .a2-renderers__list a:focus-visible :global(.team-logo__mark) {
+        filter: none;
+        opacity: 1;
+      }
+
+      /* Same label width in both strips so the two rows of logos line up */
+      @media (min-width: 720px) {
+        .a2-renderers__lbl {
+          min-width: 9.5rem;
+        }
+      }
+
       .a2-renderers__lbl {
         font-family: var(--a2-font-mono);
         font-size: 10.5px;
@@ -624,7 +704,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         scroll-margin-top: 72px;
       }
 
-      /* Header for the interactive stage — headline left, Build with A2UI/Playground CTAs right */
+      /* Header for the interactive stage — headline left, Built with A2UI/Playground CTAs right */
       .a2-chapter--stage {
         margin-bottom: 44px;
         scroll-margin-top: 84px;
