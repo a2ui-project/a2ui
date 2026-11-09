@@ -322,7 +322,7 @@ public final class MessageProcessor: ObservableObject {
     if version.isAtLeastV10 {
       // `catalog_definition.json` requires `$defs` to hold both unions, even for a catalog with
       // no components or no functions.
-      let functionNames = catalogDictionary["functions"]?.objectValue?.keys.map { $0 } ?? []
+      let functionNames = (catalogDictionary["functions"]?.objectValue?.keys).map(Array.init) ?? []
       catalogDictionary["$defs"] = .object([
         "anyComponent": inlineCatalogUnion(
           of: componentsDictionary.keys,
