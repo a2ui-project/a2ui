@@ -312,11 +312,7 @@ struct UserActivationActionTests {
     programmaticEvent()
     #expect(gatedFunction.callCount == 0)
     #expect(actionHandler.capturedErrors.count == 3)
-    if case .event(_, let context, _) = actionHandler.capturedActions.last?.identity {
-      #expect(context?["secret"] == .null)
-    } else {
-      Issue.record("Expected dispatched event action")
-    }
+    #expect(actionHandler.capturedActions.isEmpty)
 
     let gestureEvent = try #require(eventRoot.action(for: "action", userActivation: true))
     gestureEvent()

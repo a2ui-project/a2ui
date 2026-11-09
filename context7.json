@@ -1,0 +1,42 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "A2UI (Agent-to-User Interface)",
+  "description": "Open protocol and renderers for agent-generated UI: agents stream declarative JSON, apps render it with native React, Angular, Lit, Flutter, SwiftUI and Jetpack Compose components.",
+  "folders": [
+    "docs/public",
+    "specification/v0_9_1/docs",
+    "specification/v1_0/docs",
+    "specification/v1_0/extensions",
+    "catalogs",
+    "typescript/core/web_core",
+    "typescript/renderers",
+    "typescript/agents",
+    "python/a2ui_core",
+    "python/a2ui_agent",
+    "python/a2ui_a2a",
+    "python/a2ui_adk",
+    "dart/a2ui_core",
+    "dart/a2ui_agent",
+    "dart/a2ui_flutter",
+    "swift/core",
+    "swift/swiftui",
+    "samples/client",
+    "samples/agent",
+    "skills"
+  ],
+  "excludeFolders": [
+    "samples/community",
+    "docs/contributing",
+    "docs/proposals",
+    "eval",
+    "conformance",
+    ".agents"
+  ],
+  "excludeFiles": ["CHANGELOG.md", "v0.8-a2ui.md", "v0.8-a2a-extension.md"],
+  "rules": [
+    "Current protocol is v0.9.1 (v1.0 is a release candidate, v0.8 is legacy). Use versioned imports such as @a2ui/react/v0_9 and @a2ui/web_core/v0_9.",
+    "On Flutter, use a2ui_flutter with a2ui_core (flutter pub add a2ui_flutter a2ui_core), plus a2ui_agent if the app calls the model itself. These replace genui; flutter_genui and genui_a2ui are discontinued.",
+    "Web renderers need @a2ui/web_core plus one of @a2ui/react, @a2ui/angular or @a2ui/lit.",
+    "Agents send declarative JSON that references components from the client's catalog; never generate executable UI code."
+  ]
+}

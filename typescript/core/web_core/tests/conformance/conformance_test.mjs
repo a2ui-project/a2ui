@@ -253,6 +253,7 @@ const SKIP_TEST_SUITES = new Map([
   ],
   ['builder.yaml', 'typesafe builder API is agent-side only'],
   ['macros.yaml', 'composite macros are agent-side only'],
+  ['renderer_state.yaml', 'agent-side RendererState turn validation is tested in the agent SDK'],
 ]);
 
 /**
@@ -297,6 +298,7 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['handle_agent_function', 'agent functions are agent-side only'],
   ['validate_payload', 'validating model output is agent-side only'],
   ['process_renderer_message', 'processing renderer messages is agent-side only'],
+  ['call_renderer_function', "the agent's calls to renderer functions are agent-side only"],
   [
     'agent_to_renderer_schema',
     'web_core does not generate the agent_to_renderer schema from its own models',

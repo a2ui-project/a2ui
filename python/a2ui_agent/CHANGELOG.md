@@ -32,12 +32,48 @@
   generator through `InferenceFormat.prompt_generator`, and subclass
   `PromptGenerator` to write a format of your own.
   [#3568](https://github.com/a2ui-project/a2ui/pull/3568)
+- `RendererFunctionCalls.call` checks its arguments in a fixed order shared
+  with the TypeScript and Dart SDKs. An empty `function_call_id` is now
+  refused with `INVALID_FUNCTION_CALL` instead of replaced by a generated
+  one, and so are a `name` that isn't a UAX #31 identifier or starts with
+  `@`, and `args` that aren't a mapping with identifier keys and JSON values
+  (no NaN or infinity). `timeout` and `default_timeout` must be finite
+  positive numbers (not bools); only `default_timeout=None` turns the limit
+  off. ([#3939](https://github.com/a2ui-project/a2ui/pull/3939))
+- `RendererFunctionCalls` takes optional `catalogs`. With them, `call` raises
+  `UNKNOWN_FUNCTION` for a catalog they lack or a name that isn't one of its
+  renderer functions (agent functions included), and
+  `INVALID_FUNCTION_CALL` for a `rendererOnly` function or one that requires
+  user activation, before anything is registered. Two catalogs with one ID
+  raise `A2uiCatalogError`.
+  ([#3939](https://github.com/a2ui-project/a2ui/pull/3939))
+- Add `RendererFunctionCalls` to `a2ui.rpc`, which sends v1.0
+  `callRendererFunction` messages for one conversation and settles each call's
+  future from the renderer's `rendererFunctionResponse`, with timeouts (30
+  seconds by default), `max_pending` and `dispose()`. Its `resolve` method is
+  the `on_renderer_function_response` callback of
+  `RendererToAgentMessageProcessor`: it returns `True` when it settles (or, for
+  a malformed response, fails) a pending call and `False` otherwise, so the
+  processor declines responses to calls it didn't make. `is_pending` tells
+  whether a response answers one of its calls. `agent_development.md` describes it
+  ([#3535](https://github.com/a2ui-project/a2ui/issues/3535)).
+- Export `read_json` from `a2ui.inference_formats.direct_json`, which reads a
+  complete JSON document the way the Direct JSON parser does: it accepts
+  trailing commas and raw line breaks in strings, and straightens curly quotes.
+  Export `JSON_PAYLOAD_START_RE` from `a2ui.parser`, the pattern a
+  `BlockLexer` for JSON blocks passes as `payload_start_pattern` to recover a
+  block whose open tag is missing.
+  [#3790](https://github.com/a2ui-project/a2ui/pull/3790)
 - **BREAKING CHANGE**: (v1_0) The `TextField` builder in
   `a2ui.builder.v1_0.catalogs.basic` requires `value`, following the basic
   catalog. Recommended migration: pass `value`, such as
   `value=DataBinding(path="/form/email")`. The path does not have to exist yet
   ([#3830](https://github.com/a2ui-project/a2ui/issues/3830),
   [#3868](https://github.com/a2ui-project/a2ui/pull/3868)).
+- Add `agent_callable_functions` to `a2ui.utils` to return the functions on v1.0+ catalogs that an agent may invoke via `callRendererFunction` ([#3864](https://github.com/a2ui-project/a2ui/pull/3864), [#3880](https://github.com/a2ui-project/a2ui/pull/3880)).
+- `ExpressCompiler` and `ExpressResponseStream` now raise `ExpressValidationError` for a check list passed to a component whose catalog schema declares no `checks` property, and emit an `updateComponents` message for a component scope that defines no `root` instead of raising `ExpressUndefinedRootError` ([#3099](https://github.com/a2ui-project/a2ui/issues/3099), [#3880](https://github.com/a2ui-project/a2ui/pull/3880)). A statement holding an out-of-range number literal such as `1e999` now raises `ExpressParseError` instead of being dropped from the compiled block.
+- Add `buffer_incomplete_components` to `DirectJsonParser`, `DirectJsonFormat`, and `DirectJsonFormatFactory` so callers can hold streaming `updateComponents` entries until each component object closes ([#3880](https://github.com/a2ui-project/a2ui/pull/3880)).
+- The Express prompt generator (`ExpressFormat.prompt_generator.generate_base_rules()`) now includes the standalone renderer function call rule in v1.0 when `callRendererFunction` is allowed and the active catalogs define at least one agent-callable function, listing only `agent_callable_functions(catalogs)` and numbering multi-catalog rules sequentially ([#3864](https://github.com/a2ui-project/a2ui/pull/3864), [#3880](https://github.com/a2ui-project/a2ui/pull/3880)).
 - Add incremental streaming support for the Express inference format via `ExpressResponseStream` (`ExpressFormat.supports_streaming` and `ExpressParser.supports_streaming` now return `True`). `ExpressFormatFactory`, `ExpressFormat`, and `ExpressParser` accept `progressive_keys` (defaulting to `DEFAULT_EXPRESS_PROGRESSIVE_KEYS = frozenset({"text"})`) to heal unclosed string literals in matching component properties and data path assignments as chunks arrive, while gating initial `createSurface` emission on `root = ...` for new surfaces, emitting delta `updateComponents` and per-path `updateDataModel` messages on subsequent chunks, and holding statements with unresolved value variables until defined ([#2896](https://github.com/a2ui-project/a2ui/issues/2896)).
 - **BREAKING CHANGE**: Use `'1.0'` (without a `'v'` prefix) as the `version`
   field on v1.0 protocol messages and capabilities in inference format
