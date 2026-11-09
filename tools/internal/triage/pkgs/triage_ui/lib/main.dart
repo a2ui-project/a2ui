@@ -12,22 +12,49 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-void main() {
-  runApp(const TriageApp());
+import 'src/github_item.dart';
+import 'src/item_server.dart';
+import 'src/triage_app.dart';
+
+/// Starts the triage UI.
+///
+/// [args] may hold the URL of the item to open, as
+/// `tools/internal/triage/triage_ui.sh` passes it.
+Future<void> main(List<String> args) async {
+  final item = ValueNotifier<GitHubItem?>(_initialItem(args));
+
+  // The web has no server sockets, and triage_ui.sh runs the app on macOS.
+  if (!kIsWeb) {
+    try {
+      await ItemServer.start(
+        onItem: (GitHubItem received) {
+          item.value = received;
+        },
+      );
+    } on SocketException catch (e) {
+      debugPrint(
+        'Cannot listen on port ${ItemServer.defaultPort}, so triage_ui.sh '
+        'cannot send items to this app: $e',
+      );
+    }
+  }
+
+  runApp(TriageApp(item: item));
 }
 
-/// The triage UI, which helps the triager go through the GitHub items that
-/// need triage. See `blueprints/features/ui.blueprint.md`.
-class TriageApp extends StatelessWidget {
-  const TriageApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const MaterialApp(
-      title: 'A2UI triage',
-      home: Scaffold(body: Center(child: Text('Hello, world!'))),
+GitHubItem? _initialItem(List<String> args) {
+  if (args.isEmpty) return null;
+  final GitHubItem? item = GitHubItem.tryParse(args.first);
+  if (item == null) {
+    debugPrint(
+      'Ignoring "${args.first}": it is not the URL of an issue or a pull '
+      'request in a2ui-project/a2ui.',
     );
   }
+  return item;
 }
