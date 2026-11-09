@@ -111,6 +111,27 @@ guide:
    behavioral differences needed app changes, and anything the guide did not
    cover.
 
+## Migrating a package you do not own
+
+When the migration is a pull request to someone else's repository, such as a
+package on pub.dev that depends on `genui`:
+
+1. Read the repository's CI workflows and its agent instructions
+   (`AGENTS.md`, `CLAUDE.md`) first, and run the CI steps locally before and
+   after the change, including in the example package. CI usually runs the
+   latest stable SDK, so use it locally too.
+2. Keep the package's name and public class names. Keep its API shape where
+   the new SDK allows, and list each breaking change in its `CHANGELOG.md`
+   under an `Unreleased` heading; leave the version number to the maintainer.
+3. Update the README, examples and agent instructions that show the old
+   SDK's API, so they do not teach code that no longer compiles.
+4. Commit only the migration. Revert edits that tools make on their own: for
+   example, Flutter 3.47 and later rewrites `analysis_options.yaml` to
+   exclude build and platform directories on `flutter pub get` and
+   `flutter analyze`.
+5. Leave behavior the migration did not have to change as it is, including
+   bugs you notice, and mention them in the change description instead.
+
 ## Adding a case
 
 When you migrate something this skill has no guide for, add one so the next
