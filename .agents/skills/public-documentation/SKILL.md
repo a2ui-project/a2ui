@@ -1,232 +1,113 @@
 ---
 name: public-documentation
 description: >-
-  Defines authoring, multi-version tabbing, multi-SDK code example, and diagram
-  standards for the A2UI developer site (docs/site/). Use when creating,
-  editing, or reviewing public documentation, conceptual guides, tutorials, or
-  quickstarts.
+  Defines authoring, multi-version tabbing, multi-SDK code example, diagram, and
+  PR preview standards for the A2UI developer site (docs/site/). Progressively
+  routes by page type (guides, concepts, components/special pages, and
+  specifications/agent manifests) so agents load only the rules relevant to
+  their task.
 metadata:
   internal: true
 ---
 
 # Public documentation authoring skill
 
-This skill defines standards and architectural conventions for authoring public documentation, conceptual guides, tutorials, and quickstarts across the A2UI developer site (`docs/site/`).
+This skill defines universal authoring standards for the A2UI developer site (`docs/site/`) and routes to page-type reference guides so you load only the instructions needed for the pages you are creating, editing, or reviewing.
 
 ---
 
-## Tone, style, and list conventions
+## Progressive routing by page type
 
-Public documentation must read as clear, accurate, and human-authored technical writing.
+All changes to `docs/site/` must follow the **Universal standards** and **Verification and pull request reviews** sections in this file. Beyond those universal rules, inspect the target paths in your task and read **only** the matching reference file(s) below:
 
-- **Adhere to natural writing standards**: Follow [.agents/skills/natural-writing/SKILL.md](../natural-writing/SKILL.md). Maintain a neutral tone, use plain copulas ("is", "are") instead of flowery substitutions ("serves as", "stands as"), and avoid promotional puffery or artificial jargon.
-- **First-sentence purpose statement**: Every documentation page must open immediately with a clear, informative sentence that explains what the page covers. Avoid formulaic filler such as "This guide will walk you through..." or "In this document, we explore...". State the technical topic directly so readers can quickly determine if the document answers their question.
-- **Descriptive, unnumbered headings**: Use unnumbered headings across all documentation pages. Never prefix section titles with artificial numbers (such as `## 1. Introduction` or `### 2. Setup`), except when documenting strict chronological phases or numbered specification clauses.
-- **Unordered versus ordered list selection**: Select list formatting based on whether items have an inherent sequence:
-  - Use unordered bullet points (`-`) for non-sequential items, including feature summaries, component catalogs, conceptual principles, taxonomic groupings, configuration options, or alternative architectural choices.
-  - Use numbered lists (`1.`, `2.`, `3.`) strictly for sequential step-by-step instructions, procedural workflows, chronological timelines, or explicit precedence rankings.
-- **Terminology links**: Link key technical concepts and domain terms to their formal definitions in the glossary or specification on first mention.
+| Page type / site area                                                                           | Matching paths                                                                                                                | Reference file to load                                                                                                                                                                                                                        |
+| :---------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Guides, tutorials, and quickstarts**                                                          | `docs/site/src/content/docs/guides/**`, `docs/site/src/content/docs/quickstart*`                                              | [`references/guides-and-quickstarts.md`](references/guides-and-quickstarts.md) — Lean 4–5 step core path, code before wire JSON, "No Missing Glue" entry points, v1.0-focused prose, and runtime snippet lifecycle hygiene.                   |
+| **Conceptual pages and diagrams**                                                               | `docs/site/src/content/docs/concepts/**`                                                                                      | [`references/concepts-and-diagrams.md`](references/concepts-and-diagrams.md) — Mental-model framing, v1.0/v0.9.1 wire comparisons, hybrid diagram pattern, Mermaid vs. `<DiagramCard>`, and glossary/schema deep-linking.                     |
+| **Custom Astro components and special pages** (landing, ecosystem, showcase, roadmap, get-help) | `docs/site/src/components/**`, `docs/site/src/styles/**`, `index.mdx`, `ecosystem/**`, `roadmap*`, `showcase*`, `get-help*`   | [`references/components-and-special-pages.md`](references/components-and-special-pages.md) — Scoped Astro styles, container queries, design tokens, defensive client scripts, and directory/marketing page conventions.                       |
+| **Specifications, schemas, and AI agent manifests**                                             | `docs/site/src/content/docs/specification/**`, `docs/site/llms.txt`, `docs/site/src/pages/**/*.md.ts`, `docs/site/scripts/**` | [`references/specifications-and-agent-manifests.md`](references/specifications-and-agent-manifests.md) — `--8<--` spec inclusions, version status labels, `llms.txt` placeholders, fence-aware `llms-full.txt` bundling, and `.md` endpoints. |
 
----
-
-## Guide information architecture and the lean core path
-
-Quickstarts and tutorials guide readers toward a working integration with minimal cognitive friction. Follow the lean core path pattern:
-
-- **Four to five step core path**: Structure the primary walkthrough into four to five concise steps that take the reader from an empty project to a rendering interface.
-- **Defer advanced capabilities**: Place topics such as capability negotiation, bidirectional data-model synchronization, custom themes, and client-side validation rules in an "Additional steps" or "Next steps" section after the core flow.
-- **Remove upfront theoretical roadblocks**: Do not place protocol sequence diagrams, architectural taxonomy charts, or version comparison tables before Step 1. Introduce conceptual background only after the developer runs the base sample.
-- **Application code first**: Present application code, components, and event listeners before raw transport payloads. Place supporting wire JSON envelopes in collapsible `<details>` blocks after the application code.
-- **No Missing Glue rule**: Provide a complete bootstrap file at the end of the guide (such as `App.tsx`, `main.dart`, `MyApp.swift`, or `MainActivity.kt`) that imports the created components and mounts the surface.
-- **Include essential packages by default**: Include companion packages required for standard presentation (such as `@a2ui/markdown-it` for Markdown rendering) in setup commands and imports from the beginning, rather than introducing them as troubleshooting fixes later.
+If you are **only** writing a conceptual page (and not adding a custom `.astro` component), read [`references/concepts-and-diagrams.md`](references/concepts-and-diagrams.md) and skip the guide, component, and manifest references. If a conceptual or guide page also introduces a new `.astro` visual component under `src/components/`, load [`references/components-and-special-pages.md`](references/components-and-special-pages.md) as well.
 
 ---
 
-## Protocol version focus and label strictness
+## Universal standards (apply to every page)
 
-Documentation leads with protocol version **v1.0**, the current protocol version, while providing accurate version references for earlier releases.
+Every page across `docs/site/` must follow these style, component, tabbing, and linking rules regardless of page category.
 
-- **Lead with v1.0 in prose**: All conceptual explanations, architectural walkthroughs, and tutorial instructions focus on v1.0 syntax and data structures.
-- **Isolate platform version deviations**: If a client framework package targets an earlier protocol release (for example, Jetpack Compose `1.0.0-alpha02` targeting `v0.9.1`), isolate that difference inside that platform's tab or in an adjacent `<Aside type="note">` callout. Do not dilute the rest of the guide with legacy explanations.
-- **Plain version tab labels**: In version comparison tabs, use plain version labels strictly (`label="v1.0"` and `label="v0.9.1"`). Never append status words or release stages (such as `v1.0 (Candidate)` or `v0.9.1 (Stable)`).
-- **Document v1.0-exclusive capabilities cleanly**: When presenting capabilities available only in v1.0, show an untabbed v1.0 code block accompanied by an `<Aside type="note" title="New in v1.0">` callout rather than an empty or disabled comparative tab.
-- **Accurate wire payload values**: In JSON snippets, reflect exact protocol identifiers:
-  - Use `"version": "1.0"` (without a `"v"` prefix) for v1.0 envelopes.
-  - Use `"version": "v0.9"` or `"v0.9.1"` for v0.9.x envelopes.
-  - Reflect renamed keys accurately, such as `agent_to_renderer` / `renderer_to_agent` versus `server_to_client` / `client_to_server`, and `@path` / `@call` versus `path` / `call`.
+### Tone, style, and list conventions
 
----
+- **Natural writing**: Follow [`natural-writing`](../natural-writing/SKILL.md). State technical facts directly, use plain copulas ("is", "are") rather than figurative phrasing ("serves as", "stands as"), and never use promotional buzzwords or AI-isms (such as _seamlessly_, _robust_, _delve_, _empower_, _leverage_, _tapestry_).
+- **First-sentence purpose statement**: Every documentation page (excluding the marketing landing page and raw `--8<--` specification wrappers) must open immediately with a natural, concise sentence explaining what the page covers so readers can tell right away whether it answers their question. Avoid meta-formulas such as "This page covers...", "This page lists...", or "In this guide, we will...".
+- **Descriptive, unnumbered headings**: Never prefix headings with numbers (such as `## 1. Overview` or `### 2. Setup`) unless the numbers carry formal meaning (such as numbered specification clauses or strict protocol execution phases). For sequential tutorial steps, use Starlight `<Steps>` or unnumbered prose headings instead.
+- **Never use numbered lists for unordered items**:
+  - Use **unordered bullet points (`-`)** whenever items do not have an inherent chronological, procedural, or ranked sequence—including feature lists, component properties, architectural layers, design principles, configuration flags, or alternative options.
+  - Reserve **numbered lists (`1.`, `2.`, `3.`)** strictly for sequential step-by-step instructions, ordered execution phases, or explicit precedence rankings.
+- **Link key terms**: Link domain concepts (such as surface, catalog, data model, renderer) to their formal glossary or specification definitions on first mention.
 
-## Multi-SDK and multi-framework tab synchronization
+### Starlight and MDX authoring conventions
 
-Provide balanced code samples across all supported languages and UI frameworks using Starlight tabs configured with standardized synchronization keys.
-
-### Standardized syncKey identifiers and tab ordering
-
-Use the following predefined `syncKey` values and ordering sequences:
-
-- **`syncKey="sdk-lang"`**: Used for agent and server-side SDK examples. Order tabs as:
-  - TypeScript
-  - Python
-  - Dart
-  - Swift (omit Swift for agent-only SDK examples, as Swift focuses on client-side Core and SwiftUI).
-- **`syncKey="renderer-framework"`**: Used for complete cross-platform UI renderer examples covering all six supported platforms:
-  - Flutter
-  - React
-  - Lit
-  - Angular
-  - SwiftUI
-  - Jetpack Compose
-- **`syncKey="web-framework"`**: Used for web-specific renderer examples covering the three web adapters:
-  - React -> Lit -> Angular (or Lit -> React -> Angular when Lit is the primary reference).
-  - Do not use `renderer-framework` on a three-tab web snippet, as doing so desynchronizes mobile tabs across the site.
-- **`syncKey="client-sdk"`**: Used for client state model and transport handling SDKs:
-  - TypeScript
-  - Dart
-  - Swift
-- **`syncKey="protocol-version"`**: Used for wire JSON message payloads and catalog definitions:
-  - v1.0
-  - v0.9.1
-
-### Expressive Code framing hygiene
-
-When annotating code snippets within tabs:
-
-- Provide clean, valid file path comments or titles across all tabs in a group (for example, `// src/agent.ts`, `# src/agent.py`, `// lib/agent.dart`), or omit titles entirely across the group.
-- Avoid mixing titled files with untitled code blocks within the same tab group.
-
----
-
-## Starlight and MDX component standards
-
-Documentation pages use Astro Starlight components and MDX syntax.
-
-- **Explicit imports**: Import every Starlight component at the top of the MDX file:
+- **Explicit component imports**: Import Starlight components at the top of `.mdx` files:
   ```typescript
   import {Aside, Badge, Steps, Tabs, TabItem} from '@astrojs/starlight/components';
   ```
-- **Callout syntax**: Use the Starlight `<Aside>` component for notices and warnings:
-  - `<Aside type="note" title="...">`: Background explanations or version availability notices.
-  - `<Aside type="tip" title="...">`: Performance improvements or practical recommendations.
-  - `<Aside type="caution" title="...">`: Potential pitfalls or deprecation advisories.
-  - `<Aside type="danger" title="...">`: Security risks, breaking changes, or critical configuration errors.
-- **HTML-like tag escaping in MDX**: MDX parses unquoted HTML tags as JSX components. Always wrap literal tag names in backticks (such as `<script>`, `<link>`, or `<a2ui-surface>`) when mentioning them in prose, or escape them with entity references (`&lt;script&gt;`) inside code samples.
-- **Sequential tutorials with `<Steps>`**: Wrap procedural tutorial steps in `<Steps>` to render numbered step indicators automatically:
-  ```mdx
-  <Steps>
-    1. Install the SDK packages. 2. Configure your component catalog. 3. Initialize the surface. 4.
-    Mount the root application component.
-  </Steps>
-  ```
-- **Status indicators with `<Badge>`**: Use `<Badge text="..." variant="note|tip|caution|danger|success" />` for inline status markers.
+- **Callouts with `<Aside>`**: In `.mdx` pages, use `<Aside type="note|tip|caution|danger" title="...">` for callouts rather than raw blockquotes or GitHub alert syntax:
+  - `note`: Context, version availability notices, or background details.
+  - `tip`: Practical recommendations or shortcuts.
+  - `caution`: Common pitfalls, limitations, or deprecations.
+  - `danger`: Breaking changes, security boundaries, or data-loss risks.
+- **Escape HTML-like tags in MDX prose**: MDX compiles unquoted angle-bracket tags as JSX components and fails the build on unknown elements. Wrap literal tag names in inline backticks (for example, `` `<script>` ``, `` `<link>` ``, `` `<a2ui-surface>` ``) whenever mentioning them in prose.
+- **Sequential steps and badges**: Use `<Steps>` around ordered Markdown lists for multi-step procedures, and `<Badge text="..." variant="..." />` for inline status indicators.
+
+### Multi-SDK, multi-framework, and protocol version tabs
+
+Whenever a page presents tabbed code or wire payloads, use the canonical Starlight `syncKey` values, tab labels, and ordering below so user selections persist cleanly across the site:
+
+| Context                    | `syncKey`            | Canonical tab order and label rules                                                                                                                                                                                                                                                                 |
+| :------------------------- | :------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Agent / Core SDKs**      | `sdk-lang`           | `TypeScript` -> `Python` -> `Dart` -> `Swift` (omit `Swift` for Agent SDK examples, as Swift focuses on client-side Core and SwiftUI; use supported subsets such as `TypeScript` -> `Python` when documenting ecosystems like MCP servers).                                                         |
+| **Client-only Core SDKs**  | `client-sdk`         | `TypeScript` -> `Dart` -> `Swift` (omit `Python`, which is server/agent-only).                                                                                                                                                                                                                      |
+| **All UI Renderers**       | `renderer-framework` | `Flutter` -> `React` -> `Lit` -> `Angular` -> `SwiftUI` -> `Jetpack Compose` (never collapse React, Lit, and Angular into a single "Web" tab).                                                                                                                                                      |
+| **Web-only Renderers**     | `web-framework`      | `Lit` -> `React` -> `Angular` (or `React` -> `Lit` -> `Angular`). Never reuse `renderer-framework` on a 3-tab Web block, or mobile tab selections elsewhere will leave tabs unselected.                                                                                                             |
+| **Protocol Wire Versions** | `protocol-version`   | `v1.0` -> `v0.9.1`. Always use plain version strings (`label="v1.0"`, `label="v0.9.1"`). Never append status words like `(Current)` or `(Candidate)`—Starlight matches exact label strings to sync tabs, and [`AGENTS.md`](../../../AGENTS.md#version-labels) forbids status labels in tab headers. |
+| **Build / Environment**    | `bundler`, `os`      | Use `syncKey="bundler"` (e.g. `Vite`, `Angular CLI`) and `syncKey="os"` (e.g. `macOS and Linux`, `Windows`) for tooling comparisons.                                                                                                                                                                |
+
+- **Expressive Code header framing**: Starlight's `@expressive-code/plugin-frames` renders an editor title bar when a code block starts with a file-path comment. Either provide clean file-path comments consistently across **every** tab in a group (e.g. `// src/App.tsx`, `// lib/main.dart`), or omit top-line comments across the entire group and start directly with imports. Never mix file paths with conversational comments like `// Inside MyService (...)`.
+- **Protocol version authority**: Follow [`AGENTS.md`](../../../AGENTS.md#version-labels) whenever naming protocol versions. Never attach words like _current_, _latest_, _active_, _stable_, or _candidate_ to a version number in running prose. In JSON envelopes, use `"version": "1.0"` (no `"v"` prefix) for v1.0 and `"version": "v0.9"` (or `"v0.9.1"`) for v0.9.x.
+
+### Internal linking and permalink standards
+
+- **Standard Markdown relative links**: Always write internal cross-references between documentation pages as standard Markdown relative links with trailing slashes (for example, `[Catalogs](../concepts/catalogs/)` or `[Defining a catalog](../guides/defining-a-catalog/#schema-parity-tests-in-ci)`). Do not use raw HTML `<a>` tags with imported JS URL constants, and do not hardcode root-relative `/concepts/...` paths—relative links stay portable across local dev, `/preview/`, `/pr-preview/pr-<N>/`, and production root deployments.
+- **Schema permalink exception**: Root-relative paths are reserved strictly for protocol JSON schemas and the interactive JSON Schemas Explorer:
+  - Human-browsable explorer in prose: `/specification/v1_0/schemas/#<schema-file>.json/<json-pointer>`
+  - Raw schema files: `/specification/v1_0/<schema-file>.json` (reserve full `https://a2ui.org/specification/...` URLs for JSON `$id` and `$ref` fields).
+- **No raw GitHub blobs or unmerged routes**: Never link to `github.com/.../blob/...` or `raw.githubusercontent.com` for content hosted on the site, and never link to placeholder or unmerged pages.
 
 ---
 
-## Single source of truth and linking standards
+## Verification and pull request reviews (apply to every PR)
 
-Maintain a consistent URL structure and link graph across all documentation pages.
+Run this checklist before opening or updating any pull request touching `docs/site/`, `specification/`, or `catalogs/`:
 
-- **Relative internal links**: Use strictly relative file paths for links between documentation pages (such as `../concepts/overview/` or `./catalog-registration/`).
-- **Schema permalink exception**: Link to formal protocol schemas and schema exploration interfaces using root-relative permalinks:
-  - Direct schema files: `/specification/v1_0/json/...`
-  - Interactive schema explorer: `/specification/v1_0/schemas/#<schema-file>/<json-pointer>`
-- **No raw source repository blobs**: Never link to raw GitHub blob URLs (`https://github.com/.../blob/...`) for files published on the documentation site. Link to the rendered documentation page instead.
-- **No unready or draft links**: Do not link to placeholder routes, unmerged documentation pages, or unpublished drafts.
-- **Automated link verification**: Run the automated link checker during the site build (`npm --prefix docs/site run build`), which executes `check-links.mjs` to validate all internal links and anchor fragments.
-
----
-
-## Diagrams, visual aids, and Astro components
-
-Visual diagrams help explain architectural concepts and protocol interactions while maintaining accessibility.
-
-- **Preceding explanatory text (Hybrid diagram pattern)**:
-  Every diagram must be preceded by an explanatory paragraph describing the components, data flow, and architectural relationships shown. This ensures that users who rely on screen readers or text-only browsers receive complete conceptual information without visual dependency.
-- **Diagram simplicity**:
-  Focus diagrams on the core mental model and the happy path. Avoid crowding diagrams with every minor error handler, retry branch, or low-level transport detail.
-- **Canonical diagram container**:
-  Wrap custom visual diagrams in `<DiagramCard>` with an accompanying machine-readable Mermaid specification:
-
-  ```mdx
-  import DiagramCard from '../../../components/docs/common/DiagramCard.astro';
-
-  <DiagramCard
-    title="Surface Lifecycle"
-    mermaid={`
-      sequenceDiagram
-        Agent->>Renderer: createSurface
-        Agent->>Renderer: updateDataModel
-        Renderer->>Agent: userAction
-    `}
-  >
-    {/* Visual card content or SVG */}
-  </DiagramCard>
-  ```
-
-- **Container queries for responsive layouts**:
-  Use CSS container queries (`@container (min-width: ...)`) rather than viewport media queries (`@media (min-width: ...)`) for custom diagram components so cards adapt cleanly whether rendered in full-width pages or constrained multi-column layouts.
-- **Design system tokens**:
-  Reference global tokens from `src/styles/tokens.css` (such as `var(--font-body)`, `var(--a2-border)`, `var(--a2-surface)`, and `var(--a2-text)`) to maintain consistent typography and colors across light and dark modes.
-- **Scoped component styles**:
-  Never use `<style is:inline>` in documentation components. Use scoped `<style>` blocks in Astro components to prevent style leaks across pages.
-- **Defensive client-side scripts**:
-  When embedding client-side scripts in interactive components:
-  - Wrap `localStorage` or `sessionStorage` access in `try...catch` blocks to prevent crashes in private browsing modes or restricted sandboxes.
-  - Check `if (e.isTrusted)` before triggering pointer capture or synthetic events.
-
----
-
-## Code snippet robustness and runtime lifecycle
-
-Code examples in documentation must demonstrate sound resource management and framework lifecycles.
-
-- **React hook hygiene**:
-  - Store callbacks referenced inside `useMemo` in a `useRef` to maintain stable reference identity across renders.
-  - Dispose of message processors and subscriptions in the cleanup function of `useEffect` (`return () => { processor.dispose(); };`).
-- **Lit component lifecycle**:
-  Subscribe to state streams and data stores in both `connectedCallback` and `willUpdate` to handle both initial mounting and subsequent property modifications cleanly, and unsubscribe in `disconnectedCallback`.
-- **Multi-turn agent state**:
-  When illustrating multi-turn agent interactions, emit subsequent surface updates with `update=true` (such as `surface(..., update=true)`) rather than recreating the surface from scratch.
-- **Defensive client transport handling**:
-  In fetch transport examples, verify `if (!response.ok)` before reading data, and verify that the response body is non-empty before calling `JSON.parse`.
-
----
-
-## AI agent manifests and markdown bundles
-
-The documentation site generates machine-readable endpoints for AI assistants, LLM tools, and offline readers.
-
-- **Curated `llms.txt`**:
-  Maintain `docs/site/llms.txt` with concise project summaries, quick links, and official package install commands. Place build-time placeholders (such as `{{A2UI_PROTOCOL_VERSIONS}}`) where dynamic protocol lists are injected during build.
-- **Fence-aware MDX cleaning for `llms-full.txt`**:
-  The build script `emit-markdown-bundle.mjs` generates `docs/site/dist/llms-full.txt`. When adding custom components, ensure component tags outside code fences are clean and parseable so the extraction pipeline strips MDX wrappers without corrupting code blocks.
-- **Parallel Markdown endpoints**:
-  The site serves raw Markdown versions of all documentation pages by appending `.md` to any documentation URL (for example, `/quickstart.md` or `/concepts/overview.md`). Avoid syntax patterns that render Markdown unintelligible when stripped of Astro components.
-
----
-
-## Verification and pull request reviews
-
-Follow this verification procedure before opening or updating documentation pull requests:
-
-1. **Verify code accuracy**: Confirm that package names, import statements, type names, and API signatures match the current codebase.
-2. **Validate JSON examples**: Run the schema validator across all documentation files:
+1. **Verify SDK and code accuracy**: Confirm all package names, imports, class names, method signatures, and CLI commands match live implementations in the repository, and consult [`a2ui-doc-sync-check`](../a2ui-doc-sync-check/SKILL.md) when SDKs and docs change together.
+2. **Validate JSON examples against protocol schemas**:
    ```bash
    python3 docs/scripts/validate_doc_examples.py
    ```
-3. **Build the site and check links**: Build the documentation site locally to verify MDX parsing and link integrity:
+3. **Build the site and run post-build link and anchor checks**:
    ```bash
    npm --prefix docs/site run build
    ```
-4. **Conduct a style and tone audit**: Review all added or updated text against [.agents/skills/natural-writing/SKILL.md](../natural-writing/SKILL.md). Check that:
-   - Headings are descriptive and unnumbered.
-   - Non-sequential lists use bullet points (`-`).
-   - Procedural workflows use numbered steps (`1.`, `2.`, `3.`).
-   - Promotional buzzwords and filler phrases are removed.
-5. **Add the mandatory live preview link to the PR description**:
-   Every pull request with documentation changes must include the live preview URL in its description:
+   This compiles Astro/MDX, generates `llms-full.txt` and `.md` mirrors, verifies `--8<--` spec inclusions and schema pointers (`verify-spec-links.mjs`), and runs `check-links.mjs` to validate every internal route, `ASTRO_BASE` boundary, and `#fragment` HTML anchor. If you modified custom scripts or link logic, also run `npm --prefix docs/site test`.
+4. **Audit writing style and list formatting**: Check all prose against [`natural-writing`](../natural-writing/SKILL.md) and confirm that headings are unnumbered, non-sequential lists use unordered bullets (`-`), and numbered lists (`1.`) appear only on true sequential steps.
+5. **Include the mandatory live preview URL in the PR description**: Every PR modifying `docs/site/`, `specification/`, or `catalogs/` deploys an automated preview via GitHub Actions. Always include the root preview link and direct deep links to each modified page in the PR description using this exact format (note `/pr-preview/`, not `/preview/`, and include trailing slashes):
+
    ```markdown
    **Live Preview**: https://a2ui.org/pr-preview/pr-<PR_NUMBER>/
+
+   **Modified pages:**
+
+   - https://a2ui.org/pr-preview/pr-<PR_NUMBER>/<route>/
    ```
-6. **Provide direct deep links**: List clickable preview links to each modified page in the PR description so reviewers can inspect changes directly.
-7. **Refresh before squash-merging**: Update the PR description before final merging to reflect any structural edits or new pages added during the review process.
+
+6. **Keep the PR description current**: Before squash-merging, update the PR description so it reflects the final merged architecture, routes, and preview links rather than early draft paths.
