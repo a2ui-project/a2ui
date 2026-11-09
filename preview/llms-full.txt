@@ -26,7 +26,7 @@ Parallel Markdown editions of documentation pages are available by appending `.m
 - Angular: `npm install @a2ui/angular @a2ui/web_core`
 - Flutter: `flutter pub add a2ui_flutter a2ui_core`
 - Swift (SPM): `https://github.com/a2ui-project/a2ui` (`A2UISwiftCore`, `A2UISwiftUI`, `BasicCatalogSwiftUI`)
-- Android Jetpack Compose: `androidx.a2ui` and `androidx.a2ui.compose`
+- Android Jetpack Compose (Google Maven): `androidx.compose.material3:material3-a2ui`, `androidx.a2ui.compose:compose-ui`, `androidx.a2ui.compose:compose-runtime`, and `androidx.a2ui:a2ui-model`
 - Agent SDKs: `pip install a2ui-agent-sdk` (Python, plus `a2ui-adk` and `a2ui-a2a`); `npm install @a2ui/agent` (TypeScript); `dart pub add a2ui_agent` (Dart)
 
 ## Getting Started & Concepts
@@ -37,8 +37,8 @@ Parallel Markdown editions of documentation pages are available by appending `.m
 - [Catalogs](https://a2ui.org/concepts/catalogs/) ([Markdown](https://a2ui.org/concepts/catalogs.md))
 - [Data Model and Data Binding](https://a2ui.org/concepts/data-binding/) ([Markdown](https://a2ui.org/concepts/data-binding.md))
 - [Actions, Events and Functions](https://a2ui.org/concepts/actions-and-functions/) ([Markdown](https://a2ui.org/concepts/actions-and-functions.md))
+- [Inference Formats](https://a2ui.org/concepts/inference-formats/) ([Markdown](https://a2ui.org/concepts/inference-formats.md))
 - [SDKs (Core, Agent, Renderer, and Go/Community)](https://a2ui.org/concepts/sdks/) ([Markdown](https://a2ui.org/concepts/sdks.md))
-- [Swappable Inference Formats](https://a2ui.org/concepts/inference-formats/) ([Markdown](https://a2ui.org/concepts/inference-formats.md))
 - [Glossary](https://a2ui.org/concepts/glossary/) ([Markdown](https://a2ui.org/concepts/glossary.md))
 
 ## Integration Guides
@@ -46,6 +46,7 @@ Parallel Markdown editions of documentation pages are available by appending `.m
 - [How to Integrate with My Client](https://a2ui.org/guides/client-integration/) ([Markdown](https://a2ui.org/guides/client-integration.md))
 - [How to Integrate with My Agent Server](https://a2ui.org/guides/agent-integration/) ([Markdown](https://a2ui.org/guides/agent-integration.md))
 - [How to Define a Catalog](https://a2ui.org/guides/defining-a-catalog/) ([Markdown](https://a2ui.org/guides/defining-a-catalog.md))
+- [Using Macros](https://a2ui.org/guides/macros/) ([Markdown](https://a2ui.org/guides/macros.md))
 - [MCP Overview](https://a2ui.org/guides/mcp-overview/) ([Markdown](https://a2ui.org/guides/mcp-overview.md))
 - [Call MCP Tools from A2UI](https://a2ui.org/guides/mcp-catalog/) ([Markdown](https://a2ui.org/guides/mcp-catalog.md))
 - [Serve A2UI Layouts from an MCP Server](https://a2ui.org/guides/a2ui-over-mcp/) ([Markdown](https://a2ui.org/guides/a2ui-over-mcp.md))
@@ -65,8 +66,9 @@ Parallel Markdown editions of documentation pages are available by appending `.m
 
 ## Ecosystem & Optional
 
-- [Ecosystem Renderers & Tools (including Lynx, Svelte, Vue, Compose Multiplatform, and Go)](https://a2ui.org/ecosystem/renderers/) ([Markdown](https://a2ui.org/ecosystem/renderers.md))
 - [Roadmap](https://a2ui.org/roadmap/) ([Markdown](https://a2ui.org/roadmap.md))
+- [Community Projects (including Lynx, Svelte, Vue, Compose Multiplatform, and Go)](https://a2ui.org/ecosystem/renderers/) ([Markdown](https://a2ui.org/ecosystem/renderers.md))
+- [Get Help & Agent Skills](https://a2ui.org/get-help/)
 - [Full Documentation Corpus (llms-full.txt)](https://a2ui.org/llms-full.txt)
 
 ---
@@ -995,7 +997,7 @@ A catalog is a collection of components and functions that acts as a contract be
 Every catalog has a `catalogId` string, conventionally formatted as a URI such as `https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json` or `https://example.com/catalogs/travel/v1/catalog.json`, along with optional `instructions`, `components`, and `functions`. Both sides of the connection read from that contract:
 
 1. On the agent, the agent SDK (`@a2ui/agent`, `a2ui-agent-sdk`, `a2ui_agent`) reads the component schemas, function signatures, and `instructions` to build the LLM system prompt and validate outgoing messages.
-2. On the renderer, the core and framework SDKs (`@a2ui/web_core`, `a2ui_core`, `A2UICore`) pair each component schema with a native widget and each local function signature with code that runs on the client.
+2. On the renderer, the core and framework SDKs (`@a2ui/web_core`, `a2ui_core`, `A2UICore`, `androidx.a2ui`) pair each component schema with a native widget and each local function signature with code that runs on the client.
 
 ## Components
 
@@ -1214,6 +1216,8 @@ void main() {
   );
 }
 ```
+
+Swift (`A2UISwiftCore`, `A2UISwiftUI`) and Kotlin (`androidx.a2ui`, `androidx.a2ui.compose`) target client-side rendering; see [SDKs](../sdks/#agent-sdk) for server-side Agent SDK packages.
 
 ## Registering a catalog in a renderer
 
@@ -1462,6 +1466,92 @@ let travelCatalog = Catalog(
 )
 
 let processor = MessageProcessor(catalogs: [travelCatalog])
+```
+
+#### Jetpack Compose
+
+```kotlin
+import android.content.Context
+import java.util.Locale
+
+import androidx.a2ui.compose.runtime.A2uiComponentProperties
+import androidx.a2ui.compose.runtime.A2uiComponentScope
+import androidx.a2ui.compose.runtime.A2uiMessageProcessor
+import androidx.a2ui.compose.runtime.A2uiProperty
+import androidx.a2ui.compose.ui.A2uiCatalog
+import androidx.a2ui.compose.ui.A2uiComponent
+import androidx.a2ui.compose.ui.catalog.A2uiBasicCatalogV1
+import androidx.a2ui.model.processor.A2uiMessageProcessor
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Card
+import androidx.compose.material3.Text
+import androidx.compose.material3.a2ui.catalog.MaterialA2uiBasicCatalogV1Defaults
+import androidx.compose.material3.a2ui.catalog.materialA2uiBasicCatalogV1
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+
+private val FlightNumberProp =
+    A2uiProperty.dynamicString("flightNumber", required = true)
+private val FareAmountProp =
+    A2uiProperty.dynamicNumber("fareAmount")
+
+val FlightStatusCard: A2uiComponent =
+    object : A2uiComponent {
+        override val name = "FlightStatusCard"
+        override val description = "Shows a flight's number and fare."
+        override val properties = listOf(FlightNumberProp, FareAmountProp)
+
+        @Composable
+        override fun A2uiComponentScope.isReady(properties: A2uiComponentProperties): Boolean =
+            properties.bind(FlightNumberProp) != null
+
+        @Composable
+        override fun A2uiComponentScope.Content(
+            properties: A2uiComponentProperties,
+            modifier: Modifier,
+        ) {
+            val flightNumber = properties.bind(FlightNumberProp) ?: return
+            val fare = properties.bind(FareAmountProp)?.toDouble()
+
+            Card(modifier = modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(text = "Flight $flightNumber")
+                    if (fare != null) {
+                        Text(text = String.format(Locale.US, "$%.2f", fare))
+                    }
+                }
+            }
+        }
+    }
+
+// androidx.a2ui implements v0.9.1, where each surface binds to a single catalogId.
+fun createTravelProcessor(context: Context): A2uiMessageProcessor {
+    val basicCatalog =
+        materialA2uiBasicCatalogV1(
+            image = MaterialA2uiBasicCatalogV1Defaults.image { _, _, _, _, _ -> },
+            video = MaterialA2uiBasicCatalogV1Defaults.video { _, _, _ -> },
+            audioPlayer = MaterialA2uiBasicCatalogV1Defaults.audioPlayer { _, _, _, _ -> },
+            functions = A2uiBasicCatalogV1.Functions(context),
+        )
+    val travelCatalog =
+        A2uiCatalog(
+            catalogId = "https://example.com/catalogs/travel/v1/catalog.json",
+            components = basicCatalog.components + FlightStatusCard,
+            functions = basicCatalog.functions,
+            themeSchema = basicCatalog.themeSchema,
+        )
+    // Launch processor.collectMessages() in a background coroutine scope
+    // (such as viewModelScope) to process queued messages:
+    val processor = A2uiMessageProcessor(catalogs = listOf(travelCatalog))
+    return processor
+}
 ```
 
 ## The basic catalog
@@ -1922,6 +2012,20 @@ let surface = processor.surfaceGroupModel["booking"]
 let email = surface?.dataModel.get("/reservation/guestEmail")
 ```
 
+#### Kotlin
+
+```kotlin
+import androidx.a2ui.engine.model.A2uiCoreSurfaceModel
+import androidx.a2ui.model.protocol.A2uiDataPath
+
+// Accessing the data model directly requires the androidx.a2ui:a2ui-engine
+// dependency (which provides A2uiCoreSurfaceModel and A2uiCoreDataModel).
+// Surface instances emitted by A2uiMessageProcessor implement A2uiCoreSurfaceModel:
+val surface =
+    processor.activeSurfaces.value.firstOrNull { it.id == "booking" } as? A2uiCoreSurfaceModel
+val email = surface?.dataModel?.get(A2uiDataPath("/reservation/guestEmail"))
+```
+
 ---
 
 # Glossary
@@ -1960,7 +2064,7 @@ A delimiter tag in model-to-agent text output, such as `<a2ui>...</a2ui>` (used 
 
 Because a single model response can interleave conversational prose with one or more UI blocks, the [Agent SDK](#agent-sdk) parser scans for A2UI tags to separate prose from raw UI blocks before compiling those blocks into [`agent_to_renderer`](#agent_to_renderer) messages.
 
-See [Swappable Inference Formats](../inference-formats/).
+See [Inference Formats](../inference-formats/).
 
 ### A2uiGenerator
 
@@ -1968,7 +2072,7 @@ The top-level coordinator class in an [Agent SDK](#agent-sdk) that holds the age
 
 For each session or request, calling `createProcessor` (in TypeScript and Dart) or `create_processor` (in Python) with the renderer's [capabilities](#capabilities) negotiates the active [catalogs](#catalog) and returns an `A2uiRequestProcessor` that generates system prompt instructions and parses and validates model responses against `RendererState`.
 
-See [Agent SDK](/concepts/sdks/#agent-sdk) and [How to Integrate with My Agent Server](../../guides/agent-integration/).
+See [Agent SDK](../sdks/#agent-sdk) and [How to Integrate with My Agent Server](../../guides/agent-integration/).
 
 ### Action
 
@@ -1998,7 +2102,7 @@ A first-party agent-side library (published for TypeScript, Python, and Dart on 
 
 An Agent SDK loads and prunes [catalogs](#catalog) via [catalog transformers](#catalog-transformer), negotiates renderer [capabilities](#capabilities) through [`A2uiGenerator`](#a2uigenerator), generates model skills and system prompt snippets, compiles [inference format](#inference-format) output into wire JSON, and validates payloads against `RendererState` so errors can be fed back to the model for self-correction.
 
-See [Agent SDK](/concepts/sdks/#agent-sdk) for official package names and capabilities.
+See [Agent SDK](../sdks/#agent-sdk) for official package names and capabilities.
 
 ### agent_to_renderer
 
@@ -2089,7 +2193,7 @@ An [Agent SDK](#agent-sdk) interface (`CatalogTransformer`) that filters or adap
 
 Pruning unused components and functions lowers prompt token consumption and restricts what UI capabilities a model can emit for a specific task or user role. Built-in implementations in the TypeScript, Python, and Dart Agent SDKs include `ComponentPruningTransformer` (which keeps an allowlist of component names) and `FunctionPruningTransformer` (which keeps an allowlist of function names). For server-side composite component expansion, see [`MacroExpander`](#macroexpander).
 
-See [Agent SDK](/concepts/sdks/#agent-sdk).
+See [Agent SDK](../sdks/#agent-sdk).
 
 ### CheckRule
 
@@ -2129,9 +2233,9 @@ See [Catalogs](../catalogs/) and [Component model](../../specification/v1.0-a2ui
 
 The UI-framework-agnostic foundational library in each language, shared by both [Agent SDKs](#agent-sdk) and client [framework adapters](#framework-adapter).
 
-The Core SDK implements protocol message models, `Catalog` schemas, reactive surface and [data model](#data-model) state containers (`SurfaceGroupModel`, `SurfaceModel` or `SurfaceViewModel` in Swift, `ComponentModel`, and `DataModel`), JSON Pointer resolution, [`@path`](#path) and [`@call`](#call) expression evaluation, [`MessageProcessor`](#messageprocessor), and payload validation.
+The Core SDK implements protocol message models, `Catalog` schemas, reactive surface and [data model](#data-model) state containers (`SurfaceGroupModel`, `SurfaceModel`, `ComponentModel`, and `DataModel`, named `SurfaceViewModel` in Swift and `A2uiCoreSurfaceGroupModel`, `A2uiCoreSurfaceModel`, `A2uiCoreComponentRegistry`, and `A2uiCoreDataModel` in Kotlin, with `A2uiComponentModel` in `compose-runtime`), JSON Pointer resolution, [`@path`](#path) and [`@call`](#call) expression evaluation, [`MessageProcessor`](#messageprocessor), and payload validation.
 
-See [Core SDK](/concepts/sdks/#core-sdk) for official package names across languages.
+See [Core SDK](../sdks/#core-sdk) for official package names across languages.
 
 ## D
 
@@ -2189,7 +2293,7 @@ A UI-framework-specific client library (also called a Renderer SDK), built on to
 
 Framework adapters include a built-in implementation of the [Basic catalog](#basic-catalog), map A2UI `AccessibilityAttributes` (`label`, `description`, `live`, `hidden`) to platform accessibility APIs, and let teams register custom [catalog](#catalog) component views and local [functions](#function) while the adapter handles reactive state updates.
 
-See [Renderer SDK](/concepts/sdks/#renderer-sdk) for official package names and [How to Integrate A2UI into a Client](../../guides/client-integration/).
+See [Renderer SDK](../sdks/#renderer-sdk) for official package names and [How to Integrate A2UI into a Client](../../guides/client-integration/).
 
 ### Function
 
@@ -2266,7 +2370,7 @@ When reading a model response (`parseResponse` / `parse_response` or streaming `
 2. Compilation (`compile`): Translates each raw block from format notation into `agent_to_renderer` messages without checking catalogs or `RendererState`.
 3. Validation and state tracking: `parseResponse` / `parse_response` and `openStream` / `open_stream` validate compiled messages against the active [catalogs](#catalog) and update `RendererState`.
 
-See [Swappable Inference Formats](../inference-formats/).
+See [Inference Formats](../inference-formats/).
 
 ## M
 
@@ -2276,15 +2380,15 @@ An asymmetric catalog and message transformer in the Python [Agent SDK](#agent-s
 
 `MacroExpander.transform_to_inference_catalog` augments a base catalog with component schemas synthesized from `@macro` function type annotations and docstrings for model prompting, and `MacroExpander.transform_to_transport` expands macro components emitted by the model into primitive `createSurface` and `updateComponents` subtrees so client [renderers](#renderer) need no custom widget code.
 
-See [Agent SDK](/concepts/sdks/#agent-sdk).
+See [Using Macros](../../guides/macros/) and [Agent SDK](../sdks/#agent-sdk).
 
 ### MessageProcessor
 
-The stateful controller class in each language's [Core SDK](#core-sdk) that processes incoming [`agent_to_renderer`](#agent_to_renderer) (and v0.9.1 `server_to_client`) message streams.
+The stateful controller class in each language's [Core SDK](#core-sdk) (`A2uiMessageProcessor` in Kotlin) that processes incoming [`agent_to_renderer`](#agent_to_renderer) (and v0.9.1 `server_to_client`) message streams.
 
-`MessageProcessor` validates incoming payloads against registered [catalogs](#catalog), mutates reactive surface and [data model](#data-model) state containers (`SurfaceGroupModel`, `SurfaceModel` or `SurfaceViewModel` in Swift, `ComponentModel`, and `DataModel`), resolves JSON Pointers and [`@call`](#call) expressions, enforces function caller and user-activation rules, emits outbound [`renderer_to_agent`](#renderer_to_agent) messages (`action`, `callAgentFunction`, `rendererFunctionResponse`, and `error`), and builds renderer [capabilities](#capabilities) and `a2uiRendererDataModel` metadata snapshots.
+`MessageProcessor` validates incoming payloads against registered [catalogs](#catalog), mutates reactive surface and [data model](#data-model) state containers (`SurfaceGroupModel`, `SurfaceModel`, `ComponentModel`, and `DataModel`, named `SurfaceViewModel` in Swift and `A2uiCoreSurfaceGroupModel`, `A2uiCoreSurfaceModel`, `A2uiCoreComponentRegistry`, and `A2uiCoreDataModel` in Kotlin, with `A2uiComponentModel` in `compose-runtime`), resolves JSON Pointers and [`@call`](#call) expressions, enforces function caller and user-activation rules, emits outbound [`renderer_to_agent`](#renderer_to_agent) messages (`action`, `callAgentFunction`, `rendererFunctionResponse`, and `error`), and builds renderer [capabilities](#capabilities) and `a2uiRendererDataModel` metadata snapshots.
 
-See [Core SDK](/concepts/sdks/#core-sdk) and [How to Integrate A2UI into a Client](../../guides/client-integration/).
+See [Core SDK](../sdks/#core-sdk) and [How to Integrate A2UI into a Client](../../guides/client-integration/).
 
 ## N
 
@@ -2312,7 +2416,7 @@ See [Data binding](#data-binding), [Data Model and Data Binding](../data-binding
 
 The client-side runtime inside a host application that advertises supported [catalogs](#catalog) via [capabilities](#capabilities), applies [`agent_to_renderer`](#agent_to_renderer) messages through [`MessageProcessor`](#messageprocessor), renders [surfaces](#surface) as native widgets via a [framework adapter](#framework-adapter), maintains per-surface [data models](#data-model), runs local [functions](#function), and sends [`renderer_to_agent`](#renderer_to_agent) messages back to the [agent](#agent).
 
-See [Renderer SDK](/concepts/sdks/#renderer-sdk) and [How to Integrate A2UI into a Client](../../guides/client-integration/).
+See [Renderer SDK](../sdks/#renderer-sdk) and [How to Integrate A2UI into a Client](../../guides/client-integration/).
 
 ### renderer_to_agent
 
@@ -2339,42 +2443,43 @@ See [Overview: How A2UI Works](../overview/), [Messages](../messages/), and [`cr
 
 ---
 
-# Swappable Inference Formats
+# Inference Formats
 
-> How A2UI decouples the wire protocol from LLM generation with Express, Direct JSON, and custom inference formats.
+> How A2UI decouples the wire protocol from model generation with Express, Direct JSON, and custom inference formats.
 
 Canonical URL: https://a2ui.org/concepts/inference-formats/
 
-A2UI separates the wire format that [renderer SDKs](/concepts/sdks/#renderer-sdk) consume from the inference format that a language model writes. Every client renderer receives the same standard A2UI JSON messages over the wire. On the server, the [agent SDKs](/concepts/sdks/#agent-sdk) let you swap how the model generates UI without changing any client code.
+An inference format defines the structured notation that a language model reads in its system prompt and writes in its response before the server compiles that output into standard A2UI [wire messages](../messages/). Because compilation happens on the server, every client [renderer](../sdks/#renderer-sdk) receives the same A2UI JSON over the wire regardless of how the model produced it.
 
-In the diagram below, `A2uiRequestProcessor` coordinates three stages on the server. First, `PromptGenerator` compiles the active [catalog schemas](/concepts/catalogs/), `instructions`, and few-shot `examples` into a format-specific system prompt snippet. Next, the model emits its response inside sentinel tags such as `<a2ui>` for Express or `<a2ui-json>` for Direct JSON. Finally, `Parser` or `ResponseStream` heals streaming text, compiles the payload into wire JSON, and validates every message against `RendererState`.
+In the diagram below, `A2uiRequestProcessor` coordinates three server-side stages. First, `PromptGenerator` turns the negotiated [catalog](../catalogs/) schemas, `instructions`, and few-shot `examples` into a format-specific prompt snippet. Next, the model writes UI blocks inside sentinel tags (`<a2ui>...</a2ui>` for Express or `<a2ui-json>...</a2ui-json>` for Direct JSON) alongside conversational prose. Finally, `Parser` or `ResponseStream` heals streaming chunks, compiles each block into wire JSON, and validates every message against `RendererState`.
 
 <InferencePipeline />
 
-## Wire standard vs. generation formats
+## Wire protocol vs. generation formats
 
-Standard JSON is an ideal wire protocol for client renderers. It is human-readable, language-independent, and validated directly by JSON Schema. Asking an LLM to generate raw wire JSON token by token, however, carries a high cost in latency and context window usage:
+Standard JSON is well suited as a wire protocol between an agent server and a client renderer: it is self-describing, language-independent, and validated directly by JSON Schema. Asking a language model to emit raw wire JSON token by token, however, carries avoidable costs:
 
-1. Repeated keys such as `"id"`, `"component"`, and `"@path"`, plus hand-written component IDs, make wire JSON roughly 3x longer than Express's positional calls.
-2. Injecting full JSON Schemas into the system prompt consumes roughly twice as many input tokens as compact function signatures.
-3. Deeply nested braces, quotes, and manual component IDs increase the chance of syntax mistakes on smaller or faster models.
+1. Repeated keys (`"id"`, `"component"`, `"@path"`) and hand-written component identifiers make raw wire JSON roughly three times longer than positional constructor calls.
+2. Embedding full JSON Schemas in the system prompt consumes roughly twice as many input tokens as compact component signatures.
+3. Deeply nested braces, quotes, and manual component IDs increase syntax and reference errors, especially on smaller, faster models.
 
-Swappable inference formats solve this problem by treating LLM output as a server-side compilation step. The agent SDKs ship with two supported formats: Express, the default compact DSL, and Direct JSON, where the model emits wire JSON directly. You select a format by passing an `InferenceFormatFactory` to `A2uiGenerator` or `A2uiRequestProcessor`:
+Inference formats separate what is best for the model to generate from what is best for the renderer to consume. The [Agent SDKs](../sdks/#agent-sdk) include two built-in formats and allow custom implementations:
 
-| Format      | Factory Class             | Sentinel Tags                | SDK Support                        | Summary                                                                                                                |
-| :---------- | :------------------------ | :--------------------------- | :--------------------------------- | :--------------------------------------------------------------------------------------------------------------------- |
-| Express     | `ExpressFormatFactory`    | `<a2ui>...</a2ui>`           | TypeScript, Python, Dart (default) | Compact positional DSL that cuts output code tokens by ~3x, halves prompt tokens, and compiles to flat wire JSON.      |
-| Direct JSON | `DirectJsonFormatFactory` | `<a2ui-json>...</a2ui-json>` | TypeScript, Python, Dart           | Standard A2UI wire JSON emitted directly by the model, with tolerant markdown stripping and incremental chunk healing. |
+| Format      | Sentinel tags                | SDK support                        | How it represents UI                                                                                                    |
+| :---------- | :--------------------------- | :--------------------------------- | :---------------------------------------------------------------------------------------------------------------------- |
+| Express     | `<a2ui>...</a2ui>`           | TypeScript, Python, Dart (default) | Compact positional DSL with nested component calls and `$/path` data assignments, compiled to flat wire JSON.           |
+| Direct JSON | `<a2ui-json>...</a2ui-json>` | TypeScript, Python, Dart           | Standard A2UI wire JSON emitted directly by the model, with Markdown fence stripping and incremental string healing.    |
+| Custom      | Format-defined               | TypeScript, Python, Dart           | Any domain-specific grammar or model-tailored notation implemented against the SDK's `InferenceFormatFactory` contract. |
 
-Express is currently the only non-experimental alternative to Direct JSON in the repository. Because `A2uiGenerator` and `A2uiRequestProcessor` program against the `InferenceFormatFactory` interface, you can also write your own format for custom grammars or specialized models.
+Not every A2UI agent uses free-form model generation. Regulated or deterministic workflows can also construct wire messages directly in server code (driven by a classifier, state machine, or [macro](../../guides/macros/)) and send the resulting JSON to the renderer without an LLM compilation step.
 
-## Side-by-side example: Express vs. wire JSON
+## Express vs. wire JSON
 
-In Express, the model calls component constructors with positional arguments and sets values in the data model with `$/path = value`. It assigns the entry point of the surface to `root` and nests child components inside parent calls instead of inventing IDs by hand.
+In Express, the model calls component constructors with positional or keyword arguments, writes [data model](../data-binding/) values with `$/path = value`, and nests child components inline instead of inventing string IDs by hand.
 
-The example below uses `Card`, `Column`, `Text`, and `Button` from the Basic Catalog, and the Express format derives signatures for any custom `catalog.json` you register. The block is shown indented for clarity; indentation and spaces around `=` and after commas are not required:
+The example below uses `Card`, `Column`, `Text`, and `Button` from the Basic Catalog; Express derives signatures dynamically for any custom `catalog.json` you register (whitespace and indentation are optional):
 
-```text title="Express block (shown indented for clarity)"
+```text title="Express block (indented for readability)"
 <a2ui>
 $/flight/number = "NH 105"
 $/flight/gate = "B12"
@@ -2388,7 +2493,7 @@ root = Card(
 </a2ui>
 ```
 
-When `parseResponse` or `openStream` reads that `<a2ui>` block, the Express compiler flattens the tree and assigns deterministic IDs (`root`, `root_child`, `root_child_children_0`, and so on). In v1.0, it folds initial data assignments into `createSurface.dataModel`; in v0.9.1, it emits `createSurface`, `updateComponents`, and a root `updateDataModel` message:
+When the compiler reads that `<a2ui>` block, it flattens the nested tree and assigns deterministic IDs (`root`, `root_child`, `root_child_children_0`, and so on). In v1.0, initial data assignments fold into `createSurface.dataModel`; in v0.9.1, the compiler emits `createSurface`, `updateComponents`, and `updateDataModel`:
 
 #### v1.0
 
@@ -2525,753 +2630,105 @@ When `parseResponse` or `openStream` reads that `<a2ui>` block, the Express comp
 ]
 ```
 
-For the full grammar rules of the Express language, see the [A2UI Express specification proposal](https://github.com/a2ui-project/a2ui/blob/main/specification/proposals/express/a2ui_express.md). For the wire message schemas that both formats produce, see [`createSurface`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage), [`updateComponents`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateComponentsMessage), and [`updateDataModel`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) in the Schema Explorer.
+For the full grammar of Express, see the [A2UI Express specification proposal](https://github.com/a2ui-project/a2ui/blob/main/specification/proposals/express/a2ui_express.md). For the wire message schemas that all formats target, see [`createSurface`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage), [`updateComponents`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateComponentsMessage), and [`updateDataModel`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) in the Schema Explorer.
 
-## Choosing between Express and Direct JSON
+## How inference formats stay swappable
 
-`ExpressFormatFactory` is the default across the agent SDKs. On v0.9, v0.9.1, and v1.0, Express lowers the cost of tokens, speeds up generation, and reduces validation errors.
+<span id="configuring-inference-formats-across-sdks"></span>
 
-Switch to `DirectJsonFormatFactory` when any of the following apply:
+Swapping an inference format requires no changes to catalogs, few-shot examples, or client renderers because every format in the [Agent SDK](../sdks/#agent-sdk) shares three design properties:
 
-1. Your agent serves legacy `v0.8` catalogs (`beginRendering` and `surfaceUpdate`) in Python, which Express does not support.
-2. Your agent negotiates multiple catalogs on `v0.9` or `v0.9.1` in Python or TypeScript, where Express requires v1.0+ for multi-catalog resolution.
-3. You are debugging wire payloads directly or calling an external model endpoint that is already fine-tuned on raw A2UI JSON schemas.
+1. Catalog-agnostic prompt synthesis: Rather than hardcoding component names, a format's `PromptGenerator` inspects the negotiated `Catalog` schemas at runtime to derive component signatures, function signatures, and dynamic binding rules.
+2. Bidirectional translation (`compile` and `decompile`): Alongside compiling model output into wire messages, each format's `Parser` can decompile wire messages back into the format's text notation. Structured few-shot `examples`, fenced `json` message blocks inside a catalog's `instructions`, and prior conversation turns can therefore be authored once as wire messages and rendered automatically in whichever format is active.
+3. Incremental stream compilation and validation: Both one-shot parsing (`parseResponse` / `parse_response`) and chunked streaming (`openStream` / `open_stream`) separate conversational text from UI sentinel blocks, heal in-progress string literals on configured `progressiveKeys` (such as `"text"`), emit incremental wire deltas as statements arrive, and validate every message against `RendererState` so malformed output can be returned to the model for self-correction.
 
-### Incremental streaming behavior
-
-Both Express and Direct JSON support chunk-by-chunk streaming through `processor.openStream()` (in TypeScript and Dart) and `processor.open_stream()` (in Python). Both formats also accept `progressiveKeys` (`progressive_keys` in Python). While tokens stream in, the parser heals unclosed string literals on those keys so long prose appears word by word.
-
-The two formats differ in how they emit surface creation and component updates while streaming:
-
-| Streaming Aspect                  | Express (`ExpressResponseStream`)                                                                                                                 | Direct JSON (`DirectJsonResponseStream`)                                                                                                                                                                                      |
-| :-------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Default `progressiveKeys`         | `{"text"}` across TypeScript, Python, and Dart.                                                                                                   | `["text"]` in TypeScript; empty (`set()`) by default in Python and Dart (pass `progressive_keys={"text"}` or `progressiveKeys: {'text'}` to enable).                                                                          |
-| How components stream in v1.0     | Emits `createSurface` once `root` is defined, then emits delta `updateComponents` and `updateDataModel` messages as subsequent statements arrive. | Buffers a v1.0 `createSurface` message that embeds inline `components` until the `createSurface` object closes; streams components one by one inside `updateComponents`.                                                      |
-| Progressive v1.0 surface building | Automatic when statements are ordered top-down or split across update statements.                                                                 | Instruct the model to emit a bare `createSurface` without `components` (`{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "..."}}`) followed by `updateComponents` so components render as they arrive. |
-
-### Writing format-portable catalog instructions and examples
-
-When you pass structured few-shot `examples` (lists of `AgentToRendererMessage` objects) to `A2uiGenerator` or `A2uiRequestProcessor`, you write them once as wire messages. `DirectJsonPromptGenerator` renders them as `<a2ui-json>` blocks, while `ExpressPromptGenerator` automatically decompiles them into `<a2ui>` Express blocks.
-
-Catalogs in v1.0 can also include a Markdown `instructions` string with design rules and usage examples. When `ExpressPromptGenerator` builds the prompt, it scans `instructions` for fenced `json` code blocks and translates valid A2UI messages into Express syntax.
-
-Inline backticked JSON fragments inside `instructions`, such as ``Use `{"event": {"name": "reply"}}` for quick replies``, are not parsed or rewritten. Leaving raw JSON inline inside `instructions` mixes JSON syntax into an Express prompt and can confuse the model. Follow two rules when authoring catalog `instructions` that work across every inference format:
-
-1. Put message examples inside fenced `json` code blocks as complete A2UI messages (`createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface`, or `callRendererFunction`) so `ExpressPromptGenerator` can decompile them into `<a2ui>` blocks.
-2. Describe component and function behavior in prose by component name, property name, and function name rather than inlining raw JSON syntax in single backticks.
-
-## Configuring inference formats across SDKs
-
-You configure the default inference format once on `A2uiGenerator` at startup, and you can override it per request when calling `createProcessor` (`create_processor` in Python). Server-side agent SDKs are provided for TypeScript, Python, and Dart; the Swift packages (`A2UISwiftCore` and `A2UISwiftUI`) target client-side rendering.
+In the Agent SDKs (available for TypeScript, Python, and Dart; the Swift and Kotlin packages focus on client-side rendering), `A2uiGenerator` defaults to `ExpressFormatFactory` and accepts any `InferenceFormatFactory` globally or per request while keeping prompt generation and response parsing identical:
 
 #### TypeScript
 
 ```typescript
-import {readFileSync} from 'node:fs';
+import {
+  A2uiGenerator,
+  CatalogConfig,
+  DirectJsonFormatFactory,
+  ExpressFormatFactory,
+} from '@a2ui/agent';
 
-import {A2uiGenerator, CatalogConfig, ExpressFormatFactory} from '@a2ui/agent';
-import {Catalog} from '@a2ui/web_core';
-
-const basicCatalog = Catalog.fromJson(
-  JSON.parse(readFileSync('./catalogs/basic/v1/catalog.json', 'utf8')),
-);
-
-// Default to Express across the agent (progressiveKeys defaults to ['text'])
+// Uses ExpressFormatFactory by default; pass any InferenceFormatFactory to change it.
 const generator = new A2uiGenerator(
-  [new CatalogConfig(basicCatalog)],
+  [new CatalogConfig(catalog)],
   undefined,
-  new ExpressFormatFactory({
-    allowedMessages: ['createSurface', 'updateComponents', 'updateDataModel'],
-  }),
+  new ExpressFormatFactory(),
 );
 
-// Negotiate a processor using the generator's Express default
-const expressProcessor = generator.createProcessor(rendererCapabilities);
-const systemPrompt = expressProcessor.promptSnippet;
-
-// Stream an Express response chunk by chunk
-const stream = expressProcessor.openStream();
-for await (const chunk of llmTextChunks) {
-  for (const part of stream.feed(chunk)) {
-    if (part.type === 'a2ui') {
-      sendToClient(part.a2ui);
-    }
-  }
-}
-for (const part of stream.close()) {
-  if (part.type === 'a2ui') {
-    sendToClient(part.a2ui);
-  }
-}
+// Prompt synthesis and parsing stay the same regardless of format,
+// and an individual request can override the format factory if needed.
+const processor = generator.createProcessor(rendererCapabilities, new DirectJsonFormatFactory());
+const systemPrompt = processor.promptSnippet;
+const parts = processor.parseResponse(llmOutput);
 ```
 
 #### Python
 
 ```python
-import json
-from pathlib import Path
-
-from a2ui.core import Catalog
-from a2ui.inference_formats import ExpressFormatFactory
-from a2ui.parser import A2uiPart
+from a2ui.inference_formats import DirectJsonFormatFactory, ExpressFormatFactory
 from a2ui.processor import A2uiGenerator, CatalogConfig
 
-basic_catalog = Catalog.from_json(
-    json.loads(Path("./catalogs/basic/v1/catalog.json").read_text(encoding="utf-8"))
-)
-
-# Default to Express across the agent (progressive_keys defaults to {"text"})
+# Uses ExpressFormatFactory by default; pass any InferenceFormatFactory to change it.
 generator = A2uiGenerator(
-    catalogs=[CatalogConfig(catalog=basic_catalog)],
-    inference_format_factory=ExpressFormatFactory(
-        allowed_messages=["createSurface", "updateComponents", "updateDataModel"],
-    ),
+    catalogs=[CatalogConfig(catalog=catalog)],
+    inference_format_factory=ExpressFormatFactory(),
 )
 
-# Negotiate a processor using the generator's Express default
-express_processor = generator.create_processor(renderer_capabilities)
-system_prompt = express_processor.prompt_snippet
-
-# Stream an Express response chunk by chunk
-stream = express_processor.open_stream()
-for chunk in llm_text_chunks:
-    for part in stream.feed(chunk):
-        if isinstance(part, A2uiPart):
-            send_to_client(part.a2ui)
-for part in stream.close():
-    if isinstance(part, A2uiPart):
-        send_to_client(part.a2ui)
+# Prompt synthesis and parsing stay the same regardless of format,
+# and an individual request can override the format factory if needed.
+processor = generator.create_processor(
+    renderer_capabilities,
+    inference_format_factory=DirectJsonFormatFactory(),
+)
+system_prompt = processor.prompt_snippet
+parts = processor.parse_response(llm_output)
 ```
 
 #### Dart
 
 ```dart
 import 'package:a2ui_agent/a2ui_agent.dart';
-import 'package:a2ui_core/a2ui_core.dart';
 
-void runAgent(
+void illustrateFormats(
+  Catalog catalog,
   A2uiRendererCapabilities rendererCapabilities,
-  Iterable<String> llmTextChunks,
-  void Function(List<AgentToRendererMessage>) sendToClient,
+  String llmOutput,
 ) {
-  final basicCatalog = BasicCatalog.v1_0();
-
-  // Default to Express across the agent (progressiveKeys defaults to {'text'})
+  // Uses ExpressFormatFactory by default; pass any InferenceFormatFactory to change it.
   final generator = A2uiGenerator(
-    catalogs: [CatalogConfig(basicCatalog)],
-    inferenceFormatFactory: const ExpressFormatFactory(
-      allowedMessages: ['createSurface', 'updateComponents', 'updateDataModel'],
-    ),
+    catalogs: [CatalogConfig(catalog)],
+    inferenceFormatFactory: const ExpressFormatFactory(),
   );
 
-  // Negotiate a processor using the generator's Express default
-  final expressProcessor = generator.createProcessor(rendererCapabilities);
-  final systemPrompt = expressProcessor.promptSnippet;
-
-  // Stream an Express response chunk by chunk
-  final stream = expressProcessor.openStream();
-  for (final chunk in llmTextChunks) {
-    for (final part in stream.feed(chunk)) {
-      if (part is A2uiPart) {
-        sendToClient(part.a2ui);
-      }
-    }
-  }
-  for (final part in stream.close()) {
-    if (part is A2uiPart) {
-      sendToClient(part.a2ui);
-    }
-  }
+  // Prompt synthesis and parsing stay the same regardless of format,
+  // and an individual request can override the format factory if needed.
+  final processor = generator.createProcessor(
+    rendererCapabilities,
+    inferenceFormatFactory: const DirectJsonFormatFactory(),
+  );
+  final systemPrompt = processor.promptSnippet;
+  final parts = processor.parseResponse(llmOutput);
 }
 ```
 
-To override the generator's default format for a single request, pass a different `InferenceFormatFactory` such as `DirectJsonFormatFactory` to `createProcessor` (`create_processor` in Python):
-
-#### TypeScript
-
-```typescript
-import {DirectJsonFormatFactory} from '@a2ui/agent';
-
-const jsonProcessor = generator.createProcessor(
-  rendererCapabilities,
-  new DirectJsonFormatFactory({progressiveKeys: ['text', 'label']}),
-);
-```
-
-#### Python
-
-```python
-from a2ui.inference_formats import DirectJsonFormatFactory
-
-json_processor = generator.create_processor(
-    renderer_capabilities,
-    inference_format_factory=DirectJsonFormatFactory(
-        progressive_keys={"text", "label"},
-    ),
-)
-```
-
-#### Dart
-
-```dart
-final jsonProcessor = generator.createProcessor(
-  rendererCapabilities,
-  inferenceFormatFactory: const DirectJsonFormatFactory(
-    progressiveKeys: {'text', 'label'},
-  ),
-);
-```
+Express covers v0.9, v0.9.1, and v1.0 generation with lower token cost, while Direct JSON remains useful when serving legacy v0.8 payloads in Python, debugging raw wire payloads, or calling a model fine-tuned directly on A2UI JSON schemas. Teams experimenting with alternative grammars (such as HTML-inspired or S-expression notations; see [`python/a2ui_agent/src/a2ui/inference_formats/experimental/`](https://github.com/a2ui-project/a2ui/tree/main/python/a2ui_agent/src/a2ui/inference_formats/experimental)) implement the same `InferenceFormatFactory`, `PromptGenerator`, and `Parser` interfaces.
 
 ## Token and latency benchmarks
 
-The A2UI evaluation suite (`eval/`) benchmarks each format on the 54-sample `core_v1_0` suite using `gemini-3.8-flash` (`temperature=0.0`). For earlier benchmark background, see [Fast, reliable A2UI, with swappable inference formats](https://developers.googleblog.com/fast-reliable-a2ui/). Whether thinking is disabled (`thinking_budget=0`) or left unbounded (default), Express cuts the prompt tokens and generated code tokens while matching Direct JSON on accuracy:
+The A2UI evaluation suite (`eval/`) benchmarks each format on the 54-sample `core_v1_0` suite using `gemini-3.8-flash` (`temperature=0.0`). For earlier benchmark background, see [Fast, reliable A2UI, with swappable inference formats](https://developers.googleblog.com/fast-reliable-a2ui/). Whether thinking is disabled (`thinking_budget=0`) or left unbounded (default), Express reduces both prompt tokens and generated code tokens while matching Direct JSON on accuracy:
 
-| Format and Thinking Mode           | Median Input Tokens | Median Code Tokens | Median Thinking Tokens | Median Total Output (`Code + Thinking`) | Pass@1 / Pass@2       | Judge Quality |
+| Format and thinking mode           | Median input tokens | Median code tokens | Median thinking tokens | Median total output (`code + thinking`) | Pass@1 / Pass@2       | Judge quality |
 | :--------------------------------- | :------------------ | :----------------- | :--------------------- | :-------------------------------------- | :-------------------- | :------------ |
 | Direct JSON (`thinking_budget=0`)  | 10,980              | 807                | 0                      | 811                                     | 98.1% / 98.1% (53/54) | 97.2%         |
 | Express (`thinking_budget=0`)      | 6,000 (-45.4%)      | 297 (-63.2%, 2.7x) | 0                      | 299 (-63.1%)                            | 98.1% / 98.1% (53/54) | 97.2%         |
 | Direct JSON (`unbounded` thinking) | 10,980              | 794                | 1,413                  | 2,320                                   | 98.1% / 98.1% (53/54) | 98.1%         |
 | Express (`unbounded` thinking)     | 6,000 (-45.4%)      | 260 (-67.3%, 3.1x) | 1,447                  | 1,789 (-22.9%)                          | 98.1% / 98.1% (53/54) | 98.1%         |
-
-## Creating a custom inference format
-
-Express is the only non-experimental alternative to Direct JSON in the repository; however, you can also implement your own format. A custom format lets you test a new DSL, target a fine-tuned model, or compile domain-specific shorthand into A2UI wire JSON. Every format across the agent SDKs implements the same four classes:
-
-| Class or Interface       | Role in the Pipeline                                                                                                                                                   |
-| :----------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `InferenceFormatFactory` | Accepts format options at startup and creates an `InferenceFormat` bound to the active catalogs and examples for a request.                                            |
-| `InferenceFormat`        | Exposes the format's `promptGenerator` (`prompt_generator` in Python) and constructs a stateless `Parser` via `createParser()` (`create_parser()` in Python).          |
-| `PromptGenerator`        | Reads the active `Catalog` schemas, `instructions`, and `examples` and returns the system prompt snippet that teaches the model your format.                           |
-| `Parser`                 | Implements `unwrap` and `wrap` for sentinel tags, `compile` to turn a format block into `AgentToRendererMessage` objects, and `decompile` to format few-shot examples. |
-
-The base `Parser` class handles `RendererState` validation and surface tree checks automatically. Your custom `Parser` only needs to translate between its own notation and `AgentToRendererMessage` objects.
-
-### Why a format should have both a compiler and a decompiler
-
-A complete inference format translates in both directions. The `compile` method turns model output into `AgentToRendererMessage` objects, while `decompile` turns `AgentToRendererMessage` objects back into your format's text syntax. Implementing a decompiler alongside your compiler enables four capabilities across the SDK:
-
-1. Agent developers pass few-shot `examples` to `A2uiGenerator` once as structured `AgentToRendererMessage` lists. Your `PromptGenerator` calls `decompile` to render those examples in your format's syntax, so swapping `InferenceFormatFactory` never requires rewriting examples by hand.
-2. Catalog authors write message examples in a catalog's `instructions` field using fenced `json` code blocks. Your `PromptGenerator` can scan those blocks in `renderCatalogInstructions` (`render_catalog_instructions` in Python) and run `decompile` over them. The system prompt then shows every example in your format instead of raw JSON.
-3. Multi-turn agents often reconstruct conversation history or serialize active surface state back into the model's context. Calling `decompile` and `wrap` represents those prior UI turns in the syntax the model expects.
-4. Having both directions lets you test round-trip fidelity (`compile(decompile(messages))`) against the canonical message fixtures in `conformance/`.
-
-### Designing a catalog-agnostic format
-
-When building your own `PromptGenerator`, compiler, and decompiler, keep these design practices in mind:
-
-| Design Practice                             | Why It Matters                                                                                                                                                                                                                                                                |
-| :------------------------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Derive syntax from `CatalogApi` schemas     | Inspect each catalog's `components` and `functions` schemas at runtime instead of hardcoding component names like `Card` or `Text`. That way your format works with any custom catalog.                                                                                       |
-| Distinguish static and dynamic properties   | Check which component properties reference `DynamicValue` (`@path` and `@call`), `ComponentId`, `ChildList`, or `Checkable` so your prompt and compiler enforce the catalog's exact rules.                                                                                    |
-| Disambiguate multi-catalog names on demand  | When multiple v1.0 catalogs are active, resolve unambiguous component and function names automatically. Only require an explicit `catalogId` argument when a name collides across catalogs.                                                                                   |
-| Enclose blocks in sentinel tags             | Surround UI payloads with distinct opening and closing tags (such as `<a2ui>...</a2ui>`) in `unwrap`, `wrap`, and `hasFormatContent` (`has_format_content`) so prose and UI can mix freely.                                                                                   |
-| Recover missing opening tags in one-shot    | In one-shot `unwrap`, recover a single block if the model omits the opening sentinel tag (`<a2ui>`) but writes the closing tag (`</a2ui>`). Keep the opening tag strict in `openStream`.                                                                                      |
-| Raise actionable errors for self-correction | Throw `A2uiCompilationParseError` and `A2uiCompilationValidationError` in TypeScript and Python (or `A2uiParseError` and `A2uiValidationError` in Dart) with a clear recovery hint. Agent retry loops feed those messages back to the model to self-correct.                  |
-| Handle truncated turns cleanly              | In TypeScript and Python, `compile` receives `isFinal = false` (`is_final=False`) when a turn ends before the closing tag; in Dart, `Parser` checks `RawA2uiPart.isFinal` directly. Returning the complete statements parsed so far lets `Parser` apply them without failing. |
-| Prune rules with `allowedMessages`          | When the caller restricts `allowedMessages` (`allowed_messages`), omit grammar rules for disabled message types such as `deleteSurface` or `updateDataModel` to save prompt tokens.                                                                                           |
-| Add incremental streaming when needed       | You can start with one-shot `parseResponse` (`parse_response`) and later override `openStream` (`open_stream`) to heal `progressiveKeys` and emit delta messages as chunks arrive.                                                                                            |
-
-For additional examples beyond Express and Direct JSON, inspect the experimental Python inference format implementations in [`python/a2ui_agent/src/a2ui/inference_formats/experimental/`](https://github.com/a2ui-project/a2ui/tree/main/python/a2ui_agent/src/a2ui/inference_formats/experimental). That directory contains `ElementalFormatFactory` (an HTML-like format) and `AtomFormatFactory` (a LISP-like format) built on the same `InferenceFormatFactory`, `PromptGenerator`, and `Parser` interfaces.
-
----
-
-# Macros
-
-> Define composite UI components on the server with @macro and expand them into reusable catalog components supported by the client.
-
-Canonical URL: https://a2ui.org/concepts/macros/
-
-Macros let you define composite UI components on the server that can programmatically inject server-side data and expand into the flexible, reusable [catalog](/concepts/catalogs/) components your client supports (from the Basic Catalog, your own custom catalogs, or both) before any messages reach the renderer. Because the renderer only receives components the client already implements, you can add or change macros on the server without shipping new client code.
-
-> **Note**
-  Macros are currently available in the Python [agent SDK](/concepts/sdks/#agent-sdk)
-  (`a2ui-agent-sdk`), with support for other languages coming next.
-
-## How macros work
-
-When a language model builds UI from low-level primitives on every turn, repeated patterns like flight summaries or product cards take many lines of nested components. With a macro, you write a function once on the server to assemble that pattern.
-
-Macros are useful when you want to:
-
-1. Reduce output tokens and latency by letting the model write one call instead of a nested component tree.
-2. Keep layouts consistent across turns because your server code constructs the component hierarchy.
-3. Look up data from server-side databases and APIs, accepting an identifier from the model and populating the components on the server.
-4. Ship new domain components with a server deployment alone, using catalog components the client already renders.
-
-In the sequence below, [`MacroExpander`](/concepts/glossary/#macroexpander) works on both sides of the model call. Before inference, it adds each macro's component schema to the catalog in the system prompt. After inference, it intercepts each macro call, runs your macro function, and outputs flat catalog components for the renderer.
-
-```mermaid
-sequenceDiagram
-    participant Model
-    participant Agent as Agent server
-    participant Expander as MacroExpander
-    participant Renderer
-    Agent->>Expander: Add macro schemas to catalog
-    Expander-->>Agent: Inference catalog
-    Agent->>Model: System prompt with FlightCard(...) signature
-    Model-->>Agent: root = FlightCard("OS 87", ...)
-    Agent->>Expander: Expand macro calls in messages
-    Expander-->>Agent: Expanded catalog components
-    Agent->>Renderer: createSurface with catalog components
-```
-
-### Example: macro, model call, and expanded output
-
-Here is a `FlightCard` macro. The `flight` and `route` parameters take static strings, while `status` uses `DynamicString` so it can bind to the [data model](/concepts/data-binding/):
-
-```python title="flight_macros.py"
-from a2ui.builder.v1_0 import Card, Column, DynamicString, Text
-from a2ui.transformers.macros import macro
-
-@macro
-def FlightCard(flight: str, route: str, status: DynamicString) -> Card:
-    """Summary card for a flight with a live status line.
-
-    Args:
-        flight: Flight number, such as "OS 87".
-        route: Departure and arrival cities, such as "Vienna to New York".
-        status: Current status text or data binding.
-    """
-    return Card(
-        child=Column(
-            children=[
-                Text(text=f"### {flight}"),
-                Text(text=route, variant="caption"),
-                Text(text=status),
-            ]
-        )
-    )
-```
-
-Using the [Express](/concepts/inference-formats/) inference format, the model calls `FlightCard` in a single line:
-
-```text title="Model output"
-Your flight is boarding.
-<a2ui>
-$/flight/status = "Boarding"
-root = FlightCard("OS 87", "Vienna to New York", $/flight/status)
-</a2ui>
-```
-
-`MacroExpander` runs `FlightCard` on the server and sends the expanded components over the wire, with static arguments baked in and the `/flight/status` data binding preserved:
-
-#### v1.0
-
-```json
-[
-  {
-    "version": "1.0",
-    "createSurface": {
-      "surfaceId": "main",
-      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-      "components": [
-        {
-          "component": "Text",
-          "id": "root__text_1",
-          "text": "### OS 87",
-          "variant": "body"
-        },
-        {
-          "component": "Text",
-          "id": "root__text_2",
-          "text": "Vienna to New York",
-          "variant": "caption"
-        },
-        {
-          "component": "Text",
-          "id": "root__text_3",
-          "text": {"@path": "/flight/status"},
-          "variant": "body"
-        },
-        {
-          "component": "Column",
-          "id": "root__column_1",
-          "children": ["root__text_1", "root__text_2", "root__text_3"],
-          "justify": "start",
-          "align": "stretch"
-        },
-        {
-          "component": "Card",
-          "id": "root",
-          "child": "root__column_1"
-        }
-      ],
-      "dataModel": {
-        "flight": {"status": "Boarding"}
-      }
-    }
-  }
-]
-```
-
-#### v0.9.1
-
-```json
-[
-  {
-    "version": "v0.9",
-    "createSurface": {
-      "surfaceId": "main",
-      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateComponents": {
-      "surfaceId": "main",
-      "components": [
-        {
-          "component": "Text",
-          "id": "root__text_1",
-          "text": "### OS 87",
-          "variant": "body"
-        },
-        {
-          "component": "Text",
-          "id": "root__text_2",
-          "text": "Vienna to New York",
-          "variant": "caption"
-        },
-        {
-          "component": "Text",
-          "id": "root__text_3",
-          "text": {"path": "/flight/status"},
-          "variant": "body"
-        },
-        {
-          "component": "Column",
-          "id": "root__column_1",
-          "children": ["root__text_1", "root__text_2", "root__text_3"],
-          "justify": "start",
-          "align": "stretch"
-        },
-        {
-          "component": "Card",
-          "id": "root",
-          "child": "root__column_1"
-        }
-      ]
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateDataModel": {
-      "surfaceId": "main",
-      "path": "/",
-      "value": {
-        "flight": {"status": "Boarding"}
-      }
-    }
-  }
-]
-```
-
-## Configure a macro
-
-The steps below integrate a macro into a Python agent using `BasicCatalog("1.0")`. You do not need to use the Basic Catalog: the same workflow applies to your own custom catalogs, as shown in [Macros with custom catalogs](#macros-with-custom-catalogs).
-
-### Step 1: Install the Python agent SDK
-
-Install `a2ui-agent-sdk` with `pip` (or `uv add a2ui-agent-sdk`):
-
-```bash
-pip install a2ui-agent-sdk
-```
-
-### Step 2: Define a macro
-
-Decorate a Python function with `@macro` and return a single root builder component. `@macro` inspects the parameter type hints and the `Args:` block in the docstring to generate the component schema that the model sees:
-
-```python title="flight_macros.py"
-from a2ui.builder.v1_0 import (
-    Action,
-    Button,
-    Card,
-    Column,
-    DynamicString,
-    Text,
-)
-from a2ui.transformers.macros import macro
-
-@macro
-def FlightCard(
-    flight: str,
-    route: str,
-    status: DynamicString,
-    on_rebook: Action,
-) -> Card:
-    """Summary card for a flight with a live status line and rebook button.
-
-    Args:
-        flight: Flight number, such as "OS 87".
-        route: Departure and arrival cities, such as "Vienna to New York".
-        status: Current status text or data binding.
-        on_rebook: Action sent when the user clicks Rebook.
-    """
-    return Card(
-        child=Column(
-            children=[
-                Text(text=f"### {flight}"),
-                Text(text=route, variant="caption"),
-                Text(text=status),
-                Button(child=Text(text="Rebook"), action=on_rebook),
-            ]
-        )
-    )
-```
-
-Because a macro is regular Python running on your server, it can also take an identifier (such as `flight_id: str`), look up the record in a database or service, and populate the returned components directly.
-
-### Step 3: Set up the expander and request processor
-
-Create a `MacroExpander` with your macro list, create an inference catalog that includes the macro schemas, and pass that catalog to `A2uiRequestProcessor`:
-
-```python title="agent.py"
-from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.processor import A2uiRequestProcessor
-from a2ui.transformers.macros import MacroExpander
-
-from flight_macros import FlightCard
-
-expander = MacroExpander([FlightCard], on_error="raise")
-inference_catalog = expander.transform_to_inference_catalog(BasicCatalog("1.0"))
-
-processor = A2uiRequestProcessor(catalogs=[inference_catalog])
-system_prompt = processor.prompt_snippet  # Append to your model's system instruction.
-```
-
-`MacroExpander` runs alongside `A2uiRequestProcessor` rather than as a `CatalogConfig.transformers` entry because it acts both before inference (adding macro schemas to the catalog) and after parsing (expanding macro calls in outgoing messages). Because `MacroExpander` tracks active surface catalogs across turns, create one `MacroExpander` per session (or pass `surface_catalogs` to `transform_to_transport`) in multi-session servers. `A2uiRequestProcessor` uses the Express inference format by default, and works with any format factory you pass via `format_factory`.
-
-### Step 4: Parse model output and expand macros
-
-After your model responds, parse the response with `processor.parse_response` and pass each `A2uiPart` through `expander.transform_to_transport` before serializing the messages for the client:
-
-```python title="agent.py (continued)"
-from a2ui.parser import A2uiPart, TextPart
-
-# llm_output = call_your_model(system_prompt, user_message)
-parts = processor.parse_response(llm_output)
-
-text_reply: list[str] = []
-transport_messages = []
-
-for part in parts:
-    if isinstance(part, TextPart):
-        text_reply.append(part.text)
-    elif isinstance(part, A2uiPart):
-        transport_messages.extend(expander.transform_to_transport(part.a2ui))
-
-wire_payload = [
-    msg.model_dump(by_alias=True, exclude_none=True)
-    for msg in transport_messages
-]
-```
-
-Send `wire_payload` over your transport to the renderer alongside any conversational text in `text_reply`.
-
-## Macros with custom catalogs
-
-Macros build component trees using typed Python builder classes. Builder classes for the Basic Catalog ship in `a2ui.builder.v1_0` and `a2ui.builder.v0_9`. When you define a [custom catalog](/guides/defining-a-catalog/), the A2UI CLI (`a2ui`) generates those Python builder classes directly from your catalog JSON file.
-
-### Step 1: Install the A2UI CLI
-
-Install the standalone `a2ui` binary using the release installer script. Both scripts verify the SHA-256 checksum of the downloaded archive and do not require administrator privileges:
-
-#### macOS and Linux
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/a2ui-project/a2ui/main/scripts/public/install_cli.sh | sh
-```
-
-Installs `a2ui` into `${XDG_BIN_HOME:-$HOME/.local/bin}`. Make sure that directory is on your `PATH`, or pass `A2UI_INSTALL_DIR` (and optionally `A2UI_VERSION`) to `sh`, as in `curl -fsSL ... | A2UI_INSTALL_DIR="$HOME/bin" sh`.
-
-#### Windows
-
-```powershell
-irm https://raw.githubusercontent.com/a2ui-project/a2ui/main/scripts/public/install_cli.ps1 | iex
-```
-
-Installs `a2ui.exe` into `%LOCALAPPDATA%\Programs\a2ui\bin` and adds it to your user `PATH`. Set `$env:A2UI_INSTALL_DIR` or `$env:A2UI_VERSION` to customize the directory or version.
-
-### Step 2: Generate builder classes for your catalog
-
-Suppose you have a `travel_catalog.json` file that defines a `BoardingPass` component (and your client renderer registers the matching `BoardingPass` widget).
-
-<details>
-<summary>Example <code>travel_catalog.json</code></summary>
-
-```json title="travel_catalog.json"
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "catalogId": "https://example.com/catalogs/travel/v1/catalog.json",
-  "protocolVersion": "1.0",
-  "components": {
-    "BoardingPass": {
-      "type": "object",
-      "description": "A boarding pass with a scannable code.",
-      "properties": {
-        "component": {"const": "BoardingPass"},
-        "passenger": {"type": "string"},
-        "seat": {"type": "string"},
-        "gate": {"$ref": "common_types.json#/$defs/DynamicString"}
-      },
-      "required": ["component", "passenger", "seat", "gate"]
-    }
-  },
-  "$defs": {
-    "anyComponent": {
-      "oneOf": [{"$ref": "#/components/BoardingPass"}],
-      "discriminator": {"propertyName": "component"}
-    },
-    "anyFunction": {"not": {}}
-  }
-}
-```
-
-</details>
-
-Run `a2ui codegen` with `--lang python` to generate a Python builder module from your catalog schema:
-
-```bash
-a2ui codegen --lang python --catalog travel_catalog.json --out travel_builders.py --catalog-name travel
-```
-
-The generated `travel_builders.py` file contains a typed `ComponentBuilderNode` subclass for every component in your catalog:
-
-```python title="travel_builders.py (excerpt)"
-class BoardingPass(ComponentBuilderNode):
-    r"""A boarding pass with a scannable code."""
-
-    component: Literal["BoardingPass"] = "BoardingPass"
-    passenger: str
-    seat: str
-    gate: str | DataBinding | FunctionCall
-```
-
-Re-run `a2ui codegen` whenever `travel_catalog.json` changes rather than editing the generated file by hand.
-
-### Step 3: Write a macro with the generated builders
-
-Import your generated builder classes into a macro. In A2UI v1.0, a single surface can combine components from multiple catalogs, so a macro can mix your custom `BoardingPass` with layout components from `BasicCatalog("1.0")`:
-
-```python title="trip_macros.py"
-from a2ui.builder.v1_0 import Card, Column, DynamicString, Text
-from a2ui.transformers.macros import macro
-
-from travel_builders import BoardingPass
-
-@macro
-def TripSummary(passenger: str, seat: str, gate: DynamicString) -> Card:
-    """Trip summary card containing a boarding pass.
-
-    Args:
-        passenger: Passenger full name.
-        seat: Assigned seat number.
-        gate: Departure gate text or data binding.
-    """
-    return Card(
-        child=Column(
-            children=[
-                Text(text=f"### Have a good trip, {passenger}"),
-                BoardingPass(passenger=passenger, seat=seat, gate=gate),
-            ]
-        )
-    )
-```
-
-Load your custom catalog with `Catalog.from_json` and pass all transport catalogs to `expander.transform_catalogs`. If your agent uses only your custom catalog without the Basic Catalog, pass `[travel_catalog]` instead:
-
-```python title="agent.py"
-import json
-from pathlib import Path
-
-from a2ui.core import Catalog
-from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.parser import A2uiPart
-from a2ui.processor import A2uiRequestProcessor
-from a2ui.transformers.macros import MacroExpander
-
-from trip_macros import TripSummary
-
-travel_catalog = Catalog.from_json(
-    json.loads(Path("travel_catalog.json").read_text())
-)
-basic_catalog = BasicCatalog("1.0")
-
-expander = MacroExpander([TripSummary], on_error="raise")
-inference_catalogs = expander.transform_catalogs([basic_catalog, travel_catalog])
-
-processor = A2uiRequestProcessor(catalogs=inference_catalogs)
-system_prompt = processor.prompt_snippet
-
-# After receiving llm_output from the model:
-parts = processor.parse_response(llm_output)
-inference_messages = [
-    msg for part in parts if isinstance(part, A2uiPart) for msg in part.a2ui
-]
-transport_messages = expander.transform_to_transport(inference_messages)
-```
-
-In v1.0, `transform_catalogs` registers your base catalogs on the expander and appends an inference-only sidecar catalog for the macros. When `transform_to_transport` expands `TripSummary`, it removes the sidecar catalog and stamps the owning `catalogId` onto each expanded `Card`, `Column`, `Text`, and `BoardingPass` component automatically.
-
-## Reference
-
-### Supported parameter types
-
-Parameter annotations control both the JSON Schema shown to the model and whether a value is static or reactive:
-
-- Plain Python types (`str`, `int`, `float`, `bool`) accept only static literal values, which are baked into the expanded components when the macro runs. Passing a data binding to a plain `str` parameter fails validation.
-- Reactive A2UI types (`DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList`) accept either a literal value or a `@path` / `@call` binding. When you pass that parameter to a child component property, the binding remains live on the renderer.
-
-Always treat macro arguments as untrusted model output, and validate identifiers against your backend data rather than trusting arbitrary strings.
-
-The table below lists the most common parameter annotations (showing v1.0 schema definitions):
-
-| Python annotation                                                       | Schema exposed to the model                                                                               | Value passed to your macro                                                                                  |
-| :---------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------- |
-| `str`, `int`, `float`, `bool`                                           | `string`, `integer`, `number`, `boolean`                                                                  | Static literal value (data bindings rejected).                                                              |
-| `Literal[...]` or `Enum` (with `str` values)                            | `enum`                                                                                                    | Static literal value (`Enum` parameters arrive as raw `str`, not `Enum` members).                           |
-| `Sequence[V]`, `dict[str, V]`                                           | `array`, `object`                                                                                         | List or dict with elements converted to `V`.                                                                |
-| `DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList` | [`DynamicString`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicString) and related types   | Literal value, `DataBinding`, or `FunctionCall`.                                                            |
-| `Action`                                                                | [`Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action)                                   | `Action` built from an event object or function call.                                                       |
-| `Child` or component class                                              | [`Child`](/specification/v1.0/schemas/#common_types.json/$defs/Child) (`ComponentId` in v0.9.1)           | `ComponentRef` pointing to another component ID.                                                            |
-| `ChildList` or `Sequence[Child]`                                        | [`ChildList`](/specification/v1.0/schemas/#common_types.json/$defs/ChildList)                             | List of `ComponentRef` items; `ChildList` (not `Sequence[Child]`) also accepts `DynamicChildList` bindings. |
-| `CheckRule` or `Sequence[CheckRule]`                                    | [`CheckRule`](/specification/v1.0/schemas/#common_types.json/$defs/CheckRule) (or `array` of `CheckRule`) | `CheckRule` instance(s) for input validation.                                                               |
-| `AccessibilityAttributes`                                               | [`AccessibilityAttributes`](/specification/v1.0/schemas/#common_types.json/$defs/AccessibilityAttributes) | `AccessibilityAttributes` model.                                                                            |
-
-`@macro` reads parameter descriptions from Google-style (`Args:`) docstrings, Sphinx-style (`:param name:`) docstrings, or `typing.Annotated[T, Field(description="...")]`. For additional annotations, including `DynamicValue`, `Extensions`, catalog sub-models (`TabItem`, `ChoicePickerOption`), and union types, see the [parameter type mapping table in the macros README](https://github.com/a2ui-project/a2ui/blob/main/python/a2ui_agent/src/a2ui/transformers/macros/README.md#parameter-type-mapping).
-
-### Protocol versions
-
-To target A2UI v0.9.1 instead of v1.0, import builders from `a2ui.builder.v0_9` and pass a single catalog (such as `BasicCatalog("0.9.1")`) to `expander.transform_to_inference_catalog`. Do not mix `v1_0` and `v0_9` builders or catalogs on the same `MacroExpander`.
-
-### Additional configuration options
-
-#### Custom macro names and descriptions
-
-Override the inferred PascalCase component name or docstring description by passing arguments to `@macro`, such as `@macro("CustomCard")` or `@macro(name="CustomCard", description="...")`.
-
-#### Error handling (`on_error`)
-
-With the default `on_error="passthrough"`, a macro that raises an argument or runtime exception during expansion is logged and left unexpanded so sibling components still expand (note that client renderers do not implement unexpanded macro components). Pass `on_error="raise"` to `MacroExpander` to raise `A2uiValidationError` on the server so an agent retry loop can send the error back to the model; structural errors (`A2uiRecursionError`, `A2uiCatalogError`, and protocol-version mismatches) always raise.
-
-#### Filtering base components (`passthrough_components`)
-
-By default, all components from your base catalogs remain visible to the model alongside your macros. Pass `passthrough_components=["Button"]` to `MacroExpander` to expose only specific base components plus your macros, or `passthrough_components=[]` to expose only your macros.
-
-#### Explicit `protocol_version`
-
-`MacroExpander` normally infers the protocol version from your macro parameter and return annotations or registered catalogs. If a v1.0 macro uses only version-neutral annotations (such as `str`, `int`, or `Child`, with no v1.0 return type) and you export a standalone macro catalog with `expander.to_catalog()` before registering any v1.0 catalogs, pass `protocol_version="1.0"` to `MacroExpander(...)`.
-
-#### Disambiguating duplicate component names (`catalog_id`)
-
-When multiple registered v1.0 catalogs define a component with the same name, specify the owning catalog when instantiating that builder class, such as `BoardingPass(..., catalog_id=TRAVEL_CATALOG_ID)`.
-
-### Related resources
-
-- [Macros README](https://github.com/a2ui-project/a2ui/blob/main/python/a2ui_agent/src/a2ui/transformers/macros/README.md) for full `@macro` and `MacroExpander` API details.
-- [Macros community sample](https://github.com/a2ui-project/a2ui/tree/main/samples/community/macros) for a runnable FastAPI agent and React client using server-side macros.
-- [Swappable Inference Formats](/concepts/inference-formats/) for details on Express and Direct JSON.
 
 ---
 
@@ -4059,9 +3516,9 @@ Every Agent SDK and Renderer SDK depends on its language's Core SDK, which imple
 
 ### Primary functions
 
-1. Parses and serializes A2UI [wire messages](/concepts/messages/) across supported protocol versions (v1.0, v0.9.1, and v0.8 in TypeScript and Python).
-2. Loads [Catalog](/concepts/catalogs/) JSON Schemas and validates component hierarchies, placement constraints, and message payloads.
-3. Maintains per-surface component graphs and JSON [data model](/concepts/data-binding/) state while applying incremental updates by component ID and JSON Pointer path.
+1. Parses and serializes A2UI [wire messages](../messages/) across supported protocol versions (v1.0, v0.9.1, and v0.8 in TypeScript and Python).
+2. Loads [Catalog](../catalogs/) JSON Schemas and validates component hierarchies, placement constraints, and message payloads.
+3. Maintains per-surface component graphs and JSON [data model](../data-binding/) state while applying incremental updates by component ID and JSON Pointer path.
 4. Evaluates data bindings, collection templates, string interpolation expressions, function invocations, and validation checks.
 
 ### Packages
@@ -4084,11 +3541,11 @@ An Agent SDK connects a language model or agent runtime to the A2UI protocol whi
 
 ### Primary functions
 
-1. Negotiates active [Catalog](/concepts/catalogs/) definitions and protocol versions (v0.9.1 and v1.0) against the capabilities reported by the client renderer (see [Overview](/concepts/overview/)).
+1. Negotiates active [Catalog](../catalogs/) definitions and protocol versions (v0.9.1 and v1.0) against the capabilities reported by the client renderer (see [Overview](../overview/)).
 2. Generates skills, system prompt instructions, and examples directly from catalog schemas and prompt instructions, replacing hand-written prompts that become outdated when components change.
-3. Compiles streaming or batch model output from [swappable inference formats](/concepts/inference-formats/) (such as compact Express syntax, which cuts output tokens without client changes, or chunk-healed Direct JSON) into standard A2UI [wire messages](/concepts/messages/).
+3. Compiles streaming or batch model output from [inference formats](../inference-formats/) (such as compact Express syntax, which cuts output tokens without client changes, or chunk-healed Direct JSON) into standard A2UI [wire messages](../messages/).
 4. Validates outgoing messages statefully against active surface state on the server so broken component IDs, placement violations, or schema mismatches can be fed back to the model for self-correction before transmission.
-5. Supports optional server-side `@macro` expansion in Python and integrates with agent frameworks and transports including [Google ADK](https://github.com/google/adk-python) and the [A2A protocol](https://a2a-protocol.org/).
+5. Supports optional server-side [`@macro`](../../guides/macros/) expansion in Python and integrates with agent frameworks and transports including [Google ADK](https://github.com/google/adk-python) and the [A2A protocol](https://a2a-protocol.org/).
 
 ### Packages
 
@@ -4102,38 +3559,38 @@ Swift and Kotlin target client-side rendering; for legacy v0.8 and v0.9 JVM serv
 
 ### Go and community SDKs
 
-For **Go** services and CLI clients, community-maintained libraries cover server-side validation, streaming parsers, and terminal rendering—including [`satorunooshie/a2ui-go`](https://github.com/satorunooshie/a2ui-go), [`tmc/a2ui`](https://pkg.go.dev/github.com/tmc/a2ui), [`charmbracelet/a2tea`](https://github.com/charmbracelet/a2tea), and [`muncus/a2term`](https://github.com/muncus/a2term) (listed with version details in [Ecosystem Renderers & Tools](/ecosystem/renderers/)).
+For **Go** services and CLI clients, community-maintained libraries cover server-side validation, streaming parsers, and terminal rendering—including [`satorunooshie/a2ui-go`](https://github.com/satorunooshie/a2ui-go), [`tmc/a2ui`](https://pkg.go.dev/github.com/tmc/a2ui), [`charmbracelet/a2tea`](https://github.com/charmbracelet/a2tea), and [`muncus/a2term`](https://github.com/muncus/a2term) (listed with version details in [Community Projects](../../ecosystem/renderers/)).
 
-To implement a conformance-verified Core or Agent SDK in Go, Rust, C#, or another language, follow the language-agnostic specifications in [`blueprints/modules`](https://github.com/a2ui-project/a2ui/tree/main/blueprints/modules), verify behavioral parity against the YAML suites in [`conformance/core`](https://github.com/a2ui-project/a2ui/tree/main/conformance/core) and [`conformance/agent`](https://github.com/a2ui-project/a2ui/tree/main/conformance/agent), and open a pull request to add your package to the [Ecosystem directory](/ecosystem/renderers/#how-to-submit-a-project).
+To implement a conformance-verified Core or Agent SDK in Go, Rust, C#, or another language, follow the language-agnostic specifications in [`blueprints/modules`](https://github.com/a2ui-project/a2ui/tree/main/blueprints/modules), verify behavioral parity against the YAML suites in [`conformance/core`](https://github.com/a2ui-project/a2ui/tree/main/conformance/core) and [`conformance/agent`](https://github.com/a2ui-project/a2ui/tree/main/conformance/agent), and open a pull request to add your package to [Community Projects](../../ecosystem/renderers/#how-to-submit-a-project).
 
-See [Using a catalog in an agent](/concepts/catalogs/#using-a-catalog-in-an-agent) and [Configuring inference formats across SDKs](/concepts/inference-formats/#configuring-inference-formats-across-sdks) for TypeScript, Python, and Dart examples of configuring `A2uiGenerator`, negotiating capabilities, and streaming compiled messages, or run a working agent in the [Quickstart](/quickstart/).
+See [Using a catalog in an agent](../catalogs/#using-a-catalog-in-an-agent) and [Inference Formats](../inference-formats/#how-inference-formats-stay-swappable) for TypeScript, Python, and Dart examples of configuring `A2uiGenerator`, negotiating capabilities, and compiling model responses, or run a working agent in the [Quickstart](../../quickstart/).
 
 ## Renderer SDK
 
-A Renderer SDK connects a Core SDK's resolved surface state to a client UI framework. Official Renderer SDKs include a built-in implementation of the [Basic Catalog](/concepts/catalogs/#the-basic-catalog) styled through the host framework's theming system, and let you register custom catalogs with per-component rendering logic and local functions (see [How to Define a Catalog](/guides/defining-a-catalog/)).
+A Renderer SDK connects a Core SDK's resolved surface state to a client UI framework. Official Renderer SDKs include a built-in implementation of the [Basic Catalog](../catalogs/#the-basic-catalog) styled through the host framework's theming system, and let you register custom catalogs with per-component rendering logic and local functions (see [How to Define a Catalog](../../guides/defining-a-catalog/)).
 
 ### Primary functions
 
-1. Applies incremental [surface, component, and data model updates](/concepts/messages/) across supported protocol versions (v0.9.1, v1.0, and v0.8 on Web), updating only changed subtrees so unchanged siblings keep focus and local UI state.
-2. Evaluates [reactive data bindings](/concepts/data-binding/), nested collection scopes, relative JSON Pointers, and local two-way input edits.
-3. Executes [local catalog functions](/concepts/catalogs/#functions) and [reactive validation checks](/specification/v1.0-a2ui/#component-validation--check-rules), enforcing v1.0 caller and user-activation rules.
+1. Applies incremental [surface, component, and data model updates](../messages/) across supported protocol versions (v0.9.1, v1.0, and v0.8 on Web), updating only changed subtrees so unchanged siblings keep focus and local UI state.
+2. Evaluates [reactive data bindings](../data-binding/), nested collection scopes, relative JSON Pointers, and local two-way input edits.
+3. Executes [local catalog functions](../catalogs/#functions) and [reactive validation checks](../../specification/v1.0-a2ui/#component-validation--check-rules), enforcing v1.0 caller and user-activation rules.
 4. Builds capability and data-model sync metadata payloads for your transport layer, dispatches user action events and structured error messages, and handles v1.0 bidirectional function RPCs.
 5. Maps protocol accessibility attributes to host accessibility APIs across Flutter, Web WAI-ARIA, SwiftUI, and Jetpack Compose.
 
 ### Packages
 
-| Framework       | Published packages                                                                                                                                                                            | Versions                     | Source                                                                                                                                                                |
-| :-------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Flutter         | [a2ui_flutter](https://pub.dev/packages/a2ui_flutter)                                                                                                                                         | v0.9.1,&nbsp;v1.0            | [dart/a2ui_flutter](https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_flutter)                                                                                 |
-| React           | [@a2ui/react](https://www.npmjs.com/package/@a2ui/react)                                                                                                                                      | v0.8,&nbsp;v0.9.1,&nbsp;v1.0 | [typescript/renderers/react](https://github.com/a2ui-project/a2ui/tree/main/typescript/renderers/react)                                                               |
-| Lit             | [@a2ui/lit](https://www.npmjs.com/package/@a2ui/lit)                                                                                                                                          | v0.8,&nbsp;v0.9.1,&nbsp;v1.0 | [typescript/renderers/lit](https://github.com/a2ui-project/a2ui/tree/main/typescript/renderers/lit)                                                                   |
-| Angular         | [@a2ui/angular](https://www.npmjs.com/package/@a2ui/angular)                                                                                                                                  | v0.8,&nbsp;v0.9.1,&nbsp;v1.0 | [typescript/renderers/angular](https://github.com/a2ui-project/a2ui/tree/main/typescript/renderers/angular)                                                           |
-| SwiftUI         | [A2UISwiftUI](https://github.com/a2ui-project/a2ui/blob/main/Package.swift)<br/>[BasicCatalogSwiftUI](https://github.com/a2ui-project/a2ui/blob/main/Package.swift)                           | v0.9.1,&nbsp;v1.0            | [swift/swiftui](https://github.com/a2ui-project/a2ui/tree/main/swift/swiftui)                                                                                         |
-| Jetpack Compose | [androidx.a2ui.compose](https://developer.android.com/jetpack/androidx/releases/a2ui-compose)<br/>[material3-a2ui](https://developer.android.com/jetpack/androidx/releases/compose-material3) | v0.9.1                       | [AndroidX a2ui](https://cs.android.com/androidx/platform/frameworks/support/+/androidx-main:a2ui/) · [Docs](https://developer.android.com/develop/ui/compose/agentic) |
+| Framework       | Published packages                                                                                                                                                                            | Versions                     | Source                                                                                                                                                                                                                                                                                                  |
+| :-------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Flutter         | [a2ui_flutter](https://pub.dev/packages/a2ui_flutter)                                                                                                                                         | v0.9.1,&nbsp;v1.0            | [dart/a2ui_flutter](https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_flutter)                                                                                                                                                                                                                   |
+| React           | [@a2ui/react](https://www.npmjs.com/package/@a2ui/react)                                                                                                                                      | v0.8,&nbsp;v0.9.1,&nbsp;v1.0 | [typescript/renderers/react](https://github.com/a2ui-project/a2ui/tree/main/typescript/renderers/react)                                                                                                                                                                                                 |
+| Lit             | [@a2ui/lit](https://www.npmjs.com/package/@a2ui/lit)                                                                                                                                          | v0.8,&nbsp;v0.9.1,&nbsp;v1.0 | [typescript/renderers/lit](https://github.com/a2ui-project/a2ui/tree/main/typescript/renderers/lit)                                                                                                                                                                                                     |
+| Angular         | [@a2ui/angular](https://www.npmjs.com/package/@a2ui/angular)                                                                                                                                  | v0.8,&nbsp;v0.9.1,&nbsp;v1.0 | [typescript/renderers/angular](https://github.com/a2ui-project/a2ui/tree/main/typescript/renderers/angular)                                                                                                                                                                                             |
+| SwiftUI         | [A2UISwiftUI](https://github.com/a2ui-project/a2ui/blob/main/Package.swift)<br/>[BasicCatalogSwiftUI](https://github.com/a2ui-project/a2ui/blob/main/Package.swift)                           | v0.9.1,&nbsp;v1.0            | [swift/swiftui](https://github.com/a2ui-project/a2ui/tree/main/swift/swiftui)                                                                                                                                                                                                                           |
+| Jetpack Compose | [androidx.a2ui.compose](https://developer.android.com/jetpack/androidx/releases/a2ui-compose)<br/>[material3-a2ui](https://developer.android.com/jetpack/androidx/releases/compose-material3) | v0.9.1                       | [AndroidX a2ui](https://cs.android.com/androidx/platform/frameworks/support/+/androidx-main:a2ui/) · [material3-a2ui](https://cs.android.com/androidx/platform/frameworks/support/+/androidx-main:compose/material3/material3-a2ui/) · [Docs](https://developer.android.com/develop/ui/compose/agentic) |
 
-On Web, [`@a2ui/web_core`](https://www.npmjs.com/package/@a2ui/web_core) provides the shared Basic Catalog implementation used by React, Lit, and Angular, [`@a2ui/markdown-it`](https://www.npmjs.com/package/@a2ui/markdown-it) ([source](https://github.com/a2ui-project/a2ui/tree/main/typescript/renderers/markdown-it)) renders Markdown inside text components, and [`@a2ui/catalog-mcp`](https://www.npmjs.com/package/@a2ui/catalog-mcp) adds MCP app components (see [Call MCP Tools from A2UI](/guides/mcp-catalog/)).
+On Web, [`@a2ui/web_core`](https://www.npmjs.com/package/@a2ui/web_core) provides the shared Basic Catalog implementation used by React, Lit, and Angular, [`@a2ui/markdown-it`](https://www.npmjs.com/package/@a2ui/markdown-it) ([source](https://github.com/a2ui-project/a2ui/tree/main/typescript/renderers/markdown-it)) renders Markdown inside text components, and [`@a2ui/catalog-mcp`](https://www.npmjs.com/package/@a2ui/catalog-mcp) adds MCP app components (see [Call MCP Tools from A2UI](../../guides/mcp-catalog/)).
 
-See [Registering a catalog in a renderer](/concepts/catalogs/#registering-a-catalog-in-a-renderer) and [How to Define a Catalog](/guides/defining-a-catalog/) for Flutter, Web, SwiftUI, and Jetpack Compose examples of setting up a message processor, registering component widgets and local functions, and mounting surfaces, or run a Lit or Flutter client in the [Quickstart](/quickstart/). Read [Authoring Universal Web Components](/guides/authoring-universal-components/) to share custom components across React, Lit, and Angular, or see the [Android Jetpack Compose guide](https://developer.android.com/develop/ui/compose/agentic) for Android integration. Browse [Ecosystem Renderers & Tools](/ecosystem/renderers/) for community renderers, or consult [`blueprints/modules`](https://github.com/a2ui-project/a2ui/tree/main/blueprints/modules) and [`conformance`](https://github.com/a2ui-project/a2ui/tree/main/conformance) to build a custom framework adapter.
+See [Registering a catalog in a renderer](../catalogs/#registering-a-catalog-in-a-renderer) and [How to Define a Catalog](../../guides/defining-a-catalog/) for Flutter, Web, SwiftUI, and Jetpack Compose examples of setting up a message processor, registering component widgets and local functions, and mounting surfaces, or run a Lit or Flutter client in the [Quickstart](../../quickstart/). Read [Authoring Universal Web Components](../../guides/authoring-universal-components/) to share custom components across React, Lit, and Angular, or see the [Android Jetpack Compose guide](https://developer.android.com/develop/ui/compose/agentic) for Android integration. Browse [Community Projects](../../ecosystem/renderers/) for community renderers, or consult [`blueprints/modules`](https://github.com/a2ui-project/a2ui/tree/main/blueprints/modules) and [`conformance`](https://github.com/a2ui-project/a2ui/tree/main/conformance) to build a custom framework adapter.
 
 ---
 
@@ -4932,7 +4389,7 @@ You can also override `--a2ui-color-primary`, `--a2ui-border-radius`, or `--a2ui
 
 Because A2UI JSON messages travel inside MCP `CallToolResult` payloads and are parsed inside the client's sandboxed iframe, an invalid component property or missing child ID fails inside the iframe rather than at the server boundary. Validate generated or static message arrays on your MCP server before returning them from `tools/call` using `validatePayload` (`validate_payload` in Python) from the A2UI Agent SDK.
 
-Swift (`A2UISwiftCore` and `A2UISwiftUI`) focuses on client-side rendering rather than server-side generation, so Agent SDK payload validation is available in TypeScript, Python, and Dart:
+Swift (`A2UISwiftCore` and `A2UISwiftUI`) and Kotlin (`androidx.a2ui` and `androidx.a2ui.compose`) focus on client-side rendering rather than server-side generation, so Agent SDK payload validation is available in TypeScript, Python, and Dart:
 
 #### TypeScript
 
@@ -5561,7 +5018,7 @@ When `callMcpTool` executes, it reads `_meta.ui.resourceUri`, fetches and caches
 
 Before serving static templates or generated tool payloads from an MCP server, validate them against the target catalog with the A2UI Agent SDK. `validatePayload` (`validate_payload` in Python) checks message schemas, component properties, and surface tree topology (such as missing roots or unresolved child IDs) the same way a renderer does.
 
-Swift (`A2UISwiftCore` and `A2UISwiftUI`) targets client-side rendering rather than server-side agent generation, so Agent SDK validation is provided in TypeScript, Python, and Dart:
+Swift (`A2UISwiftCore` and `A2UISwiftUI`) and Kotlin (`androidx.a2ui` and `androidx.a2ui.compose`) target client-side rendering rather than server-side agent generation, so Agent SDK validation is provided in TypeScript, Python, and Dart:
 
 #### TypeScript
 
@@ -7960,7 +7417,7 @@ Define a custom A2UI catalog by writing a `catalog.json` schema file, loading it
 
 ## When you need a catalog.json file
 
-If your agent and client share the same language and repository, you can define component schemas directly in code, as shown in [Catalogs](../../concepts/catalogs/#registering-a-catalog-in-a-renderer). Write a standalone `catalog.json` file when your backend agent and client app use different languages (for example, a Python agent serving a Flutter, React, or SwiftUI app) or when you publish a reusable catalog for other teams.
+If your agent and client share the same language and repository, you can define component schemas directly in code, as shown in [Catalogs](../../concepts/catalogs/#registering-a-catalog-in-a-renderer). Write a standalone `catalog.json` file when your backend agent and client app use different languages (for example, a Python agent serving a Flutter, React, SwiftUI, or Jetpack Compose app) or when you publish a reusable catalog for other teams.
 
 In A2UI v1.0, your catalog works alongside the built-in [basic catalog](../../specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json), so you keep standard layout widgets (`Column`, `Row`, `Text`, `Button`) and define only the custom widgets unique to your app. See [Catalogs](../../concepts/catalogs/) for how catalog negotiation works at runtime.
 
@@ -8122,7 +7579,7 @@ final generator = A2uiGenerator(
 );
 ```
 
-Swift (`A2UISwiftCore` and `A2UISwiftUI`) is a client-side renderer SDK and does not include a server-side agent generator; see [How to Integrate with My Agent Server](../../guides/agent-integration/) for full backend setup.
+Swift (`A2UISwiftCore` and `A2UISwiftUI`) and Kotlin (`androidx.a2ui` and `androidx.a2ui.compose`) are client-side renderer SDKs and do not include a server-side agent generator; see [How to Integrate with My Agent Server](../../guides/agent-integration/) for full backend setup.
 
 ## Step 3: Register the widget on your client
 
@@ -8335,7 +7792,88 @@ let processor = MessageProcessor(
 
 #### Jetpack Compose
 
-The Jetpack Compose renderer is maintained in AndroidX rather than this repository. See the [Agentic UI documentation on Android Developers](https://developer.android.com/develop/ui/compose/agentic) for custom component and catalog registration in Compose.
+```kotlin
+import android.content.Context
+
+import androidx.a2ui.compose.runtime.A2uiComponentProperties
+import androidx.a2ui.compose.runtime.A2uiComponentScope
+import androidx.a2ui.compose.runtime.A2uiMessageProcessor
+import androidx.a2ui.compose.runtime.A2uiProperty
+import androidx.a2ui.compose.ui.A2uiCatalog
+import androidx.a2ui.compose.ui.A2uiComponent
+import androidx.a2ui.compose.ui.catalog.A2uiBasicCatalogV1
+import androidx.a2ui.model.processor.A2uiMessageProcessor
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.a2ui.catalog.MaterialA2uiBasicCatalogV1Defaults
+import androidx.compose.material3.a2ui.catalog.materialA2uiBasicCatalogV1
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+
+private val LabelProp = A2uiProperty.dynamicString("label", required = true)
+private val StatusProp =
+    A2uiProperty.stringEnum(
+        "status",
+        enumValues = listOf("info", "success", "warning"),
+        required = true,
+    )
+
+val StatusBadge: A2uiComponent =
+    object : A2uiComponent {
+        override val name = "StatusBadge"
+        override val description = "Displays a short status pill."
+        override val properties = listOf(LabelProp, StatusProp)
+
+        @Composable
+        override fun A2uiComponentScope.isReady(properties: A2uiComponentProperties): Boolean =
+            properties.bind(LabelProp) != null
+
+        @Composable
+        override fun A2uiComponentScope.Content(
+            properties: A2uiComponentProperties,
+            modifier: Modifier,
+        ) {
+            val label = properties.bind(LabelProp) ?: return
+            val status = properties[StatusProp] ?: "info"
+            Surface(
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                modifier = modifier,
+            ) {
+                Text(
+                    text = "${status.uppercase()}: $label",
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+            }
+        }
+    }
+
+// androidx.a2ui implements v0.9.1; match the v0.9.1 catalogId from Step 1.
+// To mix basic widgets and StatusBadge on one v0.9.1 surface, pass basicCatalog.components + StatusBadge.
+val statusCatalog =
+    A2uiCatalog(
+        catalogId = "https://example.com/catalogs/status/v0_9/catalog.json",
+        components = listOf(StatusBadge),
+    )
+
+fun createProcessor(context: Context): A2uiMessageProcessor {
+    val basicCatalog =
+        materialA2uiBasicCatalogV1(
+            image = MaterialA2uiBasicCatalogV1Defaults.image { _, _, _, _, _ -> },
+            video = MaterialA2uiBasicCatalogV1Defaults.video { _, _, _ -> },
+            audioPlayer = MaterialA2uiBasicCatalogV1Defaults.audioPlayer { _, _, _, _ -> },
+            functions = A2uiBasicCatalogV1.Functions(context),
+        )
+    // Launch processor.collectMessages() in a background coroutine scope
+    // (such as viewModelScope) to process queued messages:
+    val processor = A2uiMessageProcessor(catalogs = listOf(basicCatalog, statusCatalog))
+    return processor
+}
+```
 
 > **Note**
   To share a single web widget across Lit, React, and Angular without rewriting view code, see
@@ -8537,7 +8075,7 @@ In v0.9.1 standalone files, functions place `"call"` and `"returnType": {"const"
 }
 ```
 
-On the client, register matching `FunctionImplementation` entries on your `Catalog`:
+On the client, register matching function implementations (`FunctionImplementation` or `A2uiFunction`) on your catalog:
 
 #### TypeScript
 
@@ -8738,6 +8276,87 @@ let pricingCatalog = Catalog<AnyComponentAPI>(
 )
 ```
 
+#### Kotlin
+
+```kotlin
+import androidx.a2ui.compose.ui.A2uiCatalog
+import androidx.a2ui.model.catalog.A2uiFunction
+import androidx.a2ui.model.catalog.A2uiFunctionDefinition
+import androidx.a2ui.model.catalog.A2uiFunctionReturnType
+import androidx.a2ui.model.protocol.A2uiException
+import androidx.a2ui.model.protocol.A2uiExecutionContext
+import androidx.a2ui.model.schema.A2uiObjectSchema
+import androidx.a2ui.model.schema.A2uiSchema
+import androidx.a2ui.model.schema.commontypes.A2uiDynamicNumberSchema
+import androidx.a2ui.model.schema.commontypes.A2uiDynamicStringSchema
+
+class ShareProductFunction(
+    private val onShare: (title: String, url: String) -> Unit,
+) : A2uiFunction {
+    override val definition =
+        object : A2uiFunctionDefinition {
+            override val name = "shareProduct"
+            override val description = "Opens the device share sheet for a product link."
+            override val returnType = A2uiFunctionReturnType.VOID
+            override val argumentSchema: A2uiSchema =
+                A2uiObjectSchema(
+                    properties =
+                        mapOf(
+                            "title" to A2uiDynamicStringSchema.DEFAULT_INSTANCE,
+                            "url" to A2uiDynamicStringSchema.DEFAULT_INSTANCE,
+                        ),
+                    required = setOf("title", "url"),
+                    isAdditionalPropertiesAllowed = false,
+                )
+        }
+
+    override fun execute(args: Map<String, Any>, executionContext: A2uiExecutionContext): Any? {
+        val title =
+            args["title"] as? String
+                ?: throw A2uiException.A2uiRuntimeException("shareProduct requires a string 'title'")
+        val url =
+            args["url"] as? String
+                ?: throw A2uiException.A2uiRuntimeException("shareProduct requires a string 'url'")
+        onShare(title, url)
+        return Unit
+    }
+}
+
+object ValidDiscountFunction : A2uiFunction {
+    override val definition =
+        object : A2uiFunctionDefinition {
+            override val name = "validDiscount"
+            override val description = "Checks that a discount percentage is between 0 and 70."
+            override val returnType = A2uiFunctionReturnType.BOOLEAN
+            override val argumentSchema: A2uiSchema =
+                A2uiObjectSchema(
+                    properties = mapOf("percentOff" to A2uiDynamicNumberSchema.DEFAULT_INSTANCE),
+                    required = setOf("percentOff"),
+                    isAdditionalPropertiesAllowed = false,
+                )
+        }
+
+    override fun execute(args: Map<String, Any>, executionContext: A2uiExecutionContext): Any? {
+        val pct = (args["percentOff"] as? Number)?.toDouble() ?: return false
+        return pct in 0.0..70.0
+    }
+}
+
+// androidx.a2ui implements v0.9.1, where validation rules return A2uiFunctionReturnType.BOOLEAN.
+val pricingCatalog =
+    A2uiCatalog(
+        catalogId = "https://example.com/catalogs/pricing/v0_9/catalog.json",
+        components = emptyList(),
+        functions =
+            listOf(
+                ShareProductFunction { title, url ->
+                    // Launch Intent.ACTION_SEND chooser with title and url.
+                },
+                ValidDiscountFunction,
+            ),
+    )
+```
+
 ### Child slots and layout constraints
 
 Components that host nested widgets reference [`ChildList`](../../specification/v1.0/schemas/#common_types.json/$defs/ChildList) (an array of child IDs or a data-bound collection template) or [`ComponentId`](../../specification/v1.0/schemas/#common_types.json/$defs/ComponentId) (a single child slot).
@@ -8824,7 +8443,7 @@ In v1.0, a [`ComponentDefinition`](../../specification/v1.0/schemas/#catalog_def
 }
 ```
 
-In your client renderer, `ChildList` slots resolve to child references that you render through the framework adapter (`buildChild`, `this.renderNode`, `ComponentHostComponent`, or `ComponentNodeView`), while `Action` properties resolve to callable callbacks:
+In your client renderer, `ChildList` slots resolve to child references that you render through the framework adapter (`buildChild`, `this.renderNode`, `ComponentHostComponent`, `ComponentNodeView`, or `observeA2uiComponentState` with `A2uiComponent`), while `Action` properties trigger event or function execution (`dispatchAction` in Jetpack Compose):
 
 #### Flutter
 
@@ -9072,7 +8691,86 @@ let productCard = ComponentImplementation(
 
 #### Jetpack Compose
 
-The Jetpack Compose renderer is maintained in AndroidX rather than this repository. See the [Agentic UI documentation on Android Developers](https://developer.android.com/develop/ui/compose/agentic) for rendering child slots and dispatching actions in Compose.
+```kotlin
+import java.util.Locale
+
+import androidx.a2ui.compose.runtime.A2uiComponentProperties
+import androidx.a2ui.compose.runtime.A2uiComponentScope
+import androidx.a2ui.compose.runtime.A2uiComponentState
+import androidx.a2ui.compose.runtime.A2uiProperty
+import androidx.a2ui.compose.runtime.observeA2uiComponentState
+import androidx.a2ui.compose.ui.A2uiComponent
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Card
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+
+private val NameProp = A2uiProperty.dynamicString("name", required = true)
+private val PriceProp = A2uiProperty.dynamicNumber("price", required = true)
+private val ChildrenProp = A2uiProperty.childList("children")
+private val OnSelectProp = A2uiProperty.action("onSelect")
+
+// androidx.a2ui implements v0.9.1, where allowedParents and allowedChildren are not part of the schema.
+val ProductCard: A2uiComponent =
+    object : A2uiComponent {
+        override val name = "ProductCard"
+        override val description = "Displays a product with price and child actions."
+        override val properties = listOf(NameProp, PriceProp, ChildrenProp, OnSelectProp)
+
+        @Composable
+        override fun A2uiComponentScope.isReady(properties: A2uiComponentProperties): Boolean =
+            properties.bind(NameProp) != null && properties.bind(PriceProp) != null
+
+        @Composable
+        override fun A2uiComponentScope.Content(
+            properties: A2uiComponentProperties,
+            modifier: Modifier,
+        ) {
+            val productName = properties.bind(NameProp) ?: return
+            val price = properties.bind(PriceProp) ?: return
+            val children = properties.bindChildReferences(ChildrenProp).orEmpty()
+            val onSelect = properties[OnSelectProp]
+
+            Card(
+                modifier =
+                    if (onSelect != null) {
+                        modifier.fillMaxWidth().clickable { dispatchAction(onSelect) }
+                    } else {
+                        modifier.fillMaxWidth()
+                    }
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text =
+                            "$productName (USD " +
+                                String.format(Locale.US, "%.2f", price.toDouble()) +
+                                ")"
+                    )
+                    if (children.isNotEmpty()) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            for (reference in children) {
+                                key(reference.id, reference.baseDataPath) {
+                                    val state = observeA2uiComponentState(reference)
+                                    if (state is A2uiComponentState.Success) {
+                                        A2uiComponent(state.component)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+```
 
 ### Interactive actions and input checks
 
@@ -9290,9 +8988,9 @@ Place shared scalar or enum schemas (such as `BadgeTone`) under `$defs` alongsid
 
 ### Schema parity tests in CI
 
-When your backend agent loads `status_catalog.json` and your client defines schemas in code (with Zod, `json_schema_builder`, or `JSONSchema`), avoid comparing serialized JSON files as raw strings. Code-built schemas and hand-authored JSON files often differ in key order, `$schema` or `instructions` fields, and localized `#/$defs/...` pointers inside `validationSchema`.
+When your backend agent loads `status_catalog.json` and your client defines schemas in code (with Zod, `json_schema_builder`, `JSONSchema`, or `A2uiProperty` and `A2uiSchema`), avoid comparing serialized JSON files as raw strings. Code-built schemas and hand-authored JSON files often differ in key order, `$schema` or `instructions` fields, and localized `#/$defs/...` pointers inside `validationSchema`.
 
-Instead, parse `status_catalog.json` in a unit test with `Catalog.fromJson` (TypeScript and Dart), `Catalog.from_json` (Python), or `JSONSerialization` (Swift), and compare the normalized `Catalog` properties (`id`, `protocolVersion`, component names and `allowedParents`/`allowedChildren`, and function `returnType` and `allowedCallers`) against your client catalog.
+Instead, parse `status_catalog.json` in a unit test with `Catalog.fromJson` (TypeScript and Dart), `Catalog.from_json` (Python), `JSONSerialization` (Swift), or `kotlinx.serialization.json.Json` (Kotlin), and compare the normalized catalog properties (`id`, `protocolVersion`, component names and `allowedParents`/`allowedChildren`, and function `returnType` and `allowedCallers`) against your client catalog.
 
 #### TypeScript
 
@@ -9445,6 +9143,553 @@ func statusCatalogMatchesSpec() throws {
   }
 }
 ```
+
+#### Kotlin
+
+```kotlin
+import java.io.File
+
+import androidx.a2ui.compose.ui.toJsonSchemaMap
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+class StatusCatalogParityTest {
+    @Test
+    fun statusCatalog_matchesSpec() {
+        // Compare against the v0.9.1 status_catalog.json file.
+        val spec = Json.parseToJsonElement(File("./status_catalog.json").readText()).jsonObject
+        val specComponents = spec["components"]?.jsonObject.orEmpty()
+        val specFunctions = spec["functions"]?.jsonObject.orEmpty()
+
+        val generated = statusCatalog.toJsonSchemaMap()
+        assertEquals(spec["catalogId"]?.jsonPrimitive?.content, generated["catalogId"])
+        assertEquals(
+            specComponents.keys,
+            statusCatalog.components.map { it.name }.toSet(),
+        )
+        assertEquals(
+            specFunctions.keys,
+            statusCatalog.functions.map { it.definition.name }.toSet(),
+        )
+
+        for ((name, specFn) in specFunctions) {
+            val expectedReturn =
+                specFn.jsonObject["properties"]
+                    ?.jsonObject
+                    ?.get("returnType")
+                    ?.jsonObject
+                    ?.get("const")
+                    ?.jsonPrimitive
+                    ?.content
+            val clientFn = checkNotNull(statusCatalog.functions[name])
+            assertEquals(expectedReturn, clientFn.definition.returnType.value)
+        }
+    }
+}
+```
+
+---
+
+# Using Macros
+
+> Define composite UI components on the server with @macro and expand them into reusable catalog components supported by the client.
+
+Canonical URL: https://a2ui.org/guides/macros/
+
+Macros let you define composite UI components on the server that can programmatically inject server-side data and expand into the flexible, reusable [catalog](../../concepts/catalogs/) components your client supports (from the Basic Catalog, your own custom catalogs, or both) before any messages reach the renderer. Because the renderer only receives components the client already implements, you can add or change macros on the server without shipping new client code.
+
+> **Note**
+  Macros are currently available in the Python [agent SDK](../../concepts/sdks/#agent-sdk)
+  (`a2ui-agent-sdk`), with support for other languages coming next.
+
+## How macros work
+
+When a language model builds UI from low-level primitives on every turn, repeated patterns like flight summaries or product cards take many lines of nested components. With a macro, you write a function once on the server to assemble that pattern.
+
+Macros are useful when you want to:
+
+1. Reduce output tokens and latency by letting the model write one call instead of a nested component tree.
+2. Keep layouts consistent across turns because your server code constructs the component hierarchy.
+3. Look up data from server-side databases and APIs, accepting an identifier from the model and populating the components on the server.
+4. Ship new domain components with a server deployment alone, using catalog components the client already renders.
+
+In the sequence below, [`MacroExpander`](../../concepts/glossary/#macroexpander) works on both sides of the model call. Before inference, it adds each macro's component schema to the catalog in the system prompt. After inference, it intercepts each macro call, runs your macro function, and outputs flat catalog components for the renderer.
+
+```mermaid
+sequenceDiagram
+    participant Model
+    participant Agent as Agent server
+    participant Expander as MacroExpander
+    participant Renderer
+    Agent->>Expander: Add macro schemas to catalog
+    Expander-->>Agent: Inference catalog
+    Agent->>Model: System prompt with FlightCard(...) signature
+    Model-->>Agent: root = FlightCard("OS 87", ...)
+    Agent->>Expander: Expand macro calls in messages
+    Expander-->>Agent: Expanded catalog components
+    Agent->>Renderer: createSurface with catalog components
+```
+
+### Example: macro, model call, and expanded output
+
+Here is a `FlightCard` macro. The `flight` and `route` parameters take static strings, while `status` uses `DynamicString` so it can bind to the [data model](../../concepts/data-binding/):
+
+```python title="flight_macros.py"
+from a2ui.builder.v1_0 import Card, Column, DynamicString, Text
+from a2ui.transformers.macros import macro
+
+@macro
+def FlightCard(flight: str, route: str, status: DynamicString) -> Card:
+    """Summary card for a flight with a live status line.
+
+    Args:
+        flight: Flight number, such as "OS 87".
+        route: Departure and arrival cities, such as "Vienna to New York".
+        status: Current status text or data binding.
+    """
+    return Card(
+        child=Column(
+            children=[
+                Text(text=f"### {flight}"),
+                Text(text=route, variant="caption"),
+                Text(text=status),
+            ]
+        )
+    )
+```
+
+Using the [Express](../../concepts/inference-formats/) inference format, the model calls `FlightCard` in a single line:
+
+```text title="Model output"
+Your flight is boarding.
+<a2ui>
+$/flight/status = "Boarding"
+root = FlightCard("OS 87", "Vienna to New York", $/flight/status)
+</a2ui>
+```
+
+`MacroExpander` runs `FlightCard` on the server and sends the expanded components over the wire, with static arguments baked in and the `/flight/status` data binding preserved:
+
+#### v1.0
+
+```json
+[
+  {
+    "version": "1.0",
+    "createSurface": {
+      "surfaceId": "main",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+      "components": [
+        {
+          "component": "Text",
+          "id": "root__text_1",
+          "text": "### OS 87",
+          "variant": "body"
+        },
+        {
+          "component": "Text",
+          "id": "root__text_2",
+          "text": "Vienna to New York",
+          "variant": "caption"
+        },
+        {
+          "component": "Text",
+          "id": "root__text_3",
+          "text": {"@path": "/flight/status"},
+          "variant": "body"
+        },
+        {
+          "component": "Column",
+          "id": "root__column_1",
+          "children": ["root__text_1", "root__text_2", "root__text_3"],
+          "justify": "start",
+          "align": "stretch"
+        },
+        {
+          "component": "Card",
+          "id": "root",
+          "child": "root__column_1"
+        }
+      ],
+      "dataModel": {
+        "flight": {"status": "Boarding"}
+      }
+    }
+  }
+]
+```
+
+#### v0.9.1
+
+```json
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "main",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "main",
+      "components": [
+        {
+          "component": "Text",
+          "id": "root__text_1",
+          "text": "### OS 87",
+          "variant": "body"
+        },
+        {
+          "component": "Text",
+          "id": "root__text_2",
+          "text": "Vienna to New York",
+          "variant": "caption"
+        },
+        {
+          "component": "Text",
+          "id": "root__text_3",
+          "text": {"path": "/flight/status"},
+          "variant": "body"
+        },
+        {
+          "component": "Column",
+          "id": "root__column_1",
+          "children": ["root__text_1", "root__text_2", "root__text_3"],
+          "justify": "start",
+          "align": "stretch"
+        },
+        {
+          "component": "Card",
+          "id": "root",
+          "child": "root__column_1"
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "main",
+      "path": "/",
+      "value": {
+        "flight": {"status": "Boarding"}
+      }
+    }
+  }
+]
+```
+
+## Configure a macro
+
+The steps below integrate a macro into a Python agent using `BasicCatalog("1.0")`. You do not need to use the Basic Catalog: the same workflow applies to your own custom catalogs, as shown in [Macros with custom catalogs](#macros-with-custom-catalogs).
+
+### Step 1: Install the Python agent SDK
+
+Install `a2ui-agent-sdk` with `pip` (or `uv add a2ui-agent-sdk`):
+
+```bash
+pip install a2ui-agent-sdk
+```
+
+### Step 2: Define a macro
+
+Decorate a Python function with `@macro` and return a single root builder component. `@macro` inspects the parameter type hints and the `Args:` block in the docstring to generate the component schema that the model sees:
+
+```python title="flight_macros.py"
+from a2ui.builder.v1_0 import (
+    Action,
+    Button,
+    Card,
+    Column,
+    DynamicString,
+    Text,
+)
+from a2ui.transformers.macros import macro
+
+@macro
+def FlightCard(
+    flight: str,
+    route: str,
+    status: DynamicString,
+    on_rebook: Action,
+) -> Card:
+    """Summary card for a flight with a live status line and rebook button.
+
+    Args:
+        flight: Flight number, such as "OS 87".
+        route: Departure and arrival cities, such as "Vienna to New York".
+        status: Current status text or data binding.
+        on_rebook: Action sent when the user clicks Rebook.
+    """
+    return Card(
+        child=Column(
+            children=[
+                Text(text=f"### {flight}"),
+                Text(text=route, variant="caption"),
+                Text(text=status),
+                Button(child=Text(text="Rebook"), action=on_rebook),
+            ]
+        )
+    )
+```
+
+Because a macro is regular Python running on your server, it can also take an identifier (such as `flight_id: str`), look up the record in a database or service, and populate the returned components directly.
+
+### Step 3: Set up the expander and request processor
+
+Create a `MacroExpander` with your macro list, create an inference catalog that includes the macro schemas, and pass that catalog to `A2uiRequestProcessor`:
+
+```python title="agent.py"
+from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.processor import A2uiRequestProcessor
+from a2ui.transformers.macros import MacroExpander
+
+from flight_macros import FlightCard
+
+expander = MacroExpander([FlightCard], on_error="raise")
+inference_catalog = expander.transform_to_inference_catalog(BasicCatalog("1.0"))
+
+processor = A2uiRequestProcessor(catalogs=[inference_catalog])
+system_prompt = processor.prompt_snippet  # Append to your model's system instruction.
+```
+
+`MacroExpander` runs alongside `A2uiRequestProcessor` rather than as a `CatalogConfig.transformers` entry because it acts both before inference (adding macro schemas to the catalog) and after parsing (expanding macro calls in outgoing messages). Because `MacroExpander` tracks active surface catalogs across turns, create one `MacroExpander` per session (or pass `surface_catalogs` to `transform_to_transport`) in multi-session servers. `A2uiRequestProcessor` uses the Express inference format by default, and works with any format factory you pass via `format_factory`.
+
+### Step 4: Parse model output and expand macros
+
+After your model responds, parse the response with `processor.parse_response` and pass each `A2uiPart` through `expander.transform_to_transport` before serializing the messages for the client:
+
+```python title="agent.py (continued)"
+from a2ui.parser import A2uiPart, TextPart
+
+# llm_output = call_your_model(system_prompt, user_message)
+parts = processor.parse_response(llm_output)
+
+text_reply: list[str] = []
+transport_messages = []
+
+for part in parts:
+    if isinstance(part, TextPart):
+        text_reply.append(part.text)
+    elif isinstance(part, A2uiPart):
+        transport_messages.extend(expander.transform_to_transport(part.a2ui))
+
+wire_payload = [
+    msg.model_dump(by_alias=True, exclude_none=True)
+    for msg in transport_messages
+]
+```
+
+Send `wire_payload` over your transport to the renderer alongside any conversational text in `text_reply`.
+
+## Macros with custom catalogs
+
+Macros build component trees using typed Python builder classes. Builder classes for the Basic Catalog ship in `a2ui.builder.v1_0` and `a2ui.builder.v0_9`. When you define a [custom catalog](../defining-a-catalog/), the A2UI CLI (`a2ui`) generates those Python builder classes directly from your catalog JSON file.
+
+### Step 1: Install the A2UI CLI
+
+Install the standalone `a2ui` binary using the release installer script. Both scripts verify the SHA-256 checksum of the downloaded archive and do not require administrator privileges:
+
+#### macOS and Linux
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/a2ui-project/a2ui/main/scripts/public/install_cli.sh | sh
+```
+
+Installs `a2ui` into `${XDG_BIN_HOME:-$HOME/.local/bin}`. Make sure that directory is on your `PATH`, or pass `A2UI_INSTALL_DIR` (and optionally `A2UI_VERSION`) to `sh`, as in `curl -fsSL ... | A2UI_INSTALL_DIR="$HOME/bin" sh`.
+
+#### Windows
+
+```powershell
+irm https://raw.githubusercontent.com/a2ui-project/a2ui/main/scripts/public/install_cli.ps1 | iex
+```
+
+Installs `a2ui.exe` into `%LOCALAPPDATA%\Programs\a2ui\bin` and adds it to your user `PATH`. Set `$env:A2UI_INSTALL_DIR` or `$env:A2UI_VERSION` to customize the directory or version.
+
+### Step 2: Generate builder classes for your catalog
+
+Suppose you have a `travel_catalog.json` file that defines a `BoardingPass` component (and your client renderer registers the matching `BoardingPass` widget).
+
+<details>
+<summary>Example <code>travel_catalog.json</code></summary>
+
+```json title="travel_catalog.json"
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "catalogId": "https://example.com/catalogs/travel/v1/catalog.json",
+  "protocolVersion": "1.0",
+  "components": {
+    "BoardingPass": {
+      "type": "object",
+      "description": "A boarding pass with a scannable code.",
+      "properties": {
+        "component": {"const": "BoardingPass"},
+        "passenger": {"type": "string"},
+        "seat": {"type": "string"},
+        "gate": {"$ref": "common_types.json#/$defs/DynamicString"}
+      },
+      "required": ["component", "passenger", "seat", "gate"]
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [{"$ref": "#/components/BoardingPass"}],
+      "discriminator": {"propertyName": "component"}
+    },
+    "anyFunction": {"not": {}}
+  }
+}
+```
+
+</details>
+
+Run `a2ui codegen` with `--lang python` to generate a Python builder module from your catalog schema:
+
+```bash
+a2ui codegen --lang python --catalog travel_catalog.json --out travel_builders.py --catalog-name travel
+```
+
+The generated `travel_builders.py` file contains a typed `ComponentBuilderNode` subclass for every component in your catalog:
+
+```python title="travel_builders.py (excerpt)"
+class BoardingPass(ComponentBuilderNode):
+    r"""A boarding pass with a scannable code."""
+
+    component: Literal["BoardingPass"] = "BoardingPass"
+    passenger: str
+    seat: str
+    gate: str | DataBinding | FunctionCall
+```
+
+Re-run `a2ui codegen` whenever `travel_catalog.json` changes rather than editing the generated file by hand.
+
+### Step 3: Write a macro with the generated builders
+
+Import your generated builder classes into a macro. In A2UI v1.0, a single surface can combine components from multiple catalogs, so a macro can mix your custom `BoardingPass` with layout components from `BasicCatalog("1.0")`:
+
+```python title="trip_macros.py"
+from a2ui.builder.v1_0 import Card, Column, DynamicString, Text
+from a2ui.transformers.macros import macro
+
+from travel_builders import BoardingPass
+
+@macro
+def TripSummary(passenger: str, seat: str, gate: DynamicString) -> Card:
+    """Trip summary card containing a boarding pass.
+
+    Args:
+        passenger: Passenger full name.
+        seat: Assigned seat number.
+        gate: Departure gate text or data binding.
+    """
+    return Card(
+        child=Column(
+            children=[
+                Text(text=f"### Have a good trip, {passenger}"),
+                BoardingPass(passenger=passenger, seat=seat, gate=gate),
+            ]
+        )
+    )
+```
+
+Load your custom catalog with `Catalog.from_json` and pass all transport catalogs to `expander.transform_catalogs`. If your agent uses only your custom catalog without the Basic Catalog, pass `[travel_catalog]` instead:
+
+```python title="agent.py"
+import json
+from pathlib import Path
+
+from a2ui.core import Catalog
+from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.parser import A2uiPart
+from a2ui.processor import A2uiRequestProcessor
+from a2ui.transformers.macros import MacroExpander
+
+from trip_macros import TripSummary
+
+travel_catalog = Catalog.from_json(
+    json.loads(Path("travel_catalog.json").read_text())
+)
+basic_catalog = BasicCatalog("1.0")
+
+expander = MacroExpander([TripSummary], on_error="raise")
+inference_catalogs = expander.transform_catalogs([basic_catalog, travel_catalog])
+
+processor = A2uiRequestProcessor(catalogs=inference_catalogs)
+system_prompt = processor.prompt_snippet
+
+# After receiving llm_output from the model:
+parts = processor.parse_response(llm_output)
+inference_messages = [
+    msg for part in parts if isinstance(part, A2uiPart) for msg in part.a2ui
+]
+transport_messages = expander.transform_to_transport(inference_messages)
+```
+
+In v1.0, `transform_catalogs` registers your base catalogs on the expander and appends an inference-only sidecar catalog for the macros. When `transform_to_transport` expands `TripSummary`, it removes the sidecar catalog and stamps the owning `catalogId` onto each expanded `Card`, `Column`, `Text`, and `BoardingPass` component automatically.
+
+## Reference
+
+### Supported parameter types
+
+Parameter annotations control both the JSON Schema shown to the model and whether a value is static or reactive:
+
+- Plain Python types (`str`, `int`, `float`, `bool`) accept only static literal values, which are baked into the expanded components when the macro runs. Passing a data binding to a plain `str` parameter fails validation.
+- Reactive A2UI types (`DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList`) accept either a literal value or a `@path` / `@call` binding. When you pass that parameter to a child component property, the binding remains live on the renderer.
+
+Always treat macro arguments as untrusted model output, and validate identifiers against your backend data rather than trusting arbitrary strings.
+
+The table below lists the most common parameter annotations (showing v1.0 schema definitions):
+
+| Python annotation                                                       | Schema exposed to the model                                                                               | Value passed to your macro                                                                                  |
+| :---------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------- |
+| `str`, `int`, `float`, `bool`                                           | `string`, `integer`, `number`, `boolean`                                                                  | Static literal value (data bindings rejected).                                                              |
+| `Literal[...]` or `Enum` (with `str` values)                            | `enum`                                                                                                    | Static literal value (`Enum` parameters arrive as raw `str`, not `Enum` members).                           |
+| `Sequence[V]`, `dict[str, V]`                                           | `array`, `object`                                                                                         | List or dict with elements converted to `V`.                                                                |
+| `DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList` | [`DynamicString`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicString) and related types   | Literal value, `DataBinding`, or `FunctionCall`.                                                            |
+| `Action`                                                                | [`Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action)                                   | `Action` built from an event object or function call.                                                       |
+| `Child` or component class                                              | [`Child`](/specification/v1.0/schemas/#common_types.json/$defs/Child) (`ComponentId` in v0.9.1)           | `ComponentRef` pointing to another component ID.                                                            |
+| `ChildList` or `Sequence[Child]`                                        | [`ChildList`](/specification/v1.0/schemas/#common_types.json/$defs/ChildList)                             | List of `ComponentRef` items; `ChildList` (not `Sequence[Child]`) also accepts `DynamicChildList` bindings. |
+| `CheckRule` or `Sequence[CheckRule]`                                    | [`CheckRule`](/specification/v1.0/schemas/#common_types.json/$defs/CheckRule) (or `array` of `CheckRule`) | `CheckRule` instance(s) for input validation.                                                               |
+| `AccessibilityAttributes`                                               | [`AccessibilityAttributes`](/specification/v1.0/schemas/#common_types.json/$defs/AccessibilityAttributes) | `AccessibilityAttributes` model.                                                                            |
+
+`@macro` reads parameter descriptions from Google-style (`Args:`) docstrings, Sphinx-style (`:param name:`) docstrings, or `typing.Annotated[T, Field(description="...")]`. For additional annotations, including `DynamicValue`, `Extensions`, catalog sub-models (`TabItem`, `ChoicePickerOption`), and union types, see the [parameter type mapping table in the macros README](https://github.com/a2ui-project/a2ui/blob/main/python/a2ui_agent/src/a2ui/transformers/macros/README.md#parameter-type-mapping).
+
+### Protocol versions
+
+To target A2UI v0.9.1 instead of v1.0, import builders from `a2ui.builder.v0_9` and pass a single catalog (such as `BasicCatalog("0.9.1")`) to `expander.transform_to_inference_catalog`. Do not mix `v1_0` and `v0_9` builders or catalogs on the same `MacroExpander`.
+
+### Additional configuration options
+
+#### Custom macro names and descriptions
+
+Override the inferred PascalCase component name or docstring description by passing arguments to `@macro`, such as `@macro("CustomCard")` or `@macro(name="CustomCard", description="...")`.
+
+#### Error handling (`on_error`)
+
+With the default `on_error="passthrough"`, a macro that raises an argument or runtime exception during expansion is logged and left unexpanded so sibling components still expand (note that client renderers do not implement unexpanded macro components). Pass `on_error="raise"` to `MacroExpander` to raise `A2uiValidationError` on the server so an agent retry loop can send the error back to the model; structural errors (`A2uiRecursionError`, `A2uiCatalogError`, and protocol-version mismatches) always raise.
+
+#### Filtering base components (`passthrough_components`)
+
+By default, all components from your base catalogs remain visible to the model alongside your macros. Pass `passthrough_components=["Button"]` to `MacroExpander` to expose only specific base components plus your macros, or `passthrough_components=[]` to expose only your macros.
+
+#### Explicit `protocol_version`
+
+`MacroExpander` normally infers the protocol version from your macro parameter and return annotations or registered catalogs. If a v1.0 macro uses only version-neutral annotations (such as `str`, `int`, or `Child`, with no v1.0 return type) and you export a standalone macro catalog with `expander.to_catalog()` before registering any v1.0 catalogs, pass `protocol_version="1.0"` to `MacroExpander(...)`.
+
+#### Disambiguating duplicate component names (`catalog_id`)
+
+When multiple registered v1.0 catalogs define a component with the same name, specify the owning catalog when instantiating that builder class, such as `BoardingPass(..., catalog_id=TRAVEL_CATALOG_ID)`.
+
+### Related resources
+
+- [Macros README](https://github.com/a2ui-project/a2ui/blob/main/python/a2ui_agent/src/a2ui/transformers/macros/README.md) for full `@macro` and `MacroExpander` API details.
+- [Macros community sample](https://github.com/a2ui-project/a2ui/tree/main/samples/community/macros) for a runnable FastAPI agent and React client using server-side macros.
+- [Inference Formats](../../concepts/inference-formats/) for details on Express and Direct JSON.
 
 ---
 
@@ -12525,13 +12770,144 @@ A2UI v1.0 defines wire envelopes, shared types, catalog formats, and capability 
 
 ---
 
-# Ecosystem Renderers & Tools
+# Roadmap
 
-> Community renderers, agent libraries, and ecosystem tooling for A2UI.
+> The tools A2UI is building to take a generative UI agent from its first component to production, and what is available today at each stage.
+
+Canonical URL: https://a2ui.org/roadmap/
+
+The A2UI roadmap describes the tools we are building around the protocol to help you take a generative UI (gen-UI) agent from its first component to production, and keep improving it after launch.
+
+Shipping a gen-UI agent involves five stages that repeat. You build components, configure your agent to use them, evaluate the results, distribute the agent to your users, and monitor how they respond. What you learn while monitoring feeds the next round of component work, so the stages form a loop.
+
+The diagram below shows that loop. Select a stage to see what is available today and what is planned for it. The A2UI CLI is at the center because we plan for it to cover every stage, so you or your coding agent can run the whole loop from a terminal.
+
+<RoadmapLoop />
+
+:::note[Plans can change]
+This page describes where we are investing. Priorities and scope may change as we learn from the community.
+:::
+
+## Build cross-platform components
+
+Our goal is for you to design a component once and render it natively on every platform.
+
+**Available today**
+
+1. [Catalogs](../concepts/catalogs/) describe your components and functions in one JSON Schema that both agents and renderers read. [How to Define a Catalog](../guides/defining-a-catalog/) covers [prompt instructions and metadata](../guides/defining-a-catalog/#prompt-instructions-and-catalog-metadata), [theming with reusable definitions](../guides/defining-a-catalog/#reusable-schema-definitions-defs-and-theming), and [schema parity tests in CI](../guides/defining-a-catalog/#schema-parity-tests-in-ci).
+2. The [Basic Catalog](../concepts/catalogs/#the-basic-catalog) ships with every official renderer and takes its styling from the host framework's theme. See the [v1.0 Basic Catalog Guide](/specification/v1.0-basic-catalog-implementation-guide/).
+3. Official [renderers](../concepts/sdks/#renderer-sdk) exist for React, Lit, Angular, Flutter, SwiftUI, and Jetpack Compose. See [Registering a catalog in a renderer](../concepts/catalogs/#registering-a-catalog-in-a-renderer).
+4. [Universal Web Components](../guides/authoring-universal-components/) let you write a custom web component once and register it in Lit, React, and Angular.
+5. The `a2ui codegen` command in the [A2UI CLI](https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_cli) generates typesafe component builders from a catalog.
+6. [A2UI Composer](https://a2ui-project.github.io/composer/) is a visual editor for A2UI layouts.
+
+**On the roadmap**
+
+1. Primitives that you style to match your design system and describe declaratively. Today a custom component still needs an implementation on each native platform; described primitives remove that step.
+2. A runtime templating engine that reads a component's description and renders it natively on each platform.
+3. A secure sandbox for components that need shared business logic, such as validation or pricing rules, where a declarative description is not enough. We will investigate a sandbox that lets you write that logic once and run it safely on every client.
+
+## Configure your agents
+
+Our goal is for your agent to know when and how to use each component.
+
+**Available today**
+
+1. The skill generator (`SkillGenerator`) in the Python and TypeScript [Agent SDKs](../concepts/sdks/#agent-sdk) builds an A2UI skill from your catalog, with grammar rules for the chosen inference format and the signatures of your components and functions. Because the skill comes from the catalog, it changes when your components change. See [Generate the skill](../concepts/overview/#generate-the-skill).
+2. [Catalog negotiation](../concepts/catalogs/#catalog-negotiation-and-multi-catalog-surfaces) selects the catalogs and protocol version that each client supports. See [Using a catalog in an agent](../concepts/catalogs/#using-a-catalog-in-an-agent).
+3. [Inference formats](../concepts/inference-formats/), such as Express and Direct JSON, compile model output into standard A2UI messages without client changes.
+4. The Agent SDKs [validate output against live surface state](../concepts/overview/#compile-and-validate-the-output), so errors go back to the model before anything reaches the client.
+5. Integrations exist for Google ADK and the A2A protocol, and [How to Integrate with My Agent Server](../guides/agent-integration/) covers other agent servers.
+
+**On the roadmap**
+
+1. Clearer error handling and diagnostics in the skill generator when a catalog or inference format cannot be compiled.
+2. Skill generation in the Dart Agent SDK, which does not support it yet.
+3. Integrations with more agent frameworks.
+
+## Evaluate gen-UI quality
+
+Our goal is for you to know whether your agent picks the right components and builds them correctly.
+
+**Available today**
+
+1. The [A2UI evaluation framework](https://github.com/a2ui-project/a2ui/tree/main/eval) is built on Inspect AI and scores model output against the project's own datasets in three stages: schema and structure validation, deterministic assertions, and an LLM judge that grades intent and quality. See the [evaluation design](https://github.com/a2ui-project/a2ui/blob/main/eval/DESIGN.md).
+2. [Token and latency benchmarks](../concepts/inference-formats/#token-and-latency-benchmarks) compare inference formats.
+
+**On the roadmap**
+
+Guidance and tooling to evaluate your own agents and catalogs, combining these approaches:
+
+1. Deterministic rules that check payloads against your catalog and scenario requirements.
+2. An LLM judge that grades whether the generated UI fits the user's intent.
+3. Tool usage as a judge, which looks at the agent's tool calls and context to check whether it used components correctly.
+
+## Distribute across platforms
+
+Our goal is for one agent to reach users wherever they are.
+
+**Available today**
+
+1. Renderers cover web and desktop (React, Lit, and Angular) and mobile (Flutter, SwiftUI, and Jetpack Compose). See [How to Integrate with My Client](../guides/client-integration/) and the [Android Jetpack Compose guide](https://developer.android.com/develop/ui/compose/agentic).
+2. MCP works in both directions. You can [render A2UI inside an MCP App](../guides/a2ui-in-mcp-apps/), or [embed MCP Apps in A2UI surfaces](../guides/mcp-apps-in-a2ui/), where `McpApp` already [shares data paths with sibling A2UI components](../guides/mcp-apps-in-a2ui/#synchronizing-state-and-tool-calls). The [MCP Integration Overview](../guides/mcp-overview/) compares these with [serving A2UI layouts from an MCP server](../guides/a2ui-over-mcp/) and [calling MCP tools from A2UI](../guides/mcp-catalog/).
+3. [Community Projects](../ecosystem/renderers/) cover more frameworks and platforms.
+
+**On the roadmap**
+
+1. Better tooling for MCP Apps, which is our first focus for distribution. This starts with sharing state between A2UI components and the MCP host and server when A2UI runs inside an MCP App, to match what `McpApp` already does in the other direction.
+2. Guides and examples for distributing your agent through AI assistants such as Gemini, Claude, and ChatGPT, and through messaging apps such as Microsoft Teams and Slack.
+
+## Monitor and evolve
+
+Our goal is for your gen-UI to improve as you learn from your users.
+
+**Available today**
+
+1. [Renderer-to-agent messages](../concepts/messages/#renderer-to-agent-messages) already report user actions and function results to your agent, which gives you events to log. See [Handle user actions](../concepts/overview/#handle-user-actions).
+
+**On the roadmap**
+
+1. Guidance on which logs to collect from gen-UI experiences, such as rendered surfaces, user actions, errors, and abandoned flows.
+2. Ways to turn those signals into design and component updates, which takes you back to [building components](#build-cross-platform-components).
+
+## The A2UI CLI
+
+The [A2UI CLI](https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_cli) connects the stages. Today it generates typesafe component builders from a catalog with `a2ui codegen`. We plan to extend it to every stage:
+
+| Stage      | What the CLI will help with                                      |
+| :--------- | :--------------------------------------------------------------- |
+| Build      | Scaffold, generate, preview, and publish components and catalogs |
+| Configure  | Generate skills and connect catalogs to agents                   |
+| Evaluate   | Validate output and run evaluation suites                        |
+| Distribute | Package agents for native apps, assistants, and MCP Apps hosts   |
+| Monitor    | Pull usage and feedback data back into your project              |
+
+The CLI runs in a terminal and is scriptable, so coding agents can run it directly. The repository also includes an [A2UI agent skill](https://github.com/a2ui-project/a2ui/tree/main/skills/a2ui) that teaches coding agents to work with A2UI. Together, they let a coding agent build a component, wire it into your agent, run evaluations, ship the result, and read the feedback.
+
+## Protocol versions
+
+The protocol evolves alongside this tooling. [`specification/versions.json`](https://github.com/a2ui-project/a2ui/blob/main/specification/versions.json) is the source of truth for version status.
+
+| Version                                                                   | Status     |
+| :------------------------------------------------------------------------ | :--------- |
+| [v1.0](/specification/v1.0-a2ui/)                                         | Current    |
+| [v0.9.1](/specification/v0.9.1-a2ui/)                                     | Previous   |
+| [v0.9](https://github.com/a2ui-project/a2ui/tree/main/specification/v0_9) | Previous   |
+| [v0.8](https://github.com/a2ui-project/a2ui/tree/main/specification/v0_8) | Deprecated |
+
+## Get involved
+
+We want to build this with the community. Share feedback, propose features, or pick up work on [GitHub](https://github.com/a2ui-project/a2ui) and in [GitHub Discussions](https://github.com/a2ui-project/a2ui/discussions).
+
+---
+
+# Community Projects
+
+> Community-maintained renderers, agent libraries, and tools built around the A2UI protocol.
 
 Canonical URL: https://a2ui.org/ecosystem/renderers/
 
-This page lists community renderers, agent libraries, and related projects built around the A2UI protocol.
+Community authors and organizations maintain client renderers, server libraries, and related generative UI tools built around the A2UI protocol.
 
 > **Note**
   Third-party projects listed here are maintained by their respective authors and organizations, not
@@ -12539,10 +12915,11 @@ This page lists community renderers, agent libraries, and related projects built
   and release status.
 
 > **Note**
-  For first-party SDKs maintained by the A2UI team, see the [SDKs](/concepts/sdks/) page covering
-  the official [Core SDK](/concepts/sdks/#core-sdk), [Agent SDK](/concepts/sdks/#agent-sdk)
-  (TypeScript, Python, Dart), and [Renderer SDK](/concepts/sdks/#renderer-sdk) (Flutter, React, Lit,
-  Angular, SwiftUI, and Jetpack Compose) packages.
+  For first-party SDKs maintained by the A2UI team, see the [SDKs](../../concepts/sdks/) page
+  covering the official [Core SDK](../../concepts/sdks/#core-sdk), [Agent
+  SDK](../../concepts/sdks/#agent-sdk) (TypeScript, Python, Dart), and [Renderer
+  SDK](../../concepts/sdks/#renderer-sdk) (Flutter, React, Lit, Angular, SwiftUI, and Jetpack
+  Compose) packages.
 
 ## Community renderers
 
@@ -12623,137 +13000,6 @@ For discussions and general questions, participate in [GitHub Discussions](https
 To report bugs or feature requests, use [GitHub Issues](https://github.com/a2ui-project/a2ui/issues).
 
 To report security vulnerabilities, do not open a public issue. Follow the instructions in [Google Vulnerability Reporting](https://g.co/vulnz) or contact the project maintainers privately.
-
----
-
-# Roadmap
-
-> The tools A2UI is building to take a generative UI agent from its first component to production, and what is available today at each stage.
-
-Canonical URL: https://a2ui.org/roadmap/
-
-The A2UI roadmap describes the tools we are building around the protocol to help you take a generative UI (gen-UI) agent from its first component to production, and keep improving it after launch.
-
-Shipping a gen-UI agent involves five stages that repeat. You build components, configure your agent to use them, evaluate the results, distribute the agent to your users, and monitor how they respond. What you learn while monitoring feeds the next round of component work, so the stages form a loop.
-
-The diagram below shows that loop. Select a stage to see what is available today and what is planned for it. The A2UI CLI is at the center because we plan for it to cover every stage, so you or your coding agent can run the whole loop from a terminal.
-
-<RoadmapLoop />
-
-:::note[Plans can change]
-This page describes where we are investing. Priorities and scope may change as we learn from the community.
-:::
-
-## Build cross-platform components
-
-Our goal is for you to design a component once and render it natively on every platform.
-
-**Available today**
-
-1. [Catalogs](../concepts/catalogs/) describe your components and functions in one JSON Schema that both agents and renderers read. [How to Define a Catalog](../guides/defining-a-catalog/) covers [prompt instructions and metadata](../guides/defining-a-catalog/#prompt-instructions-and-catalog-metadata), [theming with reusable definitions](../guides/defining-a-catalog/#reusable-schema-definitions-defs-and-theming), and [schema parity tests in CI](../guides/defining-a-catalog/#schema-parity-tests-in-ci).
-2. The [Basic Catalog](../concepts/catalogs/#the-basic-catalog) ships with every official renderer and takes its styling from the host framework's theme. See the [v1.0 Basic Catalog Guide](/specification/v1.0-basic-catalog-implementation-guide/).
-3. Official [renderers](../concepts/sdks/#renderer-sdk) exist for React, Lit, Angular, Flutter, SwiftUI, and Jetpack Compose. See [Registering a catalog in a renderer](../concepts/catalogs/#registering-a-catalog-in-a-renderer).
-4. [Universal Web Components](../guides/authoring-universal-components/) let you write a custom web component once and register it in Lit, React, and Angular.
-5. The `a2ui codegen` command in the [A2UI CLI](https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_cli) generates typesafe component builders from a catalog.
-6. [A2UI Composer](https://a2ui-project.github.io/composer/) is a visual editor for A2UI layouts.
-
-**On the roadmap**
-
-1. Primitives that you style to match your design system and describe declaratively. Today a custom component still needs an implementation on each native platform; described primitives remove that step.
-2. A runtime templating engine that reads a component's description and renders it natively on each platform.
-3. A secure sandbox for components that need shared business logic, such as validation or pricing rules, where a declarative description is not enough. We will investigate a sandbox that lets you write that logic once and run it safely on every client.
-
-## Configure your agents
-
-Our goal is for your agent to know when and how to use each component.
-
-**Available today**
-
-1. The skill generator (`SkillGenerator`) in the Python and TypeScript [Agent SDKs](../concepts/sdks/#agent-sdk) builds an A2UI skill from your catalog, with grammar rules for the chosen inference format and the signatures of your components and functions. Because the skill comes from the catalog, it changes when your components change. See [Generate the skill](../concepts/overview/#generate-the-skill).
-2. [Catalog negotiation](../concepts/catalogs/#catalog-negotiation-and-multi-catalog-surfaces) selects the catalogs and protocol version that each client supports. See [Using a catalog in an agent](../concepts/catalogs/#using-a-catalog-in-an-agent).
-3. [Swappable inference formats](../concepts/inference-formats/), such as Express and Direct JSON, compile model output into standard A2UI messages without client changes. See [Configuring inference formats across SDKs](../concepts/inference-formats/#configuring-inference-formats-across-sdks).
-4. The Agent SDKs [validate output against live surface state](../concepts/overview/#compile-and-validate-the-output), so errors go back to the model before anything reaches the client.
-5. Integrations exist for Google ADK and the A2A protocol, and [How to Integrate with My Agent Server](../guides/agent-integration/) covers other agent servers.
-
-**On the roadmap**
-
-1. Clearer error handling and diagnostics in the skill generator when a catalog or inference format cannot be compiled.
-2. Skill generation in the Dart Agent SDK, which does not support it yet.
-3. Integrations with more agent frameworks.
-
-## Evaluate gen-UI quality
-
-Our goal is for you to know whether your agent picks the right components and builds them correctly.
-
-**Available today**
-
-1. The [A2UI evaluation framework](https://github.com/a2ui-project/a2ui/tree/main/eval) is built on Inspect AI and scores model output against the project's own datasets in three stages: schema and structure validation, deterministic assertions, and an LLM judge that grades intent and quality. See the [evaluation design](https://github.com/a2ui-project/a2ui/blob/main/eval/DESIGN.md).
-2. [Token and latency benchmarks](../concepts/inference-formats/#token-and-latency-benchmarks) compare inference formats.
-
-**On the roadmap**
-
-Guidance and tooling to evaluate your own agents and catalogs, combining these approaches:
-
-1. Deterministic rules that check payloads against your catalog and scenario requirements.
-2. An LLM judge that grades whether the generated UI fits the user's intent.
-3. Tool usage as a judge, which looks at the agent's tool calls and context to check whether it used components correctly.
-
-## Distribute across platforms
-
-Our goal is for one agent to reach users wherever they are.
-
-**Available today**
-
-1. Renderers cover web and desktop (React, Lit, and Angular) and mobile (Flutter, SwiftUI, and Jetpack Compose). See [How to Integrate with My Client](../guides/client-integration/) and the [Android Jetpack Compose guide](https://developer.android.com/develop/ui/compose/agentic).
-2. MCP works in both directions. You can [render A2UI inside an MCP App](../guides/a2ui-in-mcp-apps/), or [embed MCP Apps in A2UI surfaces](../guides/mcp-apps-in-a2ui/), where `McpApp` already [shares data paths with sibling A2UI components](../guides/mcp-apps-in-a2ui/#synchronizing-state-and-tool-calls). The [MCP Integration Overview](../guides/mcp-overview/) compares these with [serving A2UI layouts from an MCP server](../guides/a2ui-over-mcp/) and [calling MCP tools from A2UI](../guides/mcp-catalog/).
-3. [Community renderers](../ecosystem/renderers/) cover more frameworks and platforms.
-
-**On the roadmap**
-
-1. Better tooling for MCP Apps, which is our first focus for distribution. This starts with sharing state between A2UI components and the MCP host and server when A2UI runs inside an MCP App, to match what `McpApp` already does in the other direction.
-2. Guides and examples for distributing your agent through AI assistants such as Gemini, Claude, and ChatGPT, and through messaging apps such as Microsoft Teams and Slack.
-
-## Monitor and evolve
-
-Our goal is for your gen-UI to improve as you learn from your users.
-
-**Available today**
-
-1. [Renderer-to-agent messages](../concepts/messages/#renderer-to-agent-messages) already report user actions and function results to your agent, which gives you events to log. See [Handle user actions](../concepts/overview/#handle-user-actions).
-
-**On the roadmap**
-
-1. Guidance on which logs to collect from gen-UI experiences, such as rendered surfaces, user actions, errors, and abandoned flows.
-2. Ways to turn those signals into design and component updates, which takes you back to [building components](#build-cross-platform-components).
-
-## The A2UI CLI
-
-The [A2UI CLI](https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_cli) connects the stages. Today it generates typesafe component builders from a catalog with `a2ui codegen`. We plan to extend it to every stage:
-
-| Stage      | What the CLI will help with                                      |
-| :--------- | :--------------------------------------------------------------- |
-| Build      | Scaffold, generate, preview, and publish components and catalogs |
-| Configure  | Generate skills and connect catalogs to agents                   |
-| Evaluate   | Validate output and run evaluation suites                        |
-| Distribute | Package agents for native apps, assistants, and MCP Apps hosts   |
-| Monitor    | Pull usage and feedback data back into your project              |
-
-The CLI runs in a terminal and is scriptable, so coding agents can run it directly. The repository also includes an [A2UI agent skill](https://github.com/a2ui-project/a2ui/tree/main/skills/a2ui) that teaches coding agents to work with A2UI. Together, they let a coding agent build a component, wire it into your agent, run evaluations, ship the result, and read the feedback.
-
-## Protocol versions
-
-The protocol evolves alongside this tooling. [`specification/versions.json`](https://github.com/a2ui-project/a2ui/blob/main/specification/versions.json) is the source of truth for version status.
-
-| Version                                                                   | Status     |
-| :------------------------------------------------------------------------ | :--------- |
-| [v1.0](/specification/v1.0-a2ui/)                                         | Current    |
-| [v0.9.1](/specification/v0.9.1-a2ui/)                                     | Previous   |
-| [v0.9](https://github.com/a2ui-project/a2ui/tree/main/specification/v0_9) | Previous   |
-| [v0.8](https://github.com/a2ui-project/a2ui/tree/main/specification/v0_8) | Deprecated |
-
-## Get involved
-
-We want to build this with the community. Share feedback, propose features, or pick up work on [GitHub](https://github.com/a2ui-project/a2ui) and in [GitHub Discussions](https://github.com/a2ui-project/a2ui/discussions).
 
 ---
 
