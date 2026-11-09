@@ -132,8 +132,12 @@ export default defineConfig({
           label: 'Getting Started',
           items: [
             {
-              label: 'Quick start',
+              label: 'Quickstart',
               slug: 'quickstart',
+            },
+            {
+              label: 'Step-by-Step Walkthrough',
+              slug: 'quickstart/step-by-step',
             },
             {
               label: 'Playground ↗',
