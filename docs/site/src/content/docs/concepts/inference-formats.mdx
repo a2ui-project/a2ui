@@ -204,7 +204,7 @@ Swapping an inference format requires no changes to catalogs, few-shot examples,
 2. Bidirectional translation (`compile` and `decompile`): Alongside compiling model output into wire messages, each format's `Parser` can decompile wire messages back into the format's text notation. Structured few-shot `examples`, fenced `json` message blocks inside a catalog's `instructions`, and prior conversation turns can therefore be authored once as wire messages and rendered automatically in whichever format is active.
 3. Incremental stream compilation and validation: Both one-shot parsing (`parseResponse` / `parse_response`) and chunked streaming (`openStream` / `open_stream`) separate conversational text from UI sentinel blocks, heal in-progress string literals on configured `progressiveKeys` (such as `"text"`), emit incremental wire deltas as statements arrive, and validate every message against `RendererState` so malformed output can be returned to the model for self-correction.
 
-In the Agent SDKs (available for TypeScript, Python, and Dart; the Swift packages focus on client-side rendering), `A2uiGenerator` defaults to `ExpressFormatFactory` and accepts any `InferenceFormatFactory` globally or per request while keeping prompt generation and response parsing identical:
+In the Agent SDKs (available for TypeScript, Python, and Dart; the Swift and Kotlin packages focus on client-side rendering), `A2uiGenerator` defaults to `ExpressFormatFactory` and accepts any `InferenceFormatFactory` globally or per request while keeping prompt generation and response parsing identical:
 
 <Tabs syncKey="sdk-lang">
   <TabItem label="TypeScript">
