@@ -57,6 +57,7 @@ const VALUE_DEPTH = 2;
 export interface DirectJsonStreamSource {
   readonly catalogs: readonly {protocolVersion?: string}[];
   readonly progressiveKeys: ReadonlySet<string>;
+  readonly bufferIncompleteComponents?: boolean;
   compile(formatContent: string): AgentToRendererMessage[];
 }
 
@@ -132,7 +133,7 @@ type Growing =
 export class DirectJsonResponseStream<
   Part extends StreamPart = ResponsePart,
 > implements ResponseStream<Part> {
-  private readonly v10: boolean;
+  private readonly buffersComponents: boolean;
   private readonly wrapped: boolean;
   readonly state: RendererState;
   private readonly continues: boolean;
@@ -168,7 +169,9 @@ export class DirectJsonResponseStream<
     private readonly parser: DirectJsonStreamSource,
     {wrapped, state, afterRejectedBlock}: DirectJsonStreamOptions,
   ) {
-    this.v10 = isAtLeastVersion(parser.catalogs[0].protocolVersion ?? '1.0', '1.0');
+    this.buffersComponents =
+      Boolean(parser.bufferIncompleteComponents) ||
+      isAtLeastVersion(parser.catalogs[0].protocolVersion ?? '1.0', '1.0');
     this.wrapped = wrapped;
     this.state = state;
     this.continues = afterRejectedBlock === 'continue';
@@ -361,7 +364,7 @@ export class DirectJsonResponseStream<
       this.readCache = new PartialReadCache();
     }
     const read = readPartialMessages(this.block, this.parser.progressiveKeys, {
-      wholeItemKeys: this.v10 ? ['components'] : [],
+      wholeItemKeys: this.buffersComponents ? ['components'] : [],
       cache: this.readCache,
       start,
       end: trailingFenceStart(this.block, start, end),
@@ -414,7 +417,7 @@ export class DirectJsonResponseStream<
     if (!isObject(envelope)) return false;
     const body = envelope.updateComponents;
     return (
-      this.v10 &&
+      this.buffersComponents &&
       typeof envelope.version === 'string' &&
       isObject(body) &&
       typeof body.surfaceId === 'string' &&

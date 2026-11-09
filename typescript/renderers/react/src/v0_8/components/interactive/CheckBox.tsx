@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-import {useState, useCallback, useEffect, useId, memo} from 'react';
+import {memo, useCallback, useEffect, useState} from 'react';
 import type * as Types from '@a2ui/web_core/types/types';
-import type {A2UIComponentProps} from '../../types';
 import {useA2UIComponent} from '../../hooks/useA2UIComponent';
+import {useIdCompat} from '../../hooks/useIdCompat';
 import {classMapToString, stylesToObject} from '../../lib/utils';
+import type {A2UIComponentProps} from '../../types';
 
 /**
  * CheckBox component - a boolean toggle with a label.
@@ -34,7 +35,7 @@ export const CheckBox = memo(function CheckBox({
     surfaceId,
   );
   const props = node.properties;
-  const id = useId();
+  const id = useIdCompat();
 
   const label = resolveString(props.label);
   const valuePath = props.value?.path;

@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-import * as fs from 'fs';
+import {readdirSync, readFileSync} from 'fs';
+import {join} from 'path';
+
 import {describe, expect, test} from 'vitest';
 
 import {
@@ -23,18 +25,14 @@ import {
   A2uiCompilationParseError,
   A2uiCompilationValidationError,
   A2uiGenerator,
+  A2uiRequestProcessor,
   A2uiValidationError,
   AgentToRendererMessage,
   CatalogConfig,
-  CatalogTransformer,
-  ComponentPruningTransformer,
   DirectJsonFormat,
   DirectJsonFormatFactory,
   ExpressFormat,
   ExpressFormatFactory,
-  FileSystemCatalogProvider,
-  FunctionPruningTransformer,
-  InMemoryCatalogProvider,
   InferenceFormat,
   InferenceFormatFactory,
   ParseError,
@@ -44,14 +42,85 @@ import {
 import {CatalogApi, RendererCapabilities} from '../../src/internal/web-core.js';
 import {loadCases, LoadedCase} from './loader.js';
 import {
-  CatalogRegistration,
+  injectedCatalogId,
+  liftMessages,
+  lowerCapabilities,
+  lowerMessages,
+  lowerText,
+  SuiteVersion,
+  V1_ONLY_CASES,
+} from './lowering.js';
+import {
+  assertKnownKeys,
+  CASE_METADATA_KEYS,
   compileChecked,
   conformancePath,
+  describeSuite,
+  EXPECT_ERROR_KEYS,
   expectCatalogContents,
+  forEachSuiteVersion,
+  loadCatalogEntry,
 } from './suite-helpers.js';
 
 const CONFORMANCE_SURFACE_ID = 'default_surface';
 const DEFAULT_CATALOG = 'test_data/catalogs/simplified_catalog_v1_0.json';
+
+const MULTI_CATALOG_CASE_KEYS: Record<string, ReadonlySet<string>> = {
+  compile: new Set([
+    ...CASE_METADATA_KEYS,
+    'args',
+    'input',
+    'expect',
+    'expect_error',
+    'expect_present',
+  ]),
+  decompile: new Set([
+    ...CASE_METADATA_KEYS,
+    'args',
+    'messages',
+    'expect_contains',
+    'expect_absent',
+    'expect_error',
+    'expect_recompiled',
+    'expect_round_trip',
+  ]),
+  parse_response: new Set([...CASE_METADATA_KEYS, 'args', 'input', 'expect', 'expect_error']),
+  generate_prompt_snippet: new Set([
+    ...CASE_METADATA_KEYS,
+    'args',
+    'expect_file',
+    'expect_contains',
+    'expect_absent',
+    'expect_deterministic',
+    'expect_error',
+  ]),
+  create_format: new Set([...CASE_METADATA_KEYS, 'args', 'expect', 'expect_error']),
+  create_processor: new Set([
+    ...CASE_METADATA_KEYS,
+    'args',
+    'expect',
+    'expect_error',
+    'then_parse',
+    'then_stream',
+  ]),
+};
+
+const CREATE_FORMAT_EXPECT_KEYS = new Set([
+  'parsers_are_distinct',
+  'parser_state_isolated',
+  'prompt_snippet_contains',
+  'prompt_snippet_absent',
+]);
+const CREATE_PROCESSOR_EXPECT_KEYS = new Set([
+  'active_catalog_ids',
+  'catalogs',
+  'generator_catalogs_unchanged',
+  'prompt_snippet_contains',
+  'prompt_snippet_absent',
+]);
+const THEN_PARSE_KEYS = new Set(['input', 'expect', 'expect_error']);
+const THEN_STREAM_KEYS = new Set(['steps', 'expect_close', 'expect_error']);
+const THEN_STREAM_STEP_KEYS = new Set(['input', 'expect', 'expect_error']);
 
 function assertThrows(fn: () => void, expectError: Record<string, unknown> | string): void {
   if (typeof expectError === 'string') {
@@ -59,6 +128,7 @@ function assertThrows(fn: () => void, expectError: Record<string, unknown> | str
     return;
   }
 
+  assertKnownKeys(expectError, EXPECT_ERROR_KEYS, 'expect_error');
   const category = expectError.category as string;
   let thrownError: unknown;
   try {
@@ -97,46 +167,16 @@ function assertThrows(fn: () => void, expectError: Record<string, unknown> | str
   }
 }
 
-function loadCatalogConfig(entry: unknown): CatalogConfig {
-  const transformers: CatalogTransformer[] = [];
-  let ref: unknown = entry;
-  if (ref && typeof ref === 'object' && 'catalog' in (ref as Record<string, unknown>)) {
-    const reg = ref as CatalogRegistration;
-    for (const t of reg.transformers ?? []) {
-      if (t.component_pruning) {
-        transformers.push(new ComponentPruningTransformer(t.component_pruning));
-      }
-      if (t.function_pruning) {
-        transformers.push(new FunctionPruningTransformer(t.function_pruning));
-      }
-    }
-    ref = reg.catalog;
-  }
-
-  if (ref && typeof ref === 'object') {
-    const rawDoc = ref as Record<string, unknown>;
-    const doc = {
-      protocolVersion: '1.0',
-      catalogId: 'inline',
-      ...rawDoc,
-    };
-    const catalog = new InMemoryCatalogProvider(doc).load();
-    return new CatalogConfig(catalog, transformers);
-  }
-
-  if (typeof ref !== 'string') {
-    throw new Error(`Invalid catalog reference: expected string, got ${typeof ref}`);
-  }
-  const catalog = new FileSystemCatalogProvider(conformancePath(ref)).load();
-  return new CatalogConfig(catalog, transformers);
+function loadCatalogConfig(entry: unknown, lower = false): CatalogConfig {
+  return loadCatalogEntry(entry, lower);
 }
 
-function loadCatalogs(args: Record<string, unknown>): CatalogApi[] {
+function loadCatalogs(args: Record<string, unknown>, lower = false): CatalogApi[] {
   if (Array.isArray(args.catalogs)) {
-    return args.catalogs.map(entry => loadCatalogConfig(entry).transformedCatalog);
+    return args.catalogs.map(entry => loadCatalogConfig(entry, lower).transformedCatalog);
   }
   if (args.catalog !== undefined) {
-    return [loadCatalogConfig(args.catalog).transformedCatalog];
+    return [loadCatalogConfig(args.catalog, lower).transformedCatalog];
   }
   return [];
 }
@@ -144,6 +184,7 @@ function loadCatalogs(args: Record<string, unknown>): CatalogApi[] {
 function loadExamples(
   examplePaths: string[] | undefined,
   catalogs: CatalogApi[],
+  lower = false,
 ): Record<string, AgentToRendererMessage[]> | undefined {
   if (!examplePaths || examplePaths.length === 0) {
     return undefined;
@@ -151,8 +192,13 @@ function loadExamples(
   const examples: Record<string, AgentToRendererMessage[]> = {};
   for (let i = 0; i < examplePaths.length; i++) {
     const fullPath = conformancePath(examplePaths[i]);
-    const content = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
-    const messages: AgentToRendererMessage[] = Array.isArray(content) ? content : [content];
+    const content = JSON.parse(readFileSync(fullPath, 'utf8'));
+    const rawMessages: Array<Record<string, unknown>> = Array.isArray(content)
+      ? content
+      : [content];
+    const messages: AgentToRendererMessage[] = lower
+      ? lowerMessages(rawMessages, catalogs[0]?.id)
+      : (rawMessages as unknown as AgentToRendererMessage[]);
     const firstSurfaceCatId = (messages[0] as {createSurface?: {catalogId?: string}} | undefined)
       ?.createSurface?.catalogId;
     const key = firstSurfaceCatId || catalogs[0]?.id || `example_${i}`;
@@ -165,17 +211,17 @@ function loadExamples(
   return examples;
 }
 
-function makeFormat(args: Record<string, unknown>): InferenceFormat {
+function makeFormat(args: Record<string, unknown>, lower = false): InferenceFormat {
   const catalogs =
     'catalogs' in args || 'catalog' in args
-      ? loadCatalogs(args)
-      : loadCatalogs({catalog: DEFAULT_CATALOG});
+      ? loadCatalogs(args, lower)
+      : loadCatalogs({catalog: DEFAULT_CATALOG}, lower);
 
   if (catalogs.length === 0) {
     throw new A2uiCatalogError('At least one active catalog is required.');
   }
 
-  const examples = loadExamples(args.examples as string[] | undefined, catalogs);
+  const examples = loadExamples(args.examples as string[] | undefined, catalogs, lower);
   const formatName = (args.format as string) ?? 'express';
 
   if (formatName === 'express') {
@@ -240,6 +286,7 @@ function expectSnippet(
 function assertPartsMatch(
   actualParts: ResponsePart[],
   expectedParts: Array<Record<string, unknown>>,
+  options: {isLowered?: boolean; isExpress?: boolean; injId?: string} = {},
 ): void {
   expect(actualParts.length).toBe(expectedParts.length);
   for (let i = 0; i < actualParts.length; i++) {
@@ -248,7 +295,13 @@ function assertPartsMatch(
     if (actual.type === 'text') {
       expect(actual.text).toBe(expected.text ?? '');
     } else {
-      expect(sortComponentsById(actual.a2ui)).toEqual(
+      const actualMessages = options.isLowered
+        ? (liftMessages(actual.a2ui, {
+            join: options.isExpress,
+            injectedCatalogId: options.isExpress ? undefined : options.injId,
+          }) as unknown as AgentToRendererMessage[])
+        : actual.a2ui;
+      expect(sortComponentsById(actualMessages)).toEqual(
         sortComponentsById(expected.a2ui as AgentToRendererMessage[]),
       );
     }
@@ -268,8 +321,13 @@ function describeConfigs(
   });
 }
 
-function runFormatCase(testCase: LoadedCase): void {
+function runFormatCase(testCase: LoadedCase, version: SuiteVersion = 'v1.0'): void {
+  const isLowered = version === 'v0.9-lowered';
   const action = testCase.action;
+  const allowedKeys = MULTI_CATALOG_CASE_KEYS[action];
+  if (allowedKeys) {
+    assertKnownKeys(testCase, allowedKeys, `${action} case`);
+  }
   const args = (testCase.args as Record<string, unknown>) || {};
 
   if (action === 'compile') {
@@ -290,6 +348,15 @@ function runFormatCase(testCase: LoadedCase): void {
   } else if (action === 'decompile') {
     const parser: Parser = makeFormat(args).createParser();
     const messages = testCase.messages as AgentToRendererMessage[];
+    if (testCase.expect_error) {
+      assertThrows(
+        () => {
+          parser.decompile(messages);
+        },
+        testCase.expect_error as Record<string, unknown>,
+      );
+      return;
+    }
     const notation = parser.decompile(messages);
     expectSnippet(
       notation,
@@ -299,6 +366,12 @@ function runFormatCase(testCase: LoadedCase): void {
     if (testCase.expect_round_trip) {
       const recompiled = compileChecked(parser, notation);
       expect(sortComponentsById(recompiled)).toEqual(sortComponentsById(messages));
+    }
+    if (testCase.expect_recompiled) {
+      const recompiled = compileChecked(parser, notation);
+      expect(sortComponentsById(recompiled)).toEqual(
+        sortComponentsById(testCase.expect_recompiled as AgentToRendererMessage[]),
+      );
     }
   } else if (action === 'parse_response') {
     const parser: Parser = makeFormat(args).createParser();
@@ -325,6 +398,10 @@ function runFormatCase(testCase: LoadedCase): void {
     }
     const fmt = makeFormat(args);
     const snippet = fmt.promptGenerator.generate();
+    if (typeof testCase.expect_file === 'string') {
+      const expectedText = readFileSync(conformancePath(testCase.expect_file), 'utf8');
+      expect(snippet).toBe(expectedText);
+    }
     expectSnippet(
       snippet,
       testCase.expect_contains as string[] | undefined,
@@ -337,20 +414,23 @@ function runFormatCase(testCase: LoadedCase): void {
     if (testCase.expect_error) {
       assertThrows(
         () => {
-          makeFormat(args);
+          makeFormat(args, isLowered);
         },
         testCase.expect_error as Record<string, unknown>,
       );
       return;
     }
-    const fmt = makeFormat(args);
+    const fmt = makeFormat(args, isLowered);
     const expected = (testCase.expect as Record<string, unknown>) || {};
+    assertKnownKeys(expected, CREATE_FORMAT_EXPECT_KEYS, 'create_format expect');
 
     if (expected.parsers_are_distinct) {
       expect(fmt.createParser()).not.toBe(fmt.createParser());
     }
     if (expected.parser_state_isolated) {
-      const chunks = args.probe_chunks as string[];
+      const isExpress = ((args.format as string) ?? 'express') === 'express';
+      const rawChunks = args.probe_chunks as string[];
+      const chunks = isLowered && !isExpress ? rawChunks.map(c => lowerText(c)) : rawChunks;
       const read = (p: Parser) => {
         const stream = p.openStream();
         return chunks.map(chunk => stream.feed(chunk));
@@ -366,10 +446,12 @@ function runFormatCase(testCase: LoadedCase): void {
       expected.prompt_snippet_absent as string[] | undefined,
     );
   } else if (action === 'create_processor') {
-    const configs = ((args.catalogs as unknown[]) || []).map(loadCatalogConfig);
+    const configs = ((args.catalogs as unknown[]) || []).map(entry =>
+      loadCatalogConfig(entry, isLowered),
+    );
     const before = describeConfigs(configs);
     const catalogs = configs.map(c => c.transformedCatalog);
-    const examples = loadExamples(args.examples as string[] | undefined, catalogs);
+    const examples = loadExamples(args.examples as string[] | undefined, catalogs, isLowered);
     const baseFactory = typeof args.format === 'string' ? makeFactory(args.format) : undefined;
     const overrideFactory = args.format_override
       ? makeFactory(args.format_override as string)
@@ -377,9 +459,11 @@ function runFormatCase(testCase: LoadedCase): void {
 
     const generator = new A2uiGenerator(configs, examples, baseFactory);
 
-    const capabilities = args.renderer_capabilities as
+    const rawCapabilities = args.renderer_capabilities as
       | Record<string, RendererCapabilities>
       | undefined;
+    const capabilities =
+      isLowered && rawCapabilities ? lowerCapabilities(rawCapabilities) : rawCapabilities;
 
     const create = () => {
       const processor = generator.createProcessor(
@@ -398,6 +482,7 @@ function runFormatCase(testCase: LoadedCase): void {
     const {processor, snippet} = create();
     const active = processor.catalogs;
     const expected = (testCase.expect as Record<string, unknown>) || {};
+    assertKnownKeys(expected, CREATE_PROCESSOR_EXPECT_KEYS, 'create_processor expect');
 
     if (expected.active_catalog_ids) {
       expect(active.map(c => c.id)).toEqual(expected.active_catalog_ids);
@@ -405,14 +490,12 @@ function runFormatCase(testCase: LoadedCase): void {
     if (Array.isArray(expected.catalogs)) {
       const expCats = expected.catalogs as Array<{
         catalog_id?: string;
+        protocol_version?: string;
         components?: string[];
         functions?: string[];
       }>;
       for (let i = 0; i < expCats.length; i++) {
-        if (expCats[i].catalog_id) {
-          expect(active[i].id).toBe(expCats[i].catalog_id);
-        }
-        expectCatalogContents(active[i], expCats[i]);
+        expectCatalogContents(active[i], expCats[i], {lowered: isLowered});
       }
     }
     expectSnippet(
@@ -424,48 +507,145 @@ function runFormatCase(testCase: LoadedCase): void {
       expect(describeConfigs(configs)).toEqual(before);
     }
 
+    const effectiveFormat =
+      (args.format_override as string | undefined) ??
+      (args.format as string | undefined) ??
+      'express';
+    const isExpress = effectiveFormat === 'express';
+    const injId =
+      isLowered && !isExpress ? injectedCatalogId(testCase, DEFAULT_CATALOG) : undefined;
+
     const thenParse = testCase.then_parse as Record<string, unknown> | undefined;
     if (thenParse) {
+      assertKnownKeys(thenParse, THEN_PARSE_KEYS, 'then_parse');
+      const rawInput = thenParse.input as string;
+      const catId = rawInput.includes('"catalogId"') ? undefined : injId;
+      const parseInput = isLowered && !isExpress ? lowerText(rawInput, catId) : rawInput;
       if (thenParse.expect_error) {
         assertThrows(
           () => {
-            processor.parseResponse(thenParse.input as string);
+            processor.parseResponse(parseInput);
           },
           thenParse.expect_error as Record<string, unknown>,
         );
       } else {
-        const parts = processor.parseResponse(thenParse.input as string);
-        assertPartsMatch(parts, thenParse.expect as Array<Record<string, unknown>>);
+        const parts = processor.parseResponse(parseInput);
+        assertPartsMatch(parts, thenParse.expect as Array<Record<string, unknown>>, {
+          isLowered,
+          isExpress,
+          injId,
+        });
       }
+    }
+
+    const thenStream = testCase.then_stream as ThenStream | undefined;
+    if (thenStream) {
+      runThenStream(processor, thenStream, {isLowered, isExpress, injId});
     }
   } else {
     throw new Error(`Unsupported action: ${action}`);
   }
 }
 
-describe('Conformance: multi_catalog_formats.yaml & request_processor.yaml', () => {
-  const files = [
-    conformancePath('agent/multi_catalog_formats.yaml'),
-    conformancePath('agent/request_processor.yaml'),
-  ];
+interface ThenStreamStep {
+  input: string;
+  expect?: Array<Record<string, unknown>>;
+  expect_error?: Record<string, unknown> | string;
+}
 
-  for (const testCase of loadCases(files)) {
-    const args = (testCase.args as Record<string, unknown>) || {};
-    const fmt = (args.format as string) ?? 'express';
-    const fmtOverride = args.format_override as string | undefined;
-    const isUnsupportedFormat =
-      (fmt !== 'express' && fmt !== 'direct_json') ||
-      (fmtOverride !== undefined && fmtOverride !== 'express' && fmtOverride !== 'direct_json');
+interface ThenStream {
+  steps: ThenStreamStep[];
+  expect_close?: Array<Record<string, unknown>>;
+  expect_error?: Record<string, unknown> | string;
+}
 
-    const title = `${testCase.action} · ${testCase.name}`;
-    if (isUnsupportedFormat) {
-      test.skip(title, () => {
-        runFormatCase(testCase);
-      });
-    } else {
-      test(title, () => {
-        runFormatCase(testCase);
-      });
+/**
+ * Feeds `then_stream` steps through a stream the processor opened. Each step
+ * states the parts its chunk yields, or the error feeding it throws, which ends
+ * the case. After the last step the stream is closed: `expect_close` states the
+ * parts that yields, `expect_error` the error it throws.
+ */
+function runThenStream(
+  processor: A2uiRequestProcessor,
+  thenStream: ThenStream,
+  options: {isLowered?: boolean; isExpress?: boolean; injId?: string} = {},
+): void {
+  assertKnownKeys(
+    thenStream as unknown as Record<string, unknown>,
+    THEN_STREAM_KEYS,
+    'then_stream',
+  );
+  const fullStreamText = thenStream.steps.map(s => s.input).join('');
+  const catId = fullStreamText.includes('"catalogId"') ? undefined : options.injId;
+  const stream = processor.openStream();
+  for (const step of thenStream.steps) {
+    assertKnownKeys(
+      step as unknown as Record<string, unknown>,
+      THEN_STREAM_STEP_KEYS,
+      'then_stream step',
+    );
+    const chunk =
+      options.isLowered && !options.isExpress ? lowerText(step.input, catId) : step.input;
+    if (step.expect_error !== undefined) {
+      assertThrows(() => {
+        stream.feed(chunk);
+      }, step.expect_error);
+      return;
     }
+    expect(Array.isArray(step.expect)).toBe(true);
+    assertPartsMatch(stream.feed(chunk), step.expect as Array<Record<string, unknown>>, options);
   }
+  if (thenStream.expect_error !== undefined) {
+    assertThrows(() => {
+      stream.close();
+    }, thenStream.expect_error);
+    return;
+  }
+  const closed = stream.close();
+  if (thenStream.expect_close !== undefined) {
+    assertPartsMatch(closed, thenStream.expect_close, options);
+  }
+}
+
+function unsupportedFormatSkipReason(testCase: LoadedCase): string | undefined {
+  const args = (testCase.args as Record<string, unknown>) || {};
+  const fmt = (args.format as string) ?? 'express';
+  const fmtOverride = args.format_override as string | undefined;
+  if (fmt !== 'express' && fmt !== 'direct_json') {
+    return `Unsupported format: ${fmt}`;
+  }
+  if (fmtOverride !== undefined && fmtOverride !== 'express' && fmtOverride !== 'direct_json') {
+    return `Unsupported format override: ${fmtOverride}`;
+  }
+  return undefined;
+}
+
+describeSuite(
+  'Conformance: multi_catalog_formats.yaml',
+  loadCases([conformancePath('agent/multi_catalog_formats.yaml')]),
+  testCase => runFormatCase(testCase),
+  {skipReason: unsupportedFormatSkipReason},
+);
+
+forEachSuiteVersion(
+  'Conformance: request_processor.yaml',
+  loadCases([conformancePath('agent/request_processor.yaml')]),
+  (testCase, version) => runFormatCase(testCase, version),
+  {skipReason: testCase => unsupportedFormatSkipReason(testCase)},
+);
+
+describe('V1_ONLY_CASES hygiene', () => {
+  test('every V1_ONLY_CASES entry matches an existing agent conformance case', () => {
+    const agentRoot = conformancePath('agent');
+    const yamlPaths: string[] = [];
+    for (const entry of readdirSync(agentRoot, {recursive: true})) {
+      const rel = String(entry);
+      if (rel.endsWith('.yaml')) {
+        yamlPaths.push(join(agentRoot, rel));
+      }
+    }
+    const allCaseNames = new Set(loadCases(yamlPaths).map(c => c.name));
+    const missing = Object.keys(V1_ONLY_CASES).filter(name => !allCaseNames.has(name));
+    expect(missing).toEqual([]);
+  });
 });

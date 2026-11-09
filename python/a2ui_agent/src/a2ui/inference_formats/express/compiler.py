@@ -1010,7 +1010,7 @@ class ExpressScopeSession:
                     "surface() extensions require a surface-creating scope with a"
                     " root component."
                 )
-            if compiled_data and not compiled_components:
+            if compiled_components or compiled_data:
                 return self._compile_incremental_updates(
                     scope,
                     state,
@@ -1071,7 +1071,8 @@ class ExpressScopeSession:
         messages: list[dict[str, Any]] = []
         if delta_components:
             if (
-                not scope.has_surface_directive
+                not is_final
+                and not scope.has_surface_directive
                 and not state.surface_created
                 and not surface_exists
             ):
@@ -1694,8 +1695,8 @@ class ExpressCompiler:
                 if data_updates:
                     return data_updates
                 raise ExpressUndefinedRootError("root")
-            if not scope.has_surface_directive:
-                raise ExpressUndefinedRootError("root")
+            # Components without a root update a surface the renderer already
+            # shows, whether or not a `surface(...)` line named it.
             return [
                 {
                     "version": ctx.version,
@@ -2099,6 +2100,12 @@ class ExpressCompiler:
             # a binding is data.
             if prop_name == "value" and _resolves_to_path(arg, raw_symbols):
                 sibling_value_path = mapped_val
+
+        if raw_checks and "checks" not in properties:
+            raise ExpressValidationError(
+                f"Component '{comp_name}' does not declare a 'checks' property,"
+                " so it cannot take checks."
+            )
 
         # Checks bind the component's own value implicitly.
         ctx.active_value_path = sibling_value_path

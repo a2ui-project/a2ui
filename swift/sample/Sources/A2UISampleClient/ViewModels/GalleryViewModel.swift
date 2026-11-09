@@ -18,6 +18,7 @@ import BasicCatalog
 import BasicCatalogSwiftUI
 import Combine
 import Foundation
+import UIKit
 
 /// A diagnostic log entry recorded during interactive stream step-through.
 public struct DiagnosticLogEntry: Identifiable, Hashable, Sendable {
@@ -102,15 +103,20 @@ public final class GalleryViewModel: @unchecked Sendable, ObservableObject {
   @Published public private(set) var dataModelString: String = "{}"
 
   public let catalogs: [Catalog<ComponentImplementation>]
+  /// Opens links for `openUrl`. The catalogs hold it weakly, so the view model owns it.
+  private let urlOpener = SystemURLOpener()
   private var processor: MessageProcessor
   private let parser = MessageParser()
   private var surfaceSubscription: AnyCancellable?
   private let handler = GalleryActionHandler()
 
   public init() {
-    self.catalogs = BasicCatalogImplementation.allCatalogs
+    let catalogs = A2UIProtocolVersion.allCases.map { [urlOpener] version in
+      BasicCatalogImplementation.makeCatalog(version: version, openURLHandler: urlOpener)
+    }
+    self.catalogs = catalogs
     self.processor = MessageProcessor(
-      catalogs: BasicCatalog.allCatalogs,
+      catalogs: catalogs,
       actionHandler: self.handler
     )
     self.handler.viewModel = self
@@ -144,7 +150,7 @@ public final class GalleryViewModel: @unchecked Sendable, ObservableObject {
     surfaceSubscription = nil
 
     self.processor = MessageProcessor(
-      catalogs: BasicCatalog.allCatalogs,
+      catalogs: catalogs,
       actionHandler: self.handler
     )
     self.currentStepIndex = 0
@@ -224,5 +230,12 @@ public final class GalleryViewModel: @unchecked Sendable, ObservableObject {
     } else {
       self.dataModelString = text
     }
+  }
+}
+
+/// Opens `openUrl` links with the system.
+private final class SystemURLOpener: OpenURLHandler {
+  func open(_ url: URL) {
+    Task { @MainActor in UIApplication.shared.open(url) }
   }
 }

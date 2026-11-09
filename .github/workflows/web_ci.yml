@@ -122,6 +122,35 @@ jobs:
       - uses: ./.github/actions/setup-python
       - name: Check web_core executed cases
         run: uv run --project conformance python conformance/scripts/check_executed_cases.py --manifest-dir "${{ runner.temp }}/a2ui-manifest" --harness web_core --corpus core
+      - name: Check adapter executed cases
+        run: |
+          for h in lit react angular; do
+            uv run --project conformance python conformance/scripts/check_executed_cases.py \
+              --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+              --corpus adapter \
+              --harness "$h" \
+              --exclude adapter/markdown_subset.yaml="renderers render components, not raw markdown"
+          done
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --corpus adapter \
+            --harness web_core_universal \
+            --only core/accessibility.yaml
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --corpus adapter \
+            --harness markdown-it \
+            --only adapter/markdown_subset.yaml
+      - name: Check TS agent executed cases
+        run: |
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --corpus agent \
+            --harness ts-agent \
+            --exclude "agent/direct_json/scaling.yaml=performance: runs in ci-timing via test:timing" \
+            --exclude "agent/express/scaling.yaml=performance: runs in ci-timing via test:timing"
+      - name: Test React 17 Compatibility
+        run: yarn workspace @a2ui/react run test:react17
       - name: Test React 18 Compatibility
         run: yarn workspace @a2ui/react run test:react18
       - name: Verify NPM Publish Script
