@@ -34,9 +34,9 @@ describe('ComponentModel', () => {
   });
 
   it('constructs without a catalog for pre-1.0 callers', () => {
-    const legacy = new ComponentModel('c2', 'Text', {text: 'Hi'});
-    assert.strictEqual(legacy.catalog, undefined);
-    assert.strictEqual(legacy.properties.text, 'Hi');
+    const v09Component = new ComponentModel('c2', 'Text', {text: 'Hi'});
+    assert.strictEqual(v09Component.catalog, undefined);
+    assert.strictEqual(v09Component.properties.text, 'Hi');
   });
 
   it('updates properties', () => {
