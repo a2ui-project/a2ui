@@ -1,7 +1,5 @@
 # [a2ui_core](https://pub.dev/packages/a2ui_core) Changelog
 
-## Unreleased
-
 ## 0.6.0
 
 - Rename `Catalog.toLegacyInlineCatalog()` to `Catalog.toV09InlineCatalog()`.

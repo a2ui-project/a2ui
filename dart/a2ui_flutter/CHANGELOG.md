@@ -16,8 +16,6 @@
 
 # [a2ui_flutter](https://pub.dev/packages/a2ui_flutter) Changelog
 
-## Unreleased
-
 ## 0.2.0
 
 - **Breaking:** Requires `a2ui_core` `^0.6.0`, whose types this library

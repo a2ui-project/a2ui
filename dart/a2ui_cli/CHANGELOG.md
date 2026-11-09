@@ -1,7 +1,5 @@
 # [a2ui_cli](https://pub.dev/packages/a2ui_cli) Changelog
 
-## Unreleased
-
 ## 0.3.0
 
 - **Breaking:** Requires `a2ui_core` `^0.6.0` (`a2ui_cli` exposes `a2ui_core`

@@ -1,7 +1,5 @@
 # [a2ui_agent](https://pub.dev/packages/a2ui_agent) Changelog
 
-## Unreleased
-
 ## 0.2.0
 
 - **Breaking:** Requires `a2ui_core` `^0.6.0`, whose types this library
