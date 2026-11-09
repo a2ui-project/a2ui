@@ -60,7 +60,7 @@ void main() {
     expect(numbers(controller.newItems), [10, 11, 20, 21]);
     expect(numbers(controller.teamInputItems), [40, 41]);
     expect(numbers(controller.orderedItems), [10, 11, 20, 21, 40, 41]);
-    expect(controller.selected!.number, 10);
+    expect(controller.selected, isNull);
     expect(controller.remaining, 6);
     expect(controller.repositoryInfo.labels, contains('P1'));
     expect(numbers(controller.relatedInQueue(controller.item(11)!)), [20]);
@@ -86,6 +86,15 @@ void main() {
     // 12 is the most recently updated issue, but the only one with a
     // suggestion.
     expect(numbers(controller.newItems), [12, 10, 11, 20, 21]);
+  });
+
+  test('deselects the selected item', () async {
+    await controller.start();
+    controller.select(11);
+
+    controller.deselect();
+
+    expect(controller.selected, isNull);
   });
 
   test('reports a failure to connect, and can try again', () async {
@@ -125,6 +134,7 @@ void main() {
 
   test('applies the draft, then selects the next item', () async {
     await controller.start();
+    controller.select(10);
     final TriageItem item = controller.selected!;
     controller.draftFor(item, const TriageSuggestion(addedLabels: ['P2']));
 
@@ -142,6 +152,7 @@ void main() {
   test('keeps a failed item selected, and posts its reply once', () async {
     github.unassignable.add('stranger');
     await controller.start();
+    controller.select(10);
     final TriageItem item = controller.selected!;
     controller.draftFor(
       item,
@@ -233,6 +244,7 @@ void main() {
 
   test('sends an item to the team', () async {
     await controller.start();
+    controller.select(10);
 
     await controller.sendToTeam(controller.item(10)!, comment: 'Thoughts.');
 

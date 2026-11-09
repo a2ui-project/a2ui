@@ -20,6 +20,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:triage_ui/src/github_item.dart';
 import 'package:triage_ui/src/model/triage_controller.dart';
 import 'package:triage_ui/src/model/triage_item.dart';
+import 'package:triage_ui/src/ui/chip_list_field.dart';
 import 'package:triage_ui/src/ui/item_list.dart';
 import 'package:triage_ui/src/ui/triage_app.dart';
 
@@ -62,7 +63,8 @@ void main() {
     clipboard = [];
   });
 
-  Future<void> pumpApp(WidgetTester tester) async {
+  /// Starts the app, and selects item 10 unless [selectFirst] is false.
+  Future<void> pumpApp(WidgetTester tester, {bool selectFirst = true}) async {
     tester.view
       ..physicalSize = const Size(1600, 1400)
       ..devicePixelRatio = 1;
@@ -79,6 +81,7 @@ void main() {
       },
     );
     await tester.runAsync(controller.start);
+    if (selectFirst) controller.select(10);
     await tester.pumpWidget(TriageApp(controller: controller));
     await tester.pumpAndSettle();
   }
@@ -146,7 +149,12 @@ void main() {
     await tester.tap(find.byTooltip('Remove P1'));
     await tester.pump();
     await tester.enterText(
-      find.widgetWithText(TextField, 'Labels to add').first,
+      find
+          .descendant(
+            of: find.byType(ChipListField).first,
+            matching: find.byType(TextField),
+          )
+          .first,
       'P2',
     );
     await tester.testTextInput.receiveAction(TextInputAction.done);
@@ -172,16 +180,16 @@ void main() {
   testWidgets('picks labels from the dropdown', (tester) async {
     await pumpApp(tester);
 
-    await tester.tap(find.byTooltip('Choose labels to add').first);
-    await tester.pumpAndSettle();
-    // The priority labels come first.
-    final List<String> choices = [
+    List<String> choices() => [
       for (final MenuItemButton b in tester.widgetList(
         find.byType(MenuItemButton),
       ))
         (b.child! as Text).data!,
     ];
-    expect(choices.take(4), ['P0', 'P1', 'P2', 'P3']);
+    await tester.tap(find.byTooltip('Choose labels to add').first);
+    await tester.pumpAndSettle();
+    // The checked labels come first, then the priority labels.
+    expect(choices().take(4), ['P1', 'P0', 'P2', 'P3']);
     await tester.tap(find.widgetWithText(MenuItemButton, 'P2'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(MenuItemButton, 'P1'));
@@ -197,6 +205,15 @@ void main() {
     );
     expect(find.widgetWithText(InputChip, 'P2'), findsOneWidget);
     expect(find.widgetWithText(InputChip, 'P1'), findsNothing);
+    // The choices keep their places while the dropdown is open.
+    expect(choices().take(4), ['P1', 'P0', 'P2', 'P3']);
+
+    // Opened again, the dropdown lists the newly checked label first.
+    await tester.tapAt(Offset.zero);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Choose labels to add').first);
+    await tester.pumpAndSettle();
+    expect(choices().take(4), ['P2', 'P0', 'P1', 'P3']);
   });
 
   testWidgets('filters a dropdown with more than 7 choices', (tester) async {
@@ -278,6 +295,25 @@ void main() {
     await expand(tester, 'Needs team input (1)');
     await expand(tester, 'Issues (1)');
     expect(find.byIcon(Icons.groups), findsOneWidget);
+  });
+
+  testWidgets('starts with nothing selected, and a second click on an item '
+      'deselects it', (tester) async {
+    await pumpApp(tester, selectFirst: false);
+    expect(controller.selected, isNull);
+    expect(find.text('Select an item.'), findsOneWidget);
+
+    await expand(tester, 'New (3)');
+    await expand(tester, 'Issues (2)');
+    await tester.tap(inList('#11 Docs are unclear'));
+    await tester.pumpAndSettle();
+    expect(controller.selected!.number, 11);
+    expect(find.text('Issue #11: Docs are unclear'), findsOneWidget);
+
+    await tester.tap(inList('#11 Docs are unclear'));
+    await tester.pumpAndSettle();
+    expect(controller.selected, isNull);
+    expect(find.text('Select an item.'), findsOneWidget);
   });
 
   testWidgets('shows an item opened by URL in its group', (tester) async {

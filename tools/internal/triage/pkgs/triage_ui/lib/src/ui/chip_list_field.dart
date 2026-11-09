@@ -23,18 +23,16 @@ import 'package:flutter/material.dart';
 class ChipListField extends StatefulWidget {
   const ChipListField({
     super.key,
-    required this.label,
     required this.values,
     required this.onChanged,
-    required this.hint,
+    required this.label,
     required this.chooseTooltip,
     this.options = const [],
   });
 
-  /// The hint in the empty text field, such as "Labels to add".
-  final String hint;
-
+  /// The title on the field's border, such as "Add labels".
   final String label;
+
   final List<String> values;
   final ValueChanged<List<String>> onChanged;
 
@@ -59,6 +57,11 @@ class _ChipListFieldState extends State<ChipListField> {
 
   /// The text in the dropdown's search field.
   final TextEditingController _search = TextEditingController();
+
+  /// The values when the dropdown opened, which it lists first. They are
+  /// not updated while it is open, so that the choices do not move as the
+  /// triager checks and unchecks them.
+  Set<String> _checkedOnOpen = const {};
 
   @override
   void initState() {
@@ -92,12 +95,19 @@ class _ChipListFieldState extends State<ChipListField> {
 
   @override
   Widget build(BuildContext context) {
-    // The values that are not among the options, such as names that the
-    // triager typed, come first, so that they can be unchecked too.
-    final List<String> choices = [
+    // The options, and the values that are not among them, such as names
+    // that the triager typed, so that they can be unchecked too.
+    final List<String> all = [
       for (final v in widget.values)
         if (!widget.options.contains(v)) v,
       ...widget.options,
+    ];
+    // The checked choices first.
+    final List<String> choices = [
+      for (final c in all)
+        if (_checkedOnOpen.contains(c)) c,
+      for (final c in all)
+        if (!_checkedOnOpen.contains(c)) c,
     ];
     final bool searchable = choices.length > _searchThreshold;
     final String query = searchable ? _search.text.trim().toLowerCase() : '';
@@ -141,9 +151,7 @@ class _ChipListFieldState extends State<ChipListField> {
                   TextField(
                     controller: controller,
                     focusNode: focusNode,
-                    decoration: InputDecoration.collapsed(
-                      hintText: widget.hint,
-                    ),
+                    decoration: const InputDecoration.collapsed(hintText: null),
                     onSubmitted: (String text) {
                       _add(text);
                       focusNode.requestFocus();
@@ -176,6 +184,7 @@ class _ChipListFieldState extends State<ChipListField> {
             ),
           ),
           MenuAnchor(
+            onOpen: () => setState(() => _checkedOnOpen = {...widget.values}),
             onClose: _search.clear,
             menuChildren: [
               if (searchable)

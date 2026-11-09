@@ -158,7 +158,6 @@ class TriageController extends ChangeNotifier {
     _service = service;
     _repositoryInfo = info;
     _setQueue(queue);
-    _selected ??= orderedItems.firstOrNull?.number;
   }, then: _openPending);
 
   /// Loads the queue again, and the items opened by URL.
@@ -216,6 +215,12 @@ class TriageController extends ChangeNotifier {
 
   void select(int number) {
     _selected = number;
+    notifyListeners();
+  }
+
+  /// Selects nothing.
+  void deselect() {
+    _selected = null;
     notifyListeners();
   }
 

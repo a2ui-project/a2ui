@@ -274,7 +274,9 @@ class _ItemTile extends StatelessWidget {
               semanticLabel: 'Sent to the team',
             )
           : null,
-      onTap: () => controller.select(item.number),
+      // A second click on the selected item deselects it.
+      onTap: () =>
+          selected ? controller.deselect() : controller.select(item.number),
     );
     return Semantics(selected: selected, child: tile);
   }
