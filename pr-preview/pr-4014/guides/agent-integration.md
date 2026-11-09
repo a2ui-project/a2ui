@@ -67,7 +67,7 @@ export class OrderAgentService {
   ];
   readonly generator = new A2uiGenerator(
     this.catalogs.map(catalog => new CatalogConfig(catalog)),
-    undefined,
+    undefined, // Optional few-shot examples in A2UI JSON (decompiled into the active format).
     new ExpressFormatFactory(), // Default; swap to change inference format.
   );
   private readonly sessions = new Map<string, RendererState>();
@@ -153,7 +153,7 @@ class OrderAgentService {
 
 On each conversation turn, generate the A2UI system prompt instructions for the session and stream the language model's token output through a request processor to emit validated A2UI messages.
 
-Look up or initialize the session's renderer state, create a request processor bound to that state, and append its generated prompt snippet to your agent's role instructions. When reusing session state across turns, instruct the model to pass `update=true` (`surface("id", update=true)`) when modifying an existing surface so follow-up turns update the active surface in place rather than attempting to recreate it. If each chat turn creates an independent surface instead, omit the session state so every response validates from an empty state.
+Look up or initialize the session's renderer state, create a request processor for your registered catalogs (or [negotiate client capabilities](#negotiate-client-capabilities) per request when serving external clients) bound to that state, and append its generated prompt snippet to your agent's role instructions. When reusing session state across turns, instruct the model to pass `update=true` (`surface("id", update=true)`) when modifying an existing surface so follow-up turns update the active surface in place rather than attempting to recreate it. If each chat turn creates an independent surface instead, omit the session state so every response validates from an empty state.
 
 As tokens arrive from the language model, feed each chunk into the processor's stream and close the stream when generation finishes. Stream parts carry either conversational prose (`text` parts, omitted in the UI-only generator below) or A2UI payloads: the stream reader closes partial string properties such as `text` incrementally as tokens arrive, updates the session state, and yields Core SDK `AgentToRendererMessage` structures ([`createSurface`](/concepts/messages/#createsurface), [`updateComponents`](/concepts/messages/#updatecomponents), [`updateDataModel`](/concepts/messages/#updatedatamodel), and [`deleteSurface`](/concepts/messages/#deletesurface)) as soon as they are ready:
 
@@ -171,8 +171,9 @@ async *runTurn(
   }
 
   const processor = this.generator.createProcessor(
+    // Synthesize rendererCapabilities from registered catalogs (see #negotiate-client-capabilities for external clients):
     {'1.0': {supportedCatalogIds: this.catalogs.map(c => c.id)}},
-    undefined,
+    undefined, // Optional per-turn inferenceFormatFactory override.
     {state},
   );
   const systemPrompt = [
@@ -791,7 +792,11 @@ prepareNegotiatedTurn(
     this.sessions.set(sessionId, state);
   }
 
-  const processor = this.generator.createProcessor(capabilities, undefined, {state});
+  const processor = this.generator.createProcessor(
+    capabilities,
+    undefined, // Optional per-turn inferenceFormatFactory override.
+    {state},
+  );
   const systemPrompt = [
     'You are an order assistant. Show order details in an interactive card.',
     'Give each new surface a unique surfaceId, or call surface("id", update=true) when updating an existing surface.',
@@ -1288,11 +1293,13 @@ Below is an inbound [`action`](/concepts/messages/#action) request accompanied b
 
 </details>
 
-### Validate whole responses with retry
+### Non-streaming generation and validation retry
 
-Parse complete model responses atomically when you prefer all-or-nothing validation and self-correcting retries over incremental token streaming.
+Buffer complete model responses before sending messages when you want atomic validation and clean-slate retries instead of progressive streaming.
 
-If the model invents an unknown component, omits `root`, or leaves a dangling child ID, parsing the whole response leaves the session state untouched and raises an `A2uiError` whose message you can feed back to the model on a retry turn:
+In [Step 3](#step-3-build-the-system-prompt-and-stream-a2ui-messages), `openStream()` (`open_stream()` in Python) validates component schemas and surface topology incrementally as tokens arrive. Because progressive messages have already reached the client when a streamed block fails, recovering mid-stream means flushing `err.partialResults` (`err.partial_results` in Python), opening a new `openStream()` on the same `RendererState`, and either repairing existing surfaces in place (`surface("id", update=true)`) or sending `deleteSurface` before regenerating.
+
+When your agent uses buffered (non-streaming) LLM calls instead, pass the full model text to `parseResponse` (`parse_response` in Python). If a block invents an unknown component, omits `root`, or leaves a dangling child ID, `parseResponse` rolls back `RendererState` and raises an `A2uiError` so you can pass the failed output and error message back to the model on a retry turn:
 
 #### TypeScript
 
@@ -1323,7 +1330,8 @@ export async function generateValidatedTurn(
       }
       prompt = [
         userPrompt,
-        `Your previous A2UI block failed validation: ${err.message}`,
+        `Your previous response:\n${rawText}`,
+        `Validation failed: ${err.message}`,
         'Fix the A2UI output so every component and ID matches the catalog.',
       ].join('\n\n');
     }
@@ -1364,7 +1372,8 @@ async def generate_validated_turn(
         raise
       prompt = (
           f"{user_prompt}\n\n"
-          f"Your previous A2UI block failed validation: {err}\n"
+          f"Your previous response:\n{raw_text}\n\n"
+          f"Validation failed: {err}\n"
           "Fix the A2UI output so every component and ID matches the catalog."
       )
   return []
@@ -1394,7 +1403,8 @@ Future<List<AgentToRendererMessage>> generateValidatedTurn(
     } on A2uiError catch (err) {
       if (attempt == maxRetries) rethrow;
       prompt = '$userPrompt\n\n'
-          'Your previous A2UI block failed validation: $err\n'
+          'Your previous response:\n$rawText\n\n'
+          'Validation failed: $err\n'
           'Fix the A2UI output so every component and ID matches the catalog.';
     }
   }
@@ -1402,23 +1412,38 @@ Future<List<AgentToRendererMessage>> generateValidatedTurn(
 }
 ```
 
-### Customize catalogs and inference formats
+### Customize catalogs, examples, and inference formats
 
-Prune large catalogs to relevant components or customize inference format options on the generator to reduce prompt size and match your model.
+Prune large catalogs, attach few-shot A2UI JSON examples, or customize inference format options on the generator to steer layout quality and reduce prompt size.
 
-Attach component or function pruning transformers to `CatalogConfig` to expose only the widgets a workflow needs, and pass options to `ExpressFormatFactory` or swap to `DirectJsonFormatFactory` when a model emits raw JSON inside `<a2ui-json>` tags (see [Inference Formats](/concepts/inference-formats/)). In Python, you can also compose server-side component templates with `@macro` and `MacroExpander` so clients render new composite layouts without a client release (see [Using Macros](/guides/macros/)):
+Attach component or function pruning transformers to `CatalogConfig` to expose only the widgets a workflow needs, and pass canonical A2UI JSON example turns to `A2uiGenerator`, which validates them against the negotiated catalogs and decompiles them into the active inference format (such as `<a2ui>` blocks in Express). You can also pass options to `ExpressFormatFactory` or swap to `DirectJsonFormatFactory` when a model emits raw JSON inside `<a2ui-json>` tags (see [Inference Formats](/concepts/inference-formats/)). In Python, compose server-side component templates with `@macro` and `MacroExpander` so clients render new composite layouts without a client release (see [Using Macros](/guides/macros/)):
 
 #### TypeScript
 
 ```typescript
 import {
   A2uiGenerator,
+  type AgentToRendererMessage,
   CatalogConfig,
   ComponentPruningTransformer,
   DirectJsonFormatFactory,
   ExpressFormatFactory,
 } from '@a2ui/agent';
 import {basicCatalog} from '@a2ui/web_core/v1_0';
+
+const exampleTurn: AgentToRendererMessage[] = [
+  {
+    version: '1.0',
+    createSurface: {
+      surfaceId: 'order_summary',
+      catalogId: basicCatalog.id,
+      components: [
+        {id: 'root', component: 'Card', child: 'status'},
+        {id: 'status', component: 'Text', text: 'Order ORD-4821 ready for pickup'},
+      ],
+    },
+  },
+];
 
 export const formatFactory = new ExpressFormatFactory({
   surfaceId: 'order_summary',
@@ -1436,7 +1461,7 @@ export const prunedGenerator = new A2uiGenerator(
       new ComponentPruningTransformer(['Card', 'Column', 'Text', 'Button']),
     ]),
   ],
-  undefined,
+  {[basicCatalog.id]: exampleTurn},
   formatFactory,
 );
 ```
@@ -1447,8 +1472,32 @@ export const prunedGenerator = new A2uiGenerator(
 from a2ui.catalog_transformers import ComponentPruningTransformer
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
-from a2ui.inference_formats import DirectJsonFormatFactory, ExpressFormatFactory
+from a2ui.inference_formats import (
+    DirectJsonFormatFactory,
+    ExpressFormatFactory,
+    to_message_models,
+)
 from a2ui.processor import A2uiGenerator, CatalogConfig
+
+basic = BasicCatalog(ProtocolVersion.V1_0)
+
+example_turn = to_message_models([
+    {
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "order_summary",
+            "catalogId": basic.catalog_id,
+            "components": [
+                {"id": "root", "component": "Card", "child": "status"},
+                {
+                    "id": "status",
+                    "component": "Text",
+                    "text": "Order ORD-4821 ready for pickup",
+                },
+            ],
+        },
+    },
+])
 
 format_factory = ExpressFormatFactory(
     allowed_messages=["createSurface", "updateComponents", "updateDataModel"],
@@ -1461,12 +1510,13 @@ json_format_factory = DirectJsonFormatFactory(progressive_keys={"text"})
 pruned_generator = A2uiGenerator(
     catalogs=[
         CatalogConfig(
-            catalog=BasicCatalog(ProtocolVersion.V1_0),
+            catalog=basic,
             transformers=[
                 ComponentPruningTransformer(["Card", "Column", "Text", "Button"])
             ],
         ),
     ],
+    examples=[example_turn],
     inference_format_factory=format_factory,
 )
 ```
@@ -1476,6 +1526,26 @@ pruned_generator = A2uiGenerator(
 ```dart
 import 'package:a2ui_agent/a2ui_agent.dart';
 import 'package:a2ui_core/a2ui_core.dart';
+
+final basic = BasicCatalog.v1_0();
+
+final exampleTurn = [
+  AgentToRendererMessage.fromJson({
+    'version': '1.0',
+    'createSurface': {
+      'surfaceId': 'order_summary',
+      'catalogId': basic.id,
+      'components': [
+        {'id': 'root', 'component': 'Card', 'child': 'status'},
+        {
+          'id': 'status',
+          'component': 'Text',
+          'text': 'Order ORD-4821 ready for pickup',
+        },
+      ],
+    },
+  }),
+];
 
 const formatFactory = ExpressFormatFactory(
   allowedMessages: ['createSurface', 'updateComponents', 'updateDataModel'],
@@ -1487,12 +1557,13 @@ const jsonFormatFactory = DirectJsonFormatFactory(progressiveKeys: {'text'});
 final prunedGenerator = A2uiGenerator(
   catalogs: [
     CatalogConfig(
-      BasicCatalog.v1_0(),
+      basic,
       transformers: [
         ComponentPruningTransformer(['Card', 'Column', 'Text', 'Button']),
       ],
     ),
   ],
+  examples: [exampleTurn],
   inferenceFormatFactory: formatFactory,
 );
 ```
