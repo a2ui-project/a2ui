@@ -132,7 +132,7 @@ export default defineConfig({
               slug: 'quickstart',
             },
             {
-              label: 'Step-by-step quickstart',
+              label: 'Step-by-Step Walkthrough',
               slug: 'quickstart/step-by-step',
             },
             {

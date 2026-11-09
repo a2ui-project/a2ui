@@ -32,7 +32,7 @@ Parallel Markdown editions of documentation pages are available by appending `.m
 ## Getting Started & Concepts
 
 - [Quickstart](https://a2ui.org/quickstart/) ([Markdown](https://a2ui.org/quickstart.md)): run Travel A2UI, a Python agent server with React and Flutter clients from A2UI Labs, from one prompt to a coding agent
-- [Step-by-step quickstart](https://a2ui.org/quickstart/step-by-step/) ([Markdown](https://a2ui.org/quickstart/step-by-step.md)): the same, by hand, then how A2UI works from what is on screen
+- [Step-by-Step Walkthrough](https://a2ui.org/quickstart/step-by-step/) ([Markdown](https://a2ui.org/quickstart/step-by-step.md)): the same, by hand, then how A2UI works from what is on screen
 - Quickstart agent guides, for coding agents asked to give someone the quickstart: [web and mobile apps](https://a2ui.org/quickstart/agent.md) (the default), [web app only](https://a2ui.org/quickstart/agent/web.md), [mobile app only](https://a2ui.org/quickstart/agent/mobile.md)
 - [Overview: How A2UI Works](https://a2ui.org/concepts/overview/) ([Markdown](https://a2ui.org/concepts/overview.md))
 - [Messages](https://a2ui.org/concepts/messages/) ([Markdown](https://a2ui.org/concepts/messages.md))
