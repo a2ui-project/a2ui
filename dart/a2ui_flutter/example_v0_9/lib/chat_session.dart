@@ -89,7 +89,20 @@ class ChatEntry {
 /// reply is parsed and rendered as it streams. Actions on its surfaces, and
 /// errors the renderer meets, go back to it as the next user turn.
 class ChatSession extends ChangeNotifier {
-  ChatSession({required this.client}) {
+  /// [inferenceFormatFactory] is the format the model is prompted for and its
+  /// replies are read in, Direct JSON unless another is given.
+  ChatSession({
+    required this.client,
+    InferenceFormatFactory inferenceFormatFactory = defaultFormat,
+  }) : _agent =
+           A2uiGenerator(
+             catalogs: [CatalogConfig(_catalog)],
+             inferenceFormatFactory: inferenceFormatFactory,
+           ).createProcessor(
+             A2uiRendererCapabilities.forCatalogIds([
+               BasicCatalog.v0_9Id,
+             ], version: A2uiProtocolVersion.v0_9),
+           ) {
     processor.model.onSurfaceCreated.subscribe(_addSurface);
     processor.model.onSurfaceDeleted.subscribe(_removeSurface);
     processor.model.onAction.subscribe(_sendAction);
@@ -107,19 +120,13 @@ class ChatSession extends ChangeNotifier {
 
   static final String _version = A2uiProtocolVersion.v0_9.jsonValue;
 
-  static const _format = DirectJsonFormatFactory(
+  /// The format a session uses unless given another: Direct JSON, with text
+  /// and labels shown as they stream.
+  static const InferenceFormatFactory defaultFormat = DirectJsonFormatFactory(
     progressiveKeys: {'text', 'label'},
   );
 
-  final A2uiRequestProcessor _agent =
-      A2uiGenerator(
-        catalogs: [CatalogConfig(_catalog)],
-        inferenceFormatFactory: _format,
-      ).createProcessor(
-        A2uiRendererCapabilities.forCatalogIds([
-          BasicCatalog.v0_9Id,
-        ], version: A2uiProtocolVersion.v0_9),
-      );
+  final A2uiRequestProcessor _agent;
 
   /// The surfaces the model's replies have created, as the agent SDK checks
   /// each reply against them.

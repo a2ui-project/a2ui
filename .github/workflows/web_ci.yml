@@ -132,6 +132,10 @@ jobs:
               --corpus adapter \
               --harness "$h" \
               --exclude adapter/markdown_subset.yaml="renderers render components, not raw markdown"
+            uv run --project conformance python conformance/scripts/check_executed_cases.py \
+              --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+              --corpus e2e \
+              --harness "$h"
             uv run --project conformance python conformance/scripts/check_feature_coverage.py \
               --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
               --harness "$h"
@@ -157,6 +161,10 @@ jobs:
             --harness ts-agent \
             --exclude "agent/direct_json/scaling.yaml=performance: runs in ci-timing via test:timing" \
             --exclude "agent/express/scaling.yaml=performance: runs in ci-timing via test:timing"
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --corpus e2e \
+            --harness ts-agent
           uv run --project conformance python conformance/scripts/check_feature_coverage.py \
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --harness ts-agent
