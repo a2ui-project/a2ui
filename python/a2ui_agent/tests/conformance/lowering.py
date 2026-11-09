@@ -69,6 +69,15 @@ V1_ONLY_CASES: dict[str, str] = {
     "test_compile_express_unknown_system_function_is_a_validation_error": (
         _NO_SYSTEM_FUNCTIONS
     ),
+    "test_compile_express_unreferenced_variable_holding_a_system_function_call_with_catalog_id_is_a_validation_error": (
+        _NO_SYSTEM_FUNCTIONS
+    ),
+    "test_compile_express_unreferenced_variable_holding_an_unknown_system_function_is_a_validation_error": (
+        _NO_SYSTEM_FUNCTIONS
+    ),
+    "test_compile_express_root_holding_an_unknown_system_function_is_a_validation_error": (
+        _NO_SYSTEM_FUNCTIONS
+    ),
     "test_compile_express_variable_holding_a_system_function_call_is_inlined": (
         _NO_SYSTEM_FUNCTIONS
     ),

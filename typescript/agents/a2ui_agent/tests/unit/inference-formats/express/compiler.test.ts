@@ -833,6 +833,14 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       expect(() => new ExpressCompiler(basicCatalogV09, '1.0')).toThrow(A2uiCatalogError);
     });
 
+    it('names a per-call version in a system function error', () => {
+      const compiler = new ExpressCompiler(basicCatalogV09);
+      const dsl = 'root = List(_template($/items, itemRow))\nitemRow = Text(@index())';
+      expect(() => compiler.compile(dsl, 's', true, 'v0.9.1')).toThrow(
+        /Unknown system function '@index' in A2UI v0\.9\.1\. System functions: none\./,
+      );
+    });
+
     it('rejects a per-call v1.0 version for a v0.9 catalog', () => {
       const compiler = new ExpressCompiler(basicCatalogV09);
       expect(() => compiler.compile('root = Text("Hi")', 's', true, '1.0')).toThrow(

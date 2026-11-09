@@ -396,7 +396,7 @@ class ExpressPromptGenerator(PromptGenerator):
             list(allowed_messages) if allowed_messages is not None else None
         )
         self._version = version or catalogs_protocol_version(checked)
-        self._helpers = build_catalog_helpers(self._catalogs)
+        self._helpers = build_catalog_helpers(self._catalogs, self._version)
         self._decompiler = ExpressDecompiler(self._catalogs)
 
     @property

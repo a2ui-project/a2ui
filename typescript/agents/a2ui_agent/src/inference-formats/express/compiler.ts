@@ -586,10 +586,13 @@ class CompileContext {
   /** Variable names referenced while compiling a single node or data path. */
   readonly referencedVars: Set<string> = new Set();
   readonly keys: ReservedKeys;
+  /** The protocol version being compiled to. */
+  readonly version: string;
   readonly allowPending: boolean;
 
-  constructor(keys: ReservedKeys, allowPending = false) {
+  constructor(keys: ReservedKeys, version: string, allowPending = false) {
     this.keys = keys;
+    this.version = version;
     this.allowPending = allowPending;
   }
 }
@@ -743,7 +746,7 @@ export class ExpressScopeSession {
     }
     const defaultKeys: ReservedKeys =
       targetMajorMinor[0] >= 1 ? {path: '@path', call: '@call'} : {path: 'path', call: 'call'};
-    const ctx = new CompileContext(defaultKeys, !options.isFinal);
+    const ctx = new CompileContext(defaultKeys, this.version, !options.isFinal);
     const statements = this.parseIncrementalStatements(
       dslText,
       options.isFinal,
@@ -1278,6 +1281,9 @@ export class ExpressCompiler {
     this.version = resolveExpressVersion(this.catalogs, version);
     this.helpers = buildSchemaHelpers(this.catalogs, this.version);
   }
+
+  /** Helpers for the system functions of versions that `compile` overrides, by version. */
+  private readonly systemFunctionHelpers = new Map<string, CatalogSchemaHelper>();
 
   /**
    * Checks whether a call names a component rather than a function across active catalogs.
@@ -1883,7 +1889,7 @@ export class ExpressCompiler {
 
     const defaultKeys: ReservedKeys =
       targetMajorMinor[0] >= 1 ? {path: '@path', call: '@call'} : {path: 'path', call: 'call'};
-    const ctx = new CompileContext(defaultKeys);
+    const ctx = new CompileContext(defaultKeys, targetVersion);
     const statements = this.parseStatements(dslText, isFinal);
     const units = this.buildUnits(statements, surfaceId, targetMajorMinor);
     if (units.length === 0) {
@@ -2052,6 +2058,13 @@ export class ExpressCompiler {
     targetMajorMinor: [number, number],
   ): Record<string, unknown> | null {
     if (!isExpressNode(ast, 'call')) {
+      return null;
+    }
+
+    if (ast.name.startsWith('@')) {
+      // A variable holding a system function call is inlined wherever it is named, but the
+      // call is checked here so that one nothing names is rejected too.
+      this.systemFunctionHelper(ast.name, ast.kwargs, ctx.version);
       return null;
     }
 
@@ -2569,20 +2582,7 @@ export class ExpressCompiler {
     targetMajorMinor: [number, number],
     isAction: boolean,
   ): Record<string, unknown> {
-    const helper = this.helpers.values().next().value!;
-    if (!helper.systemFunctions.has(fnName)) {
-      const known = [...helper.systemFunctions.keys()].sort();
-      throw new ExpressValidationError(
-        `Unknown system function '${fnName}' in A2UI ${this.version}.` +
-          ` System functions: ${known.length ? known.join(', ') : 'none'}.`,
-      );
-    }
-    if ('catalogId' in fnKwargs) {
-      throw new ExpressValidationError(
-        `System function '${fnName}' is defined by the protocol, not a catalog, so it` +
-          ' takes no catalogId.',
-      );
-    }
+    const helper = this.systemFunctionHelper(fnName, fnKwargs, ctx.version);
     const compiledArgs = this.compileCallArgs(
       helper,
       fnName,
@@ -2594,11 +2594,51 @@ export class ExpressCompiler {
       targetMajorMinor,
       isAction,
     );
-    const res: Record<string, unknown> = {[helper.keys.call]: fnName};
+    const res: Record<string, unknown> = {[ctx.keys.call]: fnName};
     if (Object.keys(compiledArgs).length > 0) {
       res.args = compiledArgs;
     }
     return res;
+  }
+
+  /**
+   * Checks a system function call and returns the helper that reads it.
+   *
+   * The helper reads the system functions of `version`, the compilation's target, which
+   * `compile(dsl, surfaceId, version)` can set apart from the compiler's own version.
+   *
+   * @throws {ExpressValidationError} If `version` defines no system function of that
+   *   name, or the call names a `catalogId`.
+   */
+  private systemFunctionHelper(
+    fnName: string,
+    fnKwargs: Record<string, unknown>,
+    version: string,
+  ): CatalogSchemaHelper {
+    let helper: CatalogSchemaHelper | undefined;
+    if (version === this.version) {
+      helper = this.helpers.values().next().value!;
+    } else {
+      helper = this.systemFunctionHelpers.get(version);
+      if (!helper) {
+        helper = new CatalogSchemaHelper(this.catalogs[0], version);
+        this.systemFunctionHelpers.set(version, helper);
+      }
+    }
+    if (!helper.systemFunctions.has(fnName)) {
+      const known = [...helper.systemFunctions.keys()].sort();
+      throw new ExpressValidationError(
+        `Unknown system function '${fnName}' in A2UI ${version}.` +
+          ` System functions: ${known.length ? known.join(', ') : 'none'}.`,
+      );
+    }
+    if ('catalogId' in fnKwargs) {
+      throw new ExpressValidationError(
+        `System function '${fnName}' is defined by the protocol, not a catalog, so it` +
+          ' takes no catalogId.',
+      );
+    }
+    return helper;
   }
 
   /**

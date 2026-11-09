@@ -1294,8 +1294,11 @@ class ExpressCompiler:
                 they target a version before v1.0.
         """
         self._catalogs = check_mixed_catalogs(catalogs)
-        self.helpers = build_catalog_helpers(self._catalogs)
         self.version = version or catalogs_protocol_version(self._catalogs)
+        # The helpers read the common types and system functions of the
+        # target version, which a `version=` override can change.
+        self.helpers = build_catalog_helpers(self._catalogs, self.version)
+        self._system_function_helpers: dict[str, CatalogSchemaHelper] = {}
 
     @property
     def catalogs(self) -> list[CatalogApi]:
@@ -1936,6 +1939,13 @@ class ExpressCompiler:
         comp_name = ast.name
         args = ast.args
         kwargs = dict(ast.kwargs)
+
+        if comp_name.startswith("@"):
+            # A variable holding a system function call is inlined wherever it
+            # is named, but the call is checked here so that one nothing names
+            # is rejected too.
+            self._system_function_helper(comp_name, kwargs, ctx)
+            return None
 
         comp_cat_id = kwargs.pop("catalogId", None)
         # A variable holding a function call, an Event or a template is inlined
@@ -2585,7 +2595,37 @@ class ExpressCompiler:
             ExpressValidationError: If the target version defines no system
                 function of that name, or the call names a `catalogId`.
         """
-        helper = next(iter(self.helpers.values()))
+        helper = self._system_function_helper(fn_name, raw_kwargs, ctx)
+        compiled_args = self._compile_call_args(
+            helper, fn_name, fn_args, raw_kwargs, raw_symbols, ctx, is_action
+        )
+        res_expr: dict[str, Any] = {ctx.call_key: fn_name}
+        if compiled_args:
+            res_expr["args"] = compiled_args
+        if is_action:
+            return {"functionCall": res_expr}
+        return res_expr
+
+    def _system_function_helper(
+        self, fn_name: str, raw_kwargs: dict[str, Any], ctx: _CompileContext
+    ) -> CatalogSchemaHelper:
+        """Checks a system function call and returns the helper that reads it.
+
+        The helper reads the system functions of the compilation's target
+        version, which `compile(..., version=...)` can set apart from the
+        compiler's own version.
+
+        Raises:
+            ExpressValidationError: If the target version defines no system
+                function of that name, or the call names a `catalogId`.
+        """
+        if ctx.version == self.version:
+            helper = next(iter(self.helpers.values()))
+        else:
+            helper = self._system_function_helpers.get(ctx.version)
+            if helper is None:
+                helper = CatalogSchemaHelper(self._catalogs[0], ctx.version)
+                self._system_function_helpers[ctx.version] = helper
         if fn_name not in helper.system_functions:
             raise ExpressValidationError(
                 f"Unknown system function '{fn_name}' in A2UI {ctx.version}. System"
@@ -2596,15 +2636,7 @@ class ExpressCompiler:
                 f"System function '{fn_name}' is defined by the protocol, not a"
                 " catalog, so it takes no catalogId."
             )
-        compiled_args = self._compile_call_args(
-            helper, fn_name, fn_args, raw_kwargs, raw_symbols, ctx, is_action
-        )
-        res_expr: dict[str, Any] = {ctx.call_key: fn_name}
-        if compiled_args:
-            res_expr["args"] = compiled_args
-        if is_action:
-            return {"functionCall": res_expr}
-        return res_expr
+        return helper
 
     def _compile_call_args(
         self,

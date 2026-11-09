@@ -211,8 +211,15 @@ function applyDefaultCatalogToValue(val: unknown, defaultCatalogId: string): unk
     copy[k] = applyDefaultCatalogToValue(v, defaultCatalogId);
   }
   const isComponent = typeof copy.component === 'string';
-  const isCall = typeof copy.call === 'string' || typeof copy['@call'] === 'string';
-  if ((isComponent || isCall) && !copy.catalogId) {
+  const callName =
+    typeof copy['@call'] === 'string'
+      ? copy['@call']
+      : typeof copy.call === 'string'
+        ? copy.call
+        : undefined;
+  // A system function, such as `@index`, belongs to no catalog.
+  const isCatalogCall = callName !== undefined && !callName.startsWith('@');
+  if ((isComponent || isCatalogCall) && !copy.catalogId) {
     copy.catalogId = defaultCatalogId;
   }
   return copy;

@@ -484,6 +484,57 @@
     category: "ValidationError"
     message: "catalogId"
 
+- name: test_compile_express_unreferenced_variable_holding_a_system_function_call_with_catalog_id_is_a_validation_error
+  description: A system function call held in a variable is checked where the variable is defined, so a catalogId argument on it is a validation error even when nothing names the variable.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Text("hi")
+    n = @index(catalogId="conformance/simplified")
+  expect_error:
+    category: "ValidationError"
+    message: "catalogId"
+
+- name: test_compile_express_unreferenced_variable_holding_an_unknown_system_function_is_a_validation_error
+  description: An unknown system function held in a variable is a validation error even when nothing names the variable.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Text("hi")
+    n = @position()
+  expect_error:
+    category: "ValidationError"
+    message: "Unknown system function"
+
+- name: test_compile_express_root_holding_an_unknown_system_function_is_a_validation_error
+  description: A root variable that holds an unknown system function is a validation error about the function, not a missing root.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = @position()
+  expect_error:
+    category: "ValidationError"
+    message: "Unknown system function"
+
+- name: test_compile_express_unreferenced_variable_holding_a_system_function_before_v1_0_is_a_validation_error
+  description: Before v1.0 the protocol defines no system functions, so a variable holding `@index()` is a validation error even when nothing names it.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/streaming_catalog_v0_9.json"
+  input: |-
+    root = Text("hi")
+    n = @index()
+  expect_error:
+    category: "ValidationError"
+    message: "Unknown system function"
+
 - name: test_compile_express_unknown_system_function_is_a_validation_error
   description: A name starting with `@` that the protocol does not define as a system function is a validation error.
   action: compile

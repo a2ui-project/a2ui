@@ -172,6 +172,15 @@ const Map<String, String> _v1OnlyCases = {
       _noSystemFunctions,
   'test_compile_express_unknown_system_function_is_a_validation_error':
       _noSystemFunctions,
+  'test_compile_express_unreferenced_variable_holding_a_system_function_'
+          'call_with_catalog_id_is_a_validation_error':
+      _noSystemFunctions,
+  'test_compile_express_unreferenced_variable_holding_an_unknown_system_'
+          'function_is_a_validation_error':
+      _noSystemFunctions,
+  'test_compile_express_root_holding_an_unknown_system_function_is_a_'
+          'validation_error':
+      _noSystemFunctions,
   'test_compile_express_variable_holding_a_system_function_call_is_inlined':
       _noSystemFunctions,
   'test_compile_express_variable_holding_a_system_function_call_with_'

@@ -1075,9 +1075,15 @@ class _SurfaceCompiler {
     return compiler._catalogHelpers.values.any((h) => h.isFunction(name));
   }
 
+  /// Whether [call] calls a system function of the target version, which
+  /// takes no catalogId since no catalog defines it.
+  bool _isValidSystemCall(CallNode call) =>
+      _systemFunctions.isSystemFunction(call.name) &&
+      !call.kwargs.containsKey('catalogId');
+
   bool _isKnownCall(CallNode call) =>
       _isComponent(call) ||
-      _systemFunctions.isSystemFunction(call.name) ||
+      _isValidSystemCall(call) ||
       _isFunction(call.name, compiler._catalogArgument(call)) ||
       (_reservedHelpers.contains(call.name) &&
           compiler._catalogArgument(call) == null);
@@ -1085,6 +1091,12 @@ class _SurfaceCompiler {
   A2uiValidationError _unknownCall(CallNode call) {
     final String name = call.name;
     if (name.startsWith('@')) {
+      if (_systemFunctions.isSystemFunction(name)) {
+        return A2uiValidationError(
+          "System function '$name' is defined by the protocol, not a "
+          'catalog, so it takes no catalogId.',
+        );
+      }
       final List<String> known = _systemFunctions.systemFunctions.keys.toList()
         ..sort();
       return A2uiValidationError(
@@ -1540,13 +1552,7 @@ class _SurfaceCompiler {
     if (name.startsWith('@')) {
       // A system function is defined by the protocol, not a catalog, so it
       // is looked up before any catalog and never carries a catalogId.
-      if (!_systemFunctions.isSystemFunction(name)) throw _unknownCall(call);
-      if (call.kwargs.containsKey('catalogId')) {
-        throw A2uiValidationError(
-          "System function '$name' is defined by the protocol, not a "
-          'catalog, so it takes no catalogId.',
-        );
-      }
+      if (!_isValidSystemCall(call)) throw _unknownCall(call);
       (helper, writtenCatalog) = (_systemFunctions, null);
     } else {
       if (!_isFunction(name, catalogId)) throw _unknownCall(call);

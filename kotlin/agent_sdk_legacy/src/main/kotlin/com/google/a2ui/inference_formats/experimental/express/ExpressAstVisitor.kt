@@ -125,7 +125,7 @@ class ExpressAstVisitor(val firstErrorLine: Int? = null) : ExpressBaseVisitor<An
   }
 
   override fun visitCall(ctx: ExpressParser.CallContext): Map<String, Any?> {
-    val name = ctx.identifier().text
+    val name = ctx.function_name().text
     val args = mutableListOf<Any?>()
     val kwargs = mutableMapOf<String, Any?>()
 

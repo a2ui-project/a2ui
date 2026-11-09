@@ -31,6 +31,7 @@ from a2ui.core import (
     inline_local_refs,
     to_protocol_version,
 )
+from a2ui.core.schema import ProtocolVersion
 
 _COMMON_DEF_RE = re.compile(r"(?:^|/)common_types\.json#/(?:\$defs|definitions)/(\w+)$")
 
@@ -183,7 +184,7 @@ class CatalogSchemaHelper:
         components: A dictionary mapping component names to their catalog schemas.
         functions: A dictionary mapping function names to their catalog schemas.
         system_functions: A dictionary mapping the names of the system
-            functions that the catalog's protocol version defines, such as
+            functions that the target protocol version defines, such as
             `@index`, to their common types schemas. The function getters
             read them as well as the catalog's own functions.
     """
@@ -191,11 +192,15 @@ class CatalogSchemaHelper:
     def __init__(
         self,
         catalog: CatalogApi,
+        protocol_version: str | ProtocolVersion | None = None,
     ):
         """Initializes the helper with a Catalog.
 
         Args:
             catalog: A Catalog instance.
+            protocol_version: The protocol version whose common types and
+                system functions the helper reads. Defaults to the catalog's
+                own protocol version.
         """
         if not isinstance(catalog, Catalog):
             raise TypeError(f"Unsupported catalog type: {type(catalog)}")
@@ -210,7 +215,7 @@ class CatalogSchemaHelper:
         self.catalog = inline_local_refs(catalog_schema, catalog_schema)
         try:
             self.common_types: dict[str, Any] = get_common_types_schema_map(
-                to_protocol_version(catalog.protocol_version)
+                to_protocol_version(protocol_version or catalog.protocol_version)
             )
             self.common_types_loaded: bool = True
         except (A2uiCatalogError, ValueError):

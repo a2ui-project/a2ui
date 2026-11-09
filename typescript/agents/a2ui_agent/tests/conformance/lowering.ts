@@ -55,6 +55,12 @@ export const V1_ONLY_CASES: Readonly<Record<string, string>> = {
   test_express_snippet_lists_system_functions_from_v1_0: NO_SYSTEM_FUNCTIONS,
   test_compile_express_system_function_with_catalog_id_is_a_validation_error: NO_SYSTEM_FUNCTIONS,
   test_compile_express_unknown_system_function_is_a_validation_error: NO_SYSTEM_FUNCTIONS,
+  test_compile_express_unreferenced_variable_holding_a_system_function_call_with_catalog_id_is_a_validation_error:
+    NO_SYSTEM_FUNCTIONS,
+  test_compile_express_unreferenced_variable_holding_an_unknown_system_function_is_a_validation_error:
+    NO_SYSTEM_FUNCTIONS,
+  test_compile_express_root_holding_an_unknown_system_function_is_a_validation_error:
+    NO_SYSTEM_FUNCTIONS,
   test_compile_express_variable_holding_a_system_function_call_is_inlined: NO_SYSTEM_FUNCTIONS,
   test_compile_express_variable_holding_a_system_function_call_with_catalog_id_is_a_validation_error:
     NO_SYSTEM_FUNCTIONS,

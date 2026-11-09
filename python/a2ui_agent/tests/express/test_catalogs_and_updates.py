@@ -848,6 +848,48 @@ def test_standalone_call_resolves_by_name(parser: ExpressParser) -> None:
     }
 
 
+# --- System functions of the target version ---
+
+_INDEX_DSL = "root = Column(_template($/items, row))\nrow = Text(@index())"
+
+
+def _row_text(messages: list[Any]) -> Any:
+    components = [
+        c
+        for m in to_message_dicts(messages)
+        for body in m.values()
+        if isinstance(body, dict)
+        for c in body.get("components", [])
+    ]
+    return next(c for c in components if c["id"] == "row")["text"]
+
+
+def test_version_override_reads_the_target_versions_system_functions() -> None:
+    with pytest.raises(
+        ExpressValidationError, match="in A2UI v0.9. System functions: none"
+    ):
+        ExpressCompiler([_primary()], version="v0.9").compile(_INDEX_DSL)
+
+    v1_compiler = ExpressCompiler([_primary(version="v0.9")], version="1.0")
+    assert _row_text(v1_compiler.compile(_INDEX_DSL)) == {"@call": "@index"}
+
+
+def test_per_call_version_reads_the_target_versions_system_functions() -> None:
+    compiler = ExpressCompiler([_primary()])
+    with pytest.raises(
+        ExpressValidationError, match="in A2UI v0.9. System functions: none"
+    ):
+        compiler.compile(_INDEX_DSL, version="v0.9")
+    assert _row_text(compiler.compile(_INDEX_DSL)) == {"@call": "@index"}
+
+
+def test_prompt_rules_list_system_functions_of_the_target_version() -> None:
+    rules_v09 = ExpressFormat([_primary()], version="v0.9").prompt_generator
+    assert "## System Functions" not in rules_v09.generate_base_rules()
+    rules_v1 = ExpressFormat([_primary(version="v0.9")], version="1.0").prompt_generator
+    assert "• @index(offset?)" in rules_v1.generate_base_rules()
+
+
 # --- Prompt rules ---
 
 
