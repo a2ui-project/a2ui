@@ -906,5 +906,136 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     );
     assert.strictEqual(surface.availableCatalogs.has(standaloneId), false);
     assert.strictEqual(surfaceErrors.length, 0);
+
+    // Dynamic `@call` inside `callFunction.args` targeting `standaloneId` resolves cleanly,
+    // while targeting an unnegotiated catalog fails with `EXECUTION_ERROR`.
+    const makeLabelHelper = (text: string) =>
+      createFunctionImplementation(
+        {name: 'label', returnType: 'string' as const, schema: z.object({})},
+        () => text,
+      );
+    const echoLabelImpl = createFunctionImplementation(
+      {
+        name: 'echoLabel',
+        returnType: 'string' as const,
+        schema: z.object({label: z.string()}),
+        allowedCallers: 'agentOnly' as const,
+      },
+      args => args.label,
+    );
+    const echoStandaloneCat = new Catalog(
+      'https://example.com/rpc-echo-standalone/catalog.json',
+      '1.0',
+      [],
+      [echoLabelImpl, FormatStringImplementation, makeLabelHelper('arg-standalone')],
+    );
+    const otherUnnegotiatedCat = new Catalog(
+      'https://example.com/rpc-other-unnegotiated/catalog.json',
+      '1.0',
+      [],
+      [makeLabelHelper('leaked')],
+    );
+    const argHandler = new RpcHandler({
+      catalogs: [echoStandaloneCat, otherUnnegotiatedCat],
+    });
+    const argRes = await argHandler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-standalone-arg',
+          callFunction: {
+            '@call': 'echoLabel',
+            catalogId: echoStandaloneCat.id,
+            args: {
+              label: {
+                '@call': 'formatString',
+                catalogId: echoStandaloneCat.id,
+                args: {value: 'Arg: ${label()}'},
+              },
+            },
+          },
+        },
+      },
+      sharedCtx,
+    );
+    assert.strictEqual(argRes.rendererFunctionResponse.value, 'Arg: arg-standalone');
+
+    const badArgRes = await argHandler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-unnegotiated-arg',
+          callFunction: {
+            '@call': 'echoLabel',
+            catalogId: echoStandaloneCat.id,
+            args: {
+              label: {
+                '@call': 'label',
+                catalogId: otherUnnegotiatedCat.id,
+                args: {},
+              },
+            },
+          },
+        },
+      },
+      sharedCtx,
+    );
+    assert.strictEqual(badArgRes.rendererFunctionResponse.error?.code, 'EXECUTION_ERROR');
+
+    // Same-ID negotiated schema-only surface catalog + executable `RpcHandler` catalog.
+    const sharedId = 'https://example.com/rpc-shared-schema-only/catalog.json';
+    const schemaOnlySurfaceCat = Catalog.fromJson(
+      {
+        catalogId: sharedId,
+        protocolVersion: '1.0',
+        components: {},
+        functions: {
+          formatString: {
+            returnType: 'string',
+            allowedCallers: 'rendererOrAgent',
+            parameters: {type: 'object', properties: {value: {type: 'string'}}},
+          },
+          label: {
+            returnType: 'string',
+            parameters: {type: 'object', properties: {}},
+          },
+        },
+      },
+      '1.0',
+    );
+    const execRpcCat = new Catalog(
+      sharedId,
+      '1.0',
+      [],
+      [rpcFormatString, makeLabelHelper('from-exec-rpc')],
+    );
+    const schemaOnlySurface = new SurfaceModel(
+      's-rpc-schema-only',
+      schemaOnlySurfaceCat,
+      new Map([[sharedId, schemaOnlySurfaceCat]]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '1.0',
+    );
+    const schemaOnlyCtx = new DataContext(schemaOnlySurface, '/');
+    const sharedHandler = new RpcHandler({catalogs: [execRpcCat]});
+    const sharedRes = await sharedHandler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-same-id-schema-only',
+          callFunction: {
+            '@call': 'formatString',
+            catalogId: sharedId,
+            args: {value: 'Resolved: ${label()}'},
+          },
+        },
+      },
+      schemaOnlyCtx,
+    );
+    assert.strictEqual(sharedRes.rendererFunctionResponse.value, 'Resolved: from-exec-rpc');
   });
 });

@@ -413,7 +413,7 @@ export class DataContext {
   /** Catalog instance of the currently executing catalog function, if any. */
   private _activeCatalog?: Catalog<any>;
 
-  readonly surface?: SurfaceModel<any>;
+  readonly surface?: SurfaceModel<any, any>;
 
   static {
     registerDataContextInternals({
@@ -424,6 +424,7 @@ export class DataContext {
       resolveSignalValue: (ctx, value, depth, keepPending) =>
         ctx.resolveSignalValue(value, depth, keepPending),
       activeCatalogId: ctx => ctx.activeCatalogId,
+      activeCatalog: ctx => ctx.activeCatalog,
     });
   }
 
@@ -436,7 +437,7 @@ export class DataContext {
    * @param parent Optional parent DataContext in the scope chain.
    */
   constructor(
-    surface: SurfaceModel<any> | DataModel,
+    surface: SurfaceModel<any, any> | DataModel,
     readonly path: string,
     index?: number,
     parent?: DataContext,
@@ -513,11 +514,15 @@ export class DataContext {
    * Protocol version of the bound surface.
    *
    * Reads the surface's own version, which is set even when the surface has
-   * no default catalog, and falls back to the default catalog's version for
-   * surface-like objects that do not carry one.
+   * no default catalog, and falls back to the default or active catalog's
+   * version for surface-like or surface-less contexts.
    */
   private get surfaceProtocolVersion(): string | undefined {
-    return this.surface?.protocolVersion ?? this.surface?.defaultCatalog?.protocolVersion;
+    return (
+      this.surface?.protocolVersion ??
+      this.surface?.defaultCatalog?.protocolVersion ??
+      this.activeCatalog?.protocolVersion
+    );
   }
 
   private _cachedAtLeastV10?: boolean;
@@ -1396,23 +1401,19 @@ export class DataContext {
       }
       return getSystemFunctionCatalog();
     }
+    const effectiveCatalogId = this.atLeastV10 ? catalogId : undefined;
+    if (typeof effectiveCatalogId === 'string') {
+      const activeCatalog = this.lookupActiveCatalog(effectiveCatalogId);
+      if (activeCatalog) {
+        return activeCatalog;
+      }
+    }
     if (!this.surface) {
       throw new A2uiCatalogError(
         `No surface available to resolve catalog: ${catalogId ?? 'default'}`,
       );
     }
-    const effectiveCatalogId = this.atLeastV10 ? catalogId : undefined;
-    try {
-      return resolveSurfaceCatalog(this.surface, effectiveCatalogId, `Function call '${name}'`);
-    } catch (e: unknown) {
-      if (e instanceof A2uiCatalogError && typeof effectiveCatalogId === 'string') {
-        const activeCatalog = this.lookupActiveCatalog(effectiveCatalogId);
-        if (activeCatalog) {
-          return activeCatalog;
-        }
-      }
-      throw e;
-    }
+    return resolveSurfaceCatalog(this.surface, effectiveCatalogId, `Function call '${name}'`);
   }
 
   /**
@@ -1469,6 +1470,9 @@ export class DataContext {
         : flags.activeCatalogId !== undefined && flags.activeCatalogId !== this._activeCatalogId
           ? undefined
           : this._activeCatalog;
+    if (flags.activeCatalogId !== undefined || flags.activeCatalog !== undefined) {
+      view._cachedAtLeastV10 = undefined;
+    }
     return view;
   }
 
@@ -1481,14 +1485,23 @@ export class DataContext {
   }
 
   /**
-   * Looks up a scoped active `Catalog` instance matching `catalogId` on this
-   * context or an ancestor context.
+   * The active `Catalog` instance attached to the nearest active catalog scope,
+   * stopping at the closest context that defines `_activeCatalogId`.
    */
-  private lookupActiveCatalog(catalogId: string): Catalog<any> | undefined {
-    if (this._activeCatalog?.id === catalogId) {
+  private get activeCatalog(): Catalog<any> | undefined {
+    if (this._activeCatalogId !== undefined) {
       return this._activeCatalog;
     }
-    return this.parent?.lookupActiveCatalog(catalogId);
+    return this.parent?.activeCatalog;
+  }
+
+  /**
+   * Looks up a scoped active `Catalog` instance matching `catalogId` on the
+   * nearest active catalog scope.
+   */
+  private lookupActiveCatalog(catalogId: string): Catalog<any> | undefined {
+    const active = this.activeCatalog;
+    return active?.id === catalogId ? active : undefined;
   }
 
   /**

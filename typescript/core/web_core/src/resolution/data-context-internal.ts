@@ -51,6 +51,7 @@ interface DataContextInternals {
     keepPending: boolean,
   ): Signal<unknown>;
   activeCatalogId(ctx: DataContext): string | undefined;
+  activeCatalog(ctx: DataContext): Catalog<any> | undefined;
 }
 
 let internals: DataContextInternals | undefined;
@@ -157,5 +158,12 @@ export function withActiveCallCatalogId(
   catalogId: string,
   catalog?: Catalog<any>,
 ): DataContext {
-  return getInternals().withFlags(ctx, {activeCatalogId: catalogId, activeCatalog: catalog});
+  const impl = getInternals();
+  if (
+    impl.activeCatalogId(ctx) === catalogId &&
+    (catalog === undefined || impl.activeCatalog(ctx) === catalog)
+  ) {
+    return ctx;
+  }
+  return impl.withFlags(ctx, {activeCatalogId: catalogId, activeCatalog: catalog});
 }

@@ -17,11 +17,7 @@
 import {z} from 'zod';
 import type {ProtocolVersion} from '../processing/adapters/base.js';
 import {DataContext} from '../resolution/data-context.js';
-import {
-  activeCallCatalogId,
-  allowsAgentRouting,
-  withActiveCallCatalogId,
-} from '../resolution/data-context-internal.js';
+import {allowsAgentRouting, withActiveCallCatalogId} from '../resolution/data-context-internal.js';
 import type {SurfaceModel} from '../state/surface-model.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
@@ -1212,11 +1208,7 @@ function createCatalogInvoker<F extends FunctionApi>(
     }
 
     const callCtx =
-      atLeastV10 &&
-      !name.startsWith('@') &&
-      catalogId &&
-      ctx instanceof DataContext &&
-      activeCallCatalogId(ctx) !== catalogId
+      atLeastV10 && !name.startsWith('@') && catalogId && ctx instanceof DataContext
         ? withActiveCallCatalogId(ctx, catalogId, catalog)
         : ctx;
 

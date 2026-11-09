@@ -38,6 +38,7 @@ import {
   unescapeObjectKey,
   validateReservedDirectives,
 } from './data-context.js';
+import {withActiveCallCatalogId} from './data-context-internal.js';
 import {Catalog, createFunctionImplementation} from '../catalog/types.js';
 import {
   FormatStringImplementation,
@@ -1906,6 +1907,79 @@ describe('DataContext asynchronous function arguments', () => {
       'drops',
     );
     assert.strictEqual(standInErrors.length, 0);
+
+    // 4. Surface-less `new DataContext(new DataModel(), '/')` invoked via `basicCat.invoker(...)`.
+    const surfacelessCtx = new DataContext(new DataModel(), '/');
+    assert.strictEqual(surfacelessCtx.atLeastV10, false);
+    const surfacelessRes = basicCat.invoker(
+      'formatString',
+      {value: "Standalone: ${pluralize(value: 1, one: 'item', other: 'items')}"},
+      surfacelessCtx,
+    );
+    assert.strictEqual(getValue(surfacelessRes as any), 'Standalone: item');
+    assert.strictEqual(surfacelessCtx.atLeastV10, false);
+
+    // 5. Same-ID negotiated schema-only surface catalog + executable `basicCat.invoker(...)`
+    // (including when `ctx` was pre-scoped to `basicId` without `basicCat`).
+    const schemaOnlyBasic = Catalog.fromJson(
+      {
+        catalogId: basicId,
+        protocolVersion: '1.0',
+        components: {},
+        functions: {
+          formatString: {
+            returnType: 'string',
+            parameters: {type: 'object', properties: {value: {type: 'string'}}},
+          },
+          pluralize: {
+            returnType: 'string',
+            parameters: {
+              type: 'object',
+              properties: {
+                value: {type: 'number'},
+                one: {type: 'string'},
+                other: {type: 'string'},
+              },
+            },
+          },
+        },
+      },
+      '1.0',
+    );
+    const schemaOnlySurface = new SurfaceModel(
+      's-schema-only-invoker',
+      schemaOnlyBasic,
+      new Map([[basicId, schemaOnlyBasic]]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '1.0',
+    );
+    const schemaOnlyErrors: unknown[] = [];
+    schemaOnlySurface.onError.subscribe(e => {
+      schemaOnlyErrors.push(e);
+    });
+    const schemaOnlyCtx = new DataContext(schemaOnlySurface, '/');
+    const preScopedCtx = withActiveCallCatalogId(schemaOnlyCtx, basicId);
+    const schemaOnlyRes = basicCat.invoker(
+      'formatString',
+      {value: "Count: ${pluralize(value: 1, one: 'drop', other: 'drops')}"},
+      preScopedCtx,
+    );
+    assert.strictEqual(getValue(schemaOnlyRes as any), 'Count: drop');
+    assert.strictEqual(schemaOnlyErrors.length, 0);
+
+    // 6. Nested `DataContext` with an inner catalog scope does not leak an ancestor's standalone catalog.
+    const rpcScoped = withActiveCallCatalogId(mixedCtx, extCat.id, extCat);
+    const innerScoped = withActiveCallCatalogId(rpcScoped.nested('/items/0', 0), basicId, basicCat);
+    assert.strictEqual(
+      innerScoped.resolveDynamicValue({'@call': 'extOnly', catalogId: extCat.id, args: {}}),
+      undefined,
+    );
+    assert.strictEqual(mixedErrors.length, 1);
+    assert.strictEqual((mixedErrors[0] as {code?: string}).code, 'CATALOG_ERROR');
   });
 
   it('rejects __proto__ arguments in formatString template calls as own unknown arguments', () => {

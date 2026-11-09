@@ -503,10 +503,13 @@ export function executeFormatString(
 
   if (parts.length === 0) return '';
 
-  const atLeastV10 = isAtLeastVersion(
-    context.surface?.protocolVersion ?? context.surface?.defaultCatalog?.protocolVersion,
-    '1.0',
-  );
+  const atLeastV10 =
+    typeof context.atLeastV10 === 'boolean'
+      ? context.atLeastV10
+      : isAtLeastVersion(
+          context.surface?.protocolVersion ?? context.surface?.defaultCatalog?.protocolVersion,
+          '1.0',
+        );
   const catalogId = atLeastV10 ? activeCallCatalogId(context) : undefined;
   // A template part never waits for the agent: from v1.0, a part that calls
   // a function the renderer does not implement fails with an
