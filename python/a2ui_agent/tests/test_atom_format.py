@@ -589,7 +589,8 @@ def test_check_without_component_value_maps_positionally(
     # positional argument fills `value`, as for any function call.
     message = _compile_one(
         compiler,
-        '(TextField :label "x" :checks (regex $/other "^a$" "Must be a"))',
+        '(Button :action (Event "go") :checks (regex $/other "^a$" "Must be a")'
+        ' (Text "Go"))',
     )
     rule = _components(message)["root"]["checks"][0]
     assert rule == {

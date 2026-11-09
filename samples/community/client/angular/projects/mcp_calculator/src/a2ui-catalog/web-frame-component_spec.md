@@ -1,6 +1,6 @@
 # A2UI WebApp Iframe Component Specification (v0.9)
 
-## A Specification for Sandboxed, Rich Interactive Components in the Agent-to-UI Protocol
+## A Specification for Sandboxed, Rich Interactive Components in the A2UI Protocol
 
 Jul 27, 2026  
 Status: In progress

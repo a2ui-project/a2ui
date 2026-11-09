@@ -150,11 +150,6 @@ export abstract class SandboxedFrameElement<
   private appliedHeight: number | undefined = undefined;
   private sizing: FrameSizing | null = null;
 
-  /** Renders into the light DOM, like the basic catalog, so page styles reach the frame. */
-  override createRenderRoot() {
-    return this;
-  }
-
   override connectedCallback() {
     super.connectedCallback();
     this.sandboxUrl ??= resolveSandboxUrl(this.sandboxMode);

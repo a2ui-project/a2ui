@@ -537,6 +537,117 @@ def test_source_without_unions_does_not_gain_them() -> None:
     assert out["functions"]["noop"]["returnType"] == "void"
 
 
+def test_derive_keeps_named_entries_and_adds_new_ones_under_the_new_id() -> None:
+    catalog = Catalog.from_json(_label_catalog())
+    banner = ComponentApi(
+        "Banner",
+        {
+            "type": "object",
+            "properties": {"component": {"const": "Banner"}},
+            "required": ["component"],
+        },
+    )
+
+    derived = catalog.derive(
+        catalog_id="https://example.com/chat",
+        components=["Spacer", banner],
+        functions=["shout"],
+    )
+
+    assert derived.catalog_id == "https://example.com/chat"
+    assert derived.protocol_version == catalog.protocol_version
+    assert list(derived.components) == ["Spacer", "Banner"]
+    assert derived.components["Spacer"] is catalog.components["Spacer"]
+    assert derived.components["Banner"] is banner
+    assert list(derived.functions) == ["shout"]
+    out = derived.to_json()
+    assert out["catalogId"] == "https://example.com/chat"
+    assert list(out["components"]) == ["Spacer", "Banner"]
+    # `Weighted` was referenced only by the dropped Label; `Unused` never was.
+    assert set(out["$defs"]) == {"Unused", "anyComponent", "anyFunction"}
+
+
+def test_derive_drops_the_fields_that_describe_the_source() -> None:
+    catalog = Catalog.from_json(_label_catalog())
+
+    out = catalog.derive(catalog_id="https://example.com/chat").to_json()
+
+    assert out["$schema"] == _label_catalog()["$schema"]
+    for key in ("$id", "title", "description", "instructions"):
+        assert key not in out
+
+
+def test_derive_takes_the_instructions_it_is_given() -> None:
+    catalog = Catalog.from_json(_label_catalog())
+
+    derived = catalog.derive(
+        catalog_id="https://example.com/chat", instructions="Be brief."
+    )
+
+    assert derived.instructions == "Be brief."
+    assert derived.to_json()["instructions"] == "Be brief."
+
+
+def test_derive_keeps_every_entry_of_a_kind_it_is_given_no_list_for() -> None:
+    catalog = v1_0.BasicCatalog()
+
+    derived = catalog.derive(catalog_id="https://example.com/chat")
+
+    assert list(derived.components) == list(catalog.components)
+    assert list(derived.functions) == list(catalog.functions)
+    assert derived.theme_schema == catalog.theme_schema
+
+
+def test_derive_replaces_the_entry_of_the_same_name() -> None:
+    catalog = Catalog.from_json(_label_catalog())
+    spacer = ComponentApi(
+        "Spacer",
+        {
+            "type": "object",
+            "properties": {"component": {"const": "Spacer"}},
+            "required": ["component"],
+        },
+    )
+
+    derived = catalog.derive(catalog_id="https://example.com/chat", components=[spacer])
+
+    assert derived.components["Spacer"] is spacer
+
+
+def test_derive_replaces_a_named_entry_with_a_new_entry_of_the_same_name() -> None:
+    catalog = Catalog.from_json(_label_catalog())
+    label = ComponentApi(
+        "Label",
+        {
+            "type": "object",
+            "properties": {"component": {"const": "Label"}},
+            "required": ["component"],
+        },
+    )
+
+    derived = catalog.derive(
+        catalog_id="https://example.com/chat",
+        components=["Label", "Spacer", label],
+    )
+
+    assert list(derived.components) == ["Label", "Spacer"]
+    assert derived.components["Label"] is label
+    out = derived.to_json()
+    # `Weighted` was referenced only by the replaced Label.
+    assert "Weighted" not in out["$defs"]
+    # The union names the same components, so it is emitted as written.
+    assert out["$defs"]["anyComponent"] == _label_catalog()["$defs"]["anyComponent"]
+
+
+def test_derive_rejects_a_name_the_source_has_no_entry_of() -> None:
+    catalog = Catalog.from_json(_label_catalog())
+
+    with pytest.raises(A2uiCatalogError, match="has no component 'Nope'.*chat"):
+        catalog.derive(catalog_id="https://example.com/chat", components=["Nope"])
+    with pytest.raises(A2uiCatalogError, match="has no function 'nope'"):
+        catalog.derive(catalog_id="https://example.com/chat", functions=["nope"])
+
+
 # ==============================================================================
 # 3. Catalogs defined in code
 # ==============================================================================
@@ -710,8 +821,8 @@ def test_function_without_a_schema_takes_any_args(version: str) -> None:
 def test_catalog_schema_is_a_deprecated_alias() -> None:
     catalog = v1_0.BasicCatalog()
     with pytest.warns(DeprecationWarning, match="validation_schema"):
-        legacy = catalog.catalog_schema
-    assert legacy == catalog.validation_schema
+        old_schema = catalog.catalog_schema
+    assert old_schema == catalog.validation_schema
 
 
 def test_v10_renderer_capabilities_inline_catalogs_use_to_json() -> None:
@@ -739,6 +850,68 @@ def test_v10_renderer_capabilities_inline_a_function_without_a_schema() -> None:
 
     assert inline == [catalog.to_json()]
     _catalog_definition_validator().validate(inline[0])
+
+
+def _v10_inline_catalog(catalog: Any) -> dict[str, Any]:
+    caps = MessageProcessor([catalog]).get_renderer_capabilities(
+        CapabilitiesOptions(versions=["1.0"], include_inline_catalogs=True)
+    )
+    return caps["1.0"]["inlineCatalogs"][0]
+
+
+def test_v10_renderer_capabilities_strip_the_v_prefix_from_protocol_version() -> None:
+    catalog = Catalog.from_json(
+        {"catalogId": "c", "protocolVersion": "v1.0", "components": {}}
+    )
+
+    inline = _v10_inline_catalog(catalog)
+
+    assert inline["protocolVersion"] == "1.0"
+    # The catalog's own document keeps the version as written.
+    assert catalog.to_json()["protocolVersion"] == "v1.0"
+
+
+def test_v10_renderer_capabilities_fill_in_an_undeclared_protocol_version() -> None:
+    catalog = Catalog.from_json({"catalogId": "c"}, protocol_version="v1.0")
+
+    assert _v10_inline_catalog(catalog)["protocolVersion"] == "1.0"
+
+
+def test_v10_renderer_capabilities_treat_a_blank_protocol_version_as_undeclared() -> (
+    None
+):
+    catalog = Catalog.from_json(
+        {"catalogId": "c", "protocolVersion": "   "}, protocol_version="1.0"
+    )
+
+    assert _v10_inline_catalog(catalog)["protocolVersion"] == "1.0"
+
+
+def test_v10_renderer_capabilities_use_the_catalog_id_override() -> None:
+    catalog = Catalog.from_json(
+        {"catalogId": "from-document", "protocolVersion": "1.0"},
+        catalog_id="override",
+    )
+
+    assert _v10_inline_catalog(catalog)["catalogId"] == "override"
+
+
+def test_v10_renderer_capabilities_leave_the_to_json_document_unchanged() -> None:
+    document = {"catalogId": "from-document", "protocolVersion": "v1.0"}
+
+    class SharedDocumentCatalog(Catalog):
+        """A catalog whose `to_json` hands out the same dict on each call."""
+
+        def to_json(self) -> dict[str, Any]:
+            return document
+
+    catalog = SharedDocumentCatalog(catalog_id="override", protocol_version="1.0")
+
+    inline = _v10_inline_catalog(catalog)
+
+    assert inline["catalogId"] == "override"
+    assert inline["protocolVersion"] == "1.0"
+    assert document == {"catalogId": "from-document", "protocolVersion": "v1.0"}
 
 
 def test_validation_schema_emits_a_declared_protocol_version_bare() -> None:

@@ -63,6 +63,17 @@ An audio player.
 
 **Rendering Guidelines:** Render using a native audio player component with user controls enabled. Like video, its container should span the full width of its parent. Scrubbing (seeking) should be supported if provided by the native control.
 
+### Media URLs (`Image`, `Video`, `AudioPlayer`)
+
+**Security Constraints & Implementation Requirements (Mandatory):**
+`Image.url`, `Video.url`, `Video.posterUrl` and `AudioPlayer.url` come from the agent. To keep them from running script (`javascript:` in a web renderer) or reading local and app-private resources (`file:`, `content:`, `blob:`, `ftp:`), every renderer validates them the same way, so a surface loads the same media on every platform:
+
+1. **Trim First:** Remove leading and trailing whitespace and control characters before validating. An empty result is rejected.
+2. **Enforce Scheme Allowlist:** Accept only `http:`, `https:` and `data:` URLs, and relative paths. Reject any other scheme by rendering nothing (or the platform's empty placeholder) for that media, rather than raising an error.
+3. **Require `scheme://` for HTTP:** Accept an `http:` or `https:` URL only when it is written with `//` and a non-empty host (`https://host/...`). Reject forms such as `https:host`, which browsers resolve against the page.
+4. **Keep Relative Paths on the Same Host:** Reject a relative path that starts with two slashes (`//host`), counting `\` as `/`, because it points at another host. Check the scheme and the leading slashes after dropping tab, newline and carriage-return characters, as browser URL parsers do, so `ht\ttps://host` and `/\t/host` are rejected too.
+5. **Validate Cheaply:** Validation can run on every render, and a `data:` URL can be megabytes long, so inspect only the scheme prefix and the first characters instead of copying the whole string.
+
 ### Row
 
 A horizontal layout container.
@@ -235,7 +246,16 @@ Because `formatString` contains dynamic expressions embedded _within_ a string l
 
 **Description:** Validates a value against a regular expression.
 
-**Logic:** Instantiate a regular expression using `args.pattern`. Test the `args.value` string against it. Return `true` if it matches, `false` otherwise.
+**Logic:** Parse and validate `args.pattern` against the **A2UI regex dialect** before matching it against `args.value` (see [The `regex` function](../../../specification/v1_0/docs/a2ui_protocol.md#the-regex-function)):
+
+- **Dialect:** A portable subset of ECMAScript `Pattern` syntax evaluated in Unicode mode (`u`) with no other flags. Matching is case-sensitive, `.` excludes line terminators (U+000A, U+000D, U+2028, U+2029), `^` and `$` match only at the start and end of the value (`$` does not match before a trailing newline), `\d`, `\w`, and `\b` are ASCII-only, and matching uses search semantics (`RegExp.prototype.test`). Backreferences (`\1`-`\9`, `\k<name>`), lookbehind (`(?<=`, `(?<!`), named groups (`(?<name>`), Unicode property escapes (`\p{...}`, `\P{...}`), `\cX`, legacy octal escapes, and inline flags are not allowed and fail with `EXPRESSION_ERROR`.
+- **Safety rules (rejected with `EXPRESSION_ERROR` before matching):**
+  1. Pattern length exceeds 256 code points.
+  2. A quantifier whose upper bound is above 1 (`?` and `{0,1}` have upper bound 1) applies to a subexpression containing an unbounded quantifier (`*`, `+`, `{n,}`).
+  3. An unbounded quantifier applies to an alternation where two branches can start with the same character (after unwrapping groups).
+  4. Two unbounded-quantified atoms with overlapping character sets are adjacent in one concatenation, with only zero-width assertions or items that can match the empty string between them (a group whose only content is one quantified atom counts as that atom).
+- **Value length cap:** If `args.value` exceeds 4,096 code points, return `{"valid": false}` (or `false` in v0.9) without evaluating the pattern or reporting an error.
+- **Return value:** Otherwise, test `args.value` against the compiled pattern and return `{"valid": true}` if it matches or `{"valid": false}` if it does not (or `true` / `false` in v0.9).
 
 ### `length`
 

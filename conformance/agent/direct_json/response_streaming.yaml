@@ -104,11 +104,9 @@
 # block, and a case can state `expect_close`, the parts closing the stream
 # returns after the last step.
 #
-# This suite has no Express counterpart. Streaming is the one thing the two
-# formats do not share: the Express parser does not implement `parse_chunk`, so
-# an Express agent buffers a response and parses it whole. The rules above about
-# tags and text would hold for Express if it ever streams, and a counterpart
-# suite belongs here on the day it does.
+# The Express counterpart of this suite is
+# `agent/express/response_streaming.yaml`, which tests incremental statement
+# and progressive-key streaming for `<a2ui>` blocks.
 #
 # The catalogs under test live in `args`, and the version a case runs under is
 # the one its catalog document declares. The rule that a component is emitted
@@ -4511,3 +4509,26 @@
                   - id: "root"
                     component: "Text"
                     text: "Hello"
+
+- name: test_stream_second_block_calling_renderer_only_function_fails_v10
+  description: A stream whose second block calls a rendererOnly function yields the first block's parts and then raises ValidationError on the second block.
+  action: parse_chunk
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  steps:
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "conformance/simplified", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}]</a2ui-json>'
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "main"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Hello"
+    - input: '<a2ui-json>[{"version": "1.0", "callRendererFunction": {"functionCallId": "call_1", "callFunction": {"catalogId": "conformance/simplified", "@call": "formatString", "args": {"value": "abc"}}}}]</a2ui-json>'
+      expect_error:
+        category: "ValidationError"
+        message: "formatString"

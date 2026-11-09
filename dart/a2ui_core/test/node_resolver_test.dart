@@ -1509,10 +1509,12 @@ void main() {
         expect(shifted.map((node) => node.instanceId), ['x', id, '$id#2']);
         expect(shifted[1].state, state);
         expect(shifted[2].state, state);
-        // The same edge slot now has the first ordinal, so it cannot retain
-        // the old second node's immutable instance id.
-        expect(second.disposed, isTrue);
-        expect(shifted[1], isNot(same(second)));
+        // Static child list edges are keyed by occurrence of (id, dataPath),
+        // so both nodes are retained across insertion.
+        expect(first.disposed, isFalse);
+        expect(second.disposed, isFalse);
+        expect(shifted[1], same(first));
+        expect(shifted[2], same(second));
 
         surface.componentsModel.get('root')!.properties = {
           'children': [id, id],

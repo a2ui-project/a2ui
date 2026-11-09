@@ -54,20 +54,18 @@ void main() {
     ComponentNode<ComponentImplementation> nodeOf(String componentId) =>
         log.nodes[componentId]!;
 
-    testWidgets('shows a progress indicator until the root arrives', (
-      tester,
-    ) async {
+    testWidgets('renders nothing until the root arrives', (tester) async {
       final SurfaceModel<ComponentImplementation> s = surface();
 
       await tester.pumpWidget(host(s));
       expect(log.builds, isEmpty);
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(tester.getSize(find.byType(A2uiSurface)), Size.zero);
 
       add(s, 'root', 'Text', {'text': 'Root'});
       await tester.pump();
 
       expect(find.text('Root'), findsOneWidget);
-      expect(find.byType(CircularProgressIndicator), findsNothing);
     });
 
     testWidgets('moves to a new resolver when given another surface', (
@@ -149,7 +147,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('errors: 1'), findsOneWidget);
-      expect(find.text('Unknown component type "Bogus"'), findsOneWidget);
+      expect(find.textContaining('Bogus'), findsNothing);
     });
   });
 }
