@@ -1,0 +1,144 @@
+{
+  "name": "Chat Message",
+  "description": "Example of chat message demonstrating templating and relative paths.",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "gallery-chat-message",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "gallery-chat-message",
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "child": "main-column"
+          },
+          {
+            "id": "main-column",
+            "component": "Column",
+            "children": ["header", "divider", "messages-list"]
+          },
+          {
+            "id": "header",
+            "component": "Row",
+            "children": ["channel-icon", "channel-name"],
+            "align": "center"
+          },
+          {
+            "id": "channel-icon",
+            "component": "Icon",
+            "name": "info"
+          },
+          {
+            "id": "channel-name",
+            "component": "Text",
+            "text": {
+              "path": "/channelName"
+            },
+            "variant": "h3"
+          },
+          {
+            "id": "divider",
+            "component": "Divider"
+          },
+          {
+            "id": "messages-list",
+            "component": "Column",
+            "children": {
+              "path": "/messages",
+              "componentId": "message-template"
+            },
+            "align": "start"
+          },
+          {
+            "id": "message-template",
+            "component": "Row",
+            "children": ["msg-avatar", "msg-content"],
+            "align": "start"
+          },
+          {
+            "id": "msg-avatar",
+            "component": "Image",
+            "url": {
+              "path": "avatar"
+            },
+            "fit": "cover",
+            "variant": "avatar"
+          },
+          {
+            "id": "msg-content",
+            "component": "Column",
+            "children": ["msg-header", "msg-text"]
+          },
+          {
+            "id": "msg-header",
+            "component": "Row",
+            "children": ["msg-username", "msg-time"],
+            "align": "center"
+          },
+          {
+            "id": "msg-username",
+            "component": "Text",
+            "text": {
+              "path": "username"
+            },
+            "variant": "h4"
+          },
+          {
+            "id": "msg-time",
+            "component": "Text",
+            "text": {
+              "call": "formatDate",
+              "args": {
+                "value": {
+                  "path": "timestamp"
+                },
+                "format": "h:mm a"
+              },
+              "returnType": "string"
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "msg-text",
+            "component": "Text",
+            "text": {
+              "path": "text"
+            },
+            "variant": "body"
+          }
+        ]
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "gallery-chat-message",
+        "value": {
+          "channelName": "project-updates",
+          "messages": [
+            {
+              "avatar": "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop",
+              "username": "Mike Chen",
+              "timestamp": "2025-12-15T10:32:00Z",
+              "text": "Just pushed the new API changes. Ready for review."
+            },
+            {
+              "avatar": "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop",
+              "username": "Sarah Kim",
+              "timestamp": "2025-12-15T10:45:00Z",
+              "text": "Great! I'll take a look after standup."
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
