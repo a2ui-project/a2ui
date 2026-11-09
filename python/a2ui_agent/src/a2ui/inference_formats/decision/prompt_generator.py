@@ -205,7 +205,7 @@ class DecisionPromptGenerator(PromptGenerator):
     def generate_catalog_instructions(
         self,
         include_schema: bool = True,
-        catalog: Any | None = None,
+        catalog: CatalogApi | None = None,
     ) -> str:
         """Lists the components the decision model may choose and the templates.
 
@@ -219,8 +219,8 @@ class DecisionPromptGenerator(PromptGenerator):
 
     def generate_examples(
         self,
-        catalog: Any | None = None,
-        validate: bool = False,
+        catalog: CatalogApi | None = None,
+        validate: bool = True,
     ) -> str:
         """Formats the configured example turns as decision blocks.
 
@@ -255,17 +255,6 @@ class DecisionPromptGenerator(PromptGenerator):
         """Serializes a decision block inside the sentinel tags."""
         body = json.dumps(block.to_json(), indent=1, sort_keys=True)
         return f"{A2UI_INFERENCE_OPEN_TAG}\n{body}\n{A2UI_INFERENCE_CLOSE_TAG}"
-
-    def generate(self) -> str:
-        """Assembles the prompt snippet for the decision format."""
-        parts: list[str] = [f"## Workflow Description:\n{self.generate_base_rules()}"]
-        catalog_inst = self.generate_catalog_instructions(include_schema=True)
-        if catalog_inst:
-            parts.append(catalog_inst)
-        examples = self.generate_examples(validate=True)
-        if examples:
-            parts.append(f"### Examples:\n{examples}")
-        return "\n\n".join(parts)
 
 
 __all__ = [

@@ -1,7 +1,7 @@
 # A2UI Swift implementation
 
 This directory contains the official native Apple client implementation for A2UI
-(Agent-to-User Interface), supporting iOS, macOS, iPadOS, tvOS, visionOS, and watchOS.
+(Agent-to-User Interface), supporting iOS and iPadOS 17+ and macOS 14+.
 
 For the platform-agnostic protocol specifications and guidelines, see
 [specification/v0_9_1/docs/a2ui_protocol.md](../specification/v0_9_1/docs/a2ui_protocol.md) and
@@ -75,6 +75,33 @@ is never evaluated as a format string. Missing category text falls back to `othe
 Plural rules and numeric boundary behavior follow the installed operating system, including for
 fractional and very large counts. They are not pinned to an ICU release and may differ from Web
 `Intl.PluralRules`. Non-finite numbers return `other`.
+
+## Opening links
+
+`openUrl` checks that the URL is `http`, `https`, `mailto` or `tel` and passes the resolved URL to
+the `OpenURLHandler` the catalog was built with. Without one, as in `makeCatalog(version:)` and
+`allCatalogs`, it opens nothing. On iOS:
+
+```swift
+final class SystemURLOpener: OpenURLHandler {
+  func open(_ url: URL) {
+    Task { @MainActor in UIApplication.shared.open(url) }
+  }
+}
+
+let urlOpener = SystemURLOpener()  // Keep this alive, e.g. in your view model.
+let catalog = BasicCatalog.makeCatalog(version: .v10, openURLHandler: urlOpener)
+```
+
+The catalog holds the handler weakly, following the delegate pattern, so it never creates a retain
+cycle. Keep a strong reference to the handler outside the catalog, for example in the view or view
+model that owns the `MessageProcessor`, or share one instance across the app. If nothing else
+holds it, it is released and links stop opening.
+
+In SwiftUI, `BasicCatalogImplementation.makeCatalog(version:locale:openURLHandler:)` takes the same
+handler. Pass that catalog to both `MessageProcessor` and `Surface`, since
+`Catalog<ComponentImplementation>` conforms to `CatalogProtocol`. If you use separate catalogs, give
+`openURLHandler` to the `MessageProcessor` catalog, because that is where functions run.
 
 ## Agent guidelines and coding standards
 

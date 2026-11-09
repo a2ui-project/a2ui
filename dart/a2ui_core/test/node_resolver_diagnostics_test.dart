@@ -324,19 +324,18 @@ void main() {
     );
 
     test(
-      'replacement of a cyclic edge does not erase its deduplication key',
+      'retirement of a cyclic edge does not erase its deduplication key',
       () async {
-        _add(surface, 'leaf', 'Text');
         _add(surface, 'root', 'Column', {
-          'children': ['leaf', 'root'],
+          'children': ['root', 'root'],
         });
         await Future<void>.delayed(Duration.zero);
         expect(reports('CYCLIC_REFERENCE'), 1);
-        final ComponentNode original = children()[1];
+        final ComponentNode second = children()[1];
         surface.componentsModel.get('root')!.properties = {
-          'children': ['root', 'root'],
+          'children': ['root'],
         };
-        expect(original.disposed, isTrue);
+        expect(second.disposed, isTrue);
         expect(
           children().map((node) => node.state),
           everyElement(NodeState.cyclic),

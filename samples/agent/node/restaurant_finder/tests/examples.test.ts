@@ -61,7 +61,7 @@ function asResponse(profile: VersionProfile, format: A2uiFormat, raw: string): s
   }
   const decompiler = new ExpressDecompiler(catalogs.get(profile.version)!, profile.version);
   const messages = JSON.parse(raw) as AgentToRendererMessage[];
-  return decompiler.wrapDecompiledBlocks([decompiler.decompile(messages)]);
+  return decompiler.wrap([{type: 'a2ui', a2uiRaw: decompiler.decompile(messages), isFinal: true}]);
 }
 
 describe.each(VERSIONS)('$version', profile => {

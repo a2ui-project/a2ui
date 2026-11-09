@@ -14,18 +14,26 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterable, Sequence
+from collections.abc import AsyncIterable, Iterable, Mapping, Sequence
 import logging
 from typing import Any
 
 from a2a.types import DataPart
+from a2a.types import Message
 from a2a.types import Part
 from a2a.types import TextPart as A2aTextPart
+from pydantic import BaseModel
 
+from a2ui.constants import A2UI_CLOSE_TAG
+from a2ui.constants import A2UI_OPEN_TAG
 from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats import to_message_dicts
+from a2ui.inference_formats.direct_json import read_json
 from a2ui.parser import A2uiPart
+from a2ui.parser import BlockLexer
+from a2ui.parser import JSON_PAYLOAD_START_RE
 from a2ui.parser import Parser
+from a2ui.parser import RawA2uiPart
 from a2ui.parser import ResponsePart
 from a2ui.parser import ResponseStream
 from a2ui.parser import TextPart
@@ -37,6 +45,18 @@ logger = logging.getLogger(__name__)
 MIME_TYPE_KEY = "mimeType"
 A2UI_MIME_TYPE = "application/a2ui+json"
 DEPRECATED_A2UI_MIME_TYPE = "application/json+a2ui"
+
+_BLOCK_LEXER = BlockLexer(
+    open_tag=A2UI_OPEN_TAG,
+    close_tag=A2UI_CLOSE_TAG,
+    # JSON strings are double-quoted only and JSON has no comments, so an
+    # apostrophe or `#` in a block never hides its close tag.
+    string_delimiters={'"'},
+    single_line_comments=set(),
+    # When the open tag is missing, the block starts at the first line that
+    # opens a JSON array or object.
+    payload_start_pattern=JSON_PAYLOAD_START_RE,
+)
 
 
 def create_a2ui_part(
@@ -99,6 +119,71 @@ def get_a2ui_datapart(part: Part) -> DataPart | None:
     if is_a2ui_part(part) and isinstance(part.root, DataPart):
         return part.root
     return None
+
+
+def get_a2ui_messages(source: Message | Iterable[Part]) -> list[dict[str, Any]]:
+    """Returns the A2UI messages that an A2A message's A2UI parts carry.
+
+    Each A2UI `DataPart` carries one A2UI message, such as a renderer's
+    `action` or `callAgentFunction`. Parts that aren't A2UI are skipped, so
+    compare the count with the message's parts to tell whether it holds
+    anything else.
+
+    Args:
+        source: An A2A `Message`, or its parts.
+
+    Returns:
+        The A2UI messages, in the order of the parts.
+    """
+    parts = source.parts if isinstance(source, Message) else source
+    messages: list[dict[str, Any]] = []
+    for part in parts:
+        data_part = get_a2ui_datapart(part)
+        if data_part is not None:
+            messages.append(data_part.data)
+    return messages
+
+
+def create_a2ui_parts(
+    messages: Iterable[BaseModel | Mapping[str, Any]],
+    version: ProtocolVersion | str | None = None,
+) -> list[Part]:
+    """Wraps A2UI messages, such as the replies of an RPC handler, as A2A parts.
+
+    Use it for the replies of `RendererToAgentMessageProcessor`:
+
+    ```python
+    result = await processor.process_message(message)
+    parts = create_a2ui_parts(result.replies)
+    ```
+
+    Args:
+        messages: The A2UI messages, as schema models or as parsed JSON.
+            Models are serialized as by `to_message_dicts`: JSON-ready, by
+            wire alias, with only the fields that were set (which keeps a
+            `value` of `None` in an `agentFunctionResponse`), plus the
+            model's `version` for v0.9 and later.
+        version: The A2UI version, as for `create_a2ui_part`. Defaults to
+            each message's own `version` field.
+
+    Returns:
+        One A2UI part per message, in order.
+    """
+    parts: list[Part] = []
+    for message in messages:
+        if isinstance(message, BaseModel):
+            # Serialized as `to_message_dicts` does, which takes only
+            # agent-to-renderer models.
+            data = message.model_dump(mode="json", by_alias=True, exclude_unset=True)
+            msg_version = getattr(message, "version", None)
+            if msg_version == "v0.8":
+                data.pop("version", None)
+            elif isinstance(msg_version, str) and "version" not in data:
+                data = {"version": msg_version, **data}
+        else:
+            data = dict(message)
+        parts.append(create_a2ui_part(data, version=version))
+    return parts
 
 
 def to_a2a_parts(
@@ -171,8 +256,61 @@ def parse_content_to_parts(
     return parts
 
 
+def extract_a2ui_json_to_parts(
+    content: str,
+    fallback_text: str | None = None,
+    version: ProtocolVersion | str | None = None,
+) -> list[Part]:
+    """Extracts conversational text and `<a2ui-json>` blocks into A2A Parts.
+
+    Splits `<a2ui-json>` blocks from an LLM response without requiring a
+    configured `Catalog` or `Parser`, wrapping each JSON message dictionary in
+    an A2A `DataPart` without schema or surface-state validation. A block that
+    is unclosed, is not JSON, or is not a JSON object or array of objects is
+    logged and skipped. Use `parse_content_to_parts` when a `Parser` is
+    available.
+
+    Args:
+        content: The LLM response content, potentially containing `<a2ui-json>`
+            delimiters.
+        fallback_text: Optional text to return if no parts are successfully
+            created.
+        version: The A2UI version, as for `create_a2ui_part`.
+
+    Returns:
+        A list of A2A Part objects (TextPart and/or DataPart).
+    """
+    parts: list[Part] = []
+    try:
+        for raw_part in _BLOCK_LEXER.tokenize(content):
+            if isinstance(raw_part.part, TextPart):
+                if raw_part.part.text:
+                    parts.append(Part(root=A2aTextPart(text=raw_part.part.text)))
+            elif isinstance(raw_part.part, RawA2uiPart):
+                if not raw_part.is_final:
+                    logger.warning("Skipping unclosed A2UI JSON block.")
+                    continue
+                try:
+                    data = read_json(raw_part.part.a2ui_raw)
+                    for message in to_message_dicts(data):
+                        parts.append(create_a2ui_part(message, version=version))
+                except Exception as e:
+                    logger.warning(
+                        "Failed to parse A2UI block JSON: %s", type(e).__name__
+                    )
+                    logger.debug("A2UI block JSON parse error: %s", e)
+    except Exception as e:
+        logger.warning("Failed to parse A2UI response: %s", type(e).__name__)
+        logger.debug("A2UI response parse error: %s", e)
+
+    if not parts and fallback_text:
+        parts.append(Part(root=A2aTextPart(text=fallback_text)))
+
+    return parts
+
+
 async def stream_response_to_parts(
-    stream: ResponseStream,
+    stream: ResponseStream[ResponsePart],
     token_stream: AsyncIterable[str],
     version: ProtocolVersion | str | None = None,
 ) -> AsyncIterable[Part]:

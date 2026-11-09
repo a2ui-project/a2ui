@@ -23,12 +23,22 @@ import OrderedJSON
 @MainActor
 public final class RPCHandler {
 
+  /// The default timeout duration in seconds for outbound agent function calls.
+  public static let defaultTimeoutSeconds: TimeInterval = 30
+
   private struct PendingCall {
+    let surfaceID: String
     let continuation: CheckedContinuation<JSONValue, any Error>
     let timeoutTask: Task<Void, Never>?
   }
 
   private var pendingCalls: [String: PendingCall] = [:]
+
+  /// The number of outbound calls still awaiting the agent's response.
+  public var pendingCallCount: Int { pendingCalls.count }
+  /// Whether ``disposeAllPendingCalls()`` has run. A disposed handler rejects new outbound
+  /// calls and answers inbound calls with `DISPOSED`.
+  public private(set) var isDisposed = false
 
   public init() {}
 
@@ -49,6 +59,16 @@ public final class RPCHandler {
     dataContext: DataContext? = nil,
     userActivationPresent: Bool = false
   ) async -> RendererFunctionResponseMessage {
+    guard !isDisposed else {
+      return RendererFunctionResponseMessage(
+        functionCallID: message.functionCallID,
+        error: FunctionErrorPayload(
+          code: FunctionError.disposed(callID: message.functionCallID).rpcCode,
+          message: "The renderer's RPC state was disposed."
+        ),
+        version: message.version
+      )
+    }
     let callName = message.callFunction.call
     let targetCatalogID = message.callFunction.catalogID
 
@@ -103,7 +123,8 @@ public final class RPCHandler {
       )
     }
 
-    guard let function = catalog.functions[callName] else {
+    // A schema-only declaration has no renderer implementation, so the renderer can't run it.
+    guard let function = catalog.functions[callName], function.hasLocalImplementation else {
       let errorPayload = FunctionErrorPayload(
         code: .invalidFunctionCall,
         message: "Function not found: \(callName)"
@@ -153,7 +174,8 @@ public final class RPCHandler {
       path: dataContext?.path ?? "",
       functionHandler: argHandler,
       protocolVersion: dataContext?.protocolVersion ?? message.version,
-      index: dataContext?.index
+      index: dataContext?.index,
+      isUserActivated: userActivationPresent
     )
     let effectiveContext =
       dataContext
@@ -161,7 +183,8 @@ public final class RPCHandler {
         dataModel: argResolutionContext.dataModel,
         path: "",
         functionHandler: argHandler,
-        protocolVersion: message.version
+        protocolVersion: message.version,
+        isUserActivated: userActivationPresent
       )
 
     var resolvedArgs: [String: JSONValue] = [:]
@@ -172,7 +195,7 @@ public final class RPCHandler {
     if let capturedError = argHandler.capturedError {
       let errorPayload = FunctionErrorPayload(
         code: .executionError,
-        message: String(describing: capturedError)
+        message: Self.argumentErrorMessage(capturedError)
       )
       return RendererFunctionResponseMessage(
         functionCallID: message.functionCallID,
@@ -216,6 +239,21 @@ public final class RPCHandler {
     }
   }
 
+  /// The message of an error that a nested argument of an agent-initiated call failed with, or a
+  /// descriptive fallback when the error has none.
+  private static func argumentErrorMessage(_ error: any Error) -> String {
+    let message: String
+    if let a2uiError = error as? any A2UIError {
+      message = a2uiError.message
+    } else if let description = (error as? any LocalizedError)?.errorDescription {
+      message = description
+    } else {
+      message = String(describing: error)
+    }
+    guard message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return message }
+    return "An argument of the function call could not be resolved."
+  }
+
   // MARK: - Outgoing Calls (Renderer -> Agent)
 
   /// Initiates a remote function call to the agent and awaits the response.
@@ -236,10 +274,13 @@ public final class RPCHandler {
     functionCallID: String? = nil,
     args: [String: JSONValue]? = nil,
     version: A2UIProtocolVersion,
-    timeoutSeconds: TimeInterval = 30.0,
+    timeoutSeconds: TimeInterval = RPCHandler.defaultTimeoutSeconds,
     sendOutbound: @escaping @Sendable (RendererToAgentMessage) -> Void
   ) async throws -> JSONValue {
     let callID = functionCallID ?? UUID().uuidString
+    guard !isDisposed else {
+      throw FunctionError.disposed(callID: callID)
+    }
     let payload = CallFunctionPayload(
       call: functionName,
       catalogID: catalogID,
@@ -274,6 +315,7 @@ public final class RPCHandler {
         }
 
         self.pendingCalls[callID] = PendingCall(
+          surfaceID: surfaceID,
           continuation: continuation,
           timeoutTask: timeoutTask
         )
@@ -303,12 +345,28 @@ public final class RPCHandler {
 
     if let error = response.error {
       pending.continuation.resume(
-        throwing: FunctionError.remoteError(code: error.code, message: error.message)
+        throwing: FunctionError.remoteError(
+          code: error.code,
+          message: error.message,
+          callID: response.functionCallID
+        )
       )
     } else if let value = response.value {
       pending.continuation.resume(returning: value)
     } else {
       pending.continuation.resume(returning: .null)
+    }
+  }
+
+  /// Cancels all active pending calls for a specific surface, throwing
+  /// `FunctionError.surfaceCallsCancelled`.
+  public func cancelPendingCalls(forSurfaceID surfaceID: String) {
+    let error = FunctionError.surfaceCallsCancelled(surfaceID: surfaceID)
+    let callsToCancel = pendingCalls.filter { $0.value.surfaceID == surfaceID }
+    for (callID, pending) in callsToCancel {
+      pendingCalls.removeValue(forKey: callID)
+      pending.timeoutTask?.cancel()
+      pending.continuation.resume(throwing: error)
     }
   }
 
@@ -321,11 +379,13 @@ public final class RPCHandler {
     pendingCalls.removeAll()
   }
 
-  /// Disposes all active pending calls, throwing `FunctionError.disposed`.
+  /// Disposes the handler: rejects every in-flight call with `FunctionError.cancelled`
+  /// (`CANCELLED`), and makes later calls fail with `FunctionError.disposed` (`DISPOSED`).
   public func disposeAllPendingCalls() {
+    isDisposed = true
     for (callID, pending) in pendingCalls {
       pending.timeoutTask?.cancel()
-      pending.continuation.resume(throwing: FunctionError.disposed(callID: callID))
+      pending.continuation.resume(throwing: FunctionError.cancelled(callID: callID))
     }
     pendingCalls.removeAll()
   }

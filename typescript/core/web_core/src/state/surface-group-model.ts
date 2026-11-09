@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {SurfaceModel, ActionPayload} from './surface-model.js';
+import {SurfaceModel, ActionPayload, A2uiErrorPayload} from './surface-model.js';
 import {ComponentApi} from '../catalog/types.js';
 import {EventEmitter, EventSource, Subscription} from '../common/events.js';
 
@@ -26,10 +26,12 @@ import {EventEmitter, EventSource, Subscription} from '../common/events.js';
 export class SurfaceGroupModel<T extends ComponentApi> {
   private surfaces: Map<string, SurfaceModel<T>> = new Map();
   private surfaceUnsubscribers: Map<string, Subscription> = new Map();
+  private surfaceErrorUnsubscribers: Map<string, Subscription> = new Map();
 
   private readonly _onSurfaceCreated = new EventEmitter<SurfaceModel<T>>();
   private readonly _onSurfaceDeleted = new EventEmitter<string>();
   private readonly _onAction = new EventEmitter<ActionPayload>();
+  private readonly _onError = new EventEmitter<A2uiErrorPayload>();
 
   /** Event source firing when a new surface is added. */
   readonly onSurfaceCreated: EventSource<SurfaceModel<T>> = this._onSurfaceCreated;
@@ -37,6 +39,17 @@ export class SurfaceGroupModel<T extends ComponentApi> {
   readonly onSurfaceDeleted: EventSource<string> = this._onSurfaceDeleted;
   /** Event source firing when an action is dispatched from any surface in the group. */
   readonly onAction: EventSource<ActionPayload> = this._onAction;
+  /** Event source firing when an error is reported on any surface or at the group level. */
+  readonly onError: EventSource<A2uiErrorPayload> = this._onError;
+
+  /**
+   * Emits a group-level error payload to all `onError` subscribers.
+   *
+   * @param error Structured error payload to emit.
+   */
+  emitError(error: A2uiErrorPayload): void {
+    this._onError.emit(error);
+  }
 
   /**
    * Adds a surface to the group.
@@ -53,9 +66,15 @@ export class SurfaceGroupModel<T extends ComponentApi> {
 
     this.surfaces.set(surface.id, surface);
 
-    // Subscribe to surface actions and propagate
-    const sub = surface.onAction.subscribe(action => this._onAction.emit(action));
+    // Subscribe to surface actions and errors and propagate
+    const sub = surface.onAction.subscribe(action => {
+      void this._onAction.emit(action);
+    });
     this.surfaceUnsubscribers.set(surface.id, sub);
+    const errSub = surface.onError.subscribe(err => {
+      void this._onError.emit(err);
+    });
+    this.surfaceErrorUnsubscribers.set(surface.id, errSub);
 
     this._onSurfaceCreated.emit(surface);
   }
@@ -74,6 +93,11 @@ export class SurfaceGroupModel<T extends ComponentApi> {
       if (sub) {
         sub.unsubscribe();
         this.surfaceUnsubscribers.delete(id);
+      }
+      const errSub = this.surfaceErrorUnsubscribers.get(id);
+      if (errSub) {
+        errSub.unsubscribe();
+        this.surfaceErrorUnsubscribers.delete(id);
       }
 
       this.surfaces.delete(id);
@@ -109,5 +133,6 @@ export class SurfaceGroupModel<T extends ComponentApi> {
     this._onSurfaceCreated.dispose();
     this._onSurfaceDeleted.dispose();
     this._onAction.dispose();
+    this._onError.dispose();
   }
 }

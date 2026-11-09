@@ -16,7 +16,16 @@
 
 import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
-import {signal, computed, peekValue, getValue, setValue, effect} from '../reactivity/signals.js';
+import {
+  signal,
+  computed,
+  peekValue,
+  getValue,
+  setValue,
+  effect,
+  setSignalImplementation,
+  _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION,
+} from '../reactivity/signals.js';
 import {z} from 'zod';
 import {DataModel} from '../state/data-model.js';
 import {SurfaceModel} from '../state/surface-model.js';
@@ -31,7 +40,12 @@ import {
 } from './data-context.js';
 import {Catalog, createFunctionImplementation} from '../catalog/types.js';
 import {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
-import {A2uiCatalogError, A2uiExpressionError, A2uiValidationError} from '../errors.js';
+import {
+  A2uiCatalogError,
+  A2uiExpressionError,
+  A2uiRpcError,
+  A2uiValidationError,
+} from '../errors.js';
 
 const createTestDataContext = (
   model: DataModel,
@@ -383,6 +397,76 @@ describe('DataContext', () => {
     assert.strictEqual(sub.value, 'Hello Bob');
 
     sub.unsubscribe();
+  });
+
+  it('does not expose a transient undefined for nested Signal-returning calls when effects are deferred', () => {
+    // Emulate a reactivity backend (e.g. Angular) where effects do not run
+    // synchronously on creation but are queued until the next flush, in
+    // creation order. Effects created during a flush are appended to the
+    // same queue, mirroring Angular's root effect scheduler.
+    const base = _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION;
+    const queue: Array<() => void> = [];
+    const flush = () => {
+      while (queue.length > 0) {
+        queue.shift()!();
+      }
+    };
+    setSignalImplementation({
+      ...base,
+      effect: fn => {
+        let dispose: (() => void) | undefined;
+        let cancelled = false;
+        queue.push(() => {
+          if (!cancelled) dispose = base.effect(fn);
+        });
+        return () => {
+          cancelled = true;
+          dispose?.();
+        };
+      },
+    });
+
+    try {
+      const errors: unknown[] = [];
+      const fnInvoker = (name: string, args: Record<string, unknown>) => {
+        // Mirrors `areComponentsValid(...)`: takes arguments and returns a Signal.
+        if (name === 'isAlice') return computed(() => args.name === 'Alice');
+        // Mirrors `not(...)`: rejects an undefined argument with a ZodError.
+        if (name === 'not') {
+          z.any()
+            .refine(v => v !== undefined, 'Required')
+            .parse(args.value);
+          return !args.value;
+        }
+        return null;
+      };
+      const ctx = createTestDataContext(model, '/user', fnInvoker, e => errors.push(e));
+
+      const observed: unknown[] = [];
+      const sub = ctx.subscribeDynamicValue(
+        {
+          call: 'not',
+          args: {value: {call: 'isAlice', args: {name: {path: 'name'}}, returnType: 'any'}},
+          returnType: 'any',
+        },
+        v => observed.push(v),
+      );
+      flush();
+
+      assert.deepStrictEqual(errors, [], 'no spurious EXPRESSION_ERROR expected');
+      assert.deepStrictEqual(observed, [false], 'parent must never observe undefined');
+      assert.strictEqual(sub.value, false);
+
+      // Reactivity is preserved: the forwarding effect still propagates updates.
+      ctx.set('name', 'Bob');
+      flush();
+      assert.strictEqual(sub.value, true);
+      assert.deepStrictEqual(errors, []);
+
+      sub.unsubscribe();
+    } finally {
+      setSignalImplementation(base);
+    }
   });
 
   describe('resolveAction', () => {
@@ -1582,11 +1666,61 @@ describe('DataContext asynchronous function arguments', () => {
     assert.strictEqual(peekValue(sig), undefined);
     assert.strictEqual(errors.length, 0);
     await flush();
-    assert.strictEqual(peekValue(sig), undefined);
+    assert.strictEqual(peekValue(sig), null);
     assert.strictEqual(errors.length, 1);
     assert.strictEqual(errors[0].code, 'EXPRESSION_ERROR');
     assert.strictEqual(errors[0].message, 'inner failure');
     sig.unsubscribe?.();
+  });
+
+  it('resolves a failed agent binding to null and reports EXPRESSION_ERROR with functionCallId', async () => {
+    surface.agentFunctionCaller = () =>
+      Promise.reject(new A2uiRpcError('remote failure', 'EXECUTION_ERROR', 'call-99'));
+    const sig = ctx.resolveSignal(call('remoteFn', {}));
+    assert.strictEqual(peekValue(sig), undefined);
+    await flush();
+    assert.strictEqual(peekValue(sig), null);
+    assert.strictEqual(errors.length, 1);
+    assert.strictEqual(errors[0].code, 'EXPRESSION_ERROR');
+    assert.strictEqual((errors[0] as {functionCallId?: string}).functionCallId, 'call-99');
+    assert.strictEqual((errors[0] as {surfaceId?: string}).surfaceId, undefined);
+    sig.unsubscribe?.();
+  });
+
+  it('halts an action pipeline on an agent failure while keeping earlier effects', async () => {
+    const markStarted = createFunctionImplementation(
+      {name: 'markStarted', returnType: 'boolean', schema: z.object({})},
+      (_args, c) => {
+        c.set('/started', true);
+        return true;
+      },
+    );
+    const finish = createFunctionImplementation(
+      {name: 'finish', returnType: 'boolean', schema: z.object({'steps': z.array(z.any())})},
+      (_args, c) => {
+        c.set('/finished', true);
+        return true;
+      },
+    );
+    const cat = new Catalog('cat', '1.0', [], [markStarted, finish]);
+    const actionSurface = new SurfaceModel('s-act', cat);
+    actionSurface.agentFunctionCaller = () =>
+      Promise.reject(new A2uiRpcError('step failed', 'EXECUTION_ERROR', 'call-step-1'));
+    const actionErrors: Array<{code: string; functionCallId?: string}> = [];
+    actionSurface.onError.subscribe(e => {
+      actionErrors.push(e);
+    });
+    const actionCtx = new DataContext(actionSurface, '/');
+    const result = await actionCtx.resolveAction({
+      functionCall: call('finish', {
+        steps: [call('markStarted', {}), call('remoteStep', {})],
+      }),
+    });
+    assert.strictEqual(result, undefined);
+    assert.deepStrictEqual(actionSurface.dataModel.get('/'), {started: true});
+    assert.strictEqual(actionErrors.length, 1);
+    assert.strictEqual(actionErrors[0].code, 'EXPRESSION_ERROR');
+    assert.strictEqual(actionErrors[0].functionCallId, 'call-step-1');
   });
 
   it('leaves a thenable alone when resolving a value synchronously', () => {

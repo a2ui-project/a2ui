@@ -347,6 +347,10 @@ export const ListApi = {
           .default('stretch')
           .describe('Defines the alignment of children along the cross axis.')
           .optional(),
+        'listStyle': z
+          .enum(['ordered', 'unordered', 'none'])
+          .describe('The style of the list (ordered, unordered, or none).')
+          .optional(),
       })
       .strict(),
     {mixins: ['ComponentCommon', CatalogComponentCommonSchema]},

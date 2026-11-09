@@ -190,4 +190,65 @@ describe('Column Component', () => {
     assert.strictEqual(reorderedNodes[1].__marker, 'marker-3');
     assert.strictEqual(reorderedNodes[2].__marker, 'marker-1');
   });
+
+  it('applies role="group", aria-label, and aria-description on host only when specified', async () => {
+    const el = document.createElement('a2ui-basic-column') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'comp1');
+    });
+
+    assert.strictEqual(el.hasAttribute('role'), false);
+    assert.strictEqual(el.hasAttribute('aria-label'), false);
+    assert.strictEqual(el.hasAttribute('aria-description'), false);
+
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'comp1',
+              component: 'Column',
+              children: ['txt1', 'txt2'],
+              accessibility: {
+                label: 'Restaurant details',
+                description: 'Address and hours',
+              },
+            },
+          ],
+        },
+      },
+    ]);
+    await asyncUpdate(el, () => {});
+
+    assert.strictEqual(el.getAttribute('role'), 'group');
+    assert.strictEqual(el.getAttribute('aria-label'), 'Restaurant details');
+    assert.strictEqual(el.getAttribute('aria-description'), 'Address and hours');
+
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'comp1',
+              component: 'Column',
+              children: ['txt1', 'txt2'],
+              accessibility: undefined,
+            },
+          ],
+        },
+      },
+    ]);
+    await asyncUpdate(el, () => {});
+
+    assert.strictEqual(el.hasAttribute('role'), false);
+    assert.strictEqual(el.hasAttribute('aria-label'), false);
+    assert.strictEqual(el.hasAttribute('aria-description'), false);
+  });
 });

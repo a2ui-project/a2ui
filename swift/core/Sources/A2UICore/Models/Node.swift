@@ -12,44 +12,98 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import Combine
+import Observation
 import OrderedJSON
 
-/// A persistent, observable backing store for a resolved component node.
-///
-/// `@unchecked Sendable` is safe because instances are initialized once in `Node.init` and
-/// only ever mutated on `@MainActor` via ``updateProperties(_:)``.
-package final class NodeBox: ObservableObject, @unchecked Sendable {
-  let id: String
-  let type: String
-  let catalogID: String?
-  private(set) var properties: [String: any Resolved]
-  package private(set) var revision: UInt64 = 0
+/// The resolution state of a component ``Node``.
+public enum NodeState: String, Sendable, Equatable {
+  case resolved = "resolved"
+  case pending = "pending"
+  case unknownType = "unknown-type"
+  case cyclic = "cyclic"
+}
 
-  init(
+/// A persistent, observable backing store for a resolved component node.
+@MainActor
+package final class NodeBox: Observable {
+  private let registrar = ObservationRegistrar()
+
+  nonisolated let id: String
+  nonisolated let type: String
+  nonisolated let catalogID: String?
+  nonisolated let state: NodeState
+  nonisolated let scopeKey: String?
+  nonisolated let dataContextPath: String
+  private var _properties: [String: any Resolved]
+  private var _metadata: [String: JSONValue]?
+  package private(set) var revision: UInt64 = 0
+  package private(set) var propsRevision: UInt64 = 0
+
+  var properties: [String: any Resolved] {
+    registrar.access(self, keyPath: \.properties)
+    return _properties
+  }
+
+  var metadata: [String: JSONValue]? {
+    registrar.access(self, keyPath: \.metadata)
+    return _metadata
+  }
+
+  nonisolated init(
     id: String,
     type: String,
     catalogID: String? = nil,
-    properties: [String: any Resolved]
+    state: NodeState = .resolved,
+    scopeKey: String? = nil,
+    dataContextPath: String = "/",
+    properties: [String: any Resolved],
+    metadata: [String: JSONValue]? = nil
   ) {
     self.id = id
     self.type = type
     self.catalogID = catalogID
-    self.properties = properties
+    self.state = state
+    self.scopeKey = scopeKey
+    self.dataContextPath = dataContextPath
+    self._properties = properties
+    self._metadata = metadata
   }
 
-  /// Updates the box's resolved properties in-place, publishing `objectWillChange`
-  /// only when its own non-node properties or child `NodeBox` references (`===`) change.
-  @MainActor
-  func updateProperties(_ newProperties: [String: any Resolved]) {
-    let changed = !Self.arePropertiesShallowEqual(properties, newProperties)
-    if changed {
-      objectWillChange.send()
+  /// Updates the box's resolved properties and metadata in-place, notifying `Observation`
+  /// observers only for the storage (`properties` or `metadata`) that changed.
+  func updateProperties(
+    _ newProperties: [String: any Resolved],
+    metadata newMetadata: [String: JSONValue]? = nil
+  ) {
+    let propsChanged = !Self.arePropertiesShallowEqual(_properties, newProperties)
+    let metaChanged = !MetadataValidator.areEqual(_metadata, newMetadata)
+    if propsChanged {
+      registrar.withMutation(of: self, keyPath: \.properties) {
+        _properties = newProperties
+      }
+      propsRevision &+= 1
+    } else {
+      _properties = newProperties
     }
-    properties = newProperties
-    if changed {
+    if metaChanged {
+      registrar.withMutation(of: self, keyPath: \.metadata) {
+        _metadata = newMetadata
+      }
+    } else {
+      _metadata = newMetadata
+    }
+    if propsChanged || metaChanged {
       revision &+= 1
     }
+  }
+
+  /// Updates the box's metadata in-place without re-resolving properties or child subtrees.
+  func updateMetadata(_ newMetadata: [String: JSONValue]?) {
+    guard !MetadataValidator.areEqual(_metadata, newMetadata) else { return }
+    registrar.withMutation(of: self, keyPath: \.metadata) {
+      _metadata = newMetadata
+    }
+    revision &+= 1
   }
 
   private static func arePropertiesShallowEqual(
@@ -86,55 +140,111 @@ package final class NodeBox: ObservableObject, @unchecked Sendable {
 }
 
 /// A resolved component representation.
-public struct Node: Identifiable, Equatable, Sendable {
+public struct Node: Identifiable, @preconcurrency Equatable, Sendable {
   package let box: NodeBox
-  private let renderRevision: UInt64
 
   public var id: String { box.id }
   public var type: String { box.type }
   public var catalogID: String? { box.catalogID }
+  public var state: NodeState { box.state }
+  public var scopeKey: String? { box.scopeKey }
+  public var dataContextPath: String { box.dataContextPath }
+  @MainActor
   public var properties: [String: any Resolved] { box.properties }
+  @MainActor
+  public var metadata: [String: JSONValue]? { box.metadata }
+  @MainActor
+  public var extensions: [String: JSONValue]? { MetadataValidator.extensions(from: box.metadata) }
+
+  /// The identity of the node's backing store.
+  ///
+  /// The resolver updates a node in place while its component keeps its type and state, so two
+  /// nodes with the same identity are the same node instance at different points in time.
+  public var identity: ObjectIdentifier { ObjectIdentifier(box) }
 
   /// Creates a new resolved component node.
   public init(
     id: String,
     type: String,
     catalogID: String? = nil,
-    properties: [String: any Resolved]
+    state: NodeState = .resolved,
+    scopeKey: String? = nil,
+    dataContextPath: String = "/",
+    properties: [String: any Resolved],
+    metadata: [String: JSONValue]? = nil
   ) {
-    self.box = NodeBox(id: id, type: type, catalogID: catalogID, properties: properties)
-    self.renderRevision = 0
+    self.box = NodeBox(
+      id: id,
+      type: type,
+      catalogID: catalogID,
+      state: state,
+      scopeKey: scopeKey,
+      dataContextPath: dataContextPath,
+      properties: properties,
+      metadata: metadata
+    )
   }
 
-  private init(box: NodeBox, renderRevision: UInt64) {
-    self.box = box
-    self.renderRevision = renderRevision
+  /// Creates a placeholder node for a referenced component ID that has not arrived yet.
+  public static func pending(
+    id: String,
+    scopeKey: String? = nil,
+    dataContextPath: String = "/"
+  ) -> Node {
+    Node(
+      id: id,
+      type: "Placeholder",
+      state: .pending,
+      scopeKey: scopeKey,
+      dataContextPath: dataContextPath,
+      properties: [:]
+    )
   }
 
-  /// Updates the backing box's resolved properties in-place and returns a `Node` stamped with
-  /// the box's resulting revision.
+  /// Creates a placeholder node for a component reference that closes a cycle.
+  public static func cyclic(
+    id: String,
+    scopeKey: String? = nil,
+    dataContextPath: String = "/"
+  ) -> Node {
+    Node(
+      id: id,
+      type: "Placeholder",
+      state: .cyclic,
+      scopeKey: scopeKey,
+      dataContextPath: dataContextPath,
+      properties: [:]
+    )
+  }
+
+  /// Updates the backing box's resolved properties and metadata in-place.
   @MainActor
-  func updatingProperties(_ newProperties: [String: any Resolved]) -> Node {
-    box.updateProperties(newProperties)
-    return withCurrentRevision()
+  func updateProperties(
+    _ newProperties: [String: any Resolved],
+    metadata newMetadata: [String: JSONValue]? = nil
+  ) {
+    box.updateProperties(newProperties, metadata: newMetadata)
   }
 
-  /// Returns a copy stamped with the backing box's current revision so SwiftUI diffs
-  /// catalog component view structs as changed when `ComponentNodeView` re-renders.
-  package func withCurrentRevision() -> Node {
-    renderRevision == box.revision ? self : Node(box: box, renderRevision: box.revision)
+  /// Updates the backing box's metadata in-place.
+  @MainActor
+  func updateMetadata(_ newMetadata: [String: JSONValue]?) {
+    box.updateMetadata(newMetadata)
   }
 
-  /// Returns a copy with a neutral render revision for container child identity checks.
-  package func withoutRenderRevision() -> Node {
-    renderRevision == 0 ? self : Node(box: box, renderRevision: 0)
-  }
-
+  @MainActor
   public static func == (lhs: Node, rhs: Node) -> Bool {
     if lhs.box === rhs.box {
-      return lhs.renderRevision == rhs.renderRevision
+      return true
     }
-    guard lhs.id == rhs.id && lhs.type == rhs.type && lhs.catalogID == rhs.catalogID,
+    guard
+      lhs.id == rhs.id,
+      lhs.type == rhs.type,
+      lhs.catalogID == rhs.catalogID,
+      lhs.state == rhs.state,
+      lhs.scopeKey == rhs.scopeKey,
+      lhs.dataContextPath == rhs.dataContextPath,
+      MetadataValidator.areEqual(lhs.metadata, rhs.metadata),
       lhs.properties.count == rhs.properties.count
     else {
       return false
@@ -146,6 +256,7 @@ public struct Node: Identifiable, Equatable, Sendable {
   }
 }
 
+@MainActor
 extension Node {
   /// All resolved child nodes found by scanning the node's properties.
   ///
@@ -187,6 +298,7 @@ extension Node {
 
 // MARK: - Typed Property Accessors
 
+@MainActor
 extension Node {
   /// Returns the resolved string value for the given property key.
   ///
@@ -266,8 +378,15 @@ extension Node {
   }
 
   /// Returns the resolved action for the given property key.
+  @available(*, deprecated, renamed: "action(for:userActivation:)")
   public func action(for key: String) -> ResolvedAction? {
     properties[key] as? ResolvedAction
+  }
+
+  /// Returns the resolved action for the given property key, gated on `userActivation`
+  /// when the action invokes a local function that requires user activation.
+  public func action(for key: String, userActivation: Bool) -> ResolvedAction? {
+    (properties[key] as? ResolvedAction)?.withUserActivation(userActivation)
   }
 
   /// Returns the single child `Node` for the given property key.
@@ -356,4 +475,10 @@ extension Node {
   }
 }
 
-extension Node: Resolved {}
+extension Node: @preconcurrency Resolved {
+  @MainActor
+  public func isEqual(to other: any Resolved) -> Bool {
+    guard let otherNode = other as? Node else { return false }
+    return self == otherNode
+  }
+}

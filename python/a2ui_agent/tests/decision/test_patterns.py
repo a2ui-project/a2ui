@@ -621,9 +621,8 @@ def test_expand_every_basic_v1_pattern_validates(version: str) -> None:
         "compose",
         BlockBindings(
             slots={
-                "input": SlotBinding(pointer="/draft"),
-                "placeholder": SlotBinding(literal="Reply"),
-                "submit": SlotBinding(literal="Send"),
+                "draft": SlotBinding(pointer="/draft"),
+                "sendLabel": SlotBinding(literal="Send"),
             }
         ),
     )

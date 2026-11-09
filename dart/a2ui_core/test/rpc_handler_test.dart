@@ -342,6 +342,55 @@ void main() {
       );
     });
 
+    test('dispose with a reason names it in each cancellation', () async {
+      final RpcHandler h = handler();
+      final Future<Object?> future = h.callAgentFunction(
+        's',
+        FunctionCall(call: 'a', args: {}),
+        options: const CallOptions(functionCallId: 'p1'),
+      );
+      expect(sent, hasLength(1));
+      h.dispose('session closed');
+      await expectLater(
+        future,
+        throwsA(
+          rpcError(RpcErrorCode.cancelled, functionCallId: 'p1').having(
+            (e) => e.message,
+            'message',
+            "Call 'p1' was cancelled because the RpcHandler was disposed: "
+                'session closed.',
+          ),
+        ),
+      );
+      // The listener is dropped and later calls are refused.
+      await expectLater(
+        h.callAgentFunction('s', FunctionCall(call: 'a', args: {})),
+        throwsA(rpcError(RpcErrorCode.disposed)),
+      );
+      expect(sent, hasLength(1));
+      expect(h.pendingCallCount, 0);
+    });
+
+    test('dispose without a reason keeps the plain message', () async {
+      final RpcHandler h = handler();
+      final Future<Object?> future = h.callAgentFunction(
+        's',
+        FunctionCall(call: 'a', args: {}),
+        options: const CallOptions(functionCallId: 'p1'),
+      );
+      h.dispose('');
+      await expectLater(
+        future,
+        throwsA(
+          rpcError(RpcErrorCode.cancelled, functionCallId: 'p1').having(
+            (e) => e.message,
+            'message',
+            "Call 'p1' was cancelled because the RpcHandler was disposed.",
+          ),
+        ),
+      );
+    });
+
     test('a listener that throws synchronously fails the call', () async {
       final h = RpcHandler(
         catalogs: [catalog],
@@ -569,18 +618,18 @@ void main() {
     });
 
     test('reports a protocol version mismatch', () async {
-      final Catalog<ComponentApi, FunctionImplementation> legacy = _catalog(
-          'legacy', [_Fn('echo', (a, _) => a['value'])],
+      final Catalog<ComponentApi, FunctionImplementation> v09Catalog = _catalog(
+          'v09', [_Fn('echo', (a, _) => a['value'])],
           protocolVersion: 'v0.9');
       final Catalog<ComponentApi, FunctionImplementation> unversioned =
           _catalog('old', [_Fn('echo', (a, _) => a['value'])],
               protocolVersion: null);
       final h = RpcHandler(
-        catalogs: [legacy, unversioned],
+        catalogs: [v09Catalog, unversioned],
         outboundListener: sent.add,
       );
       addTearDown(h.dispose);
-      for (final id in ['legacy', 'old']) {
+      for (final id in ['v09', 'old']) {
         final A2uiFunctionResponse r =
             await run(h, _inbound('echo', catalogId: id), withSurface: false);
         expectError(
@@ -616,6 +665,24 @@ void main() {
         r3,
         RpcErrorCode.executionError,
         'An error occurred during function execution.',
+      );
+    });
+
+    test('a nested argument failing without a message has a fallback text',
+        () async {
+      final A2uiFunctionResponse r = await run(
+        handler(),
+        _inbound(
+          'echo',
+          args: {
+            'value': {'@call': 'boomEmpty', 'args': <String, Object?>{}},
+          },
+        ),
+      );
+      expectError(
+        r,
+        RpcErrorCode.executionError,
+        'An argument of the function call could not be resolved.',
       );
     });
 

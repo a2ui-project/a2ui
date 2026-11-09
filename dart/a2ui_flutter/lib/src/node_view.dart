@@ -23,9 +23,10 @@ import 'signal_state.dart';
 /// Renders one [ComponentNode] and rebuilds when the node's own props change.
 ///
 /// A resolved node renders through its implementation's builder, under the
-/// semantics its `accessibility` attributes give. A pending node renders a
-/// [LoadingPlaceholder], and an unknown-type or cyclic node a short
-/// diagnostic.
+/// semantics its `accessibility` attributes give. A pending, unknown-type or
+/// cyclic node renders nothing: the resolver has already reported unknown
+/// types and cycles to the surface, and a pending node is replaced in place
+/// when its component arrives.
 class NodeView extends StatefulWidget {
   /// Creates a view of [node], keyed by its instance id.
   NodeView(this.node) : super(key: NodeKey(node.instanceId));
@@ -38,10 +39,49 @@ class NodeView extends StatefulWidget {
 }
 
 class _NodeViewState extends State<NodeView> with SignalState {
-  late void Function() _unsubscribe;
+  late void Function() _unsubscribeProps;
+  final List<void Function()> _accessibilityUnsubscribes = [];
+  void Function()? _disposeBuildEffect;
 
   void _subscribe() {
-    _unsubscribe = listenAfterFirst(widget.node.props, (_) => signalChanged());
+    _unsubscribeProps = listenAfterFirst(widget.node.props, (_) {
+      _subscribeAccessibility();
+      signalChanged();
+    });
+    _subscribeAccessibility();
+  }
+
+  void _unsubscribe() {
+    _unsubscribeProps();
+    _disposeBuildEffect?.call();
+    _disposeBuildEffect = null;
+  }
+
+  void _subscribeAccessibility() {
+    _unsubscribeAccessibility();
+    final ComponentContext? context = widget.node.context;
+    final Object? attributes = ComponentProps(
+      widget.node.props.peek(),
+    ).value('accessibility');
+    if (context == null || attributes is! Map) return;
+    for (final Object? raw in attributes.values) {
+      final Object? unwrapped = ComponentProps.unwrap(raw);
+      if (unwrapped is Map) {
+        _accessibilityUnsubscribes.add(
+          listenAfterFirst(
+            context.dataContext.resolveSignal(unwrapped),
+            (_) => signalChanged(),
+          ),
+        );
+      }
+    }
+  }
+
+  void _unsubscribeAccessibility() {
+    for (final void Function() dispose in _accessibilityUnsubscribes) {
+      dispose();
+    }
+    _accessibilityUnsubscribes.clear();
   }
 
   @override
@@ -54,6 +94,7 @@ class _NodeViewState extends State<NodeView> with SignalState {
   void didUpdateWidget(NodeView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.node, widget.node)) {
+      _unsubscribeAccessibility();
       _unsubscribe();
       _subscribe();
     }
@@ -61,23 +102,30 @@ class _NodeViewState extends State<NodeView> with SignalState {
 
   @override
   void dispose() {
+    _unsubscribeAccessibility();
     _unsubscribe();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    _disposeBuildEffect?.call();
+    _disposeBuildEffect = null;
     final ComponentNode<ComponentImplementation> node = widget.node;
-    return switch (node.state) {
-      NodeState.resolved => _buildResolved(context, node),
-      NodeState.pending => const LoadingPlaceholder(),
-      NodeState.unknownType => _Diagnostic(
-        'Unknown component type "${node.type}"',
-      ),
-      NodeState.cyclic => _Diagnostic(
-        'Cyclic reference to "${node.componentId}"',
-      ),
-    };
+    if (node.state != NodeState.resolved) {
+      return const SizedBox.shrink();
+    }
+    late final Widget built;
+    var isInitialBuild = true;
+    _disposeBuildEffect = effect(() {
+      if (isInitialBuild) {
+        built = _buildResolved(context, node);
+        isInitialBuild = false;
+      } else {
+        signalChanged();
+      }
+    });
+    return built;
   }
 }
 
@@ -93,26 +141,30 @@ Widget _buildResolved(
 ) {
   final props = ComponentProps(node.props.peek());
   final Object? attributes = props.value('accessibility');
-  Object? read(String key) => attributes is Map ? attributes[key] : null;
-  String? text(String key) {
-    final String? text = ComponentProps.asString(read(key));
-    return text == null || text.isEmpty ? null : text;
-  }
-
-  final String? label = text('label');
-  final String? description = text('description');
+  final String? label = _readAccessibilityString(node, attributes, 'label');
+  final String? description = _readAccessibilityString(
+    node,
+    attributes,
+    'description',
+  );
   // Null rather than false, so a node that is not live adds no flag.
-  final bool? live = switch (text('live')) {
+  final bool? live = switch (_readAccessibilityString(
+    node,
+    attributes,
+    'live',
+  )) {
     'polite' || 'assertive' => true,
     _ => null,
   };
+  final bool hidden = _readAccessibilityBool(node, attributes, 'hidden');
   return ExcludeSemantics(
-    excluding: ComponentProps.asBoolean(read('hidden')) ?? false,
+    excluding: hidden,
     child: Semantics(
-      container: label != null || description != null || live != null,
+      container: label != null || description != null || live != null || hidden,
       label: label,
       hint: description,
       liveRegion: live,
+      hidden: hidden ? true : null,
       // A type or catalog change keeps the instance id, so the implementation
       // keys the subtree.
       child: KeyedSubtree(
@@ -123,34 +175,38 @@ Widget _buildResolved(
   );
 }
 
-/// A small progress indicator that stands in for a component that has not
-/// arrived.
-class LoadingPlaceholder extends StatelessWidget {
-  const LoadingPlaceholder({super.key});
-
-  @override
-  Widget build(BuildContext context) => const Align(
-    alignment: AlignmentDirectional.centerStart,
-    widthFactor: 1,
-    heightFactor: 1,
-    child: Padding(
-      padding: EdgeInsets.all(4),
-      child: SizedBox.square(
-        dimension: 16,
-        child: CircularProgressIndicator(strokeWidth: 2),
-      ),
-    ),
-  );
+Object? _resolveAccessibilityValue(
+  ComponentNode<ComponentImplementation> node,
+  Object? raw,
+) {
+  final Object? unwrapped = ComponentProps.unwrap(raw);
+  final ComponentContext? context = node.context;
+  if (unwrapped is Map && context != null) {
+    return context.dataContext.resolveDynamicValue(unwrapped);
+  }
+  return unwrapped;
 }
 
-class _Diagnostic extends StatelessWidget {
-  const _Diagnostic(this.message);
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) => Text(
-    message,
-    style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12),
+String? _readAccessibilityString(
+  ComponentNode<ComponentImplementation> node,
+  Object? attributes,
+  String key,
+) {
+  if (attributes is! Map) return null;
+  final String? text = ComponentProps.asString(
+    _resolveAccessibilityValue(node, attributes[key]),
   );
+  return text == null || text.isEmpty ? null : text;
+}
+
+bool _readAccessibilityBool(
+  ComponentNode<ComponentImplementation> node,
+  Object? attributes,
+  String key,
+) {
+  if (attributes is! Map) return false;
+  return ComponentProps.asBoolean(
+        _resolveAccessibilityValue(node, attributes[key]),
+      ) ??
+      false;
 }

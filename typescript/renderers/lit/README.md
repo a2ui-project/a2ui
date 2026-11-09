@@ -181,7 +181,7 @@ Key changes in that migration included:
 - **Header Update in `client.ts`**: You must update the `X-A2A-Extensions` header to request the v0.9 protocol: `https://a2ui.org/a2a-extension/a2ui/v0.9`.
 - **Removal of Manual Action Handling in `app.ts`**: In v0.8, applications had to listen for custom action events (like `@a2uiaction`) and manually resolve context paths to build action messages. In v0.9, the `MessageProcessor` and the Generic Binder handle this automatically. You can remove complex event listeners from your templates.
 - **CSS-based Basic Catalog Theming**: The Basic Catalog widgets can now be styled
-  by overriding CSS variables, like `--a2ui-primary-color`.
+  by overriding CSS variables, like `--a2ui-color-primary`.
 
 **We strongly discourage starting new projects with v0.8.**
 
