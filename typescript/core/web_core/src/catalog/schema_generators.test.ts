@@ -155,6 +155,34 @@ if (a == i) {}`;
     assert.deepStrictEqual(res, {enum: ['__REF__DynamicNumberSchema__']});
   });
 
+  it('rewrites key-presence oneOf branches into object schemas', () => {
+    const node = {
+      type: 'object',
+      properties: {a: {type: 'string', description: 'A.'}, b: {type: 'number'}},
+      oneOf: [
+        {required: ['a'], not: {required: ['b']}},
+        {required: ['b'], not: {required: ['a']}},
+      ],
+    };
+    const res = prepareRef(node, 'Parent');
+    assert.deepStrictEqual(res.anyOf, [
+      {type: 'object', properties: {a: {type: 'string'}, b: false}, required: ['a']},
+      {type: 'object', properties: {b: {type: 'number'}, a: false}, required: ['b']},
+    ]);
+  });
+
+  it('leaves oneOf branches it cannot express as key presence unchanged', () => {
+    const multiKeyNot = {not: {required: ['a', 'b']}};
+    const unknownKey = {required: ['c']};
+    const node = {
+      type: 'object',
+      properties: {a: {type: 'string'}, b: {type: 'number'}},
+      oneOf: [multiKeyNot, unknownKey],
+    };
+    const res = prepareRef(node, 'Parent');
+    assert.deepStrictEqual(res.anyOf, [multiKeyNot, unknownKey]);
+  });
+
   it('compiles a JSON Schema definition into Zod code', () => {
     const def = {
       type: 'object',

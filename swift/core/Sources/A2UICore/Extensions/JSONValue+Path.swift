@@ -81,6 +81,30 @@ extension JSONValue {
     }
   }
 
+  /// Coerces this value to a boolean according to the `DynamicBoolean` rules:
+  /// - `.boolean(let val)` -> `val`
+  /// - `.object(let members)` -> `members["valid"]?.boolValue ?? false`
+  /// - `.string(let val)` -> `val.lowercased() == "true"`
+  /// - `.integer(let val)` -> `val != 0`
+  /// - `.number(let val)` -> `val != 0 && !val.isNaN`
+  /// - `.null`, `.array` -> `false`
+  public var coercedDynamicBoolean: Bool {
+    switch self {
+    case .boolean(let value):
+      return value
+    case .object(let members):
+      return members["valid"]?.boolValue ?? false
+    case .string(let value):
+      return value.lowercased() == "true"
+    case .integer(let value):
+      return value != 0
+    case .number(let value):
+      return value != 0 && !value.isNaN
+    case .null, .array:
+      return false
+    }
+  }
+
   /// Returns the underlying object as an `OrderedDictionary` if this is
   /// an `.object` case.
   public var objectValue: OrderedDictionary<String, JSONValue>? {

@@ -150,4 +150,65 @@ describe('Button Component', () => {
     button?.click();
     assert.strictEqual(dispatchedAction, false);
   });
+
+  it('places aria-label and aria-description on inner button rather than host', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'btn_a11y',
+              component: 'Button',
+              child: 'txt1',
+              action: {event: {name: 'book'}},
+              accessibility: {
+                label: 'Book Mott 32 now',
+                description: 'Opens reservation form',
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-basic-button') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'btn_a11y');
+    });
+
+    assert.strictEqual(el.hasAttribute('aria-label'), false);
+    assert.strictEqual(el.hasAttribute('aria-description'), false);
+
+    const button = el.querySelector('button');
+    assert.notStrictEqual(button, null);
+    assert.strictEqual(button?.getAttribute('aria-label'), 'Book Mott 32 now');
+    assert.strictEqual(button?.getAttribute('aria-description'), 'Opens reservation form');
+
+    // Clearing accessibility removes inner button attributes
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'btn_a11y',
+              component: 'Button',
+              child: 'txt1',
+              action: {event: {name: 'book'}},
+              accessibility: undefined,
+            },
+          ],
+        },
+      },
+    ]);
+    await asyncUpdate(el, () => {});
+    assert.strictEqual(button?.hasAttribute('aria-label'), false);
+    assert.strictEqual(button?.hasAttribute('aria-description'), false);
+  });
 });

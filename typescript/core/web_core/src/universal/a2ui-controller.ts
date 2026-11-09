@@ -15,6 +15,7 @@
  */
 
 import {ReactiveController} from 'lit';
+import {A2uiMetadata, Extensions} from '../common/metadata.js';
 import {GenericBinder, ResolveA2uiProps} from '../resolution/generic-binder.js';
 import {isComponentNode, type ComponentNode} from '../resolution/component-node.js';
 import {ResolvedBinding, isWritable} from '../resolution/resolved-binding.js';
@@ -98,10 +99,61 @@ export class A2uiController<
     return this._props;
   }
 
+  /**
+   * The current envelope metadata of the A2UI component, lazily subscribing
+   * to metadata changes on first access so standard components that do not
+   * read metadata skip metadata-only re-renders.
+   */
+  public get metadata(): A2uiMetadata | undefined {
+    this.metadataSubscribed = true;
+    if (this.host.isConnected) {
+      this.ensureMetadataSubscription();
+    }
+    if (this.host.node) {
+      return peekValue(this.host.node.metadata);
+    }
+    return this.host.context?.componentModel?.metadata;
+  }
+
+  /**
+   * The current `extensions` map of the A2UI component's metadata envelope,
+   * lazily subscribing to metadata changes on first access.
+   */
+  public get extensions(): Extensions | undefined {
+    return this.metadata?.extensions;
+  }
+
+  /**
+   * The current surface-level metadata envelope of the containing surface,
+   * lazily subscribing to surface metadata changes on first access.
+   */
+  public get surfaceMetadata(): A2uiMetadata | undefined {
+    this.surfaceMetadataSubscribed = true;
+    if (this.host.isConnected) {
+      this.ensureSurfaceMetadataSubscription();
+    }
+    const surface =
+      this.host.node?.context?.dataContext.surface ?? this.host.context?.dataContext.surface;
+    return surface?.metadata;
+  }
+
+  /**
+   * The current surface-level `extensions` map of the containing surface,
+   * lazily subscribing to surface metadata changes on first access.
+   */
+  public get surfaceExtensions(): Extensions | undefined {
+    return this.surfaceMetadata?.extensions;
+  }
+
   private binder?: GenericBinder<InferredComponentApiSchemaType<Api>>;
   private subscription?: {unsubscribe: () => void};
   private componentsSubscription?: {unsubscribe: () => void};
   private nodeEffectCleanup?: () => void;
+  private metadataSubscribed = false;
+  private metadataEffectCleanup?: () => void;
+  private metadataSubscription?: {unsubscribe: () => void};
+  private surfaceMetadataSubscribed = false;
+  private surfaceMetadataSubscription?: {unsubscribe: () => void};
 
   /**
    * Initializes the controller, binding it to the given Lit element and API schema.
@@ -133,6 +185,8 @@ export class A2uiController<
    * when the host connects, triggering `requestUpdate()` on changes.
    */
   hostConnected() {
+    this.ensureMetadataSubscription();
+    this.ensureSurfaceMetadataSubscription();
     if (this.host.node) {
       if (!this.nodeEffectCleanup) {
         const node = this.host.node;
@@ -157,12 +211,59 @@ export class A2uiController<
     }
   }
 
+  private ensureMetadataSubscription(): void {
+    if (!this.metadataSubscribed) {
+      return;
+    }
+    if (this.host.node) {
+      if (!this.metadataEffectCleanup) {
+        const node = this.host.node;
+        let isFirstRun = true;
+        this.metadataEffectCleanup = effect(() => {
+          getValue(node.metadata);
+          if (isFirstRun) {
+            isFirstRun = false;
+            return;
+          }
+          this.host.requestUpdate();
+        });
+      }
+      return;
+    }
+    if (!this.metadataSubscription && this.host.context?.componentModel) {
+      this.metadataSubscription = this.host.context.componentModel.onMetadataChanged.subscribe(
+        () => {
+          this.host.requestUpdate();
+        },
+      );
+    }
+  }
+
+  private ensureSurfaceMetadataSubscription(): void {
+    if (!this.surfaceMetadataSubscribed) {
+      return;
+    }
+    const surface =
+      this.host.node?.context?.dataContext.surface ?? this.host.context?.dataContext.surface;
+    if (!this.surfaceMetadataSubscription && surface) {
+      this.surfaceMetadataSubscription = surface.onMetadataChanged.subscribe(() => {
+        this.host.requestUpdate();
+      });
+    }
+  }
+
   /**
    * Unsubscribes from `node.props` or `GenericBinder` updates when the host disconnects.
    */
   hostDisconnected() {
     this.nodeEffectCleanup?.();
     this.nodeEffectCleanup = undefined;
+    this.metadataEffectCleanup?.();
+    this.metadataEffectCleanup = undefined;
+    this.metadataSubscription?.unsubscribe();
+    this.metadataSubscription = undefined;
+    this.surfaceMetadataSubscription?.unsubscribe();
+    this.surfaceMetadataSubscription = undefined;
     this.subscription?.unsubscribe();
     this.subscription = undefined;
     this.componentsSubscription?.unsubscribe();

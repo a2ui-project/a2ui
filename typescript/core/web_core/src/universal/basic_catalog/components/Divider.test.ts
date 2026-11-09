@@ -96,5 +96,43 @@ describe('Divider Component', () => {
     assert.notStrictEqual(hr, null);
     assert.strictEqual(hr?.classList.contains('a2ui-divider'), true);
     assert.strictEqual(hr?.classList.contains('a2ui-divider-horizontal'), true);
+    assert.strictEqual(hr?.hasAttribute('aria-orientation'), false);
+  });
+
+  it('sets aria-orientation="vertical" and accessibility attributes on inner hr', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'div_vert',
+              component: 'Divider',
+              axis: 'vertical',
+              accessibility: {
+                label: 'Column separator',
+                description: 'Separates sidebar from content',
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-divider') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'div_vert');
+    });
+
+    assert.strictEqual(el.hasAttribute('aria-label'), false);
+    const hr = el.querySelector('hr');
+    assert.notStrictEqual(hr, null);
+    assert.strictEqual(hr?.getAttribute('aria-orientation'), 'vertical');
+    assert.strictEqual(hr?.getAttribute('aria-label'), 'Column separator');
+    assert.strictEqual(hr?.getAttribute('aria-description'), 'Separates sidebar from content');
   });
 });

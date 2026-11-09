@@ -170,7 +170,9 @@ describe('v1.0 BASIC_FUNCTIONS', () => {
       assert.deepStrictEqual(invoke('email', {value: 'test@example.com'}), {valid: true});
       assert.deepStrictEqual(invoke('email', {value: 'invalid'}), {
         valid: false,
-        message: 'Must be a valid email address.',
+        code: 'INVALID_EMAIL',
+        severity: 'error',
+        message: 'Please enter a valid email address (e.g. user@example.com).',
       });
     });
 

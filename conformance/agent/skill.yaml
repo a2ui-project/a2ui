@@ -146,3 +146,46 @@
     - some-skill/SKILL.md
   expected_absent_files:
     - ../outside/SKILL.md
+
+# --- A monolithic skill and the prompt snippet share one body ---
+#
+# A monolithic skill for a format's own catalogs and the prompt snippet for the
+# same format describe the same thing, so the skill's body (the markdown after
+# the frontmatter) must equal the snippet byte for byte, apart from whitespace
+# at its ends, which the serialized skill trims and ends with one newline. Each
+# case builds one format from the catalogs it lists, renders both the monolithic
+# skill and the prompt snippet from it, and compares them.
+
+- name: test_express_monolithic_skill_equals_prompt_snippet_one_catalog
+  description: With one catalog, the Express monolithic skill's body is the Express prompt snippet.
+  action: monolithic_skill_equals_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalogs/basic/v1/catalog.json
+
+- name: test_express_monolithic_skill_equals_prompt_snippet_two_catalogs
+  description: With two catalogs, the Express monolithic skill's body is the Express prompt snippet, including what the format renders once for all catalogs.
+  action: monolithic_skill_equals_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalogs/basic/v1/catalog.json
+      - catalogs/vegachart/v1/catalog.json
+
+- name: test_direct_json_monolithic_skill_equals_prompt_snippet_one_catalog
+  description: With one catalog, the Direct JSON monolithic skill's body is the Direct JSON prompt snippet.
+  action: monolithic_skill_equals_prompt_snippet
+  args:
+    format: direct_json
+    catalogs:
+      - catalogs/basic/v1/catalog.json
+
+- name: test_direct_json_monolithic_skill_equals_prompt_snippet_two_catalogs
+  description: With two catalogs, the Direct JSON monolithic skill's body is the Direct JSON prompt snippet, so the protocol schemas appear once in both.
+  action: monolithic_skill_equals_prompt_snippet
+  args:
+    format: direct_json
+    catalogs:
+      - catalogs/basic/v1/catalog.json
+      - catalogs/vegachart/v1/catalog.json

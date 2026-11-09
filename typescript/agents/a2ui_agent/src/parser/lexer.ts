@@ -21,6 +21,7 @@ export enum LexerState {
   IN_A2UI = 1, // Inside tag (scanning code)
   IN_STRING = 2, // Inside string literal
   IN_COMMENT = 3, // Inside single-line comment
+  IN_BLOCK_COMMENT = 4, // Inside a block comment such as /* ... */
 }
 
 const LEADING_FENCE_RE = /^```[a-zA-Z0-9_-]*\s*/i;
@@ -47,6 +48,7 @@ export class BlockLexer {
   private readonly singleLineComments: Set<string>;
   private readonly payloadStartPattern: RegExp;
   private readonly stripEdgeBackticks: boolean;
+  private readonly blockComments: ReadonlyArray<readonly [string, string]>;
 
   /**
    * Initializes the block lexer with tag patterns, string delimiters, and comments.
@@ -57,6 +59,7 @@ export class BlockLexer {
    * @param singleLineComments Character set representing single-line comment markers.
    * @param payloadStartPattern Line-anchored regex matching the start of an unfenced payload.
    * @param stripEdgeBackticks Whether to strip inline-code backticks adjacent to tags.
+   * @param blockComments Pairs of open and close markers for block comments.
    */
   constructor(
     openTag: string | RegExp = '<a2ui>',
@@ -65,6 +68,7 @@ export class BlockLexer {
     singleLineComments: Set<string> = new Set(['#']),
     payloadStartPattern: RegExp = EXPRESS_PAYLOAD_START_RE,
     stripEdgeBackticks: boolean = false,
+    blockComments: ReadonlyArray<readonly [string, string]> = [],
   ) {
     this.openTagPattern = this.toStickyRegExp(openTag, false);
     this.openTagSearchPattern = this.toSearchRegExp(openTag, false);
@@ -74,6 +78,11 @@ export class BlockLexer {
     this.singleLineComments = singleLineComments;
     this.payloadStartPattern = payloadStartPattern;
     this.stripEdgeBackticks = stripEdgeBackticks;
+    this.blockComments = blockComments;
+    if (blockComments.some(([open, close]) => !open || !close)) {
+      // An empty marker matches everywhere and would stop the scan advancing.
+      throw new Error('Block comment markers must be non-empty strings.');
+    }
   }
 
   private toStickyRegExp(tag: string | RegExp, isClose: boolean): RegExp {
@@ -154,6 +163,7 @@ export class BlockLexer {
     let state = LexerState.IN_A2UI;
     let stringDelim: string | null = null;
     let tripleQuote = false;
+    let blockClose = '';
 
     while (i < end) {
       if (state === LexerState.IN_A2UI) {
@@ -175,6 +185,14 @@ export class BlockLexer {
             i += 1;
           }
           state = LexerState.IN_STRING;
+          continue;
+        }
+
+        const block = this.blockComments.find(([open]) => content.startsWith(open, i));
+        if (block) {
+          i += block[0].length;
+          blockClose = block[1];
+          state = LexerState.IN_BLOCK_COMMENT;
           continue;
         }
 
@@ -226,6 +244,17 @@ export class BlockLexer {
         const ch = content[i];
         if (ch === '\n' || ch === '\r') {
           state = LexerState.IN_A2UI;
+        }
+        i += 1;
+        continue;
+      }
+
+      if (state === LexerState.IN_BLOCK_COMMENT) {
+        // A close tag inside a block comment does not end the block.
+        if (content.startsWith(blockClose, i)) {
+          i += blockClose.length;
+          state = LexerState.IN_A2UI;
+          continue;
         }
         i += 1;
         continue;

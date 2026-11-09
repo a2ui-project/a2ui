@@ -232,7 +232,7 @@ struct SurfaceViewModelTests {
     )
     #expect(handler.capturedErrors.count == 1)
     if case .validationFailed(let err) = handler.capturedErrors[0] {
-      #expect(err.path == "/component")
+      #expect(err.path == "/components/0/component")
     }
   }
 
@@ -246,7 +246,7 @@ struct SurfaceViewModelTests {
     )
     #expect(handler.capturedErrors.count == 1)
     if case .validationFailed(let err) = handler.capturedErrors[0] {
-      #expect(err.path == "/id")
+      #expect(err.path == "/components/0/id")
     }
   }
 
@@ -258,8 +258,14 @@ struct SurfaceViewModelTests {
         ["id": "root", "component": "unknown_type"]
       ]
     )
-    #expect(handler.capturedErrors.isEmpty)
     #expect(surface.componentsModel.get("root")?.type == "unknown_type")
+    // The component is stored, and the resolver reports its type once.
+    #expect(handler.capturedErrors.count == 1)
+    guard case .generic(let error) = handler.capturedErrors.first else {
+      Issue.record("Expected a generic error, got \(handler.capturedErrors)")
+      return
+    }
+    #expect(error.code == "UNKNOWN_COMPONENT_TYPE")
   }
 
   @Test func updateComponentsRejectsUnknownTypeInStrictMode() throws {
@@ -810,7 +816,7 @@ struct SurfaceViewModelTests {
     #expect(error.expression == "noSuchFunction")
   }
 
-  @Test func actionCallingThrowingFunctionReportsExpressionError() throws {
+  @Test func actionCallingThrowingFunctionReportsExecutionError() throws {
     let (processor, surface, handler) = try makeProcessor()
     processor.updateComponents(
       surfaceID: surface.surfaceID,
@@ -830,7 +836,11 @@ struct SurfaceViewModelTests {
 
     #expect(handler.capturedActions.isEmpty)
     #expect(handler.capturedErrors.count == 1)
-    let error = try #require(expressionErrors(handler).first)
+    guard case .generic(let error) = handler.capturedErrors.first else {
+      Issue.record("Expected a generic error, got \(handler.capturedErrors)")
+      return
+    }
+    #expect(error.code == "EXECUTION_ERROR", "a local function that throws in an action")
     #expect(error.surfaceID == surface.surfaceID)
     #expect(error.message.contains("boom"))
     #expect(error.expression == "fail")
@@ -1365,6 +1375,76 @@ struct SurfaceComponentsModelTests {
     #expect(announced.count == 2)
     #expect(announced[1]["btn1"]?.type == "button")
     #expect(readBack[1]?.type == "button")
+  }
+
+  @Test func surfaceAndComponentMetadataAPIsPublishAndValidateKeys() throws {
+    let model = SurfaceComponentsModel()
+    var compMetadataEvents: [[String: JSONValue]?] = []
+    let compCancellable = model.metadataPublisher(forComponentID: "btn1").sink { meta in
+      compMetadataEvents.append(meta)
+    }
+    model.addComponent(
+      ComponentModel(
+        id: "btn1",
+        type: "button",
+        properties: ["label": .string("Hi")],
+        metadata: ["extensions": .object(["tag": .string("v1")])]
+      )
+    )
+    #expect(model.get("btn1")?.extensions == ["tag": .string("v1")])
+    #expect(compMetadataEvents.count == 1)
+
+    // Identical metadata update is a no-op
+    try model.setMetadata(
+      ["extensions": .object(["tag": .string("v1")])],
+      forComponentID: "btn1"
+    )
+    #expect(compMetadataEvents.count == 1)
+
+    // setExtension with explicit .null preserves the key
+    try model.setExtension("nullable", value: .null, forComponentID: "btn1")
+    #expect(model.get("btn1")?.extensions == ["tag": .string("v1"), "nullable": .null])
+    #expect(compMetadataEvents.count == 2)
+
+    // removeExtension clears metadata when last key is removed
+    model.removeExtension("tag", forComponentID: "btn1")
+    model.removeExtension("nullable", forComponentID: "btn1")
+    #expect(model.get("btn1")?.metadata == nil)
+    #expect(compMetadataEvents.last == .some(nil))
+
+    // Invalid UAX #31 key throws A2UIValidationError
+    #expect(throws: A2UIValidationError.self) {
+      try model.setExtension("bad-key!", value: .integer(1), forComponentID: "btn1")
+    }
+
+    // Re-ordered extension keys on addComponent do not emit spurious metadata events
+    model.addComponent(
+      ComponentModel(
+        id: "btn1",
+        type: "button",
+        properties: ["label": .string("Hi")],
+        metadata: ["extensions": .object(["a": .integer(1), "b": .integer(2)])]
+      )
+    )
+    let countAfterInitialOrder = compMetadataEvents.count
+    model.addComponent(
+      ComponentModel(
+        id: "btn1",
+        type: "button",
+        properties: ["label": .string("Hi")],
+        metadata: ["extensions": .object(["b": .integer(2), "a": .integer(1)])]
+      )
+    )
+    #expect(compMetadataEvents.count == countAfterInitialOrder)
+
+    // Explicit .null metadata or extensions throws A2UIValidationError
+    #expect(throws: A2UIValidationError.self) {
+      _ = try MetadataValidator.validate(JSONValue.null)
+    }
+    #expect(throws: A2UIValidationError.self) {
+      _ = try MetadataValidator.validate(["extensions": JSONValue.null])
+    }
+    compCancellable.cancel()
   }
 }
 

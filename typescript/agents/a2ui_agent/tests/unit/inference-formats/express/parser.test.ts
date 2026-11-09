@@ -16,6 +16,7 @@
 
 import {describe, it, expect, vi} from 'vitest';
 import {ExpressParser} from '../../../../src/inference-formats/express/parser.js';
+import {ExpressResponseStream} from '../../../../src/inference-formats/express/response-stream.js';
 import {ExpressCompiler} from '../../../../src/inference-formats/express/compiler.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 import {
@@ -267,20 +268,15 @@ describe('ExpressParser', () => {
       const wrapped = parser.wrap(blocks);
       expect(wrapped).toBe('Here is the greeting.\n<a2ui>\nroot = Text("Hello")\n</a2ui>');
     });
-
-    it('wrapDecompiledBlocks surrounds blocks with sentinel tags', () => {
-      const wrapped = parser.wrapDecompiledBlocks(['root = Text("Hello")']);
-      expect(wrapped).toBe('<a2ui>\nroot = Text("Hello")\n</a2ui>');
-    });
   });
 
   describe('streaming', () => {
-    it('has supportsStreaming equal to false', () => {
-      expect(parser.supportsStreaming).toBe(false);
+    it('has supportsStreaming equal to true', () => {
+      expect(parser.supportsStreaming).toBe(true);
     });
 
-    it('throws when openStream is called', () => {
-      expect(() => parser.openStream()).toThrow('Streaming is not supported by ExpressParser');
+    it('returns an ExpressResponseStream when openStream is called', () => {
+      expect(parser.openStream()).toBeInstanceOf(ExpressResponseStream);
     });
   });
 });

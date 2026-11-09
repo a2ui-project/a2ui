@@ -26,7 +26,8 @@ import re
 from typing import Any, Literal
 
 from a2ui.core import CatalogApi
-from a2ui.core.schema import AgentToRendererMessage
+from a2ui.core.common import is_at_least_version
+from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
 from a2ui.inference_formats._shared import (
     CatalogSchemaHelper,
     build_catalog_helpers,
@@ -35,6 +36,7 @@ from a2ui.inference_formats._shared import (
     surface_catalog_id,
 )
 from a2ui.prompt import PromptGenerator
+from a2ui.utils.agent_callable import agent_callable_functions
 
 # Envelope keys of the messages a JSON example may hold to be decompiled.
 _EXAMPLE_MESSAGE_KEYS = (
@@ -46,7 +48,23 @@ _EXAMPLE_MESSAGE_KEYS = (
     "callRendererFunction",
 )
 
-EXPRESS_RULES = r'''# A2UI Express DSL Output Contract
+_EVENT_RULE_V1_0 = (
+    "8. Action events: represent server-side actions using the Event helper,"
+    " `Event(name, context?, userMessage=...)`:\n"
+    '   Event("save_deal", {rep: $/form/rep})\n'
+    '   Event("reply", userMessage="Replying now")\n'
+    '   Event("save_deal", {rep: $/form/rep}, userMessage=$/form/summary)\n'
+    "   The context map is optional. Pass `userMessage=` as a keyword"
+    " argument (a string, `$path` binding, or function call) to set the"
+    " message shown on the user's behalf when the event fires."
+)
+
+_EVENT_RULE_PRE_V1_0 = (
+    "8. Action events: represent server-side actions using the Event helper:\n"
+    '   Event("save_deal", {rep: $/form/rep})'
+)
+
+_EXPRESS_RULES_PREFIX = r'''# A2UI Express DSL Output Contract
 
 You must output the user interface using A2UI Express.
 
@@ -82,12 +100,9 @@ The host compiler will compile your A2UI Express output into the correct JSON en
    Prefix relative list scopes with '$', e.g., $firstName.
    A lone '$' represents an empty relative path which resolves to the root of the current context (e.g. inside a template, representing the entire item itself).
 
-7. Logic and validation: prefix client check rules with '?', e.g., ?required or ?regex("^[0-9]{5}$"). To specify a custom error message for validation failures, append it as an extra string argument, e.g. ?regex("^[0-9]{5}$", "Postal code must be 5 digits").
+7. Logic and validation: prefix client check rules with '?', e.g., ?required or ?regex("^[0-9]{5}$"). To specify a custom error message for validation failures, append it as an extra string argument, e.g. ?regex("^[0-9]{5}$", "Postal code must be 5 digits").'''
 
-8. Action events: represent server-side actions using the Event helper:
-   Event("save_deal", {rep: $/form/rep})
-
-9. Nested functions: call client functions directly using catalog signatures, for example myFunction("value").
+_EXPRESS_RULES_SUFFIX = r"""9. Nested functions: call client functions directly using catalog signatures, for example myFunction("value").
 
 10. Data model population: Assign a value directly to an absolute data path (e.g. $/path/to/key = "value") to populate or initialize values inside the shared dataModel. The value can be a primitive, array, or map.
 
@@ -105,7 +120,15 @@ The host compiler will compile your A2UI Express output into the correct JSON en
 
 15. Surface targeting: Output `surface(surfaceId)` to specify or target a user interface surface:
     surface("dashboard-surface-1")
-    root = ComponentA(...)'''
+    root = ComponentA(...)"""
+
+EXPRESS_RULES = (
+    f"{_EXPRESS_RULES_PREFIX}\n\n{_EVENT_RULE_V1_0}\n\n{_EXPRESS_RULES_SUFFIX}"
+).replace("\r\n", "\n")
+
+_EXPRESS_RULES_PRE_V1_0 = (
+    f"{_EXPRESS_RULES_PREFIX}\n\n{_EVENT_RULE_PRE_V1_0}\n\n{_EXPRESS_RULES_SUFFIX}"
+).replace("\r\n", "\n")
 
 # Rule 15's example line. `generate_base_rules` replaces its placeholder name
 # with a component the active catalogs define.
@@ -238,22 +261,78 @@ def _get_schema_enum(prop_schema: Any) -> list[str] | None:
     return None
 
 
-def _filter_express_rules(allowed_messages: Sequence[str]) -> str:
-    """Filters EXPRESS_RULES to only the rules for the allowed message types."""
-    allowed = set(allowed_messages)
-    creates = "createSurface" in allowed or "CreateSurfaceMessage" in allowed
-    components = (
-        creates or "updateComponents" in allowed or "UpdateComponentsMessage" in allowed
+def _renderer_call_rule(callable_fns: Sequence[str]) -> str:
+    """Formats the Express grammar rule for standalone renderer function calls."""
+    formatted = ", ".join(f"`{name}`" for name in callable_fns)
+    return (
+        "To have the renderer run a function right away, output the call as a"
+        " standalone command (no variable assignment):\n"
+        f"{callable_fns[0]}(...)\n"
+        f"Only these functions can be called this way: {formatted}."
     )
-    data = "updateDataModel" in allowed or "UpdateDataModelMessage" in allowed
-    delete = "deleteSurface" in allowed or "DeleteSurfaceMessage" in allowed
 
-    contract, _, rules_block = EXPRESS_RULES.partition("## Grammar Rules\n\n")
+
+def _strip_rule_prefix(rule: str) -> str:
+    match = re.match(r"^(\d+\. )", rule)
+    if not match:
+        return rule
+    prefix_len = len(match.group(1))
+    return re.sub(rf"\n {{{prefix_len}}}", "\n", rule[prefix_len:])
+
+
+def _renumber_rules(text: str) -> str:
+    """Renumbers all numbered rule paragraphs sequentially starting from 1."""
+    rule_index = 0
+
+    def _replace(match: re.Match[str]) -> str:
+        nonlocal rule_index
+        rule_index += 1
+        old_prefix = match.group(1)
+        body = match.group(2)
+        new_prefix = f"{rule_index}. "
+        if len(old_prefix) != len(new_prefix):
+            body = re.sub(
+                rf"\n {{{len(old_prefix)}}}",
+                "\n" + (" " * len(new_prefix)),
+                body,
+            )
+        return f"{new_prefix}{body}"
+
+    return re.sub(
+        r"(?<=\n\n)(\d+\. )([^\n]*(?:\n(?!\n)[^\n]*)*)",
+        _replace,
+        text,
+    )
+
+
+def _filter_express_rules(
+    allowed_messages: Sequence[str] | None,
+    callable_fns: Sequence[str] = (),
+    *,
+    rules_source: str = EXPRESS_RULES,
+) -> str:
+    """Filters Express rules to only the rules for the allowed message types."""
+    rules_source = rules_source.replace("\r\n", "\n")
+    if allowed_messages is None:
+        creates = components = data = delete = call_renderer = True
+    else:
+        allowed = set(allowed_messages)
+        creates = "createSurface" in allowed or "CreateSurfaceMessage" in allowed
+        components = (
+            creates
+            or "updateComponents" in allowed
+            or "UpdateComponentsMessage" in allowed
+        )
+        data = "updateDataModel" in allowed or "UpdateDataModelMessage" in allowed
+        delete = "deleteSurface" in allowed or "DeleteSurfaceMessage" in allowed
+        call_renderer = (
+            "callRendererFunction" in allowed
+            or "CallRendererFunctionMessage" in allowed
+        )
+
+    contract, _, rules_block = rules_source.partition("## Grammar Rules\n\n")
     raw_rules = re.split(r"\n\n(?=\d+\. )", rules_block.strip())
-    rule_bodies = [
-        re.sub(r"^\d+\. ", "", r).replace("\n   ", "\n").replace("\n    ", "\n ")
-        for r in raw_rules
-    ]
+    rule_bodies = [_strip_rule_prefix(r) for r in raw_rules]
     # rule_bodies indices (0-based, matching rules 1..15):
     # 0: components, 1: root, 2..5: values, 6..8: calls, 9: dataModel,
     # 10: template, 11: deleteSurface, 12..13: arguments, 14: surface
@@ -271,6 +350,8 @@ def _filter_express_rules(allowed_messages: Sequence[str]) -> str:
         selected.append(rule_bodies[10])
     if delete:
         selected.append(rule_bodies[11])
+    if call_renderer and callable_fns:
+        selected.append(_renderer_call_rule(callable_fns))
     if components:
         selected.extend(rule_bodies[12:14])
     if components or data:
@@ -333,10 +414,22 @@ class ExpressPromptGenerator(PromptGenerator):
         effective_allowed = (
             allowed_messages if allowed_messages is not None else self._allowed_messages
         )
-        base = (
+        callable_fns = (
+            agent_callable_functions(self.catalogs)
+            if is_at_least_version(self._version, ProtocolVersion.V1_0)
+            else []
+        )
+        source_rules = (
             EXPRESS_RULES
-            if effective_allowed is None
-            else _filter_express_rules(effective_allowed)
+            if is_at_least_version(self._version, ProtocolVersion.V1_0)
+            else _EXPRESS_RULES_PRE_V1_0
+        ).replace("\r\n", "\n")
+        base = (
+            source_rules
+            if effective_allowed is None and not callable_fns
+            else _filter_express_rules(
+                effective_allowed, callable_fns, rules_source=source_rules
+            )
         )
         root_component = _example_root_component(self.catalogs)
         if root_component is not None:
@@ -358,7 +451,7 @@ class ExpressPromptGenerator(PromptGenerator):
             )
             if not has_comp_or_data:
                 return base
-        return f"{base}\n\n{_multi_catalog_rules(self.helpers)}"
+        return _renumber_rules(f"{base}\n\n{_multi_catalog_rules(self.helpers)}")
 
     def generate_catalog_instructions(
         self,
@@ -690,21 +783,3 @@ class ExpressPromptGenerator(PromptGenerator):
             result,
             flags=re.DOTALL,
         )
-
-    def generate(self) -> str:
-        """Assembles the prompt snippet for A2UI Express."""
-        parts: list[str] = []
-
-        rules = self.generate_base_rules()
-        if rules:
-            parts.append(f"## Workflow Description:\n{rules}")
-
-        catalog_inst = self.generate_catalog_instructions(include_schema=True)
-        if catalog_inst:
-            parts.append(catalog_inst)
-
-        examples = self.generate_examples()
-        if examples:
-            parts.append(f"### Examples:\n{examples}")
-
-        return "\n\n".join(parts)

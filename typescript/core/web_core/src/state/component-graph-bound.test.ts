@@ -283,15 +283,14 @@ describe('MessageProcessor under a config that defers the graph checks', () => {
     );
   });
 
-  it('rejects a batch that leaves a component without the parent its type requires', () => {
+  it('accepts a batch that leaves a component without a parent', () => {
     const processor = createProcessor({...DEFERRED, allowOrphanComponents: false});
     update(processor, {id: 'holder', component: 'Panel', child: 'label'});
     update(processor, {id: 'label', component: 'Label', text: 'Hi'});
-    // `label` loses its only parent, and a `Label` may not sit on the surface.
-    assert.throws(
-      () => update(processor, {id: 'holder', component: 'Panel'}),
-      (e: unknown) => e instanceof A2uiValidationError && e.code === 'UNALLOWED_PARENT',
-    );
+    // `label` loses its only parent. Only the root is placed under the
+    // surface, so `label` is not checked against `Surface`; whether it is
+    // reachable is the topology check's concern.
+    assert.doesNotThrow(() => update(processor, {id: 'holder', component: 'Panel'}));
   });
 
   // Checks the processor against one whose record of the graph is dropped
@@ -539,12 +538,14 @@ describe('MessageProcessor composition cases of the Dart core, against a whole-s
 
     it(`rejects a root its allowedParents does not let the surface hold (${name})`, () => {
       const p = pair();
-      // A root no component references is placed under the surface.
+      // The root is placed under the surface.
       assert.strictEqual(code(p.send(c('root', 'Header'))), 'UNALLOWED_PARENT');
-      // A root a `Box` references is placed under that `Box`.
-      assert.strictEqual(p.send(c('a', 'Box', {children: ['root']}), c('root', 'Header')), 'ok');
-      // Dropping the reference leaves the root under the surface again.
-      assert.strictEqual(code(p.send(c('a', 'Box'))), 'UNALLOWED_PARENT');
+      // It stays under the surface when a `Box` also references it, so a
+      // `Header`, which only a `Box` may hold, is still rejected as the root.
+      assert.strictEqual(
+        code(p.send(c('a', 'Box', {children: ['root']}), c('root', 'Header'))),
+        'UNALLOWED_PARENT',
+      );
     });
   }
 
