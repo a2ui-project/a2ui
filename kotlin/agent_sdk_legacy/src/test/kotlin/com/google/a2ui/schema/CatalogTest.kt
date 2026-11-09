@@ -22,6 +22,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.serialization.json.jsonPrimitive
 
 class CatalogTest {
 
@@ -80,5 +81,47 @@ class CatalogTest {
         examplesPath = "file:///absolute/examples",
       )
     assertEquals("/absolute/examples", config.examplesPath)
+  }
+
+  @Test
+  fun loadsBundledBasicCatalogWithCanonicalIdsAcrossVersions() {
+    val v08 = BasicCatalog.getConfig(A2uiVersion.VERSION_0_8).provider.load()
+    assertEquals(
+      "https://a2ui.org/specification/v0_8/standard_catalog_definition.json",
+      v08[A2uiConstants.CATALOG_ID_KEY]?.jsonPrimitive?.content,
+    )
+
+    val v09 = BasicCatalog.getConfig(A2uiVersion.VERSION_0_9).provider.load()
+    assertEquals(
+      "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+      v09[A2uiConstants.CATALOG_ID_KEY]?.jsonPrimitive?.content,
+    )
+
+    val v091 = BasicCatalog.getConfig(A2uiVersion.VERSION_0_9_1).provider.load()
+    assertEquals(
+      "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+      v091[A2uiConstants.CATALOG_ID_KEY]?.jsonPrimitive?.content,
+    )
+  }
+
+  @Test
+  fun injectsCanonicalCatalogIdWithoutDerivingFromRepoPath() {
+    val provider =
+      com.google.a2ui.basic_catalog.BundledCatalogProvider(A2uiVersion.VERSION_0_9) {
+        version,
+        filename ->
+        assertEquals("0.9", version)
+        assertEquals("catalogs/basic/catalog.json", filename)
+        kotlinx.serialization.json.JsonObject(emptyMap())
+      }
+    val loaded = provider.load()
+    assertEquals(
+      "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+      loaded[A2uiConstants.CATALOG_ID_KEY]?.jsonPrimitive?.content,
+    )
+    assertEquals(
+      "https://json-schema.org/draft/2020-12/schema",
+      loaded["\$schema"]?.jsonPrimitive?.content,
+    )
   }
 }
