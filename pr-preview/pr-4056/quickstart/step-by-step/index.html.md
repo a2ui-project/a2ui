@@ -224,9 +224,10 @@ uses a MessageProcessor to apply messages. It holds no app logic.
   `renderers/react/`, and Flutter (`a2ui_flutter`, `a2ui_core`) in
   `renderers/flutter/`. The apps around them are `apps/web/` and
   `apps/flutter/`.
-- **Maintained by the A2UI project:** Lit (web components), Angular, React,
-  Flutter, SwiftUI, Jetpack Compose and Markdown.
-- **From the community:** UIKit, React Native,
+- **[Maintained by the A2UI project](/concepts/sdks/#renderer-sdk):** Lit
+  (web components), Angular, React, Flutter, SwiftUI, Jetpack Compose and
+  Markdown.
+- **[From the community](/ecosystem/renderers/):** UIKit, React Native,
   Vue, Lynx, a terminal renderer and more.
 
 The server never knows which client it is talking to. Adding a platform means
@@ -257,6 +258,6 @@ for what it runs.
 
 - [Build your own](https://github.com/a2ui-project/labs/tree/main/samples/travel-a2ui#build-one-of-your-own): what to change to make
   this app about something other than travel.
-- [A2UI renderers](/ecosystem/renderers/): the renderers A2UI has.
+- [A2UI renderers](/concepts/sdks/#renderer-sdk): the official Renderer SDKs and [community renderers](/ecosystem/renderers/).
 - [How A2UI works](/concepts/overview/): the concepts, in depth.
 - [A2UI v1.0 specification](/specification/v1.0-a2ui/).
