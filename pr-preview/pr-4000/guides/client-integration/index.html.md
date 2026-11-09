@@ -23,7 +23,7 @@ flutter pub add a2ui_flutter a2ui_core url_launcher
 #### React
 
 ```bash
-# Requires react and react-dom ^18.0.0 || ^19.0.0
+# Requires react and react-dom ^17.0.0 || ^18.0.0 || ^19.0.0
 npm install @a2ui/react @a2ui/web_core @a2ui/markdown-it zod
 ```
 
