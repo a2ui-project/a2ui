@@ -187,7 +187,7 @@ export default defineConfig({
           label: 'Guides',
           items: [
             {
-              label: 'How to Integrate with My Client',
+              label: 'How to Integrate A2UI into a Client',
               slug: 'guides/client-integration',
             },
             {
