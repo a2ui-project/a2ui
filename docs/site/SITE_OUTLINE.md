@@ -22,7 +22,7 @@ Every agent authoring or editing pages under `docs/site/` must follow these glob
         - **Wire message envelopes & v0.9.1 $\rightarrow$ v1.0 message renames**: Owned by [`Messages`](#messages) (`/concepts/messages/`).
         - **Official SDK inventories, Core SDK dependency, source links & registry links**: Owned by [`SDKs`](#sdks) (`/concepts/sdks/`).
         - **Inference format mechanics (Express, Direct JSON) & token/latency benchmark table**: Owned by [`Inference Formats`](#inference-formats) (`/concepts/inference-formats/`).
-        - **Server-side `@macro` expansion & data baking**: Owned by [`Macros`](#macros) (`/guides/macros/`).
+        - **Server-side `@macro` expansion & data baking**: Owned by [`Using Macros`](#macros) (`/guides/macros/`).
         - **Module blueprints & YAML conformance suites**: Owned by [`SDK Development`](#sdk-development) (`/guides/sdk-development/`).
 5. **Specification JSON Schema Permalink Contract**:
     - Whenever any page links to a protocol or catalog JSON Schema definition, link to the human-browsable **JSON Schemas Explorer** route rather than raw `.json` files (where browsers ignore `#` fragments):
@@ -61,7 +61,7 @@ All cross-page links must target these exact Starlight routes (with `docs/site/s
 | **Guides**        | How to Integrate with My Client                | **P1**   | `content/docs/guides/client-integration.mdx`                              | `/guides/client-integration/`                              |
 | **Guides**        | How to Integrate with My Agent Server          | **P1**   | `content/docs/guides/agent-integration.mdx`                               | `/guides/agent-integration/`                               |
 | **Guides**        | How to Define a Catalog                        | **P1**   | `content/docs/guides/defining-a-catalog.mdx`                              | `/guides/defining-a-catalog/`                              |
-| **Guides**        | Macros                                         | **P2**   | `content/docs/guides/macros.mdx`                                          | `/guides/macros/`                                          |
+| **Guides**        | Using Macros                                   | **P2**   | `content/docs/guides/macros.mdx`                                          | `/guides/macros/`                                          |
 | **Guides**        | Architecting an A2UI Integration               | **P2**   | `content/docs/guides/architecting-an-integration.mdx`                     | `/guides/architecting-an-integration/`                     |
 | **Guides**        | How to Improve Latency                         | **P2**   | `content/docs/guides/improving-latency.mdx`                               | `/guides/improving-latency/`                               |
 | **Guides**        | MCP Catalog                                    | **P1**   | `content/docs/guides/mcp-catalog.mdx`                                     | `/guides/mcp-catalog/`                                     |
@@ -110,7 +110,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 4. **Express: Compact inference format (up to ~3x fewer output tokens and ~3x lower latency)**
     - Visual teaser contrasting compact Express DSL against wire JSON, linking to [Inference Formats](#inference-formats) (`/concepts/inference-formats/`).
 5. **Macros: Give the model bigger words**
-    - Teaser showing server-defined `@macro` calls expanding into standard wire primitives, linking to [Macros](#macros) (`/guides/macros/`).
+    - Teaser showing server-defined `@macro` calls expanding into standard wire primitives, linking to [Using Macros](#macros) (`/guides/macros/`).
 6. **Multi-Platform Client Rendering**
     - Interactive 6-platform renderer switcher (Flutter, React, Angular, Lit Web Components, SwiftUI, Jetpack Compose), linking to [SDKs](#sdks) (`/concepts/sdks/#renderer-sdk`).
 
@@ -314,7 +314,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 <a id="macros"></a>
 
-#### Macros (`/guides/macros/`) [P2]
+#### Using Macros (`/guides/macros/`) [P2]
 
 - **Canonical Owner & Sources**: Single home for server-side macros (currently implemented in the Python Agent SDK; mark Python support clearly). Grounded in [`python/a2ui_agent/src/a2ui/transformers/macros/README.md`](../../python/a2ui_agent/src/a2ui/transformers/macros/README.md) and [`samples/community/macros/README.md`](../../samples/community/macros/README.md).
 - **Content Outline**:

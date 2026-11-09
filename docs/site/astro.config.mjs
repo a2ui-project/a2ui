@@ -196,7 +196,7 @@ export default defineConfig({
               slug: 'guides/defining-a-catalog',
             },
             {
-              label: 'Macros',
+              label: 'Using Macros',
               slug: 'guides/macros',
             },
             {
