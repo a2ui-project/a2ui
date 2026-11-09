@@ -301,6 +301,24 @@
         same_nodes: [root, root/child]
         functions: [{name: openUrl, args: {url: "https://example.test"}}]
 
+- name: event_property_is_not_an_action
+  description: >-
+    Given a component with a string event property, list items with an event
+    key, and an event action, when the tree resolves, the event values stay
+    plain and only the object whose only property is event becomes an action.
+  action: resolve_nodes
+  fixture: test_data/node/event_property.yaml
+  expect:
+    nodes:
+      root:
+        type: Select
+        props:
+          label: Color
+          event: picked
+          options: [{label: Red, event: red}, Blue]
+          action: {action: true}
+  steps: []
+
 - name: metadata_only_update_emits_metadata_not_props
   description: >-
     Given v1.0 components carrying envelope metadata, when the tree resolves,

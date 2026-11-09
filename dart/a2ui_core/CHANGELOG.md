@@ -51,6 +51,13 @@
   `a2ui_agent`'s `RendererFunctionCalls` reports when an agent has too many
   calls to renderer functions pending
   ([#3535](https://github.com/a2ui-project/a2ui/issues/3535)).
+- `GenericBinder` treats an object schema without an `Action` reference as an
+  inline action only when its only property is `event` or `functionCall`, as
+  in the specification's `Action`, and never treats a component's own schema
+  as one. A component that declares an `event` property, or a list whose items
+  declare one, now gets those values as written instead of action closures
+  ([#4086](https://github.com/a2ui-project/a2ui/issues/4086),
+  [#4087](https://github.com/a2ui-project/a2ui/pull/4087)).
 
 ## 0.5.0
 
