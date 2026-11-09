@@ -1,0 +1,229 @@
+{
+  "catalogId": "https://a2ui.org/specification/v0_8/catalogs/minimal/minimal_catalog.json",
+  "components": {
+    "Text": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "object",
+          "description": "The text content to display. This can be a literal string or a reference to a value in the data model ('path', e.g., '/doc/title'). While simple Markdown formatting is supported (i.e. without HTML, images, or links), utilizing dedicated UI components is generally preferred for a richer and more structured presentation.",
+          "additionalProperties": false,
+          "properties": {
+            "literalString": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          }
+        },
+        "usageHint": {
+          "type": "string",
+          "description": "A hint for the base text style. One of:\n- `h1`: Largest heading.\n- `h2`: Second largest heading.\n- `h3`: Third largest heading.\n- `h4`: Fourth largest heading.\n- `h5`: Fifth largest heading.\n- `caption`: Small text for captions.\n- `body`: Standard body text.",
+          "enum": ["h1", "h2", "h3", "h4", "h5", "caption", "body"]
+        }
+      },
+      "required": ["text"]
+    },
+    "Row": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "type": "object",
+          "description": "Defines the children. Use 'explicitList' for a fixed set of children, or 'template' to generate children from a data list.",
+          "additionalProperties": false,
+          "properties": {
+            "explicitList": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "template": {
+              "type": "object",
+              "description": "A template for generating a dynamic list of children from a data model list. `componentId` is the component to use as a template, and `dataBinding` is the path to the map of components in the data model. Values in the map will define the list of children.",
+              "additionalProperties": false,
+              "properties": {
+                "componentId": {
+                  "type": "string"
+                },
+                "dataBinding": {
+                  "type": "string"
+                }
+              },
+              "required": ["componentId", "dataBinding"]
+            }
+          }
+        },
+        "distribution": {
+          "type": "string",
+          "description": "Defines the arrangement of children along the main axis (horizontally). This corresponds to the CSS 'justify-content' property.",
+          "enum": ["center", "end", "spaceAround", "spaceBetween", "spaceEvenly", "start"]
+        },
+        "alignment": {
+          "type": "string",
+          "description": "Defines the alignment of children along the cross axis (vertically). This corresponds to the CSS 'align-items' property.",
+          "enum": ["start", "center", "end", "stretch"]
+        }
+      },
+      "required": ["children"]
+    },
+    "Column": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "type": "object",
+          "description": "Defines the children. Use 'explicitList' for a fixed set of children, or 'template' to generate children from a data list.",
+          "additionalProperties": false,
+          "properties": {
+            "explicitList": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "template": {
+              "type": "object",
+              "description": "A template for generating a dynamic list of children from a data model list. `componentId` is the component to use as a template, and `dataBinding` is the path to the map of components in the data model. Values in the map will define the list of children.",
+              "additionalProperties": false,
+              "properties": {
+                "componentId": {
+                  "type": "string"
+                },
+                "dataBinding": {
+                  "type": "string"
+                }
+              },
+              "required": ["componentId", "dataBinding"]
+            }
+          }
+        },
+        "distribution": {
+          "type": "string",
+          "description": "Defines the arrangement of children along the main axis (vertically). This corresponds to the CSS 'justify-content' property.",
+          "enum": ["start", "center", "end", "spaceBetween", "spaceAround", "spaceEvenly"]
+        },
+        "alignment": {
+          "type": "string",
+          "description": "Defines the alignment of children along the cross axis (horizontally). This corresponds to the CSS 'align-items' property.",
+          "enum": ["center", "end", "start", "stretch"]
+        }
+      },
+      "required": ["children"]
+    },
+    "Button": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "child": {
+          "type": "string",
+          "description": "The ID of the component to display in the button, typically a Text component."
+        },
+        "primary": {
+          "type": "boolean",
+          "description": "Indicates if this button should be styled as the primary action."
+        },
+        "action": {
+          "type": "object",
+          "description": "The client-side action to be dispatched when the button is clicked. It includes the action's name and an optional context payload.",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "context": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "object",
+                    "description": "Defines the value to be included in the context as either a literal value or a path to a data model value (e.g. '/user/name').",
+                    "additionalProperties": false,
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "literalString": {
+                        "type": "string"
+                      },
+                      "literalNumber": {
+                        "type": "number"
+                      },
+                      "literalBoolean": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                },
+                "required": ["key", "value"]
+              }
+            }
+          },
+          "required": ["name"]
+        }
+      },
+      "required": ["child", "action"]
+    },
+    "TextField": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "object",
+          "description": "The text label for the input field. This can be a literal string or a reference to a value in the data model ('path, e.g. '/user/name').",
+          "additionalProperties": false,
+          "properties": {
+            "literalString": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          }
+        },
+        "text": {
+          "type": "object",
+          "description": "The value of the text field. This can be a literal string or a reference to a value in the data model ('path', e.g. '/user/name').",
+          "additionalProperties": false,
+          "properties": {
+            "literalString": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          }
+        },
+        "textFieldType": {
+          "type": "string",
+          "description": "The type of input field to display.",
+          "enum": ["date", "longText", "number", "shortText", "obscured"]
+        },
+        "validationRegexp": {
+          "type": "string",
+          "description": "A regular expression used for client-side validation of the input."
+        }
+      },
+      "required": ["label"]
+    }
+  },
+  "styles": {
+    "font": {
+      "type": "string",
+      "description": "The primary font for the UI."
+    },
+    "primaryColor": {
+      "type": "string",
+      "description": "The primary UI color as a hexadecimal code (e.g., '#00BFFF').",
+      "pattern": "^#[0-9a-fA-F]{6}$"
+    }
+  }
+}

@@ -1,0 +1,292 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "gallery-weather-current",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Card": {
+              "child": "main-column"
+            }
+          }
+        },
+        {
+          "id": "main-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["temp-row", "location", "description", "forecast-row"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "temp-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["temp-high", "temp-low"]
+              },
+              "alignment": "start"
+            }
+          }
+        },
+        {
+          "id": "temp-high",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/tempHigh"
+              },
+              "usageHint": "h1"
+            }
+          }
+        },
+        {
+          "id": "temp-low",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/tempLow"
+              },
+              "usageHint": "h2"
+            }
+          }
+        },
+        {
+          "id": "location",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/location"
+              },
+              "usageHint": "h3"
+            }
+          }
+        },
+        {
+          "id": "description",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/description"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "forecast-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["day1", "day2", "day3", "day4", "day5"]
+              },
+              "distribution": "spaceAround"
+            }
+          }
+        },
+        {
+          "id": "day1",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["day1-icon", "day1-temp"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "day1-icon",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/forecast/0/icon"
+              },
+              "usageHint": "h3"
+            }
+          }
+        },
+        {
+          "id": "day1-temp",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/forecast/0/temp"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "day2",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["day2-icon", "day2-temp"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "day2-icon",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/forecast/1/icon"
+              },
+              "usageHint": "h3"
+            }
+          }
+        },
+        {
+          "id": "day2-temp",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/forecast/1/temp"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "day3",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["day3-icon", "day3-temp"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "day3-icon",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/forecast/2/icon"
+              },
+              "usageHint": "h3"
+            }
+          }
+        },
+        {
+          "id": "day3-temp",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/forecast/2/temp"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "day4",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["day4-icon", "day4-temp"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "day4-icon",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/forecast/3/icon"
+              },
+              "usageHint": "h3"
+            }
+          }
+        },
+        {
+          "id": "day4-temp",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/forecast/3/temp"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "day5",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["day5-icon", "day5-temp"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "day5-icon",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/forecast/4/icon"
+              },
+              "usageHint": "h3"
+            }
+          }
+        },
+        {
+          "id": "day5-temp",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/forecast/4/temp"
+              },
+              "usageHint": "caption"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "gallery-weather-current",
+      "contents": [
+        {
+          "key": "tempHigh",
+          "valueString": "72\u00b0"
+        },
+        {
+          "key": "tempLow",
+          "valueString": "58\u00b0"
+        },
+        {
+          "key": "location",
+          "valueString": "Austin, TX"
+        },
+        {
+          "key": "description",
+          "valueString": "Clear skies with light breeze"
+        },
+        {
+          "key": "forecast",
+          "valueString": "[{\"icon\": \"\\u2600\\ufe0f\", \"temp\": \"74\\u00b0\"}, {\"icon\": \"\\u2600\\ufe0f\", \"temp\": \"76\\u00b0\"}, {\"icon\": \"\\u26c5\", \"temp\": \"71\\u00b0\"}, {\"icon\": \"\\u2600\\ufe0f\", \"temp\": \"73\\u00b0\"}, {\"icon\": \"\\u2600\\ufe0f\", \"temp\": \"75\\u00b0\"}]"
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "gallery-weather-current",
+      "root": "root"
+    }
+  }
+]
