@@ -40,11 +40,6 @@ const stories = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/build-with-a2ui/
       }
     </div>
 
-    <div class="ps-groups" aria-hidden="true">
-      <span>Outside Google</span>
-      <span>Inside Google</span>
-    </div>
-
     <ul class="ps-brands" aria-label="Teams and products shipping with A2UI">
       <!-- 1. Alation -->
       <li class="ps-brand">
@@ -325,42 +320,6 @@ const stories = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/build-with-a2ui/
   .ps-more:hover span:first-child {
     text-decoration: underline;
     text-underline-offset: 4px;
-  }
-
-  /* Outside Google = first three cells, inside Google = last two */
-  .ps-groups {
-    display: grid;
-    grid-template-columns: 3fr 2fr;
-    margin-bottom: 10px;
-  }
-
-  .ps-groups span {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-family: var(--a2-font-mono);
-    font-size: 11px;
-    letter-spacing: var(--a2-tracking-mono-wide);
-    text-transform: uppercase;
-    color: var(--a2-text-muted);
-  }
-
-  .ps-groups span::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    margin-right: 16px;
-    background: var(--a2-border-strong);
-  }
-
-  .ps-groups span:last-child::after {
-    margin-right: 0;
-  }
-
-  @media (max-width: 1040px) {
-    .ps-groups {
-      display: none;
-    }
   }
 
   .ps-h2 {
