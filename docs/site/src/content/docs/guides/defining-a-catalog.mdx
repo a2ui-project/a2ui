@@ -907,6 +907,7 @@ import androidx.a2ui.compose.ui.A2uiCatalog
 import androidx.a2ui.model.catalog.A2uiFunction
 import androidx.a2ui.model.catalog.A2uiFunctionDefinition
 import androidx.a2ui.model.catalog.A2uiFunctionReturnType
+import androidx.a2ui.model.protocol.A2uiException
 import androidx.a2ui.model.protocol.A2uiExecutionContext
 import androidx.a2ui.model.schema.A2uiObjectSchema
 import androidx.a2ui.model.schema.A2uiSchema
@@ -934,8 +935,12 @@ class ShareProductFunction(
         }
 
     override fun execute(args: Map<String, Any>, executionContext: A2uiExecutionContext): Any? {
-        val title = args["title"]?.toString() ?: return Unit
-        val url = args["url"]?.toString() ?: return Unit
+        val title =
+            args["title"] as? String
+                ?: throw A2uiException.A2uiRuntimeException("shareProduct requires a string 'title'")
+        val url =
+            args["url"] as? String
+                ?: throw A2uiException.A2uiRuntimeException("shareProduct requires a string 'url'")
         onShare(title, url)
         return Unit
     }
@@ -1343,6 +1348,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import java.util.Locale
 
 private val NameProp = A2uiProperty.dynamicString("name", required = true)
 private val PriceProp = A2uiProperty.dynamicNumber("price", required = true)
@@ -1379,7 +1385,12 @@ val ProductCard: A2uiComponent =
                     }
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(text = "$productName (USD $price)")
+                    Text(
+                        text =
+                            "$productName (USD " +
+                                String.format(Locale.US, "%.2f", price.toDouble()) +
+                                ")"
+                    )
                     if (children.isNotEmpty()) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             for (reference in children) {

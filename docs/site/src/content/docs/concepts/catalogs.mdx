@@ -546,7 +546,7 @@ private val FareAmountProp =
 val FlightStatusCard: A2uiComponent =
     object : A2uiComponent {
         override val name = "FlightStatusCard"
-        override val description = "Shows a flight's number, fare, and action buttons."
+        override val description = "Shows a flight's number and fare."
         override val properties = listOf(FlightNumberProp, FareAmountProp)
 
         @Composable
@@ -589,6 +589,7 @@ fun createTravelProcessor(context: Context): A2uiMessageProcessor {
             catalogId = "https://example.com/catalogs/travel/v1/catalog.json",
             components = basicCatalog.components + FlightStatusCard,
             functions = basicCatalog.functions,
+            themeSchema = basicCatalog.themeSchema,
         )
     return A2uiMessageProcessor(catalogs = listOf(travelCatalog))
 }

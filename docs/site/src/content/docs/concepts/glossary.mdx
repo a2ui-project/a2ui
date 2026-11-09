@@ -202,7 +202,7 @@ See [Catalogs](../catalogs/) and [Component model](../../specification/v1.0-a2ui
 
 The UI-framework-agnostic foundational library in each language, shared by both [Agent SDKs](#agent-sdk) and client [framework adapters](#framework-adapter).
 
-The Core SDK implements protocol message models, `Catalog` schemas, reactive surface and [data model](#data-model) state containers (`SurfaceGroupModel`, `SurfaceModel`, `ComponentModel`, and `DataModel`, named `SurfaceViewModel` in Swift and `A2uiCore*` in Kotlin), JSON Pointer resolution, [`@path`](#path) and [`@call`](#call) expression evaluation, [`MessageProcessor`](#messageprocessor), and payload validation.
+The Core SDK implements protocol message models, `Catalog` schemas, reactive surface and [data model](#data-model) state containers (`SurfaceGroupModel`, `SurfaceModel`, `ComponentModel`, and `DataModel`, named `SurfaceViewModel` in Swift and `A2uiCoreSurfaceGroupModel`, `A2uiCoreSurfaceModel`, `A2uiComponentModel`, and `A2uiCoreDataModel` in Kotlin), JSON Pointer resolution, [`@path`](#path) and [`@call`](#call) expression evaluation, [`MessageProcessor`](#messageprocessor), and payload validation.
 
 See [Core SDK](../sdks/#core-sdk) for official package names across languages.
 
@@ -355,7 +355,7 @@ See [Using Macros](../../guides/macros/) and [Agent SDK](../sdks/#agent-sdk).
 
 The stateful controller class in each language's [Core SDK](#core-sdk) (`A2uiMessageProcessor` in Kotlin) that processes incoming [`agent_to_renderer`](#agent_to_renderer) (and v0.9.1 `server_to_client`) message streams.
 
-`MessageProcessor` validates incoming payloads against registered [catalogs](#catalog), mutates reactive surface and [data model](#data-model) state containers (`SurfaceGroupModel`, `SurfaceModel`, `ComponentModel`, and `DataModel`, named `SurfaceViewModel` in Swift and `A2uiCore*` in Kotlin), resolves JSON Pointers and [`@call`](#call) expressions, enforces function caller and user-activation rules, emits outbound [`renderer_to_agent`](#renderer_to_agent) messages (`action`, `callAgentFunction`, `rendererFunctionResponse`, and `error`), and builds renderer [capabilities](#capabilities) and `a2uiRendererDataModel` metadata snapshots.
+`MessageProcessor` validates incoming payloads against registered [catalogs](#catalog), mutates reactive surface and [data model](#data-model) state containers (`SurfaceGroupModel`, `SurfaceModel`, `ComponentModel`, and `DataModel`, named `SurfaceViewModel` in Swift and `A2uiCoreSurfaceGroupModel`, `A2uiCoreSurfaceModel`, `A2uiComponentModel`, and `A2uiCoreDataModel` in Kotlin), resolves JSON Pointers and [`@call`](#call) expressions, enforces function caller and user-activation rules, emits outbound [`renderer_to_agent`](#renderer_to_agent) messages (`action`, `callAgentFunction`, `rendererFunctionResponse`, and `error`), and builds renderer [capabilities](#capabilities) and `a2uiRendererDataModel` metadata snapshots.
 
 See [Core SDK](../sdks/#core-sdk) and [How to Integrate A2UI into a Client](../../guides/client-integration/).
 
