@@ -321,23 +321,26 @@ class ExpressDecompiler:
     def __init__(
         self,
         catalogs: Sequence[CatalogApi],
+        version: str | None = None,
     ):
         """Initializes the decompiler with one or more catalogs.
 
         Args:
             catalogs: A sequence of Catalog instances.
+            version: Target A2UI protocol version, whose keys and system
+                functions the decompiler reads. Defaults to the version that
+                the catalogs target.
 
         Raises:
             A2uiCatalogError: If `check_mixed_catalogs` rejects the catalogs.
         """
         self._catalogs = check_mixed_catalogs(catalogs)
-        self.helpers = build_catalog_helpers(self._catalogs)
+        target_version = version or catalogs_protocol_version(self._catalogs)
+        self.helpers = build_catalog_helpers(self._catalogs, target_version)
         # The single catalog's ID, or None when several catalogs are active.
         self._sole_catalog_id = surface_catalog_id(self._catalogs)
-        self._v1 = is_at_least_version(
-            catalogs_protocol_version(self._catalogs), ProtocolVersion.V1_0
-        )
-        # The binding and function call keys of the catalogs' version.
+        self._v1 = is_at_least_version(target_version, ProtocolVersion.V1_0)
+        # The binding and function call keys of the target version.
         self._path_key = "@path" if self._v1 else "path"
         self._call_key = "@call" if self._v1 else "call"
 

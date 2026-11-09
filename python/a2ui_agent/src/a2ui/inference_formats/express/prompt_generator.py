@@ -397,7 +397,7 @@ class ExpressPromptGenerator(PromptGenerator):
         )
         self._version = version or catalogs_protocol_version(checked)
         self._helpers = build_catalog_helpers(self._catalogs, self._version)
-        self._decompiler = ExpressDecompiler(self._catalogs)
+        self._decompiler = ExpressDecompiler(self._catalogs, version=self._version)
 
     @property
     def catalogs(self) -> list[CatalogApi]:
@@ -702,7 +702,8 @@ class ExpressPromptGenerator(PromptGenerator):
             return ""
 
         h = (
-            self.helpers.get(catalog.catalog_id) or CatalogSchemaHelper(catalog)
+            self.helpers.get(catalog.catalog_id)
+            or CatalogSchemaHelper(catalog, self._version)
             if catalog
             else next(iter(self.helpers.values()), None)
         )

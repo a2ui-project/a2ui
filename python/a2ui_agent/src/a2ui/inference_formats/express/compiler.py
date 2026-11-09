@@ -2621,11 +2621,11 @@ class ExpressCompiler:
         """
         if ctx.version == self.version:
             helper = next(iter(self.helpers.values()))
+        elif ctx.version in self._system_function_helpers:
+            helper = self._system_function_helpers[ctx.version]
         else:
-            helper = self._system_function_helpers.get(ctx.version)
-            if helper is None:
-                helper = CatalogSchemaHelper(self._catalogs[0], ctx.version)
-                self._system_function_helpers[ctx.version] = helper
+            helper = CatalogSchemaHelper(self._catalogs[0], ctx.version)
+            self._system_function_helpers[ctx.version] = helper
         if fn_name not in helper.system_functions:
             raise ExpressValidationError(
                 f"Unknown system function '{fn_name}' in A2UI {ctx.version}. System"

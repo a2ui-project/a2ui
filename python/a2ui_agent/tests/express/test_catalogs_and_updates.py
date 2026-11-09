@@ -886,8 +886,27 @@ def test_per_call_version_reads_the_target_versions_system_functions() -> None:
 def test_prompt_rules_list_system_functions_of_the_target_version() -> None:
     rules_v09 = ExpressFormat([_primary()], version="v0.9").prompt_generator
     assert "## System Functions" not in rules_v09.generate_base_rules()
-    rules_v1 = ExpressFormat([_primary(version="v0.9")], version="1.0").prompt_generator
-    assert "• @index(offset?)" in rules_v1.generate_base_rules()
+    messages = to_message_models([{
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "main",
+            "catalogId": PRIMARY,
+            "components": [
+                {
+                    "id": "root",
+                    "component": "Column",
+                    "children": {"path": "/items", "componentId": "row"},
+                },
+                {"id": "row", "component": "Text", "text": {"@call": "@index"}},
+            ],
+        },
+    }])
+    fmt_v1 = ExpressFormat(
+        [_primary(version="v0.9")], examples=[messages], version="1.0"
+    )
+    assert "• @index(offset?)" in fmt_v1.prompt_generator.generate_base_rules()
+    assert "row = Text(@index())" in fmt_v1.prompt_generator.generate()
+    assert "row = Text(@index())" in fmt_v1.create_parser().decompile(messages)
 
 
 # --- Prompt rules ---
