@@ -1198,11 +1198,11 @@ void _assertStepExpectations(
     _assertActions(harness.actions, expectedActions);
   }
   if (step['expectErrors'] case final List<Object?> expectedErrors) {
-    _assertErrors(harness.errors, expectedErrors);
+    assertErrors(harness.errors, expectedErrors);
   }
-  _validateOutboundEnvelopes(harness.outbound, harness.protocolVersion);
+  validateOutboundEnvelopes(harness.outbound, harness.protocolVersion);
   if (step['expectOutbound'] case final List<Object?> expectedOutbound) {
-    _assertOutbound(harness.outbound, expectedOutbound);
+    assertOutbound(harness.outbound, expectedOutbound);
   }
   if (step['expectAccessibilityTree']
       case final Map<String, Object?> expectedA11y) {
@@ -1291,6 +1291,7 @@ _collectIdentityMap(
         : finder.evaluate();
     final Element? elem = elements.isEmpty ? null : elements.first;
     result[node.instanceId] = (node, elem);
+    result.putIfAbsent(node.componentId, () => (node, elem));
     result[path] = (node, elem);
     final List<ComponentNode<ComponentImplementation>> children =
         _directChildren(node);
@@ -1426,7 +1427,7 @@ void _assertActions(
   }
 }
 
-void _assertErrors(List<A2uiRendererError> actual, List<Object?> expectedList) {
+void assertErrors(List<A2uiRendererError> actual, List<Object?> expectedList) {
   expect(actual, hasLength(expectedList.length));
   for (final rawExpected in expectedList) {
     final expected = rawExpected! as Map<String, Object?>;
@@ -1520,7 +1521,7 @@ Map<String, Object?> _frameActionEnvelope(
   return <String, Object?>{'version': protocolVersion, 'action': actionMap};
 }
 
-void _validateOutboundEnvelopes(
+void validateOutboundEnvelopes(
   List<Map<String, Object?>> envelopes,
   String protocolVersion,
 ) {
@@ -1594,10 +1595,7 @@ void _assertMatchesExpectedOutbound(
   expect(actual, equals(expected), reason: '$where: value mismatch');
 }
 
-void _assertOutbound(
-  List<Map<String, Object?>> actual,
-  List<Object?> expected,
-) {
+void assertOutbound(List<Map<String, Object?>> actual, List<Object?> expected) {
   expect(
     actual,
     hasLength(expected.length),

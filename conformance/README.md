@@ -100,7 +100,7 @@ Harnesses running the renderer half:
 1. Author a new scenario YAML file in `conformance/e2e/<scenario_name>.yaml`.
 2. Specify `action: e2e_scenario`, `protocolVersion` (e.g. `"1.0"`), `catalogPaths`, `formats` (e.g. `[direct_json, express]`), and multi-turn exchanges with `modelChunks`, `expectWire`, `expectViewTree`, and optional `uiOps`, `expectDataModel`, and `expectOutbound`.
 3. Verify the scenario using `pytest conformance/tests/test_e2e_scenarios.py`.
-4. Regenerate the v0.9.1 copies under `conformance/e2e/v0_9_1/` with `uv run --project conformance python conformance/scripts/lower_e2e_scenarios.py`.
+4. Regenerate the v0.9.1 copies under `conformance/e2e/v0_9_1/` with `uv run --package a2ui-agent-sdk python conformance/scripts/lower_e2e_scenarios.py`.
 
 All static test data and simplified schemas are located in the `test_data/` directory.
 

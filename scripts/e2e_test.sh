@@ -105,20 +105,20 @@ while IFS= read -r -d '' recording; do
     echo >> "$DRIFT_REPORT"
     continue
   fi
-  name="$(uv run python -c \
+  name="$(uv run --package a2ui-agent-sdk python -c \
     'import sys, yaml; print(yaml.safe_load(open(sys.argv[1]))[0]["name"])' \
     "$golden")" || { STATUS=1; continue; }
   imported="${recording%.json}.scenario.yaml"
   report="${recording%.json}.report.md"
-  if ! uv run python conformance/scripts/import_recording.py \
+  if ! uv run --package a2ui-agent-sdk python conformance/scripts/import_recording.py \
       --input "$recording" --output "$imported" --name "$name"; then
     echo "## \`$relative\`: could not be imported" >> "$DRIFT_REPORT"
     echo >> "$DRIFT_REPORT"
     STATUS=1
     continue
   fi
-  uv run python conformance/scripts/compare_e2e_outcome.py \
-    --golden "$golden" --recorded "$imported" --report "$report"
+  uv run --package a2ui-agent-sdk python conformance/scripts/compare_e2e_outcome.py \
+    --structural --golden "$golden" --recorded "$imported" --report "$report"
   case $? in
     0) echo "## \`$relative\`: same outcome as \`$name\`" >> "$DRIFT_REPORT" ;;
     1)

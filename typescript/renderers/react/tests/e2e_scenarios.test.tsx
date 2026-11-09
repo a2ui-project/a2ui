@@ -318,16 +318,21 @@ function registerV09BasicCatalog(state: HarnessState): void {
 }
 
 function attachGroupErrorForwarding(state: HarnessState): void {
+  const isV09 = state.protocolVersion.startsWith('v0.9') || state.protocolVersion.startsWith('0.9');
+  const version = isV09 ? 'v0.9' : state.protocolVersion;
   state.processor.model.onError.subscribe(err => {
     const errRecord = err as unknown as Record<string, unknown>;
     const surfaceId = typeof errRecord.surfaceId === 'string' ? errRecord.surfaceId : '';
+    if (surfaceId && state.processor.model.getSurface(surfaceId)) {
+      return;
+    }
     state.errors.push({
       code: errRecord.code,
       message: errRecord.message,
       surfaceId,
     });
     state.outbound.push({
-      version: state.protocolVersion,
+      version,
       error: {
         code: errRecord.code,
         surfaceId,

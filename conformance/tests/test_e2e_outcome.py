@@ -226,3 +226,94 @@ def test_compare_cli_exit_codes_and_report(tmp_path, base_scenario):
     # 4. Input error: missing required flag -> exit code 2
     code_bad_args = compare_main(["--golden", str(golden_file)])
     assert code_bad_args == 2
+
+
+def test_preserves_surface_insertion_order_and_normalizes_paths_and_enabled(
+    base_scenario: dict[str, Any],
+) -> None:
+    second_surface_msg = {
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "z-first-banner",
+            "catalogId": (
+                "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            ),
+            "components": [
+                {
+                    "id": "root",
+                    "component": "Button",
+                    "child": "lbl",
+                    "disabled": False,
+                    "action": {
+                        "event": {
+                            "name": "tap",
+                            "context": {"mail": {"@path": "/customEmailPath"}},
+                        }
+                    },
+                },
+                {"id": "lbl", "component": "Text", "text": "Banner"},
+            ],
+        },
+    }
+    golden = copy.deepcopy(base_scenario)
+    golden["turns"][0]["expectWire"][1]["a2ui"].insert(0, second_surface_msg)
+
+    recorded = copy.deepcopy(golden)
+    # Rename z-first-banner -> a-renamed-banner and omit disabled: False;
+    # alphabetical sort would swap surfaceId_0 and surfaceId_1 relative to
+    # newsletter-signup, whereas insertion order keeps them aligned.
+    rec_banner = recorded["turns"][0]["expectWire"][1]["a2ui"][0]["createSurface"]
+    rec_banner["surfaceId"] = "a-renamed-banner"
+    del rec_banner["components"][0]["disabled"]
+    rec_banner["components"][0]["action"]["event"]["context"]["mail"] = {
+        "@path": "/otherMailPointer"
+    }
+
+    assert outcome_of(golden) == outcome_of(recorded)
+
+
+def test_compare_cli_wildcard_and_structural_mode(
+    tmp_path: Path, base_scenario: dict[str, Any]
+) -> None:
+    golden = copy.deepcopy(base_scenario)
+    golden["turns"][0]["expectOutbound"].append({
+        "version": "1.0",
+        "callAgentFunction": {
+            "functionCallId": "call-42",
+            "name": "lookup",
+            "args": {},
+        },
+    })
+    recorded = copy.deepcopy(golden)
+    recorded["turns"][0]["expectOutbound"][-1]["callAgentFunction"][
+        "functionCallId"
+    ] = {"$match": "any"}
+    for comp in recorded["turns"][0]["expectWire"][1]["a2ui"][0]["createSurface"][
+        "components"
+    ]:
+        if comp["id"] == "emailInput":
+            comp["label"] = "Work Email"
+        if comp["id"] == "subscribeBtn":
+            comp["action"]["event"]["name"] = "join_mailing_list"
+
+    golden_file = tmp_path / "golden.yaml"
+    recorded_file = tmp_path / "recorded.yaml"
+    golden_file.write_text(yaml.dump([golden]), encoding="utf-8")
+    recorded_file.write_text(yaml.dump([recorded]), encoding="utf-8")
+
+    # Exact mode rejects changed label/event name, whereas --structural passes
+    # while honoring {"$match": "any"} on functionCallId.
+    assert (
+        compare_main(["--golden", str(golden_file), "--recorded", str(recorded_file)])
+        == 1
+    )
+    assert (
+        compare_main([
+            "--structural",
+            "--golden",
+            str(golden_file),
+            "--recorded",
+            str(recorded_file),
+        ])
+        == 0
+    )

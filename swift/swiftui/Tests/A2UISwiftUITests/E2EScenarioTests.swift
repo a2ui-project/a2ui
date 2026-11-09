@@ -21,27 +21,27 @@ import OrderedJSON
 import Testing
 import Yams
 
-/// Parameterized E2E scenario test case loaded from `conformance/e2e/**/*.yaml`.
-struct E2EScenarioCase: CustomTestStringConvertible, Sendable {
-  static let all: [E2EScenarioCase] = E2EScenarioTests.loadScenarios()
-
-  let suite: String
-  let name: String
-  let specJSON: JSONValue
-
-  var testDescription: String { name }
-
-  func makeSpec() -> [String: Any] {
-    (AdapterHarness.fromJSONValue(specJSON) as? [String: Any]) ?? [:]
-  }
-}
-
 /// Replays end-to-end golden-transcript scenarios under `conformance/e2e/**/*.yaml`
 /// through `MessageProcessor`, `A2UISwiftUI.Surface`, `HostedViewDriver`, and `AdapterHarness`.
 @Suite(.serialized)
 @MainActor
 struct E2EScenarioTests {
-  nonisolated static var scenarios: [E2EScenarioCase] { E2EScenarioCase.all }
+  /// Parameterized E2E scenario test case loaded from `conformance/e2e/**/*.yaml`.
+  struct ScenarioCase: CustomTestStringConvertible, Sendable {
+    nonisolated static let all: [ScenarioCase] = E2EScenarioTests.loadScenarios()
+
+    let suite: String
+    let name: String
+    let specJSON: JSONValue
+
+    nonisolated var testDescription: String { name }
+
+    nonisolated func makeSpec() -> [String: Any] {
+      (AdapterHarness.fromJSONValue(specJSON) as? [String: Any]) ?? [:]
+    }
+  }
+
+  nonisolated static var scenarios: [ScenarioCase] { ScenarioCase.all }
 
   /// Reasoned expected failures keyed by scenario `name`.
   private static let expectedScenarioFailures: [String: String] = [:]
@@ -89,8 +89,10 @@ struct E2EScenarioTests {
   ])
 
   nonisolated private static var conformanceDirectory: URL {
-    if let envDir = ProcessInfo.processInfo.environment["A2UI_CONFORMANCE_DIR"], !envDir.isEmpty {
-      let url = URL(fileURLWithPath: envDir)
+    if let environmentDirectory = ProcessInfo.processInfo.environment["A2UI_CONFORMANCE_DIR"],
+      !environmentDirectory.isEmpty
+    {
+      let url = URL(fileURLWithPath: environmentDirectory)
       return url.lastPathComponent == "conformance"
         ? url : url.appendingPathComponent("conformance")
     }
@@ -103,7 +105,7 @@ struct E2EScenarioTests {
     return repoRoot.appendingPathComponent("conformance")
   }
 
-  nonisolated static func loadScenarios() -> [E2EScenarioCase] {
+  nonisolated static func loadScenarios() -> [ScenarioCase] {
     let e2eURL = conformanceDirectory.appendingPathComponent("e2e")
     guard
       let enumerator = FileManager.default.enumerator(
@@ -121,10 +123,10 @@ struct E2EScenarioTests {
     yamlURLs.sort { $0.path < $1.path }
 
     let basePath = conformanceDirectory.standardizedFileURL.path
-    var loaded: [E2EScenarioCase] = []
+    var loaded: [ScenarioCase] = []
     for fileURL in yamlURLs {
       let fullPath = fileURL.standardizedFileURL.path
-      let relSuite = String(fullPath.dropFirst(basePath.count + 1))
+      let relativeSuite = String(fullPath.dropFirst(basePath.count + 1))
         .replacingOccurrences(of: "\\", with: "/")
       guard
         let text = try? String(contentsOf: fileURL, encoding: .utf8),
@@ -135,8 +137,8 @@ struct E2EScenarioTests {
       for rawCase in rawCases {
         let name = rawCase["name"] as? String ?? "<unnamed>"
         loaded.append(
-          E2EScenarioCase(
-            suite: relSuite,
+          ScenarioCase(
+            suite: relativeSuite,
             name: name,
             specJSON: AdapterHarness.toJSONValue(rawCase)
           )
@@ -146,11 +148,11 @@ struct E2EScenarioTests {
     return loaded
   }
 
-  @Test(arguments: E2EScenarioCase.all)
-  func e2eScenario(_ c: E2EScenarioCase) throws {
-    let suite = c.suite
-    let name = c.name
-    let scenario = c.makeSpec()
+  @Test(arguments: ScenarioCase.all)
+  func e2eScenario(_ scenarioCase: ScenarioCase) throws {
+    let suite = scenarioCase.suite
+    let name = scenarioCase.name
+    let scenario = scenarioCase.makeSpec()
     let knownScenarioNames = Set(Self.scenarios.map(\.name))
     let unusedExpectedFailures = Self.expectedScenarioFailures.keys
       .filter { !knownScenarioNames.contains($0) }
@@ -237,17 +239,17 @@ struct E2EScenarioTests {
       where: location
     )
     if let results = node["validationResults"] as? [[String: Any]] {
-      for (idx, item) in results.enumerated() {
+      for (index, item) in results.enumerated() {
         try AdapterHarness.assertKnownKeys(
           item,
           allowed: AdapterHarness.validationResultKnownKeys,
-          where: "\(location).validationResults[\(idx)]"
+          where: "\(location).validationResults[\(index)]"
         )
       }
     }
     if let children = node["children"] as? [[String: Any]] {
-      for (idx, child) in children.enumerated() {
-        try assertKnownE2EViewNode(child, where: "\(location).children[\(idx)]")
+      for (index, child) in children.enumerated() {
+        try assertKnownE2EViewNode(child, where: "\(location).children[\(index)]")
       }
     }
   }
@@ -260,9 +262,10 @@ struct E2EScenarioTests {
       where: "scenario(\(name))"
     )
     guard (scenario["action"] as? String) == "e2e_scenario" else {
-      let msg = "scenario(\(name)): unsupported action \(String(describing: scenario["action"]))"
-      Issue.record(Comment(rawValue: msg))
-      throw AdapterHarness.ConformanceError(msg)
+      let message =
+        "scenario(\(name)): unsupported action \(String(describing: scenario["action"]))"
+      Issue.record(Comment(rawValue: message))
+      throw AdapterHarness.ConformanceError(message)
     }
     if let source = scenario["source"] as? [String: Any] {
       try AdapterHarness.assertKnownKeys(
@@ -272,32 +275,41 @@ struct E2EScenarioTests {
       )
     }
     guard let turns = scenario["turns"] as? [[String: Any]], !turns.isEmpty else {
-      let msg = "scenario(\(name)): turns must be a non-empty array"
-      Issue.record(Comment(rawValue: msg))
-      throw AdapterHarness.ConformanceError(msg)
+      let message = "scenario(\(name)): turns must be a non-empty array"
+      Issue.record(Comment(rawValue: message))
+      throw AdapterHarness.ConformanceError(message)
     }
-    for (turnIdx, turn) in turns.enumerated() {
+    for (turnIndex, turn) in turns.enumerated() {
       try AdapterHarness.assertKnownKeys(
         turn,
         allowed: e2eTurnKnownKeys,
-        where: "scenario(\(name)).turns[\(turnIdx)]"
+        where: "scenario(\(name)).turns[\(turnIndex)]"
       )
       if let viewTrees = turn["expectViewTree"] as? [String: Any] {
         for (surfaceID, rawTree) in viewTrees {
           if let tree = rawTree as? [String: Any] {
             try assertKnownE2EViewNode(
               tree,
-              where: "scenario(\(name)).turns[\(turnIdx)].expectViewTree.\(surfaceID)"
+              where: "scenario(\(name)).turns[\(turnIndex)].expectViewTree.\(surfaceID)"
             )
           }
         }
       }
+      if let expectedErrors = turn["expectErrors"] as? [[String: Any]] {
+        for (errorIndex, expectedError) in expectedErrors.enumerated() {
+          try AdapterHarness.assertKnownKeys(
+            expectedError,
+            allowed: AdapterHarness.expectedErrorKnownKeys,
+            where: "scenario(\(name)).turns[\(turnIndex)].expectErrors[\(errorIndex)]"
+          )
+        }
+      }
       if let uiOps = turn["uiOps"] as? [[String: Any]] {
-        for (opIdx, uiOp) in uiOps.enumerated() {
+        for (operationIndex, uiOp) in uiOps.enumerated() {
           try AdapterHarness.assertKnownKeys(
             uiOp,
             allowed: e2eUiOpKnownKeys,
-            where: "scenario(\(name)).turns[\(turnIdx)].uiOps[\(opIdx)]"
+            where: "scenario(\(name)).turns[\(turnIndex)].uiOps[\(operationIndex)]"
           )
         }
       }
@@ -322,114 +334,28 @@ struct E2EScenarioTests {
     context: String
   ) throws {
     guard let viewNode = actual, let node = viewNode.node else { return }
-    if let expLabel = expected["label"] as? String {
+    if let expectedLabel = expected["label"] as? String {
       let actualLabel = node.string(for: "label")
-      #expect(actualLabel == expLabel, "\(context): label mismatch")
-      if actualLabel != expLabel {
+      #expect(actualLabel == expectedLabel, "\(context): label mismatch")
+      if actualLabel != expectedLabel {
         throw AdapterHarness.ConformanceError("\(context): label mismatch")
       }
     }
-    if let expDisabled = expected["disabled"] as? Bool {
+    if let expectedDisabled = expected["disabled"] as? Bool {
       let actualDisabled = node.bool(for: "disabled") ?? false
-      #expect(actualDisabled == expDisabled, "\(context): disabled mismatch")
-      if actualDisabled != expDisabled {
+      #expect(actualDisabled == expectedDisabled, "\(context): disabled mismatch")
+      if actualDisabled != expectedDisabled {
         throw AdapterHarness.ConformanceError("\(context): disabled mismatch")
       }
     }
-    if let expChildren = expected["children"] as? [[String: Any]] {
-      for (idx, expChild) in expChildren.enumerated() where idx < viewNode.children.count {
+    if let expectedChildren = expected["children"] as? [[String: Any]] {
+      for (index, expectedChild) in zip(viewNode.children.indices, expectedChildren) {
         try assertExtendedViewNodeProps(
-          viewNode.children[idx],
-          expected: expChild,
-          context: "\(context)/children/\(idx)"
+          viewNode.children[index],
+          expected: expectedChild,
+          context: "\(context)/children/\(index)"
         )
       }
-    }
-  }
-
-  private static func captureOutbound(_ session: AdapterHarness.Session) -> [[String: Any]] {
-    session.handler.outbound
-  }
-
-  private static func isMatchAny(_ value: Any) -> Bool {
-    guard let dict = value as? [String: Any], dict.count == 1 else { return false }
-    return (dict["$match"] as? String) == "any"
-  }
-
-  private static func assertMatchesOutbound(
-    _ actual: Any,
-    expected: Any,
-    where location: String
-  ) throws {
-    if isMatchAny(expected) {
-      let isNonNull = !(actual is NSNull)
-      #expect(isNonNull, "\(location): expected non-null value for {$match: \"any\"}")
-      if !isNonNull {
-        throw AdapterHarness.ConformanceError("\(location): expected non-null value")
-      }
-      return
-    }
-    if let expArray = expected as? [Any] {
-      guard let actArray = actual as? [Any], actArray.count == expArray.count else {
-        let msg = "\(location): array length mismatch"
-        Issue.record(Comment(rawValue: msg))
-        throw AdapterHarness.ConformanceError(msg)
-      }
-      for idx in 0..<expArray.count {
-        try assertMatchesOutbound(
-          actArray[idx],
-          expected: expArray[idx],
-          where: "\(location)[\(idx)]"
-        )
-      }
-      return
-    }
-    if let expDict = expected as? [String: Any] {
-      guard let actDict = actual as? [String: Any] else {
-        let msg = "\(location): expected object"
-        Issue.record(Comment(rawValue: msg))
-        throw AdapterHarness.ConformanceError(msg)
-      }
-      let actKeys = actDict.keys.sorted()
-      let expKeys = expDict.keys.sorted()
-      #expect(actKeys == expKeys, "\(location): keys mismatch")
-      if actKeys != expKeys {
-        throw AdapterHarness.ConformanceError("\(location): keys mismatch \(actKeys) vs \(expKeys)")
-      }
-      for key in expKeys {
-        try assertMatchesOutbound(
-          actDict[key] as Any,
-          expected: expDict[key] as Any,
-          where: "\(location).\(key)"
-        )
-      }
-      return
-    }
-    let actJSON = AdapterHarness.toJSONValue(actual)
-    let expJSON = AdapterHarness.toJSONValue(expected)
-    #expect(actJSON == expJSON, "\(location): value mismatch")
-    if actJSON != expJSON {
-      throw AdapterHarness.ConformanceError("\(location): value mismatch \(actJSON) vs \(expJSON)")
-    }
-  }
-
-  private static func assertOutbound(
-    _ actual: [[String: Any]],
-    expected: [[String: Any]],
-    context: String
-  ) throws {
-    #expect(actual.count == expected.count, "\(context): expectOutbound count mismatch")
-    if actual.count != expected.count {
-      throw AdapterHarness.ConformanceError(
-        "\(context): expectOutbound count mismatch (\(actual.count) vs \(expected.count))"
-      )
-    }
-    for (idx, exp) in expected.enumerated() where idx < actual.count {
-      try assertMatchesOutbound(
-        actual[idx],
-        expected: exp,
-        where: "\(context).expectOutbound[\(idx)]"
-      )
     }
   }
 
@@ -439,12 +365,12 @@ struct E2EScenarioTests {
     mountedBySurfaceID: inout [String: AdapterHarness.MountedSurface],
     context: String
   ) throws {
-    guard let vm = session.processor.surfaceGroupModel.surfacesMap[surfaceID] else {
-      let msg = "\(context): missing surface '\(surfaceID)'"
-      Issue.record(Comment(rawValue: msg))
-      throw AdapterHarness.ConformanceError(msg)
+    guard let viewModel = session.processor.surfaceGroupModel.surfacesMap[surfaceID] else {
+      let message = "\(context): missing surface '\(surfaceID)'"
+      Issue.record(Comment(rawValue: message))
+      throw AdapterHarness.ConformanceError(message)
     }
-    if let existing = mountedBySurfaceID[surfaceID], existing.surface.viewModel === vm {
+    if let existing = mountedBySurfaceID[surfaceID], existing.surface.viewModel === viewModel {
       session.mountedHarness = existing
       existing.driver?.flush()
       session.currentTree = try AdapterHarness.extractViewTree(session)
@@ -454,7 +380,7 @@ struct E2EScenarioTests {
       session.protocolVersion.hasPrefix("v0.9") || session.protocolVersion.hasPrefix("0.9")
     let defaultCatalogID = BasicCatalog.catalogURI(version: isV09 ? .v09 : .v10)
     let surface = Surface(
-      viewModel: vm,
+      viewModel: viewModel,
       catalogs: session.uiCatalogs,
       defaultCatalogID: defaultCatalogID
     )
@@ -481,43 +407,41 @@ struct E2EScenarioTests {
     }
 
     let turns = (scenario["turns"] as? [[String: Any]]) ?? []
-    for (turnIdx, turn) in turns.enumerated() {
-      let turnCtx = "\(name) [turn \(turnIdx)]"
+    for (turnIndex, turn) in turns.enumerated() {
+      let turnContext = "\(name) [turn \(turnIndex)]"
       var turnOutbound: [[String: Any]] = []
+      var turnErrors: [(error: RendererError, surfaceID: String)] = []
 
-      let expectWire = (turn["expectWire"] as? [[String: Any]]) ?? []
-      for (partIdx, part) in expectWire.enumerated() {
+      let expectedWire = (turn["expectWire"] as? [[String: Any]]) ?? []
+      for (partIndex, part) in expectedWire.enumerated() {
         guard let messages = part["a2ui"] as? [[String: Any]] else { continue }
         do {
           try AdapterHarness.runStep(
             session,
             ["op": "process_messages", "messages": messages],
-            context: "\(turnCtx) [wire \(partIdx)]"
+            context: "\(turnContext) [wire \(partIndex)]"
           )
-        } catch is A2UIIntegrityError {
-          // The processor has already reported a message it rejects (such as an update for a
-          // surface that was never created) as an outbound error, which the turn's
-          // expectOutbound checks; the thrown error needs no further handling.
+        } catch is A2UIError {
+          // Rejected messages emit an outbound error envelope checked below.
         }
         if let mounted = session.mountedHarness {
-          for (sid, vm) in session.processor.surfaceGroupModel.surfacesMap
-          where
-            mounted.surface.viewModel === vm
-          {
-            mountedBySurfaceID[sid] = mounted
+          for (surfaceID, viewModel) in session.processor.surfaceGroupModel.surfacesMap
+          where mounted.surface.viewModel === viewModel {
+            mountedBySurfaceID[surfaceID] = mounted
           }
         }
-        turnOutbound.append(contentsOf: Self.captureOutbound(session))
+        turnOutbound.append(contentsOf: session.handler.outbound)
+        turnErrors.append(contentsOf: session.handler.errors)
       }
 
       if let viewTrees = turn["expectViewTree"] as? [String: Any] {
         for (surfaceID, rawTree) in viewTrees {
           if rawTree is NSNull {
             let exists = session.processor.surfaceGroupModel.surfacesMap[surfaceID] != nil
-            #expect(!exists, "\(turnCtx): expected surface '\(surfaceID)' to be absent")
+            #expect(!exists, "\(turnContext): expected surface '\(surfaceID)' to be absent")
             if exists {
               throw AdapterHarness.ConformanceError(
-                "\(turnCtx): expected surface '\(surfaceID)' to be absent"
+                "\(turnContext): expected surface '\(surfaceID)' to be absent"
               )
             }
           } else if let expectedTree = rawTree as? [String: Any] {
@@ -525,60 +449,84 @@ struct E2EScenarioTests {
               surfaceID,
               session: session,
               mountedBySurfaceID: &mountedBySurfaceID,
-              context: turnCtx
+              context: turnContext
             )
             let actualTree = try AdapterHarness.extractViewTree(session)
             try AdapterHarness.assertViewTree(
               actualTree,
               Self.stripExtendedViewNodeKeys(expectedTree),
-              context: "\(turnCtx) [\(surfaceID)]"
+              context: "\(turnContext) [\(surfaceID)]"
             )
             try Self.assertExtendedViewNodeProps(
               actualTree,
               expected: expectedTree,
-              context: "\(turnCtx) [\(surfaceID)]"
+              context: "\(turnContext) [\(surfaceID)]"
             )
           }
         }
       }
 
       if let uiOps = turn["uiOps"] as? [[String: Any]] {
-        for (opIdx, uiOp) in uiOps.enumerated() {
+        for (operationIndex, uiOp) in uiOps.enumerated() {
           guard let surfaceID = uiOp["surfaceId"] as? String else {
-            throw AdapterHarness.ConformanceError("\(turnCtx) [uiOp \(opIdx)]: missing surfaceId")
+            throw AdapterHarness.ConformanceError(
+              "\(turnContext) [uiOp \(operationIndex)]: missing surfaceId"
+            )
           }
           try selectSurface(
             surfaceID,
             session: session,
             mountedBySurfaceID: &mountedBySurfaceID,
-            context: "\(turnCtx) [uiOp \(opIdx)]"
+            context: "\(turnContext) [uiOp \(operationIndex)]"
           )
           var step = uiOp
           step.removeValue(forKey: "surfaceId")
           try AdapterHarness.runStep(
             session,
             step,
-            context: "\(turnCtx) [uiOp \(opIdx)]"
+            context: "\(turnContext) [uiOp \(operationIndex)]"
           )
-          turnOutbound.append(contentsOf: Self.captureOutbound(session))
+          turnOutbound.append(contentsOf: session.handler.outbound)
+          turnErrors.append(contentsOf: session.handler.errors)
         }
       }
 
-      if let expDataModels = turn["expectDataModel"] as? [String: Any] {
-        for (surfaceID, expData) in expDataModels {
-          guard let vm = session.processor.surfaceGroupModel.surfacesMap[surfaceID] else {
-            throw AdapterHarness.ConformanceError("\(turnCtx): missing surface '\(surfaceID)'")
+      if let expectedDataModels = turn["expectDataModel"] as? [String: Any] {
+        for (surfaceID, expectedData) in expectedDataModels {
+          guard let viewModel = session.processor.surfaceGroupModel.surfacesMap[surfaceID] else {
+            throw AdapterHarness.ConformanceError("\(turnContext): missing surface '\(surfaceID)'")
           }
-          let expectedJSON = AdapterHarness.toJSONValue(expData)
-          #expect(vm.dataModel.data == expectedJSON, "\(turnCtx) [\(surfaceID)]: dataModel")
-          if vm.dataModel.data != expectedJSON {
-            throw AdapterHarness.ConformanceError("\(turnCtx) [\(surfaceID)]: dataModel mismatch")
+          let expectedJSON = AdapterHarness.toJSONValue(expectedData)
+          #expect(
+            viewModel.dataModel.data == expectedJSON,
+            "\(turnContext) [\(surfaceID)]: dataModel"
+          )
+          if viewModel.dataModel.data != expectedJSON {
+            throw AdapterHarness.ConformanceError(
+              "\(turnContext) [\(surfaceID)]: dataModel mismatch"
+            )
           }
         }
       }
 
-      if let expOutbound = turn["expectOutbound"] as? [[String: Any]] {
-        try Self.assertOutbound(turnOutbound, expected: expOutbound, context: turnCtx)
+      if let expectedErrors = turn["expectErrors"] as? [[String: Any]] {
+        try AdapterHarness.assertErrorsMatch(
+          turnErrors,
+          expected: expectedErrors,
+          context: turnContext
+        )
+      }
+      try AdapterHarness.validateOutboundEnvelopes(
+        turnOutbound,
+        protocolVersion: session.protocolVersion,
+        context: turnContext
+      )
+      if let expectedOutbound = turn["expectOutbound"] as? [[String: Any]] {
+        try AdapterHarness.assertOutboundMatches(
+          turnOutbound,
+          expected: expectedOutbound,
+          context: turnContext
+        )
       }
     }
   }

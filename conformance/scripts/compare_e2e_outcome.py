@@ -32,6 +32,33 @@ except ImportError:
         from e2e_outcome import outcome_of  # type: ignore[import-not-found,no-redef]
 
 
+def _is_match_any(value: Any) -> bool:
+    return isinstance(value, dict) and len(value) == 1 and value.get("$match") == "any"
+
+
+def _dicts_match(golden_dict: dict[str, Any], recorded_dict: dict[str, Any]) -> bool:
+    return golden_dict.keys() == recorded_dict.keys() and all(
+        _outcomes_match(golden_dict[key], recorded_dict[key]) for key in golden_dict
+    )
+
+
+def _lists_match(golden_list: list[Any], recorded_list: list[Any]) -> bool:
+    return len(golden_list) == len(recorded_list) and all(
+        _outcomes_match(g_item, r_item)
+        for g_item, r_item in zip(golden_list, recorded_list)
+    )
+
+
+def _outcomes_match(golden_val: Any, recorded_val: Any) -> bool:
+    if _is_match_any(golden_val) or _is_match_any(recorded_val):
+        return golden_val is not None and recorded_val is not None
+    if isinstance(golden_val, dict) and isinstance(recorded_val, dict):
+        return _dicts_match(golden_val, recorded_val)
+    if isinstance(golden_val, list) and isinstance(recorded_val, list):
+        return _lists_match(golden_list=golden_val, recorded_list=recorded_val)
+    return bool(golden_val == recorded_val)
+
+
 def _load_scenario_file(path_str: str) -> list[dict[str, Any]]:
     path = Path(path_str)
     if not path.is_file():
@@ -50,8 +77,41 @@ def _load_scenario_file(path_str: str) -> list[dict[str, Any]]:
     raise ValueError(f"Invalid root type in {path_str}: expected dict or list")
 
 
+def _format_scenario_diff(
+    name: str,
+    golden_outcome: list[dict[str, Any]],
+    recorded_outcome: list[dict[str, Any]],
+) -> list[str]:
+    lines = [f"## Scenario `{name}`: Outcome Mismatch\n"]
+    max_turns = max(len(golden_outcome), len(recorded_outcome))
+    for turn_idx in range(max_turns):
+        g_turn = golden_outcome[turn_idx] if turn_idx < len(golden_outcome) else None
+        r_turn = (
+            recorded_outcome[turn_idx] if turn_idx < len(recorded_outcome) else None
+        )
+        if _outcomes_match(g_turn, r_turn):
+            continue
+        lines.append(f"### Turn {turn_idx} Diff\n")
+        g_str = json.dumps(g_turn, indent=2, sort_keys=True).splitlines()
+        r_str = json.dumps(r_turn, indent=2, sort_keys=True).splitlines()
+        diff = difflib.unified_diff(
+            g_str,
+            r_str,
+            fromfile=f"golden_turn_{turn_idx}",
+            tofile=f"recorded_turn_{turn_idx}",
+            lineterm="",
+        )
+        lines.append("```diff")
+        lines.extend(diff)
+        lines.append("```\n")
+    return lines
+
+
 def _compare_scenarios(
-    golden_scenarios: list[dict[str, Any]], recorded_scenarios: list[dict[str, Any]]
+    golden_scenarios: list[dict[str, Any]],
+    recorded_scenarios: list[dict[str, Any]],
+    *,
+    structural: bool = False,
 ) -> tuple[bool, list[str]]:
     golden_by_name = {s["name"]: s for s in golden_scenarios if "name" in s}
     recorded_by_name = {s["name"]: s for s in recorded_scenarios if "name" in s}
@@ -66,40 +126,14 @@ def _compare_scenarios(
             continue
 
         recorded_s = recorded_by_name[name]
-        golden_outcome = outcome_of(golden_s)
-        recorded_outcome = outcome_of(recorded_s)
+        golden_outcome = outcome_of(golden_s, structural=structural)
+        recorded_outcome = outcome_of(recorded_s, structural=structural)
 
-        if golden_outcome == recorded_outcome:
+        if _outcomes_match(golden_outcome, recorded_outcome):
             continue
 
         all_matched = False
-        diff_lines.append(f"## Scenario `{name}`: Outcome Mismatch\n")
-
-        max_turns = max(len(golden_outcome), len(recorded_outcome))
-        for turn_idx in range(max_turns):
-            g_turn = (
-                golden_outcome[turn_idx] if turn_idx < len(golden_outcome) else None
-            )
-            r_turn = (
-                recorded_outcome[turn_idx] if turn_idx < len(recorded_outcome) else None
-            )
-
-            if g_turn == r_turn:
-                continue
-
-            diff_lines.append(f"### Turn {turn_idx} Diff\n")
-            g_str = json.dumps(g_turn, indent=2, sort_keys=True).splitlines()
-            r_str = json.dumps(r_turn, indent=2, sort_keys=True).splitlines()
-            diff = difflib.unified_diff(
-                g_str,
-                r_str,
-                fromfile=f"golden_turn_{turn_idx}",
-                tofile=f"recorded_turn_{turn_idx}",
-                lineterm="",
-            )
-            diff_lines.append("```diff")
-            diff_lines.extend(diff)
-            diff_lines.append("```\n")
+        diff_lines.extend(_format_scenario_diff(name, golden_outcome, recorded_outcome))
 
     return all_matched, diff_lines
 
@@ -123,6 +157,14 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Optional output report path (.md)",
     )
+    parser.add_argument(
+        "--structural",
+        action="store_true",
+        help=(
+            "Compare component tree structure, enabled states, and outbound"
+            " kinds while tolerating live model prose and action names."
+        ),
+    )
 
     try:
         args = parser.parse_args(argv)
@@ -136,7 +178,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Input error: {exc}", file=sys.stderr)
         return 2
 
-    matches, diff_report = _compare_scenarios(golden_scenarios, recorded_scenarios)
+    matches, diff_report = _compare_scenarios(
+        golden_scenarios,
+        recorded_scenarios,
+        structural=args.structural,
+    )
 
     if args.report is not None:
         report_path = Path(args.report)

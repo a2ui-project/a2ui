@@ -168,6 +168,15 @@ void _assertKnownE2eScenario(Map<String, Object?> scenario) {
         }
       }
     }
+    if (turn['expectErrors'] case final List<Object?> expectedErrors) {
+      for (var j = 0; j < expectedErrors.length; j++) {
+        assertKnownKeys(
+          expectedErrors[j]! as Map<String, Object?>,
+          expectedErrorKnownKeys,
+          'scenario($name).turns[$i].expectErrors[$j]',
+        );
+      }
+    }
     if (turn['uiOps'] case final List<Object?> uiOps) {
       for (var j = 0; j < uiOps.length; j++) {
         final uiOp = uiOps[j]! as Map<String, Object?>;
@@ -229,62 +238,6 @@ void _assertExtendedViewNodeProps(
 
 List<Map<String, Object?>> captureOutbound(AdapterHarnessSession session) =>
     List<Map<String, Object?>>.from(session.outbound);
-
-bool _isMatchAny(Object? value) =>
-    value is Map && value.length == 1 && value[r'$match'] == 'any';
-
-void _assertMatchesOutbound(Object? actual, Object? expected, String where) {
-  if (_isMatchAny(expected)) {
-    expect(
-      actual,
-      isNotNull,
-      reason: '$where: expected non-null value for {r"\$match": "any"}',
-    );
-    return;
-  }
-  if (expected is List) {
-    expect(actual, isA<List<Object?>>(), reason: '$where: expected list');
-    final actualList = actual! as List<Object?>;
-    expect(actualList, hasLength(expected.length));
-    for (var i = 0; i < expected.length; i++) {
-      _assertMatchesOutbound(actualList[i], expected[i], '$where[$i]');
-    }
-    return;
-  }
-  if (expected is Map) {
-    expect(
-      actual,
-      isA<Map<String, Object?>>(),
-      reason: '$where: expected object',
-    );
-    final actualMap = actual! as Map<String, Object?>;
-    final List<String> actualKeys = actualMap.keys.toList()..sort();
-    final List<String> expectedKeys =
-        expected.keys.map((k) => k.toString()).toList()..sort();
-    expect(actualKeys, equals(expectedKeys), reason: '$where: keys mismatch');
-    for (final key in expectedKeys) {
-      _assertMatchesOutbound(actualMap[key], expected[key], '$where.$key');
-    }
-    return;
-  }
-  expect(actual, equals(expected), reason: '$where: value mismatch');
-}
-
-void assertOutbound(
-  List<Map<String, Object?>> actual,
-  List<Object?> expected,
-  String protocolVersion,
-) {
-  expect(protocolVersion, isNotEmpty);
-  expect(
-    actual,
-    hasLength(expected.length),
-    reason: 'expectOutbound length mismatch',
-  );
-  for (var i = 0; i < expected.length; i++) {
-    _assertMatchesOutbound(actual[i], expected[i], 'expectOutbound[$i]');
-  }
-}
 
 Future<void> _selectSurface(
   WidgetTester tester,
@@ -386,11 +339,12 @@ Future<void> _runScenario(
       }
 
       if (turn['expectErrors'] case final List<Object?> expectedErrors) {
-        expect(turnErrors, hasLength(expectedErrors.length));
+        assertErrors(turnErrors, expectedErrors);
       }
 
+      validateOutboundEnvelopes(turnOutbound, session.protocolVersion);
       if (turn['expectOutbound'] case final List<Object?> expectedOutbound) {
-        assertOutbound(turnOutbound, expectedOutbound, session.protocolVersion);
+        assertOutbound(turnOutbound, expectedOutbound);
       }
     }
   } finally {

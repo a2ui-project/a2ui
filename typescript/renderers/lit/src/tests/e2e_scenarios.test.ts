@@ -35,6 +35,8 @@ import {
   assertViewTree,
   extractViewTree,
   findUnsupportedReason,
+  frameActionEnvelope,
+  frameErrorEnvelope,
   KNOWN_KEYS,
   mountSurface,
   runStep,
@@ -368,6 +370,10 @@ function attachGroupErrorForwarding(session: AdapterSession): void {
   session.processor.model.onSurfaceCreated.subscribe(surface => {
     session.surface = surface;
   });
+  const envelopeVersion =
+    session.protocolVersion.startsWith('v0.9') || session.protocolVersion.startsWith('0.9')
+      ? 'v0.9'
+      : session.protocolVersion;
   session.processor.model.onAction.subscribe(action => {
     session.recordedActions.push({
       name: action.name,
@@ -375,18 +381,9 @@ function attachGroupErrorForwarding(session: AdapterSession): void {
       sourceComponentId: action.sourceComponentId,
       context: action.context,
     });
-    const isV09 =
-      session.protocolVersion.startsWith('v0.9') || session.protocolVersion.startsWith('0.9');
-    session.recordedOutbound.push({
-      version: isV09 ? 'v0.9' : session.protocolVersion,
-      action: {
-        name: action.name,
-        surfaceId: action.surfaceId,
-        sourceComponentId: action.sourceComponentId,
-        timestamp: action.timestamp,
-        context: action.context,
-      },
-    });
+    session.recordedOutbound.push(
+      frameActionEnvelope(action as unknown as Record<string, unknown>, envelopeVersion),
+    );
   });
   session.processor.model.onError.subscribe(err => {
     const errRecord = err as unknown as Record<string, unknown>;
@@ -397,16 +394,7 @@ function attachGroupErrorForwarding(session: AdapterSession): void {
       message: String(errRecord.message ?? ''),
       surfaceId,
     });
-    const isV09 =
-      session.protocolVersion.startsWith('v0.9') || session.protocolVersion.startsWith('0.9');
-    session.recordedOutbound.push({
-      version: isV09 ? 'v0.9' : session.protocolVersion,
-      error: {
-        code: errRecord.code,
-        surfaceId,
-        message: errRecord.message,
-      },
-    });
+    session.recordedOutbound.push(frameErrorEnvelope(errRecord, surfaceId, envelopeVersion));
   });
 }
 

@@ -97,7 +97,9 @@ Future<void> runHubScenario(
     final Map<String, Object?> turn = turns[i];
     final where = 'turn $i';
     final bool previousSentOutbound =
-        i > 0 && turns[i - 1]['expectOutbound'] != null;
+        i > 0 &&
+        ((turns[i - 1]['expectOutbound'] as List<Object?>?)?.isNotEmpty ??
+            false);
     if (turn['userText'] case final String userText
         when i == 0 || !previousSentOutbound) {
       await tester.enterText(

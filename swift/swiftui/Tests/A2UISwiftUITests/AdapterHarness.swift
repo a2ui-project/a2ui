@@ -1952,7 +1952,7 @@ enum AdapterHarness {
   }
 
   @MainActor
-  private static func assertErrorsMatch(
+  static func assertErrorsMatch(
     _ actual: [(error: RendererError, surfaceID: String)],
     expected: [[String: Any]],
     context: String
@@ -2040,7 +2040,7 @@ enum AdapterHarness {
   }
 
   @MainActor
-  private static func validateOutboundEnvelopes(
+  static func validateOutboundEnvelopes(
     _ envelopes: [[String: Any]],
     protocolVersion: String,
     context: String
@@ -2146,7 +2146,7 @@ enum AdapterHarness {
   }
 
   @MainActor
-  private static func assertOutboundMatches(
+  static func assertOutboundMatches(
     _ actual: [[String: Any]],
     expected: [[String: Any]],
     context: String

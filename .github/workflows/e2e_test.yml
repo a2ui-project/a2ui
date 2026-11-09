@@ -87,8 +87,8 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
         run: |
-          ./scripts/e2e_test.sh
-          code=$?
+          code=0
+          ./scripts/e2e_test.sh || code=$?
           echo "exit_code=$code" >> "$GITHUB_OUTPUT"
           exit $code
       - name: Upload the recordings and the drift report

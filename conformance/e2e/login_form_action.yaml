@@ -173,13 +173,17 @@
           surfaceId: login
           targetNode: emailField
           inputValue: ada@example.com
+        - op: user_input
+          surfaceId: login
+          targetNode: passwordField
+          inputValue: correct-horse-battery
         - op: user_gesture
           surfaceId: login
           targetNode: signInButton
       expectDataModel:
         login:
           email: ada@example.com
-          password: ""
+          password: correct-horse-battery
       expectOutbound:
         - version: "1.0"
           action:
