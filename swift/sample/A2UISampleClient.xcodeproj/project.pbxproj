@@ -15,13 +15,39 @@
 		A20000000000000000000007 /* InspectorPanes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000107 /* InspectorPanes.swift */; };
 		A20000000000000000000008 /* GalleryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000108 /* GalleryDetailView.swift */; };
 		A20000000000000000000009 /* GalleryMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000109 /* GalleryMainView.swift */; };
-		A20000000000000000000010 /* examples in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000201 /* examples */; };
+		A20000000000000000000010 /* examples (v0.9.1) in Copy v0.9.1 Examples */ = {isa = PBXBuildFile; fileRef = A20000000000000000000201 /* examples (v0.9.1) */; };
 		A20000000000000000000011 /* cases in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000202 /* cases */; };
 		A20000000000000000000012 /* A2UISwiftCore in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000302 /* A2UISwiftCore */; };
 		A20000000000000000000013 /* A2UISwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000303 /* A2UISwiftUI */; };
 		A20000000000000000000014 /* BasicCatalog in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000304 /* BasicCatalog */; };
 		A20000000000000000000015 /* BasicCatalogSwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000305 /* BasicCatalogSwiftUI */; };
+		A20000000000000000000016 /* examples (v1.0) in Copy v1.0 Examples */ = {isa = PBXBuildFile; fileRef = A20000000000000000000203 /* examples (v1.0) */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A20000000000000000000803 /* Copy v0.9.1 Examples */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "examples/v0_9_1";
+			dstSubfolderSpec = 7;
+			files = (
+				A20000000000000000000010 /* examples (v0.9.1) in Copy v0.9.1 Examples */,
+			);
+			name = "Copy v0.9.1 Examples";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A20000000000000000000804 /* Copy v1.0 Examples */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "examples/v1_0";
+			dstSubfolderSpec = 7;
+			files = (
+				A20000000000000000000016 /* examples (v1.0) in Copy v1.0 Examples */,
+			);
+			name = "Copy v1.0 Examples";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		A20000000000000000000101 /* A2UISampleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = A2UISampleApp.swift; sourceTree = "<group>"; };
@@ -32,8 +58,9 @@
 		A20000000000000000000107 /* InspectorPanes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectorPanes.swift; sourceTree = "<group>"; };
 		A20000000000000000000108 /* GalleryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryDetailView.swift; sourceTree = "<group>"; };
 		A20000000000000000000109 /* GalleryMainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryMainView.swift; sourceTree = "<group>"; };
-		A20000000000000000000201 /* examples */ = {isa = PBXFileReference; lastKnownFileType = folder; name = examples; path = "../../specification/v0_9_1/catalogs/basic/examples"; sourceTree = "<group>"; };
+		A20000000000000000000201 /* examples (v0.9.1) */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "examples (v0.9.1)"; path = "../../specification/v0_9_1/catalogs/basic/examples"; sourceTree = "<group>"; };
 		A20000000000000000000202 /* cases */ = {isa = PBXFileReference; lastKnownFileType = folder; name = cases; path = "../../specification/v0_9_1/test/cases"; sourceTree = "<group>"; };
+		A20000000000000000000203 /* examples (v1.0) */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "examples (v1.0)"; path = "../../catalogs/basic/v1/examples"; sourceTree = "<group>"; };
 		A20000000000000000000300 /* A2UISampleClient.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = A2UISampleClient.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -119,7 +146,8 @@
 		A20000000000000000000507 /* Specification Resources */ = {
 			isa = PBXGroup;
 			children = (
-				A20000000000000000000201 /* examples */,
+				A20000000000000000000201 /* examples (v0.9.1) */,
+				A20000000000000000000203 /* examples (v1.0) */,
 				A20000000000000000000202 /* cases */,
 			);
 			name = "Specification Resources";
@@ -143,6 +171,8 @@
 				A20000000000000000000801 /* Sources */,
 				A20000000000000000000401 /* Frameworks */,
 				A20000000000000000000802 /* Resources */,
+				A20000000000000000000803 /* Copy v0.9.1 Examples */,
+				A20000000000000000000804 /* Copy v1.0 Examples */,
 			);
 			buildRules = (
 			);
@@ -199,7 +229,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A20000000000000000000010 /* examples in Resources */,
 				A20000000000000000000011 /* cases in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

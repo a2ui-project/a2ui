@@ -15,14 +15,22 @@
  */
 
 import {EventEmitter, EventSource} from '../common/events.js';
+import type {A2uiMetadata, ActionDispatchOptions} from '../common/metadata.js';
 import type {ComponentApi} from '../catalog/types.js';
-import {Signal, signal, peekValue, setValue} from '../reactivity/signals.js';
+import {computed, Signal, signal, peekValue, setValue} from '../reactivity/signals.js';
 import {ResolvedBinding} from './resolved-binding.js';
 import type {ComponentContext} from './component-context.js';
 import {nextNodeId} from './node-id.js';
 
 /** The component type name used for pending and cyclic placeholder nodes. */
 export const PLACEHOLDER_TYPE = 'Placeholder';
+
+/**
+ * Bound action closure produced by the node resolver and binder.
+ *
+ * Accepts optional per-dispatch options such as outbound action `metadata`.
+ */
+export type NodeAction = (options?: ActionDispatchOptions) => void | Promise<void>;
 
 /**
  * Resolution state of a component node in the rendered tree.
@@ -84,12 +92,21 @@ export interface ComponentNode<
   readonly dataPath: string;
   /** The resolved catalog entry for `type`; undefined while a placeholder. */
   readonly impl: C | undefined;
-  /** The context the resolver bound this node with; undefined while a placeholder. */
+  /**
+   * The context the resolver bound this node with; undefined while a placeholder.
+   *
+   * @deprecated Read resolved values from props; adapters get the surface from their ambient context. Removed in the next breaking release.
+   */
   readonly context: ComponentContext | undefined;
   /** Why this node is or is not resolved. */
   readonly state: NodeState;
   /** Resolved, reactive properties. Read with `getValue`/`peekValue`. */
   readonly props: Signal<TProps>;
+  /**
+   * Read-only reactive signal reflecting the component's envelope `metadata`.
+   * Read with `getValue`/`peekValue`.
+   */
+  readonly metadata: Signal<A2uiMetadata | undefined>;
   /** Fires exactly once, when this node is disposed. */
   readonly onDestroyed: EventSource<void>;
   /** Whether this node has been disposed. */
@@ -144,9 +161,11 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
 
   readonly dataPath: string;
   readonly impl: ComponentApi | undefined;
+  /** @deprecated Read resolved values from props; adapters get the surface from their ambient context. Removed in the next breaking release. */
   readonly context: ComponentContext | undefined;
   readonly state: NodeState;
   readonly props: Signal<TProps>;
+  readonly metadata: Signal<A2uiMetadata | undefined>;
 
   private readonly _onDestroyed = new EventEmitter<void>();
   readonly onDestroyed: EventSource<void> = this._onDestroyed;
@@ -165,6 +184,7 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
    * @param impl Optional catalog component definition.
    * @param context The context the node is bound with; absent on placeholders.
    * @param state Initial resolution state.
+   * @param metadata Optional read-only reactive metadata signal.
    */
   constructor(
     instanceId: string,
@@ -175,6 +195,7 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
     impl?: ComponentApi,
     context?: ComponentContext,
     state: NodeState = 'resolved',
+    metadata: Signal<A2uiMetadata | undefined> = computed(() => undefined),
   ) {
     this.instanceId = instanceId;
     this.componentId = componentId;
@@ -184,6 +205,7 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
     this.impl = impl;
     this.context = context;
     this.state = state;
+    this.metadata = metadata;
   }
 
   /** Whether this node has been disposed. */
@@ -221,6 +243,10 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
     const props = peekValue(this.props);
     for (const [key, value] of Object.entries(props)) {
       serialized[key] = serializeValue(value);
+    }
+    const metadata = peekValue(this.metadata);
+    if (metadata !== undefined) {
+      serialized.metadata = metadata;
     }
     return serialized;
   }

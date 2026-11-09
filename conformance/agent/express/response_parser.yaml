@@ -68,12 +68,8 @@
 # The direct JSON counterpart of this suite is
 # `agent/direct_json/response_parser.yaml`. The two are deliberately parallel:
 # a rule that holds for both formats has a case in each, written against that
-# format's own notation. Streaming is the exception. There is no Express
-# streaming suite, because the Express parser does not implement `parse_chunk`:
-# an Express block resolves references across its whole body, so a partial
-# block names components that are not yet defined. An Express agent buffers a
-# response and parses it whole, through the cases here. If Express does gain
-# streaming, its suite belongs beside
+# format's own notation. Incremental streaming across chunks is covered in
+# `agent/express/response_streaming.yaml`, alongside
 # `agent/direct_json/response_streaming.yaml`.
 #
 # The catalogs under test live in `args`, and every case here is written against
@@ -321,6 +317,76 @@
   expect:
     - a2ui_raw: 'root = Text("Hello") -- end of greeting'
     - text: "Trailing text."
+
+- name: test_unwrap_express_apostrophe_in_comment_does_not_open_a_string
+  description: Express strings are double-quoted only, so an apostrophe in a `/* */` block comment does not open a string that would swallow the closing tag. A `//` comment would not test this, since the lexer already skips single-line comments.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    <a2ui>
+    /* Chef's 15-minute dinner */
+    root = Text("Hello")
+    </a2ui>
+    Trailing text.
+  expect:
+    - a2ui_raw: |-
+        /* Chef's 15-minute dinner */
+        root = Text("Hello")
+    - text: "Trailing text."
+
+- name: test_unwrap_express_quote_in_block_comment_does_not_open_a_string
+  description: A `"` inside a `/* */` block comment does not open a string that would swallow the closing tag.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    <a2ui>
+    /* Shows the "Hello card */
+    root = Text("Hello")
+    </a2ui>
+    Trailing text.
+  expect:
+    - a2ui_raw: |-
+        /* Shows the "Hello card */
+        root = Text("Hello")
+    - text: "Trailing text."
+
+- name: test_unwrap_express_close_tag_in_block_comment_does_not_end_the_block
+  description: A closing tag inside a `/* */` block comment does not end the block, unlike one on a single-line comment line.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    <a2ui>
+    /* Close the block with </a2ui> */
+    root = Text("Hello")
+    </a2ui>
+    Trailing text.
+  expect:
+    - a2ui_raw: |-
+        /* Close the block with </a2ui> */
+        root = Text("Hello")
+    - text: "Trailing text."
+
+- name: test_unwrap_express_unclosed_block_comment_leaves_the_block_unclosed
+  description: A `/* */` block comment that is never closed runs to the end of the response, as an unclosed string does, so the block is not closed.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    <a2ui>
+    root = Text("Hello")
+    /* unfinished note
+    </a2ui>
+    Trailing text.
+  expect:
+    - a2ui_raw: |-
+        root = Text("Hello")
+        /* unfinished note
+        </a2ui>
+        Trailing text.
+      is_final: false
 
 - name: test_has_format_content_express_recovered_bare_payload
   description: A bare Express payload closed by </a2ui> counts as complete format content.

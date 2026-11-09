@@ -245,4 +245,59 @@ describe('Image Component', () => {
       assert.throws(() => ImageApi.schema.parse(invalidImage));
     });
   });
+
+  it('resolves alt from accessibility.label with ?? so explicit empty string stays decorative', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'img_override',
+              component: 'Image',
+              url: 'https://example.com/photo.jpg',
+              description: 'Fallback description',
+              accessibility: {
+                label: 'Accessible photo title',
+                description: 'Detailed visual description',
+              },
+            },
+            {
+              id: 'img_decorative',
+              component: 'Image',
+              url: 'https://example.com/divider.jpg',
+              description: 'Fallback description',
+              accessibility: {
+                label: '',
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-image') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'img_override');
+    });
+
+    assert.strictEqual(el.hasAttribute('aria-label'), false);
+    let img = el.querySelector('img');
+    assert.strictEqual(img?.getAttribute('alt'), 'Accessible photo title');
+    assert.strictEqual(img?.hasAttribute('aria-label'), false);
+    assert.strictEqual(img?.getAttribute('aria-description'), 'Detailed visual description');
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'img_decorative');
+    });
+
+    img = el.querySelector('img');
+    assert.strictEqual(img?.getAttribute('alt'), '');
+    assert.strictEqual(img?.hasAttribute('aria-label'), false);
+    assert.strictEqual(img?.hasAttribute('aria-description'), false);
+  });
 });

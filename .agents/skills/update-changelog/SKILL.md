@@ -5,6 +5,8 @@ description: >-
   adding or modifying a CHANGELOG.md file, when a PR adds, modifies, deprecates, or removes public
   exports or consumer-observable behavior in a published package, or when resolving merge conflicts
   in a CHANGELOG.md file.
+metadata:
+  internal: true
 ---
 
 # Updating Changelogs (`CHANGELOG.md`)

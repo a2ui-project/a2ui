@@ -26,6 +26,7 @@ import {
   normalizeOrigin,
   PROXY_READY_NOTIFICATION,
   readAllowedHostOrigins,
+  resolveInnerSandbox,
   RESOURCE_READY_NOTIFICATION,
   SENSITIVE_PERMISSIONS,
   startSandboxProxy,
@@ -209,6 +210,25 @@ describe('sandbox proxy helpers', () => {
       expect(readAllowedHostOrigins(documentWithMeta(null), 'https://host.example')).toEqual([
         'https://host.example',
       ]);
+    });
+  });
+
+  describe('resolveInnerSandbox', () => {
+    it('returns the default flags when the host provides none', () => {
+      expect(resolveInnerSandbox(undefined, true)).toBe('allow-scripts allow-forms allow-modals');
+      expect(resolveInnerSandbox(undefined, false)).toBe('allow-scripts allow-forms allow-modals');
+    });
+
+    it('keeps the host-provided flags as is for a url frame', () => {
+      expect(resolveInnerSandbox('allow-scripts allow-popups allow-same-origin', false)).toBe(
+        'allow-scripts allow-popups allow-same-origin',
+      );
+    });
+
+    it('drops allow-same-origin, in any case, for an inline html frame', () => {
+      expect(
+        resolveInnerSandbox('allow-scripts allow-same-origin ALLOW-SAME-ORIGIN allow-popups', true),
+      ).toBe('allow-scripts allow-popups');
     });
   });
 });
@@ -558,6 +578,44 @@ describe('startSandboxProxy', () => {
       });
       const inner = innerFrame();
       expect(inner.getAttribute('sandbox')).toBe('allow-scripts allow-forms');
+    });
+
+    it('keeps host-provided sandbox flags as is for a url resource', () => {
+      dispatch({
+        data: {
+          type: A2uiSandboxMessageType.SandboxResourceReady,
+          url: 'https://app.example/ui',
+          sandbox: 'allow-scripts allow-popups allow-same-origin',
+        },
+        origin: HOST_ORIGIN,
+        source: parentWindow,
+      });
+      expect(innerFrame().getAttribute('sandbox')).toBe(
+        'allow-scripts allow-popups allow-same-origin',
+      );
+    });
+
+    it('resets the sandbox to the default flags when a later resource omits them', () => {
+      dispatch({
+        data: {
+          type: A2uiSandboxMessageType.SandboxResourceReady,
+          html: '<p>first</p>',
+          sandbox: 'allow-scripts',
+        },
+        origin: HOST_ORIGIN,
+        source: parentWindow,
+      });
+      expect(innerFrame().getAttribute('sandbox')).toBe('allow-scripts');
+
+      dispatch({
+        data: {
+          type: A2uiSandboxMessageType.SandboxResourceReady,
+          html: '<p>second</p>',
+        },
+        origin: HOST_ORIGIN,
+        source: parentWindow,
+      });
+      expect(innerFrame().getAttribute('sandbox')).toBe('allow-scripts allow-forms allow-modals');
     });
 
     it('loads inline HTML from an MCP Apps resource-ready notification with default CSP', () => {

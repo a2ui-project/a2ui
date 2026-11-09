@@ -31,6 +31,7 @@ import {ExpressPromptGenerator} from '../../../../src/inference-formats/express/
 
 const basicCatalogV10 = loadBasicCatalog('1.0');
 const basicCatalogV09 = loadBasicCatalog('v0.9');
+const basicCatalogV091 = loadBasicCatalog('v0.9.1');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -60,6 +61,23 @@ describe('ExpressPromptGenerator', () => {
       const rules = new ExpressPromptGenerator([textOnly]).generateBaseRules();
       expect(rules).toContain('root = Text(...)');
       expect(rules).not.toContain('Card(');
+    });
+
+    it('teaches Event userMessage= in rule 8 for v1.0+ catalogs and omits it for v0.9 and v0.9.1', () => {
+      const v10Rules = new ExpressPromptGenerator([basicCatalogV10]).generateBaseRules();
+      expect(v10Rules).toContain('`Event(name, context?, userMessage=...)`');
+      expect(v10Rules).toContain('Event("reply", userMessage="Replying now")');
+      expect(v10Rules).toContain(
+        'Event("save_deal", {rep: $/form/rep}, userMessage=$/form/summary)',
+      );
+
+      for (const preV10Catalog of [basicCatalogV09, basicCatalogV091]) {
+        const preRules = new ExpressPromptGenerator([preV10Catalog]).generateBaseRules();
+        expect(preRules).toContain(
+          '8. Action events: represent server-side actions using the Event helper:\n   Event("save_deal", {rep: $/form/rep})',
+        );
+        expect(preRules).not.toContain('userMessage=');
+      }
     });
 
     it('generateCatalogInstructions() for the v1.0 basic catalog matches express_catalog_instructions.txt BYTE FOR BYTE', () => {
@@ -660,6 +678,48 @@ describe('ExpressPromptGenerator', () => {
       expect(snippet).toContain('root = Label("FromInstructions")');
       expect(snippet).toContain('root = Label("FromKeyedExample")');
       expect(snippet).toContain('root = Chart([4, 5])');
+    });
+
+    it('emits the standalone call rule listing only agent-callable functions in v1.0', () => {
+      const simplified = loadConformanceCatalog('simplified_catalog_v1_0.json');
+      const agentFns = loadConformanceCatalog('agent_functions_catalog_v1_0.json');
+      const rules = new ExpressPromptGenerator([simplified, agentFns]).generateBaseRules();
+      expect(rules).toContain(
+        'Only these functions can be called this way: `notify`, `record`, `peek`.',
+      );
+      expect(rules).not.toContain('`formatString`');
+      expect(rules).not.toContain('`openUrl`');
+      expect(rules).not.toContain('`required`');
+
+      const withoutCall = new ExpressPromptGenerator([simplified, agentFns], undefined, [
+        'createSurface',
+        'updateComponents',
+      ]).generateBaseRules();
+      expect(withoutCall).not.toContain('Only these functions can be called this way');
+    });
+
+    it('numbers multi-catalog rules sequentially alongside standalone function call rules and allowedMessages', () => {
+      const cat1 = loadConformanceCatalog('agent_functions_catalog_v1_0.json');
+      const cat2 = loadConformanceCatalog('custom_catalog_v1_0.json');
+      const rules = new ExpressPromptGenerator([cat1, cat2]).generateBaseRules();
+      const numbers = [...rules.matchAll(/^(\d+)\. /gm)].map(m => Number(m[1]));
+      expect(numbers).toEqual(Array.from({length: numbers.length}, (_, i) => i + 1));
+      expect(rules).toContain('## Multiple Catalogs');
+      expect(rules).toContain(
+        'Only these functions can be called this way: `notify`, `record`, `peek`.',
+      );
+
+      const filtered = new ExpressPromptGenerator([cat1, cat2], undefined, [
+        'createSurface',
+        'updateComponents',
+      ]).generateBaseRules();
+      const filteredNumbers = [...filtered.matchAll(/^(\d+)\. /gm)].map(m => Number(m[1]));
+      expect(filteredNumbers).toEqual(
+        Array.from({length: filteredNumbers.length}, (_, i) => i + 1),
+      );
+      expect(filtered).toContain('## Multiple Catalogs');
+      expect(filtered).not.toContain('Only these functions can be called this way');
+      expect(filtered).not.toContain('deleteSurface(');
     });
   });
 });

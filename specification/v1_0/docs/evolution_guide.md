@@ -58,6 +58,7 @@ Version 1.0 differs from 0.9 in the following ways:
 
 - Added `posterUrl` property to the `Video` component in `catalogs/basic/catalog.json`, allowing a preview image to be displayed before the video plays.
 - Added `placeholder` prop to the `TextField` component schema, and removed `TextField.validationRegexp` in favor of `checks` using the `regex` validation function.
+- Made `value` required on the `TextField` component, as it is on the other input components. Without a binding, the text a user types never reaches the data model.
 - Added a `steps` property to the `Slider` component schema to snap values to discrete intervals.
 - Updated `openUrl` function definition in `catalogs/basic/catalog.json` to set `"requiresUserActivation": true`.
 - Refactored component definitions in `catalogs/basic/catalog.json` from `allOf: [ComponentCommon, ...]` and `unevaluatedProperties: false` to direct explicit property definitions (including explicit `component` const and `weight` props) or `$defs/Checkable`.
@@ -112,6 +113,9 @@ Version 1.0 differs from 0.9 in the following ways:
 - Enforced runtime lookup of function execution boundaries and return types. If a renderer receives a remote call to a function configured as `rendererOnly` or if the function is unregistered, it rejects the call and returns an error with the code `INVALID_FUNCTION_CALL`.
 - Enforced catalog entity naming compliance with Unicode Standard Annex #31 (UAX #31).
 - Restricted `@index` evaluation scope strictly to template instantiation loops (Collection Scope). Calling `@index` outside of template iteration results in an evaluation error.
+- Defined `DynamicBoolean` coercion for strings, numbers, `null`, objects and arrays, applied to properties and function arguments alike.
+- Defined the `regex` dialect and a static safety check; unsafe or unsupported patterns fail with `EXPRESSION_ERROR`.
+- A `createSurface` carrying `theme` fails strict validation; relaxed renderers drop it.
 
 ### 2.8. Terminology standardization
 
@@ -143,6 +147,7 @@ This section outlines the steps required to migrate existing applications and co
 - Ensure all generated catalog entity names conform to UAX #31 identifier rules.
 - Do not include `allowedCallers` or `returnType` properties in wire-level `FunctionCall` payloads. Set static `allowedCallers`, `returnType`, and optional `requiresUserActivation` metadata in catalog function definitions where needed.
 - Update `Video`, `TextField`, and `Slider` components to support optional `posterUrl`, `placeholder`, and `steps` properties, and migrate any `TextField.validationRegexp` usage to `checks` with the `regex` validation function. Update `openUrl` functions to specify `"requiresUserActivation": true`.
+- Set `value` on every `TextField`, usually a binding such as `{"@path": "/form/email"}`. The path does not have to exist in the data model yet: the renderer creates it when the user types.
 - Explicitly set values to `null` in `updateDataModel` messages to delete keys at specified paths. The `value` property is now required, and omitting it is a schema validation error.
 - Handle remote function execution requests from renderers (`callAgentFunction`) and respond with `agentFunctionResponse` messages.
 - Rename all references, constants, and endpoints mapping to `server_to_client.json` or `server_capabilities.json` to use `agent_to_renderer.json` and `agent_capabilities.json`.

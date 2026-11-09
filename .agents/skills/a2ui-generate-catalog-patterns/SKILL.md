@@ -7,6 +7,8 @@ description: >-
   sample_payloads.json in the catalog's directory. Use when onboarding a custom
   catalog to the decision route, updating catalog pattern or template sidecars,
   or checking archetype and template coverage.
+metadata:
+  internal: true
 ---
 
 # Generate Catalog Patterns and Templates for A2UI Decision Synthesis
@@ -96,15 +98,7 @@ The validator checks four stages and exits `0` only when every stage passes:
 
 If `validate` reports any failures, fix the offending pattern, template, or sample payload and re-run `validate` until `Overall OK: True` (exit code `0`).
 
-### Step 5: Sync Bundled Assets (Only for `catalogs/basic/v1`)
-
-If the target catalog is `catalogs/basic/v1/catalog.json` inside this repository, synchronize `catalogs/basic/v1/patterns.json` into the Python package asset directory:
-
-```bash
-uv run python python/a2ui_agent/scripts/sync_decision_assets.py
-```
-
-### Step 6: Report Coverage and Runtime Wiring
+### Step 5: Report Coverage and Runtime Wiring
 
 Present the validation summary to the user (eligible archetypes, degraded fallback blocks, validated templates, and per-sample eligibility) along with the Python snippet to load the generated files from the catalog directory at runtime:
 

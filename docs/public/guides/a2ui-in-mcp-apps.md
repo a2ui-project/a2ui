@@ -14,6 +14,9 @@ This guide shows you how to serve rich, interactive A2UI interfaces within [MCP 
 
 For detailed instructions on how to run this sample, please refer to the [README.md](../../../samples/community/mcp/a2ui-in-mcpapps/README.md).
 
+> [!NOTE]
+> This community sample emits the deprecated A2UI v0.8 messages, so its code uses v0.8 names such as `userAction`. The architecture and message flow in this guide apply to v1.0 too. For v1.0 message shapes, see [A2UI over MCP](a2ui_over_mcp.md) and the [message reference](../reference/messages.md).
+
 ## Architecture Overview
 
 The system consists of three main actors interacting through a chain of communication:
@@ -95,7 +98,7 @@ Here is the sequence of events for dynamically loading A2UI components into MCP 
 Interactivity within the rendered A2UI surface is handled by reversing the flow:
 
 1.  A user clicks a button within the A2UI surface inside the MCP App.
-2.  The A2UI component triggers a `userAction`.
+2.  The A2UI component triggers an action (`userAction` in the v0.8 sample).
 3.  The MCP App captures this event via the A2UI `MessageProcessor.events` subscription.
 4.  The MCP App packages the action and sends it as a JSON-RPC message to the Host (e.g., `ui/increase_counter`).
 5.  The Host calls the corresponding tool on the MCP Server.

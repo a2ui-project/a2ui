@@ -433,4 +433,223 @@ describe('A2uiController', () => {
 
     resolver.dispose();
   });
+
+  it('subscribes to node.metadata lazily only when controller.metadata is read', async () => {
+    const {NodeResolver, getValue} = await import('../index.js');
+    const {basicCatalog: v1Basic} = await import('../catalogs/basic/v1/catalog.js');
+    const nodeProcessor = new MessageProcessorClass([v1Basic]);
+    nodeProcessor.processMessages([
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 'lazy-meta-surface',
+          catalogId: v1Basic.id,
+        },
+      },
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'lazy-meta-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'Text',
+              text: 'Hello',
+              metadata: {extensions: {badge: 'v1'}},
+            },
+          ],
+        },
+      },
+    ]);
+
+    const nodeSurface = nodeProcessor.model.getSurface('lazy-meta-surface')!;
+    const resolver = new NodeResolver(nodeSurface, v1Basic);
+    const rootNode = getValue(resolver.rootNode)!;
+
+    ensureCustomElement();
+    const mockHost = document.createElement('test-mock-host') as unknown as TestMockHostElement & {
+      node?: unknown;
+    };
+    document.body.appendChild(mockHost);
+    await asyncUpdate(mockHost, host => {
+      (host as any).node = rootNode;
+    });
+
+    const controller = mockHost.testController;
+    let updateCalls = 0;
+    const origRequestUpdate = mockHost.requestUpdate.bind(mockHost);
+    mockHost.requestUpdate = () => {
+      updateCalls++;
+      origRequestUpdate();
+    };
+
+    // Before reading controller.metadata, metadata updates do not trigger requestUpdate()
+    nodeSurface.componentsModel.get('root')!.metadata = {extensions: {badge: 'v2'}};
+    assert.strictEqual(updateCalls, 0);
+
+    // Reading controller.metadata returns the current metadata and activates the lazy subscription
+    assert.deepStrictEqual(controller.metadata, {extensions: {badge: 'v2'}});
+    nodeSurface.componentsModel.get('root')!.metadata = {extensions: {badge: 'v3'}};
+    assert.strictEqual(updateCalls, 1);
+    assert.deepStrictEqual(controller.metadata, {extensions: {badge: 'v3'}});
+
+    nodeSurface.metadata = {extensions: {theme_ext: 'dark'}};
+    assert.deepStrictEqual(controller.surfaceExtensions, {theme_ext: 'dark'});
+
+    resolver.dispose();
+  });
+
+  it('maintains exactly one node.props effect subscription across same-task parent moves and cleans up to zero on removal', async () => {
+    const {
+      NodeResolver,
+      getValue,
+      setSignalImplementation,
+      _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION,
+    } = await import('../index.js');
+    const {basicCatalog: v1Basic} = await import('../catalogs/basic/v1/catalog.js');
+    const nodeProcessor = new MessageProcessorClass([v1Basic]);
+    nodeProcessor.processMessages([
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 'move-node-surface',
+          catalogId: v1Basic.id,
+        },
+      },
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'move-node-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'Text',
+              text: {'@path': '/message'},
+            },
+          ],
+        },
+      },
+      {
+        version: '1.0',
+        updateDataModel: {
+          surfaceId: 'move-node-surface',
+          value: {message: 'Before move'},
+        },
+      },
+    ]);
+
+    const nodeSurface = nodeProcessor.model.getSurface('move-node-surface')!;
+    const resolver = new NodeResolver(nodeSurface, v1Basic);
+    const rootNode = getValue(resolver.rootNode)!;
+
+    let activePropsEffects = 0;
+    let currentEffectReadsProps = false;
+    setSignalImplementation({
+      ..._PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION,
+      getValue: sig => {
+        if (sig === rootNode.props) {
+          currentEffectReadsProps = true;
+        }
+        return _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION.getValue(sig);
+      },
+      effect: fn => {
+        let subscribedToProps = false;
+        const cleanup = _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION.effect(() => {
+          const prev = currentEffectReadsProps;
+          currentEffectReadsProps = false;
+          try {
+            return fn();
+          } finally {
+            if (currentEffectReadsProps && !subscribedToProps) {
+              subscribedToProps = true;
+              activePropsEffects++;
+            }
+            currentEffectReadsProps = prev;
+          }
+        });
+        let disposed = false;
+        return () => {
+          if (!disposed) {
+            disposed = true;
+            if (subscribedToProps) {
+              activePropsEffects--;
+            }
+            cleanup();
+          }
+        };
+      },
+    });
+
+    try {
+      const parentA = document.createElement('div');
+      const parentB = document.createElement('div');
+      document.body.appendChild(parentA);
+      document.body.appendChild(parentB);
+
+      ensureCustomElement();
+      const mockHost = document.createElement(
+        'test-mock-host',
+      ) as unknown as TestMockHostElement & {
+        node?: unknown;
+      };
+      parentA.appendChild(mockHost);
+      await asyncUpdate(mockHost, host => {
+        (host as any).node = rootNode;
+      });
+
+      const controller = mockHost.testController;
+      assert.strictEqual((controller.props as any).text, 'Before move');
+      assert.strictEqual(activePropsEffects, 1);
+
+      let updateCalls = 0;
+      const origRequestUpdate = mockHost.requestUpdate.bind(mockHost);
+      mockHost.requestUpdate = () => {
+        updateCalls++;
+        origRequestUpdate();
+      };
+
+      // (a) Move the host element to another parent in the same task and update the node's props.
+      parentB.appendChild(mockHost);
+      assert.strictEqual(mockHost.parentElement, parentB);
+      assert.strictEqual(activePropsEffects, 1);
+
+      const callsBeforeDataUpdate = updateCalls;
+      await asyncUpdate(mockHost, () => {
+        nodeProcessor.processMessages([
+          {
+            version: '1.0',
+            updateDataModel: {
+              surfaceId: 'move-node-surface',
+              value: {message: 'After move'},
+            },
+          },
+        ]);
+      });
+
+      assert.strictEqual((controller.props as any).text, 'After move');
+      assert.ok(updateCalls > callsBeforeDataUpdate);
+      assert.strictEqual(activePropsEffects, 1);
+
+      // (b) Remove without reconnect and wait one macrotask: zero subscriptions remain.
+      mockHost.remove();
+      await new Promise(resolve => setTimeout(resolve, 0));
+      assert.strictEqual(activePropsEffects, 0);
+
+      const callsAfterRemove = updateCalls;
+      nodeProcessor.processMessages([
+        {
+          version: '1.0',
+          updateDataModel: {
+            surfaceId: 'move-node-surface',
+            value: {message: 'After remove'},
+          },
+        },
+      ]);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      assert.strictEqual(updateCalls, callsAfterRemove);
+    } finally {
+      setSignalImplementation(_PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION);
+      resolver.dispose();
+    }
+  });
 });
