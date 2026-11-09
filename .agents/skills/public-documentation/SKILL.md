@@ -56,8 +56,8 @@ Every page across `docs/site/` must follow these style, component, tabbing, and 
   - `tip`: Practical recommendations or shortcuts.
   - `caution`: Common pitfalls, limitations, or deprecations.
   - `danger`: Breaking changes, security boundaries, or data-loss risks.
-- **Escape HTML-like tags in MDX prose**: MDX compiles unquoted angle-bracket tags as JSX components and fails the build on unknown elements. Wrap literal tag names in inline backticks (for example, `` `<script>` ``, `` `<link>` ``, `` `<a2ui-surface>` ``) whenever mentioning them in prose.
-- **Sequential steps and badges**: Use `<Steps>` around ordered Markdown lists for multi-step procedures, and `<Badge text="..." variant="..." />` for inline status indicators.
+- **Escape HTML-like tags in MDX prose**: MDX compiles unquoted angle-bracket tags as JSX components and fails the build on unknown elements. Wrap literal tag names in inline backticks (for example, `` `<script>` ``, `` `<link>` ``, `` `<dialog>` ``) whenever mentioning them in prose.
+- **Sequential steps and badges**: Use `<Steps>` around ordered Markdown lists for multi-step procedures (always include blank lines immediately after `<Steps>` and before `</Steps>` so MDX parses the items as a Markdown list), and `<Badge text="..." variant="..." />` for inline status indicators.
 
 ### Multi-SDK, multi-framework, and protocol version tabs
 
