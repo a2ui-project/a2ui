@@ -1303,6 +1303,38 @@
     value: "Count: ${pluralize(value: 1, one: formatNumber(value: 42, grouping: false), other: 'many')} (${not(value: not(value: true))})"
   expect: "Count: 42 (true)"
 
+- name: test_evaluate_function_v10_format_string_template_call_missing_in_inherited_catalog_errors
+  description: >-
+    Verifies a formatString ${...} template call missing from the inherited catalog fails with an ExpressionError naming the missing function, rather than a CatalogError complaining that the surface has no default catalogId.
+  action: evaluate_function
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  surface: {}
+  function: formatString
+  catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  args:
+    value: "${noSuchFn()}"
+  expectError:
+    category: ExpressionError
+    message: "noSuchFn"
+
+- name: test_evaluate_function_v10_format_string_index_stays_catalogless_without_default
+  description: >-
+    Verifies ${@index()} inside a formatString call on a defaultless v1.0 surface remains catalogless and fails with the collection-scope ExpressionError at root rather than an error for stamping a catalogId onto @index.
+  action: evaluate_function
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  surface: {}
+  function: formatString
+  catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  args:
+    value: "${@index()}"
+  expectError:
+    category: ExpressionError
+    message: "@index function can only be evaluated inside a collection template iteration scope."
+
 - name: test_evaluate_function_v09_ignores_call_catalog_id
   description: >-
     Verifies a catalogId on a call is ignored before v1.0. On a v0.9 surface the call runs in the surface catalog, so naming a catalog the client does not have is not an error.
