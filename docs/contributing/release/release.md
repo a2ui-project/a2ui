@@ -19,6 +19,7 @@ A package has something to release when its `CHANGELOG.md` has notes under
 - [a2ui_core CHANGELOG.md](../../../dart/a2ui_core/CHANGELOG.md)
 - [a2ui_agent CHANGELOG.md](../../../dart/a2ui_agent/CHANGELOG.md)
 - [a2ui_flutter CHANGELOG.md](../../../dart/a2ui_flutter/CHANGELOG.md)
+- [a2ui_cli CHANGELOG.md](../../../dart/a2ui_cli/CHANGELOG.md)
 
 A release also raises the `a2ui_core` constraint of a package that depends on
 it, when `a2ui_core` has a breaking change or when the package's notes say it
@@ -43,10 +44,7 @@ In one pull request, for each package to release:
 - If the release raises the package's `a2ui_core` constraint, set it to
   `^<new a2ui_core version>`, and note the new constraint under `## <version>`.
 
-When `a2ui_core` has a breaking change, also raise the constraint in the
-packages that are not on pub.dev, such as `a2ui_cli`, so that the workspace
-resolves, but do not release them. Change nothing else, and merge the pull
-request.
+Change nothing else, and merge the pull request.
 
 **3. Publish the packages**
 
