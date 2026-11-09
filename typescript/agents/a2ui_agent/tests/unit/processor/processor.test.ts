@@ -32,12 +32,25 @@ describe('A2uiRequestProcessor', () => {
     const catalog = basicCatalogV10;
     const processor = new A2uiRequestProcessor([catalog]);
 
+    expect(processor.catalogs).toEqual([catalog]);
     expect(processor.promptSnippet).toContain('<a2ui>');
     expect(processor.promptSnippet).toContain('Text(');
 
     const parts = processor.parseResponse('<a2ui>\nsurface("s1")\nroot = Text("hello")\n</a2ui>');
     expect(parts).toHaveLength(1);
     expect(parts[0].type).toBe('a2ui');
+  });
+
+  test('defensively copies catalogs on construction and in the catalogs getter', () => {
+    const input = [basicCatalogV10];
+    const processor = new A2uiRequestProcessor(input);
+
+    input.pop();
+    expect(processor.catalogs).toEqual([basicCatalogV10]);
+
+    const returned = processor.catalogs;
+    returned.pop();
+    expect(processor.catalogs).toEqual([basicCatalogV10]);
   });
 
   test('throws on invalid payload (validation error)', () => {

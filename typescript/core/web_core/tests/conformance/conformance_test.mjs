@@ -12,35 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import assert from 'node:assert';
+import {isDeepStrictEqual} from 'node:util';
+
 import yaml from 'js-yaml';
-import {MessageProcessor, STRICT_VALIDATION} from '../../dist/src/processing/message-processor.js';
+import {z} from 'zod';
+
 import {Catalog, createFunctionImplementation} from '../../dist/src/catalog/types.js';
-import {PayloadValidator} from '../../dist/src/validation/index.js';
-import {DataModel} from '../../dist/src/state/data-model.js';
-import {SurfaceModel} from '../../dist/src/state/surface-model.js';
-import {SUPPORTED_PROTOCOL_VERSIONS} from '../../dist/src/processing/adapters/base.js';
-import {toCanonicalVersion} from '../../dist/src/common/semver.js';
-import {
-  BASIC_COMPONENTS as V0_8_BASIC_COMPONENTS,
-  ThemeSchema as V0_8_ThemeSchema,
-} from '../../dist/src/v0_8/basic_catalog/index.js';
-import {
-  BASIC_COMPONENTS as V0_9_BASIC_COMPONENTS,
-  BASIC_FUNCTIONS as V0_9_BASIC_FUNCTIONS,
-  ThemeSchema as V0_9_ThemeSchema,
-} from '../../dist/src/v0_9/basic_catalog/index.js';
+import {basicCatalog as V1_0_SDK_BASIC_CATALOG} from '../../dist/src/catalogs/basic/v1/catalog.js';
 import {
   BASIC_COMPONENTS as V1_0_BASIC_COMPONENTS,
   BASIC_FUNCTIONS as V1_0_BASIC_FUNCTIONS,
 } from '../../dist/src/catalogs/basic/v1/index.js';
-import {basicCatalog as V1_0_SDK_BASIC_CATALOG} from '../../dist/src/catalogs/basic/v1/catalog.js';
-import {basicCatalog as V0_9_SDK_BASIC_CATALOG} from '../../dist/src/v0_9/basic_catalog/catalog.js';
-import {basicCatalog as V0_8_SDK_BASIC_CATALOG} from '../../dist/src/v0_8/basic_catalog/catalog.js';
-import {ExpressionParser} from '../../dist/src/expressions/expression_parser.js';
+import {toCanonicalVersion} from '../../dist/src/common/semver.js';
 import {
   A2uiCatalogError,
   A2uiDataError,
@@ -51,10 +38,33 @@ import {
   A2uiStateError,
   A2uiValidationError,
 } from '../../dist/src/errors.js';
+import {ExpressionParser} from '../../dist/src/expressions/expression_parser.js';
+import {SUPPORTED_PROTOCOL_VERSIONS} from '../../dist/src/processing/adapters/base.js';
+import {MessageProcessor, STRICT_VALIDATION} from '../../dist/src/processing/message-processor.js';
+import {effect, getValue, isSignal, peekValue} from '../../dist/src/reactivity/signals.js';
+import {ComponentContext} from '../../dist/src/resolution/component-context.js';
 import {DataContext} from '../../dist/src/resolution/data-context.js';
+import {GenericBinder} from '../../dist/src/resolution/generic-binder.js';
 import {NodeResolver} from '../../dist/src/resolution/node-resolver.js';
 import {ResolvedBinding} from '../../dist/src/resolution/resolved-binding.js';
-import {getValue, peekValue, effect, isSignal} from '../../dist/src/reactivity/signals.js';
+import {ComponentModel} from '../../dist/src/state/component-model.js';
+import {DataModel} from '../../dist/src/state/data-model.js';
+import {SurfaceModel} from '../../dist/src/state/surface-model.js';
+import {CommonSchemas} from '../../dist/src/types/common-types.js';
+import {basicCatalog as V0_8_SDK_BASIC_CATALOG} from '../../dist/src/v0_8/basic_catalog/catalog.js';
+import {
+  BASIC_COMPONENTS as V0_8_BASIC_COMPONENTS,
+  ThemeSchema as V0_8_ThemeSchema,
+} from '../../dist/src/v0_8/basic_catalog/index.js';
+import {basicCatalog as V0_9_SDK_BASIC_CATALOG} from '../../dist/src/v0_9/basic_catalog/catalog.js';
+import {
+  BASIC_COMPONENTS as V0_9_BASIC_COMPONENTS,
+  BASIC_FUNCTIONS as V0_9_BASIC_FUNCTIONS,
+  ThemeSchema as V0_9_ThemeSchema,
+} from '../../dist/src/v0_9/basic_catalog/index.js';
+import {CommonSchemas as V0_9_COMMON_SCHEMAS} from '../../dist/src/v0_9/schema/common-types.js';
+import {CommonSchemas as V1_0_COMMON_SCHEMAS} from '../../dist/src/v1_0/schema/common-types.js';
+import {PayloadValidator} from '../../dist/src/validation/index.js';
 import {runNodeResolutionCase} from '../../dist/tests/conformance/node-resolution.js';
 
 // Dedicated basic catalog component definitions per specification version
@@ -130,7 +140,52 @@ const SKIP_TEST_NAMES = new Set();
  * then case name, with the behaviour that differs. They are reported as
  * skipped with that reason. An entry that matches no case fails the run.
  */
-const KNOWN_DIVERGENCES = new Map();
+const KNOWN_DIVERGENCES = new Map([
+  [
+    'core/agent_function_routing.yaml',
+    new Map([
+      [
+        'test_agent_routing_cancelled_call_is_sent_again_on_unrelated_change',
+        'web_core re-evaluates a nested call only when its own arguments change, so an unrelated ' +
+          'path change does not re-evaluate it; the rule is covered by ' +
+          'test_agent_routing_cancelled_call_is_sent_again_when_its_value_is_rewritten',
+      ],
+    ]),
+  ],
+  [
+    'core/common_types.yaml',
+    new Map([
+      [
+        'test_v10_index_system_function_requires_call',
+        'IndexSystemFunctionSchema.args in web_core is not strict and allows extra argument keys',
+      ],
+      [
+        'test_v10_dynamic_value_object_branches_are_exclusive',
+        'v1.0 DataBindingSchema and DynamicValueSchema literal object branch in web_core are not strict on extra/reserved keys',
+      ],
+      [
+        'test_v10_function_call_rejects_unknown_keys',
+        'v1.0 FunctionCallSchema in web_core allows extra keys on function call objects',
+      ],
+      [
+        'test_v09_function_call_rejects_unknown_keys',
+        "v0.9 FunctionCallSchema in web_core is not strict (allows extra keys) and defaults returnType to 'boolean' when omitted",
+      ],
+      [
+        'test_v09_dynamic_value_branches_are_exclusive',
+        "v0.9 FunctionCallSchema in web_core is not strict (an object with both call and path matches FunctionCallSchema) and defaults returnType to 'boolean' when omitted",
+      ],
+      [
+        'test_v091_function_call_rejects_unknown_keys',
+        "v0.9 FunctionCallSchema in web_core is not strict (allows extra keys) and defaults returnType to 'boolean' when omitted",
+      ],
+      [
+        'test_v091_dynamic_value_branches_are_exclusive',
+        "v0.9 FunctionCallSchema in web_core is not strict (an object with both call and path matches FunctionCallSchema) and defaults returnType to 'boolean' when omitted",
+      ],
+    ]),
+  ],
+]);
 
 /**
  * The `expect` keys a `from_json` case may use (`FromJsonExpect` in
@@ -139,6 +194,7 @@ const KNOWN_DIVERGENCES = new Map();
  */
 const FROM_JSON_EXPECT_KEYS = new Set([
   'catalogId',
+  'componentMetadata',
   'components',
   'functions',
   'invalidComponents',
@@ -183,23 +239,32 @@ class CaseSkipped extends Error {}
 const REQUIRED_SUITES = new Set(['core/node_resolution.yaml']);
 
 /**
- * Transition skip list containing specific test suite files to skip during active feature transitions.
- *
- * 'accessibility.yaml' tests ARIA and DOM accessibility tree rendering, which is handled
- * by UI framework renderers (Lit, React, Angular, Flutter, SwiftUI) rather than headless web_core.
- *
- * 'builder.yaml' covers the agent-side typesafe builder API, which web_core does not implement.
+ * Test suite files to skip during headless web_core conformance runs, mapped to
+ * the reason every case in that suite is recorded as skipped.
  */
-const SKIP_TEST_SUITES = new Set(['accessibility.yaml', 'builder.yaml', 'macros.yaml']);
+const SKIP_TEST_SUITES = new Map([
+  [
+    'accessibility.yaml',
+    'accessibility tree rendering is handled by UI framework renderers rather than headless web_core',
+  ],
+  [
+    'adapter_conformance.yaml',
+    'UI framework renderer adapter conformance is tested in the renderer packages rather than headless web_core',
+  ],
+  ['builder.yaml', 'typesafe builder API is agent-side only'],
+  ['macros.yaml', 'composite macros are agent-side only'],
+  ['renderer_state.yaml', 'agent-side RendererState turn validation is tested in the agent SDK'],
+]);
 
 /**
- * Action types the web_core runner deliberately does not implement, and why.
+ * Action types or `<action>.<key path>` entries the web_core runner
+ * deliberately does not implement, and why.
  *
  * `web_core` is the renderer-side library. It has no inference-format parser,
  * payload fixer or prompt generator, so the agent-side suites cannot be
- * executed here. They previously reached handlers that asserted nothing and so
- * reported as passing; naming them keeps the gap countable and keeps the
- * default `throw` for genuinely unrecognised actions intact.
+ * executed here. Naming them keeps the gap countable and keeps the default
+ * `throw` for genuinely unrecognised actions intact. Every entry must match at
+ * least one case during a run.
  */
 const UNIMPLEMENTED_ACTIONS = new Map([
   ['from_format', 'the Express inference format is implemented in the agent SDK'],
@@ -207,6 +272,7 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['from_catalog', 'the Express inference format is implemented in the agent SDK'],
   ['skill_set', 'skill generation is implemented in the agent SDK'],
   ['export_to_directory', 'skill generation is implemented in the agent SDK'],
+  ['monolithic_skill_equals_prompt_snippet', 'skill generation is implemented in the agent SDK'],
   ['process_chunk', 'web_core has no streaming inference parser'],
   ['parse_full', 'web_core has no inference-format parser'],
   ['fix_payload', 'web_core has no payload fixer'],
@@ -227,18 +293,94 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['transform_catalog', 'catalog transformers are agent-side only'],
   ['provide_catalog', 'catalog providers are agent-side only'],
   ['resolve_catalogs', 'catalog resolution is agent-side only'],
-  ['common_types_schema', 'web_core does not generate the common types schema from its own models'],
+  ['common_types_schema', 'no schema generation from models'],
+  ['declare_agent_functions', 'agent functions are agent-side only'],
+  ['handle_agent_function', 'agent functions are agent-side only'],
+  ['validate_payload', 'validating model output is agent-side only'],
+  ['process_renderer_message', 'processing renderer messages is agent-side only'],
+  ['call_renderer_function', "the agent's calls to renderer functions are agent-side only"],
   [
     'agent_to_renderer_schema',
     'web_core does not generate the agent_to_renderer schema from its own models',
   ],
-  ['validate_common_type', 'web_core has no per-definition validators for the common types'],
   [
     'measure_growth',
     'the timing cases depend on the machine, so `yarn test:timing` runs them apart from the other tests (tests/timing/)',
   ],
   ['measure_overhead', 'web_core has no streaming inference parser'],
 ]);
+
+const UNSUPPORTED = UNIMPLEMENTED_ACTIONS;
+
+const MANIFEST_DIR = process.env.A2UI_CONFORMANCE_MANIFEST_DIR;
+const MANIFEST_FILE = MANIFEST_DIR
+  ? path.join(MANIFEST_DIR, `web_core-${process.pid}.jsonl`)
+  : null;
+if (MANIFEST_DIR) {
+  fs.mkdirSync(MANIFEST_DIR, {recursive: true});
+}
+
+function recordCase(suite, name, status, reason) {
+  if (!MANIFEST_FILE) return;
+  const entry = {
+    harness: 'web_core',
+    suite: suite.replaceAll('\\', '/'),
+    case: name,
+    status,
+    ...(reason ? {reason} : {}),
+  };
+  fs.appendFileSync(MANIFEST_FILE, `${JSON.stringify(entry)}\n`, 'utf8');
+}
+
+function assertKnownKeys(obj, allowed, where) {
+  if (obj === undefined || obj === null) return;
+  assert.ok(typeof obj === 'object' && !Array.isArray(obj), `${where}: expected object`);
+  const unknown = Object.keys(obj).filter(key => !allowed.has(key));
+  assert.deepStrictEqual(
+    unknown,
+    [],
+    `${where}: unknown keys: ${unknown.map(k => `${where}.${k}`).join(', ')}`,
+  );
+}
+
+function assertKnownKeysList(items, allowed, where) {
+  if (!Array.isArray(items)) return;
+  for (let i = 0; i < items.length; i++) {
+    assertKnownKeys(items[i], allowed, `${where}[${i}]`);
+  }
+}
+
+function assertKnownKeysRecord(record, allowed, where) {
+  if (!record || typeof record !== 'object' || Array.isArray(record)) return;
+  for (const [key, value] of Object.entries(record)) {
+    assertKnownKeys(value, allowed, `${where}.${key}`);
+  }
+}
+
+function hasNestedKeyPath(obj, dottedPath) {
+  let cur = obj;
+  for (const segment of dottedPath.split('.')) {
+    if (!cur || typeof cur !== 'object' || !Object.hasOwn(cur, segment)) return false;
+    cur = cur[segment];
+  }
+  return cur !== undefined;
+}
+
+function findUnsupportedEntry(testCase, matchedUnsupported) {
+  const {action} = testCase;
+  if (UNSUPPORTED.has(action)) {
+    matchedUnsupported.add(action);
+    return {key: action, reason: UNSUPPORTED.get(action)};
+  }
+  const prefix = `${action}.`;
+  for (const [key, reason] of UNSUPPORTED) {
+    if (key.startsWith(prefix) && hasNestedKeyPath(testCase, key.slice(prefix.length))) {
+      matchedUnsupported.add(key);
+      return {key, reason};
+    }
+  }
+  return null;
+}
 
 function findYamlFiles(dir) {
   let results = [];
@@ -260,6 +402,274 @@ function loadYamlFile(filePath) {
   return yaml.load(content, {maxDepth: 1000});
 }
 
+function recordSkippedSuite(filePath, relativePath, suiteSkipReason) {
+  const loaded = loadYamlFile(filePath);
+  const cases = Array.isArray(loaded) ? loaded : (loaded?.tests ?? []);
+  let count = 0;
+  for (const tc of cases) {
+    const caseName = tc?.name || tc?.id;
+    if (caseName) {
+      count++;
+      recordCase(relativePath, caseName, 'skipped', suiteSkipReason);
+    }
+  }
+  return count;
+}
+
+function checkCaseSkip(relativePath, testCase, state) {
+  const {name, catalog, args} = testCase;
+  // The top-level `protocolVersion` is the case's own declaration and wins
+  // over anything inferred from the catalog or the first message.
+  const rawVersion = testCase.protocolVersion || catalog?.protocolVersion || args?.version || '0.8';
+  const version = toCanonicalVersion(rawVersion) || rawVersion;
+
+  if (!SUPPORTED_PROTOCOL_VERSIONS.has(version)) {
+    const reason = `version ${rawVersion} not in SUPPORTED_PROTOCOL_VERSIONS`;
+    console.log(`  ⁃ [SKIPPED] ${name} (${reason})`);
+    return reason;
+  }
+
+  if (SKIP_TEST_NAMES.has(name)) {
+    state.matchedSkippedNames.add(name);
+    const reason =
+      SKIP_TEST_NAMES instanceof Map ? SKIP_TEST_NAMES.get(name) : 'skipped via SKIP_TEST_NAMES';
+    console.log(`  ⁃ [SKIPPED] ${name}`);
+    return reason;
+  }
+
+  const divergence = KNOWN_DIVERGENCES.get(relativePath)?.get(name);
+  if (divergence !== undefined) {
+    state.matchedDivergences.add(`${relativePath}#${name}`);
+    const reason = `known divergence: ${divergence}`;
+    console.log(`  ⁃ [SKIPPED] ${name} (${reason})`);
+    return reason;
+  }
+
+  const unsupported = findUnsupportedEntry(testCase, state.matchedUnsupported);
+  if (unsupported !== null) {
+    state.unrunByAction.set(unsupported.key, (state.unrunByAction.get(unsupported.key) ?? 0) + 1);
+    const reason = `action '${unsupported.key}': ${unsupported.reason}`;
+    console.log(`  ⁃ [SKIPPED] ${name} (${reason})`);
+    return reason;
+  }
+
+  return null;
+}
+
+async function dispatchTestCase(testCase) {
+  const {name, action} = testCase;
+  if (!name || !action) {
+    throw new Error('Test case missing required "name" or "action" property.');
+  }
+  switch (action) {
+    case 'handle_rpc':
+      await validateRpcTestCase(testCase);
+      break;
+    case 'validate':
+      validateValidateTestCase(testCase);
+      break;
+    case 'process_messages':
+      validateProcessMessagesTestCase(testCase);
+      break;
+    case 'get_renderer_capabilities':
+      validateGetRendererCapabilitiesTestCase(testCase);
+      break;
+    case 'validation_schema':
+      validateValidationSchemaTestCase(testCase);
+      break;
+    case 'round_trip':
+      validateRoundTripTestCase(testCase);
+      break;
+    case 'to_json':
+      validateToJsonTestCase(testCase);
+      break;
+    case 'data_model':
+      validateDataModelTestCase(testCase);
+      break;
+    case 'resolve_path':
+      validateResolvePathTestCase(testCase);
+      break;
+    case 'from_json':
+      validateFromJsonTestCase(testCase);
+      break;
+    case 'derive':
+      validateDeriveTestCase(testCase);
+      break;
+    case 'select_catalog':
+      validateSelectCatalogTestCase(testCase);
+      break;
+    case 'parse_expression_template':
+      validateParseExpressionTemplateTestCase(testCase);
+      break;
+    case 'get_renderer_data_model':
+      validateGetRendererDataModelTestCase(testCase);
+      break;
+    case 'resolve_nodes':
+      await runNodeResolutionCase(testCase, CONFORMANCE_ROOT);
+      break;
+    case 'evaluate_function':
+      validateEvaluateFunctionTestCase(testCase);
+      break;
+    case 'dispatch_action':
+      await validateDispatchActionTestCase(testCase);
+      break;
+    case 'validate_common_type':
+      validateCommonTypeTestCase(testCase);
+      break;
+    case 'route_agent_function':
+      await validateRouteAgentFunctionTestCase(testCase);
+      break;
+    default:
+      throw new Error(`Unhandled action type in conformance harness: '${action}'`);
+  }
+}
+
+async function runSuiteCases(relativePath, testCases, state) {
+  console.log(`\n📄 Suite: ${relativePath} (${testCases.length} test cases)`);
+
+  for (const testCase of testCases) {
+    const {name} = testCase;
+    const skipReason = checkCaseSkip(relativePath, testCase, state);
+    if (skipReason !== null) {
+      state.totalSkipped++;
+      recordCase(relativePath, name, 'skipped', skipReason);
+      continue;
+    }
+
+    state.totalTests++;
+
+    try {
+      await dispatchTestCase(testCase);
+      state.totalPassed++;
+      recordCase(relativePath, name, 'passed');
+      console.log(`  ✓ PASSED: ${name}`);
+    } catch (err) {
+      if (err instanceof CaseSkipped) {
+        state.totalTests--;
+        state.totalSkipped++;
+        recordCase(relativePath, name, 'skipped', err.message);
+        console.log(`  ⁃ [SKIPPED] ${name} (${err.message})`);
+        continue;
+      }
+      state.totalFailed++;
+      recordCase(relativePath, name, 'failed', err.message);
+      const failMessage = `  ✗ FAILED: ${name} - ${err.message}`;
+      console.error(failMessage);
+      state.failures.push({file: relativePath, name, error: err.message});
+    }
+  }
+}
+
+function recordInvariantFailure(state, file, name, error) {
+  state.totalTests++;
+  state.totalFailed++;
+  console.error(`  ✗ FAILED: ${name}: ${error}`);
+  state.failures.push({file, name, error});
+}
+
+function verifyHarnessInvariants(discoveredSuites, state) {
+  for (const suite of REQUIRED_SUITES) {
+    if (!discoveredSuites.has(suite)) {
+      recordInvariantFailure(state, suite, 'Required Suite', 'Required suite was not discovered.');
+    }
+  }
+  for (const [suite, cases] of KNOWN_DIVERGENCES) {
+    for (const name of cases.keys()) {
+      if (!state.matchedDivergences.has(`${suite}#${name}`)) {
+        recordInvariantFailure(state, suite, name, 'Known divergence matches no test case.');
+      }
+    }
+  }
+  for (const key of UNSUPPORTED.keys()) {
+    if (!state.matchedUnsupported.has(key)) {
+      recordInvariantFailure(state, 'UNSUPPORTED', key, 'Unsupported entry matches no test case.');
+    }
+  }
+  for (const suite of SKIP_TEST_SUITES.keys()) {
+    if (!state.matchedSkippedSuites.has(suite)) {
+      recordInvariantFailure(
+        state,
+        suite,
+        'SKIP_TEST_SUITES',
+        'Skipped suite entry matches no suite file.',
+      );
+    }
+  }
+  const skipNameKeys =
+    SKIP_TEST_NAMES instanceof Map ? SKIP_TEST_NAMES.keys() : SKIP_TEST_NAMES.values();
+  for (const name of skipNameKeys) {
+    if (!state.matchedSkippedNames.has(name)) {
+      recordInvariantFailure(
+        state,
+        'SKIP_TEST_NAMES',
+        name,
+        'Skipped test name matches no test case.',
+      );
+    }
+  }
+}
+
+function loadSuiteTestCases(filePath, relativePath, state) {
+  const baseName = path.basename(filePath);
+  const suiteSkipReason = SKIP_TEST_SUITES.get(relativePath) ?? SKIP_TEST_SUITES.get(baseName);
+  if (suiteSkipReason !== undefined) {
+    state.matchedSkippedSuites.add(SKIP_TEST_SUITES.has(relativePath) ? relativePath : baseName);
+    state.totalSkipped += recordSkippedSuite(filePath, relativePath, suiteSkipReason);
+    return null;
+  }
+  let testCases;
+  try {
+    testCases = loadYamlFile(filePath);
+  } catch (err) {
+    recordInvariantFailure(state, relativePath, 'YAML Parsing', err.message);
+    return null;
+  }
+  if (!Array.isArray(testCases)) {
+    recordInvariantFailure(
+      state,
+      relativePath,
+      'Suite Structure',
+      `Content is not an array of test cases (got ${typeof testCases}).`,
+    );
+    return null;
+  }
+  if (REQUIRED_SUITES.has(relativePath) && testCases.length === 0) {
+    recordInvariantFailure(
+      state,
+      relativePath,
+      'Required Suite',
+      'Required suite has no test cases.',
+    );
+    return null;
+  }
+  return testCases;
+}
+
+function finishHarnessRun(state) {
+  console.log('\n=====================================================');
+  console.log(
+    `Conformance Summary: ${state.totalPassed}/${state.totalTests} Passed (${state.totalFailed} Failed, ${state.totalSkipped} Skipped)`,
+  );
+  if (state.unrunByAction.size > 0) {
+    const unrunTotal = [...state.unrunByAction.values()].reduce((a, b) => a + b, 0);
+    console.log(`Not run by design: ${unrunTotal} cases`);
+    for (const [action, count] of [...state.unrunByAction].sort((a, b) => b[1] - a[1])) {
+      console.log(`  ${action}: ${count} (${UNSUPPORTED.get(action)})`);
+    }
+  }
+  console.log('=====================================================');
+
+  if (state.totalFailed > 0) {
+    console.error('\nFailures Summary:');
+    for (const failure of state.failures) {
+      console.error(`- [${failure.file}] ${failure.name}: ${failure.error}`);
+    }
+    process.exit(1);
+  }
+  console.log('🎉 All Web Core conformance test vectors validated successfully!');
+  process.exit(0);
+}
+
 async function runConformanceHarness() {
   console.log('=====================================================');
   console.log('A2UI Web Core TypeScript Conformance Test Harness');
@@ -273,229 +683,157 @@ async function runConformanceHarness() {
     process.exit(1);
   }
 
-  let totalTests = 0;
-  let totalPassed = 0;
-  let totalFailed = 0;
-  let totalSkipped = 0;
-  const failures = [];
-  /** Count of cases skipped per `UNIMPLEMENTED_ACTIONS` entry, for the summary. */
-  const unrunByAction = new Map();
-  /** `KNOWN_DIVERGENCES` entries that matched a case, as `suite#name`. */
-  const matchedDivergences = new Set();
+  const state = {
+    totalTests: 0,
+    totalPassed: 0,
+    totalFailed: 0,
+    totalSkipped: 0,
+    failures: [],
+    unrunByAction: new Map(),
+    matchedDivergences: new Set(),
+    matchedUnsupported: new Set(),
+    matchedSkippedSuites: new Set(),
+    matchedSkippedNames: new Set(),
+  };
   const discoveredSuites = new Set(files.map(file => path.relative(CONFORMANCE_ROOT, file)));
-
-  for (const suite of REQUIRED_SUITES) {
-    if (!discoveredSuites.has(suite)) {
-      totalTests++;
-      totalFailed++;
-      const err = 'Required suite was not discovered.';
-      console.error(`  ✗ FAILED: ${suite}: ${err}`);
-      failures.push({file: suite, name: 'Required Suite', error: err});
-    }
-  }
 
   for (const filePath of files) {
     const relativePath = path.relative(CONFORMANCE_ROOT, filePath);
-    if (SKIP_TEST_SUITES.has(relativePath) || SKIP_TEST_SUITES.has(path.basename(filePath))) {
-      continue;
-    }
-    let testCases;
-    try {
-      testCases = loadYamlFile(filePath);
-    } catch (err) {
-      totalTests++;
-      totalFailed++;
-      const failMessage = `  ✗ FAILED to load ${relativePath}: ${err.message}`;
-      console.error(failMessage);
-      failures.push({file: relativePath, name: 'YAML Parsing', error: err.message});
-      continue;
-    }
-
-    if (!Array.isArray(testCases)) {
-      totalTests++;
-      totalFailed++;
-      const err = `Content is not an array of test cases (got ${typeof testCases}).`;
-      console.error(`  ✗ FAILED to load ${relativePath}: ${err}`);
-      failures.push({file: relativePath, name: 'Suite Structure', error: err});
-      continue;
-    }
-
-    if (REQUIRED_SUITES.has(relativePath) && testCases.length === 0) {
-      totalTests++;
-      totalFailed++;
-      const err = 'Required suite has no test cases.';
-      console.error(`  ✗ FAILED: ${relativePath}: ${err}`);
-      failures.push({file: relativePath, name: 'Required Suite', error: err});
-      continue;
-    }
-
-    console.log(`\n📄 Suite: ${relativePath} (${testCases.length} test cases)`);
-
-    for (const testCase of testCases) {
-      const {name, action, catalog, args} = testCase;
-      // The top-level `protocolVersion` is the case's own declaration and wins
-      // over anything inferred from the catalog or the first message.
-      const rawVersion =
-        testCase.protocolVersion || catalog?.protocolVersion || args?.version || '0.8';
-      const version = toCanonicalVersion(rawVersion) || rawVersion;
-
-      if (!SUPPORTED_PROTOCOL_VERSIONS.has(version)) {
-        totalSkipped++;
-        console.log(
-          `  ⁃ [SKIPPED] ${name} (version ${rawVersion} not in SUPPORTED_PROTOCOL_VERSIONS)`,
-        );
-        continue;
-      }
-
-      if (SKIP_TEST_NAMES.has(name)) {
-        totalSkipped++;
-        console.log(`  ⁃ [SKIPPED] ${name}`);
-        continue;
-      }
-
-      const divergence = KNOWN_DIVERGENCES.get(relativePath)?.get(name);
-      if (divergence !== undefined) {
-        matchedDivergences.add(`${relativePath}#${name}`);
-        totalSkipped++;
-        console.log(`  ⁃ [SKIPPED] ${name} (known divergence: ${divergence})`);
-        continue;
-      }
-
-      if (UNIMPLEMENTED_ACTIONS.has(action)) {
-        totalSkipped++;
-        unrunByAction.set(action, (unrunByAction.get(action) ?? 0) + 1);
-        console.log(
-          `  ⁃ [SKIPPED] ${name} (action '${action}': ${UNIMPLEMENTED_ACTIONS.get(action)})`,
-        );
-        continue;
-      }
-
-      totalTests++;
-
-      try {
-        if (!name || !action) {
-          throw new Error('Test case missing required "name" or "action" property.');
-        }
-
-        // Action-specific test execution dispatch
-        switch (action) {
-          case 'handle_rpc':
-            await validateRpcTestCase(testCase);
-            break;
-          case 'validate':
-            validateValidateTestCase(testCase);
-            break;
-          case 'process_messages':
-            validateProcessMessagesTestCase(testCase);
-            break;
-          case 'get_renderer_capabilities':
-            validateGetRendererCapabilitiesTestCase(testCase);
-            break;
-          case 'validation_schema':
-            validateValidationSchemaTestCase(testCase);
-            break;
-          case 'round_trip':
-            validateRoundTripTestCase(testCase);
-            break;
-          case 'to_json':
-            validateToJsonTestCase(testCase);
-            break;
-          case 'data_model':
-            validateDataModelTestCase(testCase);
-            break;
-          case 'resolve_path':
-            validateResolvePathTestCase(testCase);
-            break;
-          case 'from_json':
-            validateFromJsonTestCase(testCase);
-            break;
-          case 'derive':
-            validateDeriveTestCase(testCase);
-            break;
-          case 'select_catalog':
-            validateSelectCatalogTestCase(testCase);
-            break;
-          case 'accessibility_check':
-            validateAccessibilityCheckTestCase(testCase);
-            break;
-          case 'parse_expression_template':
-            validateParseExpressionTemplateTestCase(testCase);
-            break;
-          case 'get_renderer_data_model':
-            validateGetRendererDataModelTestCase(testCase);
-            break;
-          case 'resolve_nodes':
-            await runNodeResolutionCase(testCase, CONFORMANCE_ROOT);
-            break;
-          case 'evaluate_function':
-            validateEvaluateFunctionTestCase(testCase);
-            break;
-          case 'dispatch_action':
-            validateDispatchActionTestCase(testCase);
-            break;
-          default:
-            throw new Error(`Unhandled action type in conformance harness: '${action}'`);
-        }
-
-        totalPassed++;
-        console.log(`  ✓ PASSED: ${name}`);
-      } catch (err) {
-        if (err instanceof CaseSkipped) {
-          totalTests--;
-          totalSkipped++;
-          console.log(`  ⁃ [SKIPPED] ${name} (${err.message})`);
-          continue;
-        }
-        totalFailed++;
-        const failMessage = `  ✗ FAILED: ${name} - ${err.message}`;
-        console.error(failMessage);
-        failures.push({file: relativePath, name, error: err.message});
-      }
+    const testCases = loadSuiteTestCases(filePath, relativePath, state);
+    if (testCases !== null) {
+      await runSuiteCases(relativePath, testCases, state);
     }
   }
 
-  for (const [suite, cases] of KNOWN_DIVERGENCES) {
-    for (const name of cases.keys()) {
-      if (!matchedDivergences.has(`${suite}#${name}`)) {
-        totalTests++;
-        totalFailed++;
-        const err = 'Known divergence matches no test case.';
-        console.error(`  ✗ FAILED: ${name}: ${err}`);
-        failures.push({file: suite, name, error: err});
-      }
-    }
-  }
+  verifyHarnessInvariants(discoveredSuites, state);
+  finishHarnessRun(state);
+}
 
-  console.log('\n=====================================================');
-  console.log(
-    `Conformance Summary: ${totalPassed}/${totalTests} Passed (${totalFailed} Failed, ${totalSkipped} Skipped)`,
-  );
-  if (unrunByAction.size > 0) {
-    const unrunTotal = [...unrunByAction.values()].reduce((a, b) => a + b, 0);
-    console.log(`Not run by design: ${unrunTotal} cases`);
-    for (const [action, count] of [...unrunByAction].sort((a, b) => b[1] - a[1])) {
-      console.log(`  ${action}: ${count} (${UNIMPLEMENTED_ACTIONS.get(action)})`);
-    }
-  }
-  console.log('=====================================================');
+const EXPECT_ERROR_KNOWN_KEYS = {
+  error: new Set([
+    'category',
+    'code',
+    'details',
+    'functionCallId',
+    'message',
+    'path',
+    'rendererError',
+    'surfaceId',
+  ]),
+  detail: new Set(['code', 'message', 'path', 'surfaceId']),
+  rendererError: new Set(['error', 'version']),
+  rendererErrorPayload: new Set(['code', 'functionCallId', 'message', 'path', 'surfaceId']),
+};
 
-  if (totalFailed > 0) {
-    console.error('\nFailures Summary:');
-    for (const failure of failures) {
-      console.error(`- [${failure.file}] ${failure.name}: ${failure.error}`);
-    }
-    process.exit(1);
-  } else {
-    console.log('🎉 All Web Core conformance test vectors validated successfully!');
-    process.exit(0);
+const RPC_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'args',
+    'catalog',
+    'description',
+    'expect',
+    'expectError',
+    'features',
+    'name',
+    'protocolVersion',
+  ]),
+  args: new Set([
+    'afterCall',
+    'catalogId',
+    'catalogVersion',
+    'dataModel',
+    'functionMetadata',
+    'inboundResponse',
+    'lateInboundResponse',
+    'message',
+    'outboundCall',
+    'outboundListener',
+    'secondOutboundCall',
+    'surfaceId',
+    'uiActionFallbackScenario',
+    'uiBindingScenario',
+    'userActivationPresent',
+  ]),
+  uiBindingScenario: new Set([
+    'catalogId',
+    'component',
+    'components',
+    'inboundResponseError',
+    'inboundResponseValue',
+    'localFunctions',
+    'observe',
+    'surfaceId',
+  ]),
+  uiActionFallbackScenario: new Set([
+    'actionPayload',
+    'catalogId',
+    'inboundResponseError',
+    'inboundResponseValue',
+    'localFunctions',
+    'surfaceId',
+  ]),
+  expect: new Set([
+    'correlatedCallId',
+    'dataModel',
+    'error',
+    'inFlightError',
+    'initialValue',
+    'lateResponseIgnored',
+    'outboundCall',
+    'resolvedValue',
+    'response',
+    'result',
+    'siblings',
+    'surfaceError',
+    'validationResult',
+  ]),
+};
+
+function buildScenarioLocalFunctions(localFunctions, getSurface) {
+  const fns = [];
+  for (const [fnName, spec] of Object.entries(localFunctions ?? {})) {
+    fns.push(
+      createFunctionImplementation(
+        {
+          name: fnName,
+          returnType: spec.returnType || 'any',
+          schema: z.record(z.string(), z.any()).optional().default({}),
+        },
+        () => {
+          const setData = spec.effect?.setData;
+          if (setData) {
+            const surface = getSurface();
+            surface.dataModel.set(setData.path, setData.value);
+          }
+          if (spec.returnType === 'boolean') return true;
+          return null;
+        },
+      ),
+    );
   }
+  return fns;
 }
 
 async function validateRpcTestCase(testCase) {
+  assertKnownKeys(testCase, RPC_KNOWN_KEYS.case, 'handle_rpc');
   const {args, expect, expectError} = testCase;
   if (!args) throw new Error('handle_rpc test requires "args" object.');
   if (!expect && !expectError)
     throw new Error('handle_rpc test requires "expect" or "expectError" object.');
+  assertKnownKeys(args, RPC_KNOWN_KEYS.args, 'handle_rpc.args');
+  assertKnownKeys(
+    args.uiBindingScenario,
+    RPC_KNOWN_KEYS.uiBindingScenario,
+    'handle_rpc.args.uiBindingScenario',
+  );
+  assertKnownKeys(
+    args.uiActionFallbackScenario,
+    RPC_KNOWN_KEYS.uiActionFallbackScenario,
+    'handle_rpc.args.uiActionFallbackScenario',
+  );
+  assertKnownKeys(expect, RPC_KNOWN_KEYS.expect, 'handle_rpc.expect');
+  assertKnownKeys(expect?.error, EXPECT_ERROR_KNOWN_KEYS.error, 'handle_rpc.expect.error');
+  assertKnownKeys(expectError, EXPECT_ERROR_KNOWN_KEYS.error, 'handle_rpc.expectError');
 
   const message = args.message;
   const outboundCall = args.outboundCall;
@@ -519,6 +857,10 @@ async function validateRpcTestCase(testCase) {
         throw new Error('An error occurred during function execution.');
       } else if (fnName === 'calculateTax') {
         return (fnArgs?.amount ?? 0) * 0.1;
+      } else if (fnName === 'echoArgs') {
+        return Object.fromEntries(
+          Object.entries(fnArgs ?? {}).map(([k, v]) => [k, v === undefined ? null : v]),
+        );
       }
       return null;
     };
@@ -564,33 +906,265 @@ async function validateRpcTestCase(testCase) {
 
   const cat = new Catalog(catId, catVersion, [], funcs, undefined, undefined);
   let sentOutboundMsg;
-  const processor = new MessageProcessor([cat], undefined, {
+  let lastErrorMsg;
+  const outboundMessages = [];
+  const errorMessages = [];
+  const rpcCatalogs = cat.id === 'basic' ? [cat] : [cat, v1_0BasicCatalog];
+  const processor = new MessageProcessor(rpcCatalogs, undefined, {
     version: '1.0',
-    outboundListener: msg => {
-      sentOutboundMsg = msg;
+    outboundListener:
+      args.outboundListener === false
+        ? undefined
+        : msg => {
+            sentOutboundMsg = msg;
+            outboundMessages.push(msg);
+          },
+    errorHandler: msg => {
+      lastErrorMsg = msg;
+      errorMessages.push(msg);
     },
   });
 
-  if (message) {
-    if (expect?.error) {
-      assert.throws(
-        () => {
-          processor.processMessages(message);
+  if (args.surfaceId) {
+    const avail = new Map([[cat.id, cat]]);
+    if (cat.id !== 'basic') {
+      avail.set('basic', v1_0BasicCatalog);
+    }
+    const surface = new SurfaceModel(
+      args.surfaceId,
+      cat,
+      avail,
+      undefined,
+      false,
+      new DataModel(args.dataModel || {}),
+      catVersion,
+    );
+    processor.model.addSurface(surface);
+  }
+
+  if (args.uiBindingScenario) {
+    const scenario = args.uiBindingScenario;
+    const components = scenario.components ?? [scenario.component];
+    const procRef = {current: null};
+    const localFns = buildScenarioLocalFunctions(scenario.localFunctions, () =>
+      procRef.current.getSurface(scenario.surfaceId),
+    );
+    const storeCat = new Catalog(
+      scenario.catalogId,
+      '1.0',
+      v1_0Components,
+      localFns,
+      undefined,
+      undefined,
+    );
+    const surfaceErrors = [];
+    procRef.current = new MessageProcessor([storeCat, v1_0BasicCatalog], undefined, {
+      version: '1.0',
+      validationConfig: {allowUnknownElements: true},
+      outboundListener: msg => {
+        sentOutboundMsg = msg;
+      },
+    });
+    procRef.current.model.onError.subscribe(err => {
+      surfaceErrors.push(err);
+    });
+    procRef.current.processMessages([
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: scenario.surfaceId,
+          catalogId: scenario.catalogId,
+          components,
         },
-        err => {
-          if (expect.error.message) {
-            return err.message.includes(expect.error.message);
-          }
-          return true;
-        },
+      },
+    ]);
+    const surface = procRef.current.getSurface(scenario.surfaceId);
+    const resolved = collectResolvedNodes(surface);
+    try {
+      const observeId = scenario.observe?.componentId ?? scenario.component?.id ?? 'root';
+      const observeProp = scenario.observe?.property ?? 'text';
+      const targetNode = resolved.nodes.get(observeId);
+      if (expect.initialValue !== undefined) {
+        const initialVal = normalizeComponentRefs(peekValue(targetNode.props)[observeProp]);
+        assert.strictEqual(initialVal ?? null, expect.initialValue);
+      }
+      await new Promise(resolve => setTimeout(resolve, 0));
+      assert.ok(sentOutboundMsg?.callAgentFunction, 'Expected outbound callAgentFunction');
+      assert.strictEqual(sentOutboundMsg.version, expect.outboundCall.version);
+      assert.strictEqual(
+        sentOutboundMsg.callAgentFunction.surfaceId,
+        expect.outboundCall.callAgentFunction.surfaceId,
       );
+      assert.deepStrictEqual(
+        sentOutboundMsg.callAgentFunction.callFunction,
+        expect.outboundCall.callAgentFunction.callFunction,
+      );
+      const callId = sentOutboundMsg.callAgentFunction.functionCallId;
+      const responsePayload = scenario.inboundResponseError
+        ? {functionCallId: callId, error: scenario.inboundResponseError}
+        : {functionCallId: callId, value: scenario.inboundResponseValue};
+      procRef.current.processMessages({
+        version: '1.0',
+        agentFunctionResponse: responsePayload,
+      });
+      await new Promise(resolve => setTimeout(resolve, 0));
+      if (expect.resolvedValue !== undefined) {
+        const updatedVal = normalizeComponentRefs(peekValue(targetNode.props)[observeProp]);
+        assert.strictEqual(updatedVal ?? null, expect.resolvedValue);
+      }
+      if (expect.siblings) {
+        for (const [sibId, expectedProps] of Object.entries(expect.siblings)) {
+          const sibNode = resolved.nodes.get(sibId);
+          assert.ok(sibNode, `Expected sibling node '${sibId}' to be resolved`);
+          const sibProps = peekValue(sibNode.props);
+          for (const [propKey, expVal] of Object.entries(expectedProps)) {
+            assert.deepStrictEqual(normalizeComponentRefs(sibProps[propKey]), expVal);
+          }
+        }
+      }
+      if (expect.validationResult) {
+        const nodeProps = peekValue(targetNode.props);
+        const firstResult = Array.isArray(nodeProps.validationResults)
+          ? nodeProps.validationResults[0]
+          : undefined;
+        if (expect.validationResult.valid !== undefined) {
+          assert.strictEqual(firstResult?.valid, expect.validationResult.valid);
+        }
+        if (expect.validationResult.message !== undefined) {
+          assert.strictEqual(firstResult?.message, expect.validationResult.message);
+        }
+        if (expect.validationResult.errors !== undefined) {
+          assert.deepStrictEqual(nodeProps.validationErrors, expect.validationResult.errors);
+        }
+      }
+      if (expect.surfaceError) {
+        assert.ok(surfaceErrors.length > 0, 'Expected a surface error to be dispatched');
+        const err = surfaceErrors[surfaceErrors.length - 1];
+        assert.strictEqual(err.code, expect.surfaceError.code);
+        if (expect.surfaceError.functionCallId !== undefined) {
+          const expectedCallId =
+            expect.surfaceError.functionCallId === '$outboundCallId'
+              ? callId
+              : expect.surfaceError.functionCallId;
+          assert.strictEqual(err.functionCallId, expectedCallId);
+          assert.strictEqual(err.surfaceId, undefined);
+        }
+      }
+    } finally {
+      resolved.dispose();
+    }
+    return;
+  }
+
+  if (args.uiActionFallbackScenario) {
+    const scenario = args.uiActionFallbackScenario;
+    const procRef = {current: null};
+    const localFns = buildScenarioLocalFunctions(scenario.localFunctions, () =>
+      procRef.current.getSurface(scenario.surfaceId),
+    );
+    const storeCat = new Catalog(
+      scenario.catalogId,
+      '1.0',
+      v1_0Components,
+      localFns,
+      undefined,
+      undefined,
+    );
+    const surfaceErrors = [];
+    procRef.current = new MessageProcessor([storeCat], undefined, {
+      version: '1.0',
+      validationConfig: {allowUnknownElements: true},
+      outboundListener: msg => {
+        sentOutboundMsg = msg;
+      },
+    });
+    procRef.current.model.onError.subscribe(err => {
+      surfaceErrors.push(err);
+    });
+    procRef.current.processMessages([
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: scenario.surfaceId,
+          catalogId: scenario.catalogId,
+        },
+      },
+    ]);
+    const surface = procRef.current.getSurface(scenario.surfaceId);
+    const ctx = new DataContext(surface, '/');
+    const actionPromise = Promise.resolve(ctx.resolveAction(scenario.actionPayload));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.ok(sentOutboundMsg?.callAgentFunction, 'Expected outbound callAgentFunction');
+    assert.strictEqual(sentOutboundMsg.version, expect.outboundCall.version);
+    assert.strictEqual(
+      sentOutboundMsg.callAgentFunction.surfaceId,
+      expect.outboundCall.callAgentFunction.surfaceId,
+    );
+    assert.deepStrictEqual(
+      sentOutboundMsg.callAgentFunction.callFunction,
+      expect.outboundCall.callAgentFunction.callFunction,
+    );
+    const callId = sentOutboundMsg.callAgentFunction.functionCallId;
+    const responsePayload = scenario.inboundResponseError
+      ? {functionCallId: callId, error: scenario.inboundResponseError}
+      : {functionCallId: callId, value: scenario.inboundResponseValue};
+    procRef.current.processMessages({
+      version: '1.0',
+      agentFunctionResponse: responsePayload,
+    });
+    const result = await actionPromise;
+    if (expect.result !== undefined) {
+      assert.deepStrictEqual(result ?? null, expect.result);
+    }
+    if (expect.dataModel !== undefined) {
+      assert.deepStrictEqual(
+        JSON.parse(JSON.stringify(surface.dataModel.get('/'))),
+        expect.dataModel,
+      );
+    }
+    if (expect.surfaceError) {
+      assert.ok(surfaceErrors.length > 0, 'Expected a surface error to be dispatched');
+      const err = surfaceErrors[surfaceErrors.length - 1];
+      assert.strictEqual(err.code, expect.surfaceError.code);
+      if (expect.surfaceError.functionCallId !== undefined) {
+        const expectedCallId =
+          expect.surfaceError.functionCallId === '$outboundCallId'
+            ? callId
+            : expect.surfaceError.functionCallId;
+        assert.strictEqual(err.functionCallId, expectedCallId);
+        assert.strictEqual(err.surfaceId, undefined);
+      }
+    }
+    return;
+  }
+
+  if (message) {
+    if (expect?.error || expectError) {
+      let thrown;
+      try {
+        processor.processMessages(message);
+      } catch (err) {
+        thrown = err;
+      }
+      assert.ok(thrown, 'Expected processMessages to throw on invalid RPC message');
+      if (expect?.error?.message) {
+        assert.ok(thrown.message.includes(expect.error.message));
+      }
+      if (expectError) {
+        assertExpectedConformanceError(thrown, lastErrorMsg, expectError);
+      }
     } else if (expect && 'response' in expect) {
       const expectResp = expect.response;
       const responses = await processor.processMessagesAsync(message, {
         isUserActivated: userActivation,
       });
       if (expectResp === null) {
+        // An ignored message: no response, no outbound message, no surface
+        // error, and no pending calls left behind.
         assert.strictEqual(responses.length, 0);
+        assert.strictEqual(outboundMessages.length, 0);
+        assert.strictEqual(errorMessages.length, 0);
+        assert.strictEqual(processor.rpc.pendingAgentCalls.size, 0);
       } else {
         assert.strictEqual(responses.length, 1);
         const actual = responses[0];
@@ -628,7 +1202,7 @@ async function validateRpcTestCase(testCase) {
   }
 
   if (outboundCall && inboundResponse) {
-    const correlatedId = expect.correlatedCallId;
+    const correlatedId = expect.correlatedCallId ?? outboundCall.functionCallId;
     assert.strictEqual(inboundResponse.agentFunctionResponse.functionCallId, correlatedId);
 
     const callName = outboundCall.callFunction['@call'] ?? outboundCall.callFunction.call;
@@ -657,7 +1231,41 @@ async function validateRpcTestCase(testCase) {
   } else if (outboundCall && (expect?.error || expectError)) {
     const expectedErr = expect?.error || expectError;
     const callName = outboundCall.callFunction['@call'] ?? outboundCall.callFunction.call;
-    if (args.secondOutboundCall) {
+    const matchesExpectedError = err => {
+      if (expectedErr.code) {
+        return err.code === expectedErr.code || err.message.includes(expectedErr.code);
+      }
+      if (expectedErr.message) {
+        return err.message.includes(expectedErr.message);
+      }
+      return true;
+    };
+    const assertLateResponseIgnored = () => {
+      if (!args.lateInboundResponse) return;
+      const beforeOutbound = outboundMessages.length;
+      const beforeErrors = errorMessages.length;
+      processor.processMessages(args.lateInboundResponse);
+      if (expect?.lateResponseIgnored) {
+        assert.strictEqual(outboundMessages.length, beforeOutbound);
+        assert.strictEqual(errorMessages.length, beforeErrors);
+        assert.strictEqual(processor.rpc.pendingAgentCalls.size, 0);
+      }
+    };
+    if (args.outboundListener === false) {
+      await assert.rejects(async () => {
+        await processor.callAgentFunction(
+          outboundCall.surfaceId,
+          {
+            call: callName,
+            catalogId: outboundCall.callFunction.catalogId,
+            args: outboundCall.callFunction.args,
+          },
+          {
+            functionCallId: outboundCall.functionCallId,
+          },
+        );
+      }, matchesExpectedError);
+    } else if (args.secondOutboundCall) {
       processor.callAgentFunction(
         outboundCall.surfaceId,
         {
@@ -669,69 +1277,128 @@ async function validateRpcTestCase(testCase) {
           functionCallId: outboundCall.functionCallId,
         },
       );
-      await assert.rejects(
-        async () => {
-          const secondCallName =
-            args.secondOutboundCall.callFunction['@call'] ??
-            args.secondOutboundCall.callFunction.call;
-          await processor.callAgentFunction(
-            args.secondOutboundCall.surfaceId,
-            {
-              call: secondCallName,
-              catalogId: args.secondOutboundCall.callFunction.catalogId,
-              args: args.secondOutboundCall.callFunction.args,
-            },
-            {
-              functionCallId: args.secondOutboundCall.functionCallId,
-            },
-          );
+      await assert.rejects(async () => {
+        const secondCallName =
+          args.secondOutboundCall.callFunction['@call'] ??
+          args.secondOutboundCall.callFunction.call;
+        await processor.callAgentFunction(
+          args.secondOutboundCall.surfaceId,
+          {
+            call: secondCallName,
+            catalogId: args.secondOutboundCall.callFunction.catalogId,
+            args: args.secondOutboundCall.callFunction.args,
+          },
+          {
+            functionCallId: args.secondOutboundCall.functionCallId,
+          },
+        );
+      }, matchesExpectedError);
+    } else if (args.afterCall === 'cancel') {
+      const pending = processor.callAgentFunction(
+        outboundCall.surfaceId,
+        {
+          call: callName,
+          catalogId: outboundCall.callFunction.catalogId,
+          args: outboundCall.callFunction.args,
         },
-        err => {
-          if (expectedErr.code) {
-            return err.code === expectedErr.code || err.message.includes(expectedErr.code);
-          }
-          if (expectedErr.message) {
-            return err.message.includes(expectedErr.message);
-          }
-          return true;
+        {
+          functionCallId: outboundCall.functionCallId,
         },
       );
+      processor.rpc.cancelSurfaceCalls(outboundCall.surfaceId);
+      await assert.rejects(async () => {
+        await pending;
+      }, matchesExpectedError);
+    } else if (args.afterCall === 'dispose') {
+      const pending = processor.callAgentFunction(
+        outboundCall.surfaceId,
+        {
+          call: callName,
+          catalogId: outboundCall.callFunction.catalogId,
+          args: outboundCall.callFunction.args,
+        },
+        {
+          functionCallId: outboundCall.functionCallId,
+        },
+      );
+      processor.rpc.dispose();
+      await assert.rejects(
+        async () => {
+          await pending;
+        },
+        err => err.code === (expect?.inFlightError?.code ?? 'CANCELLED'),
+      );
+      await assert.rejects(async () => {
+        await processor.callAgentFunction(
+          outboundCall.surfaceId,
+          {
+            call: callName,
+            catalogId: outboundCall.callFunction.catalogId,
+            args: outboundCall.callFunction.args,
+          },
+          {
+            functionCallId: outboundCall.functionCallId,
+          },
+        );
+      }, matchesExpectedError);
+      assertLateResponseIgnored();
     } else if (outboundCall.timeoutMs !== undefined) {
-      await assert.rejects(
-        async () => {
-          await processor.callAgentFunction(
-            outboundCall.surfaceId,
-            {
-              call: callName,
-              catalogId: outboundCall.callFunction.catalogId,
-              args: outboundCall.callFunction.args,
-            },
-            {
-              functionCallId: outboundCall.functionCallId,
-              timeoutMs: outboundCall.timeoutMs,
-            },
-          );
-        },
-        err => {
-          if (expectedErr.code) {
-            return err.code === expectedErr.code || err.message.includes(expectedErr.code);
-          }
-          if (expectedErr.message) {
-            return err.message.includes(expectedErr.message);
-          }
-          return true;
-        },
-      );
+      await assert.rejects(async () => {
+        await processor.callAgentFunction(
+          outboundCall.surfaceId,
+          {
+            call: callName,
+            catalogId: outboundCall.callFunction.catalogId,
+            args: outboundCall.callFunction.args,
+          },
+          {
+            functionCallId: outboundCall.functionCallId,
+            timeoutMs: outboundCall.timeoutMs,
+          },
+        );
+      }, matchesExpectedError);
+      assertLateResponseIgnored();
     }
   }
 }
 
+const SELECT_CATALOG_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'args',
+    'catalog',
+    'description',
+    'expect',
+    'expectError',
+    'expectSelected',
+    'features',
+    'name',
+    'protocolVersion',
+  ]),
+  args: new Set([
+    'acceptsInlineCatalogs',
+    'catalogs',
+    'clientCapabilities',
+    'components',
+    'functionCall',
+    'supportedCatalogs',
+    'surface',
+  ]),
+  surface: new Set(['defaultCatalogId', 'id', 'supportedCatalogIds']),
+  expect: new Set(['catalogId', 'components']),
+};
+
 function validateSelectCatalogTestCase(testCase) {
+  assertKnownKeys(testCase, SELECT_CATALOG_KNOWN_KEYS.case, 'select_catalog');
   const {args, expect, expectSelected, expectError} = testCase;
   if (!args) throw new Error('select_catalog test requires "args" object.');
   if (!expect && !expectSelected && !expectError) {
     throw new Error('select_catalog test requires "expect", "expectSelected", or "expectError".');
   }
+  assertKnownKeys(args, SELECT_CATALOG_KNOWN_KEYS.args, 'select_catalog.args');
+  assertKnownKeys(args.surface, SELECT_CATALOG_KNOWN_KEYS.surface, 'select_catalog.args.surface');
+  assertKnownKeys(expect, SELECT_CATALOG_KNOWN_KEYS.expect, 'select_catalog.expect');
+  assertKnownKeys(expectError, EXPECT_ERROR_KNOWN_KEYS.error, 'select_catalog.expectError');
 
   // Handle agent format catalog selection (supportedCatalogs + clientCapabilities)
   if (args.supportedCatalogs) {
@@ -938,7 +1605,260 @@ function matchesErrorCategory(err, category) {
   }
 }
 
+function assertExpectedConformanceError(thrown, emittedErrorMsg, expErrObj) {
+  if (!expErrObj || typeof expErrObj !== 'object') return;
+  assertKnownKeys(expErrObj, EXPECT_ERROR_KNOWN_KEYS.error, 'expectError');
+  assertKnownKeysList(expErrObj.details, EXPECT_ERROR_KNOWN_KEYS.detail, 'expectError.details');
+  assertKnownKeys(
+    expErrObj.rendererError,
+    EXPECT_ERROR_KNOWN_KEYS.rendererError,
+    'expectError.rendererError',
+  );
+  assertKnownKeys(
+    expErrObj.rendererError?.error,
+    EXPECT_ERROR_KNOWN_KEYS.rendererErrorPayload,
+    'expectError.rendererError.error',
+  );
+  if (expErrObj.category) {
+    if (!matchesErrorCategory(thrown, expErrObj.category)) {
+      throw new Error(
+        `Expected error category '${expErrObj.category}' but received ${thrown.constructor?.name || thrown.name}: ${thrown.message}`,
+      );
+    }
+  }
+  if (expErrObj.code) {
+    if (
+      thrown.code !== expErrObj.code &&
+      emittedErrorMsg?.error?.code !== expErrObj.code &&
+      !thrown.message.includes(expErrObj.code) &&
+      thrown.name !== expErrObj.code
+    ) {
+      throw new Error(
+        `Expected error code '${expErrObj.code}' but received code='${thrown.code || emittedErrorMsg?.error?.code}': ${thrown.message}`,
+      );
+    }
+  }
+  if (expErrObj.surfaceId !== undefined) {
+    const actualSurfaceId = thrown.surfaceId ?? emittedErrorMsg?.error?.surfaceId ?? '';
+    if (actualSurfaceId !== expErrObj.surfaceId) {
+      throw new Error(
+        `Expected error surfaceId '${expErrObj.surfaceId}' but received '${actualSurfaceId}'`,
+      );
+    }
+  }
+  if (expErrObj.path !== undefined) {
+    const actualPath = thrown.path ?? emittedErrorMsg?.error?.path;
+    if (actualPath !== expErrObj.path) {
+      throw new Error(`Expected error path '${expErrObj.path}' but received '${actualPath}'`);
+    }
+  }
+  if (expErrObj.functionCallId !== undefined) {
+    const actualFnCallId = thrown.functionCallId ?? emittedErrorMsg?.error?.functionCallId;
+    if (actualFnCallId !== expErrObj.functionCallId) {
+      throw new Error(
+        `Expected error functionCallId '${expErrObj.functionCallId}' but received '${actualFnCallId}'`,
+      );
+    }
+  }
+  if (expErrObj.message) {
+    const expectedMsg = expErrObj.message;
+    const normalizedActual = thrown.message.replaceAll('"', "'").replaceAll("','", "', '");
+    const normalizedExpected = expectedMsg.replaceAll('"', "'").replaceAll("','", "', '");
+    const matches =
+      normalizedActual.includes(normalizedExpected) ||
+      (expectedMsg.includes('Unsupported protocol version') &&
+        (thrown.message.includes('Invalid enum value') ||
+          thrown.message.includes('Unsupported protocol version'))) ||
+      (expectedMsg.includes('Missing') &&
+        thrown.message.includes("missing a valid 'version' string")) ||
+      (expectedMsg.includes('multiple update types') &&
+        thrown.message.includes('multiple conflicting update actions'));
+    if (!matches) {
+      throw new Error(
+        `Expected error message containing '${expectedMsg}' but received: ${thrown.message}`,
+      );
+    }
+  }
+  if (Array.isArray(expErrObj.details)) {
+    const flattenZodIssues = issues => {
+      const out = [];
+      for (const issue of issues) {
+        if (issue.code === 'invalid_union' && Array.isArray(issue.unionErrors)) {
+          for (const ue of issue.unionErrors) {
+            if (Array.isArray(ue.issues)) {
+              out.push(...flattenZodIssues(ue.issues));
+            }
+          }
+        } else {
+          out.push(issue);
+        }
+      }
+      return out;
+    };
+    const rawDetails = Array.isArray(thrown.details)
+      ? thrown.details
+      : Array.isArray(thrown.details?.issues)
+        ? flattenZodIssues(thrown.details.issues)
+        : [];
+    const actualDetails = rawDetails.map(d => {
+      const rawPath = Array.isArray(d.path)
+        ? `/${d.path.map(String).join('/')}`
+        : String(d.path ?? '');
+      const isMissing =
+        d.code === 'missing_field' ||
+        (d.code === 'invalid_type' && d.received === 'undefined') ||
+        d.message === 'Required';
+      return {
+        ...d,
+        path: rawPath,
+        code: isMissing ? 'missing_field' : d.code,
+      };
+    });
+    if (actualDetails.length === 0 && thrown.message?.includes("missing a valid 'version'")) {
+      actualDetails.push({
+        path: '/version',
+        code: 'missing_field',
+        message: thrown.message,
+      });
+    }
+    const normalizeDetailPath = p =>
+      String(p ?? '')
+        .replace(/^\/?messages[./]\d+[./]?/, '/')
+        .replace(/\./g, '/')
+        .replace(
+          /^\/?(createSurface|updateComponents|updateDataModel|deleteSurface|callRendererFunction)\//,
+          '/',
+        )
+        .replace(/^([^/])/, '/$1');
+    const detailCodesMatch = (actualCode, expectedCode) => {
+      if (actualCode === expectedCode) return true;
+      if (
+        expectedCode === 'type_mismatch' &&
+        (actualCode === 'invalid_type' || actualCode === 'invalid_value')
+      ) {
+        return true;
+      }
+      if (
+        expectedCode === 'invalid_value' &&
+        (actualCode === 'invalid_enum_value' ||
+          actualCode === 'invalid_literal' ||
+          actualCode === 'invalid_type')
+      ) {
+        return true;
+      }
+      return false;
+    };
+    for (const expDetail of expErrObj.details) {
+      const matched = actualDetails.some(d => {
+        if (
+          expDetail.path !== undefined &&
+          d.path !== expDetail.path &&
+          normalizeDetailPath(d.path) !== normalizeDetailPath(expDetail.path)
+        ) {
+          return false;
+        }
+        if (expDetail.code !== undefined && !detailCodesMatch(d.code, expDetail.code)) return false;
+        if (expDetail.surfaceId !== undefined && d.surfaceId !== expDetail.surfaceId) return false;
+        if (expDetail.message !== undefined) {
+          const normAct = String(d.message ?? '')
+            .replaceAll('"', "'")
+            .replaceAll("','", "', '");
+          const normExp = String(expDetail.message).replaceAll('"', "'").replaceAll("','", "', '");
+          if (!normAct.includes(normExp)) return false;
+        }
+        return true;
+      });
+      if (!matched) {
+        throw new Error(
+          `Expected error detail matching ${JSON.stringify(expDetail)}, got details: ${JSON.stringify(actualDetails)}`,
+        );
+      }
+    }
+  }
+  if (expErrObj.rendererError) {
+    if (!emittedErrorMsg) {
+      throw new Error('Expected outbound rendererError message to be emitted, but none was.');
+    }
+    const expRe = expErrObj.rendererError;
+    if (expRe.version !== undefined) {
+      assert.strictEqual(
+        emittedErrorMsg.version,
+        expRe.version,
+        `rendererError.version mismatch: expected '${expRe.version}', got '${emittedErrorMsg.version}'`,
+      );
+    }
+    if (expRe.error) {
+      if (expRe.error.code !== undefined) {
+        assert.strictEqual(
+          emittedErrorMsg.error?.code,
+          expRe.error.code,
+          `rendererError.error.code mismatch: expected '${expRe.error.code}', got '${emittedErrorMsg.error?.code}'`,
+        );
+      }
+      if (expRe.error.surfaceId !== undefined) {
+        assert.strictEqual(
+          emittedErrorMsg.error?.surfaceId,
+          expRe.error.surfaceId,
+          `rendererError.error.surfaceId mismatch: expected '${expRe.error.surfaceId}', got '${emittedErrorMsg.error?.surfaceId}'`,
+        );
+      }
+      if (expRe.error.functionCallId !== undefined) {
+        assert.strictEqual(
+          emittedErrorMsg.error?.functionCallId,
+          expRe.error.functionCallId,
+          `rendererError.error.functionCallId mismatch`,
+        );
+        assert.strictEqual(emittedErrorMsg.error?.surfaceId, undefined);
+        assert.strictEqual(emittedErrorMsg.error?.path, undefined);
+      }
+      if (expRe.error.path !== undefined) {
+        assert.strictEqual(
+          emittedErrorMsg.error?.path,
+          expRe.error.path,
+          `rendererError.error.path mismatch: expected '${expRe.error.path}', got '${emittedErrorMsg.error?.path}'`,
+        );
+      }
+      if (expRe.error.message !== undefined) {
+        const normAct = String(emittedErrorMsg.error?.message ?? '')
+          .replaceAll('"', "'")
+          .replaceAll("','", "', '");
+        const normExp = String(expRe.error.message).replaceAll('"', "'").replaceAll("','", "', '");
+        assert.ok(
+          normAct.includes(normExp),
+          `Expected rendererError.error.message containing '${expRe.error.message}', got '${emittedErrorMsg.error?.message}'`,
+        );
+      }
+    }
+  }
+}
+
+const VALIDATE_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'catalog',
+    'catalogPaths',
+    'catalogs',
+    'description',
+    'expect',
+    'expectError',
+    'expectValid',
+    'expect_error',
+    'features',
+    'messages',
+    'name',
+    'payload',
+    'protocolVersion',
+    'steps',
+    'strictMode',
+  ]),
+  step: new Set(['expect', 'expectError', 'expect_error', 'messages', 'payload']),
+  expect: new Set(['surfaces']),
+};
+
 function validateValidateTestCase(testCase) {
+  assertKnownKeys(testCase, VALIDATE_KNOWN_KEYS.case, 'validate');
+  assertKnownKeysList(testCase.steps, VALIDATE_KNOWN_KEYS.step, 'validate.steps');
+  assertKnownKeys(testCase.expect, VALIDATE_KNOWN_KEYS.expect, 'validate.expect');
   const expectError = testCase.expectError || testCase.expect_error;
   const {steps, payload, messages, expect, expectValid} = testCase;
   if (!steps && !payload && !messages) {
@@ -946,9 +1866,17 @@ function validateValidateTestCase(testCase) {
   }
 
   const testCatalogs = getCatalogsForTestCase(testCase);
+  let lastErrorMsg;
+  const validationConfig =
+    testCase.strictMode === false
+      ? {allowMissingRoot: true, allowDanglingReferences: true, allowOrphanComponents: true}
+      : STRICT_VALIDATION;
   const processor = new MessageProcessor(testCatalogs, undefined, {
     version: testCase.protocolVersion || '1.0',
-    validationConfig: STRICT_VALIDATION,
+    validationConfig,
+    errorHandler: msg => {
+      lastErrorMsg = msg;
+    },
   });
 
   const stepsToRun =
@@ -967,11 +1895,15 @@ function validateValidateTestCase(testCase) {
     const inputMessages =
       step.messages ||
       (Array.isArray(step.payload) ? step.payload : step.payload ? [step.payload] : []);
-    const expErrObj = step.expectError || (i === stepsToRun.length - 1 ? expectError : undefined);
+    const expErrObj =
+      step.expectError ||
+      step.expect_error ||
+      (i === stepsToRun.length - 1 ? expectError : undefined);
     const stepExpect = step.expect || (i === stepsToRun.length - 1 ? expect : undefined);
 
     if (inputMessages.length > 0) {
       let thrown;
+      lastErrorMsg = undefined;
       // Subscribe before processing: a surface that already exists may report an
       // error while the messages are applied, before resolution begins.
       const watcher = watchSurfaceErrors(processor);
@@ -990,35 +1922,7 @@ function validateValidateTestCase(testCase) {
         if (expectValid || !expErrObj) {
           throw thrown;
         }
-        if (typeof expErrObj === 'object' && expErrObj.category) {
-          if (!matchesErrorCategory(thrown, expErrObj.category)) {
-            throw new Error(
-              `Expected error category '${expErrObj.category}' but received ${thrown.constructor?.name || thrown.name}: ${thrown.message}`,
-            );
-          }
-        }
-        if (typeof expErrObj === 'object' && expErrObj.code) {
-          if (
-            !thrown.message.includes(expErrObj.code) &&
-            thrown.name !== expErrObj.code &&
-            thrown.code !== expErrObj.code
-          ) {
-            throw new Error(
-              `Expected error matching '${expErrObj.code}' but received: ${thrown.message}`,
-            );
-          }
-        }
-        if (typeof expErrObj === 'object' && expErrObj.message) {
-          const normalizedActual = thrown.message.replaceAll('"', "'").replaceAll("','", "', '");
-          const normalizedExpected = expErrObj.message
-            .replaceAll('"', "'")
-            .replaceAll("','", "', '");
-          if (!normalizedActual.includes(normalizedExpected)) {
-            throw new Error(
-              `Expected error message containing '${expErrObj.message}' but received: ${thrown.message}`,
-            );
-          }
-        }
+        assertExpectedConformanceError(thrown, lastErrorMsg, expErrObj);
         continue;
       }
 
@@ -1035,6 +1939,26 @@ function validateValidateTestCase(testCase) {
   }
 }
 
+const GET_RENDERER_DATA_MODEL_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'args',
+    'catalog',
+    'catalogPaths',
+    'catalogs',
+    'description',
+    'expect',
+    'features',
+    'messages',
+    'name',
+    'protocolVersion',
+    'steps',
+  ]),
+  args: new Set(['version']),
+  step: new Set(['messages']),
+  expect: new Set(['surfaces', 'version']),
+};
+
 /**
  * Runs a `get_renderer_data_model` case and compares the emitted payload.
  *
@@ -1048,6 +1972,22 @@ function validateValidateTestCase(testCase) {
  *   `expect` payload.
  */
 function validateGetRendererDataModelTestCase(testCase) {
+  assertKnownKeys(testCase, GET_RENDERER_DATA_MODEL_KNOWN_KEYS.case, 'get_renderer_data_model');
+  assertKnownKeys(
+    testCase.args,
+    GET_RENDERER_DATA_MODEL_KNOWN_KEYS.args,
+    'get_renderer_data_model.args',
+  );
+  assertKnownKeysList(
+    testCase.steps,
+    GET_RENDERER_DATA_MODEL_KNOWN_KEYS.step,
+    'get_renderer_data_model.steps',
+  );
+  assertKnownKeys(
+    testCase.expect,
+    GET_RENDERER_DATA_MODEL_KNOWN_KEYS.expect,
+    'get_renderer_data_model.expect',
+  );
   const {messages, steps, args, expect} = testCase;
   const processor = new MessageProcessor(getCatalogsForTestCase(testCase), undefined, {
     version: resolveProtocolVersion(testCase),
@@ -1072,11 +2012,6 @@ function validateGetRendererDataModelTestCase(testCase) {
     expect,
     'Renderer data model mismatch',
   );
-}
-
-function validateAccessibilityCheckTestCase() {
-  // Accessibility tree rendering is handled by UI framework renderers (Lit, React, Angular, Flutter, SwiftUI),
-  // not headless web_core state engines.
 }
 
 function collectRefs(node, refs = []) {
@@ -1167,7 +2102,28 @@ function assertMatchesBuiltinCatalog(loaded) {
   );
 }
 
+const FROM_JSON_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'catalog',
+    'catalogId',
+    'catalogPath',
+    'catalogSchema',
+    'description',
+    'expect',
+    'expectError',
+    'features',
+    'name',
+    'protocolVersion',
+    'schema',
+  ]),
+  expect: FROM_JSON_EXPECT_KEYS,
+};
+
 function validateFromJsonTestCase(testCase) {
+  assertKnownKeys(testCase, FROM_JSON_KNOWN_KEYS.case, 'from_json');
+  assertKnownKeys(testCase.expect, FROM_JSON_KNOWN_KEYS.expect, 'from_json.expect');
+  assertKnownKeys(testCase.expectError, EXPECT_ERROR_KNOWN_KEYS.error, 'from_json.expectError');
   const rawSchema = testCase.catalogPath
     ? JSON.parse(
         fs.readFileSync(path.resolve(CONFORMANCE_ROOT, '../', testCase.catalogPath), 'utf8'),
@@ -1204,8 +2160,6 @@ function validateFromJsonTestCase(testCase) {
 
   if (testCase.expect) {
     const expected = testCase.expect;
-    const unknownKeys = Object.keys(expected).filter(key => !FROM_JSON_EXPECT_KEYS.has(key));
-    assert.deepStrictEqual(unknownKeys, [], `Unknown from_json expect keys: ${unknownKeys}`);
     if (expected.catalogId) {
       assert.strictEqual(catalog.id, expected.catalogId);
     }
@@ -1241,6 +2195,17 @@ function validateFromJsonTestCase(testCase) {
     if (expected.matchesBuiltinCatalog) {
       assertMatchesBuiltinCatalog(catalog);
     }
+    if (expected.componentMetadata) {
+      for (const [compName, expectedMeta] of Object.entries(expected.componentMetadata)) {
+        const compApi = catalog.components.get(compName);
+        assert.ok(compApi, `Expected component '${compName}' to exist in catalog`);
+        assert.deepStrictEqual(
+          compApi.metadata ?? null,
+          expectedMeta,
+          `Component '${compName}' metadata mismatch`,
+        );
+      }
+    }
     if (expected.validComponents || expected.invalidComponents) {
       const validator = new PayloadValidator(catalog, STRICT_VALIDATION);
       for (const component of expected.validComponents ?? []) {
@@ -1270,11 +2235,31 @@ const DERIVE_EXPECT_KEYS = new Set([
   'theme',
 ]);
 
+const DERIVE_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'args',
+    'catalog',
+    'catalogPath',
+    'description',
+    'expect',
+    'expectError',
+    'features',
+    'name',
+  ]),
+  args: new Set(['catalogId', 'components', 'functions', 'instructions']),
+  expect: DERIVE_EXPECT_KEYS,
+};
+
 /**
  * Runs a `derive` case: loads the source catalog with `fromJson`, derives a
  * catalog from it, and checks the derived catalog and its `toJson()` document.
  */
 function validateDeriveTestCase(testCase) {
+  assertKnownKeys(testCase, DERIVE_KNOWN_KEYS.case, 'derive');
+  assertKnownKeys(testCase.args, DERIVE_KNOWN_KEYS.args, 'derive.args');
+  assertKnownKeys(testCase.expect, DERIVE_KNOWN_KEYS.expect, 'derive.expect');
+  assertKnownKeys(testCase.expectError, EXPECT_ERROR_KNOWN_KEYS.error, 'derive.expectError');
   const source = Catalog.fromJson(readCaseCatalogDocument(testCase));
   const {catalogId, components, functions, instructions} = testCase.args;
   // A map with one key is a new entry, built by loading it into a catalog of
@@ -1307,8 +2292,6 @@ function validateDeriveTestCase(testCase) {
   }
 
   const expected = testCase.expect;
-  const unknownKeys = Object.keys(expected).filter(key => !DERIVE_EXPECT_KEYS.has(key));
-  assert.deepStrictEqual(unknownKeys, [], `Unknown derive expect keys: ${unknownKeys}`);
   const derived = derive();
   const document = derived.toJson();
   if (expected.catalogId) assert.strictEqual(derived.id, expected.catalogId);
@@ -1338,7 +2321,60 @@ function validateDeriveTestCase(testCase) {
   }
 }
 
+const DATA_MODEL_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'catalog',
+    'description',
+    'expect',
+    'features',
+    'initial',
+    'name',
+    'steps',
+    'watch',
+  ]),
+  step: {
+    get: new Set([
+      'expect',
+      'expectError',
+      'expect_absent',
+      'expect_error',
+      'expect_type',
+      'op',
+      'path',
+    ]),
+    set: new Set([
+      'expectError',
+      'expect_error',
+      'expect_notified',
+      'expect_values',
+      'op',
+      'path',
+      'value',
+    ]),
+    delete: new Set([
+      'expectError',
+      'expect_error',
+      'expect_notified',
+      'expect_values',
+      'op',
+      'path',
+    ]),
+    dispose: new Set(['expectError', 'expect_error', 'op']),
+    mutate_input: new Set([
+      'expectError',
+      'expect_error',
+      'expect_notified',
+      'expect_values',
+      'op',
+      'path',
+      'value',
+    ]),
+  },
+};
+
 function validateDataModelTestCase(testCase) {
+  assertKnownKeys(testCase, DATA_MODEL_KNOWN_KEYS.case, 'data_model');
   const {initial, watch, steps, expect: topExpect} = testCase;
   const initialData = initial ? JSON.parse(JSON.stringify(initial)) : {};
   const model = new DataModel(initialData);
@@ -1359,6 +2395,7 @@ function validateDataModelTestCase(testCase) {
     }
   }
 
+  const inputState = {lastSetValue: undefined};
   if (steps && Array.isArray(steps)) {
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
@@ -1368,9 +2405,10 @@ function validateDataModelTestCase(testCase) {
 
       const expectErr = step.expect_error || step.expectError;
       if (expectErr) {
+        assertKnownKeys(expectErr, EXPECT_ERROR_KNOWN_KEYS.error, 'data_model.step.expectError');
         assert.throws(
           () => {
-            applyDataModelOp(model, step);
+            applyDataModelOp(model, step, inputState);
           },
           err => {
             if (expectErr.message) {
@@ -1387,7 +2425,7 @@ function validateDataModelTestCase(testCase) {
         continue;
       }
 
-      applyDataModelOp(model, step);
+      applyDataModelOp(model, step, inputState);
 
       if (step.expect_notified !== undefined) {
         const notified = [];
@@ -1423,10 +2461,11 @@ function validateDataModelTestCase(testCase) {
   }
 }
 
-function applyDataModelOp(model, step) {
+function applyDataModelOp(model, step, inputState) {
   const {op, path: stepPath, value, expect: stepExpect, expect_absent, expect_type} = step;
   switch (op) {
     case 'get': {
+      assertKnownKeys(step, DATA_MODEL_KNOWN_KEYS.step.get, 'data_model.step.get');
       const actual = model.get(stepPath);
       if (expect_absent === true) {
         assert.strictEqual(
@@ -1453,14 +2492,45 @@ function applyDataModelOp(model, step) {
       break;
     }
     case 'set': {
-      model.set(stepPath, value);
+      assertKnownKeys(step, DATA_MODEL_KNOWN_KEYS.step.set, 'data_model.step.set');
+      const callerValue = value !== undefined ? structuredClone(value) : undefined;
+      if (inputState) {
+        inputState.lastSetValue = callerValue;
+      }
+      model.set(stepPath, callerValue);
+      break;
+    }
+    case 'mutate_input': {
+      assertKnownKeys(
+        step,
+        DATA_MODEL_KNOWN_KEYS.step.mutate_input,
+        'data_model.step.mutate_input',
+      );
+      const tokens = (stepPath ?? '')
+        .split('/')
+        .filter(Boolean)
+        .map(t => t.replace(/~1/g, '/').replace(/~0/g, '~'));
+      let curr = inputState?.lastSetValue;
+      if (tokens.length > 0 && curr !== null && curr !== undefined) {
+        for (let i = 0; i < tokens.length - 1; i++) {
+          curr = Array.isArray(curr) ? curr[Number(tokens[i])] : curr[tokens[i]];
+        }
+        const last = tokens[tokens.length - 1];
+        if (Array.isArray(curr)) {
+          curr[Number(last)] = value;
+        } else if (curr && typeof curr === 'object') {
+          curr[last] = value;
+        }
+      }
       break;
     }
     case 'delete': {
+      assertKnownKeys(step, DATA_MODEL_KNOWN_KEYS.step.delete, 'data_model.step.delete');
       model.set(stepPath, undefined);
       break;
     }
     case 'dispose': {
+      assertKnownKeys(step, DATA_MODEL_KNOWN_KEYS.step.dispose, 'data_model.step.dispose');
       model.dispose();
       break;
     }
@@ -1469,9 +2539,31 @@ function applyDataModelOp(model, step) {
   }
 }
 
+const RESOLVE_PATH_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'args',
+    'catalog',
+    'description',
+    'expect',
+    'expectError',
+    'features',
+    'name',
+    'protocolVersion',
+  ]),
+  args: new Set(['contextPath', 'context_path', 'path']),
+  expect: new Set(['result']),
+};
+
 function validateResolvePathTestCase(testCase) {
+  assertKnownKeys(testCase, RESOLVE_PATH_KNOWN_KEYS.case, 'resolve_path');
   const {args, expect, expectError} = testCase;
   if (!args) throw new Error('resolve_path test requires "args" object.');
+  assertKnownKeys(args, RESOLVE_PATH_KNOWN_KEYS.args, 'resolve_path.args');
+  assertKnownKeys(expectError, EXPECT_ERROR_KNOWN_KEYS.error, 'resolve_path.expectError');
+  if (expect && typeof expect === 'object') {
+    assertKnownKeys(expect, RESOLVE_PATH_KNOWN_KEYS.expect, 'resolve_path.expect');
+  }
 
   const targetPath = args.path || '';
   const contextPath = args.contextPath || args.context_path;
@@ -1492,7 +2584,35 @@ function validateResolvePathTestCase(testCase) {
   }
 }
 
+const GET_RENDERER_CAPABILITIES_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'args',
+    'catalog',
+    'catalogPaths',
+    'catalogs',
+    'description',
+    'expect',
+    'features',
+    'name',
+    'protocolVersion',
+  ]),
+  args: new Set(['componentEnvelopeRef', 'includeInlineCatalogs', 'version', 'versions']),
+  expect: new Set(['1.0', 'v0.8', 'v0.9', 'v0.9.1']),
+};
+
 function validateGetRendererCapabilitiesTestCase(testCase) {
+  assertKnownKeys(testCase, GET_RENDERER_CAPABILITIES_KNOWN_KEYS.case, 'get_renderer_capabilities');
+  assertKnownKeys(
+    testCase.args,
+    GET_RENDERER_CAPABILITIES_KNOWN_KEYS.args,
+    'get_renderer_capabilities.args',
+  );
+  assertKnownKeys(
+    testCase.expect,
+    GET_RENDERER_CAPABILITIES_KNOWN_KEYS.expect,
+    'get_renderer_capabilities.expect',
+  );
   if (!testCase.expect) {
     throw new Error('get_renderer_capabilities test requires "expect" object.');
   }
@@ -1538,8 +2658,33 @@ function loadValidationSchemaCatalog(testCase, rawSchema, pVer) {
   return Catalog.fromJson(rawSchema, pVer, testCase.catalogId);
 }
 
+const VALIDATION_SCHEMA_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'args',
+    'catalog',
+    'catalogFile',
+    'catalogId',
+    'catalogPath',
+    'catalogSchema',
+    'description',
+    'expectError',
+    'expectFile',
+    'features',
+    'name',
+    'protocolVersion',
+    'schema',
+  ]),
+};
+
 /** Runs a `validation_schema` case against its golden `expectFile`. */
 function validateValidationSchemaTestCase(testCase) {
+  assertKnownKeys(testCase, VALIDATION_SCHEMA_KNOWN_KEYS.case, 'validation_schema');
+  assertKnownKeys(
+    testCase.expectError,
+    EXPECT_ERROR_KNOWN_KEYS.error,
+    'validation_schema.expectError',
+  );
   const pVer =
     testCase.protocolVersion || testCase.args?.version || resolveProtocolVersion(testCase);
   const cPath = testCase.catalogPath || testCase.catalogFile;
@@ -1616,7 +2761,22 @@ function assertJsonSetEqual(actual, expected, message) {
   assert.deepStrictEqual(normalizeSetArrays(actual), normalizeSetArrays(expected), message);
 }
 
+const ROUND_TRIP_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'catalog',
+    'catalogFile',
+    'catalogId',
+    'catalogPath',
+    'description',
+    'features',
+    'name',
+    'protocolVersion',
+  ]),
+};
+
 function validateRoundTripTestCase(testCase) {
+  assertKnownKeys(testCase, ROUND_TRIP_KNOWN_KEYS.case, 'round_trip');
   const document = readCaseCatalogDocument(testCase);
   const pVer = testCase.protocolVersion;
   const out = Catalog.fromJson(document, pVer, testCase.catalogId).toJson();
@@ -1625,12 +2785,29 @@ function validateRoundTripTestCase(testCase) {
   assertJsonSetEqual(again, out, 'toJson() is not idempotent.');
 }
 
+const TO_JSON_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'builtinCatalog',
+    'catalog',
+    'catalogFile',
+    'catalogId',
+    'catalogPath',
+    'description',
+    'expectFile',
+    'features',
+    'name',
+    'protocolVersion',
+  ]),
+};
+
 /**
  * Runs a `to_json` case: serializes web_core's own basic catalog
  * (`builtinCatalog: basic`) or the catalog loaded with `fromJson`, and compares
  * the document exactly with `expectFile`.
  */
 function validateToJsonTestCase(testCase) {
+  assertKnownKeys(testCase, TO_JSON_KNOWN_KEYS.case, 'to_json');
   assert.ok(testCase.expectFile, 'to_json case requires expectFile.');
   let catalog;
   if (testCase.builtinCatalog !== undefined) {
@@ -1649,8 +2826,6 @@ function validateToJsonTestCase(testCase) {
     `toJson() differs from ${testCase.expectFile}`,
   );
 }
-
-import {z} from 'zod';
 
 /**
  * Fallback component definitions with permissive schemas (`z.object({}).passthrough()`).
@@ -1799,7 +2974,9 @@ function getCatalogsForTestCase(testCase) {
   const isCatalogErrorCase =
     typeof declaredError === 'object' &&
     declaredError !== null &&
-    (declaredError.category === 'CatalogError' || declaredError.category === 'A2uiCatalogError');
+    (declaredError.category === 'CatalogError' ||
+      declaredError.category === 'A2uiCatalogError' ||
+      declaredError.code === 'CATALOG_ERROR');
   const expectsError = Boolean(declaredError) && !isCatalogErrorCase;
 
   const addCatalogId = (id, ver) => {
@@ -1950,13 +3127,15 @@ function getCatalogsForTestCase(testCase) {
     if (
       item.createSurface &&
       item.createSurface.catalogId &&
-      item.createSurface.catalogId !== 'unknown-catalog'
+      !isCatalogErrorCase &&
+      !item.createSurface.catalogId.includes('unknown')
     )
       addCatalogId(item.createSurface.catalogId, scanVersion);
     if (
       item.beginRendering &&
       item.beginRendering.catalogId &&
-      item.beginRendering.catalogId !== 'unknown-catalog'
+      !isCatalogErrorCase &&
+      !item.beginRendering.catalogId.includes('unknown')
     )
       addCatalogId(item.beginRendering.catalogId, scanVersion);
   };
@@ -2096,7 +3275,15 @@ function forceResolution(processor, reported) {
 
   if (reported.length > 0) {
     const first = reported[0];
-    throw new A2uiValidationError(first?.message ?? 'Expression error');
+    throw new A2uiValidationError(
+      first?.message ?? 'Expression error',
+      first?.details,
+      first?.code ?? 'VALIDATION_FAILED',
+      {
+        surfaceId: first?.surfaceId,
+        path: first?.path,
+      },
+    );
   }
 }
 
@@ -2170,7 +3357,26 @@ function normalizeComponentRefs(val) {
   return val;
 }
 
+const SURFACE_EXPECT_KNOWN_KEYS = {
+  expect: new Set(['surfaces']),
+  surface: new Set([
+    'components',
+    'dataModel',
+    'exists',
+    'isValid',
+    'metadata',
+    'sendDataModel',
+    'theme',
+    'validationErrors',
+    'validationResult',
+    'validationResults',
+  ]),
+  validationResult: new Set(['code', 'message', 'severity', 'valid']),
+};
+
 function assertSurfacesMatch(processor, expect) {
+  assertKnownKeys(expect, SURFACE_EXPECT_KNOWN_KEYS.expect, 'expect');
+  assertKnownKeysRecord(expect?.surfaces, SURFACE_EXPECT_KNOWN_KEYS.surface, 'expect.surfaces');
   if (expect && expect.surfaces) {
     for (const [surfaceId, expectedSurface] of Object.entries(expect.surfaces)) {
       const surface = processor.getSurface(surfaceId);
@@ -2194,6 +3400,13 @@ function assertSurfacesMatch(processor, expect) {
         assert.deepStrictEqual(
           JSON.parse(JSON.stringify(surface.dataModel.get('/'))),
           expectedSurface.dataModel,
+        );
+      }
+      if (surface && 'metadata' in expectedSurface) {
+        assert.deepStrictEqual(
+          surface.metadata ?? null,
+          expectedSurface.metadata,
+          `Surface '${surfaceId}' metadata mismatch`,
         );
       }
       if (surface && expectedSurface.components) {
@@ -2229,6 +3442,15 @@ function assertSurfacesMatch(processor, expect) {
             const actualProps = node ? (peekValue(node.props) ?? {}) : (comp.properties ?? {});
             for (const [propKey, expectedVal] of Object.entries(expectedComp)) {
               if (propKey === 'id' || propKey === 'component') continue;
+              if (propKey === 'metadata') {
+                const actualMeta = (node ? peekValue(node.metadata) : comp.metadata) ?? null;
+                assert.deepStrictEqual(
+                  actualMeta,
+                  expectedVal,
+                  `Metadata mismatch on component '${expectedComp.id}'`,
+                );
+                continue;
+              }
               const actualVal = normalizeComponentRefs(actualProps[propKey]);
               if (!propertyValuesMatch(actualVal, expectedVal)) {
                 throw new Error(
@@ -2263,17 +3485,169 @@ function assertSurfacesMatch(processor, expect) {
           }
         }
       }
+      if (
+        surface &&
+        (expectedSurface.isValid !== undefined ||
+          expectedSurface.validationErrors !== undefined ||
+          expectedSurface.validationResults !== undefined ||
+          expectedSurface.validationResult !== undefined)
+      ) {
+        const resolved = collectResolvedNodes(surface);
+        try {
+          let fallbackNode = resolved.nodes.get('root');
+          if (!fallbackNode && resolved.nodes.size > 0) {
+            fallbackNode = resolved.nodes.values().next().value;
+          }
+          const getPropsForId = id => {
+            const n = resolved.nodes.get(id) ?? (id === 'root' ? fallbackNode : undefined);
+            return n ? (peekValue(n.props) ?? {}) : {};
+          };
+          if (expectedSurface.isValid !== undefined) {
+            if (typeof expectedSurface.isValid === 'boolean') {
+              assert.strictEqual(getPropsForId('root').isValid, expectedSurface.isValid);
+            } else {
+              for (const [compId, expVal] of Object.entries(expectedSurface.isValid)) {
+                assert.strictEqual(getPropsForId(compId).isValid, expVal);
+              }
+            }
+          }
+          if (expectedSurface.validationErrors !== undefined) {
+            if (Array.isArray(expectedSurface.validationErrors)) {
+              assert.deepStrictEqual(
+                getPropsForId('root').validationErrors,
+                expectedSurface.validationErrors,
+              );
+            } else {
+              for (const [compId, expVal] of Object.entries(expectedSurface.validationErrors)) {
+                assert.deepStrictEqual(getPropsForId(compId).validationErrors, expVal);
+              }
+            }
+          }
+          if (expectedSurface.validationResults !== undefined) {
+            if (Array.isArray(expectedSurface.validationResults)) {
+              assert.deepStrictEqual(
+                getPropsForId('root').validationResults,
+                expectedSurface.validationResults,
+              );
+            } else {
+              for (const [compId, expVal] of Object.entries(expectedSurface.validationResults)) {
+                assert.deepStrictEqual(getPropsForId(compId).validationResults, expVal);
+              }
+            }
+          }
+          if (expectedSurface.validationResult !== undefined) {
+            const checkSingleResult = (compId, expRes) => {
+              assertKnownKeys(
+                expRes,
+                SURFACE_EXPECT_KNOWN_KEYS.validationResult,
+                `expect.surfaces.${surfaceId}.validationResult.${compId}`,
+              );
+              const firstResult = Array.isArray(getPropsForId(compId).validationResults)
+                ? getPropsForId(compId).validationResults[0]
+                : undefined;
+              if (expRes.valid !== undefined) assert.strictEqual(firstResult?.valid, expRes.valid);
+              if (expRes.message !== undefined) {
+                assert.strictEqual(firstResult?.message, expRes.message);
+              }
+              if (expRes.code !== undefined) assert.strictEqual(firstResult?.code, expRes.code);
+              if (expRes.severity !== undefined) {
+                assert.strictEqual(firstResult?.severity, expRes.severity);
+              }
+            };
+            if (
+              'valid' in expectedSurface.validationResult ||
+              'message' in expectedSurface.validationResult ||
+              'code' in expectedSurface.validationResult
+            ) {
+              checkSingleResult('root', expectedSurface.validationResult);
+            } else {
+              for (const [compId, expRes] of Object.entries(expectedSurface.validationResult)) {
+                checkSingleResult(compId, expRes);
+              }
+            }
+          }
+        } finally {
+          resolved.dispose();
+        }
+      }
     }
   }
 }
 
+/**
+ * The flags a case's `validationConfig` may set (`validationConfig` in
+ * conformance_schema.json). An unknown flag fails the case rather than being
+ * silently ignored.
+ */
+const CASE_VALIDATION_FLAGS = new Set([
+  'allowOrphanComponents',
+  'allowDanglingReferences',
+  'allowMissingRoot',
+  'allowUnknownElements',
+]);
+
+/**
+ * The processor's validation config for a process_messages case. A case's
+ * `validationConfig` sets its checks, so they don't depend on this harness: a
+ * flag it leaves out is false. Without one, `strictMode` selects strict
+ * validation and anything else none.
+ */
+function caseValidationConfig(testCase) {
+  const flags = testCase.validationConfig;
+  if (flags === undefined) {
+    return testCase.strictMode ? {validationConfig: STRICT_VALIDATION} : {};
+  }
+  assertKnownKeys(flags, CASE_VALIDATION_FLAGS, 'process_messages.validationConfig');
+  return {validationConfig: {...STRICT_VALIDATION, ...flags}};
+}
+
+const PROCESS_MESSAGES_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'catalog',
+    'catalogPaths',
+    'catalogs',
+    'description',
+    'expect',
+    'expectError',
+    'expect_error',
+    'features',
+    'messages',
+    'name',
+    'payload',
+    'protocolVersion',
+    'steps',
+    'strictMode',
+    'validationConfig',
+  ]),
+  step: new Set([
+    'expect',
+    'expectError',
+    'expect_error',
+    'message',
+    'messages',
+    'payload',
+    'validationConfig',
+  ]),
+  expect: new Set(['surfaces']),
+  validationConfig: CASE_VALIDATION_FLAGS,
+};
+
 function validateProcessMessagesTestCase(testCase) {
-  const {messages, payload, steps, expect, expectError, protocolVersion} = testCase;
+  assertKnownKeys(testCase, PROCESS_MESSAGES_KNOWN_KEYS.case, 'process_messages');
+  assertKnownKeysList(testCase.steps, PROCESS_MESSAGES_KNOWN_KEYS.step, 'process_messages.steps');
+  assertKnownKeys(testCase.expect, PROCESS_MESSAGES_KNOWN_KEYS.expect, 'process_messages.expect');
+  const {messages, payload, steps, expect, protocolVersion} = testCase;
+  const expectError = testCase.expectError || testCase.expect_error;
 
   const testCatalogs = getCatalogsForTestCase(testCase);
+  let lastErrorMsg;
   const processorOptions = {
     ...(protocolVersion ? {version: protocolVersion} : {}),
-    ...(testCase.strictMode ? {validationConfig: STRICT_VALIDATION} : {}),
+    ...caseValidationConfig(testCase),
+    errorHandler: msg => {
+      lastErrorMsg = msg;
+    },
   };
   const processor = new MessageProcessor(testCatalogs, undefined, processorOptions);
 
@@ -2297,43 +3671,26 @@ function validateProcessMessagesTestCase(testCase) {
     return inputMessages;
   };
 
-  const assertExpectedProcessError = (err, expectedErr) => {
-    if (expectedErr.category) {
-      if (!matchesErrorCategory(err, expectedErr.category)) {
-        throw new Error(
-          `Expected error category '${expectedErr.category}', got '${err.constructor?.name || err.name}': ${err.message}`,
-        );
-      }
-    }
-    if (expectedErr.message) {
-      const expectedMsg = expectedErr.message;
-      const matches =
-        err.message.includes(expectedMsg) ||
-        (expectedMsg.includes('Unsupported protocol version') &&
-          (err.message.includes('Invalid enum value') ||
-            err.message.includes('Unsupported protocol version'))) ||
-        (expectedMsg.includes('Missing') &&
-          err.message.includes("missing a valid 'version' string")) ||
-        (expectedMsg.includes('multiple update types') &&
-          err.message.includes('multiple conflicting update actions'));
-      if (!matches) {
-        throw new Error(`Expected error message containing '${expectedMsg}', got '${err.message}'`);
-      }
-    }
-  };
-
   if (steps && Array.isArray(steps)) {
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
-      let stepMsgs = step.messages || (step.payload ? [step.payload] : []);
+      let stepMsgs =
+        step.messages ||
+        (Array.isArray(step.payload) ? step.payload : step.payload ? [step.payload] : []);
       if (!stepMsgs && step.message) stepMsgs = [step.message];
       stepMsgs = normalizeMsgs(stepMsgs);
 
       // A step's validationConfig applies to that call only.
+      assertKnownKeys(
+        step.validationConfig,
+        PROCESS_MESSAGES_KNOWN_KEYS.validationConfig,
+        `process_messages.steps[${i}].validationConfig`,
+      );
       const context = step.validationConfig ? {validationConfig: step.validationConfig} : undefined;
       const stepExpectError =
-        step.expectError || (i === steps.length - 1 ? expectError : undefined);
+        step.expectError || step.expect_error || (i === steps.length - 1 ? expectError : undefined);
       if (stepExpectError) {
+        lastErrorMsg = undefined;
         let thrown;
         try {
           processor.processMessages(stepMsgs, context);
@@ -2342,10 +3699,10 @@ function validateProcessMessagesTestCase(testCase) {
         }
         if (!thrown) {
           throw new Error(
-            `Expected error (${stepExpectError.category || stepExpectError.message || 'UNKNOWN'}) but message processing succeeded.`,
+            `Expected error (${stepExpectError.category || stepExpectError.code || stepExpectError.message || 'UNKNOWN'}) but message processing succeeded.`,
           );
         }
-        assertExpectedProcessError(thrown, stepExpectError);
+        assertExpectedConformanceError(thrown, lastErrorMsg, stepExpectError);
       } else {
         processor.processMessages(stepMsgs, context);
         const stepExpect = step.expect || (i === steps.length - 1 ? expect : undefined);
@@ -2361,6 +3718,7 @@ function validateProcessMessagesTestCase(testCase) {
   if (!inputMessages) return;
 
   if (expectError) {
+    lastErrorMsg = undefined;
     let thrown;
     try {
       processor.processMessages(inputMessages);
@@ -2369,10 +3727,10 @@ function validateProcessMessagesTestCase(testCase) {
     }
     if (!thrown) {
       throw new Error(
-        `Expected error (${expectError.category || expectError.message || 'UNKNOWN'}) but message processing succeeded.`,
+        `Expected error (${expectError.category || expectError.code || expectError.message || 'UNKNOWN'}) but message processing succeeded.`,
       );
     }
-    assertExpectedProcessError(thrown, expectError);
+    assertExpectedConformanceError(thrown, lastErrorMsg, expectError);
     return;
   }
 
@@ -2396,9 +3754,29 @@ function joinLiterals(parts) {
   return joined.filter(part => part !== '');
 }
 
+const PARSE_EXPRESSION_TEMPLATE_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'description',
+    'expect',
+    'expectError',
+    'expect_error',
+    'features',
+    'input',
+    'name',
+    'protocolVersion',
+  ]),
+};
+
 function validateParseExpressionTemplateTestCase(testCase) {
+  assertKnownKeys(testCase, PARSE_EXPRESSION_TEMPLATE_KNOWN_KEYS.case, 'parse_expression_template');
   const {input, expect, expectError, expect_error} = testCase;
   const errorSpec = expect_error || expectError;
+  assertKnownKeys(
+    errorSpec,
+    EXPECT_ERROR_KNOWN_KEYS.error,
+    'parse_expression_template.expectError',
+  );
   const parser = new ExpressionParser();
 
   if (errorSpec) {
@@ -2441,60 +3819,202 @@ function getBasicCatalog(version) {
   return v0_9BasicCatalog;
 }
 
-function validateDispatchActionTestCase(testCase) {
+const DISPATCH_ACTION_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'actionPayload',
+    'catalog',
+    'catalogPaths',
+    'catalogs',
+    'dataModel',
+    'description',
+    'expectDataModel',
+    'expectDispatched',
+    'expectError',
+    'expect_error',
+    'features',
+    'metadata',
+    'name',
+    'protocolVersion',
+    'scope',
+    'sourceComponentId',
+    'surfaceId',
+    'useBasicCatalog',
+    'userActivation',
+  ]),
+  actionPayload: new Set(['context', 'event', 'functionCall', 'name']),
+  expectDispatched: new Set([
+    'context',
+    'metadata',
+    'name',
+    'sourceComponentId',
+    'surfaceId',
+    'timestampIso8601',
+    'userMessage',
+  ]),
+};
+
+async function validateDispatchActionTestCase(testCase) {
+  assertKnownKeys(testCase, DISPATCH_ACTION_KNOWN_KEYS.case, 'dispatch_action');
+  assertKnownKeys(
+    testCase.actionPayload,
+    DISPATCH_ACTION_KNOWN_KEYS.actionPayload,
+    'dispatch_action.actionPayload',
+  );
+  assertKnownKeys(
+    testCase.expectDispatched,
+    DISPATCH_ACTION_KNOWN_KEYS.expectDispatched,
+    'dispatch_action.expectDispatched',
+  );
   const {
     actionPayload,
+    metadata,
     dataModel = {},
     surfaceId = 'main',
+    sourceComponentId = 'root',
     scope,
+    userActivation,
     expectDispatched,
     expectDataModel,
     expectError,
     expect_error,
   } = testCase;
   const errorSpec = expect_error || expectError;
+  assertKnownKeys(errorSpec, EXPECT_ERROR_KNOWN_KEYS.error, 'dispatch_action.expectError');
 
   const testCatalogs = getCatalogsForTestCase(testCase);
-  const defaultCat = testCatalogs[0] || getBasicCatalog(resolveProtocolVersion(testCase) || 'v0.9');
+  const baseCat = testCatalogs[0] || getBasicCatalog(resolveProtocolVersion(testCase) || 'v0.9');
+  const actionFunctions = [
+    ...Array.from(baseCat.functions.values()),
+    createFunctionImplementation(
+      {
+        name: 'incrementCounter',
+        returnType: 'void',
+        schema: z.object({
+          path: z.string().optional(),
+          step: z.number().optional(),
+        }),
+      },
+      (args, context) => {
+        const targetPath = args.path || '/counter';
+        const step = args.step ?? 1;
+        const cur = Number(context.dataModel.get(targetPath) ?? 0);
+        context.dataModel.set(targetPath, cur + step);
+      },
+    ),
+    createFunctionImplementation(
+      {
+        name: 'failingAction',
+        returnType: 'void',
+        schema: z.object({}),
+      },
+      () => {
+        throw new Error('Action function failed');
+      },
+    ),
+  ];
+  const defaultCat = new Catalog(
+    baseCat.id,
+    baseCat.protocolVersion || '0.9',
+    Array.from(baseCat.components.values()),
+    actionFunctions,
+    baseCat.themeSchema,
+    baseCat.instructions,
+  );
   const model = new DataModel(dataModel);
   const surface = new SurfaceModel(surfaceId, defaultCat, undefined, undefined, false, model);
 
   const dispatched = [];
   surface.onAction.subscribe(evt => dispatched.push(evt));
+  const surfaceErrors = [];
+  surface.onError.subscribe(err => surfaceErrors.push(err));
 
   const ctx = new DataContext(surface, scope || '/');
+  const prevWindow = globalThis.window;
+  if (typeof globalThis.window === 'undefined') {
+    globalThis.window = {open: () => null};
+  }
 
-  if (errorSpec) {
-    assert.throws(() => {
-      const resolved = ctx.resolveAction(actionPayload);
-      if (resolved && typeof resolved === 'object' && ('event' in resolved || 'name' in resolved)) {
-        surface.dispatchAction(resolved);
+  try {
+    if (errorSpec) {
+      let thrown;
+      try {
+        const resolved = ctx.resolveAction(actionPayload, {userActivation});
+        if (
+          resolved &&
+          typeof resolved === 'object' &&
+          ('event' in resolved || 'name' in resolved)
+        ) {
+          await surface.dispatchAction(resolved, sourceComponentId, metadata);
+        }
+      } catch (err) {
+        thrown = err;
       }
-    });
-    return;
-  }
-
-  const resolved = ctx.resolveAction(actionPayload);
-  if (resolved && typeof resolved === 'object' && ('event' in resolved || 'name' in resolved)) {
-    surface.dispatchAction(resolved);
-  }
-
-  if (expectDispatched !== undefined) {
-    assert.ok(dispatched.length >= 1, 'Expected action to be dispatched, but none was');
-    const actual = dispatched[0];
-    if ('name' in expectDispatched) {
-      assert.strictEqual(actual.name, expectDispatched.name);
+      if (!thrown && surfaceErrors.length > 0) {
+        const first = surfaceErrors[0];
+        thrown = new A2uiValidationError(first.message, first.details, first.code);
+      }
+      if (!thrown) {
+        throw new Error('Expected action dispatch error, but none was thrown or reported');
+      }
+      if (errorSpec.code && surfaceErrors.length > 0) {
+        assert.strictEqual(surfaceErrors[0].code, errorSpec.code);
+      } else if (errorSpec.code && thrown.code) {
+        assert.strictEqual(thrown.code, errorSpec.code);
+      }
+      if (errorSpec.message) {
+        const actualMsg = surfaceErrors[0]?.message || thrown.message || '';
+        assert.ok(
+          actualMsg.toLowerCase().includes(errorSpec.message.toLowerCase()),
+          `Expected error message containing '${errorSpec.message}', got '${actualMsg}'`,
+        );
+      }
+      return;
     }
-    if ('context' in expectDispatched) {
-      assert.deepStrictEqual(actual.context, expectDispatched.context);
-    }
-    if ('userMessage' in expectDispatched) {
-      assert.strictEqual(actual.userMessage, expectDispatched.userMessage);
-    }
-  }
 
-  if (expectDataModel !== undefined) {
-    assert.deepStrictEqual(model.get('/'), expectDataModel);
+    const resolved = ctx.resolveAction(actionPayload, {userActivation});
+    if (resolved && typeof resolved === 'object' && ('event' in resolved || 'name' in resolved)) {
+      await surface.dispatchAction(resolved, sourceComponentId, metadata);
+    }
+
+    if (expectDispatched === null) {
+      assert.strictEqual(dispatched.length, 0, 'Expected no action to be dispatched');
+    } else if (expectDispatched !== undefined) {
+      assert.ok(dispatched.length >= 1, 'Expected action to be dispatched, but none was');
+      const actual = dispatched[0];
+      if ('name' in expectDispatched) {
+        assert.strictEqual(actual.name, expectDispatched.name);
+      }
+      if ('context' in expectDispatched) {
+        assert.deepStrictEqual(actual.context, expectDispatched.context);
+      }
+      if ('userMessage' in expectDispatched) {
+        assert.strictEqual(actual.userMessage, expectDispatched.userMessage);
+      }
+      if ('metadata' in expectDispatched) {
+        assert.deepStrictEqual(actual.metadata ?? null, expectDispatched.metadata);
+      }
+      if ('surfaceId' in expectDispatched) {
+        assert.strictEqual(actual.surfaceId, expectDispatched.surfaceId);
+      }
+      if ('sourceComponentId' in expectDispatched) {
+        assert.strictEqual(actual.sourceComponentId, expectDispatched.sourceComponentId);
+      }
+      if ('timestampIso8601' in expectDispatched) {
+        assert.strictEqual(typeof actual.timestamp, 'string');
+        assert.ok(!Number.isNaN(Date.parse(actual.timestamp)));
+      }
+    }
+
+    if (expectDataModel !== undefined) {
+      assert.deepStrictEqual(model.get('/'), expectDataModel);
+    }
+  } finally {
+    if (prevWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      globalThis.window = prevWindow;
+    }
   }
 }
 
@@ -2569,7 +4089,36 @@ function matchesEvaluateFunctionError(err, errorSpec) {
   return true;
 }
 
+const EVALUATE_FUNCTION_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'args',
+    'catalog',
+    'catalogId',
+    'catalogPaths',
+    'catalogs',
+    'dataModel',
+    'description',
+    'expect',
+    'expectError',
+    'expect_error',
+    'features',
+    'function',
+    'name',
+    'protocolVersion',
+    'surface',
+    'useBasicCatalog',
+  ]),
+  surface: new Set(['catalogId']),
+};
+
 function validateEvaluateFunctionTestCase(testCase) {
+  assertKnownKeys(testCase, EVALUATE_FUNCTION_KNOWN_KEYS.case, 'evaluate_function');
+  assertKnownKeys(
+    testCase.surface,
+    EVALUATE_FUNCTION_KNOWN_KEYS.surface,
+    'evaluate_function.surface',
+  );
   const {
     function: funcName,
     args = {},
@@ -2579,6 +4128,7 @@ function validateEvaluateFunctionTestCase(testCase) {
     expect_error,
   } = testCase;
   const errorSpec = expect_error || expectError;
+  assertKnownKeys(errorSpec, EXPECT_ERROR_KNOWN_KEYS.error, 'evaluate_function.expectError');
 
   if (testCase.surface) {
     const evaluate = () => evaluateFunctionOnSurface(testCase);
@@ -2614,19 +4164,22 @@ function validateEvaluateFunctionTestCase(testCase) {
   try {
     const fn = defaultCat?.functions?.get(funcName);
     if (errorSpec) {
-      assert.throws(() => {
-        let r;
-        if (fn && typeof fn.execute === 'function') {
-          r = fn.execute(args, ctx);
-        } else if (defaultCat && defaultCat.invoker) {
-          r = defaultCat.invoker(funcName, args, ctx);
-        } else {
-          r = ctx.resolveDynamicValue({call: funcName, args});
-        }
-        if (isSignal(r)) {
-          getValue(r);
-        }
-      });
+      assert.throws(
+        () => {
+          let r;
+          if (fn && typeof fn.execute === 'function') {
+            r = fn.execute(args, ctx);
+          } else if (defaultCat && defaultCat.invoker) {
+            r = defaultCat.invoker(funcName, args, ctx);
+          } else {
+            r = ctx.resolveDynamicValue({call: funcName, args});
+          }
+          if (isSignal(r)) {
+            getValue(r);
+          }
+        },
+        err => matchesEvaluateFunctionError(err, errorSpec),
+      );
       return;
     }
 
@@ -2642,7 +4195,20 @@ function validateEvaluateFunctionTestCase(testCase) {
 
     const actualJson = result === undefined ? null : JSON.parse(JSON.stringify(result));
     if (expect !== undefined) {
-      assert.deepStrictEqual(actualJson, expect);
+      if (
+        expect !== null &&
+        typeof expect === 'object' &&
+        !Array.isArray(expect) &&
+        Object.keys(expect).length === 1 &&
+        'valid' in expect &&
+        actualJson !== null &&
+        typeof actualJson === 'object' &&
+        'valid' in actualJson
+      ) {
+        assert.strictEqual(actualJson.valid, expect.valid);
+      } else {
+        assert.deepStrictEqual(actualJson, expect);
+      }
     }
   } finally {
     if (originalWindow === undefined) {
@@ -2650,6 +4216,313 @@ function validateEvaluateFunctionTestCase(testCase) {
     } else {
       globalThis.window = originalWindow;
     }
+  }
+}
+
+const VALIDATE_COMMON_TYPE_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'definition',
+    'description',
+    'features',
+    'name',
+    'protocolVersion',
+    'steps',
+  ]),
+  step: new Set(['expectError', 'value']),
+};
+
+/**
+ * Step-level round-trip divergences in `validate_common_type` cases that are
+ * not already skipped as a whole in `KNOWN_DIVERGENCES`. An entry whose step
+ * round-trips cleanly fails the test so stale entries are caught.
+ */
+const VALIDATE_COMMON_TYPE_ROUND_TRIP_DIVERGENCES = new Map([
+  [
+    'test_v09_action_is_event_or_function_call#1',
+    "v0.9 FunctionCallSchema in web_core defaults returnType to 'boolean' when omitted",
+  ],
+  [
+    'test_v091_action_is_event_or_function_call#1',
+    "v0.9 FunctionCallSchema in web_core defaults returnType to 'boolean' when omitted",
+  ],
+]);
+
+function validateCommonTypeTestCase(testCase) {
+  assertKnownKeys(testCase, VALIDATE_COMMON_TYPE_KNOWN_KEYS.case, 'validate_common_type');
+  assertKnownKeysList(
+    testCase.steps,
+    VALIDATE_COMMON_TYPE_KNOWN_KEYS.step,
+    'validate_common_type.steps',
+  );
+  const rawVersion = testCase.protocolVersion || 'v0.9';
+  const version = toCanonicalVersion(rawVersion);
+  const schemas = version === '1.0' ? V1_0_COMMON_SCHEMAS : V0_9_COMMON_SCHEMAS;
+  const schema = schemas[testCase.definition];
+  assert.ok(
+    schema,
+    `No common type schema found for '${testCase.definition}' in protocol version '${rawVersion}'`,
+  );
+
+  for (let i = 0; i < testCase.steps.length; i++) {
+    const step = testCase.steps[i];
+    if (step.expectError) {
+      assertKnownKeys(
+        step.expectError,
+        EXPECT_ERROR_KNOWN_KEYS.error,
+        `validate_common_type.steps[${i}].expectError`,
+      );
+    }
+    const result = schema.safeParse(step.value);
+    if (step.expectError) {
+      assert.strictEqual(
+        result.success,
+        false,
+        `Step ${i}: expected validation error for ${testCase.definition} with ${JSON.stringify(step.value)}, but succeeded`,
+      );
+    } else {
+      assert.strictEqual(
+        result.success,
+        true,
+        `Step ${i}: expected ${testCase.definition} to accept ${JSON.stringify(step.value)}, got error: ${result.error?.message}`,
+      );
+      const stepKey = `${testCase.name}#${i}`;
+      const divergence = VALIDATE_COMMON_TYPE_ROUND_TRIP_DIVERGENCES.get(stepKey);
+      if (divergence !== undefined) {
+        assert.strictEqual(
+          isDeepStrictEqual(result.data, step.value),
+          false,
+          `Step ${i} (${stepKey}): known round-trip divergence (${divergence}) passed unexpectedly`,
+        );
+      } else {
+        assert.deepStrictEqual(
+          result.data,
+          step.value,
+          `Step ${i}: expected ${testCase.definition} to round-trip ${JSON.stringify(step.value)}, got ${JSON.stringify(result.data)}`,
+        );
+      }
+    }
+  }
+}
+
+/** Lets pending promise callbacks and timers that are already due run. */
+const flushAsyncWork = async () => {
+  for (let i = 0; i < 3; i++) {
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+};
+
+/**
+ * Builds the catalogs of a `route_agent_function` case.
+ *
+ * `localFunctions` take web_core's basic catalog implementations for the
+ * case's protocol version. `agentFunctions` are declared without an
+ * implementation, as a catalog document loaded with `Catalog.fromJson`
+ * declares them, so they are schema-only.
+ */
+function buildRoutingCatalogs(testCase, version) {
+  const basicFunctions =
+    toCanonicalVersion(version) === '1.0' ? V1_0_BASIC_FUNCTIONS : V0_9_BASIC_FUNCTIONS;
+  return (testCase.catalogs ?? []).map(spec => {
+    const functions = (spec.localFunctions ?? []).map(name => {
+      const fn = basicFunctions.find(candidate => candidate.name === name);
+      if (!fn) throw new Error(`web_core's basic catalog has no function '${name}'.`);
+      return fn;
+    });
+    const agentFunctions = Object.entries(spec.agentFunctions ?? {});
+    if (agentFunctions.length > 0) {
+      const document = Catalog.fromJson({
+        catalogId: spec.catalogId,
+        protocolVersion: version,
+        components: {},
+        functions: Object.fromEntries(
+          agentFunctions.map(([name, declaration]) => [
+            name,
+            {
+              type: 'object',
+              ...(declaration.returnType ? {returnType: declaration.returnType} : {}),
+              ...(declaration.requiresUserActivation ? {requiresUserActivation: true} : {}),
+              ...(declaration.allowedCallers ? {allowedCallers: declaration.allowedCallers} : {}),
+              properties: {'@call': {const: name}, args: declaration.args},
+              required: ['@call', 'args'],
+            },
+          ]),
+        ),
+      });
+      functions.push(...document.functions.values());
+    }
+    return new Catalog(spec.catalogId, version, [], functions);
+  });
+}
+
+/**
+ * Runs a `route_agent_function` case: evaluates function calls on a surface
+ * created through a `MessageProcessor`, answers the `callAgentFunction`
+ * messages the processor sends, and checks the values and reported errors.
+ *
+ * A `binding` subscribes to the call as a dynamic value, as a component
+ * binding does; a `check` subscribes to it as the condition of a check rule,
+ * as the generic binder does; an `action` resolves it as the `functionCall` of
+ * an action, which runs it within a user activation; an `event` resolves an
+ * event action within a user activation and dispatches it, as the generic
+ * binder does for a component's action.
+ */
+async function validateRouteAgentFunctionTestCase(testCase) {
+  const version = resolveProtocolVersion(testCase);
+  const wireVersion =
+    toCanonicalVersion(version) === '1.0' ? '1.0' : `v${toCanonicalVersion(version)}`;
+  const surfaceSpec = testCase.surface ?? {};
+  const outbound = [];
+  const processor = new MessageProcessor(buildRoutingCatalogs(testCase, version), undefined, {
+    outboundListener:
+      surfaceSpec.outboundListener === false ? undefined : message => outbound.push(message),
+  });
+  const createSurface = {surfaceId: 'main'};
+  if (surfaceSpec.catalogId !== undefined) createSurface.catalogId = surfaceSpec.catalogId;
+  processor.processMessages([{version: wireVersion, createSurface}]);
+  const surface = processor.getSurface('main');
+  if (testCase.dataModel !== undefined) surface.dataModel.set('/', testCase.dataModel);
+
+  const errors = [];
+  const errorSubscription = surface.onError.subscribe(err => errors.push(err));
+  const actions = [];
+  const actionSubscription = surface.onAction.subscribe(action => actions.push(action));
+  const ctx = new DataContext(surface, '/');
+  /** Current values of the binding and check evaluations, in order. */
+  const values = [];
+  const evaluations = [];
+  const disposables = [];
+  let outboundSeen = 0;
+  let errorsSeen = 0;
+  let actionsSeen = 0;
+
+  try {
+    for (const [index, step] of (testCase.steps ?? []).entries()) {
+      const label = `step ${index}`;
+      if (step.evaluate !== undefined) {
+        const as = step.as ?? 'binding';
+        if (as === 'action') {
+          const result = ctx.resolveAction({functionCall: step.evaluate});
+          // The action's own outcome is reported on the surface.
+          Promise.resolve(result).catch(() => {});
+        } else if (as === 'event') {
+          const resolved = ctx.resolveAction({event: step.evaluate}, {userActivation: true});
+          if (resolved !== undefined) {
+            // A failure is reported on the surface; the dispatch itself never rejects.
+            surface.dispatchAction(resolved, 'probe').catch(() => {});
+          }
+        } else if (as === 'check') {
+          const probeId = `probe_${evaluations.length}`;
+          const comp = new ComponentModel(probeId, 'Probe', {});
+          surface.componentsModel.addComponent(comp);
+          const binder = new GenericBinder(
+            new ComponentContext(surface, probeId),
+            CommonSchemas.Checkable.describe(''),
+          );
+          const sub = binder.subscribe(() => {});
+          comp.properties = {
+            checks: [{condition: step.evaluate, message: 'Check failed'}],
+          };
+          disposables.push(() => sub.unsubscribe());
+          evaluations.push(() => binder.snapshot.isValid);
+        } else {
+          const slot = values.length;
+          values.push(undefined);
+          const bound = ctx.subscribeDynamicValue(step.evaluate, value => {
+            values[slot] = value;
+          });
+          values[slot] = bound.value;
+          disposables.push(() => bound.unsubscribe());
+          evaluations.push(() => values[slot]);
+        }
+      } else if (step.respond !== undefined) {
+        const {call, ...response} = step.respond;
+        const message = outbound.filter(m => m.callAgentFunction)[call];
+        assert.ok(message, `${label}: no callAgentFunction at index ${call}`);
+        processor.processMessages([
+          {
+            version: '1.0',
+            agentFunctionResponse: {
+              functionCallId: message.callAgentFunction.functionCallId,
+              ...response,
+            },
+          },
+        ]);
+      } else if (step.updateData !== undefined) {
+        surface.dataModel.set(step.updateData.path, step.updateData.value);
+      } else if (step.cancelSurfaceCalls === true) {
+        processor.rpc.cancelSurfaceCalls('main');
+      } else if (step.deleteSurface === true) {
+        processor.processMessages([{version: wireVersion, deleteSurface: {surfaceId: 'main'}}]);
+      } else {
+        throw new Error(
+          `${label}: a step needs 'evaluate', 'respond', 'updateData', 'cancelSurfaceCalls' or 'deleteSurface'.`,
+        );
+      }
+      await flushAsyncWork();
+
+      const sent = outbound.slice(outboundSeen);
+      outboundSeen = outbound.length;
+      for (const message of sent) {
+        assert.ok(message.callAgentFunction, `${label}: unexpected outbound message`);
+        assert.strictEqual(message.callAgentFunction.surfaceId, 'main', `${label}: surfaceId`);
+      }
+      const byJson = (a, b) =>
+        JSON.stringify(sortKeysDeep(a)).localeCompare(JSON.stringify(sortKeysDeep(b)));
+      const sentPayloads = sent.map(message => message.callAgentFunction.callFunction);
+      const expectedPayloads = step.expectOutbound ?? [];
+      assert.deepStrictEqual(
+        step.outboundInAnyOrder ? [...sentPayloads].sort(byJson) : sentPayloads,
+        step.outboundInAnyOrder ? [...expectedPayloads].sort(byJson) : expectedPayloads,
+        `${label}: outbound callFunction payloads`,
+      );
+
+      const reported = errors.slice(errorsSeen);
+      errorsSeen = errors.length;
+      const expectedErrors = step.expectErrors ?? [];
+      assert.strictEqual(
+        reported.length,
+        expectedErrors.length,
+        `${label}: reported errors ${JSON.stringify(reported)}`,
+      );
+      expectedErrors.forEach((expected, i) => {
+        assert.strictEqual(reported[i].code, expected.code, `${label}: error code`);
+        if (expected.message !== undefined) {
+          assert.ok(
+            reported[i].message.includes(expected.message),
+            `${label}: error message '${reported[i].message}' lacks '${expected.message}'`,
+          );
+        }
+      });
+
+      const dispatched = actions.slice(actionsSeen);
+      actionsSeen = actions.length;
+      assert.deepStrictEqual(
+        dispatched.map(action =>
+          JSON.parse(
+            JSON.stringify({
+              name: action.name,
+              context: action.context,
+              userMessage: action.userMessage,
+            }),
+          ),
+        ),
+        step.expectActions ?? [],
+        `${label}: dispatched actions`,
+      );
+
+      if (step.expectValues !== undefined) {
+        const actual = evaluations.map(read => {
+          const value = read();
+          return value === undefined ? null : JSON.parse(JSON.stringify(value));
+        });
+        assert.deepStrictEqual(actual, step.expectValues, `${label}: values`);
+      }
+    }
+  } finally {
+    disposables.forEach(dispose => dispose());
+    errorSubscription.unsubscribe();
+    actionSubscription.unsubscribe();
   }
 }
 

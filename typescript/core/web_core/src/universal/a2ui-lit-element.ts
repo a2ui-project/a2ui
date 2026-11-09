@@ -14,18 +14,40 @@
  * limitations under the License.
  */
 
-import {LitElement, css, nothing, type CSSResult, type PropertyValues} from 'lit';
+import {
+  type CSSResult,
+  css,
+  html,
+  LitElement,
+  nothing,
+  type PropertyValues,
+  type TemplateResult,
+} from 'lit';
 import {property} from 'lit/decorators.js';
-import {ComponentContext} from '../resolution/component-context.js';
-import {isComponentNode, type ComponentNode} from '../resolution/component-node.js';
-import {ResolvedBinding} from '../resolution/resolved-binding.js';
-import {peekValue} from '../reactivity/signals.js';
+
 import {Catalog, ComponentApi, type InferredComponentApiSchemaType} from '../catalog/types.js';
+import {type A2uiMetadata, type Extensions} from '../common/metadata.js';
+import {peekValue} from '../reactivity/signals.js';
+import {ComponentContext} from '../resolution/component-context.js';
+import {type ComponentNode, isComponentNode} from '../resolution/component-node.js';
 import type {ResolveA2uiProps} from '../resolution/generic-binder.js';
-import type {WebComponentImplementation} from './web_component_implementation.js';
+import {nextNodeId} from '../resolution/node-id.js';
+import {ResolvedBinding} from '../resolution/resolved-binding.js';
 import {type ComponentId} from '../types/common-types.js';
-import {renderA2uiNode} from './render-a2ui-node.js';
 import {A2uiController} from './a2ui-controller.js';
+import {
+  type CheckableResolvedProps,
+  hasValidationErrors,
+  HostAccessibility,
+  type ResolvedAccessibilityAttributes,
+} from './host_accessibility.js';
+import {canRenderA2uiNode, renderA2uiNode} from './render-a2ui-node.js';
+import type {WebComponentImplementation} from './web_component_implementation.js';
+
+export type {CheckableResolvedProps, ResolvedAccessibilityAttributes};
+
+/** The surface a child renders on, as its data context reports it. */
+type ChildSurface = NonNullable<ComponentContext['dataContext']['surface']>;
 
 /**
  * A reference to a child component to render. Either a string ID, or an object
@@ -45,10 +67,10 @@ export type ResolvedChildList = A2uiChildRef[];
  * A base class for A2UI Lit elements that manages the A2uiController lifecycle
  * and provides Light DOM style adoption and scoping.
  *
- * By default, elements render into the Light DOM (direct children) to enable
- * universal CSS cascade, styling, and cross-framework composition. To opt into
- * Shadow DOM encapsulation, subclasses can override `createRenderRoot()` to return
- * `super.createRenderRoot()`.
+ * Elements render into Light DOM by default (`createRenderRoot()` returns `this`), and
+ * `adoptLightDomStyles()` scopes `static styles` to the element's tag name and adopts
+ * them into the enclosing `Document` or `ShadowRoot`. Subclasses that require Shadow DOM
+ * can override `createRenderRoot()` (for example `return this.attachShadow({mode: 'open'})`).
  *
  * @template Api The specific A2UI component API defining the schema for this element.
  * @experimental This class is experimental and subject to change as A2UI transitions
@@ -58,6 +80,11 @@ export abstract class A2uiLitElement<
   Api extends ComponentApi = ComponentApi,
   Props = ResolveA2uiProps<InferredComponentApiSchemaType<Api>>,
 > extends LitElement {
+  /**
+   * The component context for the node this element renders.
+   *
+   * @deprecated Assign `node` instead.
+   */
   @property({type: Object}) context!: ComponentContext;
 
   /**
@@ -75,6 +102,83 @@ export abstract class A2uiLitElement<
   private _controller?: A2uiController<Api, Props>;
   private _controllerContext?: ComponentContext;
   private _controllerNode?: ComponentNode;
+  private fallbackDomId?: string;
+  private readonly _hostAccessibility = new HostAccessibility(this);
+
+  /**
+   * Document-unique ID prefix for associating internal labels, controls, and error messages.
+   *
+   * Reads `ComponentNode.id` when rendered through a `NodeResolver`; an element mounted
+   * with only a `ComponentContext` draws one lazily from the same ID sequence.
+   */
+  protected get domId(): string {
+    return this.node?.id ?? (this.fallbackDomId ??= nextNodeId());
+  }
+
+  /**
+   * Returns the inner semantic element that should receive `accessibility.label`,
+   * `accessibility.description`, and validation error attributes (`aria-invalid` and
+   * `aria-describedby`), or `null` when no inner control targets those attributes.
+   *
+   * When this method returns `null` and an accessibility `label` or `description` is
+   * present, `applyAccessibilityAttributes` falls back to setting `role="group"` on the
+   * host element (unless an explicit `role` attribute is already set) along with
+   * `aria-label` and `aria-description`.
+   */
+  protected accessibilityTarget(): Element | null {
+    return null;
+  }
+
+  /**
+   * Renders the validation error messages block (`#${this.domId}-error`) when the
+   * component fails one or more validation checks, or `nothing` when valid.
+   *
+   * @param props Optional resolved checkable props; defaults to `this.controller?.props`.
+   */
+  protected renderValidationErrors(
+    props?: CheckableResolvedProps,
+  ): TemplateResult | typeof nothing {
+    const resolvedProps = props ?? (this.controller?.props as CheckableResolvedProps | undefined);
+    if (hasValidationErrors(resolvedProps)) {
+      return html`
+        <div id="${this.domId}-error" class="a2ui-validation-errors">
+          ${resolvedProps!.validationErrors!.map(
+            (msg: string) => html`<div class="a2ui-error-message">${msg}</div>`,
+          )}
+        </div>
+      `;
+    }
+    return nothing;
+  }
+
+  /**
+   * Applies host-level and target-level accessibility and validation attributes after render.
+   *
+   * Sets `aria-live`, `aria-hidden`, and `inert` on the host element. When
+   * `accessibilityTarget()` returns an element, applies `aria-label`, `aria-description`,
+   * `aria-invalid`, and `aria-describedby` (merging `#${this.domId}-error` when the error
+   * element is rendered) onto that element while preserving component-authored attributes.
+   * When `accessibilityTarget()` returns `null` and a `label` or `description` is present,
+   * sets `role="group"` on the host (preserving any existing `role` attribute) together
+   * with `aria-label` and `aria-description`.
+   */
+  protected applyAccessibilityAttributes(
+    accessibility?: ResolvedAccessibilityAttributes,
+    checkable?: CheckableResolvedProps,
+  ): void {
+    const errorId = `${this.domId}-error`;
+    const errors = this.renderRoot.querySelector(`[id=${JSON.stringify(errorId)}]`);
+    this._hostAccessibility.apply(
+      {
+        accessibility,
+        isValid: checkable?.isValid,
+        validationErrors: checkable?.validationErrors,
+      },
+      this.accessibilityTarget(),
+      errors,
+      errorId,
+    );
+  }
 
   /**
    * The reactive controller instance managing property bindings and state subscriptions.
@@ -84,14 +188,56 @@ export abstract class A2uiLitElement<
   }
 
   /**
+   * The component's current metadata envelope, lazily subscribing on first read.
+   */
+  public get metadata(): A2uiMetadata | undefined {
+    return this._controller?.metadata;
+  }
+
+  /**
+   * The component's current `extensions` map, lazily subscribing on first read.
+   */
+  public get extensions(): Extensions | undefined {
+    return this._controller?.extensions;
+  }
+
+  /**
+   * The containing surface's metadata envelope, lazily subscribing on first read.
+   */
+  public get surfaceMetadata(): A2uiMetadata | undefined {
+    return this._controller?.surfaceMetadata;
+  }
+
+  /**
+   * The containing surface's `extensions` map, lazily subscribing on first read.
+   */
+  public get surfaceExtensions(): Extensions | undefined {
+    return this._controller?.surfaceExtensions;
+  }
+
+  /**
+   * Renders into Light DOM by default. Subclasses that require Shadow DOM can override
+   * this method (for example `return this.attachShadow({mode: 'open'})`).
+   */
+  protected override createRenderRoot(): HTMLElement | DocumentFragment {
+    return this;
+  }
+
+  /**
    * Adopts and scopes component CSS rules into the containing document or host shadow root.
    *
-   * In Light DOM (the default for A2uiLitElement), the element has no shadow root of its own,
-   * so this method locates the nearest enclosing Document or ShadowRoot and adopts the
-   * stylesheet once per root, scoping `:host` and descendant selectors to the element's tagName.
+   * Because `A2uiLitElement` renders into Light DOM by default (`createRenderRoot()`
+   * returning `this`), it has no shadow root of its own, so this method locates the nearest
+   * enclosing `Document` or `ShadowRoot` and adopts the stylesheet once per root, scoping
+   * `:host` and descendant selectors to the element's `tagName`.
+   *
+   * Does nothing when a subclass opts into Shadow DOM (for example by overriding
+   * `createRenderRoot()` to return `this.attachShadow({mode: 'open'})`), because Lit already
+   * adopts `static styles` into that `ShadowRoot`.
    */
   protected adoptLightDomStyles() {
     if (typeof document === 'undefined') return;
+    if (this.renderRoot !== this) return;
     const root = this.getRootNode() as Document | ShadowRoot;
 
     const constructor = this.constructor as typeof A2uiLitElement & {
@@ -253,19 +399,57 @@ export abstract class A2uiLitElement<
    * @returns A Lit template result containing the rendered child component, or `nothing` if the reference is empty.
    */
   protected renderNode(childRef?: ComponentNode | A2uiChildRef, customPath?: string) {
-    if (!childRef || !this.context?.dataContext) return nothing;
+    const child = this.resolveChild(childRef, customPath);
+    if (!child) return nothing;
+    if ('node' in child) return renderA2uiNode(child.node);
+    const childContext = new ComponentContext(child.surface, child.componentId, child.path);
+    const childCatalog: Catalog<WebComponentImplementation> = childContext.componentModel.catalog;
+    return renderA2uiNode(childContext, childCatalog);
+  }
+
+  /**
+   * Whether the child `renderNode(childRef, customPath)` would render has resolved: its
+   * component has arrived and its type has an implementation. An unresolved child (pending,
+   * unknown type or cyclic) renders nothing.
+   *
+   * Containers that give each child a slot of their own (an `<li>`, an item `div`) use this to
+   * leave unresolved children out entirely, wrapper included, so they take no marker or gap.
+   * It shares `renderNode`'s lookup, so the two always agree.
+   */
+  protected isChildResolved(childRef?: ComponentNode | A2uiChildRef, customPath?: string): boolean {
+    const child = this.resolveChild(childRef, customPath);
+    if (!child) return false;
+    if ('node' in child) return canRenderA2uiNode(child.node);
+    const model = child.surface.componentsModel.get(child.componentId);
+    const catalog = model?.catalog as Catalog<WebComponentImplementation> | undefined;
+    return !!model && !!catalog?.components.get(model.type)?.tagName;
+  }
+
+  /**
+   * Finds what `renderNode` renders for a child reference: the child's `ComponentNode` when the
+   * node tree has one, otherwise the surface, component id and data path to build a context
+   * from. Returns `undefined` when there is nothing to render.
+   */
+  private resolveChild(
+    childRef?: ComponentNode | A2uiChildRef,
+    customPath?: string,
+  ):
+    | {node: ComponentNode}
+    | {surface: ChildSurface; componentId: ComponentId; path: string}
+    | undefined {
+    if (!childRef || !this.context?.dataContext) return undefined;
     const {surface, path: parentPath} = this.context.dataContext;
     if (!surface) {
-      return nothing;
+      return undefined;
     }
 
     const surfaceContainsComponent = !!surface.componentsModel?.get(this.context.componentModel.id);
     if (!surfaceContainsComponent) {
-      return nothing;
+      return undefined;
     }
 
     if (isComponentNode(childRef) && !customPath) {
-      return renderA2uiNode(childRef);
+      return {node: childRef};
     }
 
     let componentId: ComponentId | undefined;
@@ -278,7 +462,7 @@ export abstract class A2uiLitElement<
     }
 
     if (!componentId || !surface.componentsModel?.get(componentId)) {
-      return nothing;
+      return undefined;
     }
 
     path = path ?? parentPath;
@@ -286,13 +470,11 @@ export abstract class A2uiLitElement<
     if (this.node) {
       const childNode = findChildNode(this.node, componentId, path);
       if (childNode) {
-        return renderA2uiNode(childNode);
+        return {node: childNode};
       }
     }
 
-    const childContext = new ComponentContext(surface, componentId, path);
-    const childCatalog: Catalog<WebComponentImplementation> = childContext.componentModel.catalog;
-    return renderA2uiNode(childContext, childCatalog);
+    return {surface, componentId, path};
   }
 
   /**
@@ -336,6 +518,14 @@ export abstract class A2uiLitElement<
       return;
     }
     super.update(changedProperties);
+  }
+
+  protected override updated(changedProperties: PropertyValues) {
+    super.updated(changedProperties);
+    const props = this.controller?.props as
+      | ({accessibility?: ResolvedAccessibilityAttributes} & CheckableResolvedProps)
+      | undefined;
+    this.applyAccessibilityAttributes(props?.accessibility, props);
   }
 }
 

@@ -1,0 +1,1683 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+import '../styles/tokens.css';
+
+import StarlightHeader from '../components/StarlightHeader.astro';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+interface ConsultantEntry {
+  slug: string;
+  agency: string;
+  agencyUrl: string;
+  domain: string;
+  logoLight: string;
+  logoDark: string;
+  logoHeight: number;
+  appName: string;
+  appTagline: string;
+  summary: string;
+  stack: string;
+  catalog: string;
+  videoSrc: string;
+  videoLabel: string;
+  videoCaption: string;
+  primaryImg: string;
+  primaryAlt: string;
+  primaryCaption: string;
+  catalogImg: string;
+  catalogAlt: string;
+  catalogCaption: string;
+  demoUrl: string;
+  repoUrl: string;
+  catalogUrl?: string;
+  figmaUrl?: string;
+}
+
+const consultants: ConsultantEntry[] = [
+  {
+    slug: 'lr',
+    agency: 'L+R',
+    agencyUrl: 'https://levinriegner.com',
+    domain: 'E-commerce',
+    logoLight: `${base}/assets/consultants/logos/lr-light.svg`,
+    logoDark: `${base}/assets/consultants/logos/lr-dark.svg`,
+    logoHeight: 20,
+    appName: 'Alder',
+    appTagline: 'Dual-screen conversational stylist',
+    summary:
+      'Pairs conversational outfit search with a synchronized dressing room across dual-pane mobile and web layouts. Host code validates catalog and basket state locally, and an in-app inspector displays raw A2UI message batches.',
+    stack: 'Flutter · GenUI · Genkit Dart',
+    catalog: '60 commerce components',
+    videoSrc: `${base}/assets/consultants/lr-walkthrough.mp4`,
+    videoLabel: 'Preview',
+    videoCaption: 'L+R · Alder screen preview',
+    primaryImg: `${base}/assets/consultants/lr-primary.webp`,
+    primaryAlt:
+      'Alder dual-screen conversational stylist showing chat discovery paired with a live dressing room panel.',
+    primaryCaption: 'Alder dual-pane layout pairing stylist chat with a synchronized dressing room.',
+    catalogImg: `${base}/assets/consultants/lr-catalog.webp`,
+    catalogAlt: 'Alder component catalog listing 60 registered A2UI commerce schemas.',
+    catalogCaption:
+      'Registered commerce schema catalog (60 components) and in-app A2UI batch inspector.',
+    demoUrl: 'https://aldera2ui.netlify.app/',
+    repoUrl: 'https://github.com/levin-riegner/a2ui-ecommerce-flutter',
+    figmaUrl: 'https://www.figma.com/design/mG3g0dRExJiLZ6oWRM4CRg/Ecomm-GenUI-iPhone-Duo',
+  },
+  {
+    slug: 'moonwise',
+    agency: 'Moonwise',
+    agencyUrl: 'https://moonwise.se',
+    domain: 'Finance',
+    logoLight: `${base}/assets/consultants/logos/moonwise-light.svg`,
+    logoDark: `${base}/assets/consultants/logos/moonwise-dark.svg`,
+    logoHeight: 22,
+    appName: 'Homeward',
+    appTagline: 'Conversational home-buying planner',
+    summary:
+      'Models borrowing limits and rent-versus-buy horizons for Stockholm and Lisbon housing markets. Deterministic Dart tools calculate tax and amortization schedules locally and attach source provenance to each figure.',
+    stack: 'Flutter · GenUI · Gemini',
+    catalog: '27 custom financial components',
+    videoSrc: `${base}/assets/consultants/moonwise-walkthrough.mp4`,
+    videoLabel: 'Walkthrough',
+    videoCaption: 'Moonwise · Homeward walkthrough',
+    primaryImg: `${base}/assets/consultants/moonwise-primary.webp`,
+    primaryAlt:
+      'Homeward financial plan showing a Stockholm flat listing card and monthly cost breakdown.',
+    primaryCaption:
+      'Homeward assembling a Stockholm listing card and monthly mortgage cost breakdown.',
+    catalogImg: `${base}/assets/consultants/moonwise-catalog.webp`,
+    catalogAlt:
+      'Homeward interactive catalog gallery displaying 27 custom financial components and A2UI JSON.',
+    catalogCaption:
+      'Interactive catalog gallery with 27 custom financial widgets and live A2UI payload inspection.',
+    demoUrl: 'https://homeward-genui.web.app/',
+    catalogUrl: 'https://homeward-genui.web.app/gallery',
+    repoUrl: 'https://github.com/moonwise-dev/homeward',
+  },
+  {
+    slug: 'oaktree',
+    agency: 'OakTree Apps',
+    agencyUrl: 'https://www.oaktreeapps.com',
+    domain: 'Healthcare',
+    logoLight: `${base}/assets/consultants/logos/oaktree-light.svg`,
+    logoDark: `${base}/assets/consultants/logos/oaktree-dark.svg`,
+    logoHeight: 28,
+    appName: 'VitalLoop',
+    appTagline: 'Personal health and vital-sign tracker',
+    summary:
+      'Streams clinical check-in surfaces from Python ADK agents over the A2A transport. Pairs 18 standard A2UI primitives with 10 custom widgets (including BodyMapPicker and BloodPressureInput) while keeping vital-sign classification in typed Dart models.',
+    stack: 'Flutter · A2A transport · Python ADK',
+    catalog: '28 components (10 clinical custom)',
+    videoSrc: `${base}/assets/consultants/oaktree-walkthrough.mp4`,
+    videoLabel: 'Walkthrough',
+    videoCaption: 'OakTree Apps · VitalLoop live app capture',
+    primaryImg: `${base}/assets/consultants/oaktree-primary.webp`,
+    primaryAlt:
+      'VitalLoop interactive BloodPressureInput widget paired with live A2UI JSON payload.',
+    primaryCaption:
+      'VitalLoop streaming BloodPressureInput controls and live A2UI surface definitions over A2A.',
+    catalogImg: `${base}/assets/consultants/oaktree-catalog.webp`,
+    catalogAlt:
+      'VitalLoop component catalog showing 10 custom clinical widgets and 18 default A2UI components.',
+    catalogCaption:
+      '28-component catalog pairing 10 custom clinical inputs with 18 A2UI basic primitives.',
+    demoUrl: 'https://vital-loop-555131973673.us-central1.run.app/',
+    catalogUrl: 'https://vital-loop-555131973673.us-central1.run.app/#/catalog',
+    repoUrl: 'https://github.com/oaktreeapps/vital-loop',
+    figmaUrl:
+      'https://www.figma.com/design/I2u4OYGUp0aT4EmnXVMEeG/VitalLoop-%C2%B7-A2UI-Component-CatalogHealth-Tracker-%C2%B7-A2UI-Component-Catalog?node-id=0-1',
+  },
+  {
+    slug: 'solid',
+    agency: 'Solid Software',
+    agencyUrl: 'https://solid.software',
+    domain: 'Healthcare',
+    logoLight: `${base}/assets/consultants/logos/solid-light.webp`,
+    logoDark: `${base}/assets/consultants/logos/solid-dark.webp`,
+    logoHeight: 26,
+    appName: 'GenUI Clinic',
+    appTagline: 'Pre-consultation physician workspace',
+    summary:
+      'Compiles longitudinal patient records and check-in notes into visit-specific physician briefs before an appointment starts. Runs A2UI Express on Dart Cloud Functions to compose 14 medical widgets including SafetyBanner, TrendChart, ImagingTimeline, and EcgStrip.',
+    stack: 'Flutter Web · A2UI Express · Dart Cloud Functions',
+    catalog: '22 components (14 medical + 8 basic)',
+    videoSrc: `${base}/assets/consultants/solid-walkthrough.mp4`,
+    videoLabel: 'Preview',
+    videoCaption: 'Solid Software · GenUI Clinic screen preview',
+    primaryImg: `${base}/assets/consultants/solid-primary.webp`,
+    primaryAlt:
+      'GenUI Clinic physician brief displaying patient allergies, anticoagulation alert, vitals, and lab trend charts.',
+    primaryCaption:
+      'Visit-specific clinical brief showing allergy alerts, vitals, and Hemoglobin/BUN lab trends.',
+    catalogImg: `${base}/assets/consultants/solid-catalog.webp`,
+    catalogAlt:
+      'GenUI Clinic catalog browser showing 14 medical widgets and 8 A2UI basic primitives.',
+    catalogCaption:
+      'Clinical catalog browser with 14 domain medical components and 8 basic primitives.',
+    demoUrl: 'https://genui-clinic.solid.software/',
+    catalogUrl: 'https://genui-clinic.solid.software/catalog',
+    repoUrl: 'https://github.com/solid-software/genui-clinic',
+  },
+  {
+    slug: 'somnio',
+    agency: 'Somnio Software',
+    agencyUrl: 'https://somniosoftware.com',
+    domain: 'Finance',
+    logoLight: `${base}/assets/consultants/logos/somnio-light.svg`,
+    logoDark: `${base}/assets/consultants/logos/somnio-dark.svg`,
+    logoHeight: 27,
+    appName: 'Investing Companion',
+    appTagline: 'Multi-state portfolio assistant',
+    summary:
+      'Implements the A2UI wire protocol across six multi-state portfolio surfaces: attribution waterfalls with drill-down recomposition, short/long-term tax-lot tables, scenario comparisons, editable draft order tickets, payoff charts, and holdings breakdowns.',
+    stack: 'Flutter · A2UI JSON · Python FastAPI',
+    catalog: '6 multi-state finance widgets',
+    videoSrc: `${base}/assets/consultants/somnio-walkthrough.mp4`,
+    videoLabel: 'Preview',
+    videoCaption: 'Somnio Software · Investing Companion screen preview',
+    primaryImg: `${base}/assets/consultants/somnio-primary.webp`,
+    primaryAlt:
+      'Somnio Investing Companion mobile screens showing portfolio summary, holdings allocation, and assistant analysis.',
+    primaryCaption:
+      'Mobile A2UI surfaces for portfolio allocation and position drill-down.',
+    catalogImg: `${base}/assets/consultants/somnio-catalog.webp`,
+    catalogAlt: 'Somnio Finance UI Kit attribution waterfall states in light and dark themes.',
+    catalogCaption:
+      'Light and dark theme states from the Finance UI Kit attribution waterfall widget.',
+    demoUrl: 'https://finance-a2ui-v1.web.app/',
+    repoUrl: 'https://github.com/somnio-projects/finance-google-a2ui',
+    figmaUrl: 'https://www.figma.com/design/SMA3Y4sLh9D03Cp3xl37zh/A2UI-FINANCE-UI-KIT',
+  },
+  {
+    slug: 'vgv',
+    agency: 'Very Good Ventures',
+    agencyUrl: 'https://verygood.ventures',
+    domain: 'Smart home',
+    logoLight: `${base}/assets/consultants/logos/vgv-light.svg`,
+    logoDark: `${base}/assets/consultants/logos/vgv-dark.svg`,
+    logoHeight: 24,
+    appName: 'Riviera Home',
+    appTagline: 'Shared kitchen wall display',
+    summary:
+      'Renders shared household surfaces on a wall-mounted kitchen display using a validated 12x2 grid. Pairs Gemini Live voice input with real-time WebSocket updateDataModel appliance telemetry, time-of-day themes, and multi-persona schedules.',
+    stack: 'Flutter · WebSocket · Dart Frog · Gemini Live',
+    catalog: 'Validated 12x2 smart-home grid',
+    videoSrc: `${base}/assets/consultants/vgv-walkthrough.mp4`,
+    videoLabel: 'Preview',
+    videoCaption: 'Very Good Ventures · Riviera Home screen preview',
+    primaryImg: `${base}/assets/consultants/vgv-primary.webp`,
+    primaryAlt:
+      'Riviera Home wall-mounted kitchen display showing household personas, shopping list, dinner timer, and appliance controls.',
+    primaryCaption:
+      'Riviera Home wall display rendering a validated 12x2 grid of household and appliance A2UI cards.',
+    catalogImg: `${base}/assets/consultants/vgv-catalog.webp`,
+    catalogAlt:
+      'Close-up of Riviera Home A2UI cards for shopping lists, dinner party timer, oven temperature, fridge status, and sunset scene.',
+    catalogCaption:
+      'Close-up of StableSurface cards driven by real-time WebSocket updateDataModel messages.',
+    demoUrl: 'https://a2ui-vgv-smart-home.web.app/',
+    repoUrl: 'https://github.com/VGVentures/a2ui_vgv_smart_home',
+    figmaUrl:
+      'https://www.figma.com/design/5lulKujQK2M3unUbeRgqYw/Rivera-Home-%7C-Component-Catalog?node-id=2001-67',
+  },
+];
+
+const sortedConsultants = [...consultants].sort((a, b) => a.agency.localeCompare(b.agency));
+---
+
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Get Help | A2UI</title>
+    <meta
+      name="description"
+      content="Add the officially supported A2UI skill to your coding agent, or work with independent companies offering consulting services on A2UI."
+    />
+    <link rel="icon" type="image/svg+xml" href={`${base}/assets/favicon.svg`} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <script is:inline>
+      (() => {
+        try {
+          const saved =
+            localStorage.getItem('starlight-theme') || localStorage.getItem('a2ui-theme');
+          document.documentElement.setAttribute(
+            'data-theme',
+            saved === 'dark' || saved === 'light' ? saved : 'light'
+          );
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      })();
+    </script>
+  </head>
+
+  <body class="a2-page">
+    <header class="a2-topbar">
+      <div class="a2-topbar__inner">
+        <StarlightHeader />
+      </div>
+    </header>
+
+    <main data-pagefind-body>
+      <section class="a2-hero c-hero">
+        <div class="a2-hero__grid-bg" aria-hidden="true"></div>
+        <div class="a2-wrap c-hero__inner">
+          <h1 class="a2-h1 c-h1">
+            Get help <span class="a2-h-accent">with&nbsp;A2UI.</span>
+          </h1>
+
+          <div class="c-skill-bar" role="region" aria-labelledby="c-skill-heading">
+            <div class="c-row-copy">
+              <h2 class="c-row-q" id="c-skill-heading">Using a coding agent?</h2>{' '}
+              <p class="c-row-p">
+                Add our{' '}
+                <a
+                  href="https://github.com/a2ui-project/a2ui/blob/main/skills/a2ui/SKILL.md"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="c-inline-link">officially supported skill</a
+                >{' '}
+                and ask questions or co-create.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              class="a2-cmd-bar c-cmd-bar"
+              id="c-copy-skill"
+              data-copy="npx skills add a2ui-project/a2ui"
+              aria-label="Copy npx skills add a2ui-project/a2ui command"
+            >
+              <span class="a2-cmd-bar__sig" aria-hidden="true">$</span>
+              <span class="c-cmd-bar__txt">npx skills add a2ui-project/a2ui</span>
+              <span class="a2-cmd-bar__act" id="c-copy-skill-label" aria-live="polite">COPY</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section
+        class="a2-section a2-section--alt c-directory"
+        id="consultants"
+        aria-labelledby="c-dir-heading"
+      >
+        <div class="a2-wrap">
+          <div class="c-dir-head">
+            <div class="c-row-copy">
+              <h2 class="c-row-q" id="c-dir-heading">Want to work with proven experts?</h2>{' '}
+              <p class="c-row-p">
+                These independent companies offer consulting services on A2UI.
+              </p>
+            </div>
+          </div>
+
+          <div class="c-grid" id="c-grid">
+            {
+              sortedConsultants.map((item) => (
+                <article
+                  class="c-card"
+                  data-card
+                  data-slug={item.slug}
+                  data-agency-name={item.agency}
+                  data-app-name={`${item.appName} · ${item.appTagline}`}
+                  data-agency-url={item.agencyUrl}
+                  data-video-src={item.videoSrc}
+                  data-video-caption={item.videoCaption}
+                  data-primary-src={item.primaryImg}
+                  data-primary-alt={item.primaryAlt}
+                  data-primary-caption={item.primaryCaption}
+                  data-catalog-src={item.catalogImg}
+                  data-catalog-alt={item.catalogAlt}
+                  data-catalog-caption={item.catalogCaption}
+                >
+                  <div class="c-card__head">
+                    <a
+                      href={item.agencyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="c-agency-brand"
+                      aria-label={`${item.agency} website (opens in new tab)`}
+                    >
+                      <img
+                        src={item.logoLight}
+                        alt={item.agency}
+                        class="c-agency-logo c-agency-logo--light"
+                        style={`height: ${item.logoHeight}px;`}
+                        decoding="async"
+                      />
+                      <img
+                        src={item.logoDark}
+                        alt={item.agency}
+                        class="c-agency-logo c-agency-logo--dark"
+                        style={`height: ${item.logoHeight}px;`}
+                        decoding="async"
+                      />
+                    </a>
+                    <span class="c-domain">{item.domain}</span>
+                  </div>
+
+                  <div class="c-stage">
+                    <div class="c-stage__bar">
+                      <div class="c-tabs" role="tablist" aria-label={`${item.appName} views`}>
+                        <button
+                          type="button"
+                          role="tab"
+                          id={`tab-${item.slug}-video`}
+                          aria-controls={`pane-${item.slug}-video`}
+                          aria-selected="true"
+                          tabindex="0"
+                          class="c-tab is-active"
+                          data-media-tab="video"
+                        >
+                          {item.videoLabel}
+                        </button>
+                        <button
+                          type="button"
+                          role="tab"
+                          id={`tab-${item.slug}-primary`}
+                          aria-controls={`pane-${item.slug}-primary`}
+                          aria-selected="false"
+                          tabindex="-1"
+                          class="c-tab"
+                          data-media-tab="primary"
+                        >
+                          App UI
+                        </button>
+                        <button
+                          type="button"
+                          role="tab"
+                          id={`tab-${item.slug}-catalog`}
+                          aria-controls={`pane-${item.slug}-catalog`}
+                          aria-selected="false"
+                          tabindex="-1"
+                          class="c-tab"
+                          data-media-tab="catalog"
+                        >
+                          Catalog
+                        </button>
+                      </div>
+
+                      <div class="c-stage__actions">
+                        <button
+                          type="button"
+                          class="c-icon-btn"
+                          data-video-toggle
+                          title="Pause or play video"
+                          aria-label={`Pause ${item.appName} preview video`}
+                        >
+                          <svg
+                            data-icon-pause
+                            width="13"
+                            height="13"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            aria-hidden="true"
+                          >
+                            <rect x="6" y="5" width="4" height="14" rx="1" />
+                            <rect x="14" y="5" width="4" height="14" rx="1" />
+                          </svg>
+                          <svg
+                            data-icon-play
+                            width="13"
+                            height="13"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            aria-hidden="true"
+                            hidden
+                          >
+                            <polygon points="7,5 19,12 7,19" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          class="c-icon-btn"
+                          data-expand-btn
+                          title="Expand preview"
+                          aria-label={`Expand ${item.appName} preview`}
+                        >
+                          <svg
+                            width="13"
+                            height="13"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            aria-hidden="true"
+                          >
+                            <polyline points="15 3 21 3 21 9" />
+                            <polyline points="9 21 3 21 3 15" />
+                            <line x1="21" y1="3" x2="14" y2="10" />
+                            <line x1="3" y1="21" x2="10" y2="14" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="c-viewport">
+                      <div
+                        class="c-pane"
+                        role="tabpanel"
+                        id={`pane-${item.slug}-video`}
+                        aria-labelledby={`tab-${item.slug}-video`}
+                        data-media-pane="video"
+                      >
+                        <video
+                          src={item.videoSrc}
+                          poster={item.primaryImg}
+                          width="1280"
+                          height="800"
+                          muted
+                          loop
+                          playsinline
+                          disablepictureinpicture
+                          disableremoteplayback
+                          preload="metadata"
+                        />
+                      </div>
+                      <div
+                        class="c-pane c-pane--clickable"
+                        role="tabpanel"
+                        id={`pane-${item.slug}-primary`}
+                        aria-labelledby={`tab-${item.slug}-primary`}
+                        data-media-pane="primary"
+                        hidden
+                      >
+                        <img
+                          src={item.primaryImg}
+                          alt={item.primaryAlt}
+                          width="1280"
+                          height="800"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      </div>
+                      <div
+                        class="c-pane c-pane--clickable"
+                        role="tabpanel"
+                        id={`pane-${item.slug}-catalog`}
+                        aria-labelledby={`tab-${item.slug}-catalog`}
+                        data-media-pane="catalog"
+                        hidden
+                      >
+                        <img
+                          src={item.catalogImg}
+                          alt={item.catalogAlt}
+                          width="1280"
+                          height="800"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="c-card__body">
+                    <div>
+                      <h3 class="c-app-title">
+                        {item.appName} <span class="c-app-tagline">· {item.appTagline}</span>
+                      </h3>
+                      <p class="c-summary">{item.summary}</p>
+                    </div>
+
+                    <dl class="c-meta">
+                      <div>
+                        <dt>STACK</dt>
+                        <dd>{item.stack}</dd>
+                      </div>
+                      <div>
+                        <dt>CATALOG</dt>
+                        <dd>{item.catalog}</dd>
+                      </div>
+                    </dl>
+                  </div>
+
+                  <div class="c-card__footer">
+                    <div class="c-links">
+                      <a
+                        href={item.demoUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="c-text-link"
+                      >
+                        Live demo <span aria-hidden="true">↗</span>
+                      </a>
+                      {item.catalogUrl && (
+                        <a
+                          href={item.catalogUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="c-text-link"
+                        >
+                          Catalog <span aria-hidden="true">↗</span>
+                        </a>
+                      )}
+                      {item.figmaUrl && (
+                        <a
+                          href={item.figmaUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="c-text-link"
+                        >
+                          Figma <span aria-hidden="true">↗</span>
+                        </a>
+                      )}
+                      <a
+                        href={item.repoUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="c-text-link"
+                      >
+                        GitHub <span aria-hidden="true">↗</span>
+                      </a>
+                    </div>
+
+                    <a
+                      href={item.agencyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="a2-btn a2-btn--outline c-card__cta"
+                    >
+                      <span>Visit {item.agency}</span>
+                      <span aria-hidden="true">↗</span>
+                    </a>
+                  </div>
+                </article>
+              ))
+            }
+          </div>
+
+          <div
+            class="c-notes"
+            role="region"
+            aria-label="Directory governance and contribution"
+          >
+            <div>
+              <h3 class="c-notes__heading">Independent directory</h3>
+              <p>
+                Consultancies on this page are independent third parties listed in alphabetical
+                order alongside public source code. The A2UI project does not endorse, rank, or
+                certify commercial vendors.
+              </p>
+            </div>
+
+            <div>
+              <h3 class="c-notes__heading">Add a consultancy</h3>
+              <p>
+                Ship a runnable, open-source A2UI reference application under an OSI-approved
+                license and open a pull request on{' '}
+                <a
+                  href="https://github.com/a2ui-project/a2ui"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  a2ui-project/a2ui
+                </a>{' '}
+                with your repository, component catalog, and walkthrough media.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="a2-footer">
+      <div class="a2-wrap a2-footer__inner">
+        <div class="a2-footer__brand">
+          <strong>A2UI</strong>
+          <span>/</span>
+          <span>Apache 2.0 Open Source Project</span>
+        </div>
+        <nav class="a2-footer__links" aria-label="Footer links">
+          <a href={`${base}/quickstart/`}>Quickstart</a>
+          <a href={`${base}/concepts/overview/`}>Concepts</a>
+          <a href={`${base}/concepts/sdks/`}>SDKs</a>
+          <a href={`${base}/ecosystem/renderers/`}>Ecosystem</a>
+          <a href={`${base}/specification/v1.0-a2ui/`}>Specification</a>
+          <a href="https://github.com/a2ui-project/a2ui" target="_blank" rel="noopener noreferrer"
+            >GitHub</a
+          >
+        </nav>
+      </div>
+    </footer>
+
+    <dialog class="c-lightbox" id="c-lightbox" aria-labelledby="c-lb-title">
+      <div class="c-lightbox__head">
+        <span class="c-lightbox__title" id="c-lb-title"></span>
+        <button type="button" class="a2-btn a2-btn--outline c-lightbox__close" id="c-lb-close">
+          Close
+        </button>
+      </div>
+      <div class="c-lightbox__stage">
+        <video id="c-lb-video" controls loop muted playsinline preload="none" hidden></video>
+        <img id="c-lb-img" alt="" hidden />
+      </div>
+      <div class="c-lightbox__caption">
+        <span id="c-lb-caption"></span>
+        <a
+          id="c-lb-agency-link"
+          href="https://a2ui.org"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="c-text-link"
+        ></a>
+      </div>
+    </dialog>
+
+    <script is:inline>
+      (() => {
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const cards = Array.from(document.querySelectorAll('[data-card]'));
+        const copySkillBtn = document.getElementById('c-copy-skill');
+        const copySkillLabel = document.getElementById('c-copy-skill-label');
+
+        if (copySkillBtn && copySkillLabel) {
+          let copyTimer = 0;
+          copySkillBtn.addEventListener('click', async () => {
+            const cmd = copySkillBtn.getAttribute('data-copy') || '';
+            try {
+              await navigator.clipboard.writeText(cmd);
+              copySkillLabel.textContent = 'COPIED ✓';
+              copySkillBtn.classList.add('is-copied');
+              window.clearTimeout(copyTimer);
+              copyTimer = window.setTimeout(() => {
+                copySkillLabel.textContent = 'COPY';
+                copySkillBtn.classList.remove('is-copied');
+              }, 1800);
+            } catch (e) {}
+          });
+        }
+
+        function syncToggleIcon(card, paused) {
+          const toggle = card.querySelector('[data-video-toggle]');
+          if (!toggle) return;
+          const pauseIcon = toggle.querySelector('[data-icon-pause]');
+          const playIcon = toggle.querySelector('[data-icon-play]');
+          if (pauseIcon) pauseIcon.toggleAttribute('hidden', paused);
+          if (playIcon) playIcon.toggleAttribute('hidden', !paused);
+          const app = card.getAttribute('data-app-name') || 'preview';
+          toggle.setAttribute('aria-label', `${paused ? 'Play' : 'Pause'} ${app} video`);
+        }
+
+        function syncVisibleVideos() {
+          const vh = window.innerHeight || document.documentElement.clientHeight;
+          cards.forEach((card) => {
+            const vid = card.querySelector('video');
+            if (!vid) return;
+            const activeTab = card.querySelector('.c-tab.is-active');
+            const onVideoTab = !activeTab || activeTab.getAttribute('data-media-tab') === 'video';
+            const userPaused = card.getAttribute('data-user-paused') === 'true';
+            const rect = card.getBoundingClientRect();
+            const inView = rect.bottom > 40 && rect.top < vh - 40;
+            if (!prefersReducedMotion && inView && onVideoTab && !userPaused) {
+              vid.play().catch(() => {});
+              syncToggleIcon(card, false);
+            } else {
+              vid.pause();
+              syncToggleIcon(card, prefersReducedMotion || userPaused || !onVideoTab);
+            }
+          });
+        }
+
+        if (prefersReducedMotion) {
+          cards.forEach((card) => {
+            card.setAttribute('data-user-paused', 'true');
+            const vid = card.querySelector('video');
+            if (vid) vid.pause();
+            syncToggleIcon(card, true);
+          });
+        } else {
+          syncVisibleVideos();
+          if ('IntersectionObserver' in window) {
+            const observer = new IntersectionObserver(
+              (entries) => {
+                entries.forEach((entry) => {
+                  const card = entry.target;
+                  const vid = card.querySelector('video');
+                  if (!vid) return;
+                  const activeTab = card.querySelector('.c-tab.is-active');
+                  const onVideoTab =
+                    !activeTab || activeTab.getAttribute('data-media-tab') === 'video';
+                  const userPaused = card.getAttribute('data-user-paused') === 'true';
+                  if (entry.isIntersecting && onVideoTab && !userPaused) {
+                    vid.play().catch(() => {});
+                    syncToggleIcon(card, false);
+                  } else if (!entry.isIntersecting && !vid.paused) {
+                    vid.pause();
+                  }
+                });
+              },
+              { threshold: 0.25 }
+            );
+            cards.forEach((card) => observer.observe(card));
+          }
+        }
+
+        cards.forEach((card) => {
+          const tabs = Array.from(card.querySelectorAll('[data-media-tab]'));
+          const panes = Array.from(card.querySelectorAll('[data-media-pane]'));
+          const video = card.querySelector('video');
+          const toggleBtn = card.querySelector('[data-video-toggle]');
+
+          function activateTab(tab) {
+            const target = tab.getAttribute('data-media-tab');
+            tabs.forEach((t) => {
+              const active = t === tab;
+              t.classList.toggle('is-active', active);
+              t.setAttribute('aria-selected', String(active));
+              t.setAttribute('tabindex', active ? '0' : '-1');
+            });
+            panes.forEach((p) => {
+              const active = p.getAttribute('data-media-pane') === target;
+              p.toggleAttribute('hidden', !active);
+            });
+            if (toggleBtn) {
+              toggleBtn.hidden = target !== 'video';
+            }
+            if (video) {
+              if (
+                target === 'video' &&
+                !prefersReducedMotion &&
+                card.getAttribute('data-user-paused') !== 'true'
+              ) {
+                video.play().catch(() => {});
+                syncToggleIcon(card, false);
+              } else {
+                video.pause();
+              }
+            }
+          }
+
+          tabs.forEach((tab) => {
+            tab.addEventListener('click', () => activateTab(tab));
+          });
+
+          const tablist = card.querySelector('[role="tablist"]');
+          if (tablist) {
+            tablist.addEventListener('keydown', (e) => {
+              const idx = tabs.indexOf(document.activeElement);
+              if (idx === -1) return;
+              let next = -1;
+              if (e.key === 'ArrowRight') next = (idx + 1) % tabs.length;
+              else if (e.key === 'ArrowLeft') next = (idx - 1 + tabs.length) % tabs.length;
+              else if (e.key === 'Home') next = 0;
+              else if (e.key === 'End') next = tabs.length - 1;
+              if (next === -1) return;
+              e.preventDefault();
+              tabs[next].focus();
+              activateTab(tabs[next]);
+            });
+          }
+
+          if (toggleBtn && video) {
+            toggleBtn.addEventListener('click', () => {
+              if (video.paused) {
+                card.setAttribute('data-user-paused', 'false');
+                video.play().catch(() => {});
+                syncToggleIcon(card, false);
+              } else {
+                card.setAttribute('data-user-paused', 'true');
+                video.pause();
+                syncToggleIcon(card, true);
+              }
+            });
+          }
+        });
+
+        const dialog = document.getElementById('c-lightbox');
+        const lbTitle = document.getElementById('c-lb-title');
+        const lbClose = document.getElementById('c-lb-close');
+        const lbVideo = document.getElementById('c-lb-video');
+        const lbImg = document.getElementById('c-lb-img');
+        const lbCaption = document.getElementById('c-lb-caption');
+        const lbAgencyLink = document.getElementById('c-lb-agency-link');
+        let lastTrigger = null;
+
+        function resetLightboxMedia() {
+          if (lbVideo) {
+            lbVideo.pause();
+            lbVideo.hidden = true;
+            lbVideo.removeAttribute('src');
+            lbVideo.load();
+          }
+          if (lbImg) {
+            lbImg.hidden = true;
+            lbImg.removeAttribute('src');
+            lbImg.setAttribute('alt', '');
+          }
+        }
+
+        function closeLightbox() {
+          resetLightboxMedia();
+          if (dialog && dialog.open) {
+            dialog.close();
+          }
+        }
+
+        function openLightboxForCard(card, triggerEl) {
+          if (!dialog || !lbTitle || !lbVideo || !lbImg || !lbCaption || !lbAgencyLink) return;
+          lastTrigger = triggerEl || document.activeElement;
+          resetLightboxMedia();
+
+          const activeTab = card.querySelector('.c-tab.is-active');
+          const mode = activeTab ? activeTab.getAttribute('data-media-tab') : 'video';
+          const agencyName = card.getAttribute('data-agency-name') || '';
+          const appName = card.getAttribute('data-app-name') || '';
+          const agencyUrl = card.getAttribute('data-agency-url') || 'https://a2ui.org';
+
+          lbTitle.textContent = `${agencyName} · ${appName}`;
+          lbAgencyLink.textContent = `Visit ${agencyName} ↗`;
+          lbAgencyLink.setAttribute('href', agencyUrl);
+
+          if (mode === 'video') {
+            lbVideo.hidden = false;
+            lbVideo.setAttribute('src', card.getAttribute('data-video-src') || '');
+            lbCaption.textContent = card.getAttribute('data-video-caption') || '';
+            dialog.showModal();
+            if (!prefersReducedMotion) {
+              lbVideo.play().catch(() => {});
+            }
+          } else {
+            lbImg.hidden = false;
+            const srcAttr = mode === 'catalog' ? 'data-catalog-src' : 'data-primary-src';
+            const altAttr = mode === 'catalog' ? 'data-catalog-alt' : 'data-primary-alt';
+            const capAttr = mode === 'catalog' ? 'data-catalog-caption' : 'data-primary-caption';
+            lbImg.setAttribute('src', card.getAttribute(srcAttr) || '');
+            lbImg.setAttribute('alt', card.getAttribute(altAttr) || '');
+            lbCaption.textContent = card.getAttribute(capAttr) || '';
+            dialog.showModal();
+          }
+        }
+
+        cards.forEach((card) => {
+          const expandBtn = card.querySelector('[data-expand-btn]');
+          if (expandBtn) {
+            expandBtn.addEventListener('click', () => openLightboxForCard(card, expandBtn));
+          }
+          card.querySelectorAll('.c-pane--clickable').forEach((pane) => {
+            pane.addEventListener('click', () => openLightboxForCard(card, expandBtn || pane));
+          });
+        });
+
+        if (lbClose) {
+          lbClose.addEventListener('click', closeLightbox);
+        }
+
+        if (dialog) {
+          dialog.addEventListener('cancel', (e) => {
+            e.preventDefault();
+            closeLightbox();
+          });
+          dialog.addEventListener('click', (e) => {
+            if (e.target === dialog && (e.clientX !== 0 || e.clientY !== 0)) {
+              const rect = dialog.getBoundingClientRect();
+              const isOutside =
+                e.clientX < rect.left ||
+                e.clientX > rect.right ||
+                e.clientY < rect.top ||
+                e.clientY > rect.bottom;
+              if (isOutside) closeLightbox();
+            }
+          });
+          dialog.addEventListener('close', () => {
+            resetLightboxMedia();
+            if (
+              lastTrigger &&
+              document.contains(lastTrigger) &&
+              typeof lastTrigger.focus === 'function'
+            ) {
+              lastTrigger.focus();
+            }
+            lastTrigger = null;
+          });
+        }
+      })();
+    </script>
+
+    <style>
+      /* =======================================================================
+         SHARED ARCHITECTURAL PRIMITIVES (matching index.astro + tokens.css)
+         ======================================================================= */
+      :global(*, *::before, *::after) {
+        box-sizing: border-box;
+      }
+
+      :global(html) {
+        scroll-behavior: smooth;
+        background: var(--a2-bg);
+        color: var(--a2-text);
+        font-family: var(--a2-font-sans);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      :global([hidden]) {
+        display: none !important;
+      }
+
+      .a2-page {
+        margin: 0;
+        background: var(--a2-bg);
+        color: var(--a2-text);
+        overflow-x: clip;
+      }
+
+      .a2-wrap {
+        width: 100%;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 36px;
+      }
+
+      @media (max-width: 640px) {
+        .a2-wrap {
+          padding: 0 20px;
+        }
+      }
+
+      .a2-topbar {
+        position: sticky;
+        top: 0;
+        z-index: 60;
+        height: 64px;
+        background: var(--a2-bg-nav);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-bottom: 1px solid var(--a2-border);
+      }
+
+      .a2-topbar__inner {
+        max-width: 1280px;
+        height: 100%;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+
+      .a2-hero {
+        position: relative;
+        padding: 44px 0 36px;
+        overflow: clip;
+      }
+
+      .a2-hero__grid-bg {
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(to right, var(--a2-border-subtle) 1px, transparent 1px),
+          linear-gradient(to bottom, var(--a2-border-subtle) 1px, transparent 1px);
+        background-size: 64px 64px;
+        mask-image: radial-gradient(ellipse 90% 75% at 50% 15%, #000 15%, transparent 78%);
+        -webkit-mask-image: radial-gradient(ellipse 90% 75% at 50% 15%, #000 15%, transparent 78%);
+        pointer-events: none;
+      }
+
+      .a2-h1 {
+        margin: 0;
+        font-family: var(--a2-font-display);
+        font-weight: 700;
+        line-height: 1.05;
+        letter-spacing: var(--a2-tracking-display);
+        color: var(--a2-text);
+      }
+
+      .a2-h-accent {
+        color: var(--a2-heading-accent);
+      }
+
+      .a2-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        height: 44px;
+        padding: 0 20px;
+        border-radius: 3px;
+        font-family: var(--a2-font-sans);
+        font-size: 13.5px;
+        font-weight: 600;
+        text-decoration: none;
+        cursor: pointer;
+        transition:
+          background-color 0.15s ease,
+          border-color 0.15s ease,
+          color 0.15s ease;
+      }
+
+      .a2-btn--outline {
+        background: transparent;
+        color: var(--a2-text);
+        border: 1px solid var(--a2-border-strong);
+      }
+
+      .a2-btn--outline:hover {
+        border-color: var(--a2-text);
+      }
+
+      .a2-cmd-bar {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        height: 42px;
+        padding: 0 14px;
+        border-radius: 3px;
+        border: 1px solid var(--a2-border-strong);
+        background: var(--a2-surface);
+        color: var(--a2-text);
+        font-family: var(--a2-font-mono);
+        font-size: 12.5px;
+        cursor: pointer;
+        max-width: 100%;
+        transition: border-color 0.15s ease;
+      }
+
+      .a2-cmd-bar:hover {
+        border-color: var(--a2-text);
+      }
+
+      .a2-cmd-bar.is-copied {
+        border-color: var(--a2-success);
+      }
+
+      .a2-cmd-bar__sig {
+        color: var(--a2-accent);
+        user-select: none;
+      }
+
+      .a2-cmd-bar__act {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        padding-left: 10px;
+        border-left: 1px solid var(--a2-border);
+        color: var(--a2-text-muted);
+        white-space: nowrap;
+      }
+
+      .a2-cmd-bar.is-copied .a2-cmd-bar__act {
+        color: var(--a2-success);
+      }
+
+      .a2-section {
+        position: relative;
+        border-top: 1px solid var(--a2-border-strong);
+        scroll-margin-top: 72px;
+      }
+
+      .a2-section--alt {
+        background: var(--a2-bg-alt);
+      }
+
+      .a2-footer {
+        border-top: 1px solid var(--a2-border-strong);
+        padding: 40px 0 56px;
+      }
+
+      .a2-footer__inner {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+      }
+
+      .a2-footer__brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        color: var(--a2-text-muted);
+      }
+
+      .a2-footer__brand strong {
+        color: var(--a2-text);
+        font-weight: 650;
+      }
+
+      .a2-footer__links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+      }
+
+      .a2-footer__links a {
+        font-size: 13px;
+        color: var(--a2-text-secondary);
+        text-decoration: none;
+      }
+
+      .a2-footer__links a:hover {
+        color: var(--a2-text);
+      }
+
+      /* =======================================================================
+         GET HELP PAGE LAYOUT & DIRECTORY CARDS
+         ======================================================================= */
+      .c-hero__inner {
+        position: relative;
+      }
+
+      .c-h1 {
+        font-size: clamp(2.2rem, 3.6vw, 3.1rem);
+        margin-bottom: 20px;
+      }
+
+      .c-skill-bar,
+      .c-dir-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px 24px;
+        flex-wrap: wrap;
+      }
+
+      .c-dir-head {
+        margin-bottom: 24px;
+      }
+
+      .c-row-copy {
+        margin: 0;
+        font-size: 15.5px;
+        line-height: 1.55;
+        color: var(--a2-text-secondary);
+        text-wrap: pretty;
+      }
+
+      .c-row-q {
+        display: inline;
+        margin: 0;
+        font-family: var(--a2-font-sans);
+        font-size: inherit;
+        font-weight: 650;
+        line-height: inherit;
+        letter-spacing: var(--a2-tracking-body);
+        color: var(--a2-text);
+      }
+
+      .c-row-p {
+        display: inline;
+        margin: 0;
+      }
+
+      .c-inline-link {
+        color: var(--a2-accent);
+        font-weight: 600;
+        text-decoration: underline;
+        text-decoration-color: var(--a2-accent-border);
+        text-underline-offset: 3px;
+        transition:
+          color 0.15s ease,
+          text-decoration-color 0.15s ease;
+      }
+
+      .c-inline-link:hover {
+        color: var(--a2-accent-strong);
+        text-decoration-color: currentColor;
+      }
+
+      .c-cmd-bar__txt {
+        white-space: nowrap;
+      }
+
+      .c-directory {
+        padding: 36px 0 88px;
+      }
+
+      .c-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 24px;
+      }
+
+      .c-card {
+        display: flex;
+        flex-direction: column;
+        background: var(--a2-surface);
+        border: 1px solid var(--a2-border-strong);
+        border-radius: var(--a2-radius-sm);
+        box-shadow: var(--a2-shadow-sm);
+        overflow: hidden;
+      }
+
+      .c-card__head {
+        padding: 12px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        background: var(--a2-surface-subtle);
+        border-bottom: 1px solid var(--a2-border);
+      }
+
+      .c-agency-brand {
+        display: inline-flex;
+        align-items: center;
+        text-decoration: none;
+        min-height: 28px;
+      }
+
+      .c-agency-logo {
+        display: block;
+        width: auto;
+        max-width: 156px;
+        object-fit: contain;
+      }
+
+      .c-agency-logo--dark,
+      :global(:root[data-theme='dark']) .c-agency-logo--light {
+        display: none;
+      }
+
+      :global(:root[data-theme='dark']) .c-agency-logo--dark {
+        display: block;
+      }
+
+      .c-domain {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 7px;
+        border-radius: 3px;
+        border: 1px solid var(--a2-border-strong);
+        background: var(--a2-surface);
+        font-family: var(--a2-font-mono);
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--a2-text-secondary);
+        white-space: nowrap;
+      }
+
+      .c-stage__bar {
+        padding: 7px 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        background: var(--a2-code-header);
+        border-bottom: 1px solid var(--a2-border);
+      }
+
+      .c-tabs,
+      .c-stage__actions,
+      .c-links {
+        display: flex;
+        align-items: center;
+      }
+
+      .c-tabs {
+        gap: 4px;
+      }
+
+      .c-tab {
+        padding: 4px 10px;
+        border-radius: 3px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--a2-text-secondary);
+        font-family: var(--a2-font-sans);
+        font-size: 12.5px;
+        font-weight: 500;
+        line-height: 1.3;
+        white-space: nowrap;
+        cursor: pointer;
+        transition:
+          color 0.14s ease,
+          background-color 0.14s ease,
+          border-color 0.14s ease;
+      }
+
+      .c-tab:hover {
+        color: var(--a2-text);
+      }
+
+      .c-tab.is-active {
+        background: var(--a2-surface);
+        border-color: var(--a2-border-strong);
+        color: var(--a2-text);
+        font-weight: 600;
+      }
+
+      .c-stage__actions {
+        gap: 6px;
+      }
+
+      .c-icon-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        border-radius: 3px;
+        border: 1px solid var(--a2-border-strong);
+        background: var(--a2-surface);
+        color: var(--a2-text-secondary);
+        cursor: pointer;
+        transition:
+          color 0.15s ease,
+          border-color 0.15s ease;
+      }
+
+      .c-icon-btn:hover {
+        color: var(--a2-text);
+        border-color: var(--a2-text);
+      }
+
+      .c-viewport {
+        background: var(--a2-code-bg);
+        border-bottom: 1px solid var(--a2-border);
+      }
+
+      .c-pane {
+        aspect-ratio: 16 / 10;
+        overflow: hidden;
+      }
+
+      .c-pane--clickable {
+        cursor: zoom-in;
+      }
+
+      .c-pane video,
+      .c-pane img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+
+      .c-card__body {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        flex: 1;
+        gap: 14px;
+        padding: 18px 18px 16px;
+      }
+
+      .c-app-title {
+        margin: 0 0 8px;
+        font-family: var(--a2-font-display);
+        font-size: 18px;
+        font-weight: 700;
+        line-height: 1.25;
+        letter-spacing: var(--a2-tracking-h3);
+        color: var(--a2-text);
+      }
+
+      .c-app-tagline {
+        font-weight: 500;
+        color: var(--a2-text-muted);
+      }
+
+      .c-summary,
+      .c-notes p {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.6;
+        color: var(--a2-text-secondary);
+        text-wrap: pretty;
+      }
+
+      .c-meta {
+        margin: 0;
+        padding-top: 12px;
+        border-top: 1px solid var(--a2-border);
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px 16px;
+      }
+
+      .c-meta dt {
+        font-family: var(--a2-font-mono);
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: var(--a2-tracking-mono-wide);
+        color: var(--a2-text-muted);
+        margin: 0 0 3px;
+      }
+
+      .c-meta dd {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 1.4;
+        color: var(--a2-text);
+      }
+
+      .c-card__footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 12px 18px;
+        background: var(--a2-surface-subtle);
+        border-top: 1px solid var(--a2-border);
+      }
+
+      .c-links {
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+
+      .c-text-link,
+      .c-notes a {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--a2-accent);
+        text-decoration: none;
+      }
+
+      .c-text-link:hover,
+      .c-notes a:hover {
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+
+      .c-card__cta {
+        height: 34px;
+        padding: 0 13px;
+        font-size: 12.5px;
+        gap: 7px;
+        background: var(--a2-surface);
+      }
+
+      .c-notes {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 40px;
+        margin-top: 52px;
+        padding-top: 36px;
+        border-top: 1px solid var(--a2-border);
+      }
+
+      .c-notes__heading {
+        margin: 0 0 8px;
+        font-family: var(--a2-font-display);
+        font-size: 17px;
+        font-weight: 700;
+        letter-spacing: var(--a2-tracking-h3);
+        color: var(--a2-text);
+      }
+
+      .c-notes a {
+        font-size: 14px;
+      }
+
+      .c-lightbox {
+        width: min(1040px, calc(100vw - 32px));
+        max-height: calc(100vh - 32px);
+        margin: auto;
+        padding: 0;
+        border: 1px solid var(--a2-border-strong);
+        border-radius: var(--a2-radius-sm);
+        background: var(--a2-surface);
+        color: var(--a2-text);
+        box-shadow: var(--a2-shadow-lg);
+        overflow: hidden;
+      }
+
+      .c-lightbox::backdrop {
+        background: rgba(11, 14, 20, 0.76);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+      }
+
+      .c-lightbox__head,
+      .c-lightbox__caption {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 12px 16px;
+      }
+
+      .c-lightbox__head {
+        background: var(--a2-code-header);
+        border-bottom: 1px solid var(--a2-border);
+      }
+
+      .c-lightbox__title {
+        font-family: var(--a2-font-display);
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--a2-text);
+      }
+
+      .c-lightbox__close {
+        height: 32px;
+        padding: 0 12px;
+        font-size: 12.5px;
+        background: var(--a2-surface);
+      }
+
+      .c-lightbox__stage {
+        background: var(--a2-code-bg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        max-height: calc(100vh - 156px);
+        overflow: hidden;
+      }
+
+      .c-lightbox__stage video,
+      .c-lightbox__stage img {
+        display: block;
+        max-width: 100%;
+        max-height: calc(100vh - 156px);
+        width: auto;
+        height: auto;
+        object-fit: contain;
+      }
+
+      .c-lightbox__caption {
+        background: var(--a2-surface-subtle);
+        border-top: 1px solid var(--a2-border);
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--a2-text-secondary);
+      }
+
+      :is(
+          .a2-btn,
+          .a2-cmd-bar,
+          .c-tab,
+          .c-icon-btn,
+          .c-inline-link,
+          .c-text-link,
+          .c-notes a,
+          .c-agency-brand,
+          .a2-footer__links a
+        ):focus-visible {
+        outline: 2px solid var(--a2-accent);
+        outline-offset: 2px;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        :global(html) {
+          scroll-behavior: auto;
+        }
+
+        .a2-btn,
+        .a2-cmd-bar,
+        .c-tab,
+        .c-icon-btn,
+        .c-inline-link {
+          transition: none;
+        }
+      }
+
+      @media (max-width: 900px) {
+        .c-grid {
+          grid-template-columns: 1fr;
+          gap: 20px;
+        }
+      }
+
+      @media (max-width: 760px) {
+        .c-directory {
+          padding: 28px 0 64px;
+        }
+
+        .c-notes {
+          grid-template-columns: 1fr;
+          gap: 24px;
+          margin-top: 40px;
+          padding-top: 28px;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .c-meta {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .c-cmd-bar {
+          width: 100%;
+          justify-content: space-between;
+          padding: 0 10px;
+          gap: 6px;
+          font-size: 11px;
+        }
+
+        .c-cmd-bar__txt {
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .c-stage__bar {
+          padding: 6px 10px;
+        }
+
+        .c-tab {
+          padding: 4px 8px;
+          font-size: 12px;
+        }
+      }
+    </style>
+  </body>
+</html>

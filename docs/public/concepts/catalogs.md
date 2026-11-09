@@ -6,48 +6,85 @@ This guide defines the A2UI Catalog architecture and provides a roadmap for impl
 
 ## Catalog Schema
 
-A catalog schema is a [JSON Schema file](../../../specification/v0_9/json/client_capabilities.json#L62C5-L95C6) outlining the components, functions, and themes that agents can use to define A2UI surfaces using server-driven UI. All A2UI JSON sent from the agent is validated against the chosen catalog.
+A catalog schema is a JSON Schema file outlining the components, functions, and (in v0.9.1) themes that agents can use to define A2UI surfaces using server-driven UI. All A2UI JSON sent from the agent is validated against the chosen catalog.
 
-[Catalog JSON Schema](../../../specification/v0_9/json/client_capabilities.json#L62C5-L95C6) is below
+In v1.0, catalogs follow [`catalog_definition.json`](../../../specification/v1_0/json/catalog_definition.json). In v0.9.1, they follow the `Catalog` definition in [`client_capabilities.json`](../../../specification/v0_9_1/json/client_capabilities.json#L54-L87). The main properties are below (the v1.0 schema also allows `$schema`, `$id`, `$defs`, `title`, `description`, and `metadata`):
 
-```json
-{
-  "Catalog": {
-    "type": "object",
-    "description": "A collection of component and function definitions.",
-    "properties": {
-      "catalogId": {
-        "type": "string",
-        "description": "Unique identifier for this catalog."
+=== "v1.0"
+
+    ```json
+    {
+      "$id": "https://a2ui.org/specification/v1_0/catalog_definition.json",
+      "title": "A2UI Catalog Definition Schema",
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "string",
+          "description": "The A2UI specification version of this catalog definition (e.g. '1.0')."
+        },
+        "catalogId": {
+          "type": "string",
+          "description": "Unique identifier for this catalog."
+        },
+        "instructions": {
+          "type": "string",
+          "description": "Markdown-formatted design guidelines or instructions specific to this catalog."
+        },
+        "components": {
+          "type": "object",
+          "description": "Definitions for UI components supported by this catalog.",
+          "additionalProperties": {"$ref": "#/$defs/ComponentDefinition"}
+        },
+        "functions": {
+          "type": "object",
+          "description": "Definitions for functions supported by this catalog.",
+          "additionalProperties": {"$ref": "#/$defs/FunctionDefinition"}
+        }
       },
-      "components": {
+      "required": ["catalogId"]
+    }
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "Catalog": {
         "type": "object",
-        "description": "Definitions for UI components supported by this catalog.",
-        "additionalProperties": {
-          "$ref": "https://json-schema.org/draft/2020-12/schema"
-        }
-      },
-      "functions": {
-        "type": "array",
-        "description": "Definitions for functions supported by this catalog.",
-        "items": {
-          "$ref": "#/$defs/FunctionDefinition"
-        }
-      },
-      "theme": {
-        "title": "A2UI Theme",
-        "description": "A schema that defines a catalog of A2UI theme properties.",
-        "type": "object",
-        "additionalProperties": {
-          "$ref": "https://json-schema.org/draft/2020-12/schema"
-        }
+        "description": "A collection of component and function definitions.",
+        "properties": {
+          "catalogId": {
+            "type": "string",
+            "description": "Unique identifier for this catalog."
+          },
+          "components": {
+            "type": "object",
+            "description": "Definitions for UI components supported by this catalog.",
+            "additionalProperties": {
+              "$ref": "https://json-schema.org/draft/2020-12/schema"
+            }
+          },
+          "functions": {
+            "type": "array",
+            "description": "Definitions for functions supported by this catalog.",
+            "items": {
+              "$ref": "#/$defs/FunctionDefinition"
+            }
+          },
+          "theme": {
+            "title": "A2UI Theme",
+            "description": "A schema that defines a catalog of A2UI theme properties.",
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "https://json-schema.org/draft/2020-12/schema"
+            }
+          }
+        },
+        "required": ["catalogId"],
+        "additionalProperties": false
       }
-    },
-    "required": ["catalogId"],
-    "additionalProperties": false
-  }
-}
-```
+    }
+    ```
 
 ## Catalog Strategy
 
@@ -57,7 +94,7 @@ Whether you are building a simple prototype or a complex production application,
 
 ### The Basic Catalog
 
-To help developers get started quickly, the A2UI team maintains the [Basic Catalog](../../../specification/v0_9/catalogs/basic/catalog.json).
+To help developers get started quickly, the A2UI team maintains the Basic Catalog ([v1.0](../../../catalogs/basic/v1/catalog.json), [v0.9.1](../../../specification/v0_9_1/catalogs/basic/catalog.json)).
 
 This is a pre-defined catalog file that contains a basic set of general-purpose components (Buttons, Inputs, Cards) and functions. It is not a special "type" of catalog; it is simply a version of a catalog that we have already written and have open source renderers for.
 
@@ -65,7 +102,7 @@ The basic catalog allows you to bootstrap an application or validate A2UI concep
 
 Since A2UI is designed for LLMs to generate the UI at either design time or runtime, we do not think portability requires a standardized catalog across multiple clients; the LLM can interpret the catalog for each individual frontend.
 
-[See the A2UI v0.9 basic catalog](../../../specification/v0_9/catalogs/basic/catalog.json)
+[See the A2UI v1.0 basic catalog](../../../catalogs/basic/v1/catalog.json)
 
 ### Defining Your Own Catalog
 
@@ -86,63 +123,139 @@ For simplicity we recommend building catalogs that directly reflect a client's d
 
 ## Building a Catalog
 
-A catalog is a JSON Schema file that conforms to the [Catalog schema](../../../specification/v0_9/json/client_capabilities.json#L62C5-L95C6) that defines the components, themes and functions an agent can use when building a surface.
+A catalog is a JSON Schema file that conforms to the catalog schema above and defines the components and functions an agent can use when building a surface.
 
 ### Example: A Minimal Catalog
 
 Here is a simple catalog defining a single component.
 
-```json
-{
-  "$id": "https://github.com/.../hello_world/v1/catalog.json",
-  "catalogId": "https://github.com/.../hello_world/v1/catalog.json",
-  "components": {
-    "HelloWorldBanner": {
-      "type": "object",
-      "description": "A simple banner greeting.",
-      "properties": {
-        "message": {
-          "type": "string",
-          "description": "The banner text."
-        },
-        "backgroundColor": {
-          "type": "string",
-          "default": "#f0f0f0"
+=== "v1.0"
+
+    ```json
+    {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "https://github.com/.../hello_world/v1/catalog.json",
+      "catalogId": "https://github.com/.../hello_world/v1/catalog.json",
+      "protocolVersion": "1.0",
+      "components": {
+        "HelloWorldBanner": {
+          "type": "object",
+          "description": "A simple banner greeting.",
+          "properties": {
+            "component": {
+              "const": "HelloWorldBanner"
+            },
+            "message": {
+              "type": "string",
+              "description": "The banner text."
+            },
+            "backgroundColor": {
+              "type": "string",
+              "default": "#f0f0f0"
+            }
+          },
+          "required": ["component", "message"]
         }
       },
-      "required": ["message"]
+      "$defs": {
+        "anyComponent": {
+          "oneOf": [
+            { "$ref": "#/components/HelloWorldBanner" }
+          ],
+          "discriminator": {
+            "propertyName": "component"
+          }
+        },
+        "anyFunction": {
+          "not": {}
+        }
+      }
     }
-  }
-}
-```
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "$id": "https://github.com/.../hello_world/v1/catalog.json",
+      "catalogId": "https://github.com/.../hello_world/v1/catalog.json",
+      "components": {
+        "HelloWorldBanner": {
+          "type": "object",
+          "description": "A simple banner greeting.",
+          "properties": {
+            "message": {
+              "type": "string",
+              "description": "The banner text."
+            },
+            "backgroundColor": {
+              "type": "string",
+              "default": "#f0f0f0"
+            }
+          },
+          "required": ["message"]
+        }
+      }
+    }
+    ```
 
 When the agent uses that catalog, it generates a payload strictly conforming to that structure:
 
-```json
-[
-  {
-    "version": "v0.9",
-    "createSurface": {
-      "surfaceId": "hello-world-surface",
-      "catalogId": "https://github.com/.../hello_world/v1/catalog.json"
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateComponents": {
-      "surfaceId": "hello-world-surface",
-      "components": [
-        {
-          "id": "root",
-          "component": "HelloWorldBanner",
-          "message": "Hello, world! Welcome to your first catalog.",
-          "backgroundColor": "#4CAF50"
+=== "v1.0"
+
+    ```json
+    [
+      {
+        "version": "1.0",
+        "createSurface": {
+          "surfaceId": "hello-world-surface",
+          "catalogId": "https://github.com/.../hello_world/v1/catalog.json"
         }
-      ]
-    }
-  }
-]
-```
+      },
+      {
+        "version": "1.0",
+        "updateComponents": {
+          "surfaceId": "hello-world-surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "HelloWorldBanner",
+              "message": "Hello, world! Welcome to your first catalog.",
+              "backgroundColor": "#4CAF50"
+            }
+          ]
+        }
+      }
+    ]
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    [
+      {
+        "version": "v0.9",
+        "createSurface": {
+          "surfaceId": "hello-world-surface",
+          "catalogId": "https://github.com/.../hello_world/v1/catalog.json"
+        }
+      },
+      {
+        "version": "v0.9",
+        "updateComponents": {
+          "surfaceId": "hello-world-surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "HelloWorldBanner",
+              "message": "Hello, world! Welcome to your first catalog.",
+              "backgroundColor": "#4CAF50"
+            }
+          ]
+        }
+      }
+    ]
+    ```
 
 ### Catalog Linking
 
@@ -283,7 +396,7 @@ export const MY_CATALOG = new AngularCatalog(
 You can see a working example of a client renderer in the [Orchestrator demo](../../../samples/community/client/angular/projects/orchestrator/src/a2ui-catalog/catalog.ts).
 
 > [!NOTE]
-> The Orchestrator demo currently uses v0.8 APIs. For a v0.9 example of catalog registration, see the [DemoCatalog](../../../typescript/renderers/angular/a2ui_explorer/src/app/demo-catalog.ts) in the Angular explorer.
+> The Orchestrator demo uses the deprecated v0.8 APIs. For a v0.9.1 and v1.0 example of catalog registration, see the [DemoCatalog](../../../typescript/renderers/angular/a2ui_explorer/src/app/demo-catalog.ts) in the Angular explorer.
 >
 > Additionally, for client-side functions, the client determines the function's execution boundary (such as `clientOnly` status) at runtime by reading its configuration from the active catalog definition.
 
@@ -297,26 +410,51 @@ The agent may optionally advertise which catalogs it is capable of speaking (e.g
 
 Example of an A2A AgentCard advertising that the agent supports the basic and rizzcharts catalogs
 
-```json
-{
-  "name": "Ecommerce Dashboard Agent",
-  "description": "This agent visualizes ecommerce data...",
-  "capabilities": {
-    "extensions": [
-      {
-        "uri": "https://a2ui.org/a2a-extension/a2ui/v0.8",
-        "description": "Provides agent driven UI using the A2UI JSON format.",
-        "params": {
-          "supportedCatalogIds": [
-            "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
-            "https://github.com/.../rizzcharts_catalog_definition.json"
-          ]
-        }
+=== "v1.0"
+
+    ```json
+    {
+      "name": "Ecommerce Dashboard Agent",
+      "description": "This agent visualizes ecommerce data...",
+      "capabilities": {
+        "extensions": [
+          {
+            "uri": "https://a2ui.org/a2a-extension/a2ui/v1.0",
+            "description": "Provides agent driven UI using the A2UI JSON format.",
+            "params": {
+              "supportedCatalogIds": [
+                "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+                "https://github.com/.../rizzcharts_catalog_definition.json"
+              ]
+            }
+          }
+        ]
       }
-    ]
-  }
-}
-```
+    }
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "name": "Ecommerce Dashboard Agent",
+      "description": "This agent visualizes ecommerce data...",
+      "capabilities": {
+        "extensions": [
+          {
+            "uri": "https://a2ui.org/a2a-extension/a2ui/v0.9.1",
+            "description": "Provides agent driven UI using the A2UI JSON format.",
+            "params": {
+              "supportedCatalogIds": [
+                "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+                "https://github.com/.../rizzcharts_catalog_definition.json"
+              ]
+            }
+          }
+        ]
+      }
+    }
+    ```
 
 ### Step 2: Client advertises its support catalogs (required)
 
@@ -324,23 +462,49 @@ The client sends a list of supportedCatalogIds to the Agent, ordered by preferen
 
 Example of A2A message containing the supportedCatalogIds in metadata
 
-```json
-{
-  "parts": [
+=== "v1.0"
+
+    ```json
     {
-      "text": "What is the current status of my flight?"
+      "parts": [
+        {
+          "text": "What is the current status of my flight?"
+        }
+      ],
+      "metadata": {
+        "a2uiRendererCapabilities": {
+          "1.0": {
+            "supportedCatalogIds": [
+              "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+              "https://github.com/.../rizzcharts_catalog_definition.json"
+            ]
+          }
+        }
+      }
     }
-  ],
-  "metadata": {
-    "a2uiClientCapabilities": {
-      "supportedCatalogIds": [
-        "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
-        "https://github.com/.../rizzcharts_catalog_definition.json"
-      ]
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "parts": [
+        {
+          "text": "What is the current status of my flight?"
+        }
+      ],
+      "metadata": {
+        "a2uiClientCapabilities": {
+          "v0.9": {
+            "supportedCatalogIds": [
+              "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+              "https://github.com/.../rizzcharts_catalog_definition.json"
+            ]
+          }
+        }
+      }
     }
-  }
-}
-```
+    ```
 
 ### Step 3: Agent Selection
 
@@ -348,14 +512,29 @@ When the agent creates a new surface, it selects the best match from the client'
 
 Example A2UI Message from the agent defining the catalog_id used in a surface
 
-```json
-{
-  "createSurface": {
-    "surfaceId": "salesDashboard",
-    "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
-  }
-}
-```
+=== "v1.0"
+
+    ```json
+    {
+      "version": "1.0",
+      "createSurface": {
+        "surfaceId": "salesDashboard",
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      }
+    }
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "salesDashboard",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+      }
+    }
+    ```
 
 ## Catalog Naming & Versioning
 
@@ -462,18 +641,34 @@ The client sends a `VALIDATION_FAILED` event using the standard A2UI Client-to-S
 
 Example of client reporting a missing required field
 
-```json
-{
-  "version": "v0.9",
-  "error": {
-    "code": "VALIDATION_FAILED",
-    "surfaceId": "flight-status-card-123",
-    "path": "/components/FlightCard/flightNumber",
-    "message": "Missing required property 'flightNumber' in component 'FlightCard'."
-  }
-}
-```
+=== "v1.0"
+
+    ```json
+    {
+      "version": "1.0",
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "surfaceId": "flight-status-card-123",
+        "path": "/components/FlightCard/flightNumber",
+        "message": "Missing required property 'flightNumber' in component 'FlightCard'."
+      }
+    }
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "version": "v0.9",
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "surfaceId": "flight-status-card-123",
+        "path": "/components/FlightCard/flightNumber",
+        "message": "Missing required property 'flightNumber' in component 'FlightCard'."
+      }
+    }
+    ```
 
 ## Inline Catalogs
 
-Inline catalogs sent by the client at runtime are supported but not recommended in production. More details about them can be found [here](../../../specification/v0_9/docs/a2ui_protocol.md#client-capabilities--metadata).
+Inline catalogs sent by the client at runtime are supported but not recommended in production. More details about them can be found in the [v1.0 protocol specification](../../../specification/v1_0/docs/a2ui_protocol.md#renderer-capabilities).

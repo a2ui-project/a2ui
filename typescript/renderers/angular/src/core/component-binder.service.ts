@@ -156,9 +156,9 @@ export class ComponentBinder {
    * Binds all properties of a component to an object of Angular Signals from its
    * `ComponentContext`, resolving data bindings through the `DataContext` directly.
    *
-   * @deprecated Hosts bind from the resolved `ComponentNode` via {@link bindNode}. This
-   *   path remains for elements that are given a `ComponentContext` without a node and
-   *   will be removed in a future release.
+   * @deprecated Use {@link bindNode}. Hosts bind from the resolved `ComponentNode` via
+   *   `bindNode(node)`. This path remains for elements that are given a `ComponentContext`
+   *   without a node and will be removed in a future release.
    * @param context The ComponentContext containing the model and data context.
    * @returns An object where each key corresponds to a component prop and its value is an Angular Signal.
    */

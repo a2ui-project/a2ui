@@ -14,23 +14,27 @@
  * limitations under the License.
  */
 
-import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
+import {describe, it} from 'node:test';
+
 import {z} from 'zod';
+
+import {Catalog} from '../../catalog/types.js';
 import {A2uiValidationError} from '../../errors.js';
-import {VersionAdapterFactory} from './factory.js';
+import {MessageProcessor} from '../message-processor.js';
 import {
   InternalCreateSurfaceOp,
+  InternalDeleteSurfaceOp,
   InternalUpdateComponentsOp,
   InternalUpdateDataModelOp,
-  InternalDeleteSurfaceOp,
 } from '../operations.js';
 import {
-  VersionAdapter,
-  SUPPORTED_PROTOCOL_VERSIONS,
   DEFAULT_CATALOG_COMPATIBILITY,
   isCatalogVersionCompatible,
+  SUPPORTED_PROTOCOL_VERSIONS,
+  VersionAdapter,
 } from './base.js';
+import {VersionAdapterFactory} from './factory.js';
 import {V0Point8Adapter} from './v0_8.js';
 import {V0Point9Adapter} from './v0_9.js';
 import {V1Point0Adapter} from './v1_0.js';
@@ -62,6 +66,78 @@ describe('VersionAdapterFactory', () => {
     assert.strictEqual(op.sendDataModel, true);
     assert.deepStrictEqual(op.components, [{id: 'root', component: 'Column'}]);
     assert.deepStrictEqual(op.dataModel, {key: 'value'});
+  });
+
+  it('drops theme on v1.0 createSurface in permissive mode and rejects it in strict mode', () => {
+    const adapter = new V1Point0Adapter();
+    const payloadWithTheme = {
+      version: '1.0',
+      createSurface: {
+        surfaceId: 's1',
+        catalogId: 'basic',
+        theme: {primaryColor: '#FF0000'},
+      },
+    };
+
+    const defaultOps = adapter.extractOperations(payloadWithTheme);
+    assert.strictEqual(defaultOps.length, 1);
+    const defaultOp = defaultOps[0] as InternalCreateSurfaceOp;
+    assert.strictEqual(defaultOp.type, 'createSurface');
+    assert.strictEqual(defaultOp.surfaceId, 's1');
+    assert.strictEqual(defaultOp.theme, undefined);
+
+    const permissiveOps = adapter.extractOperations(payloadWithTheme, {
+      allowUnknownElements: true,
+    });
+    assert.strictEqual(permissiveOps.length, 1);
+    assert.strictEqual((permissiveOps[0] as InternalCreateSurfaceOp).theme, undefined);
+
+    assert.throws(
+      () => adapter.extractOperations(payloadWithTheme, {allowUnknownElements: false}),
+      (err: unknown) => err instanceof A2uiValidationError && /theme/.test(err.message),
+    );
+    assert.throws(
+      () => adapter.extractOperations(payloadWithTheme, {}),
+      (err: unknown) => err instanceof A2uiValidationError && /theme/.test(err.message),
+    );
+  });
+
+  it('rejects array v1.0 createSurface payloads cleanly without mutating array values', () => {
+    const adapter = new V1Point0Adapter();
+    assert.throws(
+      () =>
+        adapter.extractOperations(
+          {version: '1.0', createSurface: []},
+          {allowUnknownElements: true},
+        ),
+      (err: unknown) => err instanceof A2uiValidationError,
+    );
+  });
+
+  it('drops v1.0 createSurface.theme in default MessageProcessor and rejects it in strict validationConfig', () => {
+    const catalog = new Catalog('basic', '1.0', [], []);
+    const payloadWithTheme = {
+      version: '1.0' as const,
+      createSurface: {
+        surfaceId: 's1',
+        catalogId: 'basic',
+        theme: {primaryColor: '#FF0000'},
+      },
+    };
+
+    const permissiveProcessor = new MessageProcessor([catalog]);
+    permissiveProcessor.processMessages(payloadWithTheme as never);
+    const surface = permissiveProcessor.getSurface('s1');
+    assert.ok(surface);
+    assert.deepStrictEqual(surface.theme, {});
+
+    const strictProcessor = new MessageProcessor([catalog], undefined, {
+      validationConfig: {allowUnknownElements: false},
+    });
+    assert.throws(
+      () => strictProcessor.processMessages(payloadWithTheme as never),
+      (err: unknown) => err instanceof A2uiValidationError && /theme/.test(err.message),
+    );
   });
 
   it('resolves v0.9 adapter and extracts createSurface operations', () => {
@@ -340,9 +416,6 @@ describe('VersionAdapterFactory', () => {
   });
 });
 
-import {MessageProcessor} from '../message-processor.js';
-import {Catalog} from '../../catalog/types.js';
-
 describe('MessageProcessor Dependency Injection', () => {
   it('uses custom injected adapterRegistry when provided in MessageProcessorOptions', () => {
     let customRegistryInvoked = false;
@@ -612,6 +685,85 @@ describe('MessageProcessor Dependency Injection', () => {
       (err: any) =>
         err instanceof A2uiValidationError &&
         /message must contain exactly one update action/.test(err.message),
+    );
+  });
+
+  it('scopes union validation errors to the active action branch without dumping unrelated branches', () => {
+    const v10 = VersionAdapterFactory.getAdapter('v1.0');
+    assert.throws(
+      () =>
+        v10.extractOperations({
+          version: '1.0',
+          callRendererFunction: {
+            functionCallId: 'f1',
+            callFunction: {'@call': 'formatString', args: {value: 'x'}},
+          },
+        }),
+      (err: unknown) => {
+        assert.ok(err instanceof A2uiValidationError);
+        assert.strictEqual(
+          err.message,
+          'Invalid 1.0 message: callRendererFunction.callFunction.catalogId: Expected string, received undefined',
+        );
+        assert.strictEqual(err.functionCallId, 'f1');
+        return true;
+      },
+    );
+
+    assert.throws(
+      () =>
+        v10.extractOperations({
+          version: 'v1.0',
+          callRendererFunction: {
+            functionCallId: 'f1',
+            callFunction: {'@call': 'formatString', args: {value: 'x'}},
+          },
+        }),
+      (err: unknown) => {
+        assert.ok(err instanceof A2uiValidationError);
+        assert.strictEqual(
+          err.message,
+          'Invalid 1.0 message: version: Invalid literal value, expected "1.0"; callRendererFunction.callFunction.catalogId: Expected string, received undefined',
+        );
+        return true;
+      },
+    );
+
+    assert.throws(
+      () =>
+        v10.extractOperations({
+          version: '1.0',
+          callRendererFunction: {
+            functionCallId: 'f1',
+            callFunction: {'@call': 'formatString', catalogId: 'cat-1', args: {value: 'x'}},
+          },
+          extraField: true,
+        }),
+      (err: unknown) => {
+        assert.ok(err instanceof A2uiValidationError);
+        assert.strictEqual(
+          err.message,
+          "Invalid 1.0 message: root: Unrecognized key(s) in object: 'extraField'",
+        );
+        return true;
+      },
+    );
+
+    const v09 = VersionAdapterFactory.getAdapter('v0.9');
+    assert.throws(
+      () =>
+        v09.extractOperations({
+          version: 'v0.9',
+          createSurface: {surfaceId: 's1'},
+        }),
+      (err: unknown) => {
+        assert.ok(err instanceof A2uiValidationError);
+        assert.strictEqual(
+          err.message,
+          'Invalid v0.9 message: createSurface.catalogId: Expected string, received undefined',
+        );
+        return true;
+      },
     );
   });
 });

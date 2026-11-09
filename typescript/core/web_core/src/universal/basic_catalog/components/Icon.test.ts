@@ -105,6 +105,8 @@ describe('Icon Component', () => {
     assert.strictEqual(i?.classList.contains('material-icons'), true);
     assert.strictEqual(i?.classList.contains('a2ui-icon'), true);
     assert.strictEqual(i?.textContent?.trim(), 'play_arrow');
+    assert.strictEqual(i?.getAttribute('aria-hidden'), 'true');
+    assert.strictEqual(i?.hasAttribute('role'), false);
   });
 
   it('should render svg icon with svgPath', async () => {
@@ -122,8 +124,64 @@ describe('Icon Component', () => {
     assert.notStrictEqual(svg, null);
     assert.strictEqual(svg?.classList.contains('a2ui-icon'), true);
     assert.strictEqual(svg?.classList.contains('a2ui-icon-svg'), true);
+    assert.strictEqual(svg?.getAttribute('aria-hidden'), 'true');
+    assert.strictEqual(svg?.hasAttribute('role'), false);
     const path = svg?.querySelector('path');
     assert.notStrictEqual(path, null);
     assert.strictEqual(path?.getAttribute('d'), 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z');
+  });
+
+  it('exposes role="img" and aria-label when labeled instead of aria-hidden="true"', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'icon_labeled',
+              component: 'Icon',
+              name: 'warning',
+              accessibility: {
+                label: 'Warning',
+                description: 'High priority alert',
+              },
+            },
+            {
+              id: 'icon_svg_labeled',
+              component: 'Icon',
+              name: {svgPath: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z'},
+              accessibility: {
+                label: 'Home',
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-icon') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'icon_labeled');
+    });
+
+    assert.strictEqual(el.hasAttribute('aria-label'), false);
+    const i = el.querySelector('i');
+    assert.strictEqual(i?.getAttribute('role'), 'img');
+    assert.strictEqual(i?.getAttribute('aria-label'), 'Warning');
+    assert.strictEqual(i?.getAttribute('aria-description'), 'High priority alert');
+    assert.strictEqual(i?.hasAttribute('aria-hidden'), false);
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'icon_svg_labeled');
+    });
+
+    const svg = el.querySelector('svg');
+    assert.strictEqual(svg?.getAttribute('role'), 'img');
+    assert.strictEqual(svg?.getAttribute('aria-label'), 'Home');
+    assert.strictEqual(svg?.hasAttribute('aria-hidden'), false);
   });
 });
