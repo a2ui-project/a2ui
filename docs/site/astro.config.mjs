@@ -15,19 +15,68 @@
  */
 
 // @ts-check
-import {defineConfig} from 'astro/config';
 import starlight from '@astrojs/starlight';
-import {remarkA2uiIncludes} from './src/plugins/remark-a2ui-includes.mjs';
+import {defineConfig} from 'astro/config';
+
+import {normalizeBasePrefix} from './src/lib/spec-schemas.mjs';
+import {googleAnalytics} from './src/plugins/google-analytics.mjs';
 import {rehypeWrapTables} from './src/plugins/rehype-wrap-tables.mjs';
+import {remarkA2uiIncludes} from './src/plugins/remark-a2ui-includes.mjs';
+
+function extractHastText(node) {
+  if (!node) return '';
+  if (node.type === 'text') return node.value || '';
+  return Array.isArray(node.children) ? node.children.map(extractHastText).join('') : '';
+}
+
+function rehypePreserveJsonHeadingIds() {
+  return tree => {
+    const walk = node => {
+      if (node?.type === 'element' && /^h[2-4]$/.test(node.tagName)) {
+        const text = extractHastText(node).trim();
+        if (/^[a-z0-9_.-]+\.json$/i.test(text)) {
+          node.properties = {...node.properties, id: text};
+        }
+      }
+      if (Array.isArray(node?.children)) node.children.forEach(walk);
+    };
+    walk(tree);
+  };
+}
+
+const basePrefix = normalizeBasePrefix(process.env.ASTRO_BASE);
 
 export default defineConfig({
   site: process.env.ASTRO_SITE || 'https://a2ui.org',
   base: process.env.ASTRO_BASE || undefined,
+  redirects: {
+    '/gallery': `${basePrefix}/build-with-a2ui/`,
+    '/showcase': `${basePrefix}/build-with-a2ui/`,
+    '/specification/v0.9-a2ui': `${basePrefix}/specification/v0.9.1-a2ui/`,
+    '/specification/v0.9-evolution-guide': `${basePrefix}/specification/v0.9.1-evolution-guide/`,
+    '/concepts/actions': `${basePrefix}/concepts/actions-and-functions/`,
+    '/concepts/agent-sdks': `${basePrefix}/concepts/sdks/#agent-sdk`,
+    '/concepts/components': `${basePrefix}/concepts/catalogs/`,
+    '/concepts/data-flow': `${basePrefix}/concepts/data-binding/`,
+    '/concepts/renderer-sdks': `${basePrefix}/concepts/sdks/#renderer-sdk`,
+    '/concepts/transports': `${basePrefix}/concepts/messages/`,
+    '/concepts/macros': `${basePrefix}/guides/macros/`,
+    '/guides/a2ui_over_mcp': `${basePrefix}/guides/a2ui-over-mcp/`,
+    '/guides/defining-your-own-catalog': `${basePrefix}/guides/defining-a-catalog/`,
+    '/guides/client-setup': `${basePrefix}/guides/client-integration/`,
+    '/guides/agent-development': `${basePrefix}/guides/agent-integration/`,
+    '/specification/v0.8-a2ui': `${basePrefix}/specification/v1.0-a2ui/`,
+    '/specification/v0.8-a2a-extension': `${basePrefix}/specification/v1.0-a2ui-extension-specification/`,
+    '/specification/v0.8-custom-catalog-changes': `${basePrefix}/specification/v1.0-a2ui/`,
+    '/specification/v0.8/schemas': `${basePrefix}/specification/v1.0/schemas/`,
+    '/consultants': `${basePrefix}/get-help/#consultants`,
+  },
   markdown: {
     remarkPlugins: [remarkA2uiIncludes],
-    rehypePlugins: [rehypeWrapTables],
+    rehypePlugins: [rehypeWrapTables, rehypePreserveJsonHeadingIds],
   },
   integrations: [
+    googleAnalytics('G-YX9TPV8DCC'),
     starlight({
       title: 'A2UI',
       description:
@@ -37,9 +86,9 @@ export default defineConfig({
         dark: './src/assets/A2UI_light.svg',
         replacesTitle: false,
       },
+      favicon: '/assets/favicon.svg',
       social: {
         github: 'https://github.com/a2ui-project/a2ui',
-        discord: 'https://discord.gg/6fS2326966',
       },
       head: [
         {
@@ -61,37 +110,39 @@ export default defineConfig({
           tag: 'link',
           attrs: {
             rel: 'stylesheet',
-            href: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap',
+            href: 'https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,400..700;1,400..700&display=swap',
           },
         },
         {
-          tag: 'script',
+          tag: 'link',
           attrs: {
-            type: 'module',
+            rel: 'alternate',
+            type: 'text/markdown',
+            href: `${basePrefix}/llms.txt`,
+            title: 'A2UI documentation index for LLMs',
           },
-          content: `const renderMermaid = async () => { for (const pre of document.querySelectorAll('pre[data-language="mermaid"]')) { const lines = pre.querySelectorAll('.ec-line'); const code = (lines.length ? Array.from(lines, l => l.textContent).join('\n') : (pre.querySelector('code')?.textContent || pre.textContent)).trim(); const div = document.createElement('div'); div.className = 'mermaid-rendered not-content'; div.dataset.mermaidSource = code; (pre.closest('.expressive-code') || pre).replaceWith(div); } const blocks = document.querySelectorAll('.mermaid-rendered[data-mermaid-source]'); if (!blocks.length) return; const { default: mermaid } = await import('https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs'); const isDark = document.documentElement.getAttribute('data-theme') !== 'light'; mermaid.initialize({ startOnLoad: false, theme: isDark ? 'dark' : 'default', fontFamily: 'inherit' }); for (let i = 0; i < blocks.length; i++) { const div = blocks[i]; const code = div.dataset.mermaidSource; if (!code) continue; try { const id = 'mermaid-svg-' + i + '-' + Date.now().toString(36); const { svg } = await mermaid.render(id, code); div.innerHTML = svg; } catch (err) { console.error('Mermaid render error:', err); } } }; if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', renderMermaid); } else { renderMermaid(); } window.addEventListener('theme-changed', renderMermaid);`,
         },
       ],
       components: {
         Header: './src/components/StarlightHeader.astro',
       },
-      customCss: ['./src/styles/custom.css'],
+      customCss: ['./src/styles/tokens.css', './src/styles/custom.css'],
       sidebar: [
-        {
-          label: 'Navigation',
-          items: [
-            {
-              label: '← Back to Overview',
-              link: '/',
-            },
-          ],
-        },
         {
           label: 'Getting Started',
           items: [
             {
-              label: 'Quick start',
+              label: 'Quickstart',
               slug: 'quickstart',
+            },
+            {
+              label: 'Step-by-Step Walkthrough',
+              slug: 'quickstart/step-by-step',
+            },
+            {
+              label: 'Playground ↗',
+              link: 'https://go.copilotkit.ai/a2ui-playground',
+              attrs: {target: '_blank', rel: 'noopener noreferrer'},
             },
           ],
         },
@@ -101,39 +152,34 @@ export default defineConfig({
             {
               label: 'Overview: How A2UI Works',
               slug: 'concepts/overview',
-              badge: {text: 'P0', variant: 'danger'},
             },
             {
               label: 'Messages',
               slug: 'concepts/messages',
-              badge: {text: 'P0', variant: 'danger'},
             },
             {
               label: 'Catalogs',
               slug: 'concepts/catalogs',
-              badge: {text: 'P0', variant: 'danger'},
             },
             {
               label: 'Data Model and Data Binding',
               slug: 'concepts/data-binding',
-              badge: {text: 'P0', variant: 'danger'},
             },
             {
-              label: 'Actions and Functions',
+              label: 'Actions, Events and Functions',
               slug: 'concepts/actions-and-functions',
-              badge: {text: 'P0', variant: 'danger'},
             },
             {
-              label: 'Agent SDKs',
-              slug: 'concepts/agent-sdks',
-            },
-            {
-              label: 'Renderer SDKs',
-              slug: 'concepts/renderer-sdks',
-            },
-            {
-              label: 'Swappable Inference Formats',
+              label: 'Inference Formats',
               slug: 'concepts/inference-formats',
+            },
+            {
+              label: 'SDKs',
+              slug: 'concepts/sdks',
+            },
+            {
+              label: 'Glossary',
+              slug: 'concepts/glossary',
             },
           ],
         },
@@ -141,7 +187,7 @@ export default defineConfig({
           label: 'Guides',
           items: [
             {
-              label: 'How to Integrate with My Client',
+              label: 'How to Integrate A2UI into a Client',
               slug: 'guides/client-integration',
             },
             {
@@ -153,20 +199,34 @@ export default defineConfig({
               slug: 'guides/defining-a-catalog',
             },
             {
-              label: 'MCP Catalog',
-              slug: 'guides/mcp-catalog',
+              label: 'Using Macros',
+              slug: 'guides/macros',
             },
             {
-              label: 'A2UI over MCP',
-              slug: 'guides/a2ui-over-mcp',
-            },
-            {
-              label: 'MCP Apps in A2UI Surfaces',
-              slug: 'guides/mcp-apps-in-a2ui',
-            },
-            {
-              label: 'A2UI Dynamic Rendering within MCP Applications',
-              slug: 'guides/a2ui-in-mcp-apps',
+              label: 'Model Context Protocol (MCP)',
+              collapsed: true,
+              items: [
+                {
+                  label: 'Overview',
+                  slug: 'guides/mcp-overview',
+                },
+                {
+                  label: 'Call MCP Tools from A2UI',
+                  slug: 'guides/mcp-catalog',
+                },
+                {
+                  label: 'Serve A2UI Layouts from an MCP Server',
+                  slug: 'guides/a2ui-over-mcp',
+                },
+                {
+                  label: 'Embed MCP Apps in A2UI Surfaces',
+                  slug: 'guides/mcp-apps-in-a2ui',
+                },
+                {
+                  label: 'Render A2UI Inside an MCP App',
+                  slug: 'guides/a2ui-in-mcp-apps',
+                },
+              ],
             },
             {
               label: 'Authoring Universal Web Components',
@@ -175,20 +235,19 @@ export default defineConfig({
           ],
         },
         {
-          label: 'Roadmap',
+          label: 'Ecosystem',
           items: [
             {
               label: 'Roadmap',
               slug: 'roadmap',
             },
-          ],
-        },
-        {
-          label: 'Ecosystem',
-          items: [
             {
-              label: 'Ecosystem Renderers & Tools',
+              label: 'Community Projects',
               slug: 'ecosystem/renderers',
+            },
+            {
+              label: 'Get Help',
+              link: '/get-help/',
             },
           ],
         },
@@ -196,9 +255,56 @@ export default defineConfig({
           label: 'Specifications',
           items: [
             {
-              label: 'v1.0 Protocol Spec (Pilot)',
-              slug: 'specification/v1.0-a2ui',
-              badge: {text: 'Candidate', variant: 'tip'},
+              label: 'v1.0',
+              badge: {text: 'Current', variant: 'success'},
+              items: [
+                {
+                  label: 'Protocol Specification',
+                  slug: 'specification/v1.0-a2ui',
+                },
+                {
+                  label: 'JSON Schemas',
+                  slug: 'specification/v1.0/schemas',
+                },
+                {
+                  label: 'Basic Catalog Guide',
+                  slug: 'specification/v1.0-basic-catalog-implementation-guide',
+                },
+                {
+                  label: 'A2A Extension',
+                  slug: 'specification/v1.0-a2ui-extension-specification',
+                },
+                {
+                  label: 'Evolution Guide',
+                  slug: 'specification/v1.0-evolution-guide',
+                },
+              ],
+            },
+            {
+              label: 'v0.9.1',
+              collapsed: true,
+              items: [
+                {
+                  label: 'Protocol Specification',
+                  slug: 'specification/v0.9.1-a2ui',
+                },
+                {
+                  label: 'JSON Schemas',
+                  slug: 'specification/v0.9.1/schemas',
+                },
+                {
+                  label: 'Basic Catalog Guide',
+                  slug: 'specification/v0.9.1-basic-catalog-implementation-guide',
+                },
+                {
+                  label: 'A2A Extension',
+                  slug: 'specification/v0.9.1-a2ui-extension-specification',
+                },
+                {
+                  label: 'Evolution Guide',
+                  slug: 'specification/v0.9.1-evolution-guide',
+                },
+              ],
             },
           ],
         },

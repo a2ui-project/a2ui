@@ -40,7 +40,8 @@ public struct ResolvedAction: Sendable {
 
   package let rawUserMessage: JSONValue?
 
-  private let triggerClosure: @Sendable @MainActor ([String: JSONValue]?) throws -> Void
+  private let userActivation: Bool
+  private let triggerClosure: @Sendable @MainActor (Bool, [String: JSONValue]?) throws -> Void
 
   /// Creates a new resolved action with the specified identity and
   /// trigger closure.
@@ -57,7 +58,8 @@ public struct ResolvedAction: Sendable {
     self.dataContextPath = dataContextPath
     self.rawUserMessage = rawUserMessage
     self.metadata = metadata
-    self.triggerClosure = { _ in trigger() }
+    self.userActivation = true
+    self.triggerClosure = { _, _ in trigger() }
   }
 
   /// Creates a new resolved action with a trigger closure that accepts optional call-time metadata.
@@ -74,19 +76,52 @@ public struct ResolvedAction: Sendable {
     self.dataContextPath = dataContextPath
     self.rawUserMessage = rawUserMessage
     self.metadata = metadata
-    self.triggerClosure = triggerWithMetadata
+    self.userActivation = true
+    self.triggerClosure = { _, callMetadata in try triggerWithMetadata(callMetadata) }
+  }
+
+  package init(
+    identity: Identity,
+    sourceComponentID: String? = nil,
+    dataContextPath: String? = nil,
+    rawUserMessage: JSONValue? = nil,
+    metadata: [String: JSONValue]? = nil,
+    userActivation: Bool = true,
+    triggerWithUserActivation:
+      @escaping @Sendable @MainActor (Bool, [String: JSONValue]?) throws -> Void
+  ) {
+    self.identity = identity
+    self.sourceComponentID = sourceComponentID
+    self.dataContextPath = dataContextPath
+    self.rawUserMessage = rawUserMessage
+    self.metadata = metadata
+    self.userActivation = userActivation
+    self.triggerClosure = triggerWithUserActivation
+  }
+
+  /// Returns a copy of this resolved action configured with the given user activation state.
+  public func withUserActivation(_ userActivation: Bool) -> ResolvedAction {
+    ResolvedAction(
+      identity: identity,
+      sourceComponentID: sourceComponentID,
+      dataContextPath: dataContextPath,
+      rawUserMessage: rawUserMessage,
+      metadata: metadata,
+      userActivation: userActivation,
+      triggerWithUserActivation: triggerClosure
+    )
   }
 
   /// Triggers the action using parameter-free function-call syntax.
   @MainActor
   public func callAsFunction() {
-    try? triggerClosure(nil)
+    try? triggerClosure(userActivation, nil)
   }
 
   /// Triggers the action using function-call syntax, validating and merging call-site metadata.
   @MainActor
   public func callAsFunction(metadata: [String: JSONValue]?) throws {
-    try triggerClosure(metadata)
+    try triggerClosure(userActivation, metadata)
   }
 }
 
@@ -95,6 +130,7 @@ extension ResolvedAction: Equatable {
     lhs.identity == rhs.identity
       && lhs.dataContextPath == rhs.dataContextPath
       && lhs.rawUserMessage == rhs.rawUserMessage
+      && lhs.userActivation == rhs.userActivation
       && MetadataValidator.areEqual(lhs.metadata, rhs.metadata)
   }
 }

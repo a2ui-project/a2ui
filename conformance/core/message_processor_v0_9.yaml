@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # ==============================================================================
-# Protocol v0.9 / v0.9.1 MessageProcessor Conformance Test Suite (Active Baseline)
+# Protocol v0.9 / v0.9.1 MessageProcessor Conformance Test Suite
 # ==============================================================================
 
 # --- Surface Lifecycle & State Isolation ---

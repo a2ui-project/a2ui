@@ -14,16 +14,49 @@
  * limitations under the License.
  */
 
-import {describe, expect, test} from 'vitest';
+import {expect} from 'vitest';
+
 import {ExpressParser} from '../../src/inference-formats/express/parser.js';
 import {StreamPart} from '../../src/parser/response-part.js';
 import {ResponseStream} from '../../src/parser/response-stream.js';
 import {FileSystemCatalogProvider} from '../../src/processor/catalog-providers.js';
 import {LoadedCase, loadCases} from './loader.js';
-import {categoryOf, conformancePath, registerCase} from './suite-helpers.js';
+import {SuiteVersion, liftParts, loadCatalogFromRelativePath} from './lowering.js';
+import {
+  assertKnownKeys,
+  CASE_METADATA_KEYS,
+  categoryOf,
+  conformancePath,
+  EXPECT_ERROR_KEYS,
+  forEachSuiteVersion,
+  KNOWN_FAILURES,
+} from './suite-helpers.js';
 
-const KNOWN_FAILURES = new Map<string, string>();
 const UNSUPPORTED_VERSIONS = new Map<string, string>([['0.8', 'this SDK does not implement v0.8']]);
+
+const PARSE_CHUNK_CASE_KEYS = new Set([
+  ...CASE_METADATA_KEYS,
+  'args',
+  'steps',
+  'expect_close',
+  'expect_error',
+  'expect_matches_single_shot',
+]);
+const PARSE_CHUNK_ARGS_KEYS = new Set([
+  'format',
+  'catalog',
+  'catalogs',
+  'progressive_keys',
+  'wrapped',
+  'after_rejected_block',
+]);
+const PARSE_CHUNK_STEP_KEYS = new Set([
+  'input',
+  'expect',
+  'expect_error',
+  'expect_partial_results',
+  'expect_in_block',
+]);
 
 interface StreamingArgs {
   format: string;
@@ -64,13 +97,11 @@ function declaredVersion(args: StreamingArgs): string | undefined {
   return document.protocolVersion?.replace(/^v/, '');
 }
 
-function makeParser(args: StreamingArgs): ExpressParser {
+function makeParser(args: StreamingArgs, lower = false): ExpressParser {
   if (args.format !== 'express') {
     throw new Error(`Unexpected format '${args.format}'`);
   }
-  const catalogs = catalogPaths(args).map(file =>
-    new FileSystemCatalogProvider(conformancePath(file)).load(),
-  );
+  const catalogs = catalogPaths(args).map(file => loadCatalogFromRelativePath(file, lower));
   return new ExpressParser(
     catalogs,
     'default_surface',
@@ -88,6 +119,11 @@ function partToDict(part: StreamPart): Record<string, unknown> {
 
 /** Runs `fn`, expects it to throw `expected`, and returns the error. */
 function expectError(fn: () => unknown, expected: ExpectedError): unknown {
+  assertKnownKeys(
+    expected as unknown as Record<string, unknown>,
+    EXPECT_ERROR_KEYS,
+    'expect_error',
+  );
   let thrown: unknown;
   try {
     fn();
@@ -97,7 +133,7 @@ function expectError(fn: () => unknown, expected: ExpectedError): unknown {
   expect(thrown, 'the step should raise').toBeDefined();
   expect(categoryOf(thrown)).toBe(expected.category);
   if (expected.message) {
-    expect((thrown as Error).message).toMatch(new RegExp(expected.message));
+    expect((thrown as Error).message).toMatch(new RegExp(expected.message, 'i'));
   }
   return thrown;
 }
@@ -116,10 +152,21 @@ function mergeAdjacentText(parts: Array<Record<string, unknown>>): Array<Record<
   return merged;
 }
 
-function runCase(testCase: LoadedCase): void {
+function runCase(testCase: LoadedCase, version: SuiteVersion): void {
+  assertKnownKeys(testCase, PARSE_CHUNK_CASE_KEYS, 'parse_chunk case');
+  const isLowered = version === 'v0.9-lowered';
+  const toExpected = (parts: StreamPart[]) => {
+    const dicts = parts.map(partToDict);
+    return isLowered ? liftParts(dicts, {join: true}) : dicts;
+  };
   const args = testCase.args as unknown as StreamingArgs;
+  assertKnownKeys(
+    args as unknown as Record<string, unknown>,
+    PARSE_CHUNK_ARGS_KEYS,
+    'parse_chunk args',
+  );
   const wrapped = args.wrapped ?? true;
-  const parser = makeParser(args);
+  const parser = makeParser(args, isLowered);
   const stream: ResponseStream<StreamPart> = parser.openStream({
     wrapped,
     afterRejectedBlock: args.after_rejected_block ?? 'end',
@@ -128,12 +175,17 @@ function runCase(testCase: LoadedCase): void {
   const yielded: Array<Record<string, unknown>> = [];
 
   for (const [index, step] of (testCase.steps as Step[]).entries()) {
+    assertKnownKeys(
+      step as unknown as Record<string, unknown>,
+      PARSE_CHUNK_STEP_KEYS,
+      'parse_chunk step',
+    );
     chunks.push(step.input);
     if (step.expect_error) {
       const error = expectError(() => stream.feed(step.input), step.expect_error);
       if (step.expect_partial_results) {
         const partial = (error as {partialResults?: StreamPart[]}).partialResults ?? [];
-        expect(partial.map(partToDict), `step ${index}: partial results`).toEqual(
+        expect(toExpected(partial), `step ${index}: partial results`).toEqual(
           step.expect_partial_results,
         );
       }
@@ -142,7 +194,7 @@ function runCase(testCase: LoadedCase): void {
       }
       return;
     }
-    const parts = stream.feed(step.input).map(partToDict);
+    const parts = toExpected(stream.feed(step.input));
     expect(parts, `step ${index}: ${step.input}`).toEqual(step.expect);
     if (step.expect_in_block !== undefined) {
       expect(stream.isInBlock, `step ${index}: in block`).toBe(step.expect_in_block);
@@ -155,26 +207,27 @@ function runCase(testCase: LoadedCase): void {
     return;
   }
 
-  const closed = stream.close().map(partToDict);
+  const closed = toExpected(stream.close());
   if (testCase.expect_close) {
     expect(closed, 'close').toEqual(testCase.expect_close);
   }
   yielded.push(...closed);
 
   if (testCase.expect_matches_single_shot) {
-    const singleShot = makeParser(args).parseResponse(chunks.join(''), {wrapped});
-    expect(mergeAdjacentText(yielded)).toEqual(mergeAdjacentText(singleShot.map(partToDict)));
+    const singleShot = makeParser(args, isLowered).parseResponse(chunks.join(''), {wrapped});
+    expect(mergeAdjacentText(yielded)).toEqual(mergeAdjacentText(toExpected(singleShot)));
   }
 }
 
-describe('Conformance: express/response_streaming.yaml', () => {
-  for (const testCase of loadCases([conformancePath('agent/express/response_streaming.yaml')])) {
-    const version = declaredVersion(testCase.args as unknown as StreamingArgs);
-    const unsupported = version ? UNSUPPORTED_VERSIONS.get(version) : undefined;
-    if (unsupported) {
-      test.skip(`${testCase.action} · ${testCase.name} (${unsupported})`, () => {});
-      continue;
-    }
-    registerCase(testCase, KNOWN_FAILURES, () => runCase(testCase));
-  }
-});
+forEachSuiteVersion(
+  'Conformance: express/response_streaming.yaml',
+  loadCases([conformancePath('agent/express/response_streaming.yaml')]),
+  (testCase, version) => runCase(testCase, version),
+  {
+    knownFailures: KNOWN_FAILURES,
+    skipReason: testCase => {
+      const version = declaredVersion(testCase.args as unknown as StreamingArgs);
+      return version ? UNSUPPORTED_VERSIONS.get(version) : undefined;
+    },
+  },
+);

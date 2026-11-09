@@ -1,0 +1,94 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Unprivileged stage of the `docs/site` PR preview pipeline.
+#
+# Runs with read-only permissions (safe for fork pull requests), builds the
+# Astro site with `ASTRO_BASE=/pr-preview/pr-<PR_NUMBER>/`, marks all HTML pages
+# `noindex, nofollow`, and uploads the static bundle as a workflow artifact.
+# `.github/workflows/docs_site_preview_deploy.yml` picks up the completed run to
+# publish the static files to `gh-pages` and comment the preview URL on the PR.
+name: Docs Site Preview
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/docs_site_preview.yml"
+      - ".github/workflows/docs_site_preview_deploy.yml"
+      - "scripts/docs_site_preview.mjs"
+      - "docs/site/**"
+      - "docs/public/assets/**"
+      - "specification/**"
+      - "catalogs/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build_preview:
+    if: github.repository == 'a2ui-project/a2ui'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      # Root package.json declares yarn as packageManager; allow standalone npm in docs/site.
+      COREPACK_ENABLE_STRICT: "0"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: "docs/site/package-lock.json"
+
+      - name: Install preview site dependencies
+        run: npm --prefix docs/site ci || npm --prefix docs/site install --no-package-lock
+
+      - name: Build preview site
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          ASTRO_BASE="/pr-preview/pr-${PR_NUMBER}/" npm --prefix docs/site run build
+
+      - name: Stage sanitized preview bundle
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BUNDLE_DIR: ${{ runner.temp }}/preview-bundle
+        run: |
+          node scripts/docs_site_preview.mjs stage \
+            --dist docs/site/dist \
+            --out "${BUNDLE_DIR}" \
+            --pr "${PR_NUMBER}" \
+            --sha "${HEAD_SHA}"
+
+      - name: Upload preview bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: docs-site-preview-bundle
+          path: ${{ runner.temp }}/preview-bundle
+          retention-days: 3
+          if-no-files-found: error

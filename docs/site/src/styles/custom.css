@@ -15,56 +15,80 @@
  */
 
 /* ==========================================================================
-   Starlight Global Theme Tokens & Markdown Polish (Matched to Front Page)
+   Starlight Global Theme Mapping & Markdown Typography
+   Bound directly to Unified Design System Tokens (src/styles/tokens.css)
    ========================================================================== */
 
 :root {
-  --sl-font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --sl-font-mono:
-    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --sl-font: var(--a2-font-sans);
+  --sl-font-mono: var(--a2-font-mono);
 
-  /* Dark mode palette — matches index.astro (#090d16 / #111827 / #14b8a6) */
-  --sl-color-accent-low: #0d3b38;
-  --sl-color-accent: #14b8a6;
-  --sl-color-accent-high: #5eead4;
-  --sl-color-text-accent: #2dd4bf;
-  --sl-color-bg: #090d16;
-  --sl-color-bg-nav: rgba(9, 13, 22, 0.92);
-  --sl-color-bg-sidebar: #0c121e;
-  --sl-color-hairline-shade: #1e293b;
-  --sl-color-hairline-light: #1e293b;
-  --sl-color-hairline: #1e293b;
-  --sl-nav-height: 60px;
+  /* Dark mode palette — Google near-black with Blue 300 accents */
+  --sl-color-accent-low: #0f2a57;
+  --sl-color-accent: var(--a2-accent);
+  --sl-color-accent-high: #aecbfa;
+  --sl-color-text-accent: var(--a2-accent-strong);
+  --sl-color-bg: var(--a2-bg);
+  --sl-color-bg-nav: var(--a2-bg-nav);
+  --sl-color-bg-sidebar: var(--a2-bg);
+  --sl-color-bg-inline-code: var(--a2-surface);
+  --sl-color-hairline-shade: var(--a2-border);
+  --sl-color-hairline-light: var(--a2-border);
+  --sl-color-hairline: var(--a2-border);
+  --sl-color-gray-1: #e8eaed;
+  --sl-color-gray-2: #bdc1c6;
+  --sl-color-gray-3: #9aa0a6;
+  --sl-color-gray-4: #80868b;
+  --sl-color-gray-5: #303134;
+  --sl-color-gray-6: #1e1f20;
+  --sl-nav-height: 64px;
   --sl-nav-pad-x: 24px;
   --sl-nav-pad-y: 0px;
 }
 
 :root[data-theme='light'] {
-  --sl-color-accent-low: #ccfbf1;
-  --sl-color-accent: #0d9488;
-  --sl-color-accent-high: #0f766e;
-  --sl-color-text-accent: #0d9488;
-  --sl-color-bg: #f8fafc;
-  --sl-color-bg-nav: rgba(248, 250, 252, 0.92);
-  --sl-color-bg-sidebar: #f1f5f9;
-  --sl-color-hairline-shade: #e2e8f0;
-  --sl-color-hairline-light: #e2e8f0;
-  --sl-color-hairline: #e2e8f0;
+  --sl-color-accent-low: #d3e3fd;
+  --sl-color-accent: var(--a2-accent);
+  --sl-color-accent-high: var(--a2-accent-strong);
+  --sl-color-text-accent: var(--a2-accent);
+  --sl-color-bg: var(--a2-bg);
+  --sl-color-bg-nav: var(--a2-bg-nav);
+  --sl-color-bg-sidebar: var(--a2-bg);
+  --sl-color-bg-inline-code: #f1f3f4;
+  --sl-color-hairline-shade: var(--a2-border);
+  --sl-color-hairline-light: var(--a2-border);
+  --sl-color-hairline: var(--a2-border);
 }
 
-/* Header & Sidebar visual alignment with landing page */
+body {
+  font-feature-settings: 'cv02', 'cv03', 'cv04';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Header & Sidebar visual alignment with landing page (.a2-topbar / .a2-topbar__inner) */
 header.header {
-  height: 60px !important;
-  padding: 0 24px !important;
+  height: 64px !important;
+  padding: 0 !important;
   box-sizing: border-box;
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--sl-color-hairline);
+  background: var(--a2-bg-nav) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--a2-border);
+}
+
+header.header > .a2-sl-header {
+  box-sizing: border-box;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 24px;
 }
 
 .site-title {
-  font-weight: 800;
-  font-size: 1.05rem;
-  letter-spacing: -0.02em;
+  font-family: var(--a2-font-display);
+  font-weight: 600;
+  font-size: 1.02rem;
+  letter-spacing: -0.025em;
   gap: 0.55rem;
   color: var(--sl-color-white) !important;
 }
@@ -74,59 +98,184 @@ header.header {
 }
 
 .site-title img {
-  height: 1.55rem;
+  height: 1.5rem;
   width: auto;
 }
 
-/* Subtle active state in sidebar instead of harsh solid block */
+/* Calm editorial sidebar: shares page background, hides scrollbar track until hover, quiet carets */
+.sidebar-pane {
+  border-inline-end: 1px solid var(--a2-border) !important;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.sidebar-pane:hover {
+  scrollbar-color: var(--a2-border-strong) transparent;
+}
+
+.sidebar-pane::-webkit-scrollbar {
+  width: 5px;
+}
+
+.sidebar-pane::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-pane::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.sidebar-pane:hover::-webkit-scrollbar-thumb {
+  background: var(--a2-border-strong);
+}
+
+.sidebar-content {
+  padding: 1.1rem 0.9rem 2rem;
+}
+
+.sidebar-content .top-level > li + li {
+  margin-top: 1.15rem;
+}
+
+/* Sidebar group labels: technical micro-topology */
+.sidebar-content .top-level > li > details > summary {
+  padding: 0.25rem 0.5rem;
+}
+
+.sidebar-content .top-level > li > details > summary .large,
+.sidebar-content .group-label .large {
+  font-family: var(--a2-font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--a2-text-muted);
+}
+
+/* Quiet top-level disclosure carets so the sidebar reads like an editorial index, not an accordion tree */
+.sidebar-content .top-level > li > details > summary .caret {
+  opacity: 0.38;
+  font-size: 0.85rem;
+}
+
+.sidebar-content ul ul li {
+  margin-inline-start: 0.35rem;
+  padding-inline-start: 0.45rem;
+  border-inline-start: 1px solid var(--a2-border);
+}
+
+.sidebar-content a {
+  border-radius: 4px;
+  padding: 0.32rem 0.55rem;
+  font-size: 0.865rem;
+  line-height: 1.4;
+  color: var(--a2-text-secondary);
+  transition:
+    color 0.14s ease,
+    background-color 0.14s ease;
+}
+
+.sidebar-content a:hover {
+  color: var(--a2-text);
+  background-color: var(--a2-surface-subtle);
+}
+
+/* Subtle active state in sidebar */
 .sidebar-content a[aria-current='page'],
 .sidebar-content a[aria-current='page']:hover,
 .sidebar-content a[aria-current='page']:focus {
-  background-color: rgba(20, 184, 166, 0.14);
+  background-color: var(--a2-accent-soft);
   color: var(--sl-color-text-accent);
-  border-left: 2px solid var(--sl-color-accent);
+  border-left: 2px solid var(--a2-accent);
+  border-radius: 0 4px 4px 0;
   font-weight: 600;
 }
 
-/* Polished Markdown typography & tables */
+/* Right-hand table of contents ("On this page"): calm matching rhythm */
+.right-sidebar-panel h2 {
+  font-family: var(--a2-font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--a2-text-muted);
+}
+
+.right-sidebar {
+  border-inline-start: 1px solid var(--a2-border) !important;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.right-sidebar:hover {
+  scrollbar-color: var(--a2-border-strong) transparent;
+}
+
+/* Prevent wide code blocks (e.g. JSONL streams) from expanding flex/grid columns */
+.main-pane,
+.content-panel,
+.sl-container,
+.sl-markdown-content,
+.sl-markdown-content .expressive-code {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Polished Markdown typography & Neo-Grotesque Display Topology */
 .sl-markdown-content {
-  font-size: 0.98rem;
-  line-height: 1.74;
+  font-size: 0.975rem;
+  line-height: 1.72;
+  letter-spacing: var(--a2-tracking-body);
 }
 
 .content-panel h1 {
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  font-family: var(--a2-font-display);
+  font-optical-sizing: auto;
+  font-weight: 600;
+  letter-spacing: -0.036em;
+  line-height: 1.12;
 }
 
-.sl-markdown-content h2 {
-  font-weight: 700;
-  margin-top: 2.4rem;
-  padding-bottom: 0.5rem;
+.sl-markdown-content h2:not(:where(.not-content, .not-content *)) {
+  font-family: var(--a2-font-display);
+  font-optical-sizing: auto;
+  font-weight: 600;
+  margin-top: 2.5rem;
+  padding-bottom: 0.55rem;
   border-bottom: 1px solid var(--sl-color-hairline-light);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.026em;
+  line-height: 1.2;
 }
 
-.sl-markdown-content h3 {
-  font-weight: 700;
-  letter-spacing: -0.015em;
+.sl-markdown-content h3:not(:where(.not-content, .not-content *)) {
+  font-family: var(--a2-font-display);
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  line-height: 1.3;
+}
+
+.sl-markdown-content h4:not(:where(.not-content, .not-content *)) {
+  font-weight: 600;
+  letter-spacing: -0.012em;
 }
 
 .sl-markdown-content code:not(pre code):not(:where(.not-content, .not-content *)) {
   font-family: var(--sl-font-mono);
-  font-size: 0.86em;
-  padding: 0.18em 0.42em;
+  font-size: 0.85em;
+  padding: 0.16em 0.42em;
   border-radius: 5px;
-  background: rgba(20, 184, 166, 0.1);
-  border: 1px solid rgba(20, 184, 166, 0.22);
+  background: var(--a2-surface);
+  border: 1px solid var(--a2-border-strong);
+  color: var(--a2-text);
 }
 
 :root[data-theme='light']
   .sl-markdown-content
   code:not(pre code):not(:where(.not-content, .not-content *)) {
-  background: #f1f5f9;
-  border-color: #cbd5e1;
-  color: #0f172a;
+  background: #f1f3f4;
+  border-color: #dadce0;
+  color: #1f1f1f;
 }
 
 /* Polished Markdown tables (Holistic card container + cell padding + responsive scroll) */
@@ -136,9 +285,9 @@ header.header {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   border: 1px solid var(--sl-color-hairline-light);
-  border-radius: 8px;
+  border-radius: 10px;
   margin: 1.5rem 0;
-  background: var(--sl-color-bg);
+  background: var(--a2-surface);
 }
 
 .sl-markdown-content .table-wrapper table {
@@ -150,7 +299,7 @@ header.header {
   border: none !important;
   border-radius: 0 !important;
   margin: 0 !important;
-  font-size: 0.9rem;
+  font-size: 0.89rem;
 }
 
 @media (max-width: 768px) {
@@ -165,25 +314,34 @@ header.header {
   display: table;
   border-collapse: collapse;
   border: 1px solid var(--sl-color-hairline-light);
-  border-radius: 8px;
+  border-radius: 10px;
   margin: 1.5rem 0;
-  font-size: 0.9rem;
+  font-size: 0.89rem;
 }
 
 .sl-markdown-content thead {
-  background: var(--sl-color-bg-sidebar);
+  background: var(--a2-surface-subtle);
 }
 
 .sl-markdown-content th {
-  background: var(--sl-color-bg-sidebar);
+  background: var(--a2-surface-subtle);
+  font-family: var(--a2-font-mono);
+  font-size: 0.74rem;
   font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   text-align: left;
-  color: var(--sl-color-white);
+  color: var(--a2-text-secondary);
   border-bottom: 1px solid var(--sl-color-hairline-light);
 }
 
+.sl-markdown-content th code {
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 :root[data-theme='light'] .sl-markdown-content th {
-  color: #0f172a;
+  color: #3c4043;
 }
 
 .sl-markdown-content :is(th, td):not(:where(.not-content *)) {
@@ -194,7 +352,11 @@ header.header {
   overflow-wrap: break-word;
 }
 
-/* Ensure comfortable left and right padding inside bordered tables across all doc pages */
+.sl-markdown-content td code {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
 .sl-markdown-content :is(th:first-child, td:first-child):not(:where(.not-content *)) {
   padding-inline-start: 1.25rem !important;
 }
@@ -212,65 +374,83 @@ header.header {
 }
 
 :root[data-theme='light'] .sl-markdown-content tbody tr:hover {
-  background-color: rgba(0, 0, 0, 0.02);
+  background-color: rgba(31, 31, 31, 0.025);
+}
+
+.sl-markdown-content td:first-child code {
+  white-space: nowrap;
 }
 
 /* GitHub-flavored alert callouts rendered by remark-a2ui-includes */
 .a2-callout {
   margin: 1.35rem 0;
   padding: 1rem 1.25rem;
-  border-radius: 8px;
-  border: 1px solid rgba(20, 184, 166, 0.28);
-  border-left: 4px solid var(--sl-color-accent);
-  background: rgba(20, 184, 166, 0.07);
+  border-radius: 10px;
+  border: 1px solid var(--a2-accent-border);
+  border-left: 3px solid var(--a2-accent);
+  background: var(--a2-accent-soft);
 }
 
 .a2-callout__title {
   font-family: var(--sl-font-mono);
-  font-weight: 700;
-  font-size: 0.78rem;
+  font-weight: 600;
+  font-size: 0.74rem;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   margin-bottom: 0.35rem;
   color: var(--sl-color-text-accent);
 }
 
 .a2-callout--caution {
-  border-color: rgba(245, 158, 11, 0.28);
-  border-left-color: #f59e0b;
-  background: rgba(245, 158, 11, 0.07);
+  border-color: var(--a2-amber-border);
+  border-left-color: var(--a2-amber);
+  background: var(--a2-amber-soft);
 }
 
 .a2-callout--caution .a2-callout__title {
-  color: #f59e0b;
-}
-
-:root[data-theme='light'] .a2-callout--caution .a2-callout__title {
-  color: #b45309;
+  color: var(--a2-amber);
 }
 
 .a2-callout--danger {
-  border-color: rgba(239, 68, 68, 0.28);
-  border-left-color: #ef4444;
-  background: rgba(239, 68, 68, 0.07);
+  border-color: var(--a2-danger-border);
+  border-left-color: var(--a2-danger);
+  background: var(--a2-danger-soft);
 }
 
 .a2-callout--danger .a2-callout__title {
-  color: #ef4444;
+  color: var(--a2-danger);
 }
 
+/* Theme-aware Mermaid diagram container */
 .mermaid-rendered {
   margin: 2rem 0;
   display: flex;
   justify-content: center;
   overflow-x: auto;
-  border-radius: 0.75rem;
+  border-radius: 12px;
   padding: 1.25rem;
-  background: var(--sl-color-bg-inline-code);
-  border: 1px solid var(--sl-color-hairline);
+  background: var(--a2-surface);
+  border: 1px solid var(--a2-border);
 }
 
 .mermaid-rendered svg {
   max-width: 100%;
   height: auto;
+}
+
+/* Docs sidebar: show the CopilotKit logo next to the external A2UI Playground link. */
+.sidebar-content a[href='https://go.copilotkit.ai/a2ui-playground'] {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: flex-start;
+}
+
+.sidebar-content a[href='https://go.copilotkit.ai/a2ui-playground']::before {
+  content: '';
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'%3E%3Cdefs%3E%3ClinearGradient gradientUnits='userSpaceOnUse' id='k0' x1='17.852' x2='14.202' y1='1.467' y2='11.504'%3E%3Cstop stop-color='%236430AB'/%3E%3Cstop offset='1' stop-color='%23AA89D8'/%3E%3C/linearGradient%3E%3ClinearGradient gradientUnits='userSpaceOnUse' id='k1' x1='15.024' x2='10.324' y1='7.125' y2='16.204'%3E%3Cstop stop-color='%23005DBB'/%3E%3Cstop offset='1' stop-color='%233D92E8'/%3E%3C/linearGradient%3E%3ClinearGradient gradientUnits='userSpaceOnUse' id='k2' x1='17.122' x2='15.707' y1='1.467' y2='5.892'%3E%3Cstop stop-color='%231B70C4'/%3E%3Cstop offset='1' stop-color='%2354A4F2'/%3E%3C/linearGradient%3E%3ClinearGradient gradientUnits='userSpaceOnUse' id='k3' x1='6.577' x2='21.506' y1='21.758' y2='21.758'%3E%3Cstop stop-color='%234497EA'/%3E%3Cstop offset='.255' stop-color='%231463B2'/%3E%3Cstop offset='.499' stop-color='%230A437D'/%3E%3Cstop offset='.667' stop-color='%232476C8'/%3E%3Cstop offset='.973' stop-color='%230C549A'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M8.162 7.758c2.093-2.738 3.831-5.445 4.498-7.63a.093.093 0 01.14-.051c2.324 1.539 6.558 2.552 10.301 2.576a.09.09 0 01.085.124c-1.243 3.158-2.765 8.817-2.823 15.28-.001.095-.135.13-.183.046-2.131-3.729-8.955-8.968-11.982-10.205a.09.09 0 01-.036-.14z' fill='url%28%23k0%29'%3E%3C/path%3E%3Cpath d='M15.223 6.083A61.492 61.492 0 018.25 7.827c-.045.008-.055.071-.012.089 3.05 1.267 9.84 6.492 11.952 10.206a.017.017 0 00.022.007.018.018 0 00.01-.024l-4.999-12.02z' fill='url%28%23k1%29'%3E%3C/path%3E%3Cpath d='M12.81.07c2.8 1.528 6.037 2.214 10.33 2.575.028.002.036.039.012.051-.55.282-3.695 1.883-6.03 2.74-.626.23-1.256.443-1.876.64a.028.028 0 01-.033-.016L12.746.128c-.017-.04.027-.078.065-.058z' fill='url%28%23k2%29'%3E%3C/path%3E%3Cpath d='M12.725.075c.046-.019.1.003.119.05l7.514 17.923a.091.091 0 01-.148.1l-.02-.03L12.675.195a.091.091 0 01.049-.12z' fill='%23513C9F'%3E%3C/path%3E%3Cpath d='M23.06 2.66c.044-.025.1-.01.125.034.025.044.009.1-.035.124v.001l-.008.004-.025.015-.1.054a41.384 41.384 0 01-1.811.92A47.05 47.05 0 0116.33 5.82c-1.954.674-3.97 1.197-5.497 1.552a66.27 66.27 0 01-2.38.507l-.138.026-.036.007h-.01l-.002.002a.091.091 0 11-.033-.18l.016.09-.015-.09h.002l.01-.002.035-.007.137-.025a66.16 66.16 0 002.373-.506c1.524-.354 3.533-.876 5.479-1.547a46.857 46.857 0 006.276-2.709c.166-.087.295-.156.381-.204l.099-.054.024-.014.008-.004z' fill='%23513C9F'%3E%3C/path%3E%3Cpath d='M13.838 2.272a.16.16 0 01.107.2l-2.72 9.055h6.4l.061.013a.16.16 0 010 .295l-.061.013h-6.541L.679 24.099l-.05.04a.16.16 0 01-.194-.245l10.43-12.285 2.773-9.23a.16.16 0 01.2-.107z' fill='%23ABABAB'%3E%3C/path%3E%3Cpath d='M7.809 21.461l-1.232.173c.638 1.69 1.949 2.427 3.514 2.427 3.831 0 2.661-4.334 4.883-4.334 1.61 0 .956 3.513 4.423 3.513 2.116 0 2.326-2.131 1.966-3.048l-.008-.016-.567-.868c-.037-.058-.127-.036-.133.032l-.106 1.053a1.01 1.01 0 00.003.219c.088.727.144 2.491-1.155 2.491-1.37 0-1.7-3.467-4.423-3.467-3.196 0-2.785 4.289-4.747 4.289-1.294 0-2.28-1.46-2.418-2.464z' fill='url%28%23k3%29'%3E%3C/path%3E%3C/svg%3E")
+    center / contain no-repeat;
 }

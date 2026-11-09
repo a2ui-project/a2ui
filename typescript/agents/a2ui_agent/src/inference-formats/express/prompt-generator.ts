@@ -21,14 +21,24 @@
  * signatures and instruction blocks.
  */
 
-import {AgentToRendererMessage, CatalogApi} from '../../internal/web-core.js';
+import {AgentToRendererMessage, CatalogApi, isAtLeastVersion} from '../../internal/web-core.js';
 import {PromptGenerator} from '../../prompt/generator.js';
+import {agentCallableFunctions} from '../../utils/agent-callable.js';
 import {toWireProtocolVersion} from '../../utils/protocol-version.js';
 import {buildSchemaHelpers, catalogsDefining, resolveExpressVersion} from './catalogs.js';
 import {ExpressDecompiler, RawNumber} from './decompiler.js';
 import {CatalogSchemaHelper, commonDefName} from './schema-helper.js';
 
-export const EXPRESS_RULES = `# A2UI Express DSL Output Contract
+const EVENT_RULE_V10 = `8. Action events: represent server-side actions using the Event helper, \`Event(name, context?, userMessage=...)\`:
+   Event("save_deal", {rep: $/form/rep})
+   Event("reply", userMessage="Replying now")
+   Event("save_deal", {rep: $/form/rep}, userMessage=$/form/summary)
+   The context map is optional. Pass \`userMessage=\` as a keyword argument (a string, \`$path\` binding, or function call) to set the message shown on the user's behalf when the event fires.`;
+
+const EVENT_RULE_PRE_V10 = `8. Action events: represent server-side actions using the Event helper:
+   Event("save_deal", {rep: $/form/rep})`;
+
+const EXPRESS_RULES_PREFIX = `# A2UI Express DSL Output Contract
 
 You must output the user interface using A2UI Express.
 
@@ -64,12 +74,9 @@ The host compiler will compile your A2UI Express output into the correct JSON en
    Prefix relative list scopes with '$', e.g., $firstName.
    A lone '$' represents an empty relative path which resolves to the root of the current context (e.g. inside a template, representing the entire item itself).
 
-7. Logic and validation: prefix client check rules with '?', e.g., ?required or ?regex("^[0-9]{5}$"). To specify a custom error message for validation failures, append it as an extra string argument, e.g. ?regex("^[0-9]{5}$", "Postal code must be 5 digits").
+7. Logic and validation: prefix client check rules with '?', e.g., ?required or ?regex("^[0-9]{5}$"). To specify a custom error message for validation failures, append it as an extra string argument, e.g. ?regex("^[0-9]{5}$", "Postal code must be 5 digits").`;
 
-8. Action events: represent server-side actions using the Event helper:
-   Event("save_deal", {rep: $/form/rep})
-
-9. Nested functions: call client functions directly using catalog signatures, for example myFunction("value").
+const EXPRESS_RULES_SUFFIX = `9. Nested functions: call client functions directly using catalog signatures, for example myFunction("value").
 
 10. Data model population: Assign a value directly to an absolute data path (e.g. $/path/to/key = "value") to populate or initialize values inside the shared dataModel. The value can be a primitive, array, or map.
 
@@ -88,6 +95,10 @@ The host compiler will compile your A2UI Express output into the correct JSON en
 15. Surface targeting: Output \`surface(surfaceId)\` to specify or target a user interface surface:
     surface("dashboard-surface-1")
     root = ComponentA(...)`;
+
+export const EXPRESS_RULES = `${EXPRESS_RULES_PREFIX}\n\n${EVENT_RULE_V10}\n\n${EXPRESS_RULES_SUFFIX}`;
+
+const EXPRESS_RULES_PRE_V10 = `${EXPRESS_RULES_PREFIX}\n\n${EVENT_RULE_PRE_V10}\n\n${EXPRESS_RULES_SUFFIX}`;
 
 /**
  * Rule 15's example line. `generateBaseRules` replaces its placeholder name with a
@@ -121,6 +132,25 @@ function exampleRootComponent(catalogs: readonly CatalogApi[]): string | undefin
     }
   }
   return undefined;
+}
+
+function renumberRules(text: string): string {
+  let ruleIndex = 0;
+  return text.replace(
+    /(?<=\n\n)(\d+\. )([^\n]*(?:\n(?!\n)[^\n]*)*)/g,
+    (_match, oldPrefix: string, body: string) => {
+      ruleIndex += 1;
+      const newPrefix = `${ruleIndex}. `;
+      const adjustedBody =
+        oldPrefix.length === newPrefix.length
+          ? body
+          : body.replace(
+              new RegExp(`\\n {${oldPrefix.length}}`, 'g'),
+              '\n' + ' '.repeat(newPrefix.length),
+            );
+      return `${newPrefix}${adjustedBody}`;
+    },
+  );
 }
 
 /** The message types a fenced JSON example may contain to be rewritten as Express. */
@@ -352,12 +382,22 @@ export class ExpressPromptGenerator extends PromptGenerator {
    */
   generateBaseRules(): string {
     const allowedMessages = this.allowedMessages;
-    let rules = EXPRESS_RULES;
+    let rules = isAtLeastVersion(this.version, '1.0') ? EXPRESS_RULES : EXPRESS_RULES_PRE_V10;
     let wantsComponentsOrData = true;
+    const callableFns = isAtLeastVersion(this.version, '1.0')
+      ? agentCallableFunctions(this.catalogs)
+      : [];
+    const callRendererAllowed =
+      !allowedMessages ||
+      allowedMessages.includes('callRendererFunction') ||
+      allowedMessages.includes('CallRendererFunctionMessage');
 
     if (allowedMessages) {
       // Filter rule 12 if deleteSurface is disallowed
-      if (!allowedMessages.includes('deleteSurface')) {
+      if (
+        !allowedMessages.includes('deleteSurface') &&
+        !allowedMessages.includes('DeleteSurfaceMessage')
+      ) {
         rules = rules.replace(
           /\n\n12\. To delete a user interface surface, output the standalone `deleteSurface\(surfaceId\)` command \(no variable assignment\):\n {4}deleteSurface\("dashboard-surface-1"\)/,
           '',
@@ -365,7 +405,10 @@ export class ExpressPromptGenerator extends PromptGenerator {
       }
 
       // Filter rule 10 if updateDataModel is disallowed
-      if (!allowedMessages.includes('updateDataModel')) {
+      if (
+        !allowedMessages.includes('updateDataModel') &&
+        !allowedMessages.includes('UpdateDataModelMessage')
+      ) {
         rules = rules.replace(
           /\n\n10\. Data model population: Assign a value directly to an absolute data path \(e\.g\. \$\/path\/to\/key = "value"\) to populate or initialize values inside the shared dataModel\. The value can be a primitive, array, or map\./,
           '',
@@ -376,8 +419,13 @@ export class ExpressPromptGenerator extends PromptGenerator {
       // target a surface. Its `root = ...` line applies only to components, and the rule
       // goes when neither kind of statement is allowed.
       const writesComponents =
-        allowedMessages.includes('createSurface') || allowedMessages.includes('updateComponents');
-      const writesData = allowedMessages.includes('updateDataModel');
+        allowedMessages.includes('createSurface') ||
+        allowedMessages.includes('CreateSurfaceMessage') ||
+        allowedMessages.includes('updateComponents') ||
+        allowedMessages.includes('UpdateComponentsMessage');
+      const writesData =
+        allowedMessages.includes('updateDataModel') ||
+        allowedMessages.includes('UpdateDataModelMessage');
       wantsComponentsOrData = writesComponents || writesData;
       if (!writesComponents) {
         rules = rules.replace(/\n {4}root = ComponentA\(\.\.\.\)$/, '');
@@ -390,16 +438,34 @@ export class ExpressPromptGenerator extends PromptGenerator {
       }
     }
 
+    const hasCallableRule = callRendererAllowed && callableFns.length > 0;
+    if (hasCallableRule) {
+      const formatted = callableFns.map(name => `\`${name}\``).join(', ');
+      const callRule =
+        'To have the renderer run a function right away, output the call as a standalone command (no variable assignment):\n' +
+        `    ${callableFns[0]}(...)\n` +
+        `    Only these functions can be called this way: ${formatted}.`;
+      rules = rules.replace(
+        /\n\n13\. Static properties:/,
+        `\n\n13. ${callRule}\n\n14. Static properties:`,
+      );
+    }
+
     const rootComponent = exampleRootComponent(this.catalogs);
     if (rootComponent !== undefined) {
       rules = rules.replace(ROOT_EXAMPLE_LINE, `root = ${rootComponent}(...)`);
     }
 
+    const hasMultiCatalogRules = this.catalogs.length > 1 && wantsComponentsOrData;
     const lines = [rules];
-    if (this.catalogs.length > 1 && wantsComponentsOrData) {
+    if (hasMultiCatalogRules) {
       lines.push(this.multiCatalogRules());
     }
-    return lines.join('\n');
+    const combined = lines.join('\n');
+    if (allowedMessages !== undefined || hasCallableRule || hasMultiCatalogRules) {
+      return renumberRules(combined);
+    }
+    return combined;
   }
 
   protected renderCatalogInstructions(catalog: CatalogApi): string {

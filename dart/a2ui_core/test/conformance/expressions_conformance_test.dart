@@ -38,6 +38,16 @@ List<Object?> _joinLiterals(List<Object?> parts) {
   return joined.where((p) => p != '').toList();
 }
 
+const Map<String, Set<String>> _knownKeys = {
+  'case:parse_expression_template': {
+    ...caseMetadataKeys,
+    'expect',
+    'expectError',
+    'expect_error',
+    'input',
+  },
+};
+
 void main() {
   // The suite's `validate` cases render basic-catalog components on a
   // surface, so `message_processor_conformance_test.dart` runs them.
@@ -57,6 +67,7 @@ void main() {
     runConformanceSuite(
       cases,
       (testCase) => _runCase(parser, testCase),
+      suite: 'core/expressions.yaml',
     );
   });
 }
@@ -70,12 +81,18 @@ void _runCase(ExpressionParser parser, ConformanceTestCase testCase) {
       'expressions_conformance_test.dart.',
     );
   }
+  assertKnownKeys(
+    testCase,
+    _knownKeys['case:parse_expression_template']!,
+    'case:parse_expression_template',
+  );
   final input = testCase['input']! as String;
   final Object? expectError =
       testCase['expect_error'] ?? testCase['expectError'];
 
   if (expectError != null) {
     final error = expectError as Map<String, Object?>;
+    assertKnownKeys(error, knownExpectErrorKeys, 'expectError');
     final category = error['category'] as String;
     final String message = error['message'] as String? ?? '';
     final Type expectedType = _categoryToError[category] ?? A2uiExpressionError;

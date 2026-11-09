@@ -108,7 +108,10 @@ let package = Package(
         "BasicCatalog",
         .product(name: "OrderedJSON", package: "swift-json-schema"),
       ],
-      path: "swift/swiftui/Sources/BasicCatalog"
+      path: "swift/swiftui/Sources/BasicCatalog",
+      linkerSettings: [
+        .linkedFramework("AVKit")
+      ]
     ),
 
     // ── Tests ──

@@ -87,13 +87,6 @@ public struct A2UITextField: View {
     node.validationResults
   }
 
-  private var validationWarnings: [String] {
-    validationResults.compactMap { result in
-      guard result.severity == .warning || result.severity == .info else { return nil }
-      return result.message
-    }
-  }
-
   private var hasError: Bool {
     !validationErrors.isEmpty
   }
@@ -116,20 +109,10 @@ public struct A2UITextField: View {
             .stroke(
               hasError ? Color.red : Color.primary.opacity(0.1), lineWidth: hasError ? 1.5 : 1)
         )
-        .accessibilityIdentifier("A2UITextField_\(node.id)")
+        .accessibilityIdentifier("a2ui-\(node.id)")
         .a2uiAccessibilityControl(for: node, defaultLabel: labelText)
 
-      if let firstError = validationErrors.first {
-        Text(firstError)
-          .font(.caption)
-          .foregroundStyle(Color.red)
-          .accessibilityIdentifier("A2UITextField_Error_\(node.id)")
-      } else if let firstWarning = validationWarnings.first {
-        Text(firstWarning)
-          .font(.caption)
-          .foregroundStyle(Color.orange)
-          .accessibilityIdentifier("A2UITextField_Warning_\(node.id)")
-      }
+      A2UICheckMessage(node: node, identifierPrefix: "A2UITextField")
     }
   }
 
@@ -138,7 +121,7 @@ public struct A2UITextField: View {
     switch variant {
     case "obscured":
       SecureField(labelText, text: valueBinding, prompt: prompt)
-        .accessibilityIdentifier("A2UITextField_\(node.id)")
+        .accessibilityIdentifier("a2ui-\(node.id)")
     case "longText":
       TextEditor(text: valueBinding)
         .scrollContentBackground(.hidden)
@@ -156,19 +139,19 @@ public struct A2UITextField: View {
               .accessibilityHidden(true)
           }
         }
-        .accessibilityIdentifier("A2UITextField_\(node.id)")
+        .accessibilityIdentifier("a2ui-\(node.id)")
     case "number":
       #if os(iOS)
         TextField(labelText, text: valueBinding, prompt: prompt)
           .keyboardType(.decimalPad)
-          .accessibilityIdentifier("A2UITextField_\(node.id)")
+          .accessibilityIdentifier("a2ui-\(node.id)")
       #else
         TextField(labelText, text: valueBinding, prompt: prompt)
-          .accessibilityIdentifier("A2UITextField_\(node.id)")
+          .accessibilityIdentifier("a2ui-\(node.id)")
       #endif
     default:
       TextField(labelText, text: valueBinding, prompt: prompt)
-        .accessibilityIdentifier("A2UITextField_\(node.id)")
+        .accessibilityIdentifier("a2ui-\(node.id)")
     }
   }
 }

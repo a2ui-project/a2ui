@@ -90,7 +90,7 @@ Depending on the use case, catalog components can be more or less domain-specifi
 
 A catalog maintained by the A2UI team for getting started with A2UI quickly.
 
-See the [basic catalog](../../../specification/v0_9_1/catalogs/basic/catalog.json).
+See the [basic catalog](../../../catalogs/basic/v1/catalog.json).
 
 ### Catalog transformer
 
@@ -150,7 +150,7 @@ See the [data binding guide](data-binding.md).
 
 In a component definition, a reference to a data element, resolved either by a path in the data model or by value.
 
-See the [example in the basic catalog](../../../specification/v0_9/catalogs/basic/catalog.json#L23).
+See the [example in the basic catalog](../../../catalogs/basic/v1/catalog.json#L16).
 
 ### Function <a id="renderer-function"></a>
 
@@ -264,7 +264,7 @@ Agent and renderer functionality consists of layers that can be developed separa
 
     Definition of a catalog in the form of JSON.
 
-    For example, see the [basic catalog schema](../../../specification/v0_9_1/catalogs/basic/catalog.json).
+    For example, see the [basic catalog schema](../../../catalogs/basic/v1/catalog.json).
 
 - **Agent SDK**:
 
