@@ -1420,7 +1420,7 @@ void main() {
 }
 ```
 
-Swift (`A2UISwiftCore`, `A2UISwiftUI`) and Kotlin (`androidx.a2ui`, `androidx.a2ui.compose`) target client-side rendering; see [SDKs](../sdks/#agent-sdk) for server-side Agent SDK packages.
+Swift (`A2UISwiftCore`, `A2UISwiftUI`) and Kotlin (`androidx.a2ui`, `androidx.a2ui.compose`) target client-side rendering; see [SDKs](/concepts/sdks/#agent-sdk) for server-side Agent SDK packages.
 
 ## Registering a catalog in a renderer
 
@@ -1811,7 +1811,7 @@ In this example, `salesDashboard` uses the basic catalog by default, and `chart`
 <details>
 <summary>Edge cases when <code>createSurface.catalogId</code> is omitted</summary>
 
-`catalogId` in `createSurface` is optional. If a surface omits `createSurface.catalogId`, every component and function call on that surface must set its own `catalogId`. If an entry omits `catalogId` and the surface has no default `catalogId` either, the renderer rejects that component or function call rather than falling back to `supportedCatalogIds`. See [Mixable catalogs and component resolution logic](../../specification/v1.0-a2ui/#mixable-catalogs-and-component-resolution-logic) for the full resolution rules.
+`catalogId` in `createSurface` is optional. If a surface omits `createSurface.catalogId`, every component and function call on that surface must set its own `catalogId`. If an entry omits `catalogId` and the surface has no default `catalogId` either, the renderer rejects that component or function call rather than falling back to `supportedCatalogIds`. See [Mixable catalogs and component resolution logic](/specification/v1.0-a2ui/#mixable-catalogs-and-component-resolution-logic) for the full resolution rules.
 
 </details>
 
@@ -2251,7 +2251,7 @@ A2UI (Agent to User Interface) uses specific terms for its wire protocol, client
 
 **Agent to User Interface**, an open, platform-agnostic streaming UI protocol and SDK suite that lets [agents](#agent) generate stateful, native user interfaces across web, mobile, and desktop [renderers](#renderer) without sending executable code, HTML, or CSS over the wire.
 
-See [Overview: How A2UI Works](../overview/) and the [v1.0 Protocol Specification](../../specification/v1.0-a2ui/).
+See [Overview: How A2UI Works](/concepts/overview/) and the [v1.0 Protocol Specification](/specification/v1.0-a2ui/).
 
 ### A2UI message
 
@@ -2259,7 +2259,7 @@ A single JSON envelope exchanged between an [agent](#agent) and a [renderer](#re
 
 Messages flow in two directions: [`agent_to_renderer`](#agent_to_renderer) envelopes create or delete [surfaces](#surface), update [components](#component) and [data models](#data-model), invoke renderer functions, and return agent function results; [`renderer_to_agent`](#renderer_to_agent) envelopes dispatch user [events](#event), invoke agent functions, return renderer function results, and report validation or runtime errors. Because A2UI supports progressive delivery over streaming transports, a message stream may be in progress, completed, or interrupted if transport delivery stops early.
 
-See [Messages](../messages/).
+See [Messages](/concepts/messages/).
 
 ### A2UI tag
 
@@ -2267,7 +2267,7 @@ A delimiter tag in model-to-agent text output, such as `<a2ui>...</a2ui>` (used 
 
 Because a single model response can interleave conversational prose with one or more UI blocks, the [Agent SDK](#agent-sdk) parser scans for A2UI tags to separate prose from raw UI blocks before compiling those blocks into [`agent_to_renderer`](#agent_to_renderer) messages.
 
-See [Inference Formats](../inference-formats/).
+See [Inference Formats](/concepts/inference-formats/).
 
 ### A2uiGenerator
 
@@ -2275,18 +2275,18 @@ The top-level coordinator class in an [Agent SDK](#agent-sdk) that holds the age
 
 For each session or request, calling `createProcessor` (in TypeScript and Dart) or `create_processor` (in Python) with the renderer's [capabilities](#capabilities) negotiates the active [catalogs](#catalog) and returns an `A2uiRequestProcessor` that generates system prompt instructions and parses and validates model responses against `RendererState`.
 
-See [Agent SDK](../sdks/#agent-sdk) and [How to Integrate with My Agent Server](../../guides/agent-integration/).
+See [Agent SDK](/concepts/sdks/#agent-sdk) and [How to Integrate with My Agent Server](/guides/agent-integration/).
 
 ### Action
 
-An interaction handler property on a UI [component](#component) (such as `Button.action`), defined by [`common_types.json#/$defs/Action`](../../specification/v1.0/schemas/#common_types.json/$defs/Action) in v1.0 and [`common_types.json#/$defs/Action`](../../specification/v0.9.1/schemas/#common_types.json/$defs/Action) in v0.9.1.
+An interaction handler property on a UI [component](#component) (such as `Button.action`), defined by [`common_types.json#/$defs/Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action) in v1.0 and [`common_types.json#/$defs/Action`](/specification/v0.9.1/schemas/#common_types.json/$defs/Action) in v0.9.1.
 
 An `Action` is a `oneOf` union that specifies one of two behaviors when a user interacts with the component:
 
-1. An [`event`](#event) (`{"event": {"name": "...", "context": {...}}}`), which causes the renderer to resolve any bound values and send an outbound [`action`](../../specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message in [`renderer_to_agent`](#renderer_to_agent) to notify the agent of user intent.
+1. An [`event`](#event) (`{"event": {"name": "...", "context": {...}}}`), which causes the renderer to resolve any bound values and send an outbound [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message in [`renderer_to_agent`](#renderer_to_agent) to notify the agent of user intent.
 2. A [`functionCall`](#function-call) (`{"functionCall": {"@call": "...", "args": {...}}}` in v1.0, or `"call"` in v0.9.1), which invokes a [function](#function) without dispatching an `action` event message (in v1.0, running locally on the renderer or routing to the agent via [`callAgentFunction`](#callagentfunction) when unimplemented locally).
 
-See [Actions and Functions](../actions-and-functions/) and [Defining actions](../../specification/v1.0-a2ui/#defining-actions) in the protocol specification.
+See [Actions and Functions](/concepts/actions-and-functions/) and [Defining actions](/specification/v1.0-a2ui/#defining-actions) in the protocol specification.
 
 ### Agent
 
@@ -2297,7 +2297,7 @@ The application or service that emits [`agent_to_renderer`](#agent_to_renderer) 
 
 To decide what UI and data to emit, an agent typically calls a large language model (LLM), coordinates specialized subagents behind an orchestrator, or runs deterministic application logic (for example, in regulated workflows or automated tests). An agent can run on a server over transports such as AG-UI, Agent-to-Agent (A2A), Model Context Protocol (MCP), Server-Sent Events (SSE), or WebSockets, or inside the same client process as the renderer. Agents may be stateful (retaining negotiated [catalogs](#catalog) and `RendererState` across turns) or stateless (receiving renderer [capabilities](#capabilities) and surface [data model](#data-model) metadata on every request).
 
-See [Overview: How A2UI Works](../overview/) and [How to Integrate with My Agent Server](../../guides/agent-integration/).
+See [Overview: How A2UI Works](/concepts/overview/) and [How to Integrate with My Agent Server](/guides/agent-integration/).
 
 ### Agent SDK
 
@@ -2305,68 +2305,68 @@ A first-party agent-side library (published for TypeScript, Python, and Dart on 
 
 An Agent SDK loads and prunes [catalogs](#catalog) via [catalog transformers](#catalog-transformer), negotiates renderer [capabilities](#capabilities) through [`A2uiGenerator`](#a2uigenerator), generates model skills and system prompt snippets, compiles [inference format](#inference-format) output into wire JSON, and validates payloads against `RendererState` so errors can be fed back to the model for self-correction.
 
-See [Agent SDK](../sdks/#agent-sdk) for official package names and capabilities.
+See [Agent SDK](/concepts/sdks/#agent-sdk) for official package names and capabilities.
 
 ### agent_to_renderer
 
-The v1.0 protocol [envelope schema](#envelope-schema) ([`agent_to_renderer.json`](../../specification/v1.0/schemas/#agent_to_renderer.json)) for messages streamed or returned from an [agent](#agent) to a [renderer](#renderer). In v0.9.1, this envelope schema is named [`server_to_client.json`](../../specification/v0.9.1/schemas/#server_to_client.json).
+The v1.0 protocol [envelope schema](#envelope-schema) ([`agent_to_renderer.json`](/specification/v1.0/schemas/#agent_to_renderer.json)) for messages streamed or returned from an [agent](#agent) to a [renderer](#renderer). In v0.9.1, this envelope schema is named [`server_to_client.json`](/specification/v0.9.1/schemas/#server_to_client.json).
 
 Every v1.0 `agent_to_renderer` message sets `"version": "1.0"` (v0.9.1 uses `"version": "v0.9"` or `"v0.9.1"`) alongside one of six message keys:
 
-1. [`createSurface`](../../specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage) initializes a new [surface](#surface) (and in v1.0 can embed initial `components` and `dataModel` inline).
-2. [`updateComponents`](../../specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateComponentsMessage) adds or replaces [component](#component) definitions in a surface's flat component list.
-3. [`updateDataModel`](../../specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) inserts, replaces, or deletes (`"value": null` in v1.0; omitted `value` in v0.9.1) data at a JSON Pointer path in a surface's [data model](#data-model).
-4. [`deleteSurface`](../../specification/v1.0/schemas/#agent_to_renderer.json/$defs/DeleteSurfaceMessage) removes a surface and its associated state.
+1. [`createSurface`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage) initializes a new [surface](#surface) (and in v1.0 can embed initial `components` and `dataModel` inline).
+2. [`updateComponents`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateComponentsMessage) adds or replaces [component](#component) definitions in a surface's flat component list.
+3. [`updateDataModel`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) inserts, replaces, or deletes (`"value": null` in v1.0; omitted `value` in v0.9.1) data at a JSON Pointer path in a surface's [data model](#data-model).
+4. [`deleteSurface`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/DeleteSurfaceMessage) removes a surface and its associated state.
 5. [`callRendererFunction`](#callrendererfunction) (new in v1.0) invokes an authorized renderer-side [function](#function).
-6. [`agentFunctionResponse`](../../specification/v1.0/schemas/#agent_to_renderer.json/$defs/AgentFunctionResponseMessage) (new in v1.0) returns the `value` or `error` for a [`callAgentFunction`](#callagentfunction) request.
+6. [`agentFunctionResponse`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/AgentFunctionResponseMessage) (new in v1.0) returns the `value` or `error` for a [`callAgentFunction`](#callagentfunction) request.
 
-See [Messages](../messages/) and [Envelope message structure](../../specification/v1.0-a2ui/#envelope-message-structure) in the protocol specification.
+See [Messages](/concepts/messages/) and [Envelope message structure](/specification/v1.0-a2ui/#envelope-message-structure) in the protocol specification.
 
 ### Agent turn
 
 The sequence of [`agent_to_renderer`](#agent_to_renderer) messages (and any accompanying conversational text) sent by an [agent](#agent) in response to a user prompt or [`Event`](#event) before the agent waits for the next user input. The end of an agent turn is signaled by the transport layer rather than by an A2UI message.
 
-See [Messages](../messages/) and [Transport decoupling](../../specification/v1.0-a2ui/#transport-decoupling) in the protocol specification.
+See [Messages](/concepts/messages/) and [Transport decoupling](/specification/v1.0-a2ui/#transport-decoupling) in the protocol specification.
 
 ## B
 
 ### Basic catalog
 
-The optional, general-purpose reference [catalog](#catalog) maintained by the A2UI project (`https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json` in v1.0, [`basic_catalog.json`](../../specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json); `https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json` in v0.9.1, [`basic_catalog.json`](../../specification/v0.9.1-basic-catalog-implementation-guide/#basic_catalog.json)).
+The optional, general-purpose reference [catalog](#catalog) maintained by the A2UI project (`https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json` in v1.0, [`basic_catalog.json`](/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json); `https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json` in v0.9.1, [`basic_catalog.json`](/specification/v0.9.1-basic-catalog-implementation-guide/#basic_catalog.json)).
 
 The Basic catalog defines 18 standard [components](#component) (`Row`, `Column`, `List`, `Card`, `Tabs`, `Modal`, `Divider`, `Text`, `Image`, `Icon`, `Video`, `AudioPlayer`, `Button`, `TextField`, `CheckBox`, `ChoicePicker`, `Slider`, and `DateTimeInput`) and 14 [functions](#function) (`formatString`, `formatNumber`, `formatCurrency`, `formatDate`, `pluralize`, `required`, `regex`, `length`, `numeric`, `email`, `openUrl`, `and`, `or`, and `not`). Official [framework adapters](#framework-adapter) ship with a built-in implementation that applications can restyle, combine with custom domain catalogs, or replace altogether.
 
-See [Catalogs](../catalogs/#the-basic-catalog) and [Basic Component Catalog](../../specification/v1.0-a2ui/#basic-component-catalog) in the protocol specification.
+See [Catalogs](/concepts/catalogs/#the-basic-catalog) and [Basic Component Catalog](/specification/v1.0-a2ui/#basic-component-catalog) in the protocol specification.
 
 ## C
 
 ### @call
 
-The reserved v1.0 protocol directive key in a [`FunctionCall`](../../specification/v1.0/schemas/#common_types.json/$defs/FunctionCall) object that names the catalog or system [function](#function) to invoke, for example `{"@call": "formatCurrency", "args": {"value": {"@path": "/price"}, "currency": "USD"}}`.
+The reserved v1.0 protocol directive key in a [`FunctionCall`](/specification/v1.0/schemas/#common_types.json/$defs/FunctionCall) object that names the catalog or system [function](#function) to invoke, for example `{"@call": "formatCurrency", "args": {"value": {"@path": "/price"}, "currency": "USD"}}`.
 
-In v0.9.1, `FunctionCall` uses `"call"` without the `@` prefix ([`common_types.json#/$defs/FunctionCall`](../../specification/v0.9.1/schemas/#common_types.json/$defs/FunctionCall)). Reserving the `@` prefix in v1.0 keeps plain JSON objects that have a `"call"` property from being treated as function calls; literal keys beginning with `@` inside `DynamicValue` objects are escaped by doubling the prefix (`"@@call"`).
+In v0.9.1, `FunctionCall` uses `"call"` without the `@` prefix ([`common_types.json#/$defs/FunctionCall`](/specification/v0.9.1/schemas/#common_types.json/$defs/FunctionCall)). Reserving the `@` prefix in v1.0 keeps plain JSON objects that have a `"call"` property from being treated as function calls; literal keys beginning with `@` inside `DynamicValue` objects are escaped by doubling the prefix (`"@@call"`).
 
-See [Function call](#function-call), [Actions and Functions](../actions-and-functions/), and [Functions](../../specification/v1.0-a2ui/#functions) in the protocol specification.
+See [Function call](#function-call), [Actions and Functions](/concepts/actions-and-functions/), and [Functions](/specification/v1.0-a2ui/#functions) in the protocol specification.
 
 ### callAgentFunction
 
 <span id="agentfunctionresponse"></span>
 
-A v1.0 [`renderer_to_agent`](#renderer_to_agent) message ([`renderer_to_agent.json#/properties/callAgentFunction`](../../specification/v1.0/schemas/#renderer_to_agent.json/properties/callAgentFunction)) sent by a [renderer](#renderer) to execute an agent-side [function](#function) remotely, such as checking live inventory or verifying an identifier.
+A v1.0 [`renderer_to_agent`](#renderer_to_agent) message ([`renderer_to_agent.json#/properties/callAgentFunction`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/callAgentFunction)) sent by a [renderer](#renderer) to execute an agent-side [function](#function) remotely, such as checking live inventory or verifying an identifier.
 
-When the renderer resolves a [`FunctionCall`](#function-call)'s [catalog](#catalog) and finds no local implementation (provided the function is not an `@`-prefixed system function, is not declared `allowedCallers: "agentOnly"`, and passes any `requiresUserActivation` and declared argument schema checks), it sends `callAgentFunction` with `surfaceId`, a unique `functionCallId`, and `callFunction` (`@call`, the resolved `catalogId`, and evaluated `args`). The [agent](#agent) runs the function and replies with an [`agentFunctionResponse`](../../specification/v1.0/schemas/#agent_to_renderer.json/$defs/AgentFunctionResponseMessage) carrying the same `functionCallId` and either `value` or `error`. Not present in v0.9.1, where functions run only on the renderer.
+When the renderer resolves a [`FunctionCall`](#function-call)'s [catalog](#catalog) and finds no local implementation (provided the function is not an `@`-prefixed system function, is not declared `allowedCallers: "agentOnly"`, and passes any `requiresUserActivation` and declared argument schema checks), it sends `callAgentFunction` with `surfaceId`, a unique `functionCallId`, and `callFunction` (`@call`, the resolved `catalogId`, and evaluated `args`). The [agent](#agent) runs the function and replies with an [`agentFunctionResponse`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/AgentFunctionResponseMessage) carrying the same `functionCallId` and either `value` or `error`. Not present in v0.9.1, where functions run only on the renderer.
 
-See [Actions and Functions](../actions-and-functions/) and [`callAgentFunction`](../../specification/v1.0-a2ui/#callagentfunction) in the protocol specification.
+See [Actions and Functions](/concepts/actions-and-functions/) and [`callAgentFunction`](/specification/v1.0-a2ui/#callagentfunction) in the protocol specification.
 
 ### callRendererFunction
 
 <span id="rendererfunctionresponse"></span>
 
-A v1.0 [`agent_to_renderer`](#agent_to_renderer) message ([`agent_to_renderer.json#/$defs/CallRendererFunctionMessage`](../../specification/v1.0/schemas/#agent_to_renderer.json/$defs/CallRendererFunctionMessage)) sent by an [agent](#agent) to execute a [function](#function) registered on the [renderer](#renderer), such as reading client state or triggering an authorized client operation.
+A v1.0 [`agent_to_renderer`](#agent_to_renderer) message ([`agent_to_renderer.json#/$defs/CallRendererFunctionMessage`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CallRendererFunctionMessage)) sent by an [agent](#agent) to execute a [function](#function) registered on the [renderer](#renderer), such as reading client state or triggering an authorized client operation.
 
-The message carries a unique `functionCallId`, an optional `surfaceId` whose [data model](#data-model) provides the evaluation context (defaulting to an isolated empty root model `{}` when omitted), and `callFunction` with `@call`, a required `catalogId`, and optional `args`. Only functions declared with `allowedCallers` set to `"agentOnly"` or `"rendererOrAgent"` (and not requiring user activation) may be called by the agent. After executing or rejecting a well-formed call, the renderer returns a [`rendererFunctionResponse`](../../specification/v1.0/schemas/#renderer_to_agent.json/properties/rendererFunctionResponse) with the matching `functionCallId` and either `value` or `error` (malformed envelopes report a top-level [`error`](../../specification/v1.0/schemas/#renderer_to_agent.json/properties/error) message carrying `functionCallId`). Not present in v0.9.1.
+The message carries a unique `functionCallId`, an optional `surfaceId` whose [data model](#data-model) provides the evaluation context (defaulting to an isolated empty root model `{}` when omitted), and `callFunction` with `@call`, a required `catalogId`, and optional `args`. Only functions declared with `allowedCallers` set to `"agentOnly"` or `"rendererOrAgent"` (and not requiring user activation) may be called by the agent. After executing or rejecting a well-formed call, the renderer returns a [`rendererFunctionResponse`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/rendererFunctionResponse) with the matching `functionCallId` and either `value` or `error` (malformed envelopes report a top-level [`error`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/error) message carrying `functionCallId`). Not present in v0.9.1.
 
-See [Actions and Functions](../actions-and-functions/) and [`callRendererFunction`](../../specification/v1.0-a2ui/#callrendererfunction) in the protocol specification.
+See [Actions and Functions](/concepts/actions-and-functions/) and [`callRendererFunction`](/specification/v1.0-a2ui/#callrendererfunction) in the protocol specification.
 
 ### Capabilities
 
@@ -2374,18 +2374,18 @@ See [Actions and Functions](../actions-and-functions/) and [`callRendererFunctio
 
 Metadata payloads exchanged via transport handshakes or per-message transport metadata (rather than as [A2UI messages](#a2ui-message)) that advertise which [catalogs](#catalog) each side supports:
 
-1. Renderer capabilities ([`renderer_capabilities.json`](../../specification/v1.0/schemas/#renderer_capabilities.json), sent under the `a2uiRendererCapabilities` metadata key in v1.0; [`client_capabilities.json`](../../specification/v0.9.1/schemas/#client_capabilities.json) under `a2uiClientCapabilities` in v0.9.1) declare `supportedCatalogIds` and optional `inlineCatalogs` nested under the protocol version key (`"1.0"` in v1.0, `"v0.9"` in v0.9.1).
-2. Agent capabilities ([`agent_capabilities.json`](../../specification/v1.0/schemas/#agent_capabilities.json) in v1.0; [`server_capabilities.json`](../../specification/v0.9.1/schemas/#server_capabilities.json) in v0.9.1) declare the agent's `supportedCatalogIds` and `acceptsInlineCatalogs` flag.
+1. Renderer capabilities ([`renderer_capabilities.json`](/specification/v1.0/schemas/#renderer_capabilities.json), sent under the `a2uiRendererCapabilities` metadata key in v1.0; [`client_capabilities.json`](/specification/v0.9.1/schemas/#client_capabilities.json) under `a2uiClientCapabilities` in v0.9.1) declare `supportedCatalogIds` and optional `inlineCatalogs` nested under the protocol version key (`"1.0"` in v1.0, `"v0.9"` in v0.9.1).
+2. Agent capabilities ([`agent_capabilities.json`](/specification/v1.0/schemas/#agent_capabilities.json) in v1.0; [`server_capabilities.json`](/specification/v0.9.1/schemas/#server_capabilities.json) in v0.9.1) declare the agent's `supportedCatalogIds` and `acceptsInlineCatalogs` flag.
 
-See [Overview: How A2UI Works](../overview/) and [Capabilities and metadata](../../specification/v1.0-a2ui/#capabilities-and-metadata) in the protocol specification.
+See [Overview: How A2UI Works](/concepts/overview/) and [Capabilities and metadata](/specification/v1.0-a2ui/#capabilities-and-metadata) in the protocol specification.
 
 ### Catalog
 
-A versioned JSON Schema document ([`catalog_definition.json`](../../specification/v1.0/schemas/#catalog_definition.json)) identified by a unique `catalogId` string (conventionally formatted as a URI) that defines the UI [components](#component), [functions](#function), and Markdown `instructions` shared between an [agent](#agent) and a [renderer](#renderer).
+A versioned JSON Schema document ([`catalog_definition.json`](/specification/v1.0/schemas/#catalog_definition.json)) identified by a unique `catalogId` string (conventionally formatted as a URI) that defines the UI [components](#component), [functions](#function), and Markdown `instructions` shared between an [agent](#agent) and a [renderer](#renderer).
 
 A catalog is an explicit allowlist: the agent uses it to construct model prompts and validate generated messages, while the renderer binds each declared component to a native UI widget and each local function to client code. Catalogs can define low-level primitives (such as `Row`, `Text`, and `Button` in the [Basic catalog](#basic-catalog)) or domain-specific components (such as `FlightSelector` or `HotelCheckout`). In v1.0, a single [surface](#surface) can mix components and functions from multiple catalogs by setting `catalogId` on individual entries.
 
-See [Catalogs](../catalogs/), [How to Define a Catalog](../../guides/defining-a-catalog/), and [The component catalog](../../specification/v1.0-a2ui/#the-component-catalog) in the protocol specification.
+See [Catalogs](/concepts/catalogs/), [How to Define a Catalog](/guides/defining-a-catalog/), and [The component catalog](/specification/v1.0-a2ui/#the-component-catalog) in the protocol specification.
 
 ### Catalog transformer
 
@@ -2396,28 +2396,28 @@ An [Agent SDK](#agent-sdk) interface (`CatalogTransformer`) that filters or adap
 
 Pruning unused components and functions lowers prompt token consumption and restricts what UI capabilities a model can emit for a specific task or user role. Built-in implementations in the TypeScript, Python, and Dart Agent SDKs include `ComponentPruningTransformer` (which keeps an allowlist of component names) and `FunctionPruningTransformer` (which keeps an allowlist of function names). For server-side composite component expansion, see [`MacroExpander`](#macroexpander).
 
-See [Agent SDK](../sdks/#agent-sdk).
+See [Agent SDK](/concepts/sdks/#agent-sdk).
 
 ### CheckRule
 
 <span id="validationresult"></span>
 
-A client-side validation rule ([`common_types.json#/$defs/CheckRule`](../../specification/v1.0/schemas/#common_types.json/$defs/CheckRule) in v1.0; [`common_types.json#/$defs/CheckRule`](../../specification/v0.9.1/schemas/#common_types.json/$defs/CheckRule) in v0.9.1) attached to input and interactive [components](#component) that include [`Checkable`](../../specification/v1.0/schemas/#common_types.json/$defs/Checkable) (`checks`).
+A client-side validation rule ([`common_types.json#/$defs/CheckRule`](/specification/v1.0/schemas/#common_types.json/$defs/CheckRule) in v1.0; [`common_types.json#/$defs/CheckRule`](/specification/v0.9.1/schemas/#common_types.json/$defs/CheckRule) in v0.9.1) attached to input and interactive [components](#component) that include [`Checkable`](/specification/v1.0/schemas/#common_types.json/$defs/Checkable) (`checks`).
 
-In v1.0, each `CheckRule` pairs a `condition` (a [`DataBinding`](#data-binding) or [`FunctionCall`](#function-call) evaluating to a [`ValidationResult`](../../specification/v1.0/schemas/#catalog_definition.json/$defs/ValidationResult) object `{valid, code, message, severity}` or a boolean) with an optional fallback `message`; in v0.9.1, `condition` is a `DynamicBoolean` and `message` is required. Checks that fail with `"error"` severity (the default, and what a `false` boolean coerces to) mark the component invalid and disable controls such as `Button`, while `"warning"` and `"info"` results display non-blocking feedback.
+In v1.0, each `CheckRule` pairs a `condition` (a [`DataBinding`](#data-binding) or [`FunctionCall`](#function-call) evaluating to a [`ValidationResult`](/specification/v1.0/schemas/#catalog_definition.json/$defs/ValidationResult) object `{valid, code, message, severity}` or a boolean) with an optional fallback `message`; in v0.9.1, `condition` is a `DynamicBoolean` and `message` is required. Checks that fail with `"error"` severity (the default, and what a `false` boolean coerces to) mark the component invalid and disable controls such as `Button`, while `"warning"` and `"info"` results display non-blocking feedback.
 
-See [Actions and Functions](../actions-and-functions/) and [Component Validation & Check Rules](../../specification/v1.0-a2ui/#component-validation--check-rules) in the protocol specification.
+See [Actions and Functions](/concepts/actions-and-functions/) and [Component Validation & Check Rules](/specification/v1.0-a2ui/#component-validation--check-rules) in the protocol specification.
 
 ### ChildList
 
-The schema type ([`common_types.json#/$defs/ChildList`](../../specification/v1.0/schemas/#common_types.json/$defs/ChildList) in v1.0; [`common_types.json#/$defs/ChildList`](../../specification/v0.9.1/schemas/#common_types.json/$defs/ChildList) in v0.9.1) used by container [components](#component) (such as `Column`, `Row`, and `List`) to hold multiple child components in a [surface](#surface)'s flat component list.
+The schema type ([`common_types.json#/$defs/ChildList`](/specification/v1.0/schemas/#common_types.json/$defs/ChildList) in v1.0; [`common_types.json#/$defs/ChildList`](/specification/v0.9.1/schemas/#common_types.json/$defs/ChildList) in v0.9.1) used by container [components](#component) (such as `Column`, `Row`, and `List`) to hold multiple child components in a [surface](#surface)'s flat component list.
 
 A `ChildList` property accepts one of two forms:
 
 1. A static array of `ComponentId` strings (for example, `["header", "body", "footer"]`).
 2. A collection template object `{"path": "/items", "componentId": "itemCard"}` that instantiates `componentId` once for each element of the array at `path` in the [data model](#data-model), establishing a collection scope for relative [`@path`](#path) bindings and [`@index`](#index) calls. Template objects use the plain property name `"path"` (not `"@path"`) in both v1.0 and v0.9.1.
 
-See [Data Model and Data Binding](../data-binding/#displaying-dynamic-lists-of-data) and [Collection scopes (relative paths)](../../specification/v1.0-a2ui/#collection-scopes-relative-paths) in the protocol specification.
+See [Data Model and Data Binding](/concepts/data-binding/#displaying-dynamic-lists-of-data) and [Collection scopes (relative paths)](/specification/v1.0-a2ui/#collection-scopes-relative-paths) in the protocol specification.
 
 ### Component
 
@@ -2425,9 +2425,9 @@ See [Data Model and Data Binding](../data-binding/#displaying-dynamic-lists-of-d
 
 A declarative UI element defined in a [catalog](#catalog) (such as `Card`, `Button`, `TextField`, or a domain-specific `FlightStatusCard`) and rendered as a native widget by a client [framework adapter](#framework-adapter).
 
-Within a [surface](#surface), component instances are sent in `createSurface` or `updateComponents` as a flat adjacency list rather than a nested tree: each entry has a unique `id` (following Unicode UAX #31 identifier rules in v1.0), a `component` type name, optional `catalogId`, `accessibility` attributes, and `metadata.extensions`, and references children by ID (`ComponentId` or [`ChildList`](#childlist)). Every rendered surface requires one component with `"id": "root"`, which mounts inside the reserved immutable `Surface` container ([`common_types.json#/$defs/Surface`](../../specification/v1.0/schemas/#common_types.json/$defs/Surface)).
+Within a [surface](#surface), component instances are sent in `createSurface` or `updateComponents` as a flat adjacency list rather than a nested tree: each entry has a unique `id` (following Unicode UAX #31 identifier rules in v1.0), a `component` type name, optional `catalogId`, `accessibility` attributes, and `metadata.extensions`, and references children by ID (`ComponentId` or [`ChildList`](#childlist)). Every rendered surface requires one component with `"id": "root"`, which mounts inside the reserved immutable `Surface` container ([`common_types.json#/$defs/Surface`](/specification/v1.0/schemas/#common_types.json/$defs/Surface)).
 
-See [Catalogs](../catalogs/) and [Component model](../../specification/v1.0-a2ui/#component-model) in the protocol specification.
+See [Catalogs](/concepts/catalogs/) and [Component model](/specification/v1.0-a2ui/#component-model) in the protocol specification.
 
 ### Core SDK
 
@@ -2438,7 +2438,7 @@ The UI-framework-agnostic foundational library in each language, shared by both 
 
 The Core SDK implements protocol message models, `Catalog` schemas, reactive surface and [data model](#data-model) state containers (`SurfaceGroupModel`, `SurfaceModel`, `ComponentModel`, and `DataModel`, named `SurfaceViewModel` in Swift and `A2uiCoreSurfaceGroupModel`, `A2uiCoreSurfaceModel`, `A2uiCoreComponentRegistry`, and `A2uiCoreDataModel` in Kotlin, with `A2uiComponentModel` in `compose-runtime`), JSON Pointer resolution, [`@path`](#path) and [`@call`](#call) expression evaluation, [`MessageProcessor`](#messageprocessor), and payload validation.
 
-See [Core SDK](../sdks/#core-sdk) for official package names across languages.
+See [Core SDK](/concepts/sdks/#core-sdk) for official package names across languages.
 
 ## D
 
@@ -2446,19 +2446,19 @@ See [Core SDK](../sdks/#core-sdk) for official package names across languages.
 
 <span id="data-reference"></span>
 
-Connecting a [component](#component)'s dynamic property (`DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList`, or `DynamicValue` in [`common_types.json`](../../specification/v1.0/schemas/#common_types.json)) to a path in the surface's [data model](#data-model) via a [`DataBinding`](../../specification/v1.0/schemas/#common_types.json/$defs/DataBinding) object (`{"@path": "..."}` in v1.0, or `{"path": "..."}` in v0.9.1) instead of a literal value.
+Connecting a [component](#component)'s dynamic property (`DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList`, or `DynamicValue` in [`common_types.json`](/specification/v1.0/schemas/#common_types.json)) to a path in the surface's [data model](#data-model) via a [`DataBinding`](/specification/v1.0/schemas/#common_types.json/$defs/DataBinding) object (`{"@path": "..."}` in v1.0, or `{"path": "..."}` in v0.9.1) instead of a literal value.
 
 Display components (such as `Text`) use one-way reactive bindings that update whenever the bound path changes. Input components (such as `TextField`, `CheckBox`, and `Slider`) establish local two-way bindings that read the current value at the bound path and write user edits back to the local data model immediately without per-keystroke network traffic.
 
-See [`@path`](#path), [Data Model and Data Binding](../data-binding/), and [Data model representation: binding, scope](../../specification/v1.0-a2ui/#data-model-representation-binding-scope) in the protocol specification.
+See [`@path`](#path), [Data Model and Data Binding](/concepts/data-binding/), and [Data model representation: binding, scope](/specification/v1.0-a2ui/#data-model-representation-binding-scope) in the protocol specification.
 
 ### Data model
 
 An isolated, reactive JSON state object maintained per [surface](#surface) on the [renderer](#renderer) and shared with the [agent](#agent) that owns the surface.
 
-The agent populates or mutates the data model inline in `createSurface` (v1.0) or incrementally via [`updateDataModel`](../../specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) using [RFC 6901 JSON Pointers](https://datatracker.ietf.org/doc/html/rfc6901). Local user edits remain on the renderer until sent back to the agent selectively in [`Event`](#event) `context` bindings, as resolved arguments to agent-routed function calls ([`callAgentFunction`](#callagentfunction) in v1.0), or in full via transport metadata (`a2uiRendererDataModel` matching [`renderer_data_model.json`](../../specification/v1.0/schemas/#renderer_data_model.json) in v1.0; `a2uiClientDataModel` matching [`client_data_model.json`](../../specification/v0.9.1/schemas/#client_data_model.json) in v0.9.1) when `createSurface` sets `"sendDataModel": true`.
+The agent populates or mutates the data model inline in `createSurface` (v1.0) or incrementally via [`updateDataModel`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) using [RFC 6901 JSON Pointers](https://datatracker.ietf.org/doc/html/rfc6901). Local user edits remain on the renderer until sent back to the agent selectively in [`Event`](#event) `context` bindings, as resolved arguments to agent-routed function calls ([`callAgentFunction`](#callagentfunction) in v1.0), or in full via transport metadata (`a2uiRendererDataModel` matching [`renderer_data_model.json`](/specification/v1.0/schemas/#renderer_data_model.json) in v1.0; `a2uiClientDataModel` matching [`client_data_model.json`](/specification/v0.9.1/schemas/#client_data_model.json) in v0.9.1) when `createSurface` sets `"sendDataModel": true`.
 
-See [Data Model and Data Binding](../data-binding/) and [Data model updates: synchronization and convergence](../../specification/v1.0-a2ui/#data-model-updates-synchronization-and-convergence) in the protocol specification.
+See [Data Model and Data Binding](/concepts/data-binding/) and [Data model updates: synchronization and convergence](/specification/v1.0-a2ui/#data-model-updates-synchronization-and-convergence) in the protocol specification.
 
 ## E
 
@@ -2468,22 +2468,22 @@ See [Data Model and Data Binding](../data-binding/) and [Data model updates: syn
 
 A top-level JSON Schema that defines the outer wire structure (`"version"` plus a single message type key) for an [A2UI message](#a2ui-message) exchanged between an [agent](#agent) and a [renderer](#renderer), independent of which [catalog](#catalog) defines the UI [components](#component) and [functions](#function):
 
-1. [`agent_to_renderer.json`](../../specification/v1.0/schemas/#agent_to_renderer.json) ([`agent_to_renderer`](#agent_to_renderer)) validates v1.0 messages from agent to renderer (`"version": "1.0"`).
-2. [`renderer_to_agent.json`](../../specification/v1.0/schemas/#renderer_to_agent.json) ([`renderer_to_agent`](#renderer_to_agent)) validates v1.0 messages from renderer to agent (`"version": "1.0"`).
-3. [`server_to_client.json`](../../specification/v0.9.1/schemas/#server_to_client.json) validates v0.9.1 (and v0.8) messages from server (agent) to client (renderer), renamed to `agent_to_renderer.json` in v1.0.
-4. [`client_to_server.json`](../../specification/v0.9.1/schemas/#client_to_server.json) validates v0.9.1 (and v0.8) messages from client (renderer) to server (agent), renamed to `renderer_to_agent.json` in v1.0.
+1. [`agent_to_renderer.json`](/specification/v1.0/schemas/#agent_to_renderer.json) ([`agent_to_renderer`](#agent_to_renderer)) validates v1.0 messages from agent to renderer (`"version": "1.0"`).
+2. [`renderer_to_agent.json`](/specification/v1.0/schemas/#renderer_to_agent.json) ([`renderer_to_agent`](#renderer_to_agent)) validates v1.0 messages from renderer to agent (`"version": "1.0"`).
+3. [`server_to_client.json`](/specification/v0.9.1/schemas/#server_to_client.json) validates v0.9.1 (and v0.8) messages from server (agent) to client (renderer), renamed to `agent_to_renderer.json` in v1.0.
+4. [`client_to_server.json`](/specification/v0.9.1/schemas/#client_to_server.json) validates v0.9.1 (and v0.8) messages from client (renderer) to server (agent), renamed to `renderer_to_agent.json` in v1.0.
 
 Each envelope schema also has companion JSON array (`*_list.json`) and object-wrapped array (`*_list_wrapper.json`) schemas for batched message delivery.
 
-See [Messages](../messages/) and [Envelope message structure](../../specification/v1.0-a2ui/#envelope-message-structure) in the protocol specification.
+See [Messages](/concepts/messages/) and [Envelope message structure](/specification/v1.0-a2ui/#envelope-message-structure) in the protocol specification.
 
 ### Event
 
-The agent-bound variant of a component [`Action`](#action) (`action.event` in [`common_types.json#/$defs/Action`](../../specification/v1.0/schemas/#common_types.json/$defs/Action)) that notifies the [agent](#agent) of user intent, such as clicking a submit button or choosing an item.
+The agent-bound variant of a component [`Action`](#action) (`action.event` in [`common_types.json#/$defs/Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action)) that notifies the [agent](#agent) of user intent, such as clicking a submit button or choosing an item.
 
-An `event` object declares a required `name`, an optional `context` map of literal values or dynamic bindings, and (in v1.0) an optional `userMessage` (`DynamicString`). When triggered by the user (provided no component [`CheckRule`](#checkrule) fails with `"error"` severity), the [renderer](#renderer) resolves every binding in `context` and `userMessage` against the local [data model](#data-model) and emits an [`action`](../../specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message in [`renderer_to_agent`](#renderer_to_agent) containing `name`, `surfaceId`, `sourceComponentId`, ISO 8601 `timestamp`, resolved `context`, and (in v1.0) optional `userMessage` and `metadata.extensions`.
+An `event` object declares a required `name`, an optional `context` map of literal values or dynamic bindings, and (in v1.0) an optional `userMessage` (`DynamicString`). When triggered by the user (provided no component [`CheckRule`](#checkrule) fails with `"error"` severity), the [renderer](#renderer) resolves every binding in `context` and `userMessage` against the local [data model](#data-model) and emits an [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message in [`renderer_to_agent`](#renderer_to_agent) containing `name`, `surfaceId`, `sourceComponentId`, ISO 8601 `timestamp`, resolved `context`, and (in v1.0) optional `userMessage` and `metadata.extensions`.
 
-See [Actions and Functions](../actions-and-functions/) and [`action`](../../specification/v1.0-a2ui/#action) in the protocol specification.
+See [Actions and Functions](/concepts/actions-and-functions/) and [`action`](/specification/v1.0-a2ui/#action) in the protocol specification.
 
 ## F
 
@@ -2496,14 +2496,14 @@ A UI-framework-specific client library (also called a Renderer SDK), built on to
 
 Framework adapters include a built-in implementation of the [Basic catalog](#basic-catalog), map A2UI `AccessibilityAttributes` (`label`, `description`, `live`, `hidden`) to platform accessibility APIs, and let teams register custom [catalog](#catalog) component views and local [functions](#function) while the adapter handles reactive state updates.
 
-See [Renderer SDK](../sdks/#renderer-sdk) for official package names and [How to Integrate A2UI into a Client](../../guides/client-integration/).
+See [Renderer SDK](/concepts/sdks/#renderer-sdk) for official package names and [How to Integrate A2UI into a Client](/guides/client-integration/).
 
 ### Function
 
 <span id="renderer-function"></span>
 <span id="agent-function"></span>
 
-A named, typed operation declared in a [catalog](#catalog)'s `functions` map ([`catalog_definition.json#/$defs/FunctionDefinition`](../../specification/v1.0/schemas/#catalog_definition.json/$defs/FunctionDefinition)) with an argument schema (`args`) and `returnType` (`"string"`, `"number"`, `"boolean"`, `"array"`, `"object"`, `"validationResult"`, `"any"`, or `"void"`). Functions execute logic without sending raw code between the [agent](#agent) and [renderer](#renderer).
+A named, typed operation declared in a [catalog](#catalog)'s `functions` map ([`catalog_definition.json#/$defs/FunctionDefinition`](/specification/v1.0/schemas/#catalog_definition.json/$defs/FunctionDefinition)) with an argument schema (`args`) and `returnType` (`"string"`, `"number"`, `"boolean"`, `"array"`, `"object"`, `"validationResult"`, `"any"`, or `"void"`). Functions execute logic without sending raw code between the [agent](#agent) and [renderer](#renderer).
 
 In v1.0, whether a function call runs locally or on the agent depends on whether the renderer registers a local implementation, while `allowedCallers` (`"rendererOnly"` by default, `"agentOnly"`, or `"rendererOrAgent"`) and `requiresUserActivation` govern which side and gesture context may invoke it:
 
@@ -2519,11 +2519,11 @@ An A2UI function is distinct from a language model tool:
 | Purpose     | UI formatting, input validation, client-side effects, or UI-triggered server lookups.      | Model reasoning, web search, database queries, or backend operations. |
 | Declaration | Declared in an A2UI [catalog](#catalog) with typed `args`, `returnType`, and caller rules. | Declared in a tool definition passed to the language model.           |
 
-See [Actions and Functions](../actions-and-functions/) and [Functions in A2UI Content Execution](../../specification/v1.0-a2ui/#functions-in-a2ui-content-execution) in the protocol specification.
+See [Actions and Functions](/concepts/actions-and-functions/) and [Functions in A2UI Content Execution](/specification/v1.0-a2ui/#functions-in-a2ui-content-execution) in the protocol specification.
 
 ### Function call
 
-An invocation of a catalog or system [function](#function) represented as a [`FunctionCall`](../../specification/v1.0/schemas/#common_types.json/$defs/FunctionCall) object with [`@call`](#call) in v1.0 (`"call"` in v0.9.1), an optional `catalogId` override, and optional `args`.
+An invocation of a catalog or system [function](#function) represented as a [`FunctionCall`](/specification/v1.0/schemas/#common_types.json/$defs/FunctionCall) object with [`@call`](#call) in v1.0 (`"call"` in v0.9.1), an optional `catalogId` override, and optional `args`.
 
 Function calls occur in four places across the protocol:
 
@@ -2532,7 +2532,7 @@ Function calls occur in four places across the protocol:
 3. Component [`Action`](#action) handlers (`action.functionCall`), triggered by a user gesture.
 4. Explicit remote procedure call envelopes ([`callRendererFunction`](#callrendererfunction) and [`callAgentFunction`](#callagentfunction) in v1.0).
 
-See [Actions and Functions](../actions-and-functions/).
+See [Actions and Functions](/concepts/actions-and-functions/).
 
 ## G
 
@@ -2547,17 +2547,17 @@ Common application layouts for presenting agent-generated [surfaces](#surface) (
 3. Dashboard: Generated surfaces are arranged by topic or role rather than time and remain pinned in fixed regions of the screen.
 4. Wizard: Generated surfaces appear step by step to gather structured input for a multi-stage task.
 
-See [Overview: How A2UI Works](../overview/) and [How to Integrate A2UI into a Client](../../guides/client-integration/).
+See [Overview: How A2UI Works](/concepts/overview/) and [How to Integrate A2UI into a Client](/guides/client-integration/).
 
 ## I
 
 ### @index
 
-The reserved v1.0 universal system [function](#function) ([`common_types.json#/$defs/IndexSystemFunction`](../../specification/v1.0/schemas/#common_types.json/$defs/IndexSystemFunction)) that returns the 0-based index of the current item when rendering a [`ChildList`](#childlist) collection template, called as `{"@call": "@index"}` or `{"@call": "@index", "args": {"offset": 1}}` (or `${@index(offset: 1)}` inside `formatString`).
+The reserved v1.0 universal system [function](#function) ([`common_types.json#/$defs/IndexSystemFunction`](/specification/v1.0/schemas/#common_types.json/$defs/IndexSystemFunction)) that returns the 0-based index of the current item when rendering a [`ChildList`](#childlist) collection template, called as `{"@call": "@index"}` or `{"@call": "@index", "args": {"offset": 1}}` (or `${@index(offset: 1)}` inside `formatString`).
 
 In nested collection templates, `@index` resolves to the innermost enclosing template's index; calling `@index` outside a list template fails evaluation (reporting `EXPRESSION_ERROR` on dynamic bindings or `EXECUTION_ERROR` in [`callRendererFunction`](#callrendererfunction)).
 
-See [Data Model and Data Binding](../data-binding/#displaying-dynamic-lists-of-data) and [The `@index` function](../../specification/v1.0-a2ui/#the-index-function) in the protocol specification.
+See [Data Model and Data Binding](/concepts/data-binding/#displaying-dynamic-lists-of-data) and [The `@index` function](/specification/v1.0-a2ui/#the-index-function) in the protocol specification.
 
 ### Inference format
 
@@ -2573,7 +2573,7 @@ When reading a model response (`parseResponse` / `parse_response` or streaming `
 2. Compilation (`compile`): Translates each raw block from format notation into `agent_to_renderer` messages without checking catalogs or `RendererState`.
 3. Validation and state tracking: `parseResponse` / `parse_response` and `openStream` / `open_stream` validate compiled messages against the active [catalogs](#catalog) and update `RendererState`.
 
-See [Inference Formats](../inference-formats/).
+See [Inference Formats](/concepts/inference-formats/).
 
 ## M
 
@@ -2583,7 +2583,7 @@ An asymmetric catalog and message transformer in the Python [Agent SDK](#agent-s
 
 `MacroExpander.transform_to_inference_catalog` augments a base catalog with component schemas synthesized from `@macro` function type annotations and docstrings for model prompting, and `MacroExpander.transform_to_transport` expands macro components emitted by the model into primitive `createSurface` and `updateComponents` subtrees so client [renderers](#renderer) need no custom widget code.
 
-See [Using Macros](../../guides/macros/) and [Agent SDK](../sdks/#agent-sdk).
+See [Using Macros](/guides/macros/) and [Agent SDK](/concepts/sdks/#agent-sdk).
 
 ### MessageProcessor
 
@@ -2591,7 +2591,7 @@ The stateful controller class in each language's [Core SDK](#core-sdk) (`A2uiMes
 
 `MessageProcessor` validates incoming payloads against registered [catalogs](#catalog), mutates reactive surface and [data model](#data-model) state containers (`SurfaceGroupModel`, `SurfaceModel`, `ComponentModel`, and `DataModel`, named `SurfaceViewModel` in Swift and `A2uiCoreSurfaceGroupModel`, `A2uiCoreSurfaceModel`, `A2uiCoreComponentRegistry`, and `A2uiCoreDataModel` in Kotlin, with `A2uiComponentModel` in `compose-runtime`), resolves JSON Pointers and [`@call`](#call) expressions, enforces function caller and user-activation rules, emits outbound [`renderer_to_agent`](#renderer_to_agent) messages (`action`, `callAgentFunction`, `rendererFunctionResponse`, and `error`), and builds renderer [capabilities](#capabilities) and `a2uiRendererDataModel` metadata snapshots.
 
-See [Core SDK](../sdks/#core-sdk) and [How to Integrate A2UI into a Client](../../guides/client-integration/).
+See [Core SDK](/concepts/sdks/#core-sdk) and [How to Integrate A2UI into a Client](/guides/client-integration/).
 
 ## N
 
@@ -2601,17 +2601,17 @@ Data categorized by an application as inaccessible to AI models and [agents](#ag
 
 Which fields count as NoAI information depends on the product and workflow (for example, medical history may be excluded from AI context in a billing app while required in a clinical diagnostic tool). In generative UI interfaces, keeping NoAI inputs outside agent-bound [`Event`](#event) `context` maps, outside arguments to function calls that can route to the agent via [`callAgentFunction`](#callagentfunction), and off `"sendDataModel": true` surfaces (while visually distinguishing AI-connected inputs from private inputs) lets end users see which data can reach a model.
 
-See [Synchronizing state back to the agent](../data-binding/#synchronizing-state-back-to-the-agent) in Data Model and Data Binding.
+See [Synchronizing state back to the agent](/concepts/data-binding/#synchronizing-state-back-to-the-agent) in Data Model and Data Binding.
 
 ## P
 
 ### @path
 
-The reserved v1.0 protocol directive key in a [`DataBinding`](../../specification/v1.0/schemas/#common_types.json/$defs/DataBinding) object that points to a value in a surface's [data model](#data-model) using an [RFC 6901 JSON Pointer](https://datatracker.ietf.org/doc/html/rfc6901), such as `{"@path": "/reservation/guestEmail"}`.
+The reserved v1.0 protocol directive key in a [`DataBinding`](/specification/v1.0/schemas/#common_types.json/$defs/DataBinding) object that points to a value in a surface's [data model](#data-model) using an [RFC 6901 JSON Pointer](https://datatracker.ietf.org/doc/html/rfc6901), such as `{"@path": "/reservation/guestEmail"}`.
 
-A path starting with `/` resolves from the root of the surface data model, while a path without a leading slash (such as `{"@path": "guestName"}`) resolves relative to the current item in an enclosing [`ChildList`](#childlist) collection template. In v0.9.1, `DataBinding` uses `"path"` without the `@` prefix ([`common_types.json#/$defs/DataBinding`](../../specification/v0.9.1/schemas/#common_types.json/$defs/DataBinding)). Even in v1.0, `updateDataModel.path` and `ChildList` template `path` use plain `"path"` because they are fixed schema fields rather than dynamic value unions.
+A path starting with `/` resolves from the root of the surface data model, while a path without a leading slash (such as `{"@path": "guestName"}`) resolves relative to the current item in an enclosing [`ChildList`](#childlist) collection template. In v0.9.1, `DataBinding` uses `"path"` without the `@` prefix ([`common_types.json#/$defs/DataBinding`](/specification/v0.9.1/schemas/#common_types.json/$defs/DataBinding)). Even in v1.0, `updateDataModel.path` and `ChildList` template `path` use plain `"path"` because they are fixed schema fields rather than dynamic value unions.
 
-See [Data binding](#data-binding), [Data Model and Data Binding](../data-binding/), and [Path resolution & scope](../../specification/v1.0-a2ui/#path-resolution--scope) in the protocol specification.
+See [Data binding](#data-binding), [Data Model and Data Binding](/concepts/data-binding/), and [Path resolution & scope](/specification/v1.0-a2ui/#path-resolution--scope) in the protocol specification.
 
 ## R
 
@@ -2619,30 +2619,30 @@ See [Data binding](#data-binding), [Data Model and Data Binding](../data-binding
 
 The client-side runtime inside a host application that advertises supported [catalogs](#catalog) via [capabilities](#capabilities), applies [`agent_to_renderer`](#agent_to_renderer) messages through [`MessageProcessor`](#messageprocessor), renders [surfaces](#surface) as native widgets via a [framework adapter](#framework-adapter), maintains per-surface [data models](#data-model), runs local [functions](#function), and sends [`renderer_to_agent`](#renderer_to_agent) messages back to the [agent](#agent).
 
-See [Renderer SDK](../sdks/#renderer-sdk) and [How to Integrate A2UI into a Client](../../guides/client-integration/).
+See [Renderer SDK](/concepts/sdks/#renderer-sdk) and [How to Integrate A2UI into a Client](/guides/client-integration/).
 
 ### renderer_to_agent
 
-The v1.0 protocol [envelope schema](#envelope-schema) ([`renderer_to_agent.json`](../../specification/v1.0/schemas/#renderer_to_agent.json)) for messages sent from a [renderer](#renderer) to an [agent](#agent). In v0.9.1, this envelope schema is named [`client_to_server.json`](../../specification/v0.9.1/schemas/#client_to_server.json).
+The v1.0 protocol [envelope schema](#envelope-schema) ([`renderer_to_agent.json`](/specification/v1.0/schemas/#renderer_to_agent.json)) for messages sent from a [renderer](#renderer) to an [agent](#agent). In v0.9.1, this envelope schema is named [`client_to_server.json`](/specification/v0.9.1/schemas/#client_to_server.json).
 
 Every v1.0 `renderer_to_agent` message sets `"version": "1.0"` (v0.9.1 uses `"version": "v0.9"` or `"v0.9.1"`) alongside one of four message keys:
 
-1. [`action`](../../specification/v1.0/schemas/#renderer_to_agent.json/properties/action) dispatches a user-triggered [`Event`](#event) with its resolved `context`.
+1. [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) dispatches a user-triggered [`Event`](#event) with its resolved `context`.
 2. [`callAgentFunction`](#callagentfunction) (new in v1.0) requests remote execution of an agent-side [function](#function).
-3. [`rendererFunctionResponse`](../../specification/v1.0/schemas/#renderer_to_agent.json/properties/rendererFunctionResponse) (new in v1.0) returns the `value` or `error` for an agent-initiated [`callRendererFunction`](#callrendererfunction) request.
-4. [`error`](../../specification/v1.0/schemas/#renderer_to_agent.json/properties/error) reports validation errors (`VALIDATION_FAILED`, `UNALLOWED_PARENT`, `UNALLOWED_CHILD`) or runtime faults (`EXPRESSION_ERROR`, `EXECUTION_ERROR`, `INTEGRITY_ERROR`, `INVALID_FUNCTION_CALL`), allowing the agent to prompt the model for self-correction.
+3. [`rendererFunctionResponse`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/rendererFunctionResponse) (new in v1.0) returns the `value` or `error` for an agent-initiated [`callRendererFunction`](#callrendererfunction) request.
+4. [`error`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/error) reports validation errors (`VALIDATION_FAILED`, `UNALLOWED_PARENT`, `UNALLOWED_CHILD`) or runtime faults (`EXPRESSION_ERROR`, `EXECUTION_ERROR`, `INTEGRITY_ERROR`, `INVALID_FUNCTION_CALL`), allowing the agent to prompt the model for self-correction.
 
-See [Messages](../messages/) and [Renderer-to-agent event messages](../../specification/v1.0-a2ui/#renderer-to-agent-event-messages) in the protocol specification.
+See [Messages](/concepts/messages/) and [Renderer-to-agent event messages](/specification/v1.0-a2ui/#renderer-to-agent-event-messages) in the protocol specification.
 
 ## S
 
 ### Surface
 
-An isolated, non-nesting UI region created with a globally unique `surfaceId` via [`createSurface`](../../specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage), populated with a flat adjacency list of [components](#component) rooted at `"id": "root"`, backed by its own [data model](#data-model), and removed via [`deleteSurface`](../../specification/v1.0/schemas/#agent_to_renderer.json/$defs/DeleteSurfaceMessage).
+An isolated, non-nesting UI region created with a globally unique `surfaceId` via [`createSurface`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage), populated with a flat adjacency list of [components](#component) rooted at `"id": "root"`, backed by its own [data model](#data-model), and removed via [`deleteSurface`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/DeleteSurfaceMessage).
 
-Creating a surface implicitly instantiates the reserved immutable `Surface` container ([`common_types.json#/$defs/Surface`](../../specification/v1.0/schemas/#common_types.json/$defs/Surface)) with `"child": "root"`. Surfaces cannot nest inside one another, though a host application can display multiple surfaces at the same time (such as separate cards in a chat timeline or panels in a dashboard).
+Creating a surface implicitly instantiates the reserved immutable `Surface` container ([`common_types.json#/$defs/Surface`](/specification/v1.0/schemas/#common_types.json/$defs/Surface)) with `"child": "root"`. Surfaces cannot nest inside one another, though a host application can display multiple surfaces at the same time (such as separate cards in a chat timeline or panels in a dashboard).
 
-See [Overview: How A2UI Works](../overview/), [Messages](../messages/), and [`createSurface`](../../specification/v1.0-a2ui/#createsurface) in the protocol specification.
+See [Overview: How A2UI Works](/concepts/overview/), [Messages](/concepts/messages/), and [`createSurface`](/specification/v1.0-a2ui/#createsurface) in the protocol specification.
 
 ---
 
@@ -2652,9 +2652,9 @@ See [Overview: How A2UI Works](../overview/), [Messages](../messages/), and [`cr
 
 Canonical URL: https://a2ui.org/concepts/inference-formats/
 
-An inference format defines the structured notation that a language model reads in its system prompt and writes in its response before the server compiles that output into standard A2UI [wire messages](../messages/). Because compilation happens on the server, every client [renderer](../sdks/#renderer-sdk) receives the same A2UI JSON over the wire regardless of how the model produced it.
+An inference format defines the structured notation that a language model reads in its system prompt and writes in its response before the server compiles that output into standard A2UI [wire messages](/concepts/messages/). Because compilation happens on the server, every client [renderer](/concepts/sdks/#renderer-sdk) receives the same A2UI JSON over the wire regardless of how the model produced it.
 
-In the diagram below, `A2uiRequestProcessor` coordinates three server-side stages. First, `PromptGenerator` turns the negotiated [catalog](../catalogs/) schemas, `instructions`, and few-shot `examples` into a format-specific prompt snippet. Next, the model writes UI blocks inside sentinel tags (`<a2ui>...</a2ui>` for Express or `<a2ui-json>...</a2ui-json>` for Direct JSON) alongside conversational prose. Finally, `Parser` or `ResponseStream` heals streaming chunks, compiles each block into wire JSON, and validates every message against `RendererState`.
+In the diagram below, `A2uiRequestProcessor` coordinates three server-side stages. First, `PromptGenerator` turns the negotiated [catalog](/concepts/catalogs/) schemas, `instructions`, and few-shot `examples` into a format-specific prompt snippet. Next, the model writes UI blocks inside sentinel tags (`<a2ui>...</a2ui>` for Express or `<a2ui-json>...</a2ui-json>` for Direct JSON) alongside conversational prose. Finally, `Parser` or `ResponseStream` heals streaming chunks, compiles each block into wire JSON, and validates every message against `RendererState`.
 
 <InferencePipeline />
 
@@ -2666,7 +2666,7 @@ Standard JSON is well suited as a wire protocol between an agent server and a cl
 2. Embedding full JSON Schemas in the system prompt consumes roughly twice as many input tokens as compact component signatures.
 3. Deeply nested braces, quotes, and manual component IDs increase syntax and reference errors, especially on smaller, faster models.
 
-Inference formats separate what is best for the model to generate from what is best for the renderer to consume. The [Agent SDKs](../sdks/#agent-sdk) include two built-in formats and allow custom implementations:
+Inference formats separate what is best for the model to generate from what is best for the renderer to consume. The [Agent SDKs](/concepts/sdks/#agent-sdk) include two built-in formats and allow custom implementations:
 
 | Format      | Sentinel tags                | SDK support                        | How it represents UI                                                                                                    |
 | :---------- | :--------------------------- | :--------------------------------- | :---------------------------------------------------------------------------------------------------------------------- |
@@ -2674,11 +2674,11 @@ Inference formats separate what is best for the model to generate from what is b
 | Direct JSON | `<a2ui-json>...</a2ui-json>` | TypeScript, Python, Dart           | Standard A2UI wire JSON emitted directly by the model, with Markdown fence stripping and incremental string healing.    |
 | Custom      | Format-defined               | TypeScript, Python, Dart           | Any domain-specific grammar or model-tailored notation implemented against the SDK's `InferenceFormatFactory` contract. |
 
-Not every A2UI agent uses free-form model generation. Regulated or deterministic workflows can also construct wire messages directly in server code (driven by a classifier, state machine, or [macro](../../guides/macros/)) and send the resulting JSON to the renderer without an LLM compilation step.
+Not every A2UI agent uses free-form model generation. Regulated or deterministic workflows can also construct wire messages directly in server code (driven by a classifier, state machine, or [macro](/guides/macros/)) and send the resulting JSON to the renderer without an LLM compilation step.
 
 ## Express vs. wire JSON
 
-In Express, the model calls component constructors with positional or keyword arguments, writes [data model](../data-binding/) values with `$/path = value`, and nests child components inline instead of inventing string IDs by hand.
+In Express, the model calls component constructors with positional or keyword arguments, writes [data model](/concepts/data-binding/) values with `$/path = value`, and nests child components inline instead of inventing string IDs by hand.
 
 The example below uses `Card`, `Column`, `Text`, and `Button` from the Basic Catalog; Express derives signatures dynamically for any custom `catalog.json` you register (whitespace and indentation are optional):
 
@@ -2839,7 +2839,7 @@ For the full grammar of Express, see the [A2UI Express specification proposal](h
 
 <span id="configuring-inference-formats-across-sdks"></span>
 
-Swapping an inference format requires no changes to catalogs, few-shot examples, or client renderers because every format in the [Agent SDK](../sdks/#agent-sdk) shares three design properties:
+Swapping an inference format requires no changes to catalogs, few-shot examples, or client renderers because every format in the [Agent SDK](/concepts/sdks/#agent-sdk) shares three design properties:
 
 1. Catalog-agnostic prompt synthesis: Rather than hardcoding component names, a format's `PromptGenerator` inspects the negotiated `Catalog` schemas at runtime to derive component signatures, function signatures, and dynamic binding rules.
 2. Bidirectional translation (`compile` and `decompile`): Alongside compiling model output into wire messages, each format's `Parser` can decompile wire messages back into the format's text notation. Structured few-shot `examples`, fenced `json` message blocks inside a catalog's `instructions`, and prior conversation turns can therefore be authored once as wire messages and rendered automatically in whichever format is active.
@@ -2985,7 +2985,7 @@ Agent-to-renderer messages construct surfaces, update component hierarchies and 
   ]}
 />
 
-The `createSurface` message allocates a new UI surface identified by `surfaceId`. The `surfaceId` must be globally unique within the rendering context (the `MessageProcessor` instance on the renderer), which is typically a conversation. Creating a surface implicitly instantiates the reserved [`Surface`](../../specification/v1.0/schemas/#common_types.json/$defs/Surface) container component with `child: "root"`. In v1.0, `createSurface` can also include optional surface-level custom extensions under `metadata.extensions` ([`Extensions`](../../specification/v1.0/schemas/#common_types.json/$defs/Extensions)).
+The `createSurface` message allocates a new UI surface identified by `surfaceId`. The `surfaceId` must be globally unique within the rendering context (the `MessageProcessor` instance on the renderer), which is typically a conversation. Creating a surface implicitly instantiates the reserved [`Surface`](/specification/v1.0/schemas/#common_types.json/$defs/Surface) container component with `child: "root"`. In v1.0, `createSurface` can also include optional surface-level custom extensions under `metadata.extensions` ([`Extensions`](/specification/v1.0/schemas/#common_types.json/$defs/Extensions)).
 
 #### Properties
 
@@ -2996,7 +2996,7 @@ The `createSurface` message allocates a new UI surface identified by `surfaceId`
 | `sendDataModel` | boolean | Optional                      | When `true`, the renderer attaches the full surface data model in transport metadata (`a2uiRendererDataModel` in v1.0 / `a2uiClientDataModel` in v0.9.1) on every message to the creating agent. |
 | `components`    | array   | Optional (v1.0)               | Initial flat list of component definitions, allowing single-message surface creation.                                                                                                            |
 | `dataModel`     | object  | Optional (v1.0)               | Initial root data model JSON object for the surface.                                                                                                                                             |
-| `metadata`      | object  | Optional (v1.0)               | Surface-level extensions container with optional `extensions` ([`Extensions`](../../specification/v1.0/schemas/#common_types.json/$defs/Extensions)).                                            |
+| `metadata`      | object  | Optional (v1.0)               | Surface-level extensions container with optional `extensions` ([`Extensions`](/specification/v1.0/schemas/#common_types.json/$defs/Extensions)).                                            |
 
 > **Note**
   In v1.0, `catalogId` is optional, `components` and `dataModel` can be passed inline to initialize
@@ -3079,7 +3079,7 @@ Creating a `"flight_search"` surface:
   ]}
 />
 
-The `updateComponents` message adds or replaces component definitions in an existing surface. Relationships between components are expressed by ID references in a flat adjacency list rather than nested JSON trees, and one component in the surface must have `id: "root"`. In v1.0, individual component definitions in `components` can also carry optional component-level extensions via `metadata.extensions` ([`ComponentCommon`](../../specification/v1.0/schemas/#common_types.json/$defs/ComponentCommon)).
+The `updateComponents` message adds or replaces component definitions in an existing surface. Relationships between components are expressed by ID references in a flat adjacency list rather than nested JSON trees, and one component in the surface must have `id: "root"`. In v1.0, individual component definitions in `components` can also carry optional component-level extensions via `metadata.extensions` ([`ComponentCommon`](/specification/v1.0/schemas/#common_types.json/$defs/ComponentCommon)).
 
 #### Properties
 
@@ -3355,7 +3355,7 @@ The `callRendererFunction` message is an agent-initiated remote procedure call (
 | Property         | Type   | Required | Description                                                                                                                                                       |
 | :--------------- | :----- | :------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `functionCallId` | string | Yes      | Unique correlation identifier for this call, copied verbatim into [`rendererFunctionResponse`](#rendererfunctionresponse-v10-only).                               |
-| `callFunction`   | object | Yes      | [`FunctionCall`](../../specification/v1.0/schemas/#common_types.json/$defs/FunctionCall) object with required `@call`, required `catalogId`, and optional `args`. |
+| `callFunction`   | object | Yes      | [`FunctionCall`](/specification/v1.0/schemas/#common_types.json/$defs/FunctionCall) object with required `@call`, required `catalogId`, and optional `args`. |
 | `surfaceId`      | string | Optional | Surface ID whose data model provides the evaluation context. When omitted, the function executes in an isolated root context with `{}`.                           |
 
 #### Example
@@ -3459,7 +3459,7 @@ Renderer-to-agent messages report user interactions, invoke remote functions on 
   ]}
 />
 
-The `action` message notifies the agent that the user triggered an event action on an interactive component (such as clicking a `Button` configured with `action.event`). Before dispatching the message, the renderer resolves any data bindings inside `action.event.context` and `action.event.userMessage` against the local data model. In v1.0, `action` can also include optional renderer-side custom extensions under `metadata.extensions` ([`Extensions`](../../specification/v1.0/schemas/#common_types.json/$defs/Extensions)).
+The `action` message notifies the agent that the user triggered an event action on an interactive component (such as clicking a `Button` configured with `action.event`). Before dispatching the message, the renderer resolves any data bindings inside `action.event.context` and `action.event.userMessage` against the local data model. In v1.0, `action` can also include optional renderer-side custom extensions under `metadata.extensions` ([`Extensions`](/specification/v1.0/schemas/#common_types.json/$defs/Extensions)).
 
 #### Properties
 
@@ -3471,7 +3471,7 @@ The `action` message notifies the agent that the user triggered an event action 
 | `timestamp`         | string | Yes             | ISO 8601 date-time string indicating when the event occurred.                                                                                        |
 | `context`           | object | Yes             | Resolved key-value dictionary from `action.event.context` with all data bindings evaluated to current values.                                        |
 | `userMessage`       | string | Optional (v1.0) | Human-readable string resolved from `action.event.userMessage`, suitable for adding to LLM conversation history.                                     |
-| `metadata`          | object | Optional (v1.0) | Action-level extensions container with optional `extensions` ([`Extensions`](../../specification/v1.0/schemas/#common_types.json/$defs/Extensions)). |
+| `metadata`          | object | Optional (v1.0) | Action-level extensions container with optional `extensions` ([`Extensions`](/specification/v1.0/schemas/#common_types.json/$defs/Extensions)). |
 
 #### Example
 
@@ -3536,7 +3536,7 @@ The `callAgentFunction` message is a renderer-initiated RPC requesting that the 
 | :--------------- | :----- | :------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `surfaceId`      | string | Yes      | Surface ID where the call originated.                                                                                                                             |
 | `functionCallId` | string | Yes      | Unique correlation identifier for this call, copied verbatim into [`agentFunctionResponse`](#agentfunctionresponse-v10-only).                                     |
-| `callFunction`   | object | Yes      | [`FunctionCall`](../../specification/v1.0/schemas/#common_types.json/$defs/FunctionCall) object with required `@call`, optional `catalogId`, and optional `args`. |
+| `callFunction`   | object | Yes      | [`FunctionCall`](/specification/v1.0/schemas/#common_types.json/$defs/FunctionCall) object with required `@call`, optional `catalogId`, and optional `args`. |
 
 #### Example
 
@@ -3637,7 +3637,7 @@ Transport metadata lets the renderer attach A2UI context to outgoing requests se
 | `a2uiRendererCapabilities` | `a2uiClientCapabilities` | Advertises supported protocol versions, `supportedCatalogIds`, and optional `inlineCatalogs`. |
 | `a2uiRendererDataModel`    | `a2uiClientDataModel`    | Sends full local data models for active surfaces created with `sendDataModel: true`.          |
 
-Renderer capabilities (`a2uiRendererCapabilities` in v1.0 / `a2uiClientCapabilities` in v0.9.1) are an optional mechanism that loosely coupled systems can use to negotiate which protocol versions and catalogs can be used when they are not known in advance. Systems where the agent and client are owned by the same party may not need capability negotiation if the protocol version and catalogs are agreed in advance. Agents can also advertise their static catalog support ahead of time via [`agent_capabilities.json`](../../specification/v1.0/schemas/#agent_capabilities.json) (v1.0) or [`server_capabilities.json`](../../specification/v0.9.1/schemas/#server_capabilities.json) (v0.9.1), such as in an A2A Agent Card.
+Renderer capabilities (`a2uiRendererCapabilities` in v1.0 / `a2uiClientCapabilities` in v0.9.1) are an optional mechanism that loosely coupled systems can use to negotiate which protocol versions and catalogs can be used when they are not known in advance. Systems where the agent and client are owned by the same party may not need capability negotiation if the protocol version and catalogs are agreed in advance. Agents can also advertise their static catalog support ahead of time via [`agent_capabilities.json`](/specification/v1.0/schemas/#agent_capabilities.json) (v1.0) or [`server_capabilities.json`](/specification/v0.9.1/schemas/#server_capabilities.json) (v0.9.1), such as in an A2A Agent Card.
 
 When any active surface was created with `sendDataModel: true`, the renderer attaches `a2uiRendererDataModel` (or `a2uiClientDataModel` in v0.9.1) on outgoing messages to that agent so local input state stays synchronized without embedding full data models inside `action` payloads.
 
@@ -3719,9 +3719,9 @@ Every Agent SDK and Renderer SDK depends on its language's Core SDK, which imple
 
 ### Primary functions
 
-1. Parses and serializes A2UI [wire messages](../messages/) across supported protocol versions (v1.0, v0.9.1, and v0.8 in TypeScript and Python).
-2. Loads [Catalog](../catalogs/) JSON Schemas and validates component hierarchies, placement constraints, and message payloads.
-3. Maintains per-surface component graphs and JSON [data model](../data-binding/) state while applying incremental updates by component ID and JSON Pointer path.
+1. Parses and serializes A2UI [wire messages](/concepts/messages/) across supported protocol versions (v1.0, v0.9.1, and v0.8 in TypeScript and Python).
+2. Loads [Catalog](/concepts/catalogs/) JSON Schemas and validates component hierarchies, placement constraints, and message payloads.
+3. Maintains per-surface component graphs and JSON [data model](/concepts/data-binding/) state while applying incremental updates by component ID and JSON Pointer path.
 4. Evaluates data bindings, collection templates, string interpolation expressions, function invocations, and validation checks.
 
 ### Packages
@@ -3744,11 +3744,11 @@ An Agent SDK connects a language model or agent runtime to the A2UI protocol whi
 
 ### Primary functions
 
-1. Negotiates active [Catalog](../catalogs/) definitions and protocol versions (v0.9.1 and v1.0) against the capabilities reported by the client renderer (see [Overview](../overview/)).
+1. Negotiates active [Catalog](/concepts/catalogs/) definitions and protocol versions (v0.9.1 and v1.0) against the capabilities reported by the client renderer (see [Overview](/concepts/overview/)).
 2. Generates skills, system prompt instructions, and examples directly from catalog schemas and prompt instructions, replacing hand-written prompts that become outdated when components change.
-3. Compiles streaming or batch model output from [inference formats](../inference-formats/) (such as compact Express syntax, which cuts output tokens without client changes, or chunk-healed Direct JSON) into standard A2UI [wire messages](../messages/).
+3. Compiles streaming or batch model output from [inference formats](/concepts/inference-formats/) (such as compact Express syntax, which cuts output tokens without client changes, or chunk-healed Direct JSON) into standard A2UI [wire messages](/concepts/messages/).
 4. Validates outgoing messages statefully against active surface state on the server so broken component IDs, placement violations, or schema mismatches can be fed back to the model for self-correction before transmission.
-5. Supports optional server-side [`@macro`](../../guides/macros/) expansion in Python and integrates with agent frameworks and transports including [Google ADK](https://github.com/google/adk-python) and the [A2A protocol](https://a2a-protocol.org/).
+5. Supports optional server-side [`@macro`](/guides/macros/) expansion in Python and integrates with agent frameworks and transports including [Google ADK](https://github.com/google/adk-python) and the [A2A protocol](https://a2a-protocol.org/).
 
 ### Packages
 
@@ -3762,21 +3762,21 @@ Swift and Kotlin target client-side rendering; for legacy v0.8 and v0.9 JVM serv
 
 ### Go and community SDKs
 
-For **Go** services and CLI clients, community-maintained libraries cover server-side validation, streaming parsers, and terminal rendering—including [`satorunooshie/a2ui-go`](https://github.com/satorunooshie/a2ui-go), [`tmc/a2ui`](https://pkg.go.dev/github.com/tmc/a2ui), [`charmbracelet/a2tea`](https://github.com/charmbracelet/a2tea), and [`muncus/a2term`](https://github.com/muncus/a2term) (listed with version details in [Community Projects](../../ecosystem/renderers/)).
+For **Go** services and CLI clients, community-maintained libraries cover server-side validation, streaming parsers, and terminal rendering—including [`satorunooshie/a2ui-go`](https://github.com/satorunooshie/a2ui-go), [`tmc/a2ui`](https://pkg.go.dev/github.com/tmc/a2ui), [`charmbracelet/a2tea`](https://github.com/charmbracelet/a2tea), and [`muncus/a2term`](https://github.com/muncus/a2term) (listed with version details in [Community Projects](/ecosystem/renderers/)).
 
-To implement a conformance-verified Core or Agent SDK in Go, Rust, C#, or another language, follow the language-agnostic specifications in [`blueprints/modules`](https://github.com/a2ui-project/a2ui/tree/main/blueprints/modules), verify behavioral parity against the YAML suites in [`conformance/core`](https://github.com/a2ui-project/a2ui/tree/main/conformance/core) and [`conformance/agent`](https://github.com/a2ui-project/a2ui/tree/main/conformance/agent), and open a pull request to add your package to [Community Projects](../../ecosystem/renderers/#how-to-submit-a-project).
+To implement a conformance-verified Core or Agent SDK in Go, Rust, C#, or another language, follow the language-agnostic specifications in [`blueprints/modules`](https://github.com/a2ui-project/a2ui/tree/main/blueprints/modules), verify behavioral parity against the YAML suites in [`conformance/core`](https://github.com/a2ui-project/a2ui/tree/main/conformance/core) and [`conformance/agent`](https://github.com/a2ui-project/a2ui/tree/main/conformance/agent), and open a pull request to add your package to [Community Projects](/ecosystem/renderers/#how-to-submit-a-project).
 
-See [Using a catalog in an agent](../catalogs/#using-a-catalog-in-an-agent) and [Inference Formats](../inference-formats/#how-inference-formats-stay-swappable) for TypeScript, Python, and Dart examples of configuring `A2uiGenerator`, negotiating capabilities, and compiling model responses, or run a working agent in the [Quickstart](../../quickstart/).
+See [Using a catalog in an agent](/concepts/catalogs/#using-a-catalog-in-an-agent) and [Inference Formats](/concepts/inference-formats/#how-inference-formats-stay-swappable) for TypeScript, Python, and Dart examples of configuring `A2uiGenerator`, negotiating capabilities, and compiling model responses, or run a working agent in the [Quickstart](/quickstart/).
 
 ## Renderer SDK
 
-A Renderer SDK connects a Core SDK's resolved surface state to a client UI framework. Official Renderer SDKs include a built-in implementation of the [Basic Catalog](../catalogs/#the-basic-catalog) styled through the host framework's theming system, and let you register custom catalogs with per-component rendering logic and local functions (see [How to Define a Catalog](../../guides/defining-a-catalog/)).
+A Renderer SDK connects a Core SDK's resolved surface state to a client UI framework. Official Renderer SDKs include a built-in implementation of the [Basic Catalog](/concepts/catalogs/#the-basic-catalog) styled through the host framework's theming system, and let you register custom catalogs with per-component rendering logic and local functions (see [How to Define a Catalog](/guides/defining-a-catalog/)).
 
 ### Primary functions
 
-1. Applies incremental [surface, component, and data model updates](../messages/) across supported protocol versions (v0.9.1, v1.0, and v0.8 on Web), updating only changed subtrees so unchanged siblings keep focus and local UI state.
-2. Evaluates [reactive data bindings](../data-binding/), nested collection scopes, relative JSON Pointers, and local two-way input edits.
-3. Executes [local catalog functions](../catalogs/#functions) and [reactive validation checks](../../specification/v1.0-a2ui/#component-validation--check-rules), enforcing v1.0 caller and user-activation rules.
+1. Applies incremental [surface, component, and data model updates](/concepts/messages/) across supported protocol versions (v0.9.1, v1.0, and v0.8 on Web), updating only changed subtrees so unchanged siblings keep focus and local UI state.
+2. Evaluates [reactive data bindings](/concepts/data-binding/), nested collection scopes, relative JSON Pointers, and local two-way input edits.
+3. Executes [local catalog functions](/concepts/catalogs/#functions) and [reactive validation checks](/specification/v1.0-a2ui/#component-validation--check-rules), enforcing v1.0 caller and user-activation rules.
 4. Builds capability and data-model sync metadata payloads for your transport layer, dispatches user action events and structured error messages, and handles v1.0 bidirectional function RPCs.
 5. Maps protocol accessibility attributes to host accessibility APIs across Flutter, Web WAI-ARIA, SwiftUI, and Jetpack Compose.
 
@@ -3791,9 +3791,9 @@ A Renderer SDK connects a Core SDK's resolved surface state to a client UI frame
 | SwiftUI         | [A2UISwiftUI](https://github.com/a2ui-project/a2ui/blob/main/Package.swift)<br/>[BasicCatalogSwiftUI](https://github.com/a2ui-project/a2ui/blob/main/Package.swift)                           | v0.9.1,&nbsp;v1.0            | [swift/swiftui](https://github.com/a2ui-project/a2ui/tree/main/swift/swiftui)                                                                                                                                                                                                                           |
 | Jetpack Compose | [androidx.a2ui.compose](https://developer.android.com/jetpack/androidx/releases/a2ui-compose)<br/>[material3-a2ui](https://developer.android.com/jetpack/androidx/releases/compose-material3) | v0.9.1                       | [AndroidX a2ui](https://cs.android.com/androidx/platform/frameworks/support/+/androidx-main:a2ui/) · [material3-a2ui](https://cs.android.com/androidx/platform/frameworks/support/+/androidx-main:compose/material3/material3-a2ui/) · [Docs](https://developer.android.com/develop/ui/compose/agentic) |
 
-On Web, [`@a2ui/web_core`](https://www.npmjs.com/package/@a2ui/web_core) provides the shared Basic Catalog implementation used by React, Lit, and Angular, [`@a2ui/markdown-it`](https://www.npmjs.com/package/@a2ui/markdown-it) ([source](https://github.com/a2ui-project/a2ui/tree/main/typescript/renderers/markdown-it)) renders Markdown inside text components, and [`@a2ui/catalog-mcp`](https://www.npmjs.com/package/@a2ui/catalog-mcp) adds MCP app components (see [Call MCP Tools from A2UI](../../guides/mcp-catalog/)).
+On Web, [`@a2ui/web_core`](https://www.npmjs.com/package/@a2ui/web_core) provides the shared Basic Catalog implementation used by React, Lit, and Angular, [`@a2ui/markdown-it`](https://www.npmjs.com/package/@a2ui/markdown-it) ([source](https://github.com/a2ui-project/a2ui/tree/main/typescript/renderers/markdown-it)) renders Markdown inside text components, and [`@a2ui/catalog-mcp`](https://www.npmjs.com/package/@a2ui/catalog-mcp) adds MCP app components (see [Call MCP Tools from A2UI](/guides/mcp-catalog/)).
 
-See [Registering a catalog in a renderer](../catalogs/#registering-a-catalog-in-a-renderer) and [How to Define a Catalog](../../guides/defining-a-catalog/) for Flutter, Web, SwiftUI, and Jetpack Compose examples of setting up a message processor, registering component widgets and local functions, and mounting surfaces, or run a React or Flutter client in the [Quickstart](../../quickstart/). Read [Authoring Universal Web Components](../../guides/authoring-universal-components/) to share custom components across React, Lit, and Angular, or see the [Android Jetpack Compose guide](https://developer.android.com/develop/ui/compose/agentic) for Android integration. Browse [Community Projects](../../ecosystem/renderers/) for community renderers, or consult [`blueprints/modules`](https://github.com/a2ui-project/a2ui/tree/main/blueprints/modules) and [`conformance`](https://github.com/a2ui-project/a2ui/tree/main/conformance) to build a custom framework adapter.
+See [Registering a catalog in a renderer](/concepts/catalogs/#registering-a-catalog-in-a-renderer) and [How to Define a Catalog](/guides/defining-a-catalog/) for Flutter, Web, SwiftUI, and Jetpack Compose examples of setting up a message processor, registering component widgets and local functions, and mounting surfaces, or run a React or Flutter client in the [Quickstart](/quickstart/). Read [Authoring Universal Web Components](/guides/authoring-universal-components/) to share custom components across React, Lit, and Angular, or see the [Android Jetpack Compose guide](https://developer.android.com/develop/ui/compose/agentic) for Android integration. Browse [Community Projects](/ecosystem/renderers/) for community renderers, or consult [`blueprints/modules`](https://github.com/a2ui-project/a2ui/tree/main/blueprints/modules) and [`conformance`](https://github.com/a2ui-project/a2ui/tree/main/conformance) to build a custom framework adapter.
 
 ---
 
@@ -3808,13 +3808,13 @@ An **[MCP App](https://modelcontextprotocol.io/extensions/apps/overview)** can b
 Instead of requiring every MCP client (such as Claude Desktop, the MCP Inspector, or an IDE) to install an A2UI SDK, your MCP server ships a self-contained HTML bundle that mounts `<a2ui-surface>` inside the host's isolated iframe. When tools on the server return `application/a2ui+json` payloads, the embedded app feeds those messages into its own [`MessageProcessor`](/concepts/sdks/#core-sdk) and forwards user actions back through the MCP Apps `tools/call` channel.
 
 > **Note**
-  See the [MCP Integration Overview](../mcp-overview/) to compare all four MCP patterns. Use this
+  See the [MCP Integration Overview](/guides/mcp-overview/) to compare all four MCP patterns. Use this
   pattern when the outer host supports MCP Apps (`ui://` HTML iframes) rather than A2UI natively.
   For the inverse architecture (embedding third-party MCP App widgets inside your own A2UI host),
-  see [Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/). If both the host and server support
+  see [Embed MCP Apps in A2UI Surfaces](/guides/mcp-apps-in-a2ui/). If both the host and server support
   A2UI natively and you want to serve reusable A2UI layout templates over MCP without an iframe, see
-  [Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/) and [Call MCP Tools from
-  A2UI](../mcp-catalog/).
+  [Serve A2UI Layouts from an MCP Server](/guides/a2ui-over-mcp/) and [Call MCP Tools from
+  A2UI](/guides/mcp-catalog/).
 
 <img
   src={`${baseUrl}/assets/editor.gif`}
@@ -3941,7 +3941,7 @@ The three steps below build a minimal MCP App using `@modelcontextprotocol/ext-a
 
 ### Step 1: Register the ui:// resource and MCP tools
 
-Start by defining the A2UI messages that your server tools return inside `EmbeddedResource` items (`mimeType: "application/a2ui+json"`). The example below uses the Basic Catalog, though A2UI catalogs are domain-specific and your embedded bundle can register any custom catalog (see [How to Define a Catalog](../defining-a-catalog/)).
+Start by defining the A2UI messages that your server tools return inside `EmbeddedResource` items (`mimeType: "application/a2ui+json"`). The example below uses the Basic Catalog, though A2UI catalogs are domain-specific and your embedded bundle can register any custom catalog (see [How to Define a Catalog](/guides/defining-a-catalog/)).
 
 In `v1.0`, protocol messages set `"version": "1.0"`, expressions use `@path` and `@call`, component IDs follow UAX #31 identifier syntax (such as `main_column`), and `Text` supports Markdown headings. In `v0.9.1`, messages set `"version": "v0.9"`, expressions use `path` and `call` (with `"returnType": "string"` on string-valued function calls), and `Text.variant` includes `"h3"`.
 
@@ -4101,7 +4101,7 @@ Here is the initial surface payload returned by `open_counter_app`:
 ]
 ```
 
-When the embedded app invokes `increase_counter`, the tool returns only an [`updateDataModel`](../../specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) message (`server_to_client.json` in `v0.9.1`) so the existing surface updates `/count` without rebuilding its component tree:
+When the embedded app invokes `increase_counter`, the tool returns only an [`updateDataModel`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) message (`server_to_client.json` in `v0.9.1`) so the existing surface updates `/count` without rebuilding its component tree:
 
 #### v1.0
 
@@ -4386,7 +4386,7 @@ Create an `index.html` entry point with a mount element for your surface:
 </html>
 ```
 
-In `src/main.ts`, register `renderMarkdown` via `setMarkdownRenderer`, initialize `MessageProcessor` with `basicCatalog` (or your custom catalog), mount `<a2ui-surface>` when a surface is created, and use `App` from `@modelcontextprotocol/ext-apps` to handle the `ui/initialize` handshake, incoming `ui/notifications/tool-result` payloads, automatic iframe resizing (`autoResize: true`), and outbound `tools/call` requests whenever a component dispatches an [action](../../concepts/actions-and-functions/):
+In `src/main.ts`, register `renderMarkdown` via `setMarkdownRenderer`, initialize `MessageProcessor` with `basicCatalog` (or your custom catalog), mount `<a2ui-surface>` when a surface is created, and use `App` from `@modelcontextprotocol/ext-apps` to handle the `ui/initialize` handshake, incoming `ui/notifications/tool-result` payloads, automatic iframe resizing (`autoResize: true`), and outbound `tools/call` requests whenever a component dispatches an [action](/concepts/actions-and-functions/):
 
 #### v1.0
 
@@ -4540,7 +4540,7 @@ Angular production builds emit split ES module chunks and `<link rel="moduleprel
 
 An MCP App runs inside a double-iframe sandbox where the inner `srcdoc` frame carries `sandbox="allow-scripts"` without `allow-same-origin`. Keep three browser constraints in mind when building surfaces for this environment:
 
-1. Because the inner frame runs under an opaque `null` origin (`window.location.origin === "null"`), `localStorage`, `sessionStorage`, `IndexedDB`, and `document.cookie` throw `SecurityError`. Store transient UI state in the A2UI surface [Data Model](../../concepts/data-binding/) and persist durable state on the MCP server through `tools/call`.
+1. Because the inner frame runs under an opaque `null` origin (`window.location.origin === "null"`), `localStorage`, `sessionStorage`, `IndexedDB`, and `document.cookie` throw `SecurityError`. Store transient UI state in the A2UI surface [Data Model](/concepts/data-binding/) and persist durable state on the MCP server through `tools/call`.
 2. When writing custom `window.addEventListener('message', ...)` handlers instead of using `App` from `@modelcontextprotocol/ext-apps`, check `event.source === window.parent` before trusting incoming JSON-RPC messages, and pass an explicit target origin to `window.parent.postMessage` whenever the outer host origin is known.
 3. MCP App hosts enforce a restrictive Content Security Policy (`connect-src 'none'`, with external media and fonts blocked unless allowlisted). If A2UI components such as `Image`, `Video`, or `AudioPlayer` reference external HTTPS URLs, declare those origins in `_meta.ui.csp` on the HTML content item returned from `resources/read` so the outer sandbox proxy adds them to the frame's CSP header:
 
@@ -4632,10 +4632,10 @@ validatePayload([BasicCatalog.v1_0()], parsed.messages);
 
 ## Next steps
 
-1. Explore the inverse pattern (embedding `ui://` MCP App widgets inside a native A2UI host with `McpApp`) in [Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/).
-2. Serve cached `a2ui://` layout templates and `updateDataModel` tool results to native A2UI hosts in [Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/).
-3. Connect web surfaces directly to MCP tools with `@a2ui/catalog-mcp` and `callMcpTool` in [Call MCP Tools from A2UI](../mcp-catalog/).
-4. Package custom web components into your embedded renderer bundle in [How to Define a Catalog](../defining-a-catalog/) and [Authoring Universal Web Components](../authoring-universal-components/).
+1. Explore the inverse pattern (embedding `ui://` MCP App widgets inside a native A2UI host with `McpApp`) in [Embed MCP Apps in A2UI Surfaces](/guides/mcp-apps-in-a2ui/).
+2. Serve cached `a2ui://` layout templates and `updateDataModel` tool results to native A2UI hosts in [Serve A2UI Layouts from an MCP Server](/guides/a2ui-over-mcp/).
+3. Connect web surfaces directly to MCP tools with `@a2ui/catalog-mcp` and `callMcpTool` in [Call MCP Tools from A2UI](/guides/mcp-catalog/).
+4. Package custom web components into your embedded renderer bundle in [How to Define a Catalog](/guides/defining-a-catalog/) and [Authoring Universal Web Components](/guides/authoring-universal-components/).
 
 ---
 
@@ -4645,16 +4645,16 @@ validatePayload([BasicCatalog.v1_0()], parsed.messages);
 
 Canonical URL: https://a2ui.org/guides/a2ui-over-mcp/
 
-A **[Model Context Protocol (MCP)](https://modelcontextprotocol.io/)** server can deliver interactive A2UI surfaces by publishing static layout templates as `a2ui://` resources (`application/a2ui+json`) and returning per-call [`updateDataModel`](../../specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) messages from tools.
+A **[Model Context Protocol (MCP)](https://modelcontextprotocol.io/)** server can deliver interactive A2UI surfaces by publishing static layout templates as `a2ui://` resources (`application/a2ui+json`) and returning per-call [`updateDataModel`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) messages from tools.
 
 Instead of repeating the component tree on every tool invocation, the server sends the layout once through `resources/read` and returns only JSON values on `tools/call`. Clients cache the layout by URI and update the surface state whenever a tool runs.
 
 > **Note**
-  See the [MCP Integration Overview](../mcp-overview/) to compare all four MCP patterns. To
+  See the [MCP Integration Overview](/guides/mcp-overview/) to compare all four MCP patterns. To
   configure `@a2ui/catalog-mcp` and invoke MCP tools from Lit, React, or Angular surfaces, see [Call
-  MCP Tools from A2UI](../mcp-catalog/). If your MCP server ships a sandboxed HTML widget (`ui://`,
+  MCP Tools from A2UI](/guides/mcp-catalog/). If your MCP server ships a sandboxed HTML widget (`ui://`,
   `text/html;profile=mcp-app`) rather than A2UI JSON messages, see [Embed MCP Apps in A2UI
-  Surfaces](../mcp-apps-in-a2ui/).
+  Surfaces](/guides/mcp-apps-in-a2ui/).
 
 <video
   width="100%"
@@ -4745,9 +4745,9 @@ Browse additional MCP integrations in [`samples/community/mcp/`](https://github.
 
 Delivering A2UI over MCP splits an interface into cached presentation resources and per-call data updates:
 
-1. MCP resources (`resources/read`) publish static component layouts ([`createSurface`](../../specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage) and [`updateComponents`](../../specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateComponentsMessage)) under `a2ui://` URIs with MIME type `application/a2ui+json`. Because component properties bind to JSON Pointers such as `/title` and `/cookTime` (see [Data Model and Data Binding](../../concepts/data-binding/)) instead of hardcoded values, clients fetch each template once and reuse it across calls.
+1. MCP resources (`resources/read`) publish static component layouts ([`createSurface`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage) and [`updateComponents`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateComponentsMessage)) under `a2ui://` URIs with MIME type `application/a2ui+json`. Because component properties bind to JSON Pointers such as `/title` and `/cookTime` (see [Data Model and Data Binding](/concepts/data-binding/)) instead of hardcoded values, clients fetch each template once and reuse it across calls.
 2. Tool metadata (`_meta.ui`) connects a tool to its layout resource by setting `resourceUri` (for example, `"a2ui://recipe-card"`) and `mimeType` (`"application/a2ui+json"`) on the tool descriptor in `tools/list`, on the `CallToolResult`, or on both. When a `CallToolResult` sets `_meta.ui.resourceUri`, its URI overrides any default URI declared on the tool descriptor.
-3. Tool execution (`tools/call`) computes the values for the current request and returns an `EmbeddedResource` (`mimeType: "application/a2ui+json"`) containing an [`updateDataModel`](../../specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) message, paired with a plain `TextContent` summary for text-only MCP hosts.
+3. Tool execution (`tools/call`) computes the values for the current request and returns an `EmbeddedResource` (`mimeType: "application/a2ui+json"`) containing an [`updateDataModel`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) message, paired with a plain `TextContent` summary for text-only MCP hosts.
 4. Client hydration resolves `_meta.ui.resourceUri` from its local cache (calling `resources/read` only on a cache miss), initializes the surface if it is not already live, and applies the `updateDataModel` payload to update bound components.
 
 The sequence diagram below traces how an MCP client and MCP server exchange these messages: the client invokes `tools/call` for `get_recipe_a2ui`, receives a `CallToolResult` carrying both `_meta.ui.resourceUri` and an inline `updateDataModel` resource, fetches `a2ui://recipe-card` via `resources/read` only when the template is not yet cached, and applies both payloads to its local `MessageProcessor`.
@@ -4774,7 +4774,7 @@ The three steps below build a minimal recipe-card tool over MCP and connect it t
 
 ### Step 1: Expose a layout template as an MCP resource
 
-Create a JSON array that initializes the `recipe-card` surface and declares its component tree with data bindings instead of literal values. The example below uses the Basic Catalog, though A2UI catalogs are domain-specific and your template can target any custom catalog your client supports (see [How to Define a Catalog](../defining-a-catalog/)).
+Create a JSON array that initializes the `recipe-card` surface and declares its component tree with data bindings instead of literal values. The example below uses the Basic Catalog, though A2UI catalogs are domain-specific and your template can target any custom catalog your client supports (see [How to Define a Catalog](/guides/defining-a-catalog/)).
 
 In `v1.0`, protocol messages set `"version": "1.0"`, data bindings use `{"@path": "..."}`, component IDs follow UAX #31 identifier syntax (such as `main_column`), and `Text` uses Markdown headings or `"variant": "body" | "caption"`. In `v0.9.1`, messages set `"version": "v0.9"`, data bindings use `{"path": "..."}`, and `Text.variant` includes heading variants such as `"h3"`.
 
@@ -5119,7 +5119,7 @@ async def handle_call_tool(
 
 ### Step 3: Connect the client and hydrate the surface
 
-On web clients, [`callMcpTool`](../mcp-catalog/#mcp_catalog.json/functions/callMcpTool) in `@a2ui/catalog-mcp` handles template discovery, URI caching, and message forwarding automatically once you pass your `MessageProcessor` to `configureMcpCatalog`. In `v1.0`, register `mcpCatalog` alongside `basicCatalog`; in `v0.9.1` (where each surface binds to a single catalog), compose `CallMcpToolImplementation` into a `'0.9'` `Catalog` and pass `defaultVersion: 'v0.9'`:
+On web clients, [`callMcpTool`](/guides/mcp-catalog/#mcp_catalog.json/functions/callMcpTool) in `@a2ui/catalog-mcp` handles template discovery, URI caching, and message forwarding automatically once you pass your `MessageProcessor` to `configureMcpCatalog`. In `v1.0`, register `mcpCatalog` alongside `basicCatalog`; in `v0.9.1` (where each surface binds to a single catalog), compose `CallMcpToolImplementation` into a `'0.9'` `Catalog` and pass `defaultVersion: 'v0.9'`:
 
 #### v1.0
 
@@ -5211,7 +5211,7 @@ An interactive A2UI component (such as a **Get Recipe** button on another surfac
 }
 ```
 
-When `callMcpTool` executes, it reads `_meta.ui.resourceUri`, fetches and caches `a2ui://recipe-card` on first use (skipping `createSurface` if `recipe-card` is already active), and forwards the inline `updateDataModel` messages to `processor`. For Lit, React, and Angular setup details, see [Call MCP Tools from A2UI](../mcp-catalog/).
+When `callMcpTool` executes, it reads `_meta.ui.resourceUri`, fetches and caches `a2ui://recipe-card` on first use (skipping `createSurface` if `recipe-card` is already active), and forwards the inline `updateDataModel` messages to `processor`. For Lit, React, and Angular setup details, see [Call MCP Tools from A2UI](/guides/mcp-catalog/).
 
 ---
 
@@ -5257,7 +5257,7 @@ final parsed = AgentToRendererMessagePayload.fromJson(
 validatePayload([BasicCatalog.v1_0()], parsed.messages);
 ```
 
-For prompt generation, streaming parsers, and stateful validation across turns with `RendererState`, see [How to Integrate with My Agent Server](../agent-integration/).
+For prompt generation, streaming parsers, and stateful validation across turns with `RendererState`, see [How to Integrate with My Agent Server](/guides/agent-integration/).
 
 ### Control LLM context visibility
 
@@ -5309,7 +5309,7 @@ In Steps 1 to 3 above, UI buttons invoke domain MCP tools (`get_recipe_a2ui`) di
 
 ### Negotiate supported catalogs
 
-When an MCP server supports multiple catalogs or protocol versions, the client advertises which catalogs its renderer can display ([`renderer_capabilities.json`](../../specification/v1.0/schemas/#renderer_capabilities.json) in `v1.0`, `client_capabilities.json` in `v0.9.1`). On web clients, `processor.getRendererCapabilities({versions: ['1.0']})` builds this capabilities object from the catalogs registered on `MessageProcessor`.
+When an MCP server supports multiple catalogs or protocol versions, the client advertises which catalogs its renderer can display ([`renderer_capabilities.json`](/specification/v1.0/schemas/#renderer_capabilities.json) in `v1.0`, `client_capabilities.json` in `v0.9.1`). On web clients, `processor.getRendererCapabilities({versions: ['1.0']})` builds this capabilities object from the catalogs registered on `MessageProcessor`.
 
 #### Stateful sessions via MCP initialization
 
@@ -5428,7 +5428,7 @@ When an HTTP MCP server handles each request without session state, pass the sam
 
 ### Forward user actions and client errors as MCP tools
 
-When a component uses `functionCall` with `callMcpTool` (as in Step 3), the client calls the target MCP tool directly. Alternatively, components can emit an A2UI [`action`](../../specification/v1.0/schemas/#renderer_to_agent.json/properties/action) event (see [Actions and Functions](../../concepts/actions-and-functions/)), and the host application can forward both user actions and renderer [`error`](../../specification/v1.0/schemas/#renderer_to_agent.json/properties/error) events to dedicated MCP tools on the server.
+When a component uses `functionCall` with `callMcpTool` (as in Step 3), the client calls the target MCP tool directly. Alternatively, components can emit an A2UI [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) event (see [Actions and Functions](/concepts/actions-and-functions/)), and the host application can forward both user actions and renderer [`error`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/error) events to dedicated MCP tools on the server.
 
 #### Forward `action.event` payloads to `a2ui_action`
 
@@ -5580,9 +5580,9 @@ Pass an `errorHandler` in `MessageProcessorOptions` (or call `processor.processM
 
 ## Next steps
 
-1. Configure `@a2ui/catalog-mcp`, `callMcpTool`, and client-side data functions (`transformData`, `split`, `regexCapture`) in [Call MCP Tools from A2UI](../mcp-catalog/).
-2. Embed sandboxed HTML MCP Apps (`ui://`) inside A2UI surfaces in [Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/).
-3. Render A2UI surfaces inside a standalone MCP App iframe in [Render A2UI Inside an MCP App](../a2ui-in-mcp-apps/).
+1. Configure `@a2ui/catalog-mcp`, `callMcpTool`, and client-side data functions (`transformData`, `split`, `regexCapture`) in [Call MCP Tools from A2UI](/guides/mcp-catalog/).
+2. Embed sandboxed HTML MCP Apps (`ui://`) inside A2UI surfaces in [Embed MCP Apps in A2UI Surfaces](/guides/mcp-apps-in-a2ui/).
+3. Render A2UI surfaces inside a standalone MCP App iframe in [Render A2UI Inside an MCP App](/guides/a2ui-in-mcp-apps/).
 4. Explore runnable MCP servers and clients in [`samples/community/mcp/`](https://github.com/a2ui-project/a2ui/tree/main/samples/community/mcp).
 
 ---
@@ -5615,7 +5615,7 @@ npm install @a2ui/web_core lit zod
 
 ## Step 1: Define the component schema
 
-Create a `ComponentApi` object with the component `name` used in A2UI JSON payloads and a Zod `schema` describing its properties. Use `DynamicStringSchema` so each field accepts either a literal string or a data-model binding (see [Catalogs, Components, and Functions](../../concepts/catalogs/) and [How to Define a Catalog](../../guides/defining-a-catalog/)).
+Create a `ComponentApi` object with the component `name` used in A2UI JSON payloads and a Zod `schema` describing its properties. Use `DynamicStringSchema` so each field accepts either a literal string or a data-model binding (see [Catalogs, Components, and Functions](/concepts/catalogs/) and [How to Define a Catalog](/guides/defining-a-catalog/)).
 
 #### v1.0
 
@@ -5844,7 +5844,7 @@ export const appConfig: ApplicationConfig = {
 export class AppComponent {}
 ```
 
-If your app targets v0.9.1, pass `'0.9'` as the catalog version and import from `'@a2ui/lit/v0_9'`, `'@a2ui/react/v0_9'`, `'@a2ui/web_core/v0_9'`, `'@a2ui/web_core/v0_9/basic_catalog'`, or `provideA2Ui({useUniversalComponents: true, ...})` from `'@a2ui/angular/v0_9'`. For agent transport setup, see [How to Integrate A2UI into a Client](../../guides/client-integration/).
+If your app targets v0.9.1, pass `'0.9'` as the catalog version and import from `'@a2ui/lit/v0_9'`, `'@a2ui/react/v0_9'`, `'@a2ui/web_core/v0_9'`, `'@a2ui/web_core/v0_9/basic_catalog'`, or `provideA2Ui({useUniversalComponents: true, ...})` from `'@a2ui/angular/v0_9'`. For agent transport setup, see [How to Integrate A2UI into a Client](/guides/client-integration/).
 
 When your agent streams a `createSurface` and `updateComponents` message pair, the host renderer mounts `<a2ui-stat-card>` with the resolved properties:
 
@@ -5898,10 +5898,10 @@ When your agent streams a `createSurface` and `updateComponents` message pair, t
 
 `@a2ui/lit` re-exports `A2uiLitElement` from `@a2ui/web_core/universal`, so universal components and [`@a2ui/lit` custom components](https://github.com/a2ui-project/a2ui/blob/main/typescript/renderers/lit/README.md) access resolved schema properties on `this.controller.props` in the same way:
 
-- **Actions** (`ActionSchema` / [`Action`](../../specification/v1.0/schemas/#common_types.json/$defs/Action)): resolves to an async `() => Promise<void>` callback (`props.action?.()`) that dispatches an agent `event` or executes a catalog `functionCall` (see [Actions and Functions](../../concepts/actions-and-functions/)).
-- **Child components** (`ChildSchema` / [`ComponentId`](../../specification/v1.0/schemas/#common_types.json/$defs/ComponentId) and `ChildListSchema` / [`ChildList`](../../specification/v1.0/schemas/#common_types.json/$defs/ChildList)): resolves to a child reference or array of references. Pass each entry to `this.renderNode(ref)` inside `render()` to mount Basic Catalog, universal, or native React and Angular children.
-- **Two-way data binding** (`DynamicStringSchema`, `DynamicNumberSchema`, `DynamicBooleanSchema`, `DynamicStringListSchema`, `DynamicValueSchema` / [`DynamicValue`](../../specification/v1.0/schemas/#common_types.json/$defs/DynamicValue)): generates a `props.set<CapitalizedProp>(nextValue)` setter (such as `props.setValue(e.target.value)`) that writes to the bound JSON Pointer (`@path` in v1.0, `path` in v0.9.1) in the surface `DataModel` (see [Data Model and Data Binding](../../concepts/data-binding/)).
-- **Validation checks** (`z.object({...}).merge(CheckableSchema)` / [`Checkable`](../../specification/v1.0/schemas/#common_types.json/$defs/Checkable)): evaluates `checks` rules reactively and populates `props.isValid` (`boolean`) and `props.validationErrors` (`string[]`). Bind `aria-invalid` and `aria-describedby` on the inner input control rather than `role="alert"` so initial validation checks do not trigger unsolicited screen-reader announcements on mount.
+- **Actions** (`ActionSchema` / [`Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action)): resolves to an async `() => Promise<void>` callback (`props.action?.()`) that dispatches an agent `event` or executes a catalog `functionCall` (see [Actions and Functions](/concepts/actions-and-functions/)).
+- **Child components** (`ChildSchema` / [`ComponentId`](/specification/v1.0/schemas/#common_types.json/$defs/ComponentId) and `ChildListSchema` / [`ChildList`](/specification/v1.0/schemas/#common_types.json/$defs/ChildList)): resolves to a child reference or array of references. Pass each entry to `this.renderNode(ref)` inside `render()` to mount Basic Catalog, universal, or native React and Angular children.
+- **Two-way data binding** (`DynamicStringSchema`, `DynamicNumberSchema`, `DynamicBooleanSchema`, `DynamicStringListSchema`, `DynamicValueSchema` / [`DynamicValue`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicValue)): generates a `props.set<CapitalizedProp>(nextValue)` setter (such as `props.setValue(e.target.value)`) that writes to the bound JSON Pointer (`@path` in v1.0, `path` in v0.9.1) in the surface `DataModel` (see [Data Model and Data Binding](/concepts/data-binding/)).
+- **Validation checks** (`z.object({...}).merge(CheckableSchema)` / [`Checkable`](/specification/v1.0/schemas/#common_types.json/$defs/Checkable)): evaluates `checks` rules reactively and populates `props.isValid` (`boolean`) and `props.validationErrors` (`string[]`). Bind `aria-invalid` and `aria-describedby` on the inner input control rather than `role="alert"` so initial validation checks do not trigger unsolicited screen-reader announcements on mount.
 
 ## Advanced topics
 
@@ -6158,9 +6158,9 @@ export const statBadgeComponent: WebComponentImplementation<typeof StatBadgeApi.
 
 Canonical URL: https://a2ui.org/guides/client-integration/
 
-Integrate an A2UI [renderer](../../concepts/glossary/#renderer) into a Flutter, React, Lit, Angular, SwiftUI, or Jetpack Compose application using the [Renderer SDKs](/concepts/sdks/#renderer-sdk) to display interactive UIs from an AI agent and send user actions back.
+Integrate an A2UI [renderer](/concepts/glossary/#renderer) into a Flutter, React, Lit, Angular, SwiftUI, or Jetpack Compose application using the [Renderer SDKs](/concepts/sdks/#renderer-sdk) to display interactive UIs from an AI agent and send user actions back.
 
-If you are building the backend agent instead, see [How to Integrate with My Agent Server](../../guides/agent-integration/). To register custom widgets beyond the built-in Basic catalog, see [How to Define a Catalog](../../guides/defining-a-catalog/) and [Authoring Universal Web Components](../../guides/authoring-universal-components/).
+If you are building the backend agent instead, see [How to Integrate with My Agent Server](/guides/agent-integration/). To register custom widgets beyond the built-in Basic catalog, see [How to Define a Catalog](/guides/defining-a-catalog/) and [Authoring Universal Web Components](/guides/authoring-universal-components/).
 
 ---
 
@@ -6235,9 +6235,9 @@ dependencies {
 
 ## Step 2: Initialize MessageProcessor
 
-Create a [`MessageProcessor`](../../concepts/glossary/#messageprocessor) instance inside a session controller or service with the built-in [Basic catalog](../../specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json) and an action callback that forwards user events to the transport method you will add in [Step 4](#step-4-connect-transport-and-handle-actions).
+Create a [`MessageProcessor`](/concepts/glossary/#messageprocessor) instance inside a session controller or service with the built-in [Basic catalog](/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json) and an action callback that forwards user events to the transport method you will add in [Step 4](#step-4-connect-transport-and-handle-actions).
 
-The scope of the rendering session determines which [surfaces](../../concepts/glossary/#surface) the agent can modify. In a chat app, you can use one `MessageProcessor` per conversation to allow the agent to update or delete any surface in the conversation at any time by its `surfaceId`, or use one `MessageProcessor` per chat turn so the agent only modifies surfaces in the active turn and does not need unique surface IDs across turns. To register custom components or local functions alongside the Basic catalog, see [How to Define a Catalog](../../guides/defining-a-catalog/).
+The scope of the rendering session determines which [surfaces](/concepts/glossary/#surface) the agent can modify. In a chat app, you can use one `MessageProcessor` per conversation to allow the agent to update or delete any surface in the conversation at any time by its `surfaceId`, or use one `MessageProcessor` per chat turn so the agent only modifies surfaces in the active turn and does not need unique surface IDs across turns. To register custom components or local functions alongside the Basic catalog, see [How to Define a Catalog](/guides/defining-a-catalog/).
 
 #### Flutter
 
@@ -6447,7 +6447,7 @@ class AgentSessionViewModel(application: Application) : AndroidViewModel(applica
 
 ## Step 3: Mount surface views
 
-Create a container view that subscribes to the active [surfaces](../../concepts/glossary/#surface) on `MessageProcessor` and renders an A2UI surface component for each one. Your container mounts new surfaces when `createSurface` arrives and unmounts them when `deleteSurface` arrives, while each mounted surface observes its own component tree and `DataModel` internally to update child components in place as `updateComponents` and `updateDataModel` messages arrive.
+Create a container view that subscribes to the active [surfaces](/concepts/glossary/#surface) on `MessageProcessor` and renders an A2UI surface component for each one. Your container mounts new surfaces when `createSurface` arrives and unmounts them when `deleteSurface` arrives, while each mounted surface observes its own component tree and `DataModel` internally to update child components in place as `updateComponents` and `updateDataModel` messages arrive.
 
 #### Flutter
 
@@ -6706,7 +6706,7 @@ fun AgentSurfacesScreen(viewModel: AgentSessionViewModel, modifier: Modifier = M
 
 ## Step 4: Connect transport and handle actions
 
-Add inbound and outbound transport methods to your session controller or service to decode incoming JSON payloads into `MessageProcessor` and send resolved [`action`](../../concepts/messages/#action) messages back to your agent. A2UI is transport-agnostic, so these methods can exchange messages over HTTP responses, Server-Sent Events (SSE), WebSockets, [A2A](../../specification/v1.0-a2ui-extension-specification/), or [MCP](../../guides/mcp-overview/).
+Add inbound and outbound transport methods to your session controller or service to decode incoming JSON payloads into `MessageProcessor` and send resolved [`action`](/concepts/messages/#action) messages back to your agent. A2UI is transport-agnostic, so these methods can exchange messages over HTTP responses, Server-Sent Events (SSE), WebSockets, [A2A](/specification/v1.0-a2ui-extension-specification/), or [MCP](/guides/mcp-overview/).
 
 #### Flutter
 
@@ -6871,7 +6871,7 @@ private fun sendOverTransport(message: Map<String, Any?>) {
 <details>
 <summary>Wire format: agent-to-renderer messages</summary>
 
-Agents send [`createSurface`](../../concepts/messages/#createsurface) followed by incremental [`updateComponents`](../../concepts/messages/#updatecomponents) and [`updateDataModel`](../../concepts/messages/#updatedatamodel) messages, and remove finished surfaces with [`deleteSurface`](../../concepts/messages/#deletesurface):
+Agents send [`createSurface`](/concepts/messages/#createsurface) followed by incremental [`updateComponents`](/concepts/messages/#updatecomponents) and [`updateDataModel`](/concepts/messages/#updatedatamodel) messages, and remove finished surfaces with [`deleteSurface`](/concepts/messages/#deletesurface):
 
 <SchemaChips
   items={[
@@ -7284,7 +7284,7 @@ In React, `setMarkdownRenderer(renderMarkdown)` from [Step 2](#step-2-initialize
 
 ### Advertise renderer capabilities
 
-Call `getRendererCapabilities()` on `MessageProcessor` and attach the result to your outbound transport [metadata](../../concepts/messages/#metadata) under `a2uiRendererCapabilities` so the agent knows which catalogs and protocol versions your client supports. If your team owns both the agent and the client app with a fixed catalog set, you can skip runtime negotiation and target those catalogs directly on the agent. Keep `includeInlineCatalogs` at its default `false` in production when the agent already holds matching `catalogId` schemas; set it to `true` only during prototyping when the agent accepts client-supplied inline schemas.
+Call `getRendererCapabilities()` on `MessageProcessor` and attach the result to your outbound transport [metadata](/concepts/messages/#metadata) under `a2uiRendererCapabilities` so the agent knows which catalogs and protocol versions your client supports. If your team owns both the agent and the client app with a fixed catalog set, you can skip runtime negotiation and target those catalogs directly on the agent. Keep `includeInlineCatalogs` at its default `false` in production when the agent already holds matching `catalogId` schemas; set it to `true` only during prototyping when the agent accepts client-supplied inline schemas.
 
 #### Flutter
 
@@ -7439,7 +7439,7 @@ fun buildCapabilitiesMetadata(): Map<String, Map<String, Any?>> {
 
 Call `getRendererDataModel()` on `MessageProcessor` and attach the returned snapshot under `a2uiRendererDataModel` in your outbound transport metadata alongside `action` messages and user prompts. `MessageProcessor` returns data models for active surfaces created with `"sendDataModel": true`, such as multi-field forms where local input edits update the client `DataModel` without firing separate action events.
 
-If your catalogs use v1.0 remote agent functions ([`callAgentFunction`](../../concepts/messages/#callagentfunction-v10-only)) or agent-initiated client calls ([`callRendererFunction`](../../concepts/messages/#callrendererfunction-v10-only)), pass `outboundListener` to `MessageProcessor` (`processorOptions.outboundListener` in Angular) to forward those envelopes through `sendToAgent`. To report malformed incoming payloads back to the agent as structured [`error`](../../specification/v1.0/schemas/#renderer_to_agent.json/properties/error) messages instead of throwing exceptions, set `reportErrorsOnly: true` (paired with `errorHandler` on Web, or `outboundListener` on Flutter; SwiftUI and Jetpack Compose already emit validation errors on `outboundListener` and `outboundEvents`).
+If your catalogs use v1.0 remote agent functions ([`callAgentFunction`](/concepts/messages/#callagentfunction-v10-only)) or agent-initiated client calls ([`callRendererFunction`](/concepts/messages/#callrendererfunction-v10-only)), pass `outboundListener` to `MessageProcessor` (`processorOptions.outboundListener` in Angular) to forward those envelopes through `sendToAgent`. To report malformed incoming payloads back to the agent as structured [`error`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/error) messages instead of throwing exceptions, set `reportErrorsOnly: true` (paired with `errorHandler` on Web, or `outboundListener` on Flutter; SwiftUI and Jetpack Compose already emit validation errors on `outboundListener` and `outboundEvents`).
 
 #### Flutter
 
@@ -7620,9 +7620,9 @@ Define a custom A2UI catalog by writing a `catalog.json` schema file, loading it
 
 ## When you need a catalog.json file
 
-If your agent and client share the same language and repository, you can define component schemas directly in code, as shown in [Catalogs](../../concepts/catalogs/#registering-a-catalog-in-a-renderer). Write a standalone `catalog.json` file when your backend agent and client app use different languages (for example, a Python agent serving a Flutter, React, SwiftUI, or Jetpack Compose app) or when you publish a reusable catalog for other teams.
+If your agent and client share the same language and repository, you can define component schemas directly in code, as shown in [Catalogs](/concepts/catalogs/#registering-a-catalog-in-a-renderer). Write a standalone `catalog.json` file when your backend agent and client app use different languages (for example, a Python agent serving a Flutter, React, SwiftUI, or Jetpack Compose app) or when you publish a reusable catalog for other teams.
 
-In A2UI v1.0, your catalog works alongside the built-in [basic catalog](../../specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json), so you keep standard layout widgets (`Column`, `Row`, `Text`, `Button`) and define only the custom widgets unique to your app. See [Catalogs](../../concepts/catalogs/) for how catalog negotiation works at runtime.
+In A2UI v1.0, your catalog works alongside the built-in [basic catalog](/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json), so you keep standard layout widgets (`Column`, `Row`, `Text`, `Button`) and define only the custom widgets unique to your app. See [Catalogs](/concepts/catalogs/) for how catalog negotiation works at runtime.
 
 ## Step 1: Create a minimal catalog.json
 
@@ -7709,8 +7709,8 @@ Create a file named `status_catalog.json` that defines a single `StatusBadge` co
 | Field             | Purpose                                                                                                                                                                                                                                                                                                                               |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `catalogId`       | Unique URI shared by the agent and client renderer. Version the URI path (`v1/`, `v2/`) when making breaking changes.                                                                                                                                                                                                                 |
-| `protocolVersion` | Wire version (`"1.0"`, without a leading `v`) validated against [`catalog_definition.json`](../../specification/v1.0/schemas/#catalog_definition.json). Omitted in v0.9.1 standalone files.                                                                                                                                           |
-| `components`      | Map of component schemas. Referencing `DynamicString` lets `label` accept either literal text or a data-model binding (`{"@path": "/statusText"}` in v1.0; `{"path": "/statusText"}` in v0.9.1). In v0.9.1, components also compose [`ComponentCommon`](../../specification/v0.9.1/schemas/#common_types.json/$defs/ComponentCommon). |
+| `protocolVersion` | Wire version (`"1.0"`, without a leading `v`) validated against [`catalog_definition.json`](/specification/v1.0/schemas/#catalog_definition.json). Omitted in v0.9.1 standalone files.                                                                                                                                           |
+| `components`      | Map of component schemas. Referencing `DynamicString` lets `label` accept either literal text or a data-model binding (`{"@path": "/statusText"}` in v1.0; `{"path": "/statusText"}` in v0.9.1). In v0.9.1, components also compose [`ComponentCommon`](/specification/v0.9.1/schemas/#common_types.json/$defs/ComponentCommon). |
 | `$defs`           | Declares `anyComponent` (union of all components) and `anyFunction` (`{"not": {}}` when the catalog defines no custom functions).                                                                                                                                                                                                     |
 
 ## Step 2: Load the catalog on your agent
@@ -7782,7 +7782,7 @@ final generator = A2uiGenerator(
 );
 ```
 
-Swift (`A2UISwiftCore` and `A2UISwiftUI`) and Kotlin (`androidx.a2ui` and `androidx.a2ui.compose`) are client-side renderer SDKs and do not include a server-side agent generator; see [How to Integrate with My Agent Server](../../guides/agent-integration/) for full backend setup.
+Swift (`A2UISwiftCore` and `A2UISwiftUI`) and Kotlin (`androidx.a2ui` and `androidx.a2ui.compose`) are client-side renderer SDKs and do not include a server-side agent generator; see [How to Integrate with My Agent Server](/guides/agent-integration/) for full backend setup.
 
 ## Step 3: Register the widget on your client
 
@@ -8080,7 +8080,7 @@ fun createProcessor(context: Context): A2uiMessageProcessor {
 
 > **Note**
   To share a single web widget across Lit, React, and Angular without rewriting view code, see
-  [Authoring Universal Web Components](../../guides/authoring-universal-components/).
+  [Authoring Universal Web Components](/guides/authoring-universal-components/).
 
 Once registered on both sides, your agent can combine basic layout components and `StatusBadge` on the same v1.0 surface by tagging the custom component with its `catalogId` (in v0.9.1, each surface binds to a single `catalogId`):
 
@@ -8156,9 +8156,9 @@ A catalog's `functions` map exposes custom client capabilities to generated surf
 | Local formatting & computation | `"string"`, `"number"`, `"array"`, or `"any"` (`"rendererOrAgent"`)   | Computing derived values reactively from bound data-model fields.                               |
 | Input validation (`checks`)    | `"validationResult"` (`"rendererOnly"`; `"boolean"` in v0.9.1)        | Validating user input synchronously and returning `{"valid": false, "message": "..."}` in v1.0. |
 
-In v1.0, each [`FunctionDefinition`](../../specification/v1.0/schemas/#catalog_definition.json/$defs/FunctionDefinition) declares `returnType` at the top level of the function object and uses `"@call"` inside `properties`. You can set `allowedCallers` to `"rendererOnly"` (default), `"agentOnly"`, or `"rendererOrAgent"`. Side-effecting device functions can set `"requiresUserActivation": true` so they run only from direct user interactions; functions that require user activation must keep `allowedCallers` set to `"rendererOnly"` (or omit it).
+In v1.0, each [`FunctionDefinition`](/specification/v1.0/schemas/#catalog_definition.json/$defs/FunctionDefinition) declares `returnType` at the top level of the function object and uses `"@call"` inside `properties`. You can set `allowedCallers` to `"rendererOnly"` (default), `"agentOnly"`, or `"rendererOrAgent"`. Side-effecting device functions can set `"requiresUserActivation": true` so they run only from direct user interactions; functions that require user activation must keep `allowedCallers` set to `"rendererOnly"` (or omit it).
 
-In v0.9.1 standalone files, functions place `"call"` and `"returnType": {"const": "..."}` inside `properties`, and validation rules return `"boolean"`. When a v0.9.1 renderer advertises inline catalogs in `a2uiClientCapabilities`, `MessageProcessor` converts the `functions` map into the array format defined by [`client_capabilities.json`](../../specification/v0.9.1/schemas/#client_capabilities.json/$defs/FunctionDefinition).
+In v0.9.1 standalone files, functions place `"call"` and `"returnType": {"const": "..."}` inside `properties`, and validation rules return `"boolean"`. When a v0.9.1 renderer advertises inline catalogs in `a2uiClientCapabilities`, `MessageProcessor` converts the `functions` map into the array format defined by [`client_capabilities.json`](/specification/v0.9.1/schemas/#client_capabilities.json/$defs/FunctionDefinition).
 
 #### v1.0
 
@@ -8562,9 +8562,9 @@ val pricingCatalog =
 
 ### Child slots and layout constraints
 
-Components that host nested widgets reference [`ChildList`](../../specification/v1.0/schemas/#common_types.json/$defs/ChildList) (an array of child IDs or a data-bound collection template) or [`ComponentId`](../../specification/v1.0/schemas/#common_types.json/$defs/ComponentId) (a single child slot).
+Components that host nested widgets reference [`ChildList`](/specification/v1.0/schemas/#common_types.json/$defs/ChildList) (an array of child IDs or a data-bound collection template) or [`ComponentId`](/specification/v1.0/schemas/#common_types.json/$defs/ComponentId) (a single child slot).
 
-In v1.0, a [`ComponentDefinition`](../../specification/v1.0/schemas/#catalog_definition.json/$defs/ComponentDefinition) can also constrain placement with `allowedParents` (for example, `["Column", "List"]`, or `["Surface"]` for root-only modals) and `allowedChildren` (`["Button"]`). `"Surface"` is reserved and cannot be used as a component name, and v1.0 identifiers must follow Unicode UAX #31 without a leading `@`.
+In v1.0, a [`ComponentDefinition`](/specification/v1.0/schemas/#catalog_definition.json/$defs/ComponentDefinition) can also constrain placement with `allowedParents` (for example, `["Column", "List"]`, or `["Surface"]` for root-only modals) and `allowedChildren` (`["Button"]`). `"Surface"` is reserved and cannot be used as a component name, and v1.0 identifiers must follow Unicode UAX #31 without a leading `@`.
 
 #### v1.0
 
@@ -8977,7 +8977,7 @@ val ProductCard: A2uiComponent =
 
 ### Interactive actions and input checks
 
-Reference [`Action`](../../specification/v1.0/schemas/#common_types.json/$defs/Action) on interactive properties to let surfaces dispatch server events or run local functions (such as `shareProduct`). When an input component supports client-side validation rules (`checks`), compose [`Checkable`](../../specification/v1.0/schemas/#common_types.json/$defs/Checkable) via `allOf` so the renderer evaluates bound `CheckRule` conditions and exposes `isValid` and `validationErrors` to your widget.
+Reference [`Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action) on interactive properties to let surfaces dispatch server events or run local functions (such as `shareProduct`). When an input component supports client-side validation rules (`checks`), compose [`Checkable`](/specification/v1.0/schemas/#common_types.json/$defs/Checkable) via `allOf` so the renderer evaluates bound `CheckRule` conditions and exposes `isValid` and `validationErrors` to your widget.
 
 #### v1.0
 
@@ -9402,10 +9402,10 @@ class StatusCatalogParityTest {
 
 Canonical URL: https://a2ui.org/guides/macros/
 
-Macros let you define composite UI components on the server that can programmatically inject server-side data and expand into the flexible, reusable [catalog](../../concepts/catalogs/) components your client supports (from the Basic Catalog, your own custom catalogs, or both) before any messages reach the renderer. Because the renderer only receives components the client already implements, you can add or change macros on the server without shipping new client code.
+Macros let you define composite UI components on the server that can programmatically inject server-side data and expand into the flexible, reusable [catalog](/concepts/catalogs/) components your client supports (from the Basic Catalog, your own custom catalogs, or both) before any messages reach the renderer. Because the renderer only receives components the client already implements, you can add or change macros on the server without shipping new client code.
 
 > **Note**
-  Macros are currently available in the Python [agent SDK](../../concepts/sdks/#agent-sdk)
+  Macros are currently available in the Python [agent SDK](/concepts/sdks/#agent-sdk)
   (`a2ui-agent-sdk`), with support for other languages coming next.
 
 ## How macros work
@@ -9419,7 +9419,7 @@ Macros are useful when you want to:
 3. Look up data from server-side databases and APIs, accepting an identifier from the model and populating the components on the server.
 4. Ship new domain components with a server deployment alone, using catalog components the client already renders.
 
-In the sequence below, [`MacroExpander`](../../concepts/glossary/#macroexpander) works on both sides of the model call. Before inference, it adds each macro's component schema to the catalog in the system prompt. After inference, it intercepts each macro call, runs your macro function, and outputs flat catalog components for the renderer.
+In the sequence below, [`MacroExpander`](/concepts/glossary/#macroexpander) works on both sides of the model call. Before inference, it adds each macro's component schema to the catalog in the system prompt. After inference, it intercepts each macro call, runs your macro function, and outputs flat catalog components for the renderer.
 
 ```mermaid
 sequenceDiagram
@@ -9438,7 +9438,7 @@ sequenceDiagram
 
 ### Example: macro, model call, and expanded output
 
-Here is a `FlightCard` macro. The `flight` and `route` parameters take static strings, while `status` uses `DynamicString` so it can bind to the [data model](../../concepts/data-binding/):
+Here is a `FlightCard` macro. The `flight` and `route` parameters take static strings, while `status` uses `DynamicString` so it can bind to the [data model](/concepts/data-binding/):
 
 ```python title="flight_macros.py"
 from a2ui.builder.v1_0 import Card, Column, DynamicString, Text
@@ -9464,7 +9464,7 @@ def FlightCard(flight: str, route: str, status: DynamicString) -> Card:
     )
 ```
 
-Using the [Express](../../concepts/inference-formats/) inference format, the model calls `FlightCard` in a single line:
+Using the [Express](/concepts/inference-formats/) inference format, the model calls `FlightCard` in a single line:
 
 ```text title="Model output"
 Your flight is boarding.
@@ -9692,7 +9692,7 @@ Send `wire_payload` over your transport to the renderer alongside any conversati
 
 ## Macros with custom catalogs
 
-Macros build component trees using typed Python builder classes. Builder classes for the Basic Catalog ship in `a2ui.builder.v1_0` and `a2ui.builder.v0_9`. When you define a [custom catalog](../defining-a-catalog/), the A2UI CLI (`a2ui`) generates those Python builder classes directly from your catalog JSON file.
+Macros build component trees using typed Python builder classes. Builder classes for the Basic Catalog ship in `a2ui.builder.v1_0` and `a2ui.builder.v0_9`. When you define a [custom catalog](/guides/defining-a-catalog/), the A2UI CLI (`a2ui`) generates those Python builder classes directly from your catalog JSON file.
 
 ### Step 1: Install the A2UI CLI
 
@@ -9892,7 +9892,7 @@ When multiple registered v1.0 catalogs define a component with the same name, sp
 
 - [Macros README](https://github.com/a2ui-project/a2ui/blob/main/python/a2ui_agent/src/a2ui/transformers/macros/README.md) for full `@macro` and `MacroExpander` API details.
 - [Macros community sample](https://github.com/a2ui-project/a2ui/tree/main/samples/community/macros) for a runnable FastAPI agent and React client using server-side macros.
-- [Inference Formats](../../concepts/inference-formats/) for details on Express and Direct JSON.
+- [Inference Formats](/concepts/inference-formats/) for details on Express and Direct JSON.
 
 ---
 
@@ -9907,10 +9907,10 @@ The `McpApp` component in `@a2ui/catalog-mcp` embeds interactive **[Model Contex
 Standard A2UI components cover forms, cards, and lists, while MCP Apps let an MCP server ship a custom HTML widget, such as a drag-and-drop Kanban board or a 3D canvas, alongside its tools. When you place `McpApp` on a surface, `@a2ui/catalog-mcp` runs that HTML inside an isolated sandbox and connects its state and tool calls to the surrounding UI.
 
 > **Note**
-  See the [MCP Integration Overview](../mcp-overview/) to compare all four MCP patterns. Install
+  See the [MCP Integration Overview](/guides/mcp-overview/) to compare all four MCP patterns. Install
   `@a2ui/catalog-mcp` and register `mcpCatalog` with `configureMcpCatalog` first in [Call MCP Tools
-  from A2UI](../mcp-catalog/#quick-setup). If your MCP server returns `a2ui://` JSON layouts rather
-  than HTML widgets, see [Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/).
+  from A2UI](/guides/mcp-catalog/#quick-setup). If your MCP server returns `a2ui://` JSON layouts rather
+  than HTML widgets, see [Serve A2UI Layouts from an MCP Server](/guides/a2ui-over-mcp/).
 
 <img
   src={`${baseUrl}/assets/mcp-apps-calculator-demo.gif`}
@@ -9921,7 +9921,7 @@ Standard A2UI components cover forms, cards, and lists, while MCP Apps let an MC
 
 ## Set up McpApp in your web app
 
-After registering `mcpCatalog` and `configureMcpCatalog` in your Lit, React, or Angular app (see [Call MCP Tools from A2UI](../mcp-catalog/#quick-setup)), serve the sandbox relay files and add [`McpApp`](../mcp-catalog/#mcp_catalog.json/components/McpApp) to your surface.
+After registering `mcpCatalog` and `configureMcpCatalog` in your Lit, React, or Angular app (see [Call MCP Tools from A2UI](/guides/mcp-catalog/#quick-setup)), serve the sandbox relay files and add [`McpApp`](/guides/mcp-catalog/#mcp_catalog.json/components/McpApp) to your surface.
 
 ### Serve the sandbox files
 
@@ -10235,7 +10235,7 @@ If you are authoring an MCP App to run inside this sandbox, keep three browser r
 2. `window.parent.document` and `window.top` are blocked. Request iframe height updates with `ui/notifications/size-changed`, and open external `http:` or `https:` links in a new tab with `ui/open-link`.
 3. External network requests, images, fonts, and subframes inside `srcdoc` are blocked unless the MCP resource lists their domains under `_meta.ui.csp` (`connectDomains`, `resourceDomains`, `frameDomains`, `baseUriDomains`).
 
-To serve `/a2ui-sandbox/` in your bundler and configure [`McpApp`](../mcp-catalog/#mcp_catalog.json/components/McpApp) properties, see [Set up McpApp in your web app](#set-up-mcpapp-in-your-web-app). For the startup handshake (`ui/notifications/sandbox-proxy-ready`, `ui/notifications/sandbox-resource-ready`, and `ui/initialize`), see the [MCP App component specification](https://github.com/a2ui-project/a2ui/blob/main/catalogs/mcp/v1/mcp_app_specification.md).
+To serve `/a2ui-sandbox/` in your bundler and configure [`McpApp`](/guides/mcp-catalog/#mcp_catalog.json/components/McpApp) properties, see [Set up McpApp in your web app](#set-up-mcpapp-in-your-web-app). For the startup handshake (`ui/notifications/sandbox-proxy-ready`, `ui/notifications/sandbox-resource-ready`, and `ui/initialize`), see the [MCP App component specification](https://github.com/a2ui-project/a2ui/blob/main/catalogs/mcp/v1/mcp_app_specification.md).
 
 </details>
 
@@ -10306,10 +10306,10 @@ Check the browser console for warnings. Every MCP tool the widget calls must be 
 
 ## Next steps
 
-1. Install `@a2ui/catalog-mcp` and invoke headless MCP tools in [Call MCP Tools from A2UI](../mcp-catalog/).
+1. Install `@a2ui/catalog-mcp` and invoke headless MCP tools in [Call MCP Tools from A2UI](/guides/mcp-catalog/).
 2. Review the handshake lifecycle, JSON-RPC message schemas, and cycle-prevention rules in the [MCP App component specification](https://github.com/a2ui-project/a2ui/blob/main/catalogs/mcp/v1/mcp_app_specification.md).
-3. Build an MCP server that returns reusable A2UI component layouts in [Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/).
-4. Bundle an A2UI renderer inside an MCP App in [Render A2UI Inside an MCP App](../a2ui-in-mcp-apps/).
+3. Build an MCP server that returns reusable A2UI component layouts in [Serve A2UI Layouts from an MCP Server](/guides/a2ui-over-mcp/).
+4. Bundle an A2UI renderer inside an MCP App in [Render A2UI Inside an MCP App](/guides/a2ui-in-mcp-apps/).
 
 ---
 
@@ -10319,13 +10319,13 @@ Check the browser console for warnings. Every MCP tool the widget calls must be 
 
 Canonical URL: https://a2ui.org/guides/mcp-catalog/
 
-The `@a2ui/catalog-mcp` package connects A2UI v1.0 or later web surfaces directly to **[Model Context Protocol (MCP)](https://modelcontextprotocol.io/)** servers so buttons, inputs, and surface actions can call MCP tools and write their JSON or text results straight into the surface [Data Model](../../concepts/data-binding/) without waiting for another round-trip to the agent.
+The `@a2ui/catalog-mcp` package connects A2UI v1.0 or later web surfaces directly to **[Model Context Protocol (MCP)](https://modelcontextprotocol.io/)** servers so buttons, inputs, and surface actions can call MCP tools and write their JSON or text results straight into the surface [Data Model](/concepts/data-binding/) without waiting for another round-trip to the agent.
 
 > **Note**
-  See the [MCP Integration Overview](../mcp-overview/) to compare calling headless MCP tools with
-  serving reusable `a2ui://` layouts ([Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/)),
-  embedding sandboxed `ui://` HTML apps ([Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/)),
-  or bundling A2UI inside an MCP App ([Render A2UI Inside an MCP App](../a2ui-in-mcp-apps/)).
+  See the [MCP Integration Overview](/guides/mcp-overview/) to compare calling headless MCP tools with
+  serving reusable `a2ui://` layouts ([Serve A2UI Layouts from an MCP Server](/guides/a2ui-over-mcp/)),
+  embedding sandboxed `ui://` HTML apps ([Embed MCP Apps in A2UI Surfaces](/guides/mcp-apps-in-a2ui/)),
+  or bundling A2UI inside an MCP App ([Render A2UI Inside an MCP App](/guides/a2ui-in-mcp-apps/)).
 
 ---
 
@@ -10442,7 +10442,7 @@ Include the [MCP catalog schema](#mcp_catalog.json) in your agent setup so it kn
 1. Load `@a2ui/catalog-mcp/catalog.json` (or [`catalogs/mcp/v1/catalog.json`](https://github.com/a2ui-project/a2ui/blob/main/catalogs/mcp/v1/catalog.json) on non-Node backends) alongside your component catalog when building your agent's prompt and schema validator.
 2. Advertise the MCP catalog ID (`https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json`, exported as `mcpCatalog.id` and `MCP_CATALOG_ID`) in `supportedCatalogIds`. Calling `processor.getRendererCapabilities({versions: ['1.0']})` includes every registered catalog automatically.
 
-You are ready to call MCP tools from your UI. If you also embed `McpApp` HTML widgets, complete the extra sandbox file step in [Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/#serve-the-sandbox-files).
+You are ready to call MCP tools from your UI. If you also embed `McpApp` HTML widgets, complete the extra sandbox file step in [Embed MCP Apps in A2UI Surfaces](/guides/mcp-apps-in-a2ui/#serve-the-sandbox-files).
 
 ---
 
@@ -10593,7 +10593,7 @@ In [`mcp-text-tool-result.json`](https://github.com/a2ui-project/a2ui/blob/main/
 
 ### Tools that return A2UI surfaces
 
-MCP servers built specifically for A2UI can attach `application/a2ui+json` UI resources to their tools or tool responses. When `callMcpTool` runs one of those tools, it fetches the UI resource and forwards the A2UI messages to the `processor` you passed to `configureMcpCatalog`. To build an MCP server that serves A2UI layouts, see [Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/).
+MCP servers built specifically for A2UI can attach `application/a2ui+json` UI resources to their tools or tool responses. When `callMcpTool` runs one of those tools, it fetches the UI resource and forwards the A2UI messages to the `processor` you passed to `configureMcpCatalog`. To build an MCP server that serves A2UI layouts, see [Serve A2UI Layouts from an MCP Server](/guides/a2ui-over-mcp/).
 
 ---
 
@@ -10652,7 +10652,7 @@ const mcpAppOnlyCatalog = mcpCatalog.withEntries(
 <details>
 <summary>Add your own data-parsing functions</summary>
 
-Every function in `@a2ui/catalog-mcp` must be implemented across every A2UI renderer, so the built-in function list stays small. If you need a specialized parser such as CSV, define it with `createFunctionImplementation` in [your own catalog](../defining-a-catalog/) and register that catalog alongside `mcpCatalog`:
+Every function in `@a2ui/catalog-mcp` must be implemented across every A2UI renderer, so the built-in function list stays small. If you need a specialized parser such as CSV, define it with `createFunctionImplementation` in [your own catalog](/guides/defining-a-catalog/) and register that catalog alongside `mcpCatalog`:
 
 ```ts
 import {z} from 'zod';
@@ -10711,9 +10711,9 @@ Loading two copies of `lit` or `@a2ui/web_core` breaks custom element registrati
 
 ## Next steps
 
-1. Configure `/a2ui-sandbox/`, run the Kanban board showcase, and explore double-iframe isolation in [Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/).
-2. Build an MCP server that returns reusable A2UI layout templates in [Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/).
-3. Bundle an A2UI renderer inside a standalone `ui://` widget for external MCP hosts in [Render A2UI Inside an MCP App](../a2ui-in-mcp-apps/).
+1. Configure `/a2ui-sandbox/`, run the Kanban board showcase, and explore double-iframe isolation in [Embed MCP Apps in A2UI Surfaces](/guides/mcp-apps-in-a2ui/).
+2. Build an MCP server that returns reusable A2UI layout templates in [Serve A2UI Layouts from an MCP Server](/guides/a2ui-over-mcp/).
+3. Bundle an A2UI renderer inside a standalone `ui://` widget for external MCP hosts in [Render A2UI Inside an MCP App](/guides/a2ui-in-mcp-apps/).
 4. Browse the TypeScript API reference in the [`@a2ui/catalog-mcp` README](https://github.com/a2ui-project/a2ui/blob/main/typescript/catalogs/mcp/README.md) and the [MCP catalog JSON Schema](#mcp_catalog.json).
 
 ---
@@ -10740,15 +10740,15 @@ Use the table below to pick the guide that matches your host environment and MCP
 
 | Your goal                                                       | Outer host             | MCP server output                               | Guide                                                      |
 | :-------------------------------------------------------------- | :--------------------- | :---------------------------------------------- | :--------------------------------------------------------- |
-| Invoke headless MCP tools from A2UI inputs and buttons          | Your A2UI web app      | JSON or plain-text tool results                 | [Call MCP Tools from A2UI](../mcp-catalog/)                |
-| Return reusable A2UI layouts and per-call data from tools       | Your A2UI web app      | `a2ui://` templates (`application/a2ui+json`)   | [Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/) |
-| Embed third-party interactive HTML widgets on an A2UI surface   | Your A2UI web app      | `ui://` HTML apps (`text/html;profile=mcp-app`) | [Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/)    |
-| Display A2UI surfaces inside Claude Desktop, Cursor, or VS Code | External MCP Apps host | `ui://` HTML bundle containing an A2UI renderer | [Render A2UI Inside an MCP App](../a2ui-in-mcp-apps/)      |
+| Invoke headless MCP tools from A2UI inputs and buttons          | Your A2UI web app      | JSON or plain-text tool results                 | [Call MCP Tools from A2UI](/guides/mcp-catalog/)                |
+| Return reusable A2UI layouts and per-call data from tools       | Your A2UI web app      | `a2ui://` templates (`application/a2ui+json`)   | [Serve A2UI Layouts from an MCP Server](/guides/a2ui-over-mcp/) |
+| Embed third-party interactive HTML widgets on an A2UI surface   | Your A2UI web app      | `ui://` HTML apps (`text/html;profile=mcp-app`) | [Embed MCP Apps in A2UI Surfaces](/guides/mcp-apps-in-a2ui/)    |
+| Display A2UI surfaces inside Claude Desktop, Cursor, or VS Code | External MCP Apps host | `ui://` HTML bundle containing an A2UI renderer | [Render A2UI Inside an MCP App](/guides/a2ui-in-mcp-apps/)      |
 
 ## How the patterns fit together
 
-1. When you own the web application, `@a2ui/catalog-mcp` connects your Lit, React, or Angular renderer directly to MCP `Client` sessions. Surfaces can call tools with `callMcpTool` and write returned JSON into the surface [Data Model](../../concepts/data-binding/) ([Call MCP Tools from A2UI](../mcp-catalog/)), or mount third-party `ui://` HTML widgets inside a double-iframe sandbox with `McpApp` ([Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/)).
-2. When an MCP server emits A2UI messages (`application/a2ui+json`), it can publish declarative component layouts as `a2ui://` resources and return compact `updateDataModel` updates from `tools/call` ([Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/)). If the outer client supports MCP Apps (`ui://` HTML iframes) rather than A2UI natively, your server can package an A2UI web renderer inside the `ui://` HTML bundle itself ([Render A2UI Inside an MCP App](../a2ui-in-mcp-apps/)).
+1. When you own the web application, `@a2ui/catalog-mcp` connects your Lit, React, or Angular renderer directly to MCP `Client` sessions. Surfaces can call tools with `callMcpTool` and write returned JSON into the surface [Data Model](/concepts/data-binding/) ([Call MCP Tools from A2UI](/guides/mcp-catalog/)), or mount third-party `ui://` HTML widgets inside a double-iframe sandbox with `McpApp` ([Embed MCP Apps in A2UI Surfaces](/guides/mcp-apps-in-a2ui/)).
+2. When an MCP server emits A2UI messages (`application/a2ui+json`), it can publish declarative component layouts as `a2ui://` resources and return compact `updateDataModel` updates from `tools/call` ([Serve A2UI Layouts from an MCP Server](/guides/a2ui-over-mcp/)). If the outer client supports MCP Apps (`ui://` HTML iframes) rather than A2UI natively, your server can package an A2UI web renderer inside the `ui://` HTML bundle itself ([Render A2UI Inside an MCP App](/guides/a2ui-in-mcp-apps/)).
 
 ---
 
@@ -10759,7 +10759,7 @@ Use the table below to pick the guide that matches your host environment and MCP
 Canonical URL: https://a2ui.org/specification/v1.0-a2ui/
 
 > [!IMPORTANT] Current Specification
-> **A2UI v1.0** is the current specification. Compared to [v0.9.1](./v0.9.1-a2ui.md), v1.0 renames the wire envelopes to `agent_to_renderer` and `renderer_to_agent`, prefixes dynamic bindings with `@` (`@path` and `@call`), adds bidirectional function RPC messages (`callRendererFunction`, `callAgentFunction`, `rendererFunctionResponse`, `agentFunctionResponse`), and supports per-component `catalogId` mixing and single-message `createSurface` payloads. See the [v1.0 Evolution Guide](./v1.0-evolution-guide.md) and [v1.0 JSON Schemas](./v1.0-schemas.mdx).
+> **A2UI v1.0** is the current specification. Compared to [v0.9.1](/specification/v1.0-a2ui/v0.9.1-a2ui.md), v1.0 renames the wire envelopes to `agent_to_renderer` and `renderer_to_agent`, prefixes dynamic bindings with `@` (`@path` and `@call`), adds bidirectional function RPC messages (`callRendererFunction`, `callAgentFunction`, `rendererFunctionResponse`, `agentFunctionResponse`), and supports per-component `catalogId` mixing and single-message `createSurface` payloads. See the [v1.0 Evolution Guide](/specification/v1.0-a2ui/v1.0-evolution-guide.md) and [v1.0 JSON Schemas](/specification/v1.0-a2ui/v1.0-schemas.mdx).
 
 A Specification for a JSON-Based, Streaming UI Protocol.
 
@@ -10781,7 +10781,7 @@ Communication occurs via a stream of JSON objects. The renderer parses each obje
 - `updateDataModel`: Provides new data to be inserted into or to replace a surface's data model.
 - `deleteSurface`: Explicitly removes a surface and its contents from the UI.
 
-End of agent turn is signaled by [transport layer](../../../docs/public/concepts/transports.md).
+End of agent turn is signaled by [transport layer](/docs/public/concepts/transports.md).
 
 ## Changes from previous versions
 
@@ -10856,7 +10856,7 @@ While A2UI is transport agnostic, it is most commonly used with the following tr
 
 #### A2A (Agent-to-Agent) binding
 
-The **[A2A Extension](../extensions/a2a/docs/a2ui_extension_specification.md)** maps A2UI over the **[A2A Protocol](https://a2a-protocol.org)**. It standardizes metadata placement, renderer-to-agent capability negotiation, and bidirectional data model synchronization for agent-to-agent interactions.
+The **[A2A Extension](/specification/extensions/a2a/docs/a2ui_extension_specification.md)** maps A2UI over the **[A2A Protocol](https://a2a-protocol.org)**. It standardizes metadata placement, renderer-to-agent capability negotiation, and bidirectional data model synchronization for agent-to-agent interactions.
 
 #### MCP (Model Context Protocol) binding
 
@@ -11846,7 +11846,7 @@ _Replace the entire data model:_
 
 ### Renderer to agent updates
 
-When `sendDataModel` is set to `true` for a surface, the renderer automatically appends the **entire data model** of that surface to the metadata of every message (such as `action` or user query) sent to the agent that created the surface. The data model is included using the transport's metadata facility (the exact location and format are defined by the specific transport binding). The payload follows the schema in [`renderer_data_model.json`](../json/renderer_data_model.json).
+When `sendDataModel` is set to `true` for a surface, the renderer automatically appends the **entire data model** of that surface to the metadata of every message (such as `action` or user query) sent to the agent that created the surface. The data model is included using the transport's metadata facility (the exact location and format are defined by the specific transport binding). The payload follows the schema in [`renderer_data_model.json`](/specification/json/renderer_data_model.json).
 
 - **Targeted Delivery**: The data model is sent exclusively to the agent that created the surface. Data cannot leak to other agents.
 - **Trigger:** Data is sent only when a renderer-to-agent message is triggered (e.g., by a user action like a button click). Passive data changes (like typing in a text field) do not trigger a network request on their own; they simply update the local state, which will be sent with the next action.
@@ -11865,7 +11865,7 @@ The renderer supports a set of named **Functions** (e.g., `required`, `regex`, `
 
 Input components (like `TextField`, `ChoicePicker`) and interactive elements (like `Button`) can define a list of `checks` (`CheckRule` objects).
 
-A `CheckRule` contains a `condition` (a `DataBinding` path or a `FunctionCall`) and an optional fallback `message` string. The `condition` evaluates to either a `ValidationResult` object (defined in [`catalog_definition.json#/$defs/ValidationResult`](../json/catalog_definition.json)) or a primitive `boolean`.
+A `CheckRule` contains a `condition` (a `DataBinding` path or a `FunctionCall`) and an optional fallback `message` string. The `condition` evaluates to either a `ValidationResult` object (defined in [`catalog_definition.json#/$defs/ValidationResult`](/specification/json/catalog_definition.json)) or a primitive `boolean`.
 
 #### `ValidationResult` Structure
 
@@ -12377,7 +12377,7 @@ An agent advertises its capabilities using the [`agent_capabilities.json`] schem
 
 The `a2uiRendererCapabilities` object in transport metadata follows the [`renderer_capabilities.json`] schema to describe the renderer's capabilities.
 
-Capabilities carried per message are scoped to that message's turn, and omitting them withdraws A2UI for that turn; capabilities carried at session setup are scoped to the session. Each transport binding states which applies (see [Capability scoping](../extensions/a2a/docs/a2ui_extension_specification.md#capability-scoping) for the A2A rule).
+Capabilities carried per message are scoped to that message's turn, and omitting them withdraws A2UI for that turn; capabilities carried at session setup are scoped to the session. Each transport binding states which applies (see [Capability scoping](/specification/extensions/a2a/docs/a2ui_extension_specification.md#capability-scoping) for the A2A rule).
 
 **Properties:**
 
@@ -12465,7 +12465,7 @@ This URI is the canonical way to communicate protocol versioning between rendere
 
 ## Agent Card
 
-Agents are encouraged to advertise their A2UI capabilities in their AgentCard within the `AgentCapabilities.extensions` list. This advertisement is optional, but it informs the renderer whether to send `message.metadata["a2uiRendererCapabilities"]`. The `params` object defines the agent's specific UI support and MUST validate against [`agent_capabilities.json#/properties/1.0`](../../../json/agent_capabilities.json). The schema keys capabilities by version so a single object can describe multiple versions. Because A2A gives each version its own extension URI, `params` carries only the inner `1.0` object and never the `{"1.0": {...}}` wrapper.
+Agents are encouraged to advertise their A2UI capabilities in their AgentCard within the `AgentCapabilities.extensions` list. This advertisement is optional, but it informs the renderer whether to send `message.metadata["a2uiRendererCapabilities"]`. The `params` object defines the agent's specific UI support and MUST validate against [`agent_capabilities.json#/properties/1.0`](/json/agent_capabilities.json). The schema keys capabilities by version so a single object can describe multiple versions. Because A2A gives each version its own extension URI, `params` carries only the inner `1.0` object and never the `{"1.0": {...}}` wrapper.
 
 Example AgentCard payload:
 
@@ -12533,7 +12533,7 @@ Content-Type: application/json
 }
 ```
 
-To see how the agent parses the extension URI, see [`extension.py`](../../../../../python/a2ui_a2a/src/a2ui/a2a/extension.py).
+To see how the agent parses the extension URI, see [`extension.py`](/python/a2ui_a2a/src/a2ui/a2a/extension.py).
 
 ### GRPC transport
 
@@ -12562,7 +12562,7 @@ Renderers attach `a2uiRendererCapabilities` and `a2uiRendererDataModel` to A2A m
 
 ### `a2uiRendererCapabilities`
 
-The renderer sends `message.metadata["a2uiRendererCapabilities"]`, whose value is the whole version-keyed capabilities object and MUST validate against the [Renderer Capabilities Schema](../../../json/renderer_capabilities.json), to advertise which catalogs the renderer supports.
+The renderer sends `message.metadata["a2uiRendererCapabilities"]`, whose value is the whole version-keyed capabilities object and MUST validate against the [Renderer Capabilities Schema](/json/renderer_capabilities.json), to advertise which catalogs the renderer supports.
 
 Additionally, the renderer determines a function's execution boundary (e.g., `rendererOnly` status) at runtime by reading its configuration from the active catalog definition.
 
@@ -12596,7 +12596,7 @@ In A2A, renderer capabilities ride on message metadata, so they are scoped to th
 
 ### `a2uiRendererDataModel`
 
-When a surface enables Data Model Sync, the renderer sends `message.metadata["a2uiRendererDataModel"]` = [Renderer Data Model Schema](../../../json/renderer_data_model.json) on every message. This model provides the agent with the latest UI state. For more details, see the [Actions Guide](../../../../../docs/public/concepts/actions.md).
+When a surface enables Data Model Sync, the renderer sends `message.metadata["a2uiRendererDataModel"]` = [Renderer Data Model Schema](/json/renderer_data_model.json) on every message. This model provides the agent with the latest UI state. For more details, see the [Actions Guide](/docs/public/concepts/actions.md).
 
 **Example `SendMessageRequest` with Data Model:**
 
@@ -12643,7 +12643,7 @@ Atomicity is guaranteed only at the individual message level. However, for a bet
 
 ### Agent-to-renderer messages
 
-When an agent sends a message to a renderer (or another agent acting as a renderer), the `data` payload must validate against the [Agent-to-Renderer Message List Schema](../../../json/agent_to_renderer_list.json).
+When an agent sends a message to a renderer (or another agent acting as a renderer), the `data` payload must validate against the [Agent-to-Renderer Message List Schema](/json/agent_to_renderer_list.json).
 
 Example DataPart:
 
@@ -12680,7 +12680,7 @@ Example DataPart:
 
 ### Renderer-to-agent events
 
-When a renderer (or an agent forwarding an event) sends a message to an agent, it also uses a `DataPart` with the same `application/a2ui+json` MIME type. However, the `data` payload must validate against the [Renderer-to-Agent Message List Schema](../../../json/renderer_to_agent_list.json).
+When a renderer (or an agent forwarding an event) sends a message to an agent, it also uses a `DataPart` with the same `application/a2ui+json` MIME type. However, the `data` payload must validate against the [Renderer-to-Agent Message List Schema](/json/renderer_to_agent_list.json).
 
 Example `action` DataPart:
 
@@ -12716,7 +12716,7 @@ Example `action` DataPart:
 Canonical URL: https://a2ui.org/specification/v1.0-basic-catalog-implementation-guide/
 
 > [!NOTE] Reference Catalog
-> The Basic Catalog is an optional, styleable reference catalog included for convenience. Applications can style these components to match their own design system or define custom domain-specific catalogs; see [How to Define a Catalog](../guides/defining-a-catalog.mdx) and the [`basic_catalog.json` schema](#basic_catalog.json).
+> The Basic Catalog is an optional, styleable reference catalog included for convenience. Applications can style these components to match their own design system or define custom domain-specific catalogs; see [How to Define a Catalog](/specification/guides/defining-a-catalog.mdx) and the [`basic_catalog.json` schema](#basic_catalog.json).
 
 --8&lt;-- "catalogs/basic/v1/basic_catalog_implementation_guide.md"
 
@@ -12997,10 +12997,10 @@ Our goal is for you to design a component once and render it natively on every p
 
 **Available today**
 
-1. [Catalogs](../concepts/catalogs/) describe your components and functions in one JSON Schema that both agents and renderers read. [How to Define a Catalog](../guides/defining-a-catalog/) covers [prompt instructions and metadata](../guides/defining-a-catalog/#prompt-instructions-and-catalog-metadata), [theming with reusable definitions](../guides/defining-a-catalog/#reusable-schema-definitions-defs-and-theming), and [schema parity tests in CI](../guides/defining-a-catalog/#schema-parity-tests-in-ci).
-2. The [Basic Catalog](../concepts/catalogs/#the-basic-catalog) ships with every official renderer and takes its styling from the host framework's theme. See the [v1.0 Basic Catalog Guide](/specification/v1.0-basic-catalog-implementation-guide/).
-3. Official [renderers](../concepts/sdks/#renderer-sdk) exist for React, Lit, Angular, Flutter, SwiftUI, and Jetpack Compose. See [Registering a catalog in a renderer](../concepts/catalogs/#registering-a-catalog-in-a-renderer).
-4. [Universal Web Components](../guides/authoring-universal-components/) let you write a custom web component once and register it in Lit, React, and Angular.
+1. [Catalogs](/concepts/catalogs/) describe your components and functions in one JSON Schema that both agents and renderers read. [How to Define a Catalog](/guides/defining-a-catalog/) covers [prompt instructions and metadata](/guides/defining-a-catalog/#prompt-instructions-and-catalog-metadata), [theming with reusable definitions](/guides/defining-a-catalog/#reusable-schema-definitions-defs-and-theming), and [schema parity tests in CI](/guides/defining-a-catalog/#schema-parity-tests-in-ci).
+2. The [Basic Catalog](/concepts/catalogs/#the-basic-catalog) ships with every official renderer and takes its styling from the host framework's theme. See the [v1.0 Basic Catalog Guide](/specification/v1.0-basic-catalog-implementation-guide/).
+3. Official [renderers](/concepts/sdks/#renderer-sdk) exist for React, Lit, Angular, Flutter, SwiftUI, and Jetpack Compose. See [Registering a catalog in a renderer](/concepts/catalogs/#registering-a-catalog-in-a-renderer).
+4. [Universal Web Components](/guides/authoring-universal-components/) let you write a custom web component once and register it in Lit, React, and Angular.
 5. The `a2ui codegen` command in the [A2UI CLI](https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_cli) generates typesafe component builders from a catalog.
 6. [A2UI Composer](https://a2ui-project.github.io/composer/) is a visual editor for A2UI layouts.
 
@@ -13016,11 +13016,11 @@ Our goal is for your agent to know when and how to use each component.
 
 **Available today**
 
-1. The skill generator (`SkillGenerator`) in the Python and TypeScript [Agent SDKs](../concepts/sdks/#agent-sdk) builds an A2UI skill from your catalog, with grammar rules for the chosen inference format and the signatures of your components and functions. Because the skill comes from the catalog, it changes when your components change. See [Generate the skill](../concepts/overview/#generate-the-skill).
-2. [Catalog negotiation](../concepts/catalogs/#catalog-negotiation-and-multi-catalog-surfaces) selects the catalogs and protocol version that each client supports. See [Using a catalog in an agent](../concepts/catalogs/#using-a-catalog-in-an-agent).
-3. [Inference formats](../concepts/inference-formats/), such as Express and Direct JSON, compile model output into standard A2UI messages without client changes.
-4. The Agent SDKs [validate output against live surface state](../concepts/overview/#compile-and-validate-the-output), so errors go back to the model before anything reaches the client.
-5. Integrations exist for Google ADK and the A2A protocol, and [How to Integrate with My Agent Server](../guides/agent-integration/) covers other agent servers.
+1. The skill generator (`SkillGenerator`) in the Python and TypeScript [Agent SDKs](/concepts/sdks/#agent-sdk) builds an A2UI skill from your catalog, with grammar rules for the chosen inference format and the signatures of your components and functions. Because the skill comes from the catalog, it changes when your components change. See [Generate the skill](/concepts/overview/#generate-the-skill).
+2. [Catalog negotiation](/concepts/catalogs/#catalog-negotiation-and-multi-catalog-surfaces) selects the catalogs and protocol version that each client supports. See [Using a catalog in an agent](/concepts/catalogs/#using-a-catalog-in-an-agent).
+3. [Inference formats](/concepts/inference-formats/), such as Express and Direct JSON, compile model output into standard A2UI messages without client changes.
+4. The Agent SDKs [validate output against live surface state](/concepts/overview/#compile-and-validate-the-output), so errors go back to the model before anything reaches the client.
+5. Integrations exist for Google ADK and the A2A protocol, and [How to Integrate with My Agent Server](/guides/agent-integration/) covers other agent servers.
 
 **On the roadmap**
 
@@ -13035,7 +13035,7 @@ Our goal is for you to know whether your agent picks the right components and bu
 **Available today**
 
 1. The [A2UI evaluation framework](https://github.com/a2ui-project/a2ui/tree/main/eval) is built on Inspect AI and scores model output against the project's own datasets in three stages: schema and structure validation, deterministic assertions, and an LLM judge that grades intent and quality. See the [evaluation design](https://github.com/a2ui-project/a2ui/blob/main/eval/DESIGN.md).
-2. [Token and latency benchmarks](../concepts/inference-formats/#token-and-latency-benchmarks) compare inference formats.
+2. [Token and latency benchmarks](/concepts/inference-formats/#token-and-latency-benchmarks) compare inference formats.
 
 **On the roadmap**
 
@@ -13051,9 +13051,9 @@ Our goal is for one agent to reach users wherever they are.
 
 **Available today**
 
-1. Renderers cover web and desktop (React, Lit, and Angular) and mobile (Flutter, SwiftUI, and Jetpack Compose). See [How to Integrate with My Client](../guides/client-integration/) and the [Android Jetpack Compose guide](https://developer.android.com/develop/ui/compose/agentic).
-2. MCP works in both directions. You can [render A2UI inside an MCP App](../guides/a2ui-in-mcp-apps/), or [embed MCP Apps in A2UI surfaces](../guides/mcp-apps-in-a2ui/), where `McpApp` already [shares data paths with sibling A2UI components](../guides/mcp-apps-in-a2ui/#synchronizing-state-and-tool-calls). The [MCP Integration Overview](../guides/mcp-overview/) compares these with [serving A2UI layouts from an MCP server](../guides/a2ui-over-mcp/) and [calling MCP tools from A2UI](../guides/mcp-catalog/).
-3. [Community Projects](../ecosystem/renderers/) cover more frameworks and platforms.
+1. Renderers cover web and desktop (React, Lit, and Angular) and mobile (Flutter, SwiftUI, and Jetpack Compose). See [How to Integrate with My Client](/guides/client-integration/) and the [Android Jetpack Compose guide](https://developer.android.com/develop/ui/compose/agentic).
+2. MCP works in both directions. You can [render A2UI inside an MCP App](/guides/a2ui-in-mcp-apps/), or [embed MCP Apps in A2UI surfaces](/guides/mcp-apps-in-a2ui/), where `McpApp` already [shares data paths with sibling A2UI components](/guides/mcp-apps-in-a2ui/#synchronizing-state-and-tool-calls). The [MCP Integration Overview](/guides/mcp-overview/) compares these with [serving A2UI layouts from an MCP server](/guides/a2ui-over-mcp/) and [calling MCP tools from A2UI](/guides/mcp-catalog/).
+3. [Community Projects](/ecosystem/renderers/) cover more frameworks and platforms.
 
 **On the roadmap**
 
@@ -13066,7 +13066,7 @@ Our goal is for your gen-UI to improve as you learn from your users.
 
 **Available today**
 
-1. [Renderer-to-agent messages](../concepts/messages/#renderer-to-agent-messages) already report user actions and function results to your agent, which gives you events to log. See [Handle user actions](../concepts/overview/#handle-user-actions).
+1. [Renderer-to-agent messages](/concepts/messages/#renderer-to-agent-messages) already report user actions and function results to your agent, which gives you events to log. See [Handle user actions](/concepts/overview/#handle-user-actions).
 
 **On the roadmap**
 
@@ -13118,10 +13118,10 @@ Community authors and organizations maintain client renderers, server libraries,
   and release status.
 
 > **Note**
-  For first-party SDKs maintained by the A2UI team, see the [SDKs](../../concepts/sdks/) page
-  covering the official [Core SDK](../../concepts/sdks/#core-sdk), [Agent
-  SDK](../../concepts/sdks/#agent-sdk) (TypeScript, Python, Dart), and [Renderer
-  SDK](../../concepts/sdks/#renderer-sdk) (Flutter, React, Lit, Angular, SwiftUI, and Jetpack
+  For first-party SDKs maintained by the A2UI team, see the [SDKs](/concepts/sdks/) page
+  covering the official [Core SDK](/concepts/sdks/#core-sdk), [Agent
+  SDK](/concepts/sdks/#agent-sdk) (TypeScript, Python, Dart), and [Renderer
+  SDK](/concepts/sdks/#renderer-sdk) (Flutter, React, Lit, Angular, SwiftUI, and Jetpack
   Compose) packages.
 
 ## Community renderers
@@ -13213,7 +13213,7 @@ To report security vulnerabilities, do not open a public issue. Follow the instr
 Canonical URL: https://a2ui.org/specification/v0.9.1-a2ui/
 
 > [!NOTE] Supersedes v0.9
-> **A2UI v0.9.1** supersedes `v0.9` with minor schema and patch refinements while retaining `v0.9` / `v0_9` in wire `"version"` examples and `$id` URIs for compatibility. See the [v0.9.1 Evolution Guide](./v0.9.1-evolution-guide.md), [v0.9.1 JSON Schemas](./v0.9.1-schemas.mdx), and [v1.0 Protocol Specification](./v1.0-a2ui.md). New projects should target v1.0, the current version.
+> **A2UI v0.9.1** supersedes `v0.9` with minor schema and patch refinements while retaining `v0.9` / `v0_9` in wire `"version"` examples and `$id` URIs for compatibility. See the [v0.9.1 Evolution Guide](/specification/v0.9.1-a2ui/v0.9.1-evolution-guide.md), [v0.9.1 JSON Schemas](/specification/v0.9.1-a2ui/v0.9.1-schemas.mdx), and [v1.0 Protocol Specification](/specification/v0.9.1-a2ui/v1.0-a2ui.md). New projects should target v1.0, the current version.
 
 A Specification for a JSON-Based, Streaming UI Protocol.
 
@@ -13792,7 +13792,7 @@ _Replace the entire data model:_
 
 ### Client to server updates
 
-When `sendDataModel` is set to `true` for a surface, the client automatically appends the **entire data model** of that surface to the metadata of every message (such as `action` or user query) sent to the server that created the surface. The data model is included using the transport's metadata facility (e.g., the `metadata` field in A2A or a header in HTTP). The payload follows the schema in [`client_data_model.json`](../json/client_data_model.json).
+When `sendDataModel` is set to `true` for a surface, the client automatically appends the **entire data model** of that surface to the metadata of every message (such as `action` or user query) sent to the server that created the surface. The data model is included using the transport's metadata facility (e.g., the `metadata` field in A2A or a header in HTTP). The payload follows the schema in [`client_data_model.json`](/specification/json/client_data_model.json).
 
 - **Targeted Delivery**: The data model is sent exclusively to the server that created the surface. Data cannot leak to other agents or servers.
 - **Trigger:** Data is sent only when a client-to-server message is triggered (e.g., by a user action like a button click). Passive data changes (like typing in a text field) do not trigger a network request on their own; they simply update the local state, which will be sent with the next action.
@@ -14099,7 +14099,7 @@ This URI is the canonical way to communicate protocol versioning between clients
 
 ## Agent Card
 
-Agents are encouraged to advertise their A2UI capabilities in their AgentCard within the `AgentCapabilities.extensions` list. This advertisement is optional, but it informs the client whether to send `message.metadata["a2uiClientCapabilities"]`. The `params` object defines the agent's specific UI support and corresponds directly to the [Server Capabilities Schema](../json/server_capabilities.json).
+Agents are encouraged to advertise their A2UI capabilities in their AgentCard within the `AgentCapabilities.extensions` list. This advertisement is optional, but it informs the client whether to send `message.metadata["a2uiClientCapabilities"]`. The `params` object defines the agent's specific UI support and corresponds directly to the [Server Capabilities Schema](/specification/json/server_capabilities.json).
 
 Example AgentCard payload:
 
@@ -14167,7 +14167,7 @@ Content-Type: application/json
 }
 ```
 
-To see how the agent parses the extension URI, see [`extension.py`](../../../python/a2ui_a2a/src/a2ui/a2a/extension.py).
+To see how the agent parses the extension URI, see [`extension.py`](/python/a2ui_a2a/src/a2ui/a2a/extension.py).
 
 ### GRPC transport
 
@@ -14197,7 +14197,7 @@ Clients attach `a2uiClientCapabilities` and `a2uiClientDataModel` to A2A message
 
 ### `a2uiClientCapabilities`
 
-The client sends `sendMessageRequest.message["a2uiClientCapabilities"]` = [Client Capabilities Schema](../json/client_capabilities.json) to advertise which catalogs the renderer supports.
+The client sends `sendMessageRequest.message["a2uiClientCapabilities"]` = [Client Capabilities Schema](/specification/json/client_capabilities.json) to advertise which catalogs the renderer supports.
 
 **Example `SendMessageRequest` with Capabilities:**
 
@@ -14225,7 +14225,7 @@ The client sends `sendMessageRequest.message["a2uiClientCapabilities"]` = [Clien
 
 ### `a2uiClientDataModel`
 
-When a surface enables Data Model Sync, the client sends `sendMessageRequest.message["a2uiClientDataModel"]` = [Client Data Model Schema](../json/client_data_model.json) on every message. This model provides the agent with the latest UI state. For more details, see the [Actions Guide](../../../docs/public/concepts/actions.md).
+When a surface enables Data Model Sync, the client sends `sendMessageRequest.message["a2uiClientDataModel"]` = [Client Data Model Schema](/specification/json/client_data_model.json) on every message. This model provides the agent with the latest UI state. For more details, see the [Actions Guide](/docs/public/concepts/actions.md).
 
 **Example `SendMessageRequest` with Data Model:**
 
@@ -14272,7 +14272,7 @@ Atomicity is guaranteed only at the individual message level. However, for a bet
 
 ### Server-to-client messages
 
-When an agent sends a message to a client (or another agent acting as a client/renderer), the `data` payload must validate against the [Server-to-Client Message List Schema](../json/server_to_client_list.json).
+When an agent sends a message to a client (or another agent acting as a client/renderer), the `data` payload must validate against the [Server-to-Client Message List Schema](/specification/json/server_to_client_list.json).
 
 Example DataPart:
 
@@ -14309,7 +14309,7 @@ Example DataPart:
 
 ### Client-to-server events
 
-When a client (or an agent forwarding an event) sends a message to an agent, it also uses a `DataPart` with the same `application/a2ui+json` MIME type. However, the `data` payload must validate against the [Client-to-Server Message List Schema](../json/client_to_server_list.json).
+When a client (or an agent forwarding an event) sends a message to an agent, it also uses a `DataPart` with the same `application/a2ui+json` MIME type. However, the `data` payload must validate against the [Client-to-Server Message List Schema](/specification/json/client_to_server_list.json).
 
 Example `action` DataPart:
 
@@ -14345,7 +14345,7 @@ Example `action` DataPart:
 Canonical URL: https://a2ui.org/specification/v0.9.1-basic-catalog-implementation-guide/
 
 > [!NOTE] Reference Catalog
-> The Basic Catalog is an optional, styleable reference catalog included for convenience (`v0.9.1` supersedes `v0.9` while keeping the `v0_9` catalog URI). Applications can style these components to match their own design system or define custom domain-specific catalogs; see [How to Define a Catalog](../guides/defining-a-catalog.mdx) and the [`basic_catalog.json` schema](#basic_catalog.json).
+> The Basic Catalog is an optional, styleable reference catalog included for convenience (`v0.9.1` supersedes `v0.9` while keeping the `v0_9` catalog URI). Applications can style these components to match their own design system or define custom domain-specific catalogs; see [How to Define a Catalog](/specification/guides/defining-a-catalog.mdx) and the [`basic_catalog.json` schema](#basic_catalog.json).
 
 --8&lt;-- "specification/v0_9_1/docs/basic_catalog_implementation_guide.md"
 
@@ -14363,7 +14363,7 @@ Canonical URL: https://a2ui.org/specification/v0.9.1-basic-catalog-implementatio
 
 Canonical URL: https://a2ui.org/specification/v0.9.1-evolution-guide/
 
-This document describes the changes between A2UI version 0.9 and version 0.9.1. For changes from version 0.8 to 0.9, please refer to the [v0.9 Evolution Guide](../../v0_9/docs/evolution_guide.md).
+This document describes the changes between A2UI version 0.9 and version 0.9.1. For changes from version 0.8 to 0.9, please refer to the [v0.9 Evolution Guide](/v0_9/docs/evolution_guide.md).
 
 ## 1. Executive Summary
 

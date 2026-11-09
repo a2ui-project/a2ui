@@ -9,13 +9,13 @@ An **[MCP App](https://modelcontextprotocol.io/extensions/apps/overview)** can b
 Instead of requiring every MCP client (such as Claude Desktop, the MCP Inspector, or an IDE) to install an A2UI SDK, your MCP server ships a self-contained HTML bundle that mounts `<a2ui-surface>` inside the host's isolated iframe. When tools on the server return `application/a2ui+json` payloads, the embedded app feeds those messages into its own [`MessageProcessor`](/concepts/sdks/#core-sdk) and forwards user actions back through the MCP Apps `tools/call` channel.
 
 > **Note**
-  See the [MCP Integration Overview](../mcp-overview/) to compare all four MCP patterns. Use this
+  See the [MCP Integration Overview](/guides/mcp-overview/) to compare all four MCP patterns. Use this
   pattern when the outer host supports MCP Apps (`ui://` HTML iframes) rather than A2UI natively.
   For the inverse architecture (embedding third-party MCP App widgets inside your own A2UI host),
-  see [Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/). If both the host and server support
+  see [Embed MCP Apps in A2UI Surfaces](/guides/mcp-apps-in-a2ui/). If both the host and server support
   A2UI natively and you want to serve reusable A2UI layout templates over MCP without an iframe, see
-  [Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/) and [Call MCP Tools from
-  A2UI](../mcp-catalog/).
+  [Serve A2UI Layouts from an MCP Server](/guides/a2ui-over-mcp/) and [Call MCP Tools from
+  A2UI](/guides/mcp-catalog/).
 
 <img
   src={`${baseUrl}/assets/editor.gif`}
@@ -142,7 +142,7 @@ The three steps below build a minimal MCP App using `@modelcontextprotocol/ext-a
 
 ### Step 1: Register the ui:// resource and MCP tools
 
-Start by defining the A2UI messages that your server tools return inside `EmbeddedResource` items (`mimeType: "application/a2ui+json"`). The example below uses the Basic Catalog, though A2UI catalogs are domain-specific and your embedded bundle can register any custom catalog (see [How to Define a Catalog](../defining-a-catalog/)).
+Start by defining the A2UI messages that your server tools return inside `EmbeddedResource` items (`mimeType: "application/a2ui+json"`). The example below uses the Basic Catalog, though A2UI catalogs are domain-specific and your embedded bundle can register any custom catalog (see [How to Define a Catalog](/guides/defining-a-catalog/)).
 
 In `v1.0`, protocol messages set `"version": "1.0"`, expressions use `@path` and `@call`, component IDs follow UAX #31 identifier syntax (such as `main_column`), and `Text` supports Markdown headings. In `v0.9.1`, messages set `"version": "v0.9"`, expressions use `path` and `call` (with `"returnType": "string"` on string-valued function calls), and `Text.variant` includes `"h3"`.
 
@@ -302,7 +302,7 @@ Here is the initial surface payload returned by `open_counter_app`:
 ]
 ```
 
-When the embedded app invokes `increase_counter`, the tool returns only an [`updateDataModel`](../../specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) message (`server_to_client.json` in `v0.9.1`) so the existing surface updates `/count` without rebuilding its component tree:
+When the embedded app invokes `increase_counter`, the tool returns only an [`updateDataModel`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) message (`server_to_client.json` in `v0.9.1`) so the existing surface updates `/count` without rebuilding its component tree:
 
 #### v1.0
 
@@ -587,7 +587,7 @@ Create an `index.html` entry point with a mount element for your surface:
 </html>
 ```
 
-In `src/main.ts`, register `renderMarkdown` via `setMarkdownRenderer`, initialize `MessageProcessor` with `basicCatalog` (or your custom catalog), mount `<a2ui-surface>` when a surface is created, and use `App` from `@modelcontextprotocol/ext-apps` to handle the `ui/initialize` handshake, incoming `ui/notifications/tool-result` payloads, automatic iframe resizing (`autoResize: true`), and outbound `tools/call` requests whenever a component dispatches an [action](../../concepts/actions-and-functions/):
+In `src/main.ts`, register `renderMarkdown` via `setMarkdownRenderer`, initialize `MessageProcessor` with `basicCatalog` (or your custom catalog), mount `<a2ui-surface>` when a surface is created, and use `App` from `@modelcontextprotocol/ext-apps` to handle the `ui/initialize` handshake, incoming `ui/notifications/tool-result` payloads, automatic iframe resizing (`autoResize: true`), and outbound `tools/call` requests whenever a component dispatches an [action](/concepts/actions-and-functions/):
 
 #### v1.0
 
@@ -741,7 +741,7 @@ Angular production builds emit split ES module chunks and `<link rel="moduleprel
 
 An MCP App runs inside a double-iframe sandbox where the inner `srcdoc` frame carries `sandbox="allow-scripts"` without `allow-same-origin`. Keep three browser constraints in mind when building surfaces for this environment:
 
-1. Because the inner frame runs under an opaque `null` origin (`window.location.origin === "null"`), `localStorage`, `sessionStorage`, `IndexedDB`, and `document.cookie` throw `SecurityError`. Store transient UI state in the A2UI surface [Data Model](../../concepts/data-binding/) and persist durable state on the MCP server through `tools/call`.
+1. Because the inner frame runs under an opaque `null` origin (`window.location.origin === "null"`), `localStorage`, `sessionStorage`, `IndexedDB`, and `document.cookie` throw `SecurityError`. Store transient UI state in the A2UI surface [Data Model](/concepts/data-binding/) and persist durable state on the MCP server through `tools/call`.
 2. When writing custom `window.addEventListener('message', ...)` handlers instead of using `App` from `@modelcontextprotocol/ext-apps`, check `event.source === window.parent` before trusting incoming JSON-RPC messages, and pass an explicit target origin to `window.parent.postMessage` whenever the outer host origin is known.
 3. MCP App hosts enforce a restrictive Content Security Policy (`connect-src 'none'`, with external media and fonts blocked unless allowlisted). If A2UI components such as `Image`, `Video`, or `AudioPlayer` reference external HTTPS URLs, declare those origins in `_meta.ui.csp` on the HTML content item returned from `resources/read` so the outer sandbox proxy adds them to the frame's CSP header:
 
@@ -833,7 +833,7 @@ validatePayload([BasicCatalog.v1_0()], parsed.messages);
 
 ## Next steps
 
-1. Explore the inverse pattern (embedding `ui://` MCP App widgets inside a native A2UI host with `McpApp`) in [Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/).
-2. Serve cached `a2ui://` layout templates and `updateDataModel` tool results to native A2UI hosts in [Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/).
-3. Connect web surfaces directly to MCP tools with `@a2ui/catalog-mcp` and `callMcpTool` in [Call MCP Tools from A2UI](../mcp-catalog/).
-4. Package custom web components into your embedded renderer bundle in [How to Define a Catalog](../defining-a-catalog/) and [Authoring Universal Web Components](../authoring-universal-components/).
+1. Explore the inverse pattern (embedding `ui://` MCP App widgets inside a native A2UI host with `McpApp`) in [Embed MCP Apps in A2UI Surfaces](/guides/mcp-apps-in-a2ui/).
+2. Serve cached `a2ui://` layout templates and `updateDataModel` tool results to native A2UI hosts in [Serve A2UI Layouts from an MCP Server](/guides/a2ui-over-mcp/).
+3. Connect web surfaces directly to MCP tools with `@a2ui/catalog-mcp` and `callMcpTool` in [Call MCP Tools from A2UI](/guides/mcp-catalog/).
+4. Package custom web components into your embedded renderer bundle in [How to Define a Catalog](/guides/defining-a-catalog/) and [Authoring Universal Web Components](/guides/authoring-universal-components/).

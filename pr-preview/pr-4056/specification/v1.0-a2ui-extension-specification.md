@@ -18,7 +18,7 @@ This URI is the canonical way to communicate protocol versioning between rendere
 
 ## Agent Card
 
-Agents are encouraged to advertise their A2UI capabilities in their AgentCard within the `AgentCapabilities.extensions` list. This advertisement is optional, but it informs the renderer whether to send `message.metadata["a2uiRendererCapabilities"]`. The `params` object defines the agent's specific UI support and MUST validate against [`agent_capabilities.json#/properties/1.0`](../../../json/agent_capabilities.json). The schema keys capabilities by version so a single object can describe multiple versions. Because A2A gives each version its own extension URI, `params` carries only the inner `1.0` object and never the `{"1.0": {...}}` wrapper.
+Agents are encouraged to advertise their A2UI capabilities in their AgentCard within the `AgentCapabilities.extensions` list. This advertisement is optional, but it informs the renderer whether to send `message.metadata["a2uiRendererCapabilities"]`. The `params` object defines the agent's specific UI support and MUST validate against [`agent_capabilities.json#/properties/1.0`](/json/agent_capabilities.json). The schema keys capabilities by version so a single object can describe multiple versions. Because A2A gives each version its own extension URI, `params` carries only the inner `1.0` object and never the `{"1.0": {...}}` wrapper.
 
 Example AgentCard payload:
 
@@ -86,7 +86,7 @@ Content-Type: application/json
 }
 ```
 
-To see how the agent parses the extension URI, see [`extension.py`](../../../../../python/a2ui_a2a/src/a2ui/a2a/extension.py).
+To see how the agent parses the extension URI, see [`extension.py`](/python/a2ui_a2a/src/a2ui/a2a/extension.py).
 
 ### GRPC transport
 
@@ -115,7 +115,7 @@ Renderers attach `a2uiRendererCapabilities` and `a2uiRendererDataModel` to A2A m
 
 ### `a2uiRendererCapabilities`
 
-The renderer sends `message.metadata["a2uiRendererCapabilities"]`, whose value is the whole version-keyed capabilities object and MUST validate against the [Renderer Capabilities Schema](../../../json/renderer_capabilities.json), to advertise which catalogs the renderer supports.
+The renderer sends `message.metadata["a2uiRendererCapabilities"]`, whose value is the whole version-keyed capabilities object and MUST validate against the [Renderer Capabilities Schema](/json/renderer_capabilities.json), to advertise which catalogs the renderer supports.
 
 Additionally, the renderer determines a function's execution boundary (e.g., `rendererOnly` status) at runtime by reading its configuration from the active catalog definition.
 
@@ -149,7 +149,7 @@ In A2A, renderer capabilities ride on message metadata, so they are scoped to th
 
 ### `a2uiRendererDataModel`
 
-When a surface enables Data Model Sync, the renderer sends `message.metadata["a2uiRendererDataModel"]` = [Renderer Data Model Schema](../../../json/renderer_data_model.json) on every message. This model provides the agent with the latest UI state. For more details, see the [Actions Guide](../../../../../docs/public/concepts/actions.md).
+When a surface enables Data Model Sync, the renderer sends `message.metadata["a2uiRendererDataModel"]` = [Renderer Data Model Schema](/json/renderer_data_model.json) on every message. This model provides the agent with the latest UI state. For more details, see the [Actions Guide](/docs/public/concepts/actions.md).
 
 **Example `SendMessageRequest` with Data Model:**
 
@@ -196,7 +196,7 @@ Atomicity is guaranteed only at the individual message level. However, for a bet
 
 ### Agent-to-renderer messages
 
-When an agent sends a message to a renderer (or another agent acting as a renderer), the `data` payload must validate against the [Agent-to-Renderer Message List Schema](../../../json/agent_to_renderer_list.json).
+When an agent sends a message to a renderer (or another agent acting as a renderer), the `data` payload must validate against the [Agent-to-Renderer Message List Schema](/json/agent_to_renderer_list.json).
 
 Example DataPart:
 
@@ -233,7 +233,7 @@ Example DataPart:
 
 ### Renderer-to-agent events
 
-When a renderer (or an agent forwarding an event) sends a message to an agent, it also uses a `DataPart` with the same `application/a2ui+json` MIME type. However, the `data` payload must validate against the [Renderer-to-Agent Message List Schema](../../../json/renderer_to_agent_list.json).
+When a renderer (or an agent forwarding an event) sends a message to an agent, it also uses a `DataPart` with the same `application/a2ui+json` MIME type. However, the `data` payload must validate against the [Renderer-to-Agent Message List Schema](/json/renderer_to_agent_list.json).
 
 Example `action` DataPart:
 

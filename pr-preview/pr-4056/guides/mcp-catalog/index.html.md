@@ -4,13 +4,13 @@
 
 Canonical URL: https://a2ui.org/guides/mcp-catalog/
 
-The `@a2ui/catalog-mcp` package connects A2UI v1.0 or later web surfaces directly to **[Model Context Protocol (MCP)](https://modelcontextprotocol.io/)** servers so buttons, inputs, and surface actions can call MCP tools and write their JSON or text results straight into the surface [Data Model](../../concepts/data-binding/) without waiting for another round-trip to the agent.
+The `@a2ui/catalog-mcp` package connects A2UI v1.0 or later web surfaces directly to **[Model Context Protocol (MCP)](https://modelcontextprotocol.io/)** servers so buttons, inputs, and surface actions can call MCP tools and write their JSON or text results straight into the surface [Data Model](/concepts/data-binding/) without waiting for another round-trip to the agent.
 
 > **Note**
-  See the [MCP Integration Overview](../mcp-overview/) to compare calling headless MCP tools with
-  serving reusable `a2ui://` layouts ([Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/)),
-  embedding sandboxed `ui://` HTML apps ([Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/)),
-  or bundling A2UI inside an MCP App ([Render A2UI Inside an MCP App](../a2ui-in-mcp-apps/)).
+  See the [MCP Integration Overview](/guides/mcp-overview/) to compare calling headless MCP tools with
+  serving reusable `a2ui://` layouts ([Serve A2UI Layouts from an MCP Server](/guides/a2ui-over-mcp/)),
+  embedding sandboxed `ui://` HTML apps ([Embed MCP Apps in A2UI Surfaces](/guides/mcp-apps-in-a2ui/)),
+  or bundling A2UI inside an MCP App ([Render A2UI Inside an MCP App](/guides/a2ui-in-mcp-apps/)).
 
 ---
 
@@ -127,7 +127,7 @@ Include the [MCP catalog schema](#mcp_catalog.json) in your agent setup so it kn
 1. Load `@a2ui/catalog-mcp/catalog.json` (or [`catalogs/mcp/v1/catalog.json`](https://github.com/a2ui-project/a2ui/blob/main/catalogs/mcp/v1/catalog.json) on non-Node backends) alongside your component catalog when building your agent's prompt and schema validator.
 2. Advertise the MCP catalog ID (`https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json`, exported as `mcpCatalog.id` and `MCP_CATALOG_ID`) in `supportedCatalogIds`. Calling `processor.getRendererCapabilities({versions: ['1.0']})` includes every registered catalog automatically.
 
-You are ready to call MCP tools from your UI. If you also embed `McpApp` HTML widgets, complete the extra sandbox file step in [Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/#serve-the-sandbox-files).
+You are ready to call MCP tools from your UI. If you also embed `McpApp` HTML widgets, complete the extra sandbox file step in [Embed MCP Apps in A2UI Surfaces](/guides/mcp-apps-in-a2ui/#serve-the-sandbox-files).
 
 ---
 
@@ -278,7 +278,7 @@ In [`mcp-text-tool-result.json`](https://github.com/a2ui-project/a2ui/blob/main/
 
 ### Tools that return A2UI surfaces
 
-MCP servers built specifically for A2UI can attach `application/a2ui+json` UI resources to their tools or tool responses. When `callMcpTool` runs one of those tools, it fetches the UI resource and forwards the A2UI messages to the `processor` you passed to `configureMcpCatalog`. To build an MCP server that serves A2UI layouts, see [Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/).
+MCP servers built specifically for A2UI can attach `application/a2ui+json` UI resources to their tools or tool responses. When `callMcpTool` runs one of those tools, it fetches the UI resource and forwards the A2UI messages to the `processor` you passed to `configureMcpCatalog`. To build an MCP server that serves A2UI layouts, see [Serve A2UI Layouts from an MCP Server](/guides/a2ui-over-mcp/).
 
 ---
 
@@ -337,7 +337,7 @@ const mcpAppOnlyCatalog = mcpCatalog.withEntries(
 <details>
 <summary>Add your own data-parsing functions</summary>
 
-Every function in `@a2ui/catalog-mcp` must be implemented across every A2UI renderer, so the built-in function list stays small. If you need a specialized parser such as CSV, define it with `createFunctionImplementation` in [your own catalog](../defining-a-catalog/) and register that catalog alongside `mcpCatalog`:
+Every function in `@a2ui/catalog-mcp` must be implemented across every A2UI renderer, so the built-in function list stays small. If you need a specialized parser such as CSV, define it with `createFunctionImplementation` in [your own catalog](/guides/defining-a-catalog/) and register that catalog alongside `mcpCatalog`:
 
 ```ts
 import {z} from 'zod';
@@ -396,9 +396,9 @@ Loading two copies of `lit` or `@a2ui/web_core` breaks custom element registrati
 
 ## Next steps
 
-1. Configure `/a2ui-sandbox/`, run the Kanban board showcase, and explore double-iframe isolation in [Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/).
-2. Build an MCP server that returns reusable A2UI layout templates in [Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/).
-3. Bundle an A2UI renderer inside a standalone `ui://` widget for external MCP hosts in [Render A2UI Inside an MCP App](../a2ui-in-mcp-apps/).
+1. Configure `/a2ui-sandbox/`, run the Kanban board showcase, and explore double-iframe isolation in [Embed MCP Apps in A2UI Surfaces](/guides/mcp-apps-in-a2ui/).
+2. Build an MCP server that returns reusable A2UI layout templates in [Serve A2UI Layouts from an MCP Server](/guides/a2ui-over-mcp/).
+3. Bundle an A2UI renderer inside a standalone `ui://` widget for external MCP hosts in [Render A2UI Inside an MCP App](/guides/a2ui-in-mcp-apps/).
 4. Browse the TypeScript API reference in the [`@a2ui/catalog-mcp` README](https://github.com/a2ui-project/a2ui/blob/main/typescript/catalogs/mcp/README.md) and the [MCP catalog JSON Schema](#mcp_catalog.json).
 
 ---
