@@ -643,7 +643,7 @@ void main() {
         '/',
         protocolVersion: A2uiProtocolVersion.v1_0,
       );
-      final v10LiteralWithLegacyKeys = <String, Object?>{
+      final v10LiteralWithUnprefixedKeys = <String, Object?>{
         'path': '/user/name',
         'call': 'uppercase',
         'nested': [
@@ -652,15 +652,15 @@ void main() {
       };
       expect(
         identical(
-          v10Ctx.resolveDynamicValue(v10LiteralWithLegacyKeys),
-          v10LiteralWithLegacyKeys,
+          v10Ctx.resolveDynamicValue(v10LiteralWithUnprefixedKeys),
+          v10LiteralWithUnprefixedKeys,
         ),
         isTrue,
       );
       final ReadonlySignal<Object?> sig = v10Ctx.resolveSignal(
-        v10LiteralWithLegacyKeys,
+        v10LiteralWithUnprefixedKeys,
       );
-      expect(identical(sig.value, v10LiteralWithLegacyKeys), isTrue);
+      expect(identical(sig.value, v10LiteralWithUnprefixedKeys), isTrue);
     });
 
     test(
@@ -982,14 +982,14 @@ void main() {
     });
 
     test('@index is not a system function before v1.0', () {
-      final legacy = DataContext(
+      final v09Ctx = DataContext(
         dataModel,
         (name, args, context) => throw ArgumentError('Function not found'),
         '/items/0',
         index: 0,
       );
       expect(
-        () => legacy.resolveDynamicValue(
+        () => v09Ctx.resolveDynamicValue(
             {'call': '@index', 'args': <String, Object?>{}}),
         throwsArgumentError,
       );

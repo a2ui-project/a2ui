@@ -880,7 +880,7 @@ export class Catalog<
     let resolvedInstructions: string | undefined;
 
     if (typeof protocolVersionOrComponents !== 'string') {
-      // Legacy v0.9 signature: `new Catalog(id, components, functions, ...)`.
+      // Pre-1.0 (v0.9) signature: `new Catalog(id, components, functions, ...)`.
       protocolVersion = '0.9';
       components = protocolVersionOrComponents ?? [];
       functions = (componentsOrFunctions as ReadonlyArray<F>) ?? [];
