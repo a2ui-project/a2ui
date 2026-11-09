@@ -119,7 +119,7 @@ public final class DataContext {
     guard let handler = functionHandler else { return nil }
     let absPath = JSONValue.absolutePath(for: relativePath, in: self.path)
 
-    let ctx = DataContext(
+    let nestedContext = DataContext(
       dataModel: dataModel,
       path: absPath,
       functionHandler: handler,
@@ -127,8 +127,8 @@ public final class DataContext {
       index: index ?? self.index,
       isUserActivated: isUserActivated
     )
-    ctx.activeFunctionCatalogID = activeFunctionCatalogID
-    return ctx
+    nestedContext.activeFunctionCatalogID = activeFunctionCatalogID
+    return nestedContext
   }
 
   public nonisolated static func unescapeObjectKey(_ key: String) -> String {
@@ -141,7 +141,7 @@ public final class DataContext {
   /// (`call` / `@call`), arrays, and nested plain objects.
   public func resolveDynamicValue(_ value: JSONValue, userActivation: Bool? = nil) -> JSONValue {
     if let userActivation, userActivation != isUserActivated, let handler = functionHandler {
-      let ctx = DataContext(
+      let scopedContext = DataContext(
         dataModel: dataModel,
         path: path,
         functionHandler: handler,
@@ -149,8 +149,8 @@ public final class DataContext {
         index: index,
         isUserActivated: userActivation
       )
-      ctx.activeFunctionCatalogID = activeFunctionCatalogID
-      return ctx.resolveDynamicValue(value)
+      scopedContext.activeFunctionCatalogID = activeFunctionCatalogID
+      return scopedContext.resolveDynamicValue(value)
     }
     switch value {
     case .array(let arr):
@@ -270,7 +270,7 @@ public final class DataContext {
     }
 
     let previousCatalogID = activeFunctionCatalogID
-    if atLeastV10 && !callName.hasPrefix("@") {
+    if atLeastV10, !callName.hasPrefix("@") {
       activeFunctionCatalogID = resolvedCatalogID
     }
     runningFunctionDepth += 1

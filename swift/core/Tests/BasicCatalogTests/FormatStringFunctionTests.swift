@@ -249,13 +249,13 @@ struct FormatStringFunctionTests {
       defaultCatalogID: customID,
       protocolVersion: .v10
     )
-    let ctx = DataContext(
+    let context = DataContext(
       dataModel: resolver.dataModel,
       path: "/",
       functionHandler: resolver,
       protocolVersion: .v10
     )
-    let resolved = ctx.resolveDynamicValue(
+    let resolved = context.resolveDynamicValue(
       .object([
         "@call": .string("formatString"),
         "args": .object([
@@ -264,18 +264,18 @@ struct FormatStringFunctionTests {
       ])
     )
     #expect(resolved == .string(customID))
-    #expect(ctx.activeFunctionCatalogID == nil)
+    #expect(context.activeFunctionCatalogID == nil)
   }
 
   @Test func clearsOuterCatalogIDWhenNestedCallResolvesToNilCatalogIDOnCustomHandler() throws {
     let customHandler = CataloglessCustomFunctionHandler()
-    let ctx = DataContext(
+    let context = DataContext(
       dataModel: DataModel(),
       path: "/",
       functionHandler: customHandler,
       protocolVersion: .v10
     )
-    let resolved = ctx.resolveDynamicValue(
+    let resolved = context.resolveDynamicValue(
       .object([
         "@call": .string("outer"),
         "catalogId": .string("https://example.com/outer.json"),
@@ -283,7 +283,7 @@ struct FormatStringFunctionTests {
       ])
     )
     #expect(resolved == .string("none"))
-    #expect(ctx.activeFunctionCatalogID == nil)
+    #expect(context.activeFunctionCatalogID == nil)
   }
 
   @Test func resolvesTemplateCallsInFormatStringCatalogOverSurfaceDefaultCatalog() throws {
@@ -301,13 +301,13 @@ struct FormatStringFunctionTests {
       defaultCatalogID: customID,
       protocolVersion: .v10
     )
-    let ctx = DataContext(
+    let context = DataContext(
       dataModel: resolver.dataModel,
       path: "/",
       functionHandler: resolver,
       protocolVersion: .v10
     )
-    let resolved = ctx.resolveDynamicValue(
+    let resolved = context.resolveDynamicValue(
       .object([
         "@call": .string("formatString"),
         "catalogId": .string(basicCatalog.id),
@@ -325,19 +325,30 @@ struct FormatStringFunctionTests {
       id: surfaceCatalogID,
       protocolVersion: .v10,
       components: [],
-      functions: []
+      functions: [
+        FormatStringFunction(),
+        AgentFormatStringFunction(),
+        ActiveCatalogFunction(),
+      ]
     )
-    let resolver = NodeResolver(
+    let errorRecorder = RPCTestErrorHandler()
+    let surface = SurfaceViewModel(
       surfaceID: "s-surface",
       catalogs: [surfaceCatalog],
       defaultCatalogID: surfaceCatalogID,
+      actionHandler: errorRecorder,
       protocolVersion: .v10
     )
-    resolver.dataModel.set("/label", value: .string("ok"))
+    var agentCallerInvocations = 0
+    surface.agentFunctionCaller = { _ in
+      agentCallerInvocations += 1
+      return .string("from-agent")
+    }
+    surface.dataModel.set("/label", value: .string("ok"))
     let surfaceContext = DataContext(
-      dataModel: resolver.dataModel,
+      dataModel: surface.dataModel,
       path: "/",
-      functionHandler: resolver,
+      functionHandler: surface,
       protocolVersion: .v10
     )
     let standaloneID = "https://example.com/standalone-rpc.json"
@@ -411,6 +422,7 @@ struct FormatStringFunctionTests {
     #expect(argResponse.value == .string("arg:\(standaloneID)"))
 
     // Other unnegotiated catalogs in `allCatalogs` do not leak into surface-bound RPC calls.
+    errorRecorder.capturedErrors.removeAll()
     let leakMessage = CallRendererFunctionMessage(
       surfaceID: "s-surface",
       functionCallID: "rpc-3",
@@ -434,6 +446,65 @@ struct FormatStringFunctionTests {
       dataContext: surfaceContext
     )
     #expect(leakResponse.error?.code == "EXECUTION_ERROR")
+    #expect(!errorRecorder.capturedErrors.isEmpty)
+
+    // A failing `${...}` inside RPC-invoked `formatString` forwards the error to the surface
+    // without outbound agent routing and returns the truncated string.
+    errorRecorder.capturedErrors.removeAll()
+    agentCallerInvocations = 0
+    let missingFnMessage = CallRendererFunctionMessage(
+      surfaceID: "s-surface",
+      functionCallID: "rpc-4",
+      callFunction: CallFunctionPayload(
+        call: "rpcFormatString",
+        catalogID: standaloneID,
+        args: ["value": .string("Prefix: ${noSuchFn()}")]
+      ),
+      version: .v10
+    )
+    let missingFnResponse = await RPCHandler().handleIncomingCall(
+      missingFnMessage,
+      catalogs: allCatalogs,
+      defaultCatalogID: surfaceCatalogID,
+      dataContext: surfaceContext
+    )
+    #expect(missingFnResponse.error == nil)
+    #expect(missingFnResponse.value == .string("Prefix: "))
+    #expect(agentCallerInvocations == 0)
+    #expect(!errorRecorder.capturedErrors.isEmpty)
+
+    // `rpcFormatString` without `catalogID` resolves via the surface default catalog and scopes
+    // nested template calls to `surfaceCatalogID`.
+    errorRecorder.capturedErrors.removeAll()
+    let defaultCatMessage = CallRendererFunctionMessage(
+      surfaceID: "s-surface",
+      functionCallID: "rpc-5",
+      callFunction: CallFunctionPayload(
+        call: "rpcFormatString",
+        catalogID: nil,
+        args: ["value": .string("Default:${activeCat()}")]
+      ),
+      version: .v10
+    )
+    let defaultCatResponse = await RPCHandler().handleIncomingCall(
+      defaultCatMessage,
+      catalogs: allCatalogs,
+      defaultCatalogID: surfaceCatalogID,
+      dataContext: surfaceContext
+    )
+    #expect(defaultCatResponse.error == nil)
+    #expect(defaultCatResponse.value == .string("Default:\(surfaceCatalogID)"))
+    #expect(errorRecorder.capturedErrors.isEmpty)
+  }
+}
+
+private final class RPCTestErrorHandler: ActionHandling, @unchecked Sendable {
+  var capturedErrors: [RendererError] = []
+
+  func handle(action: ResolvedAction, from surfaceID: String) {}
+
+  func handle(error: RendererError, from surfaceID: String) {
+    capturedErrors.append(error)
   }
 }
 

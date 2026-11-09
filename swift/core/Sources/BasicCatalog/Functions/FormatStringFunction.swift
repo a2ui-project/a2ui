@@ -89,44 +89,39 @@ public final class FormatStringFunction: FunctionImplementation, Sendable {
     switch part {
     case .array(let items):
       return .array(items.map { adaptedForV10($0, catalogID: catalogID) })
-    case .object(let dict):
-      if let path = dict["path"]?.stringValue, dict["componentId"] == nil, dict["@path"] == nil {
+    case .object(let entries):
+      if let path = entries["path"]?.stringValue,
+        entries["componentId"] == nil,
+        entries["@path"] == nil
+      {
         return .object(["@path": .string(path)])
       }
-      if dict["@call"]?.stringValue != nil {
-        var adapted = dict
-        if case .object(let rawArgs)? = dict["args"] {
-          var args: OrderedDictionary<String, JSONValue> = [:]
-          for (key, value) in rawArgs {
-            args[key] = adaptedForV10(value, catalogID: catalogID)
-          }
-          adapted["args"] = .object(args)
+      if entries["@call"]?.stringValue != nil {
+        var adapted = entries
+        if let rawArguments = entries["args"]?.objectValue {
+          adapted["args"] = .object(
+            rawArguments.mapValues { adaptedForV10($0, catalogID: catalogID) }
+          )
         }
         return .object(adapted)
       }
-      if dict["@call"] == nil, let callName = dict["call"]?.stringValue {
-        var args: OrderedDictionary<String, JSONValue> = [:]
-        if case .object(let rawArgs)? = dict["args"] {
-          for (key, value) in rawArgs {
-            args[key] = adaptedForV10(value, catalogID: catalogID)
-          }
-        }
+      if entries["@call"] == nil, let callName = entries["call"]?.stringValue {
+        let arguments =
+          entries["args"]?.objectValue?.mapValues {
+            adaptedForV10($0, catalogID: catalogID)
+          } ?? [:]
         var adapted: OrderedDictionary<String, JSONValue> = [
           "@call": .string(callName),
-          "args": .object(args),
+          "args": .object(arguments),
         ]
-        if let existingCatalogID = dict["catalogId"], existingCatalogID != .null {
+        if let existingCatalogID = entries["catalogId"], existingCatalogID != .null {
           adapted["catalogId"] = existingCatalogID
         } else if let catalogID, !callName.hasPrefix("@") {
           adapted["catalogId"] = .string(catalogID)
         }
         return .object(adapted)
       }
-      var adaptedDict: OrderedDictionary<String, JSONValue> = [:]
-      for (key, value) in dict {
-        adaptedDict[key] = adaptedForV10(value, catalogID: catalogID)
-      }
-      return .object(adaptedDict)
+      return .object(entries.mapValues { adaptedForV10($0, catalogID: catalogID) })
     default:
       return part
     }
