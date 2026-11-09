@@ -134,6 +134,8 @@ Every conformance test runner must declare two top-level configuration variables
 
 When `A2UI_CONFORMANCE_MANIFEST_DIR` is set in CI, each harness writes one JSON Lines record per executed or skipped case to that directory, validated against [`executed_case_manifest.schema.json`](executed_case_manifest.schema.json), and [`scripts/check_executed_cases.py`](scripts/check_executed_cases.py) compares the recorded cases against the suite globs in [`manifest_corpora.json`](manifest_corpora.json). See [Executed-case manifest](conformance_harness_implementation_guide.md#5-executed-case-manifest) in the harness implementation guide for the record format, strict dispatch rules, and comparer flags.
 
+`features.yaml` (validated by [`features.schema.json`](features.schema.json)) maps each protocol, blueprint, and SDK audit feature ID (`F-CORE-*`, `F-AGT-*`, `F-RND-*`, `F-BP-*`) to its specification and blueprint anchors and the harnesses claiming support. Test cases list the feature IDs they exercise under `features`, and [`scripts/check_feature_coverage.py`](scripts/check_feature_coverage.py) checks both static registry integrity (`--static`) and per-harness execution against the manifest directory (`--manifest-dir` and `--harness`).
+
 Client-side implementations run these suites too:
 
 > **Note**: Conformance tests provide the primary verification of protocol and inference format specifications across languages. Unit tests in SDK packages are reserved for language-specific implementation residue (e.g., exception types, thread-safety, stream lifecycle). To test everything, both unit tests and conformance tests must be run.

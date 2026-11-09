@@ -139,6 +139,14 @@ jobs:
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --corpus e2e \
             --harness python-agent
+      - name: Verify Conformance Feature Coverage
+        run: |
+          uv run --project conformance python conformance/scripts/check_feature_coverage.py --static
+          for h in python-core python-agent python-a2a python-adk; do
+            uv run --project conformance python conformance/scripts/check_feature_coverage.py \
+              --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+              --harness "$h"
+          done
       - name: Set Up Dart
         uses: ./.github/actions/setup-dart
       - name: Run CLI Python Runtime Tests

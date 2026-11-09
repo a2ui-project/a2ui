@@ -19,7 +19,7 @@ A catalog is a collection of components and functions that acts as a contract be
 Every catalog has a `catalogId` string, conventionally formatted as a URI such as `https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json` or `https://example.com/catalogs/travel/v1/catalog.json`, along with optional `instructions`, `components`, and `functions`. Both sides of the connection read from that contract:
 
 1. On the agent, the agent SDK (`@a2ui/agent`, `a2ui-agent-sdk`, `a2ui_agent`) reads the component schemas, function signatures, and `instructions` to build the LLM system prompt and validate outgoing messages.
-2. On the renderer, the core and framework SDKs (`@a2ui/web_core`, `a2ui_core`, `A2UICore`) pair each component schema with a native widget and each local function signature with code that runs on the client.
+2. On the renderer, the core and framework SDKs (`@a2ui/web_core`, `a2ui_core`, `A2UICore`, `androidx.a2ui`) pair each component schema with a native widget and each local function signature with code that runs on the client.
 
 ## Components
 
@@ -254,6 +254,8 @@ void main() {
 
   </TabItem>
 </Tabs>
+
+Swift (`A2UISwiftCore`, `A2UISwiftUI`) and Kotlin (`androidx.a2ui`, `androidx.a2ui.compose`) target client-side rendering; see [SDKs](../sdks/#agent-sdk) for server-side Agent SDK packages.
 
 ## Registering a catalog in a renderer
 
@@ -507,6 +509,93 @@ let travelCatalog = Catalog(
 )
 
 let processor = MessageProcessor(catalogs: [travelCatalog])
+```
+
+  </TabItem>
+  <TabItem label="Jetpack Compose">
+
+```kotlin
+import android.content.Context
+import java.util.Locale
+
+import androidx.a2ui.compose.runtime.A2uiComponentProperties
+import androidx.a2ui.compose.runtime.A2uiComponentScope
+import androidx.a2ui.compose.runtime.A2uiMessageProcessor
+import androidx.a2ui.compose.runtime.A2uiProperty
+import androidx.a2ui.compose.ui.A2uiCatalog
+import androidx.a2ui.compose.ui.A2uiComponent
+import androidx.a2ui.compose.ui.catalog.A2uiBasicCatalogV1
+import androidx.a2ui.model.processor.A2uiMessageProcessor
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Card
+import androidx.compose.material3.Text
+import androidx.compose.material3.a2ui.catalog.MaterialA2uiBasicCatalogV1Defaults
+import androidx.compose.material3.a2ui.catalog.materialA2uiBasicCatalogV1
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+
+private val FlightNumberProp =
+    A2uiProperty.dynamicString("flightNumber", required = true)
+private val FareAmountProp =
+    A2uiProperty.dynamicNumber("fareAmount")
+
+val FlightStatusCard: A2uiComponent =
+    object : A2uiComponent {
+        override val name = "FlightStatusCard"
+        override val description = "Shows a flight's number and fare."
+        override val properties = listOf(FlightNumberProp, FareAmountProp)
+
+        @Composable
+        override fun A2uiComponentScope.isReady(properties: A2uiComponentProperties): Boolean =
+            properties.bind(FlightNumberProp) != null
+
+        @Composable
+        override fun A2uiComponentScope.Content(
+            properties: A2uiComponentProperties,
+            modifier: Modifier,
+        ) {
+            val flightNumber = properties.bind(FlightNumberProp) ?: return
+            val fare = properties.bind(FareAmountProp)?.toDouble()
+
+            Card(modifier = modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(text = "Flight $flightNumber")
+                    if (fare != null) {
+                        Text(text = String.format(Locale.US, "$%.2f", fare))
+                    }
+                }
+            }
+        }
+    }
+
+// androidx.a2ui implements v0.9.1, where each surface binds to a single catalogId.
+fun createTravelProcessor(context: Context): A2uiMessageProcessor {
+    val basicCatalog =
+        materialA2uiBasicCatalogV1(
+            image = MaterialA2uiBasicCatalogV1Defaults.image { _, _, _, _, _ -> },
+            video = MaterialA2uiBasicCatalogV1Defaults.video { _, _, _ -> },
+            audioPlayer = MaterialA2uiBasicCatalogV1Defaults.audioPlayer { _, _, _, _ -> },
+            functions = A2uiBasicCatalogV1.Functions(context),
+        )
+    val travelCatalog =
+        A2uiCatalog(
+            catalogId = "https://example.com/catalogs/travel/v1/catalog.json",
+            components = basicCatalog.components + FlightStatusCard,
+            functions = basicCatalog.functions,
+            themeSchema = basicCatalog.themeSchema,
+        )
+    // Launch processor.collectMessages() in a background coroutine scope
+    // (such as viewModelScope) to process queued messages:
+    val processor = A2uiMessageProcessor(catalogs = listOf(travelCatalog))
+    return processor
+}
 ```
 
   </TabItem>

@@ -121,7 +121,9 @@ jobs:
         run: eval "yarn workspaces foreach -A $RENDERERS_INC -p run test"
       - uses: ./.github/actions/setup-python
       - name: Check web_core executed cases
-        run: uv run --project conformance python conformance/scripts/check_executed_cases.py --manifest-dir "${{ runner.temp }}/a2ui-manifest" --harness web_core --corpus core
+        run: |
+          uv run --project conformance python conformance/scripts/check_executed_cases.py --manifest-dir "${{ runner.temp }}/a2ui-manifest" --harness web_core --corpus core
+          uv run --project conformance python conformance/scripts/check_feature_coverage.py --manifest-dir "${{ runner.temp }}/a2ui-manifest" --harness web_core
       - name: Check adapter executed cases
         run: |
           for h in lit react angular; do
@@ -134,6 +136,9 @@ jobs:
               --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
               --corpus e2e \
               --harness "$h"
+            uv run --project conformance python conformance/scripts/check_feature_coverage.py \
+              --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+              --harness "$h"
           done
           uv run --project conformance python conformance/scripts/check_executed_cases.py \
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
@@ -145,6 +150,9 @@ jobs:
             --corpus adapter \
             --harness markdown-it \
             --only adapter/markdown_subset.yaml
+          uv run --project conformance python conformance/scripts/check_feature_coverage.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --harness markdown-it
       - name: Check TS agent executed cases
         run: |
           uv run --project conformance python conformance/scripts/check_executed_cases.py \
@@ -156,6 +164,9 @@ jobs:
           uv run --project conformance python conformance/scripts/check_executed_cases.py \
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --corpus e2e \
+            --harness ts-agent
+          uv run --project conformance python conformance/scripts/check_feature_coverage.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --harness ts-agent
       - name: Test React 17 Compatibility
         run: yarn workspace @a2ui/react run test:react17

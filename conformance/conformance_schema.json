@@ -46,10 +46,20 @@
     ]
   },
   "$defs": {
+    "FeatureTags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^F-(CORE|AGT|RND|BP)-[0-9]{2}$"
+      },
+      "uniqueItems": true,
+      "description": "Feature registry IDs exercised by this test case."
+    },
     "TestCase": {
       "type": "object",
       "required": ["name", "action"],
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "name": {
           "type": "string",
           "description": "Unique name of the test case."
@@ -355,6 +365,7 @@
       "type": "object",
       "description": "Deriving a catalog with `Catalog.derive`: the case loads `catalog` with `fromJson`, derives a catalog from it with `args`, and checks `expect` against the derived catalog, or `expectError` against what `derive` raises.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "name": {
           "type": "string"
         },
@@ -776,6 +787,7 @@
     "NodeResolutionTest": {
       "type": "object",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "name": {"type": "string"},
         "description": {"type": "string"},
         "action": {"const": "resolve_nodes"},
@@ -796,6 +808,7 @@
     "EvaluateFunctionTest": {
       "type": "object",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "name": {"type": "string"},
         "description": {"type": "string"},
         "action": {"const": "evaluate_function"},
@@ -854,6 +867,7 @@
     "DispatchActionTest": {
       "type": "object",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "name": {"type": "string"},
         "description": {"type": "string"},
         "action": {"const": "dispatch_action"},
@@ -931,6 +945,7 @@
       "type": "object",
       "description": "Evaluates function calls on surface `main`, created through a message processor, and answers the `callAgentFunction` messages the processor sends, to check the fallback routing of calls to the agent. After each step the harness lets pending asynchronous work run, then checks the step's expectations.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "name": {
           "type": "string"
         },
@@ -1378,6 +1393,7 @@
     "FromFormatTest": {
       "type": "object",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {
           "const": "from_format"
         },
@@ -1393,6 +1409,7 @@
     "CoreSyntaxTest": {
       "type": "object",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {
           "const": "core_syntax"
         },
@@ -1408,6 +1425,7 @@
     "FromCatalogTest": {
       "type": "object",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {
           "const": "from_catalog"
         },
@@ -1423,6 +1441,7 @@
     "SkillSetTest": {
       "type": "object",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {
           "const": "skill_set"
         },
@@ -1448,6 +1467,7 @@
       "type": "object",
       "description": "Exports a SkillSet built from literal skills into a fresh temporary directory pre-populated with `pre_existing_files`, then checks which paths exist afterwards. Pins the cleanup scope of `export_to_directory`: only the directory that holds each skill file is removed, never an ancestor, a sibling, or the output directory itself.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {
           "const": "export_to_directory"
         },
@@ -1500,6 +1520,7 @@
       "type": "object",
       "description": "Builds one format from the listed catalogs and checks that its monolithic skill's body equals its prompt snippet.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {
           "const": "monolithic_skill_equals_prompt_snippet"
         },
@@ -1638,6 +1659,7 @@
       "type": "object",
       "description": "Applying catalog transformers to a pristine catalog.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "transform_catalog"},
         "args": {
           "type": "object",
@@ -1660,6 +1682,7 @@
       "type": "object",
       "description": "Loading a catalog document through a catalog provider, including the identity and version checks the provider performs.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "provide_catalog"},
         "args": {
           "type": "object",
@@ -1694,6 +1717,7 @@
       "type": "object",
       "description": "Negotiating renderer capabilities against the catalogs an agent registered, and returning the transformed catalogs that are active for the session.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "resolve_catalogs"},
         "args": {
           "type": "object",
@@ -1740,6 +1764,7 @@
       "type": "object",
       "description": "Rendering the system prompt snippet for a format and a set of active catalogs.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "generate_prompt_snippet"},
         "args": {
           "type": "object",
@@ -1790,6 +1815,7 @@
       "type": "object",
       "description": "Checking whether a model response carries a block written in a format.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "has_format_content"},
         "args": {
           "type": "object",
@@ -1809,6 +1835,7 @@
       "type": "object",
       "description": "Tokenizing a model response into ordered raw parts, before any payload is compiled.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "unwrap"},
         "args": {
           "type": "object",
@@ -1830,6 +1857,7 @@
       "type": "object",
       "description": "Writing raw parts back out as a model would have emitted them, which is how examples and transcripts are produced.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "wrap"},
         "args": {
           "type": "object",
@@ -1858,6 +1886,7 @@
       "type": "object",
       "description": "Compiling one raw format block into A2UI messages.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "compile"},
         "args": {
           "type": "object",
@@ -1895,6 +1924,7 @@
       "type": "object",
       "description": "Writing A2UI messages back into a format's own notation.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "decompile"},
         "args": {
           "type": "object",
@@ -1930,6 +1960,7 @@
       "type": "object",
       "description": "Parsing a whole model response into the text and payload parts an agent hands on, in the order the model emitted them.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "parse_response"},
         "args": {
           "type": "object",
@@ -1962,6 +1993,7 @@
       "type": "object",
       "description": "Feeding a response to a parser one chunk at a time. Each step states the parts that chunk yields, so a case fixes both what is emitted and when.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "parse_chunk"},
         "args": {
           "type": "object",
@@ -2053,6 +2085,7 @@
       "type": "object",
       "description": "Reading a streamed answer into a renderer's message processor, for an app that is both the agent and the renderer. Each step states the answer's parts after the chunk, as a whole.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "name": {"type": "string"},
         "description": {"type": "string"},
         "action": {"const": "stream_answer"},
@@ -2146,6 +2179,7 @@
       "type": "object",
       "description": "Timing one operation on the payload written at two sizes, to show that its cost grows in proportion to the payload rather than with its square.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "name": {"type": "string"},
         "description": {"type": "string"},
         "action": {"const": "measure_growth"},
@@ -2185,6 +2219,7 @@
       "type": "object",
       "description": "Timing streaming a payload against compiling it whole, to show that streaming costs at most a fixed multiple of compiling.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "name": {"type": "string"},
         "description": {"type": "string"},
         "action": {"const": "measure_overhead"},
@@ -2221,6 +2256,7 @@
       "type": "object",
       "description": "Building an inference format from its factory and checking what the format hands back.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "create_format"},
         "args": {
           "type": "object",
@@ -2270,7 +2306,7 @@
       "properties": {
         "name": {"type": "string"},
         "description": {"type": "string"},
-        "features": {"type": "array", "items": {"type": "string"}},
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "create_processor"},
         "args": {
           "type": "object",
@@ -2450,6 +2486,7 @@
       "type": "object",
       "description": "Declaring agent functions on a catalog, and what the catalog then lists.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "name": {"type": "string"},
         "description": {"type": "string"},
         "action": {"const": "declare_agent_functions"},
@@ -2494,6 +2531,7 @@
       "type": "object",
       "description": "Answering one callAgentFunction message with the agent functions of `catalogs`.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "name": {"type": "string"},
         "description": {"type": "string"},
         "action": {"const": "handle_agent_function"},
@@ -2546,6 +2584,7 @@
       "type": "object",
       "description": "Validating model output against catalogs that declare agent functions, as the agent does before sending it.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "name": {"type": "string"},
         "description": {"type": "string"},
         "action": {"const": "validate_payload"},
@@ -2581,6 +2620,7 @@
       "type": "object",
       "description": "Processing one renderer-to-agent message with RendererToAgentMessageProcessor, built from the agent functions of `catalog` or `catalogs` (or no catalog) and the callbacks named in `callbacks`.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "name": {"type": "string"},
         "description": {"type": "string"},
         "action": {"const": "process_renderer_message"},
@@ -2669,6 +2709,7 @@
       "type": "object",
       "description": "Calling renderer functions from the agent with callRendererFunction, and settling the calls with the renderer's responses, on a fake clock that only `advance_ms` steps move.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "name": {"type": "string"},
         "description": {"type": "string"},
         "action": {"const": "call_renderer_function"},
@@ -2964,6 +3005,7 @@
       "type": "object",
       "required": ["name", "action", "steps"],
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "name": {"type": "string"},
         "description": {"type": "string"},
         "protocolVersion": {"$ref": "#/$defs/ProtocolVersion"},
@@ -3081,7 +3123,7 @@
       "properties": {
         "name": {"type": "string"},
         "description": {"type": "string"},
-        "features": {"type": "array", "items": {"type": "string"}},
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "renderer_state_turns"},
         "catalogs": {
           "type": "array",
@@ -3224,7 +3266,7 @@
       "properties": {
         "name": {"type": "string"},
         "description": {"type": "string"},
-        "features": {"type": "array", "items": {"type": "string"}},
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "handle_rpc"},
         "protocolVersion": {"$ref": "#/$defs/ProtocolVersion"},
         "catalog": {
@@ -3333,6 +3375,7 @@
       "properties": {
         "name": {"type": "string"},
         "description": {"type": "string"},
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "render_markdown"},
         "markdown": {"type": "string"},
         "expectVisibleText": {"type": "string"},
@@ -3362,6 +3405,7 @@
           "type": "string",
           "description": "Unique scenario name across conformance/e2e/**."
         },
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "e2e_scenario"},
         "description": {"type": "string"},
         "protocolVersion": {"$ref": "#/$defs/ProtocolVersion"},
