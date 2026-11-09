@@ -159,7 +159,19 @@ export function cleanMdxOutsideFences(markdown) {
     const stripped = segment.text
       .replace(MULTILINE_IMPORT_RE, '')
       .replace(SIDE_EFFECT_IMPORT_RE, '')
-      .replace(MULTILINE_EXPORT_RE, '');
+      .replace(MULTILINE_EXPORT_RE, '')
+      .replace(
+        /^\s*<AgentPrompt\s*\/>\s*$/gm,
+        [
+          'Paste one of these prompts into your coding agent:',
+          '- **Web + Mobile (Python + React + Flutter):** `Follow the steps at https://a2ui.org/quickstart/agent.md to set up the A2UI quickstart web and mobile apps and explain them to me.`',
+          '- **Web only (Python + React):** `Follow the steps at https://a2ui.org/quickstart/agent/web.md to set up the A2UI quickstart web app and explain it to me.`',
+          '- **Mobile only (Python + Flutter):** `Follow the steps at https://a2ui.org/quickstart/agent/mobile.md to set up the A2UI quickstart mobile app and explain it to me.`',
+          '',
+          'Or follow the [step-by-step walkthrough](/quickstart/step-by-step/).',
+        ].join('\n'),
+      )
+      .replace(/^\s*<ArchitecturePipelineOverview(?:\s[\s\S]*?)?\/>\s*$/gm, '');
 
     const segmentOut = [];
     for (const line of stripped.split('\n')) {
@@ -252,7 +264,17 @@ export function buildMarkdownPages() {
     );
 
     const expanded = expandIncludes(body);
-    const cleaned = cleanMdxOutsideFences(expanded);
+    const cleaned = cleanMdxOutsideFences(expanded).replace(
+      /(\[[^\]]+\]\()(\.\.?\/[^)\s]+)(\))/g,
+      (_m, open, relUrl, close) => {
+        try {
+          const resolved = new URL(relUrl, `https://a2ui.org/${slug}/`);
+          return `${open}${resolved.pathname}${resolved.search}${resolved.hash}${close}`;
+        } catch {
+          return `${open}${relUrl}${close}`;
+        }
+      },
+    );
     const headerLines = [`# ${meta.title || slug}`];
     if (meta.description) {
       headerLines.push('', `> ${meta.description}`);
@@ -265,7 +287,7 @@ export function buildMarkdownPages() {
 
   // Sort in logical reading order: quickstart -> concepts -> guides -> specification/v1.0 -> roadmap -> ecosystem -> v0.9.1
   const rank = slug => {
-    if (slug === 'quickstart') return 0;
+    if (slug === 'quickstart' || slug.startsWith('quickstart/')) return 0;
     if (slug === 'concepts/overview') return 1;
     if (slug.startsWith('concepts/')) return 2;
     if (slug.startsWith('guides/')) return 3;

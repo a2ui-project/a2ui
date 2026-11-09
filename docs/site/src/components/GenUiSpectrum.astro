@@ -14,16 +14,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
 
 <section class="a2-section gs-section" id="spectrum">
   <div class="gs-wrap">
     <div class="gs-header">
       <h2 class="gs-h2">
-        Three patterns. <span class="gs-accent">One generative UI spectrum.</span>
+        Generative UI spectrum <span class="gs-accent">with A2UI</span>
       </h2>
       <p class="gs-sub">
-        Slide across the spectrum to see how the same user prompt turns into different UI outcomes.
+        The same request can come back as a pre-built widget, a composed screen, or generated code.
+        Move the slider to see each one and how A2UI handles it.
       </p>
     </div>
 
@@ -76,7 +79,7 @@
               tabindex="-1"
               data-stop="static"
             >
-              <span class="gs-stop__title">Strict control</span>
+              <span class="gs-stop__title">Controlled</span>
               <span class="gs-stop__sub">Pre-built widgets</span>
             </button>
 
@@ -90,8 +93,8 @@
               tabindex="0"
               data-stop="a2ui"
             >
-              <span class="gs-stop__title">Flexible composition</span>
-              <span class="gs-stop__sub">Native widget catalog</span>
+              <span class="gs-stop__title">Composition</span>
+              <span class="gs-stop__sub">Native component catalog</span>
             </button>
 
             <button
@@ -104,8 +107,8 @@
               tabindex="-1"
               data-stop="sandbox"
             >
-              <span class="gs-stop__title">Render anything</span>
-              <span class="gs-stop__sub">Sandboxed HTML &amp; JS</span>
+              <span class="gs-stop__title">Code generation</span>
+              <span class="gs-stop__sub">Generated HTML &amp; JS</span>
             </button>
           </div>
 
@@ -218,7 +221,7 @@
                    ========================================================= -->
               <div class="gs-scene" data-scene="sandbox" aria-hidden="true">
                 <div class="gs-wire-pill gs-wire-pill--amber">
-                  <span class="gs-wire-pill__verb">Agent ships</span>
+                  <span class="gs-wire-pill__verb">Agent writes</span>
                   <code>&lt;iframe sandbox&gt; HTML, CSS &amp; JS bundle</code>
                 </div>
 
@@ -320,9 +323,9 @@
 
           <!-- RIGHT: CONSOLIDATED HIGH-LEVEL SUMMARY (1 headline + 3 crisp points, zero eyebrows) -->
           <div class="gs-details">
-            <!-- Slide 1: Strict control -->
+            <!-- Slide 1: Controlled -->
             <div class="gs-detail" data-detail="static" aria-hidden="true">
-              <h3 class="gs-detail__title">Hardcoded screens filled with agent data.</h3>
+              <h3 class="gs-detail__title">The model picks a pre-built widget and fills in its data.</h3>
               <ul class="gs-points">
                 <li class="gs-point">
                   <span class="gs-point__icon gs-point__icon--pos" aria-hidden="true">+</span>
@@ -346,9 +349,15 @@
                   </div>
                 </li>
               </ul>
+              <p class="gs-with">
+                <strong>With A2UI:</strong> You register each pre-built widget as a catalog component or a server-side macro. The model picks one, and the A2UI renderer on the client draws it.
+              </p>
+              <p class="gs-with__links">
+                <a href={`${base}/guides/macros/`}>Macros →</a>
+              </p>
             </div>
 
-            <!-- Slide 2: Flexible composition (A2UI) -->
+            <!-- Slide 2: Composition -->
             <div class="gs-detail is-active" data-detail="a2ui" aria-hidden="false">
               <h3 class="gs-detail__title">Tailored layouts assembled from your native catalog.</h3>
               <ul class="gs-points">
@@ -374,11 +383,18 @@
                   </div>
                 </li>
               </ul>
+              <p class="gs-with">
+                <strong>With A2UI:</strong> The model builds the screen from components in your catalog, and the renderer draws it with your own components as it streams in. In hosts that support MCP Apps, the same A2UI surface can run inside an MCP App.
+              </p>
+              <p class="gs-with__links">
+                <a href={`${base}/concepts/overview/`}>How A2UI works →</a>
+                <a href={`${base}/guides/a2ui-in-mcp-apps/`}>A2UI in MCP Apps →</a>
+              </p>
             </div>
 
-            <!-- Slide 3: Render anything -->
+            <!-- Slide 3: Code generation -->
             <div class="gs-detail" data-detail="sandbox" aria-hidden="true">
-              <h3 class="gs-detail__title">Self-contained web bundles inside an isolated sandbox.</h3>
+              <h3 class="gs-detail__title">The model writes HTML and JS that runs in a sandbox.</h3>
               <ul class="gs-points">
                 <li class="gs-point">
                   <span class="gs-point__icon gs-point__icon--amber" aria-hidden="true">+</span>
@@ -402,10 +418,17 @@
                   </div>
                 </li>
               </ul>
+              <p class="gs-with">
+                <strong>With A2UI:</strong> Generated HTML and JS can run as an MCP App inside an A2UI surface, next to your native components.
+              </p>
+              <p class="gs-with__links">
+                <a href={`${base}/guides/mcp-apps-in-a2ui/`}>MCP Apps in A2UI →</a>
+              </p>
             </div>
           </div>
         </div>
       </div>
+
     </div>
   </div>
 </section>
@@ -1425,6 +1448,40 @@
     font-size: 13.5px;
     line-height: 1.5;
     color: var(--a2-text-secondary);
+  }
+
+  .gs-with {
+    margin: 0;
+    padding-top: 16px;
+    border-top: 1px solid var(--a2-border);
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--a2-text-secondary);
+  }
+
+  .gs-with strong {
+    font-weight: 680;
+    color: var(--a2-text);
+  }
+
+  .gs-with__links {
+    margin: -8px 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    font-size: 13.5px;
+    font-weight: 600;
+  }
+
+  .gs-with__links a {
+    color: var(--a2-accent);
+    text-decoration: none;
+  }
+
+  .gs-with__links a:hover,
+  .gs-with__links a:focus-visible {
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
 
   @keyframes gs-shake {

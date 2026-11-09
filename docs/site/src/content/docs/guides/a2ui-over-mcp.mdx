@@ -619,7 +619,7 @@ When `callMcpTool` executes, it reads `_meta.ui.resourceUri`, fetches and caches
 
 Before serving static templates or generated tool payloads from an MCP server, validate them against the target catalog with the A2UI Agent SDK. `validatePayload` (`validate_payload` in Python) checks message schemas, component properties, and surface tree topology (such as missing roots or unresolved child IDs) the same way a renderer does.
 
-Swift (`A2UISwiftCore` and `A2UISwiftUI`) targets client-side rendering rather than server-side agent generation, so Agent SDK validation is provided in TypeScript, Python, and Dart:
+Swift (`A2UISwiftCore` and `A2UISwiftUI`) and Kotlin (`androidx.a2ui` and `androidx.a2ui.compose`) target client-side rendering rather than server-side agent generation, so Agent SDK validation is provided in TypeScript, Python, and Dart:
 
 <Tabs syncKey="sdk-lang">
   <TabItem label="TypeScript">
