@@ -34,16 +34,23 @@ import {
   ParseError,
   RawResponsePart,
   ResponsePart,
+  agentCallableFunctions,
 } from '../../src/index.js';
 import {Catalog, CatalogApi} from '../../src/internal/web-core.js';
-import {createFileCatalogConfig} from './fixtures.js';
 import {CONFORMANCE_ROOT, loadCases} from './loader.js';
+import {
+  liftMessages,
+  liftParts,
+  loadCatalogFromRelativePath,
+  lowerCatalogDocument,
+  lowerMessages,
+} from './lowering.js';
 import {
   assertKnownKeys,
   CASE_METADATA_KEYS,
   compileChecked,
-  describeSuite,
   EXPECT_ERROR_KEYS,
+  forEachSuiteVersion,
   KNOWN_FAILURES,
   UNSUPPORTED,
 } from './suite-helpers.js';
@@ -85,6 +92,7 @@ const EXPRESS_CASE_KEYS: Record<string, ReadonlySet<string>> = {
     ...CASE_METADATA_KEYS,
     'args',
     'expect_file',
+    'expect_callable_functions',
     'expect_contains',
     'expect_absent',
     'expect_deterministic',
@@ -166,7 +174,10 @@ function deletePointer(payload: unknown, pointer: string): void {
   }
 }
 
-async function getParser(args: Record<string, unknown> = {}): Promise<ExpressParser> {
+async function getParser(
+  args: Record<string, unknown> = {},
+  lower = false,
+): Promise<ExpressParser> {
   const catalogPaths: string[] = [];
   if (Array.isArray(args.catalogs)) {
     catalogPaths.push(...(args.catalogs as string[]));
@@ -176,7 +187,7 @@ async function getParser(args: Record<string, unknown> = {}): Promise<ExpressPar
     catalogPaths.push(DEFAULT_CATALOG);
   }
 
-  const catalogs = catalogPaths.map(p => createFileCatalogConfig(p).catalog);
+  const catalogs = catalogPaths.map(p => loadCatalogFromRelativePath(p, lower));
 
   return new ExpressParser(catalogs, CONFORMANCE_SURFACE_ID);
 }
@@ -203,10 +214,12 @@ function assertRawPartsMatch(
 function assertPartsMatch(
   actualParts: ResponsePart[],
   expectedParts: Array<Record<string, unknown>>,
+  lower = false,
 ): void {
-  expect(actualParts.length).toBe(expectedParts.length);
-  for (let i = 0; i < actualParts.length; i++) {
-    const actual = actualParts[i];
+  const liftedActual = lower ? liftParts(actualParts, {join: true}) : actualParts;
+  expect(liftedActual.length).toBe(expectedParts.length);
+  for (let i = 0; i < liftedActual.length; i++) {
+    const actual = liftedActual[i];
     const expected = expectedParts[i];
     if (actual.type === 'text') {
       expect(actual.text).toBe(expected.text ?? '');
@@ -216,7 +229,7 @@ function assertPartsMatch(
   }
 }
 
-describeSuite(
+forEachSuiteVersion(
   'Express Conformance Suite',
   loadCases([
     resolve(CONFORMANCE_ROOT, 'agent/express/compiler.yaml'),
@@ -224,7 +237,8 @@ describeSuite(
     resolve(CONFORMANCE_ROOT, 'agent/express/response_parser.yaml'),
     resolve(CONFORMANCE_ROOT, 'agent/express/prompt_generator.yaml'),
   ]),
-  async testCase => {
+  async (testCase, version) => {
+    const isLowered = version === 'v0.9-lowered';
     const {action} = testCase;
     const allowedKeys = EXPRESS_CASE_KEYS[action];
     if (allowedKeys) {
@@ -233,7 +247,7 @@ describeSuite(
     const args = (testCase.args as Record<string, unknown>) || {};
 
     if (action === 'compile') {
-      const parser = await getParser(args);
+      const parser = await getParser(args, isLowered);
       const payload = testCase.input as string;
 
       if (testCase.expect_error) {
@@ -246,7 +260,8 @@ describeSuite(
         return;
       }
 
-      const compiled = compileChecked(parser, payload);
+      const rawCompiled = compileChecked(parser, payload);
+      const compiled = isLowered ? liftMessages(rawCompiled, {join: true}) : rawCompiled;
 
       if (testCase.expect_present) {
         for (const pointer of testCase.expect_present as string[]) {
@@ -258,8 +273,14 @@ describeSuite(
 
       expect(compiled).toEqual(testCase.expect);
     } else if (action === 'decompile') {
-      const parser = await getParser(args);
-      const messages = testCase.messages as AgentToRendererMessage[];
+      const parser = await getParser(args, isLowered);
+      const origMessages = testCase.messages as AgentToRendererMessage[];
+      const messages = isLowered
+        ? lowerMessages(
+            origMessages as unknown as Record<string, unknown>[],
+            parser.catalogs[0]?.id,
+          )
+        : origMessages;
 
       if (testCase.expect_error) {
         assertThrows(
@@ -284,14 +305,19 @@ describeSuite(
         }
       }
 
+      const recompile = () => {
+        const recompiled = compileChecked(parser, notation);
+        return isLowered ? liftMessages(recompiled, {join: true}) : recompiled;
+      };
+
       if (testCase.expect_round_trip) {
-        expect(compileChecked(parser, notation)).toEqual(messages);
+        expect(recompile()).toEqual(origMessages);
       }
       if (testCase.expect_recompiled) {
-        expect(compileChecked(parser, notation)).toEqual(testCase.expect_recompiled);
+        expect(recompile()).toEqual(testCase.expect_recompiled);
       }
     } else if (action === 'unwrap') {
-      const parser = await getParser(args);
+      const parser = await getParser(args, isLowered);
       const expected = testCase.expect as Array<Record<string, unknown>>;
       const actual = parser.unwrap(testCase.input as string);
       assertRawPartsMatch(actual, expected);
@@ -300,11 +326,11 @@ describeSuite(
       expect(parser.hasFormatContent(testCase.input as string)).toBe(hasAny);
       expect(parser.hasFormatContent(testCase.input as string, {complete: true})).toBe(hasComplete);
     } else if (action === 'has_format_content') {
-      const parser = await getParser(args);
+      const parser = await getParser(args, isLowered);
       const complete = (args.complete as boolean) ?? false;
       expect(parser.hasFormatContent(testCase.input as string, {complete})).toBe(testCase.expect);
     } else if (action === 'wrap') {
-      const parser = await getParser(args);
+      const parser = await getParser(args, isLowered);
       const parts = testCase.parts as Array<Record<string, unknown>>;
       const rawParts: RawResponsePart[] = parts.map(p => {
         if ('text' in p) {
@@ -332,7 +358,7 @@ describeSuite(
         assertRawPartsMatch(unwrapped, parts);
       }
     } else if (action === 'parse_response') {
-      const parser = await getParser(args);
+      const parser = await getParser(args, isLowered);
       const wrapped = (args.wrapped as boolean) ?? true;
 
       if (testCase.expect_error) {
@@ -346,7 +372,7 @@ describeSuite(
       }
 
       const parts = parser.parseResponse(testCase.input as string, {wrapped});
-      assertPartsMatch(parts, testCase.expect as Array<Record<string, unknown>>);
+      assertPartsMatch(parts, testCase.expect as Array<Record<string, unknown>>, isLowered);
     } else if (action === 'generate_prompt_snippet') {
       const catEntries =
         (args.catalogs as Array<{
@@ -357,7 +383,8 @@ describeSuite(
       const loadedCatalogs: CatalogApi[] = [];
       for (const entry of catEntries) {
         const fullPath = resolve(CONFORMANCE_ROOT, entry.catalog);
-        const schema = JSON.parse(readFileSync(fullPath, 'utf8'));
+        const rawSchema = JSON.parse(readFileSync(fullPath, 'utf8')) as Record<string, unknown>;
+        const schema = isLowered ? lowerCatalogDocument(rawSchema) : rawSchema;
         let catalog = Catalog.fromJson(schema);
 
         if (entry.transformers) {
@@ -374,26 +401,20 @@ describeSuite(
       }
 
       let examples: Record<string, AgentToRendererMessage[][]> | undefined;
-      if (Array.isArray(args.examples) && args.examples.length > 0) {
-        examples = {};
+      if (Array.isArray(args.examples) && args.examples.length > 0 && loadedCatalogs[0]) {
+        const turns: AgentToRendererMessage[][] = [];
         for (const exPath of args.examples as string[]) {
           const fullExPath = resolve(CONFORMANCE_ROOT, exPath);
           const exContent = JSON.parse(readFileSync(fullExPath, 'utf8'));
-          const messages: AgentToRendererMessage[] = Array.isArray(exContent)
+          const rawMessages: Record<string, unknown>[] = Array.isArray(exContent)
             ? exContent
             : [exContent];
-          const firstMsg = messages[0];
-          const catId =
-            (firstMsg && 'createSurface' in firstMsg
-              ? firstMsg.createSurface.catalogId
-              : undefined) || loadedCatalogs[0]?.id;
-          if (catId) {
-            if (!examples[catId]) {
-              examples[catId] = [];
-            }
-            examples[catId].push(messages);
-          }
+          const messages: AgentToRendererMessage[] = isLowered
+            ? lowerMessages(rawMessages, loadedCatalogs[0]?.id)
+            : (rawMessages as unknown as AgentToRendererMessage[]);
+          turns.push(messages);
         }
+        examples = {[loadedCatalogs[0].id]: turns};
       }
 
       const buildFormat = () =>
@@ -419,6 +440,13 @@ describeSuite(
       if (typeof testCase.expect_file === 'string') {
         const expectedText = readFileSync(resolve(CONFORMANCE_ROOT, testCase.expect_file), 'utf8');
         expect(output).toBe(expectedText);
+      }
+      if (testCase.expect_callable_functions !== undefined) {
+        const expectedCallable = testCase.expect_callable_functions as string[];
+        expect(agentCallableFunctions(loadedCatalogs)).toEqual(expectedCallable);
+        for (const fnName of expectedCallable) {
+          expect(output).toContain(fnName);
+        }
       }
       if (testCase.expect_contains) {
         for (const fragment of testCase.expect_contains as string[]) {

@@ -64,9 +64,15 @@ afterEach(() => {
 
 const accessibilityCases = loadYamlCases<AccessibilityTestCase>('accessibility.yaml');
 const adapterCases = loadYamlCases<AdapterTestCase>('adapter_conformance.yaml');
+const adapterV09Cases = yaml.load(
+  fs.readFileSync(
+    path.resolve(CONFORMANCE_DIR, '../adapter/adapter_conformance_v0_9.yaml'),
+    'utf8',
+  ),
+) as AdapterTestCase[];
 
 afterAll(() => {
-  assertAllUnsupportedMatched(accessibilityCases, adapterCases);
+  assertAllUnsupportedMatched(accessibilityCases, adapterCases, adapterV09Cases);
 });
 
 describe('@a2ui/react Accessibility Conformance (conformance/core/accessibility.yaml)', () => {
@@ -188,4 +194,49 @@ describe('@a2ui/react Adapter Conformance (conformance/core/adapter_conformance.
       }
     });
   }
+
+  describe('Framework Adapter Conformance v0.9 (adapter_conformance_v0_9.yaml)', () => {
+    for (const testCase of adapterV09Cases) {
+      const testTitle = `${testCase.name}: ${testCase.description ?? ''}`;
+      it(testTitle, async ctx => {
+        const record: ManifestRecord = {
+          harness: 'react',
+          suite: 'adapter/adapter_conformance_v0_9.yaml',
+          case: testCase.name,
+          status: 'failed',
+        };
+        pendingManifestByTestName.set(testTitle, record);
+        let state: ReturnType<typeof mountSurface> | undefined;
+        try {
+          assertKnownAdapterCase(testCase);
+          const skipReason = findUnsupportedReason(
+            testCase.name,
+            testCase.steps as unknown as Array<Record<string, unknown>>,
+          );
+          if (skipReason) {
+            record.status = 'skipped';
+            record.reason = skipReason;
+            ctx.skip(skipReason);
+            return;
+          }
+
+          state = mountSurface(testCase);
+          for (const step of testCase.steps) {
+            await runStep(state, step);
+          }
+          record.status = 'passed';
+        } catch (err) {
+          if ((record.status as string) !== 'skipped') {
+            record.status = 'failed';
+            record.reason = err instanceof Error ? err.message : String(err);
+          }
+          throw err;
+        } finally {
+          if (state && !state.unmounted) {
+            state.rendered?.unmount();
+          }
+        }
+      });
+    }
+  });
 });

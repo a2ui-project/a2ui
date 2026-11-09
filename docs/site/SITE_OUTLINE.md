@@ -21,8 +21,8 @@ Every agent authoring or editing pages under `docs/site/` must follow these glob
     - Each core topic has a single canonical owner page. Other pages must summarize the concept in 1–2 sentences and link to the owner rather than repeating tables, benchmarks, or deep explanations:
         - **Wire message envelopes & v0.9.1 $\rightarrow$ v1.0 message renames**: Owned by [`Messages`](#messages) (`/concepts/messages/`).
         - **Official SDK inventories, Core SDK dependency, source links & registry links**: Owned by [`SDKs`](#sdks) (`/concepts/sdks/`).
-        - **Inference format mechanics (Express, Direct JSON) & token/latency benchmark table**: Owned by [`Swappable Inference Formats`](#swappable-inference-formats) (`/concepts/inference-formats/`).
-        - **Server-side `@macro` expansion & data baking**: Owned by [`Macros`](#macros) (`/concepts/macros/`).
+        - **Inference format mechanics (Express, Direct JSON) & token/latency benchmark table**: Owned by [`Inference Formats`](#inference-formats) (`/concepts/inference-formats/`).
+        - **Server-side `@macro` expansion & data baking**: Owned by [`Using Macros`](#macros) (`/guides/macros/`).
         - **Module blueprints & YAML conformance suites**: Owned by [`SDK Development`](#sdk-development) (`/guides/sdk-development/`).
 5. **Specification JSON Schema Permalink Contract**:
     - Whenever any page links to a protocol or catalog JSON Schema definition, link to the human-browsable **JSON Schemas Explorer** route rather than raw `.json` files (where browsers ignore `#` fragments):
@@ -53,15 +53,15 @@ All cross-page links must target these exact Starlight routes (with `docs/site/s
 | **Concepts**      | Catalogs, Components and Functions             | **P0**   | `content/docs/concepts/catalogs.mdx`                                      | `/concepts/catalogs/`                                      |
 | **Concepts**      | Data Model and Data Binding                    | **P0**   | `content/docs/concepts/data-binding.mdx`                                  | `/concepts/data-binding/`                                  |
 | **Concepts**      | Actions and Functions                          | **P0**   | `content/docs/concepts/actions-and-functions.mdx`                         | `/concepts/actions-and-functions/`                         |
+| **Concepts**      | Inference Formats                              | **P1**   | `content/docs/concepts/inference-formats.mdx`                             | `/concepts/inference-formats/`                             |
 | **Concepts**      | SDKs                                           | **P1**   | `content/docs/concepts/sdks.mdx`                                          | `/concepts/sdks/`                                          |
-| **Concepts**      | Swappable Inference Formats                    | **P1**   | `content/docs/concepts/inference-formats.mdx`                             | `/concepts/inference-formats/`                             |
-| **Concepts**      | Macros                                         | **P2**   | `content/docs/concepts/macros.mdx`                                        | `/concepts/macros/`                                        |
 | **Concepts**      | Security and Trust Boundaries                  | **P2**   | `content/docs/concepts/security.mdx`                                      | `/concepts/security/`                                      |
 | **Concepts**      | Accessibility (A11y)                           | **P2**   | `content/docs/concepts/accessibility.mdx`                                 | `/concepts/accessibility/`                                 |
 | **Concepts**      | Glossary                                       | **P2**   | `content/docs/concepts/glossary.mdx`                                      | `/concepts/glossary/`                                      |
-| **Guides**        | How to Integrate with My Client                | **P1**   | `content/docs/guides/client-integration.mdx`                              | `/guides/client-integration/`                              |
+| **Guides**        | How to Integrate A2UI into a Client            | **P1**   | `content/docs/guides/client-integration.mdx`                              | `/guides/client-integration/`                              |
 | **Guides**        | How to Integrate A2UI into an Agent            | **P1**   | `content/docs/guides/agent-integration.mdx`                               | `/guides/agent-integration/`                               |
 | **Guides**        | How to Define a Catalog                        | **P1**   | `content/docs/guides/defining-a-catalog.mdx`                              | `/guides/defining-a-catalog/`                              |
+| **Guides**        | Using Macros                                   | **P2**   | `content/docs/guides/macros.mdx`                                          | `/guides/macros/`                                          |
 | **Guides**        | Architecting an A2UI Integration               | **P2**   | `content/docs/guides/architecting-an-integration.mdx`                     | `/guides/architecting-an-integration/`                     |
 | **Guides**        | How to Improve Latency                         | **P2**   | `content/docs/guides/improving-latency.mdx`                               | `/guides/improving-latency/`                               |
 | **Guides**        | MCP Catalog                                    | **P1**   | `content/docs/guides/mcp-catalog.mdx`                                     | `/guides/mcp-catalog/`                                     |
@@ -70,8 +70,8 @@ All cross-page links must target these exact Starlight routes (with `docs/site/s
 | **Guides**        | A2UI Dynamic Rendering within MCP Applications | **P1**   | `content/docs/guides/a2ui-in-mcp-apps.md`                                 | `/guides/a2ui-in-mcp-apps/`                                |
 | **Guides**        | Authoring Universal Web Components             | **P1**   | `content/docs/guides/authoring-universal-components.md`                   | `/guides/authoring-universal-components/`                  |
 | **Guides**        | SDK Development                                | **P2**   | `content/docs/guides/sdk-development.md`                                  | `/guides/sdk-development/`                                 |
-| **Roadmap**       | Roadmap                                        | **P1**   | `content/docs/roadmap.md`                                                 | `/roadmap/`                                                |
-| **Ecosystem**     | Ecosystem Renderers & Tools                    | **P1**   | `content/docs/ecosystem/renderers.mdx`                                    | `/ecosystem/renderers/`                                    |
+| **Roadmap**       | Roadmap                                        | **P1**   | `content/docs/roadmap.mdx`                                                | `/roadmap/`                                                |
+| **Ecosystem**     | Community Projects                             | **P1**   | `content/docs/ecosystem/renderers.mdx`                                    | `/ecosystem/renderers/`                                    |
 | **Specification** | `<ver>` Protocol Specification                 | **P1**   | `content/docs/specification/<ver>-a2ui.md`                                | `/specification/<ver>-a2ui/`                               |
 | **Specification** | `<ver>` Custom Functions Guide                 | **P1**   | `content/docs/specification/<ver>-custom-functions.md`                    | `/specification/<ver>-custom-functions/`                   |
 | **Specification** | `<ver>` SDKs Specification                     | **P1**   | `content/docs/specification/<ver>-sdks.md`                                | `/specification/<ver>-sdks/`                               |
@@ -102,15 +102,15 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
         3. **Declarative Generative UI**: Agent composes catalog primitives on demand for long-tail requests.
         4. **Open-Ended & MCP Apps**: Sandboxed `ui://` MCP App surfaces.
 3. **Real Use Cases in Production**
-    - **Logo Bar**: JetBrains, Alation, ByteDance, Google Home, Gemini Notebook (plus Google Opal & Flutter GenUI).
+    - **Logo Bar**: Alation, ByteDance (Lynx), Atlassian (Jira), Gemini Notebook, and Gemini Enterprise.
     - **Interactive Use-Case Tabs**: Switchable tabs with visual previews and architectural notes along the spectrum.
 
 ### Part II: Why A2UI? (Core Technical Differentiators)
 
 4. **Express: Compact inference format (up to ~3x fewer output tokens and ~3x lower latency)**
-    - Visual teaser contrasting compact Express DSL against wire JSON, linking to [Swappable Inference Formats](#swappable-inference-formats) (`/concepts/inference-formats/`).
+    - Visual teaser contrasting compact Express DSL against wire JSON, linking to [Inference Formats](#inference-formats) (`/concepts/inference-formats/`).
 5. **Macros: Give the model bigger words**
-    - Teaser showing server-defined `@macro` calls expanding into standard wire primitives, linking to [Macros](#macros) (`/concepts/macros/`).
+    - Teaser showing server-defined `@macro` calls expanding into standard wire primitives, linking to [Using Macros](#macros) (`/guides/macros/`).
 6. **Multi-Platform Client Rendering**
     - Interactive 6-platform renderer switcher (Flutter, React, Angular, Lit Web Components, SwiftUI, Jetpack Compose), linking to [SDKs](#sdks) (`/concepts/sdks/#renderer-sdk`).
 
@@ -227,28 +227,18 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
     - Walk through `Core SDK`, `Agent SDK`, and `Renderer SDK` in sequence, each with `Primary functions`, a clean 4-column `Packages` table (omitting package manager prefixes and avoiding noisy backticks), and unheaded follow-up links underneath.
     - Do **not** mention `60fps`, refer to **incremental updates** on the renderer rather than "streaming", and explain that framework adapters include a **built-in implementation of the Basic Catalog** and support **custom catalogs** via per-component rendering logic.
 
+<a id="inference-formats"></a>
 <a id="swappable-inference-formats"></a>
 
-#### Swappable Inference Formats (`/concepts/inference-formats/`) [P1]
+#### Inference Formats (`/concepts/inference-formats/`) [P1]
 
-- **Canonical Owner & Sources**: Single home for inference formats and token/latency benchmarks. Grounded in [Fast and Reliable A2UI](https://developers.googleblog.com/fast-reliable-a2ui/), `python/a2ui_agent/src/a2ui/inference_formats/`, `typescript/agents/a2ui_agent/`, `dart/a2ui_agent/`, and `eval/`.
+- **Canonical Owner & Sources**: Single conceptual home for inference formats and token/latency benchmarks. Grounded in [Fast and Reliable A2UI](https://developers.googleblog.com/fast-reliable-a2ui/), `python/a2ui_agent/src/a2ui/inference_formats/`, `typescript/agents/a2ui_agent/`, `dart/a2ui_agent/`, and `eval/`.
 - **Content Outline**:
-    1. **Wire Standard vs. Generation Formats**: Standard A2UI JSON on the wire vs. decoupled LLM generation formats on the server: **Express** (`ExpressFormatFactory`, default compact positional DSL), **Direct JSON** (`DirectJsonFormatFactory`, incremental chunk healing via `openStream` / `open_stream`), and experimental **Atom** / **Elemental** (`[Badge: Experimental — Python only]`).
+    1. **Wire Protocol vs. Generation Formats**: Standard A2UI JSON on the wire vs. decoupled LLM generation formats on the server: **Express** (`ExpressFormatFactory`, default compact positional DSL), **Direct JSON** (`DirectJsonFormatFactory`, incremental chunk healing), custom formats, and deterministic server/decision-model generation.
     2. **Inference Pipeline Visual (`<InferencePipeline />`)**: 3-stage Astro/Tailwind card (`Prompt Synthesis` $\rightarrow$ `Model Generation` $\rightarrow$ `Wire Compilation & Validation`).
-    3. **Configuring the Inference Format (`TypeScript` | `Python` | `Dart`)**: Verified snippets configuring the inference format factory (`inferenceFormatFactory` in TS/Dart, `inference_format_factory` in Python) on `A2uiGenerator`.
-    4. **Comparative Example & Canonical Benchmarks**: Side-by-side Express vs. compiled wire JSON example (generated via the Express decompiler) and the single authoritative benchmark table (up to ~3x fewer output tokens and ~3x lower decode latency per [Fast and Reliable A2UI](https://developers.googleblog.com/fast-reliable-a2ui/) and verified `eval/` runs).
-    5. **Driving A2UI via Decision Models**: Deterministic state machines / classifiers driving A2UI for zero-hallucination regulated workflows.
-
-<a id="macros"></a>
-
-#### Macros (`/concepts/macros/`) [P2]
-
-- **Canonical Owner & Sources**: Single home for server-side macros (currently implemented in the Python Agent SDK; mark Python support clearly). Grounded in [`python/a2ui_agent/src/a2ui/transformers/macros/README.md`](../../python/a2ui_agent/src/a2ui/transformers/macros/README.md) and [`samples/community/macros/README.md`](../../samples/community/macros/README.md).
-- **Content Outline**:
-    1. **What are Macros?**: Coarse-grained composite components defined on the server (`@macro`) and lowered into standard catalog primitives by `MacroExpander` before wire transmission (zero client binary changes).
-    2. **Benefits & Nuances**: Server-side data baking and token reduction; key nuances around static literal baking vs. reactive `@path` data bindings, and per-invocation child component ID scoping.
-    3. **3-Stage Walkthrough**: Verified code walkthrough showing (1) `@macro` definition, (2) compact Express invocation, and (3) expanded primitive wire components via `transform_to_transport`.
-    4. **Wiring Macros into an Agent**: Using `MacroExpander` manually around catalog and payload transforms (`transform_to_inference_catalog` and `transform_to_transport`, noting it wraps rather than subclasses `CatalogTransformer`) and running the Dart `a2ui_cli` tool (`dart/a2ui_cli`) to generate Python `a2ui.builder` classes for custom catalogs.
+    3. **Express vs. Wire JSON**: Side-by-side Express vs. compiled wire JSON example (`v1.0` and `v0.9.1`).
+    4. **How Inference Formats Stay Swappable**: Catalog-agnostic prompt synthesis, bidirectional translation (`compile` / `decompile`), incremental stream compilation, and a concise illustrative multi-SDK (`TypeScript` | `Python` | `Dart`) snippet showing `InferenceFormatFactory` pluggability on `A2uiGenerator`.
+    5. **Token and Latency Benchmarks**: Single authoritative benchmark table on `core_v1_0`.
 
 <a id="security-and-trust-boundaries"></a>
 
@@ -281,19 +271,19 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 ### Guides
 
-<a id="how-to-integrate-with-my-client"></a>
+<a id="how-to-integrate-a2ui-into-a-client"></a>
 
-#### How to Integrate with My Client (`/guides/client-integration/`) [P1]
+#### How to Integrate A2UI into a Client (`/guides/client-integration/`) [P1]
 
 - **Sources**: Link to [SDKs](#sdks) (`/concepts/sdks/#renderer-sdk`) for package coordinates; verify APIs against `dart/a2ui_flutter/`, `typescript/renderers/`, `swift/swiftui/`, `samples/client/`, and [https://developer.android.com/develop/ui/compose/agentic](https://developer.android.com/develop/ui/compose/agentic).
-- **Content Outline** (tabbed across `Flutter` | `Web` | `SwiftUI` | `Jetpack Compose`):
-    1. **Overview**: Link to `/concepts/sdks/#renderer-sdk` and summarize the 6 integration steps.
-    2. **Step 1: Install Dependencies**: Tabbed install commands matching `/concepts/sdks/#renderer-sdk`.
-    3. **Step 2: Initialize `MessageProcessor` & Register Catalogs**: Registering the built-in Basic Catalog plus custom component/function adapters.
-    4. **Step 3: Advertise Renderer Capabilities**: Attaching `supportedCatalogIds` and `inlineCatalogs` in request/session metadata (`a2uiRendererCapabilities` in v1.0 / `a2uiClientCapabilities` in v0.9.1).
-    5. **Step 4: Connect Transport & Apply Incremental Updates**: Passing transport payloads into the processor (`processMessages` in TS/Dart, `process(message:)` / `process(payload:)` in Swift) without assuming hardcoded JSONL framing.
-    6. **Step 5: Mount Surface Components**: Verified surface widget/component mounting snippets per renderer.
-    7. **Step 6: Handle Outbound Actions, RPCs & Validation Errors**: Subscribing to outbound `action` events (attaching `a2uiRendererDataModel` / `a2uiClientDataModel` transport metadata when `sendDataModel: true`), `callAgentFunction`, `rendererFunctionResponse`, and `error` events.
+- **Content Outline** (tabbed across `Flutter` | `React` | `Lit` | `Angular` | `SwiftUI` | `Jetpack Compose`):
+    1. **Overview**: Direct purpose statement linking to `/concepts/sdks/#renderer-sdk` and cross-linking to `/guides/agent-integration/` and `/guides/defining-a-catalog/`.
+    2. **Step 1: Install Dependencies**: Tabbed install commands matching `/concepts/sdks/#renderer-sdk` (including `@a2ui/markdown-it` on Web).
+    3. **Step 2: Initialize `MessageProcessor`**: Registering the built-in Basic Catalog (plus custom catalog pointer), configuring styles and sanitized Markdown on Web, and wiring `onAction` / `actionHandler` directly to transport.
+    4. **Step 3: Mount Surface Views**: Verified surface widget/component mounting snippets per framework.
+    5. **Step 4: Connect Transport and Handle Actions**: Applying incremental updates (`processMessages` / `processMessagesAsync` / `process(payload:)` / `processInput`) and sending outbound `action` messages without assuming hardcoded framing, plus collapsed `v1.0` and `v0.9.1` wire-format examples.
+    6. **Step 5: Wire Everything at the App Entry Point**: Bootstrapping the shared session controller/service and mounted surface view at application startup.
+    7. **Additional Steps**: Customizing Web Basic Catalog CSS custom properties (`--a2ui-*`), advertising renderer capabilities (`a2uiRendererCapabilities` in v1.0 / `a2uiClientCapabilities` in v0.9.1), and synchronizing client data models (`sendDataModel: true` via `a2uiRendererDataModel` / `a2uiClientDataModel`) alongside bidirectional function RPCs (`outboundListener`) and validation error reporting (`errorHandler`).
 
 <a id="how-to-integrate-a2ui-into-an-agent"></a>
 
@@ -303,12 +293,12 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 - **Content Outline** (tabbed across `TypeScript` | `Python` | `Dart`):
     1. **Overview**: Direct purpose statement linking to `/concepts/sdks/#agent-sdk` and cross-linking to `/guides/client-integration/`, `/guides/defining-a-catalog/`, and `/concepts/inference-formats/`.
     2. **Step 1: Install Dependencies**: Tabbed install commands matching `/concepts/sdks/#agent-sdk`.
-    3. **Step 2: Initialize `A2uiGenerator`**: Registering the built-in Basic Catalog inside `CatalogConfig` (plus custom catalog pointer) and maintaining per-session `RendererState` with default `ExpressFormatFactory`.
-    4. **Step 3: Build the System Prompt and Stream A2UI Messages**: Creating a per-turn `A2uiRequestProcessor` bound to `RendererState`, appending `promptSnippet` / `prompt_snippet` to agent instructions, and streaming validated messages with `openStream` / `open_stream`, plus collapsed `v1.0` and `v0.9.1` wire-format examples.
-    5. **Step 4: Handle User Actions**: Converting inbound `action` messages into follow-up prompts to update active surfaces in place, plus collapsed `v1.0` and `v0.9.1` wire-format examples.
-    6. **Step 5: Wire Everything at the Server Entry Point**: Bootstrapping `OrderAgentService` behind an HTTP SSE endpoint (`POST /api/agent`) across initial prompts and `update=true` action turns.
-    7. **Additional Steps**: Negotiating client capabilities (`a2uiRendererCapabilities` in v1.0 / `a2uiClientCapabilities` in v0.9.1), synchronizing client data models (`sendDataModel: true` via `a2uiRendererDataModel` / `a2uiClientDataModel`) alongside `callAgentFunction` / `agentFunctionResponse` RPCs (`AgentFunction` and `RendererToAgentMessageProcessor` in Python) and client `error` reporting, and atomic whole-response validation (`parseResponse` / `parse_response` with `A2uiError` retry), catalog pruning, `DirectJsonFormatFactory`, `StreamedAnswer`, and Python `@macro` (`MacroExpander`).
-    8. **Connect to Agent Frameworks and Transports**: Consolidate Google ADK (`a2ui-adk` `A2uiProcessorStore`, `A2uiInstruction`, `SendA2uiToClientToolset`, `a2ui_rpc_callback`, and `a2ui-adk[a2a]` `A2uiEventConverter`), A2A (`a2ui-a2a` extension, part, and RPC helpers), and AG-UI (via CopilotKit) plus MCP cross-links.
+    3. **Step 2: Initialize the A2UI Generator**: Registering the built-in Basic Catalog inside `CatalogConfig` (plus custom catalog pointer), injecting a model-streaming callback, and maintaining per-session `RendererState` with default `ExpressFormatFactory`.
+    4. **Step 3: Build the System Prompt and Stream A2UI Messages**: Creating a per-turn `A2uiRequestProcessor` bound to `RendererState`, appending its generated prompt snippet to agent instructions, and streaming validated messages, plus collapsed `v1.0` and `v0.9.1` wire-format examples.
+    5. **Step 4: Handle User Actions**: Processing inbound `action` messages, running domain logic, and streaming follow-up surface updates, plus collapsed `v1.0` and `v0.9.1` wire-format examples.
+    6. **Step 5: Connect to a Transport**: Transport-agnostic guidance (SSE, WebSockets, AG-UI, A2A, MCP) plus a concrete HTTP SSE server example across initial prompts and `update=true` action turns.
+    7. **Additional Steps**: Negotiating client capabilities (`a2uiRendererCapabilities` in v1.0 / `a2uiClientCapabilities` in v0.9.1), synchronizing client data models (`sendDataModel: true` via `a2uiRendererDataModel` / `a2uiClientDataModel`) alongside `callAgentFunction` / `agentFunctionResponse` RPCs (`AgentFunction` and `RendererToAgentMessageProcessor`) and client `error` reporting, and atomic whole-response validation (with `A2uiError` retry), catalog pruning, `DirectJsonFormatFactory`, `StreamedAnswer`, and Python `@macro` (`MacroExpander`, linking to `/guides/macros/`).
+    8. **Connect to Agent Frameworks and Transports**: Consolidate Google ADK (`a2ui-adk` `A2uiProcessorStore`, `A2uiInstruction`, `SendA2uiToClientToolset`, and `a2ui-adk[a2a]` `a2ui_rpc_callback` / `A2uiEventConverter`), A2A (`a2ui-a2a` extension, part, and RPC helpers), and AG-UI (via CopilotKit) plus MCP cross-links.
 
 <a id="how-to-define-a-catalog"></a>
 
@@ -323,12 +313,23 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
     5. **Client-Server Schema Parity Testing**:
         - > **[VERIFICATION REQUIREMENT FOR IMPLEMENTING AGENT]**: Compare normalized `Catalog.fromJson` / `Catalog.from_json` objects rather than raw JSON strings (inspect `dart/a2ui_core/test/catalog_json_test.dart` to see how SDKs normalize `protocolVersion`, `$ref`s, and function schemas across Python, TypeScript, Dart, and Swift).
 
+<a id="macros"></a>
+
+#### Using Macros (`/guides/macros/`) [P2]
+
+- **Canonical Owner & Sources**: Single home for server-side macros (currently implemented in the Python Agent SDK; mark Python support clearly). Grounded in [`python/a2ui_agent/src/a2ui/transformers/macros/README.md`](../../python/a2ui_agent/src/a2ui/transformers/macros/README.md) and [`samples/community/macros/README.md`](../../samples/community/macros/README.md).
+- **Content Outline**:
+    1. **What are Macros?**: Coarse-grained composite components defined on the server (`@macro`) and lowered into standard catalog primitives by `MacroExpander` before wire transmission (zero client binary changes).
+    2. **Benefits & Nuances**: Server-side data baking and token reduction; key nuances around static literal baking vs. reactive `@path` data bindings, and per-invocation child component ID scoping.
+    3. **3-Stage Walkthrough**: Verified code walkthrough showing (1) `@macro` definition, (2) compact Express invocation, and (3) expanded primitive wire components via `transform_to_transport`.
+    4. **Wiring Macros into an Agent & Custom Catalogs**: Using `MacroExpander` around catalog and payload transforms (`transform_to_inference_catalog` / `transform_catalogs` and `transform_to_transport`) and running `a2ui codegen` to generate Python builder classes for custom catalogs.
+
 <a id="architecting-an-a2ui-integration"></a>
 
 #### Architecting an A2UI Integration (`/guides/architecting-an-integration/`) [P2]
 
 - **Content Outline**:
-    1. **Catalog Strategy (Basic vs. Custom vs. Hybrid & Macros)**: Compare off-the-shelf Basic Catalog, custom design-system catalogs, and hybrid composition, plus a 1-sentence trade-off linking to [`/concepts/macros/`](#macros) (agile web client components vs. server macros avoiding mobile app-store release cycles).
+    1. **Catalog Strategy (Basic vs. Custom vs. Hybrid & Macros)**: Compare off-the-shelf Basic Catalog, custom design-system catalogs, and hybrid composition, plus a 1-sentence trade-off linking to [`/guides/macros/`](#macros) (agile web client components vs. server macros avoiding mobile app-store release cycles).
     2. **Transport Selection**: Compare standardized agent protocols (**AG-UI** and **A2A**, linking to [`/guides/agent-integration/`](#how-to-integrate-a2ui-into-an-agent)) and **MCP** (`ui://` resources, linking to [`/guides/a2ui-over-mcp/`](#a2ui-over-mcp)) alongside custom transport patterns (**SSE + HTTP POST**, noting HTTP/1.1 connection limits vs. HTTP/2, and **WebSockets** for full-duplex RPCs).
     3. **Content Persistence & Session Replay**: Explain the **Wire-Only Replay Trap** (local two-way input bindings mutate `dataModel` without emitting wire messages, so replaying `agent_to_renderer` messages alone loses user form edits) and the recommended pattern (persisting per-surface `renderer_data_model.json` snapshots alongside messages, filtering transient `callRendererFunction` RPCs, and rendering historical turns read-only when appropriate) vs. static rendered snapshots.
     4. **Surface Scoping & Lifecycle**: Compare Conversation Scoping (single `MessageProcessor` per conversation enabling retroactive in-place updates) vs. Turn Scoping (isolated `MessageProcessor` per turn, requiring turn-prefixed unique `surfaceId`s like `turn_2_main` rather than reusing `"main"`).
@@ -339,8 +340,8 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 - **Content Outline**:
     1. **The Latency Equation**: Deconstruct Time-to-First-Meaningful-Render ($\text{TTFT} + \text{Output Tokens} \times \text{ITL} + \text{Transport} + \text{Client Render}$) and recommend emitting `root` early in `updateComponents`.
-    2. **Lever 1 — Compact Inference Formats (Express)**: 1–2 sentence summary linking to [`/concepts/inference-formats/`](#swappable-inference-formats) for the canonical benchmark table.
-    3. **Lever 2 — Component Granularity (Coarse Client Components vs. Server Macros)**: Contrast coarse client widgets with server `@macro` expansion, linking to [`/concepts/macros/`](#macros).
+    2. **Lever 1 — Compact Inference Formats (Express)**: 1–2 sentence summary linking to [`/concepts/inference-formats/`](#inference-formats) for the canonical benchmark table.
+    3. **Lever 2 — Component Granularity (Coarse Client Components vs. Server Macros)**: Contrast coarse client widgets with server `@macro` expansion, linking to [`/guides/macros/`](#macros).
     4. **Lever 3 — Right-Sizing the LLM**: Pairing catalog-generated skills with fast models (e.g. Flash / Flash-Lite tiers) for 2x–3x higher decode throughput.
     5. **Lever 4 — Tuning Thinking Budget**: Setting `thinking_budget = 0` for structured catalog UI generation to eliminate pre-first-token thinking delay.
     6. **Lever 5 — Unbuffered Transport Flushing**: Disabling proxy buffering and feeding messages incrementally into `MessageProcessor` (`processMessages` / `process_messages` / `process(message:)`).
@@ -393,7 +394,10 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 ### Roadmap (`/roadmap/`) [P1]
 
-> **[TODO]**: Roadmap scope and milestone structure to be defined later.
+- Organize the roadmap as the gen-UI lifecycle loop: build, configure, evaluate, distribute, and monitor.
+- Open with the interactive `RoadmapLoop` component (`src/components/docs/RoadmapLoop.astro`), preceded by a text explanation of the loop.
+- For each stage, list what is available today (linked to the relevant guide or source) and what is on the roadmap. Keep the component's stage summaries in sync with these sections.
+- Describe how the A2UI CLI will cover each stage, and include the protocol version table from `specification/versions.json`.
 
 ---
 
@@ -401,7 +405,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 <a id="ecosystem-renderers--tools-ecosystemrenderers"></a>
 
-### Ecosystem Renderers & Tools (`/ecosystem/renderers/`) [P1]
+### Community Projects (`/ecosystem/renderers/`) [P1]
 
 - Port and clean up [`docs/public/ecosystem/renderers.md`](../public/ecosystem/renderers.md):
     1. **Introduction & Disclaimer**: Clarify community maintenance and link to [`/concepts/sdks/`](#sdks) for official first-party SDKs.
