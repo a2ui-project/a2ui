@@ -30,6 +30,12 @@ const adapterConformance = yaml.parse(
     'utf8',
   ),
 );
+const adapterConformanceV09 = yaml.parse(
+  fs.readFileSync(
+    path.resolve(__dirname, '../../../conformance/adapter/adapter_conformance_v0_9.yaml'),
+    'utf8',
+  ),
+);
 const basicCatalogJson = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, '../../../catalogs/basic/v1/catalog.json'), 'utf8'),
 );
@@ -77,6 +83,7 @@ const conformanceSuites = Buffer.from(
   JSON.stringify({
     accessibility,
     adapterConformance,
+    adapterConformanceV09,
     basicCatalogJson,
   }),
   'utf8',

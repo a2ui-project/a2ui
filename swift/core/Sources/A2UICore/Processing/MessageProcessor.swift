@@ -1536,6 +1536,7 @@ public final class MessageProcessor: ObservableObject {
         throw CatalogResolutionErrors.nonObjectArguments(functionName: callName)
       }
       let callValidator = payloadValidator(for: callCatalog, config: config)
+      try callValidator.assertRendererMayCall(callName)
       try callValidator.validateFunctionInternal(
         name: callName,
         args: dict["args"]?.dictionaryValue,

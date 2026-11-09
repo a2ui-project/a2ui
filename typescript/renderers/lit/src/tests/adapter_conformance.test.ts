@@ -48,6 +48,12 @@ describe('@a2ui/lit Adapter & Accessibility Conformance', () => {
   const adapterCases = yaml.load(
     fs.readFileSync(path.join(CONFORMANCE_ROOT, 'adapter_conformance.yaml'), 'utf8'),
   ) as AdapterTestCase[];
+  const adapterV09Cases = yaml.load(
+    fs.readFileSync(
+      path.resolve(CONFORMANCE_ROOT, '../adapter/adapter_conformance_v0_9.yaml'),
+      'utf8',
+    ),
+  ) as AdapterTestCase[];
 
   const mountedElements: HTMLElement[] = [];
   let pendingManifest: ManifestRecord | undefined;
@@ -68,7 +74,7 @@ describe('@a2ui/lit Adapter & Accessibility Conformance', () => {
   });
 
   after(() => {
-    assertAllUnsupportedMatched(accessibilityCases, adapterCases);
+    assertAllUnsupportedMatched(accessibilityCases, adapterCases, adapterV09Cases);
     teardownTestDom();
   });
 
@@ -82,6 +88,7 @@ describe('@a2ui/lit Adapter & Accessibility Conformance', () => {
           status: 'failed',
         };
         try {
+          assertKnownAccessibilityCase(testCase);
           const steps: AccessibilityStep[] = testCase.steps ?? [
             {
               messages: testCase.messages ?? [],
@@ -100,7 +107,6 @@ describe('@a2ui/lit Adapter & Accessibility Conformance', () => {
             t.skip(skipReason);
             return;
           }
-          assertKnownAccessibilityCase(testCase);
 
           const session = mountSurface(undefined, mountedElements);
           for (const step of steps) {
@@ -137,6 +143,7 @@ describe('@a2ui/lit Adapter & Accessibility Conformance', () => {
           status: 'failed',
         };
         try {
+          assertKnownAdapterCase(testCase);
           const skipReason = findUnsupportedReason(
             testCase.name,
             testCase.steps as unknown as Array<Record<string, unknown>>,
@@ -149,7 +156,46 @@ describe('@a2ui/lit Adapter & Accessibility Conformance', () => {
             t.skip(skipReason);
             return;
           }
+
+          const session = mountSurface(testCase, mountedElements);
+          for (const step of testCase.steps) {
+            await runStep(session, step);
+          }
+          pendingManifest.status = 'passed';
+        } catch (err) {
+          if (pendingManifest) {
+            pendingManifest.status = 'failed';
+            pendingManifest.reason = err instanceof Error ? err.message : String(err);
+          }
+          throw err;
+        }
+      });
+    }
+  });
+
+  describe('Framework Adapter Conformance v0.9 (adapter_conformance_v0_9.yaml)', () => {
+    for (const testCase of adapterV09Cases) {
+      it(`${testCase.name}: ${testCase.description ?? ''}`, async t => {
+        pendingManifest = {
+          harness: 'lit',
+          suite: 'adapter/adapter_conformance_v0_9.yaml',
+          case: testCase.name,
+          status: 'failed',
+        };
+        try {
           assertKnownAdapterCase(testCase);
+          const skipReason = findUnsupportedReason(
+            testCase.name,
+            testCase.steps as unknown as Array<Record<string, unknown>>,
+          );
+          if (skipReason) {
+            pendingManifest.status = 'skipped';
+            pendingManifest.reason = skipReason;
+            writeManifestRecord(pendingManifest);
+            pendingManifest = undefined;
+            t.skip(skipReason);
+            return;
+          }
 
           const session = mountSurface(testCase, mountedElements);
           for (const step of testCase.steps) {

@@ -5,3 +5,5 @@ public/specification/
 public/assets/
 public/CNAME
 public/llms.txt
+public/llms-full.txt
+public/.nojekyll

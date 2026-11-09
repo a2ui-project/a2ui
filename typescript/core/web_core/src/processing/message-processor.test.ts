@@ -550,6 +550,31 @@ describe('MessageProcessor', () => {
       assert.strictEqual((surface.theme as any)?.defaultedField, 'default-val');
     });
 
+    describe('maxAgentCallCacheEntries', () => {
+      const catalog = new Catalog('cat', '1.0', BASIC_COMPONENTS);
+      const create = {version: '1.0' as const, createSurface: {surfaceId: 's', catalogId: 'cat'}};
+
+      it('applies to the surfaces the processor creates', () => {
+        const proc = new MessageProcessor([catalog], undefined, {maxAgentCallCacheEntries: 2});
+        proc.processMessages(create);
+        assert.strictEqual(proc.model.getSurface('s')!.maxAgentCallCacheEntries, 2);
+
+        const defaulted = new MessageProcessor([catalog]);
+        defaulted.processMessages(create);
+        assert.strictEqual(defaulted.model.getSurface('s')!.maxAgentCallCacheEntries, 256);
+      });
+
+      it('rejects a value that is not a positive integer', () => {
+        for (const value of [0, -1, 1.5, Number.NaN]) {
+          assert.throws(
+            () => new MessageProcessor([catalog], undefined, {maxAgentCallCacheEntries: value}),
+            RangeError,
+            String(value),
+          );
+        }
+      });
+    });
+
     describe('per call', () => {
       const catalog = new Catalog('cat', '1.0', BASIC_COMPONENTS);
       const create = {version: '1.0' as const, createSurface: {surfaceId: 's', catalogId: 'cat'}};

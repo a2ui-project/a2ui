@@ -1,5 +1,19 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v1_0) Component validation
+  (`PayloadValidator.validate_component`, and `MessageProcessor` for calls into
+  another catalog) rejects a call to a function whose `allowedCallers` is
+  `agentOnly` in a property binding, a check or an action, since only an
+  agent's `callRendererFunction` may call one. The error matches the one
+  `DataContext` reports when such a call is evaluated. v0.9 catalogs are not
+  affected. `PayloadValidator.validate_function` checks only the envelope of a
+  call nested in an argument, as component validation does, since the call
+  runs in the catalog it names. Recommended migration: bind only
+  `rendererOnly` or `rendererOrAgent` functions in components.
+  `InternalCallRendererFunctionOp` is exported from `a2ui.core.processing`, and
+  `validate_reserved_directives` from `a2ui.core.resolution`
+  ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
+  [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
 - Add `MessageProcessor.add_catalog(catalog)`, which adds a catalog to a
   processor after it is built. `createSurface` messages, renderer function
   calls and `get_renderer_capabilities` see the catalog from then on; surfaces
@@ -172,6 +186,22 @@
   it is standalone.
   [#3232](https://github.com/a2ui-project/a2ui/issues/3232),
   [#3575](https://github.com/a2ui-project/a2ui/pull/3575)
+- (v1_0) Add `AgentFunction`, `AgentFunctionContext` and `AgentFunctionHandler`
+  (exported from `a2ui.core`) for catalog functions that run on the agent:
+  `AgentFunction(...)` for a `rendererOnly` function defined in code,
+  `AgentFunction.from_api(...)` to bind a catalog declaration, and
+  `with_handler`. `Catalog.copy_with(agent_functions=...)` adds them, and
+  `Catalog.agent_functions` and `Catalog.renderer_functions` list them. An
+  agent function's local `$defs` may not define a name differently from the
+  catalog's root `$defs` or another agent function (`A2uiCatalogError`)
+  ([#3536](https://github.com/a2ui-project/a2ui/issues/3536),
+  [#3792](https://github.com/a2ui-project/a2ui/pull/3792)).
+- (v1_0) The settled agent function call cache evicts the oldest answer first
+  (reading an answer no longer keeps it), and its bound (256 by default) is
+  configurable with `MessageProcessorOptions.max_agent_call_cache_entries` or
+  `SurfaceModel(max_agent_call_cache_entries=...)`. `RpcHandler.dispose()`
+  also removes the outbound listener
+  ([#3792](https://github.com/a2ui-project/a2ui/pull/3792)).
 - Add `Catalog.derive`, which builds a catalog with a new `catalog_id` from
   the named `components` and `functions` of an existing one and new entries,
   with the `instructions` it is given, and does not keep the source's `$id`,
@@ -226,6 +256,10 @@
   and the bare `protocolVersion` (for example `'1.0'`) on each inline catalog
   even when the source catalog document omits them.
   [#3382](https://github.com/a2ui-project/a2ui/pull/3382)
+- (v1_0) Add `RpcErrorCode.TOO_MANY_PENDING`, for an agent's call to a
+  renderer function refused because too many are pending
+  ([#3535](https://github.com/a2ui-project/a2ui/issues/3535),
+  [#3939](https://github.com/a2ui-project/a2ui/pull/3939)).
 
 ## 0.4.0 (2026-10-17)
 
