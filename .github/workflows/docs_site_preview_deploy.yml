@@ -1,0 +1,118 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Privileged deployment and cleanup stage of the `docs/site` PR preview pipeline.
+#
+# Security boundary: this workflow never checks out or executes code from a pull
+# request. It loads `scripts/docs_site_preview.mjs` exclusively from `main`,
+# validates that downloaded static HTML bundles contain no symlinks or `.git`
+# directories, resolves the target PR from GitHub's API, publishes to
+# `https://a2ui.org/pr-preview/pr-<N>/` on `gh-pages`, posts/updates a sticky PR
+# comment, and prunes closed/merged PR preview directories.
+name: Docs Site Preview Deploy
+
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers] - deploys validated static HTML artifact using trusted main script without checking out PR code
+    workflows: ["Docs Site Preview"]
+    types: [completed]
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/docs_site_preview.yml"
+      - ".github/workflows/docs_site_preview_deploy.yml"
+      - "scripts/docs_site_preview.mjs"
+      - "docs/site/**"
+      - "docs/public/assets/**"
+      - "specification/**"
+      - "catalogs/**"
+  schedule:
+    - cron: "30 15 * * *" # daily cleanup sweep for PRs closed without merging
+  workflow_dispatch:
+
+# Shared with main-branch pushes in `docs.yml` so `gh-pages` updates serialize.
+concurrency:
+  group: gh-pages-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy_and_reconcile:
+    if: >-
+      github.repository == 'a2ui-project/a2ui' && (
+        github.event_name == 'push' ||
+        github.event_name == 'schedule' ||
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event_name == 'workflow_run' &&
+          github.event.workflow_run.event == 'pull_request' &&
+          github.event.workflow_run.conclusion == 'success'
+        )
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout trusted preview script from main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: automation
+          sparse-checkout: scripts
+          persist-credentials: false
+
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: gh-pages
+          fetch-depth: 1
+          path: gh-pages
+          persist-credentials: true
+
+      - name: Download preview bundle from workflow run
+        if: github.event_name == 'workflow_run'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: docs-site-preview-bundle
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/preview-bundle
+
+      - name: Publish preview and reconcile closed PRs
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          GH_PAGES_DIR: ${{ github.workspace }}/gh-pages
+          PREVIEW_BUNDLE_DIR: ${{ runner.temp }}/preview-bundle
+        with:
+          script: |
+            const path = require('path');
+            const { pathToFileURL } = require('url');
+
+            const modulePath = path.resolve('./automation/scripts/docs_site_preview.mjs');
+            const { default: reconcileDocsSitePreviews } = await import(
+              pathToFileURL(modulePath).href
+            );
+
+            await reconcileDocsSitePreviews({
+              github,
+              context,
+              ghPagesDir: process.env.GH_PAGES_DIR,
+              bundleDir:
+                context.eventName === 'workflow_run' ? process.env.PREVIEW_BUNDLE_DIR : null,
+            });
