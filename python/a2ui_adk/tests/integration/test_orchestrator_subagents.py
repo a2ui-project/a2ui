@@ -29,14 +29,20 @@ from google.adk.a2a.agent.config import (
     ParametersConfig,
     RequestInterceptor,
 )
-from google.adk.a2a.converters.part_converter import convert_genai_part_to_a2a_part
+from google.adk.a2a.converters.part_converter import (
+    convert_a2a_part_to_genai_part,
+    convert_genai_part_to_a2a_part,
+)
 from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutor
 from google.adk.a2a.executor.config import A2aAgentExecutorConfig, ExecuteInterceptor
 from google.adk.a2a.utils.agent_to_a2a import to_a2a
+from google.adk.agents.context import Context
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
 from google.adk.events.event import Event
+from google.adk.models.llm_request import LlmRequest
+from google.adk.models.llm_response import LlmResponse
 from google.adk.runners import InMemoryRunner
 from google.adk.sessions.session import Session
 from google.adk.sessions.state import State
@@ -56,7 +62,11 @@ from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.processor import A2uiRequestProcessor
 
-from .scripted_llm import ScriptedLlm, make_text_response
+from .scripted_llm import (
+    ScriptedLlm,
+    make_function_call_response,
+    make_text_response,
+)
 
 _ORCHESTRATOR_APP = "orchestrator_app"
 _USER = "orchestrator_user"
@@ -215,21 +225,72 @@ async def _get_orchestrator_state(runner: InMemoryRunner, session_id: str) -> St
     return State(value=session.state, delta={})
 
 
-async def _run_subagent_turn_on_session(
+def _latest_user_parts(llm_request: LlmRequest) -> list[genai_types.Part]:
+    for content in reversed(llm_request.contents):
+        if content.role == "user" and content.parts:
+            return list(content.parts)
+    return []
+
+
+async def _route_client_a2ui_event(
+    callback_context: Context,
+    llm_request: LlmRequest,
+) -> LlmResponse | None:
+    for genai_part in _latest_user_parts(llm_request):
+        a2a_part = convert_genai_part_to_a2a_part(genai_part)
+        if a2a_part is None:
+            continue
+        target_agent = await A2uiSubagentMap.get_subagent_name_for_client_event(
+            a2a_part, callback_context.state
+        )
+        if target_agent:
+            return make_function_call_response(
+                "transfer_to_agent",
+                {"agent_name": target_agent},
+            )
+    return None
+
+
+def _build_orchestrator_runner(
+    *,
+    subagent_a: _SubagentHarness,
+    subagent_b: _SubagentHarness,
+    scripted_transfers: list[str],
+) -> tuple[InMemoryRunner, ScriptedLlm]:
+    """Builds an orchestrator `LlmAgent` with `RemoteA2aAgent` subagents."""
+    orchestrator_llm = ScriptedLlm(
+        responses=[
+            make_function_call_response("transfer_to_agent", {"agent_name": name})
+            for name in scripted_transfers
+        ]
+    )
+    orchestrator = LlmAgent(
+        model=orchestrator_llm,
+        name="orchestrator",
+        sub_agents=[subagent_a.remote_agent, subagent_b.remote_agent],
+        before_model_callback=_route_client_a2ui_event,
+    )
+    runner = InMemoryRunner(agent=orchestrator, app_name=_ORCHESTRATOR_APP)
+    return runner, orchestrator_llm
+
+
+async def _run_orchestrator_turn(
     runner: InMemoryRunner,
-    subagent: RemoteA2aAgent,
     session_id: str,
-    prompt: str = "Render UI",
+    *,
+    prompt: str | None = None,
+    new_message: genai_types.Content | None = None,
 ) -> list[Event]:
-    """Runs a single `RemoteA2aAgent` turn against an existing orchestrator session."""
-    runner.agent = subagent
+    """Runs a turn through the parent `orchestrator` agent without mutating `runner.agent`."""
+    message = new_message or genai_types.Content(
+        role="user",
+        parts=[genai_types.Part(text=prompt or "Render UI")],
+    )
     events: list[Event] = []
     async for event in runner.run_async(
         user_id=_USER,
         session_id=session_id,
-        new_message=genai_types.Content(
-            role="user", parts=[genai_types.Part(text=prompt)]
-        ),
+        new_message=message,
     ):
         if event.content and event.content.parts:
             for genai_part in event.content.parts:
@@ -264,7 +325,10 @@ async def test_orchestrator_records_surface_ownership_per_subagent(
         name="subagent_b",
         version=version,
         scripted_blocks=[
-            _create_surface_block(version, catalog_id, "surface_b", text="From B")
+            _create_surface_block(version, catalog_id, "surface_b", text="From B"),
+            _create_surface_block(
+                version, catalog_id, "surface_b_ack", text="Handled B"
+            ),
         ],
     )
 
@@ -278,15 +342,20 @@ async def test_orchestrator_records_surface_ownership_per_subagent(
         await stack.enter_async_context(subagent_a.http_client)
         await stack.enter_async_context(subagent_b.http_client)
 
-        runner = InMemoryRunner(
-            agent=subagent_a.remote_agent, app_name=_ORCHESTRATOR_APP
+        runner, orchestrator_llm = _build_orchestrator_runner(
+            subagent_a=subagent_a,
+            subagent_b=subagent_b,
+            scripted_transfers=["subagent_a", "subagent_b"],
         )
         session = await runner.session_service.create_session(
             app_name=_ORCHESTRATOR_APP, user_id=_USER
         )
 
-        await _run_subagent_turn_on_session(runner, subagent_a.remote_agent, session.id)
-        await _run_subagent_turn_on_session(runner, subagent_b.remote_agent, session.id)
+        await _run_orchestrator_turn(runner, session.id, prompt="Open surface A")
+        await _run_orchestrator_turn(runner, session.id, prompt="Open surface B")
+        assert runner.agent is not None
+        assert runner.agent.name == "orchestrator"
+        assert len(orchestrator_llm.requests) == 2
 
         updated_state = await _get_orchestrator_state(runner, session.id)
         assert (
@@ -306,7 +375,7 @@ async def test_orchestrator_records_surface_ownership_per_subagent(
         client_event_a = create_a2ui_part({
             "version": wire,
             "action": {
-                "name": "submit",
+                "name": "close",
                 "surfaceId": "surface_a",
                 "sourceComponentId": "root",
                 "timestamp": "2026-01-01T00:00:00Z",
@@ -323,24 +392,19 @@ async def test_orchestrator_records_surface_ownership_per_subagent(
                 "context": {},
             },
         })
-        assert (
-            await A2uiSubagentMap.get_subagent_name_for_client_event(
-                client_event_a, updated_state
-            )
-            == "subagent_a"
-        )
-        assert (
-            await A2uiSubagentMap.get_subagent_name_for_client_event(
-                client_event_b, updated_state
-            )
-            == "subagent_b"
-        )
 
-        # When subagent_a emits deleteSurface for surface_a, ownership is removed
-        # while subagent_b retains ownership of surface_b.
-        await _run_subagent_turn_on_session(
-            runner, subagent_a.remote_agent, session.id, prompt="Close surface_a"
+        # Sending client_event_a through the orchestrator triggers before_model_callback
+        # routing directly to subagent_a (without calling orchestrator_llm), which
+        # emits deleteSurface for surface_a while subagent_b retains surface_b.
+        genai_part_a = convert_a2a_part_to_genai_part(client_event_a)
+        assert genai_part_a is not None
+        await _run_orchestrator_turn(
+            runner,
+            session.id,
+            new_message=genai_types.Content(role="user", parts=[genai_part_a]),
         )
+        assert len(orchestrator_llm.requests) == 2
+
         state_after_delete = await _get_orchestrator_state(runner, session.id)
         assert (
             await A2uiSubagentMap.get_subagent_name("surface_a", state_after_delete)
@@ -348,6 +412,21 @@ async def test_orchestrator_records_surface_ownership_per_subagent(
         )
         assert (
             await A2uiSubagentMap.get_subagent_name("surface_b", state_after_delete)
+            == "subagent_b"
+        )
+
+        # Sending client_event_b routes via before_model_callback to subagent_b.
+        genai_part_b = convert_a2a_part_to_genai_part(client_event_b)
+        assert genai_part_b is not None
+        await _run_orchestrator_turn(
+            runner,
+            session.id,
+            new_message=genai_types.Content(role="user", parts=[genai_part_b]),
+        )
+        assert len(orchestrator_llm.requests) == 2
+        state_after_b = await _get_orchestrator_state(runner, session.id)
+        assert (
+            await A2uiSubagentMap.get_subagent_name("surface_b_ack", state_after_b)
             == "subagent_b"
         )
 
@@ -383,19 +462,19 @@ async def test_orchestrator_duplicate_surface_across_subagents_raises_error(
         await stack.enter_async_context(subagent_a.http_client)
         await stack.enter_async_context(subagent_b.http_client)
 
-        runner = InMemoryRunner(
-            agent=subagent_a.remote_agent, app_name=_ORCHESTRATOR_APP
+        runner, _ = _build_orchestrator_runner(
+            subagent_a=subagent_a,
+            subagent_b=subagent_b,
+            scripted_transfers=["subagent_a", "subagent_b"],
         )
         session = await runner.session_service.create_session(
             app_name=_ORCHESTRATOR_APP, user_id=_USER
         )
 
-        await _run_subagent_turn_on_session(runner, subagent_a.remote_agent, session.id)
+        await _run_orchestrator_turn(runner, session.id, prompt="Claim surface1")
 
         with pytest.raises(SurfaceIdAlreadyExistsError) as exc_info:
-            await _run_subagent_turn_on_session(
-                runner, subagent_b.remote_agent, session.id
-            )
+            await _run_orchestrator_turn(runner, session.id, prompt="Collide surface1")
 
         assert exc_info.value.surface_id == "surface1"
         assert "subagent_a" in str(exc_info.value)
@@ -453,20 +532,23 @@ async def test_orchestrator_forwards_only_owned_surfaces_in_client_data_model(
         await stack.enter_async_context(subagent_a.http_client)
         await stack.enter_async_context(subagent_b.http_client)
 
-        runner = InMemoryRunner(
-            agent=subagent_a.remote_agent, app_name=_ORCHESTRATOR_APP
+        runner, _ = _build_orchestrator_runner(
+            subagent_a=subagent_a,
+            subagent_b=subagent_b,
+            scripted_transfers=[
+                "subagent_a",
+                "subagent_b",
+                "subagent_a",
+                "subagent_b",
+            ],
         )
         session = await runner.session_service.create_session(
             app_name=_ORCHESTRATOR_APP, user_id=_USER
         )
 
         # Turn 1: neither subagent owns any surfaces yet, so all surfaces are stripped.
-        await _run_subagent_turn_on_session(
-            runner, subagent_a.remote_agent, session.id, prompt="Init A"
-        )
-        await _run_subagent_turn_on_session(
-            runner, subagent_b.remote_agent, session.id, prompt="Init B"
-        )
+        await _run_orchestrator_turn(runner, session.id, prompt="Init A")
+        await _run_orchestrator_turn(runner, session.id, prompt="Init B")
 
         assert subagent_a.received_metadata[0][A2UI_CLIENT_DATA_MODEL_KEY] == {
             "version": wire,
@@ -480,12 +562,8 @@ async def test_orchestrator_forwards_only_owned_surfaces_in_client_data_model(
         # Turn 2: subagent_a owns surface_a and subagent_b owns surface_b.
         # Each subagent receives only its own surface in a2uiClientDataModel,
         # and the caller's shared_client_data_model dictionary is not mutated.
-        await _run_subagent_turn_on_session(
-            runner, subagent_a.remote_agent, session.id, prompt="Update A"
-        )
-        await _run_subagent_turn_on_session(
-            runner, subagent_b.remote_agent, session.id, prompt="Update B"
-        )
+        await _run_orchestrator_turn(runner, session.id, prompt="Update A")
+        await _run_orchestrator_turn(runner, session.id, prompt="Update B")
 
         assert subagent_a.received_metadata[1][A2UI_CLIENT_DATA_MODEL_KEY] == {
             "version": wire,

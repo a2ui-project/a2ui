@@ -386,7 +386,7 @@ async def test_executor_streams_partial_a2ui_json_chunks_in_emission_order(
 
 @pytest.mark.parametrize("version", ["0.9", "1.0"], ids=["v0.9", "1.0"])
 @pytest.mark.asyncio
-async def test_executor_rejected_a2ui_json_block_terminates_in_failed_state(
+async def test_executor_rejected_a2ui_json_block_emits_fallback_and_completes(
     version: str,
 ) -> None:
     catalog_id, processor = _direct_json_processor(version)
@@ -417,10 +417,61 @@ async def test_executor_rejected_a2ui_json_block_terminates_in_failed_state(
     llm = ScriptedLlm(
         responses=[[
             make_text_response(rejected_block, partial=True),
+            make_text_response(rejected_block, partial=False),
+        ]]
+    )
+    agent = LlmAgent(model=llm, name="stream_agent")
+    runner = InMemoryRunner(agent=agent, app_name=_APP)
+    converter = A2uiEventConverter(
+        a2ui_processor=processor,
+        fallback_text="Fallback UI text",
+    )
+    executor = A2aAgentExecutor(
+        runner=runner,
+        config=A2aAgentExecutorConfig(event_converter=converter),
+    )
+
+    queue = EventQueue()
+    await executor.execute(_make_a2a_request_context("rejected block turn"), queue)
+    events = await _drain_queue(queue)
+
+    status_updates = [
+        event for event in events if isinstance(event, TaskStatusUpdateEvent)
+    ]
+    emitted_a2ui_parts = [
+        part
+        for event in status_updates
+        if event.status.message and event.status.message.parts
+        for part in event.status.message.parts
+        if is_a2ui_part(part)
+    ]
+    emitted_texts = [
+        part.root.text
+        for event in status_updates
+        if event.status.message and event.status.message.parts
+        for part in event.status.message.parts
+        if isinstance(part.root, TextPart)
+    ]
+    assert emitted_a2ui_parts == []
+    assert "Fallback UI text" in emitted_texts
+    assert converter._streams == {}
+    assert status_updates[-1].final is True
+    assert status_updates[-1].status.state == TaskState.completed
+
+
+@pytest.mark.parametrize("version", ["0.9", "1.0"], ids=["v0.9", "1.0"])
+@pytest.mark.asyncio
+async def test_executor_mid_stream_llm_error_cleans_up_open_stream(
+    version: str,
+) -> None:
+    _, processor = _direct_json_processor(version)
+    llm = ScriptedLlm(
+        responses=[[
+            make_text_response("<a2ui-json>[", partial=True),
             LlmResponse(
                 partial=False,
-                error_code="A2UI_VALIDATION_FAILED",
-                error_message="Rejected A2UI block",
+                error_code="MODEL_STREAM_ERROR",
+                error_message="Stream interrupted",
             ),
         ]]
     )
