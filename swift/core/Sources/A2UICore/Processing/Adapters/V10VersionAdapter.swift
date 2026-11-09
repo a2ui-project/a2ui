@@ -19,7 +19,8 @@ import OrderedJSON
 ///
 /// Supports `createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface`,
 /// `callRendererFunction`, and `agentFunctionResponse`. Per the v1.0 specification and
-/// core blueprint rule 6, `theme` is not extracted on `createSurface`.
+/// core blueprint rule 6, `theme` is not extracted on `createSurface`: a `createSurface` that
+/// carries it is rejected, unless unknown elements are allowed, in which case `theme` is dropped.
 public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
   private static let supportedActions: Set<String> = Set(InternalOperation.allOperationTypes)
   private static let supportedCatalogVersions: Set<String> = ["1.0"]
@@ -34,6 +35,38 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
 
   public override var compatibleCatalogVersions: Set<String> {
     Self.supportedCatalogVersions
+  }
+
+  /// Drops `theme` from every `createSurface` before validation when `allowUnknownElements` is
+  /// set, as relaxed renderers do; otherwise `theme` is rejected as an unrecognized property.
+  public override func extractOperations(
+    from payload: JSONValue,
+    allowUnknownElements: Bool
+  ) throws -> [InternalOperation] {
+    guard allowUnknownElements else {
+      return try extractOperations(from: payload)
+    }
+    return try extractOperations(from: Self.removingCreateSurfaceTheme(from: payload))
+  }
+
+  /// Returns `payload` with `createSurface.theme` removed from each message, accepting the same
+  /// single-message, array, and `messages` wrapper shapes as ``extractOperations(from:)``.
+  private static func removingCreateSurfaceTheme(from payload: JSONValue) -> JSONValue {
+    switch payload {
+    case .array(let items):
+      return .array(items.map(removingCreateSurfaceTheme(from:)))
+    case .object(var message):
+      if let messages = message["messages"]?.arrayValue {
+        message["messages"] = .array(messages.map(removingCreateSurfaceTheme(from:)))
+      } else if var createSurface = message["createSurface"]?.objectValue,
+        createSurface.removeValue(forKey: "theme") != nil
+      {
+        message["createSurface"] = .object(createSurface)
+      }
+      return .object(message)
+    default:
+      return payload
+    }
   }
 
   public override func extractOperationsFromObject(

@@ -218,6 +218,48 @@ struct MessageProcessorTests {
     #expect(try processor.getRendererDataModel() == nil)
   }
 
+  // MARK: - v1.0 createSurface theme
+
+  private static let v10CreateSurfaceWithTheme = """
+    {
+      "version": "1.0",
+      "createSurface": {
+        "surfaceId": "s1",
+        "catalogId": "cat-v10",
+        "theme": { "primaryColor": "#FF00AA" }
+      }
+    }
+    """
+
+  private func makeV10Catalog() throws -> Catalog<AnyComponentAPI> {
+    Catalog(
+      id: "cat-v10",
+      protocolVersion: .v10,
+      components: [
+        AnyComponentAPI(name: "Text", schema: try Schema(instance: "{\"type\": \"object\"}"))
+      ]
+    )
+  }
+
+  @Test func relaxedProcessorDropsV10CreateSurfaceTheme() throws {
+    let processor = MessageProcessor(catalogs: [try makeV10Catalog()])
+    try processor.processMessages(try JSONValue.parse(Self.v10CreateSurfaceWithTheme))
+    let surface = try #require(processor.surfaceGroupModel["s1"])
+    #expect(surface.theme == nil)
+  }
+
+  @Test func strictProcessorRejectsV10CreateSurfaceTheme() throws {
+    let processor = MessageProcessor(
+      catalogs: [try makeV10Catalog()],
+      validationConfig: .strict
+    )
+    let error = try #require(throws: A2UIValidationError.self) {
+      try processor.processMessages(try JSONValue.parse(Self.v10CreateSurfaceWithTheme))
+    }
+    #expect(error.message.contains("unrecognized property 'theme'"))
+    #expect(processor.surfaceGroupModel["s1"] == nil)
+  }
+
   @Test func getRendererDataModelMultiVersionRequiresExplicitVersion() throws {
     let v091Catalog = Catalog(
       id: "cat-v091",

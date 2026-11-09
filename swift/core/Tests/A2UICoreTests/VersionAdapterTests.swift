@@ -172,6 +172,57 @@ struct VersionAdapterTests {
     }
   }
 
+  @Test func v10AdapterDropsCreateSurfaceThemeOnlyWhenUnknownElementsAllowed() throws {
+    let adapter = V10VersionAdapter()
+    let message = """
+      {
+        "version": "1.0",
+        "createSurface": {
+          "surfaceId": "s1",
+          "catalogId": "basic",
+          "theme": { "primaryColor": "#FF0000" }
+        }
+      }
+      """
+    let payloads: [JSONValue] = [
+      try .parse(message),
+      try .parse("[\(message)]"),
+      try .parse("{ \"messages\": [\(message)] }"),
+    ]
+
+    for payload in payloads {
+      #expect(throws: A2UIValidationError.self) {
+        _ = try adapter.extractOperations(from: payload, allowUnknownElements: false)
+      }
+      let ops = try adapter.extractOperations(from: payload, allowUnknownElements: true)
+      #expect(ops.count == 1)
+      guard case .createSurface(let createOp) = try #require(ops.first) else {
+        Issue.record("Expected .createSurface operation")
+        continue
+      }
+      #expect(createOp.surfaceId == "s1")
+      #expect(createOp.theme == nil)
+    }
+  }
+
+  @Test func v10AdapterStillRejectsOtherUnknownCreateSurfaceKeysWhenUnknownElementsAllowed()
+    throws
+  {
+    let adapter = V10VersionAdapter()
+    let payload: JSONValue = try .parse(
+      """
+      {
+        "version": "1.0",
+        "createSurface": { "surfaceId": "s1", "catalogId": "basic", "styles": {} }
+      }
+      """
+    )
+    let error = try #require(throws: A2UIValidationError.self) {
+      _ = try adapter.extractOperations(from: payload, allowUnknownElements: true)
+    }
+    #expect(error.message.contains("unrecognized property 'styles'"))
+  }
+
   // MARK: - Action Validation & Cross-Version Action Errors
 
   @Test func crossVersionActionRejectedWithSpecificErrorMessage() throws {

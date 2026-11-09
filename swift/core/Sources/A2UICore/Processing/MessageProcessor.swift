@@ -608,7 +608,10 @@ public final class MessageProcessor: ObservableObject {
     do {
       let adapter = try adapterFactory.resolveFromPayload(payload)
       envelopeVersion = adapter.version
-      operations = try adapter.extractOperations(from: payload)
+      operations = try adapter.extractOperations(
+        from: payload,
+        allowUnknownElements: validationConfig.allowUnknownElements
+      )
     } catch {
       let rawContext = extractRawEnvelopeContext(from: payload, error: error)
       let surfaceID = extractSurfaceID(from: error, fallback: rawContext.surfaceID ?? "")

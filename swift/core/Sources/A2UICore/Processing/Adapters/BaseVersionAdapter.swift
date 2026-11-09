@@ -63,6 +63,15 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
     }
   }
 
+  /// Validates the payload as ``extractOperations(from:)`` does. Subclasses override this to
+  /// relax version-specific checks when unknown elements are allowed.
+  open func extractOperations(
+    from payload: JSONValue,
+    allowUnknownElements: Bool
+  ) throws -> [InternalOperation] {
+    try extractOperations(from: payload)
+  }
+
   private func extractOperationsFromArray(
     _ items: [JSONValue]
   ) throws -> [InternalOperation] {
