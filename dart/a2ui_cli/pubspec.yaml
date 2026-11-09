@@ -30,6 +30,7 @@ dependencies:
 dev_dependencies:
   lints: ^6.1.0
   test: ^1.26.2
+  yaml: ^3.1.2
 
 executables:
   a2ui: a2ui

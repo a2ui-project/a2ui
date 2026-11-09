@@ -25,7 +25,7 @@ flowchart TD
 - **Surface State Management:** Mutable models representing active UI surfaces (`SurfaceModel`, `ComponentModel`, `DataModel`).
 - **Processing Layer (`MessageProcessor`):** Evaluates incoming JSON message arrays, resolves relative JSON pointers, and updates surface state models.
 - **Validation:** Performs strict validation of message schema structures, reference checks, and `AccessibilityAttributes` (`label`, `description`, `live`, `hidden`).
-- **Catalog Linters:** Checks catalog schemas against deterministic rules, including Unicode UAX 31 identifier names and the reserved `Surface` component name (see [The component catalog](a2ui_protocol.md#the-component-catalog)). Also flags `requiresUserActivation: true` on agent-callable functions and warns on redundant `ComponentCommon` wrapping.
+- **Catalog Schema Validation:** Rejects invalid catalog definitions at load time, including non-UAX 31 identifiers, the reserved `Surface` component name, restricted `$ref` targets, and `requiresUserActivation: true` on agent-callable functions (see [The component catalog](a2ui_protocol.md#the-component-catalog)); standalone developer tooling (`a2ui lint`) MAY report all violations at once and warn on authoring issues such as redundant `ComponentCommon` or `FunctionCommon` wrapping.
 - **Incremental Snapshotting:** Supports tracking and collapsing incremental updates into flat snapshots (e.g., `ComponentNode` trees).
 
 ### Inference SDK (`a2ui_inference` / `@a2ui/inference`)

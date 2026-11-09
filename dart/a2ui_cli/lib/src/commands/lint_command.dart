@@ -96,7 +96,7 @@ class LintCommand extends Command<int> {
     var hasError = false;
     var hasWarning = false;
     for (final CatalogLintFinding finding in lintCatalog(catalogJson)) {
-      errSink.writeln('${finding.severity.name}: ${finding.message}');
+      errSink.writeln('$catalogPath: $finding');
       switch (finding.severity) {
         case LintSeverity.error:
           hasError = true;

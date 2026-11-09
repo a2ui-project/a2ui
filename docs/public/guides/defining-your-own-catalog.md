@@ -59,9 +59,9 @@ Domain-specific components such as `UsernameInput` or `SearchSubmitButton` alrea
 
 ### Inherited accessibility attributes and renderer mapping
 
-Every component automatically inherits the optional `accessibility` object from `ComponentCommon` (see [Common Properties](../reference/components.md#common-properties)). Do not redeclare `accessibility` inside individual component schemas, and in v1.0 do not wrap component definitions with `ComponentCommon`.
+In v1.0, every component inherits the optional `accessibility` object from `ComponentCommon` at the message envelope level (see [Common Properties](../reference/components.md#common-properties)). Do not redeclare `accessibility` or wrap v1.0 component definitions with `ComponentCommon`. In v0.9 and v0.9.1, reference `ComponentCommon` once via `allOf` in each component schema without redeclaring `id` or `accessibility`.
 
-In v0.9.1 and v1.0, `accessibility` provides `label` and `description`, and both accept literal strings, data bindings, or function calls. Version 1.0 also adds `live` (`"off"`, `"polite"`, or `"assertive"`) for live-region announcements and `hidden` for excluding decorative elements from assistive technologies.
+In v0.9, v0.9.1, and v1.0, `accessibility` provides `label` and `description`, and both accept literal strings, data bindings, or function calls. Version 1.0 also adds `live` (`"off"`, `"polite"`, or `"assertive"`) for live-region announcements and `hidden` for excluding decorative elements from assistive technologies.
 
 Agents can set `accessibility` on any component instance to supply or override assistive text when visual context is missing, such as an icon-only `Button`:
 
@@ -97,7 +97,7 @@ Agents can set `accessibility` on any component instance to supply or override a
 
 Notice that v1.0 data bindings use `@path`, whereas v0.9.1 bindings use `path`.
 
-In your native component implementation, map resolved `AccessibilityAttributes` and visible child text or titles to platform accessibility APIs. Use WAI-ARIA attributes on the web, `Semantics` widgets in Flutter, and `.accessibilityLabel` or `.accessibilityHint` modifiers in SwiftUI. When an instance sets `accessibility.label` or `accessibility.description`, let those values override any label inferred from visible text (see [Catalog-Agnostic Accessibility Requirements](../../../specification/v1_0/docs/a2ui_protocol.md#catalog-agnostic-accessibility-requirements)).
+In your native component implementation, map resolved `AccessibilityAttributes` and visible child text or titles to platform accessibility APIs. Use WAI-ARIA attributes on the web, `Semantics` widgets in Flutter, and `.accessibilityLabel` or `.accessibilityHint` modifiers in SwiftUI. When an instance sets `accessibility.label` or `accessibility.description`, let those values override any label inferred from visible text (see [Catalog-Agnostic Accessibility Requirements](../specification/v1.0-a2ui.md#catalog-agnostic-accessibility-requirements)).
 
 ## Security Considerations
 
