@@ -734,3 +734,162 @@ def test_rpc_handler_standalone_catalog_resolves_nested_template_calls() -> None
 
     assert resp["rendererFunctionResponse"]["value"] == "Hello from-rpc-cat"
     assert ctx.active_catalog_id is None
+
+    # Dynamic @call in callFunction.args targeting the standalone RPC catalog resolves cleanly,
+    # whereas targeting an unnegotiated third catalog fails with EXECUTION_ERROR.
+    echo_cat = Catalog(
+        "rpc-echo-cat",
+        protocol_version="1.0",
+        functions=[
+            FunctionImplementation(
+                name="echoLabel",
+                execute=lambda args, context=None, *_: args.get("label"),
+                allowed_callers="agentOnly",
+            ),
+            FunctionImplementation(
+                name="renderTemplate",
+                execute=lambda args, context=None, *_: basic_format_string.execute(
+                    args, context
+                ),
+                allowed_callers="rendererOrAgent",
+            ),
+            FunctionImplementation(
+                name="rpcHelper",
+                execute=lambda args, context=None, *_: "arg-rpc-val",
+                allowed_callers="rendererOrAgent",
+            ),
+        ],
+    )
+    other_rpc_cat = Catalog(
+        "other-unnegotiated-cat",
+        protocol_version="1.0",
+        functions=[
+            FunctionImplementation(
+                name="secretHelper",
+                execute=lambda args, context=None, *_: "leaked",
+                allowed_callers="rendererOrAgent",
+            ),
+        ],
+    )
+    echo_handler = RpcHandler([echo_cat, other_rpc_cat])
+    arg_resp = echo_handler.handle_call_renderer_function(
+        CallRendererFunctionMessage(
+            version="1.0",
+            call_renderer_function=CallRendererFunction(
+                function_call_id="call-standalone-arg",
+                call_function=FunctionCall(
+                    call="echoLabel",
+                    catalog_id="rpc-echo-cat",
+                    args={
+                        "label": {
+                            "@call": "renderTemplate",
+                            "catalogId": "rpc-echo-cat",
+                            "args": {"value": "Arg: ${rpcHelper()}"},
+                        }
+                    },
+                ),
+            ),
+        ),
+        context=ctx,
+    )
+    assert arg_resp["rendererFunctionResponse"]["value"] == "Arg: arg-rpc-val"
+
+    bad_arg_resp = echo_handler.handle_call_renderer_function(
+        CallRendererFunctionMessage(
+            version="1.0",
+            call_renderer_function=CallRendererFunction(
+                function_call_id="call-unnegotiated-arg",
+                call_function=FunctionCall(
+                    call="echoLabel",
+                    catalog_id="rpc-echo-cat",
+                    args={
+                        "label": {
+                            "@call": "secretHelper",
+                            "catalogId": "other-unnegotiated-cat",
+                            "args": {},
+                        }
+                    },
+                ),
+            ),
+        ),
+        context=ctx,
+    )
+    assert (
+        bad_arg_resp["rendererFunctionResponse"]["error"]["code"] == "EXECUTION_ERROR"
+    )
+
+
+@pytest.mark.asyncio
+async def test_call_renderer_function_prefers_executable_rpc_catalog_over_schema_only_surface_catalog() -> (
+    None
+):
+    basic_cat = v1_0.BasicCatalog()
+    basic_format_string = basic_cat.get_function("formatString")
+    assert basic_format_string is not None
+
+    shared_id = "https://example.com/catalogs/shared/v1/catalog.json"
+    schema_only_surface_cat = Catalog.from_json(
+        {
+            "catalogId": shared_id,
+            "protocolVersion": "1.0",
+            "components": {},
+            "functions": {
+                "renderTemplate": {
+                    "returnType": "string",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"value": {"type": "string"}},
+                    },
+                },
+                "rpcHelper": {
+                    "returnType": "string",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            },
+        },
+        protocol_version="1.0",
+    )
+    executable_rpc_cat = Catalog(
+        shared_id,
+        protocol_version="1.0",
+        functions=[
+            FunctionImplementation(
+                name="renderTemplate",
+                execute=lambda args, context=None, *_: basic_format_string.execute(
+                    args, context
+                ),
+                allowed_callers="rendererOrAgent",
+            ),
+            FunctionImplementation(
+                name="rpcHelper",
+                execute=lambda args, context=None, *_: "from-executable-rpc",
+                allowed_callers="rendererOrAgent",
+            ),
+        ],
+    )
+    surface = SurfaceModel(
+        "s-schema-only",
+        default_catalog=schema_only_surface_cat,
+        available_catalogs={shared_id: schema_only_surface_cat},
+        protocol_version="1.0",
+    )
+    ctx = DataContext(surface=surface, path="/")
+    handler = RpcHandler([executable_rpc_cat])
+
+    resp = await handler.handle_call_renderer_function_async(
+        CallRendererFunctionMessage(
+            version="1.0",
+            call_renderer_function=CallRendererFunction(
+                function_call_id="call-same-id-async",
+                call_function=FunctionCall(
+                    call="renderTemplate",
+                    catalog_id=shared_id,
+                    args={"value": "Hello ${rpcHelper()}"},
+                ),
+            ),
+        ),
+        context=ctx,
+    )
+
+    assert resp["rendererFunctionResponse"]["value"] == "Hello from-executable-rpc"
+    assert ctx.active_catalog_id is None

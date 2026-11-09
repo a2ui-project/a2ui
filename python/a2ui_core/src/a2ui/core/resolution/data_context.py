@@ -451,15 +451,16 @@ class DataContext:
         return None
 
     def _lookup_active_catalog(self, catalog_id: str) -> Any:
-        """Looks up a scoped catalog instance matching `catalog_id` in this context or ancestors."""
+        """Looks up a scoped catalog instance matching `catalog_id` in the nearest active call scope."""
         ctx: Any = self
-        while ctx is not None:
-            if (
-                getattr(ctx, "_active_catalog_id", None) == catalog_id
-                and getattr(ctx, "_active_catalog", None) is not None
-            ):
-                return getattr(ctx, "_active_catalog")
-            ctx = getattr(ctx, "parent", None)
+        while isinstance(ctx, DataContext):
+            if ctx._active_catalog_id is not None:
+                return (
+                    ctx._active_catalog
+                    if ctx._active_catalog_id == catalog_id
+                    else None
+                )
+            ctx = ctx.parent
         return None
 
     @property
@@ -539,10 +540,21 @@ class DataContext:
 
     def _surface_protocol_version(self) -> Any:
         """Returns the surface's protocol version, which outlives its default catalog."""
-        return getattr(self.surface, "protocol_version", None) or getattr(
-            getattr(self.surface, "default_catalog", None),
-            "protocol_version",
-            None,
+        active_cat_id = self.active_catalog_id
+        return (
+            getattr(self.surface, "protocol_version", None)
+            or getattr(
+                getattr(self.surface, "default_catalog", None),
+                "protocol_version",
+                None,
+            )
+            or getattr(
+                self._lookup_active_catalog(active_cat_id)
+                if active_cat_id is not None
+                else None,
+                "protocol_version",
+                None,
+            )
         )
 
     @property
@@ -622,6 +634,7 @@ class DataContext:
         scoped._agent_disabled = self._agent_disabled
         scoped._active_catalog_id = catalog_id
         scoped._active_catalog = catalog
+        scoped._cached_at_least_v10 = None
         return scoped
 
     def resolve_path(self, absolute_or_relative: str) -> str:
@@ -1300,19 +1313,22 @@ class DataContext:
                 if fn is None:
                     raise A2uiExpressionError(f"System function '{name}' not found.")
             else:
-                try:
+                scoped_catalog = (
+                    self._lookup_active_catalog(catalog_id)
+                    if isinstance(catalog_id, str)
+                    else None
+                )
+                if scoped_catalog is not None:
+                    target_catalog = scoped_catalog
+                elif self.surface is not None:
                     target_catalog = self.surface.resolve_catalog(
                         catalog_id, subject=f"Function call '{name}'"
                     )
-                except A2uiCatalogError:
-                    scoped_catalog = (
-                        self._lookup_active_catalog(catalog_id)
-                        if catalog_id is not None
-                        else None
+                else:
+                    raise A2uiCatalogError(
+                        "No surface available to resolve catalog:"
+                        f" {catalog_id or 'default'}"
                     )
-                    if scoped_catalog is None:
-                        raise
-                    target_catalog = scoped_catalog
                 fn = (
                     target_catalog.get_function(name)
                     if hasattr(target_catalog, "get_function")

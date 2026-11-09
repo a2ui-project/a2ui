@@ -381,7 +381,12 @@ class RpcHandler:
                 if (
                     expression_error is None
                     and isinstance(err, dict)
-                    and err.get("code") in ("EXPRESSION_ERROR", "EXECUTION_ERROR")
+                    and err.get("code")
+                    in (
+                        "CATALOG_ERROR",
+                        "EXPRESSION_ERROR",
+                        "EXECUTION_ERROR",
+                    )
                 ):
                     expression_error = str(
                         err.get("message") or _UNRESOLVED_ARGUMENT_MESSAGE
@@ -524,6 +529,7 @@ class RpcHandler:
     ) -> RendererFunctionResponseMessage:
         """Safely executes a function implementation synchronously, returning response model."""
         effective_context = self._ensure_data_context(context, matched_catalog, call_id)
+        call_context = self._scope_call_context(effective_context, matched_catalog)
         prepared = self._prepare_target_function(
             matched_catalog,
             call_name,
@@ -531,7 +537,7 @@ class RpcHandler:
             fn,
             call_id,
             version,
-            context=effective_context,
+            context=call_context,
         )
         if prepared.error_response is not None:
             return prepared.error_response
@@ -543,7 +549,6 @@ class RpcHandler:
                 prepared.validated_args if prepared.validated_args is not None else args
             )
             has_pos_context, has_kw_context = self._inspect_call_signature(target_fn)
-            call_context = self._scope_call_context(effective_context, matched_catalog)
             raw_res = (
                 target_fn(fn_args, call_context)
                 if has_pos_context
@@ -596,6 +601,7 @@ class RpcHandler:
     ) -> RendererFunctionResponseMessage:
         """Safely executes a function implementation asynchronously, returning response model."""
         effective_context = self._ensure_data_context(context, matched_catalog, call_id)
+        call_context = self._scope_call_context(effective_context, matched_catalog)
         prepared = self._prepare_target_function(
             matched_catalog,
             call_name,
@@ -603,7 +609,7 @@ class RpcHandler:
             fn,
             call_id,
             version,
-            context=effective_context,
+            context=call_context,
         )
         if prepared.error_response is not None:
             return prepared.error_response
@@ -615,7 +621,6 @@ class RpcHandler:
                 prepared.validated_args if prepared.validated_args is not None else args
             )
             has_pos_context, has_kw_context = self._inspect_call_signature(target_fn)
-            call_context = self._scope_call_context(effective_context, matched_catalog)
             raw_res = (
                 target_fn(fn_args, call_context)
                 if has_pos_context

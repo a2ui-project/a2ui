@@ -1878,6 +1878,37 @@ def test_v10_format_string_template_calls_inherit_catalog_and_preserve_index():
     assert stub_ctx.active_catalog_id is None
     stub_ctx.parent = MagicMock()
     assert stub_ctx.active_catalog_id is None
+    assert (
+        stub_ctx.resolve_dynamic_value(
+            {"@call": "fn", "catalogId": "missing-cat", "args": {}}
+        )
+        is None
+    )
+
+    # An inner active catalog scope stops ancestor _active_catalog lookup.
+    rpc_only_cat = Catalog(
+        "rpc-only-cat",
+        protocol_version="1.0",
+        functions=[
+            FunctionImplementation(
+                name="rpcHelper",
+                execute=lambda args, context=None, *_: "from-rpc",
+            )
+        ],
+    )
+    rpc_scoped = mixed_ctx.with_active_catalog_id("rpc-only-cat", catalog=rpc_only_cat)
+    inner_scoped = rpc_scoped.nested("/sub", index=0).with_active_catalog_id(
+        custom_default.catalog_id, catalog=custom_default
+    )
+    mixed_errors.clear()
+    assert (
+        inner_scoped.resolve_dynamic_value(
+            {"@call": "rpcHelper", "catalogId": "rpc-only-cat", "args": {}}
+        )
+        is None
+    )
+    assert len(mixed_errors) == 1
+    assert mixed_errors[0]["code"] == "CATALOG_ERROR"
 
     assert _adapt_ast_part_for_v10(
         {
