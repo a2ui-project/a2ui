@@ -1919,8 +1919,8 @@ class MessageProcessor<T extends ComponentApi> {
   /// Each entry lists the id of every catalog in [catalogs]. With
   /// [CapabilitiesOptions.includeInlineCatalogs] it also carries the catalogs
   /// themselves, shaped for that entry's version as
-  /// [A2uiVersionCapabilities.toJson] describes: the legacy inline catalog
-  /// ([Catalog.toLegacyInlineCatalog]) below v1.0, the catalog document
+  /// [A2uiVersionCapabilities.toJson] describes: the v0.9 inline catalog
+  /// ([Catalog.toV09InlineCatalog]) below v1.0, the catalog document
   /// ([Catalog.toJson]) from v1.0.
   ///
   /// Throws [A2uiValidationError] if [CapabilitiesOptions.versions] is empty.

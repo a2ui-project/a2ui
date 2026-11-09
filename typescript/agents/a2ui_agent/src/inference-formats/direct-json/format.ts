@@ -31,6 +31,12 @@ export interface DirectJsonFormatOptions {
    * message only once its values have arrived whole.
    */
   progressiveKeys?: Iterable<string>;
+  /**
+   * Whether a pre-v1.0 stream holds back incomplete components until their JSON object
+   * closes rather than healing them as they arrive. Components of v1.0+ catalogs are always
+   * held back regardless of this setting.
+   */
+  bufferIncompleteComponents?: boolean;
 }
 
 /**
@@ -40,6 +46,7 @@ export class DirectJsonFormat implements InferenceFormat {
   readonly promptGenerator: DirectJsonPromptGenerator;
 
   private readonly progressiveKeys: readonly string[];
+  private readonly bufferIncompleteComponents: boolean;
 
   constructor(
     private readonly catalogs: CatalogApi[],
@@ -48,11 +55,15 @@ export class DirectJsonFormat implements InferenceFormat {
   ) {
     checkParserCatalogs(catalogs);
     this.progressiveKeys = [...(options.progressiveKeys ?? DEFAULT_PROGRESSIVE_KEYS)];
+    this.bufferIncompleteComponents = options.bufferIncompleteComponents ?? false;
     this.promptGenerator = new DirectJsonPromptGenerator(catalogs, examples);
   }
 
   createParser(): DirectJsonParser {
-    return new DirectJsonParser(this.catalogs, {progressiveKeys: this.progressiveKeys});
+    return new DirectJsonParser(this.catalogs, {
+      progressiveKeys: this.progressiveKeys,
+      bufferIncompleteComponents: this.bufferIncompleteComponents,
+    });
   }
 }
 
