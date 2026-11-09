@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v0_9/sample.json",
+  "title": "A2UI Catalog Sample",
+  "description": "A sample demonstrating A2UI components and messages.",
+  "type": "object",
+  "required": ["name", "description", "messages"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "The display name of the sample."
+    },
+    "description": {
+      "type": "string",
+      "description": "A short description of what the sample demonstrates."
+    },
+    "messages": {
+      "$ref": "server_to_client_list.json",
+      "description": "The ordered list of A2UI messages to be processed by the client."
+    }
+  }
+}

@@ -1,0 +1,135 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "gallery-task-card",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Card": {
+              "child": "main-row"
+            }
+          }
+        },
+        {
+          "id": "main-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["content", "priority"]
+              },
+              "alignment": "start"
+            }
+          }
+        },
+        {
+          "id": "content",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["title", "description", "meta-row"]
+              }
+            }
+          }
+        },
+        {
+          "id": "title",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/title"
+              },
+              "usageHint": "h3"
+            }
+          }
+        },
+        {
+          "id": "description",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/description"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "meta-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["due-date", "project"]
+              }
+            }
+          }
+        },
+        {
+          "id": "due-date",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/dueDate"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "project",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/project"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "priority",
+          "component": {
+            "Icon": {
+              "name": {
+                "path": "/priorityIcon"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "gallery-task-card",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Review pull request"
+        },
+        {
+          "key": "description",
+          "valueString": "Review and approve the authentication module changes."
+        },
+        {
+          "key": "dueDate",
+          "valueString": "Today"
+        },
+        {
+          "key": "project",
+          "valueString": "Backend"
+        },
+        {
+          "key": "priorityIcon",
+          "valueString": "priority_high"
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "gallery-task-card",
+      "root": "root"
+    }
+  }
+]

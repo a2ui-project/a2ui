@@ -1,0 +1,296 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "gallery-calendar-day",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Card": {
+              "child": "main-column"
+            }
+          }
+        },
+        {
+          "id": "main-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["header-row", "divider", "actions"]
+              }
+            }
+          }
+        },
+        {
+          "id": "header-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["date-col", "events-col"]
+              }
+            }
+          }
+        },
+        {
+          "id": "date-col",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["day-name", "day-number"]
+              },
+              "alignment": "start"
+            }
+          }
+        },
+        {
+          "id": "day-name",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/dayName"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "day-number",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/dayNumber"
+              },
+              "usageHint": "h1"
+            }
+          }
+        },
+        {
+          "id": "events-col",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["event1", "event2", "event3"]
+              }
+            }
+          }
+        },
+        {
+          "id": "event1",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["event1-title", "event1-time"]
+              }
+            }
+          }
+        },
+        {
+          "id": "event1-title",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/event1/title"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "event1-time",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/event1/time"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "event2",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["event2-title", "event2-time"]
+              }
+            }
+          }
+        },
+        {
+          "id": "event2-title",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/event2/title"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "event2-time",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/event2/time"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "event3",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["event3-title", "event3-time"]
+              }
+            }
+          }
+        },
+        {
+          "id": "event3-title",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/event3/title"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "event3-time",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/event3/time"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "divider",
+          "component": {
+            "Divider": {}
+          }
+        },
+        {
+          "id": "actions",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["add-btn", "discard-btn"]
+              }
+            }
+          }
+        },
+        {
+          "id": "add-btn-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Add to calendar"
+              }
+            }
+          }
+        },
+        {
+          "id": "add-btn",
+          "component": {
+            "Button": {
+              "child": "add-btn-text",
+              "action": {
+                "name": "add",
+                "context": []
+              }
+            }
+          }
+        },
+        {
+          "id": "discard-btn-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Discard"
+              }
+            }
+          }
+        },
+        {
+          "id": "discard-btn",
+          "component": {
+            "Button": {
+              "child": "discard-btn-text",
+              "action": {
+                "name": "discard",
+                "context": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "gallery-calendar-day",
+      "contents": [
+        {
+          "key": "dayName",
+          "valueString": "Friday"
+        },
+        {
+          "key": "dayNumber",
+          "valueString": "28"
+        },
+        {
+          "key": "event1",
+          "valueMap": [
+            {
+              "key": "title",
+              "valueString": "Lunch"
+            },
+            {
+              "key": "time",
+              "valueString": "12:00 - 12:45 PM"
+            }
+          ]
+        },
+        {
+          "key": "event2",
+          "valueMap": [
+            {
+              "key": "title",
+              "valueString": "Q1 roadmap review"
+            },
+            {
+              "key": "time",
+              "valueString": "1:00 - 2:00 PM"
+            }
+          ]
+        },
+        {
+          "key": "event3",
+          "valueMap": [
+            {
+              "key": "title",
+              "valueString": "Team standup"
+            },
+            {
+              "key": "time",
+              "valueString": "3:30 - 4:00 PM"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "gallery-calendar-day",
+      "root": "root"
+    }
+  }
+]
