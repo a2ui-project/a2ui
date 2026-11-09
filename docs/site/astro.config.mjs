@@ -56,8 +56,9 @@ export default defineConfig({
   site: process.env.ASTRO_SITE || 'https://a2ui.org',
   base: process.env.ASTRO_BASE || undefined,
   redirects: {
-    '/gallery': `${basePrefix}/build-with-a2ui/`,
-    '/showcase': `${basePrefix}/build-with-a2ui/`,
+    '/gallery': `${basePrefix}/built-with-a2ui/`,
+    '/showcase': `${basePrefix}/built-with-a2ui/`,
+    '/build-with-a2ui': `${basePrefix}/built-with-a2ui/`,
     '/specification/v0.9-a2ui': `${basePrefix}/specification/v0.9.1-a2ui/`,
     '/specification/v0.9-evolution-guide': `${basePrefix}/specification/v0.9.1-evolution-guide/`,
     '/concepts/actions': `${basePrefix}/concepts/actions-and-functions/`,
