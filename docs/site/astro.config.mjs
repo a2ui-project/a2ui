@@ -19,6 +19,7 @@ import starlight from '@astrojs/starlight';
 import {defineConfig} from 'astro/config';
 
 import {normalizeBasePrefix} from './src/lib/spec-schemas.mjs';
+import {googleAnalytics} from './src/plugins/google-analytics.mjs';
 import {rehypeWrapTables} from './src/plugins/rehype-wrap-tables.mjs';
 import {remarkA2uiIncludes} from './src/plugins/remark-a2ui-includes.mjs';
 
@@ -73,6 +74,7 @@ export default defineConfig({
     rehypePlugins: [rehypeWrapTables, rehypePreserveJsonHeadingIds],
   },
   integrations: [
+    googleAnalytics('G-YX9TPV8DCC'),
     starlight({
       title: 'A2UI',
       description:
