@@ -4,9 +4,9 @@
 
 Canonical URL: https://a2ui.org/guides/client-integration/
 
-Integrate an A2UI [renderer](../../concepts/glossary/#renderer) into a Flutter, React, Lit, Angular, SwiftUI, or Jetpack Compose application using the [Renderer SDKs](/concepts/sdks/#renderer-sdk) to display interactive UIs from an AI agent and send user actions back.
+Integrate an A2UI [renderer](/concepts/glossary/#renderer) into a Flutter, React, Lit, Angular, SwiftUI, or Jetpack Compose application using the [Renderer SDKs](/concepts/sdks/#renderer-sdk) to display interactive UIs from an AI agent and send user actions back.
 
-If you are building the backend agent instead, see [How to Integrate with My Agent Server](../../guides/agent-integration/). To register custom widgets beyond the built-in Basic catalog, see [How to Define a Catalog](../../guides/defining-a-catalog/) and [Authoring Universal Web Components](../../guides/authoring-universal-components/).
+If you are building the backend agent instead, see [How to Integrate with My Agent Server](/guides/agent-integration/). To register custom widgets beyond the built-in Basic catalog, see [How to Define a Catalog](/guides/defining-a-catalog/) and [Authoring Universal Web Components](/guides/authoring-universal-components/).
 
 ---
 
@@ -81,9 +81,9 @@ dependencies {
 
 ## Step 2: Initialize MessageProcessor
 
-Create a [`MessageProcessor`](../../concepts/glossary/#messageprocessor) instance inside a session controller or service with the built-in [Basic catalog](../../specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json) and an action callback that forwards user events to the transport method you will add in [Step 4](#step-4-connect-transport-and-handle-actions).
+Create a [`MessageProcessor`](/concepts/glossary/#messageprocessor) instance inside a session controller or service with the built-in [Basic catalog](/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json) and an action callback that forwards user events to the transport method you will add in [Step 4](#step-4-connect-transport-and-handle-actions).
 
-The scope of the rendering session determines which [surfaces](../../concepts/glossary/#surface) the agent can modify. In a chat app, you can use one `MessageProcessor` per conversation to allow the agent to update or delete any surface in the conversation at any time by its `surfaceId`, or use one `MessageProcessor` per chat turn so the agent only modifies surfaces in the active turn and does not need unique surface IDs across turns. To register custom components or local functions alongside the Basic catalog, see [How to Define a Catalog](../../guides/defining-a-catalog/).
+The scope of the rendering session determines which [surfaces](/concepts/glossary/#surface) the agent can modify. In a chat app, you can use one `MessageProcessor` per conversation to allow the agent to update or delete any surface in the conversation at any time by its `surfaceId`, or use one `MessageProcessor` per chat turn so the agent only modifies surfaces in the active turn and does not need unique surface IDs across turns. To register custom components or local functions alongside the Basic catalog, see [How to Define a Catalog](/guides/defining-a-catalog/).
 
 #### Flutter
 
@@ -293,7 +293,7 @@ class AgentSessionViewModel(application: Application) : AndroidViewModel(applica
 
 ## Step 3: Mount surface views
 
-Create a container view that subscribes to the active [surfaces](../../concepts/glossary/#surface) on `MessageProcessor` and renders an A2UI surface component for each one. Your container mounts new surfaces when `createSurface` arrives and unmounts them when `deleteSurface` arrives, while each mounted surface observes its own component tree and `DataModel` internally to update child components in place as `updateComponents` and `updateDataModel` messages arrive.
+Create a container view that subscribes to the active [surfaces](/concepts/glossary/#surface) on `MessageProcessor` and renders an A2UI surface component for each one. Your container mounts new surfaces when `createSurface` arrives and unmounts them when `deleteSurface` arrives, while each mounted surface observes its own component tree and `DataModel` internally to update child components in place as `updateComponents` and `updateDataModel` messages arrive.
 
 #### Flutter
 
@@ -552,7 +552,7 @@ fun AgentSurfacesScreen(viewModel: AgentSessionViewModel, modifier: Modifier = M
 
 ## Step 4: Connect transport and handle actions
 
-Add inbound and outbound transport methods to your session controller or service to decode incoming JSON payloads into `MessageProcessor` and send resolved [`action`](../../concepts/messages/#action) messages back to your agent. A2UI is transport-agnostic, so these methods can exchange messages over HTTP responses, Server-Sent Events (SSE), WebSockets, [A2A](../../specification/v1.0-a2ui-extension-specification/), or [MCP](../../guides/mcp-overview/).
+Add inbound and outbound transport methods to your session controller or service to decode incoming JSON payloads into `MessageProcessor` and send resolved [`action`](/concepts/messages/#action) messages back to your agent. A2UI is transport-agnostic, so these methods can exchange messages over HTTP responses, Server-Sent Events (SSE), WebSockets, [A2A](/specification/v1.0-a2ui-extension-specification/), or [MCP](/guides/mcp-overview/).
 
 #### Flutter
 
@@ -717,7 +717,7 @@ private fun sendOverTransport(message: Map<String, Any?>) {
 <details>
 <summary>Wire format: agent-to-renderer messages</summary>
 
-Agents send [`createSurface`](../../concepts/messages/#createsurface) followed by incremental [`updateComponents`](../../concepts/messages/#updatecomponents) and [`updateDataModel`](../../concepts/messages/#updatedatamodel) messages, and remove finished surfaces with [`deleteSurface`](../../concepts/messages/#deletesurface):
+Agents send [`createSurface`](/concepts/messages/#createsurface) followed by incremental [`updateComponents`](/concepts/messages/#updatecomponents) and [`updateDataModel`](/concepts/messages/#updatedatamodel) messages, and remove finished surfaces with [`deleteSurface`](/concepts/messages/#deletesurface):
 
 <SchemaChips
   items={[
@@ -1130,7 +1130,7 @@ In React, `setMarkdownRenderer(renderMarkdown)` from [Step 2](#step-2-initialize
 
 ### Advertise renderer capabilities
 
-Call `getRendererCapabilities()` on `MessageProcessor` and attach the result to your outbound transport [metadata](../../concepts/messages/#metadata) under `a2uiRendererCapabilities` so the agent knows which catalogs and protocol versions your client supports. If your team owns both the agent and the client app with a fixed catalog set, you can skip runtime negotiation and target those catalogs directly on the agent. Keep `includeInlineCatalogs` at its default `false` in production when the agent already holds matching `catalogId` schemas; set it to `true` only during prototyping when the agent accepts client-supplied inline schemas.
+Call `getRendererCapabilities()` on `MessageProcessor` and attach the result to your outbound transport [metadata](/concepts/messages/#metadata) under `a2uiRendererCapabilities` so the agent knows which catalogs and protocol versions your client supports. If your team owns both the agent and the client app with a fixed catalog set, you can skip runtime negotiation and target those catalogs directly on the agent. Keep `includeInlineCatalogs` at its default `false` in production when the agent already holds matching `catalogId` schemas; set it to `true` only during prototyping when the agent accepts client-supplied inline schemas.
 
 #### Flutter
 
@@ -1285,7 +1285,7 @@ fun buildCapabilitiesMetadata(): Map<String, Map<String, Any?>> {
 
 Call `getRendererDataModel()` on `MessageProcessor` and attach the returned snapshot under `a2uiRendererDataModel` in your outbound transport metadata alongside `action` messages and user prompts. `MessageProcessor` returns data models for active surfaces created with `"sendDataModel": true`, such as multi-field forms where local input edits update the client `DataModel` without firing separate action events.
 
-If your catalogs use v1.0 remote agent functions ([`callAgentFunction`](../../concepts/messages/#callagentfunction-v10-only)) or agent-initiated client calls ([`callRendererFunction`](../../concepts/messages/#callrendererfunction-v10-only)), pass `outboundListener` to `MessageProcessor` (`processorOptions.outboundListener` in Angular) to forward those envelopes through `sendToAgent`. To report malformed incoming payloads back to the agent as structured [`error`](../../specification/v1.0/schemas/#renderer_to_agent.json/properties/error) messages instead of throwing exceptions, set `reportErrorsOnly: true` (paired with `errorHandler` on Web, or `outboundListener` on Flutter; SwiftUI and Jetpack Compose already emit validation errors on `outboundListener` and `outboundEvents`).
+If your catalogs use v1.0 remote agent functions ([`callAgentFunction`](/concepts/messages/#callagentfunction-v10-only)) or agent-initiated client calls ([`callRendererFunction`](/concepts/messages/#callrendererfunction-v10-only)), pass `outboundListener` to `MessageProcessor` (`processorOptions.outboundListener` in Angular) to forward those envelopes through `sendToAgent`. To report malformed incoming payloads back to the agent as structured [`error`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/error) messages instead of throwing exceptions, set `reportErrorsOnly: true` (paired with `errorHandler` on Web, or `outboundListener` on Flutter; SwiftUI and Jetpack Compose already emit validation errors on `outboundListener` and `outboundEvents`).
 
 #### Flutter
 

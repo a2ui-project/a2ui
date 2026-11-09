@@ -5,7 +5,7 @@
 Canonical URL: https://a2ui.org/specification/v1.0-a2ui/
 
 > [!IMPORTANT] Current Specification
-> **A2UI v1.0** is the current specification. Compared to [v0.9.1](./v0.9.1-a2ui.md), v1.0 renames the wire envelopes to `agent_to_renderer` and `renderer_to_agent`, prefixes dynamic bindings with `@` (`@path` and `@call`), adds bidirectional function RPC messages (`callRendererFunction`, `callAgentFunction`, `rendererFunctionResponse`, `agentFunctionResponse`), and supports per-component `catalogId` mixing and single-message `createSurface` payloads. See the [v1.0 Evolution Guide](./v1.0-evolution-guide.md) and [v1.0 JSON Schemas](./v1.0-schemas.mdx).
+> **A2UI v1.0** is the current specification. Compared to [v0.9.1](/specification/v1.0-a2ui/v0.9.1-a2ui.md), v1.0 renames the wire envelopes to `agent_to_renderer` and `renderer_to_agent`, prefixes dynamic bindings with `@` (`@path` and `@call`), adds bidirectional function RPC messages (`callRendererFunction`, `callAgentFunction`, `rendererFunctionResponse`, `agentFunctionResponse`), and supports per-component `catalogId` mixing and single-message `createSurface` payloads. See the [v1.0 Evolution Guide](/specification/v1.0-a2ui/v1.0-evolution-guide.md) and [v1.0 JSON Schemas](/specification/v1.0-a2ui/v1.0-schemas.mdx).
 
 A Specification for a JSON-Based, Streaming UI Protocol.
 
@@ -27,7 +27,7 @@ Communication occurs via a stream of JSON objects. The renderer parses each obje
 - `updateDataModel`: Provides new data to be inserted into or to replace a surface's data model.
 - `deleteSurface`: Explicitly removes a surface and its contents from the UI.
 
-End of agent turn is signaled by [transport layer](../../../docs/public/concepts/transports.md).
+End of agent turn is signaled by [transport layer](/docs/public/concepts/transports.md).
 
 ## Changes from previous versions
 
@@ -102,7 +102,7 @@ While A2UI is transport agnostic, it is most commonly used with the following tr
 
 #### A2A (Agent-to-Agent) binding
 
-The **[A2A Extension](../extensions/a2a/docs/a2ui_extension_specification.md)** maps A2UI over the **[A2A Protocol](https://a2a-protocol.org)**. It standardizes metadata placement, renderer-to-agent capability negotiation, and bidirectional data model synchronization for agent-to-agent interactions.
+The **[A2A Extension](/specification/extensions/a2a/docs/a2ui_extension_specification.md)** maps A2UI over the **[A2A Protocol](https://a2a-protocol.org)**. It standardizes metadata placement, renderer-to-agent capability negotiation, and bidirectional data model synchronization for agent-to-agent interactions.
 
 #### MCP (Model Context Protocol) binding
 
@@ -1092,7 +1092,7 @@ _Replace the entire data model:_
 
 ### Renderer to agent updates
 
-When `sendDataModel` is set to `true` for a surface, the renderer automatically appends the **entire data model** of that surface to the metadata of every message (such as `action` or user query) sent to the agent that created the surface. The data model is included using the transport's metadata facility (the exact location and format are defined by the specific transport binding). The payload follows the schema in [`renderer_data_model.json`](../json/renderer_data_model.json).
+When `sendDataModel` is set to `true` for a surface, the renderer automatically appends the **entire data model** of that surface to the metadata of every message (such as `action` or user query) sent to the agent that created the surface. The data model is included using the transport's metadata facility (the exact location and format are defined by the specific transport binding). The payload follows the schema in [`renderer_data_model.json`](/specification/json/renderer_data_model.json).
 
 - **Targeted Delivery**: The data model is sent exclusively to the agent that created the surface. Data cannot leak to other agents.
 - **Trigger:** Data is sent only when a renderer-to-agent message is triggered (e.g., by a user action like a button click). Passive data changes (like typing in a text field) do not trigger a network request on their own; they simply update the local state, which will be sent with the next action.
@@ -1111,7 +1111,7 @@ The renderer supports a set of named **Functions** (e.g., `required`, `regex`, `
 
 Input components (like `TextField`, `ChoicePicker`) and interactive elements (like `Button`) can define a list of `checks` (`CheckRule` objects).
 
-A `CheckRule` contains a `condition` (a `DataBinding` path or a `FunctionCall`) and an optional fallback `message` string. The `condition` evaluates to either a `ValidationResult` object (defined in [`catalog_definition.json#/$defs/ValidationResult`](../json/catalog_definition.json)) or a primitive `boolean`.
+A `CheckRule` contains a `condition` (a `DataBinding` path or a `FunctionCall`) and an optional fallback `message` string. The `condition` evaluates to either a `ValidationResult` object (defined in [`catalog_definition.json#/$defs/ValidationResult`](/specification/json/catalog_definition.json)) or a primitive `boolean`.
 
 #### `ValidationResult` Structure
 
@@ -1623,7 +1623,7 @@ An agent advertises its capabilities using the [`agent_capabilities.json`] schem
 
 The `a2uiRendererCapabilities` object in transport metadata follows the [`renderer_capabilities.json`] schema to describe the renderer's capabilities.
 
-Capabilities carried per message are scoped to that message's turn, and omitting them withdraws A2UI for that turn; capabilities carried at session setup are scoped to the session. Each transport binding states which applies (see [Capability scoping](../extensions/a2a/docs/a2ui_extension_specification.md#capability-scoping) for the A2A rule).
+Capabilities carried per message are scoped to that message's turn, and omitting them withdraws A2UI for that turn; capabilities carried at session setup are scoped to the session. Each transport binding states which applies (see [Capability scoping](/specification/extensions/a2a/docs/a2ui_extension_specification.md#capability-scoping) for the A2A rule).
 
 **Properties:**
 

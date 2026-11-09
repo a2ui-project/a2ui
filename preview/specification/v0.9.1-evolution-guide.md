@@ -4,7 +4,7 @@
 
 Canonical URL: https://a2ui.org/specification/v0.9.1-evolution-guide/
 
-This document describes the changes between A2UI version 0.9 and version 0.9.1. For changes from version 0.8 to 0.9, please refer to the [v0.9 Evolution Guide](../../v0_9/docs/evolution_guide.md).
+This document describes the changes between A2UI version 0.9 and version 0.9.1. For changes from version 0.8 to 0.9, please refer to the [v0.9 Evolution Guide](/v0_9/docs/evolution_guide.md).
 
 ## 1. Executive Summary
 

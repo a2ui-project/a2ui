@@ -5,7 +5,7 @@
 Canonical URL: https://a2ui.org/specification/v1.0-basic-catalog-implementation-guide/
 
 > [!NOTE] Reference Catalog
-> The Basic Catalog is an optional, styleable reference catalog included for convenience. Applications can style these components to match their own design system or define custom domain-specific catalogs; see [How to Define a Catalog](../guides/defining-a-catalog.mdx) and the [`basic_catalog.json` schema](#basic_catalog.json).
+> The Basic Catalog is an optional, styleable reference catalog included for convenience. Applications can style these components to match their own design system or define custom domain-specific catalogs; see [How to Define a Catalog](/specification/guides/defining-a-catalog.mdx) and the [`basic_catalog.json` schema](#basic_catalog.json).
 
 --8&lt;-- "catalogs/basic/v1/basic_catalog_implementation_guide.md"
 

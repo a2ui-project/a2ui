@@ -237,7 +237,7 @@ void main() {
 }
 ```
 
-Swift (`A2UISwiftCore`, `A2UISwiftUI`) and Kotlin (`androidx.a2ui`, `androidx.a2ui.compose`) target client-side rendering; see [SDKs](../sdks/#agent-sdk) for server-side Agent SDK packages.
+Swift (`A2UISwiftCore`, `A2UISwiftUI`) and Kotlin (`androidx.a2ui`, `androidx.a2ui.compose`) target client-side rendering; see [SDKs](/concepts/sdks/#agent-sdk) for server-side Agent SDK packages.
 
 ## Registering a catalog in a renderer
 
@@ -628,7 +628,7 @@ In this example, `salesDashboard` uses the basic catalog by default, and `chart`
 <details>
 <summary>Edge cases when <code>createSurface.catalogId</code> is omitted</summary>
 
-`catalogId` in `createSurface` is optional. If a surface omits `createSurface.catalogId`, every component and function call on that surface must set its own `catalogId`. If an entry omits `catalogId` and the surface has no default `catalogId` either, the renderer rejects that component or function call rather than falling back to `supportedCatalogIds`. See [Mixable catalogs and component resolution logic](../../specification/v1.0-a2ui/#mixable-catalogs-and-component-resolution-logic) for the full resolution rules.
+`catalogId` in `createSurface` is optional. If a surface omits `createSurface.catalogId`, every component and function call on that surface must set its own `catalogId`. If an entry omits `catalogId` and the surface has no default `catalogId` either, the renderer rejects that component or function call rather than falling back to `supportedCatalogIds`. See [Mixable catalogs and component resolution logic](/specification/v1.0-a2ui/#mixable-catalogs-and-component-resolution-logic) for the full resolution rules.
 
 </details>
 
