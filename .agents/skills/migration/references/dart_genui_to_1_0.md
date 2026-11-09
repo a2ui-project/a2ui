@@ -68,11 +68,19 @@ Markdown rendering and `openUrl` are no longer built in: add
 app relied on them. Conversely, if the app does not wire `openUrl` and its
 native/web plugin registrar or build config declared `url_launcher` only
 because `genui` pulled it in transitively, remove that unused `url_launcher`
-plugin dependency so build/plugin analysis does not fail. genui also exported
+plugin dependency so build/plugin analysis does not fail (the typical error
+says the plugin is registered in the plugin registrar but not used in the Dart
+code). genui also exported
 the `combineLatestAll` and `switchMap` stream extensions; code that used them
 depends on `package:stream_transform` or keeps local copies. A library that
 re-exports `a2ui_core` or `a2ui_flutter` symbols to its own users must declare
 those packages as exported dependencies when the build enforces strict deps.
+genui depended on Flutter, so a pure-data library that used genui only for
+schemas (`A2uiSchemas`) had to be built for `dart:ui`; once it imports only
+`a2ui_core`, which has no Flutter dependency, drop that requirement from its
+build rule (in Bazel-style builds, `required_libs = ["ui"]`). If the build
+restricts package visibility, the client needs access to `json_schema_builder`
+as well as to `a2ui_core` and `a2ui_flutter`.
 
 Imports:
 
@@ -95,7 +103,13 @@ Flutter's `Action<T extends Intent>` in `package:flutter/widgets.dart` when a
 file uses or re-exports `Action`; add `hide Action` on the `a2ui_core` import if
 needed. If the app already defines its own `A2uiProtocolVersion` enum, use
 `import 'package:a2ui_core/a2ui_core.dart' hide A2uiProtocolVersion;` and alias
-`a2ui_core` where the SDK enum is needed.
+`a2ui_core` where the SDK enum is needed. `package:intl` exports a
+`TextDirection` that collides with `dart:ui`'s in files that import both (common
+in compatibility code that ports formatting helpers); add `hide TextDirection`
+on the `intl` import. When removing the genui import, also check files that
+import a package re-exporting genui symbols under a prefix (`as generated`)
+while using genui names unprefixed: they still need an explicit import of the
+replacement.
 
 ### 2. Renderer wiring
 
@@ -275,14 +289,30 @@ width` in a basic `Row`; bound it, or have the agent send a `weight`.
   `dataModel` and `dispatchError`.
 - A library with many custom `CatalogItem`s may keep a thin compatibility
   layer (its own `CatalogItem` implementing `ComponentApi`, and a
-  `SurfaceController` wrapping `MessageProcessor`) to migrate in stages. If
-  you do, don't reimplement the SDK inside it: delegate basic components to
+  `SurfaceController` wrapping `MessageProcessor`) to migrate in stages.
+  Prefer delegating to the SDK inside it: basic components to
   `v0_9.BasicComponents`, schemas to `CommonSchemas`, basic functions to
-  `BasicCatalog.v0_9(openUrl: ...).functions`, and path resolution to
-  `DataContext.resolvePath`, and bind values with
+  `BasicCatalog.v0_9(openUrl: ...).functions`, path resolution to
+  `DataContext.resolvePath`, and value binding to
   `DataContext.resolveSignal`. Hand-copied versions drift from the SDK
   (missing widgets, double-evaluated function arguments, wrong `.` /
   trailing-slash handling).
+- A layer that instead keeps genui's API by reimplementing `Surface`,
+  `DataContext` and the basic functions on top of `a2ui_core.DataModel` is
+  sometimes the accepted outcome for a large catalog, and keeps goldens stable.
+  It gives up `MessageProcessor` validation and `A2uiSurface` rendering, and it
+  has to replicate genui behavior the app relied on. In particular, genui's
+  `Surface` wrapped every component in `A2uiAccessibility` (merged semantics
+  plus replaced child labels); components that set `container: false` on their
+  own `Semantics` rely on that wrap, so a replacement `Surface` must apply it
+  too or accessibility tests fail. (`A2uiSurface`'s `NodeView` applies the
+  attributes natively.) Port `ValidationHelper` as well if components used its
+  validation stream.
+- If generated code emitted genui calls (for example, templates run by the
+  build to produce component bases or schema classes), change the templates
+  and their tests, not the generated output. Put any compatibility layer at or
+  below the lowest generated package, so a data-only generated library can
+  depend on `a2ui_core` alone.
 
 ### 5. Client functions
 
@@ -356,7 +386,7 @@ import 'package:json_schema_builder/json_schema_builder.dart' hide ValidationRes
 | `SurfaceController({required Iterable<Catalog> catalogs, pendingUpdateTimeout})`                                 | `MessageProcessor<ComponentImplementation>({required List<CatalogImplementation> catalogs, A2uiProtocolVersion? defaultVersion, ValidationConfig? validationConfig, onAction, onError, OutboundMessageListener? outboundListener})` | `a2ui_core/lib/src/processing/processor.dart`. No `pendingUpdateTimeout`: updates for a surface that does not exist yet are errors, see behavior changes. `catalogs` is unmodifiable after construction.                                                                                                                                                                                                                                                                                                    |
 | `controller.catalogs`                                                                                            | `processor.catalogs`                                                                                                                                                                                                                |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `controller.handleMessage(A2uiMessage)`; `A2uiMessageSink`                                                       | `processor.processMessages(Object? payload)`                                                                                                                                                                                        | Takes a decoded envelope map, a list of envelopes, `{"messages": [...]}`, or parsed `AgentToRendererMessage`s. Throws `A2uiError` synchronously. `processMessagesWithErrors(payload)` returns `List<ErrorMessage>` instead.                                                                                                                                                                                                                                                                                 |
-| `A2uiMessage.fromJson(map)` (`package:genui/a2ui_core.dart`)                                                     | `AgentToRendererMessage.fromJson(map)`                                                                                                                                                                                              | Pass JSON directly to `processMessages` unless the app distinguishes envelope parsing (`AgentToRendererMessage.fromJson` throws only on malformed envelopes) from semantic processing (`processMessages` also throws `A2uiError` on unknown `catalogId`, missing surface, or schema failure).                                                                                                                                                                                                               |
+| `A2uiMessage` type and `A2uiMessage.fromJson(map)` (`package:genui/a2ui_core.dart`)                              | `AgentToRendererMessage` / `AgentToRendererMessage.fromJson(map)`                                                                                                                                                                   | Pass JSON directly to `processMessages` unless the app distinguishes envelope parsing (`AgentToRendererMessage.fromJson` throws only on malformed envelopes) from semantic processing (`processMessages` also throws `A2uiError` on unknown `catalogId`, missing surface, or schema failure).                                                                                                                                                                                                               |
 | `CreateSurfaceMessage`, `UpdateComponentsMessage`, `UpdateDataModelMessage`, `DeleteSurfaceMessage`              | Same names in `a2ui_core`                                                                                                                                                                                                           | `version` is a required constructor argument; `catalogId` is nullable (optional on v1.0 only). `toJson()` produces the same wire shape.                                                                                                                                                                                                                                                                                                                                                                     |
 | `controller.surfaceUpdates` (`SurfaceAdded`, `ComponentsUpdated`, `SurfaceRemoved`)                              | `processor.model.onSurfaceCreated: EventSource<SurfaceModel>`, `processor.model.onSurfaceDeleted: EventSource<String>`                                                                                                              | `subscribe(listener)` returns a `Subscription`; call `unsubscribe()` on dispose. No components-updated event; `A2uiSurface` rerenders on its own.                                                                                                                                                                                                                                                                                                                                                           |
 | `controller.activeSurfaceIds`                                                                                    | `processor.model.allSurfaces.map((s) => s.id)` or a list the app keeps from the two events                                                                                                                                          | genui moved a surface to the end on each update; `allSurfaces` keeps creation order.                                                                                                                                                                                                                                                                                                                                                                                                                        |
