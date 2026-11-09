@@ -35,6 +35,30 @@ def _check_unique_ids(catalogs: Sequence[CatalogApi]) -> None:
         seen.add(cat_id)
 
 
+# v0.9 and v0.9.1 catalogs are interchangeable, as in the core's catalog
+# compatibility and in `RendererState`, so they share one release line.
+_RELEASE_LINES: dict[ProtocolVersion, ProtocolVersion] = {
+    ProtocolVersion.V0_9_1: ProtocolVersion.V0_9,
+}
+
+
+def release_line(version: str | ProtocolVersion) -> ProtocolVersion:
+    """Returns the release line of a catalog's protocol version.
+
+    Catalogs on one release line work together. v0.9 and v0.9.1 catalogs
+    accept each other's messages, so both are on the v0.9 line; every other
+    version is a line of its own.
+
+    Args:
+        version: A protocol version, such as `"v0.9.1"`.
+
+    Raises:
+        ValueError: If `version` is not a protocol version this SDK defines.
+    """
+    protocol_version = to_protocol_version(version)
+    return _RELEASE_LINES.get(protocol_version, protocol_version)
+
+
 def check_catalogs(catalogs: Sequence[CatalogApi]) -> list[CatalogApi]:
     """Checks the catalogs that a format, parser or compiler works with.
 
@@ -47,7 +71,8 @@ def check_catalogs(catalogs: Sequence[CatalogApi]) -> list[CatalogApi]:
     Raises:
         TypeError: If `catalogs` is not a sequence of catalogs.
         A2uiCatalogError: If no catalog is given, two catalogs share a catalog
-            ID, or the catalogs target different protocol versions.
+            ID, or the catalogs target different release lines (v0.9 and
+            v0.9.1 catalogs share one).
     """
     if not isinstance(catalogs, Sequence) or isinstance(catalogs, (str, bytes)):
         raise TypeError(
@@ -58,11 +83,10 @@ def check_catalogs(catalogs: Sequence[CatalogApi]) -> list[CatalogApi]:
     if not items:
         raise A2uiCatalogError("At least one catalog must be provided.")
     _check_unique_ids(items)
-    versions = {to_protocol_version(c.protocol_version) for c in items}
-    if len(versions) > 1:
+    if len({release_line(c.protocol_version) for c in items}) > 1:
+        versions = {to_protocol_version(c.protocol_version).value for c in items}
         raise A2uiCatalogError(
-            "The catalogs target incompatible protocol versions:"
-            f" {sorted(v.value for v in versions)}."
+            f"The catalogs target incompatible protocol versions: {sorted(versions)}."
         )
     return items
 
@@ -143,7 +167,7 @@ def catalogs_protocol_version(catalogs: Sequence[CatalogApi]) -> str:
     Raises:
         TypeError: If `catalogs` is not a sequence of catalogs.
         A2uiCatalogError: If no catalog is given, two catalogs share a catalog
-            ID, or the catalogs target different protocol versions.
+            ID, or the catalogs target different release lines.
     """
     items = check_catalogs(catalogs)
     return to_protocol_version(items[0].protocol_version).value
