@@ -16,8 +16,6 @@ On the client, your app hosts an [A2UI Renderer](/concepts/sdks/#renderer-sdk), 
 
 While this page focuses on generating UI at request time, A2UI content can also be authored in advance and sent as a static payload (for example, returned from an MCP server via an agent to a client), following a traditional server-driven UI pattern.
 
-<ArchitecturePipelineOverview />
-
 _In the diagram above, purple marks your server-side agent code, blue marks your client app, and the teal dashed outlines mark the A2UI libraries on each side (the Agent SDK on the server and the Renderer on the client)._
 
 ---

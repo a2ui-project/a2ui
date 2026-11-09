@@ -32,7 +32,7 @@ it sends.
 
 ## Step 1: Check what is installed
 
-Check for **Python 3.11+**, **Node 20+** (the web app) and **Flutter 3.47+**
+Check for **Python 3.11+**, **Node 20+** (the web app) and **Flutter 3.38+**
 (the mobile app). If Node or Flutter is missing, ask whether to install it or
 to set up only the app that is ready: `react` without Flutter, `flutter`
 without Node.
@@ -177,9 +177,9 @@ turns it into widgets?*
 A **renderer** implements the catalog's components and functions with native
 widgets. This app has two: React (`renderers/react/`, `@a2ui/react`) and
 Flutter (`renderers/flutter/`, `a2ui_flutter`); the apps around them are
-`apps/web/` and `apps/flutter/`. The A2UI project also maintains Lit, Angular
-and Markdown renderers, and the community has SwiftUI and UIKit, Android
-Compose, React Native, Vue, Lynx, a terminal renderer and more
+`apps/web/` and `apps/flutter/`. The A2UI project also maintains Lit, Angular,
+SwiftUI, Jetpack Compose and Markdown renderers, and the community has UIKit,
+React Native, Vue, Lynx, a terminal renderer and more
 (https://a2ui.org/pr-preview/pr-4056/ecosystem/renderers/). The server never knows which client it is talking to; a new
 platform is a new renderer for the same catalog.
 

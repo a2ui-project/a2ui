@@ -1,4 +1,4 @@
-# Step-by-step quickstart
+# Step-by-Step Walkthrough
 
 > Run Travel A2UI yourself, with a React web client, a Flutter mobile client or both, then learn how A2UI works from what is on screen, with screenshots and real output.
 
@@ -12,7 +12,7 @@ for mobile.
 ## Run it
 
 You need **Python 3.11+**, plus **Node 20+** for the web app and
-**Flutter 3.47+** for the mobile app.
+**Flutter 3.38+** for the mobile app.
 
 1. Get the code:
 
@@ -53,7 +53,7 @@ You need **Python 3.11+**, plus **Node 20+** for the web app and
 
 ### The web app
 
-![The React client: flight cards in the conversation, the trip so far beside it](../../../assets/quickstart/travel-a2ui/chat.png)
+![The React client: flight cards in the conversation, the trip so far beside it](https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--chat.a481b6c8.webp)
 
 You land on a recorded sample trip, no key needed. To talk to the agent, paste
 a free Gemini key from [AI Studio](https://aistudio.google.com/apikey) when the
@@ -62,9 +62,12 @@ two of us, around $2,500 all in"_.
 
 ### The mobile app
 
-<Image
-  src={flutterTrip}
-  width={224}
+<img
+  src="https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--flutter-trip.8afa2402.webp"
+  width="224"
+  height="485"
+  loading="lazy"
+  decoding="async"
   alt="The Flutter client in a phone layout, with the trip sheet open"
   style="display: block; width: 100%; max-width: 14rem; height: auto; margin-inline: auto;"
 />
@@ -79,15 +82,14 @@ same thing: the same messages, drawn by two renderers.
 Five short steps, in the order you meet them on screen: what on the screen is
 A2UI, what the agent is allowed to draw, how the model learns it, what travels
 to the client, and what draws it. For all of it in one picture, see
-
-[how A2UI fits into this app](../#how-a2ui-fits-into-this-app).
+[how A2UI fits into this app](/quickstart/#how-a2ui-fits-into-this-app).
 
 ### 1. What is A2UI, and what is app code
 
 Not everything on screen is A2UI. Blue is composed by the agent; grey is app
 code, written by you, the builder, and the same on every turn:
 
-![The app with A2UI surfaces outlined in blue (a cost card in the conversation and the trip panel) and app code outlined in grey (the header, the message box and the reply text)](../../../assets/quickstart/travel-a2ui/a2ui-vs-app.png)
+![The app with A2UI surfaces outlined in blue (a cost card in the conversation and the trip panel) and app code outlined in grey (the header, the message box and the reply text)](https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--a2ui-vs-app.6cf941df.webp)
 
 - **A2UI, composed by the agent:** the cards in the conversation, the trip
   panel (the trip sheet in Flutter) and the web client's Home dashboard.
@@ -125,7 +127,7 @@ agent may use, and it holds two kinds of thing:
 
 The web client's **Catalog** tab draws every component with the real renderer:
 
-![The Catalog tab: every component the agent may use, drawn by the real renderer](../../../assets/quickstart/travel-a2ui/catalog.png)
+![The Catalog tab: every component the agent may use, drawn by the real renderer](https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--catalog.f3f5e3ff.webp)
 
 The catalog is also the **guardrail**. The server checks every message the
 model writes against it before sending anything, and each client implements
@@ -188,15 +190,14 @@ to ids and links): each component names its children by id, starting from
 
 ```json
 [
-  {"id": "root", "component": "Column", "children": ["fares"]},
-  {"id": "fares__text_1", "component": "Text", "text": "### Outbound · JFK → MAD"},
-  {"id": "fares__flightoption_1", "component": "FlightOption"},
+  {"id": "root", "component": "Column", "children": ["head", "list"]},
+  {"id": "head", "component": "Text", "text": "### Flights to Madrid"},
+  {"id": "fare", "component": "FlightOption"},
   {
-    "id": "fares__list_1",
+    "id": "list",
     "component": "List",
-    "children": {"path": "/flights", "componentId": "fares__flightoption_1"}
-  },
-  {"id": "fares", "component": "Column", "children": ["fares__text_1", "fares__list_1"]}
+    "children": {"path": "/flights", "componentId": "fare"}
+  }
 ]
 ```
 
@@ -209,7 +210,7 @@ catalog functions, and sends presses back as actions. React uses
 The web client's **Wire** tab shows both forms of every surface side by side,
 what the model wrote and what the client received:
 
-![The Wire tab: the Express the model wrote, beside the A2UI JSON the client received](../../../assets/quickstart/travel-a2ui/wire.png)
+![The Wire tab: the Express the model wrote, beside the A2UI JSON the client received](https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--wire.4515c08f.webp)
 
 Express is one way for a model to write A2UI, chosen because it is short. A2UI
 itself is the JSON.
@@ -224,8 +225,8 @@ uses a MessageProcessor to apply messages. It holds no app logic.
   `renderers/flutter/`. The apps around them are `apps/web/` and
   `apps/flutter/`.
 - **Maintained by the A2UI project:** Lit (web components), Angular, React,
-  Flutter and Markdown.
-- **From the community:** SwiftUI and UIKit, Android Compose, React Native,
+  Flutter, SwiftUI, Jetpack Compose and Markdown.
+- **From the community:** UIKit, React Native,
   Vue, Lynx, a terminal renderer and more.
 
 The server never knows which client it is talking to. Adding a platform means
@@ -256,6 +257,6 @@ for what it runs.
 
 - [Build your own](https://github.com/a2ui-project/labs/tree/main/samples/travel-a2ui#build-one-of-your-own): what to change to make
   this app about something other than travel.
-- [A2UI renderers](../../ecosystem/renderers/): the renderers A2UI has.
-- [How A2UI works](../../concepts/overview/): the concepts, in depth.
-- [A2UI v1.0 specification](../../specification/v1.0-a2ui/).
+- [A2UI renderers](/ecosystem/renderers/): the renderers A2UI has.
+- [How A2UI works](/concepts/overview/): the concepts, in depth.
+- [A2UI v1.0 specification](/specification/v1.0-a2ui/).

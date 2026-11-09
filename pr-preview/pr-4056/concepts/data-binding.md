@@ -381,3 +381,17 @@ final email = surface?.dataModel.get('/reservation/guestEmail');
 let surface = processor.surfaceGroupModel["booking"]
 let email = surface?.dataModel.get("/reservation/guestEmail")
 ```
+
+#### Kotlin
+
+```kotlin
+import androidx.a2ui.engine.model.A2uiCoreSurfaceModel
+import androidx.a2ui.model.protocol.A2uiDataPath
+
+// Accessing the data model directly requires the androidx.a2ui:a2ui-engine
+// dependency (which provides A2uiCoreSurfaceModel and A2uiCoreDataModel).
+// Surface instances emitted by A2uiMessageProcessor implement A2uiCoreSurfaceModel:
+val surface =
+    processor.activeSurfaces.value.firstOrNull { it.id == "booking" } as? A2uiCoreSurfaceModel
+val email = surface?.dataModel?.get(A2uiDataPath("/reservation/guestEmail"))
+```

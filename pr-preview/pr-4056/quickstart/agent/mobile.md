@@ -31,7 +31,7 @@ it sends.
 
 ## Step 1: Check what is installed
 
-Check for **Python 3.11+** and **Flutter 3.47+**. Node is not needed.
+Check for **Python 3.11+** and **Flutter 3.38+**. Node is not needed.
 
 A **Gemini API key** is needed to talk to the agent. A free one comes from
 https://aistudio.google.com/apikey. They paste it into the app when it asks
@@ -94,7 +94,8 @@ CLIENT · their app                          apps/web/ · apps/flutter/
 Lessons 2 and 4 use the **Catalog** and **Wire** tabs, which only the web
 client has. For those, offer to restart with `./scripts/quickstart.sh both`,
 which also serves the React app at http://127.0.0.1:8080 (no key needed for
-those tabs; it needs Node 20+), or share the lesson's screenshot.
+those tabs; it needs Node 20+), or link that lesson's section of
+https://a2ui.org/pr-preview/pr-4056/quickstart/step-by-step/, which has the screenshot.
 
 ### 1. What is A2UI, and what is app code
 
@@ -168,9 +169,9 @@ turns it into widgets?*
 A **renderer** implements the catalog's components and functions with native
 widgets. This app has two: React (`renderers/react/`, `@a2ui/react`) and
 Flutter (`renderers/flutter/`, `a2ui_flutter`); the apps around them are
-`apps/web/` and `apps/flutter/`. The A2UI project also maintains Lit, Angular
-and Markdown renderers, and the community has SwiftUI and UIKit, Android
-Compose, React Native, Vue, Lynx, a terminal renderer and more
+`apps/web/` and `apps/flutter/`. The A2UI project also maintains Lit, Angular,
+SwiftUI, Jetpack Compose and Markdown renderers, and the community has UIKit,
+React Native, Vue, Lynx, a terminal renderer and more
 (https://a2ui.org/pr-preview/pr-4056/ecosystem/renderers/). The server never knows which client it is talking to; a new
 platform is a new renderer for the same catalog.
 
@@ -183,9 +184,9 @@ If they would like it all in one place with screenshots, share
 https://a2ui.org/pr-preview/pr-4056/quickstart/step-by-step/. Then offer:
 
 - **Change something:** restyle `FlightOption` in
-  `renderers/flutter/lib/components.dart`, rerun
-  `./scripts/quickstart.sh flutter`, reload. Every flight the agent draws
-  changes; the agent is untouched.
+  `renderers/flutter/lib/components.dart`, run
+  `cd apps/flutter && flutter build web --release --base-href=/flutter/`,
+  and reload. Every flight the agent draws changes; the agent is untouched.
 - **Try the web app too:** `./scripts/quickstart.sh both` serves both clients
   from the same server, drawing the same messages.
 - **Deploy to Cloud Run:** `./scripts/deploy.sh` from the sample folder, in

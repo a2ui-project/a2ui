@@ -1,10 +1,10 @@
-# Ecosystem Renderers & Tools
+# Community Projects
 
-> Community renderers, agent libraries, and ecosystem tooling for A2UI.
+> Community-maintained renderers, agent libraries, and tools built around the A2UI protocol.
 
 Canonical URL: https://a2ui.org/ecosystem/renderers/
 
-This page lists community renderers, agent libraries, and related projects built around the A2UI protocol.
+Community authors and organizations maintain client renderers, server libraries, and related generative UI tools built around the A2UI protocol.
 
 > **Note**
   Third-party projects listed here are maintained by their respective authors and organizations, not
@@ -12,10 +12,11 @@ This page lists community renderers, agent libraries, and related projects built
   and release status.
 
 > **Note**
-  For first-party SDKs maintained by the A2UI team, see the [SDKs](/concepts/sdks/) page covering
-  the official [Core SDK](/concepts/sdks/#core-sdk), [Agent SDK](/concepts/sdks/#agent-sdk)
-  (TypeScript, Python, Dart), and [Renderer SDK](/concepts/sdks/#renderer-sdk) (Flutter, React, Lit,
-  Angular, SwiftUI, and Jetpack Compose) packages.
+  For first-party SDKs maintained by the A2UI team, see the [SDKs](../../concepts/sdks/) page
+  covering the official [Core SDK](../../concepts/sdks/#core-sdk), [Agent
+  SDK](../../concepts/sdks/#agent-sdk) (TypeScript, Python, Dart), and [Renderer
+  SDK](../../concepts/sdks/#renderer-sdk) (Flutter, React, Lit, Angular, SwiftUI, and Jetpack
+  Compose) packages.
 
 ## Community renderers
 

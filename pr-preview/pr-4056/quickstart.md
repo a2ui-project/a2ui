@@ -10,9 +10,12 @@ cards your users can tap, dates they can drag, a panel that keeps up with them.
 This quickstart runs **Travel A2UI**, a small trip planner built on the official
 A2UI SDKs. It is simple on purpose: **one Python server** holds the agent, and
 a **React** client (web) and a **Flutter** client (mobile) draw what it sends.
+Paste one of these prompts into your coding agent:
+- **Web + Mobile (Python + React + Flutter):** `Follow the steps at https://a2ui.org/quickstart/agent.md to set up the A2UI quickstart web and mobile apps and explain them to me.`
+- **Web only (Python + React):** `Follow the steps at https://a2ui.org/quickstart/agent/web.md to set up the A2UI quickstart web app and explain it to me.`
+- **Mobile only (Python + Flutter):** `Follow the steps at https://a2ui.org/quickstart/agent/mobile.md to set up the A2UI quickstart mobile app and explain it to me.`
 
-<AgentPrompt />
-
+Or follow the [step-by-step walkthrough](/quickstart/step-by-step/).
 > **Note**
   Travel A2UI lives in A2UI Labs, at
   [samples/travel-a2ui](https://github.com/a2ui-project/labs/tree/main/samples/travel-a2ui). It is a
@@ -23,30 +26,15 @@ a **React** client (web) and a **Flutter** client (mobile) draw what it sends.
 A2UI is an SDK for your agent and a renderer for your app. Here is where each
 part lives in Travel A2UI:
 
-<ArchitecturePipelineOverview
-  sdkLanguages="Python, in this app"
-  transport="Server-sent events, in this app"
-  renderers="React and Flutter, in this app"
-  paths={{
-    catalog: 'catalogs/a2ui-travel/catalog.json',
-    tools: 'data/tools.json',
-    skillGenerator: 'scripts/build_skills.py → skills/',
-    compiler: 'apps/server/src/travel_a2ui/brain/catalog.py',
-    agent: 'apps/server/src/travel_a2ui/brain/',
-    app: 'apps/web/ · apps/flutter/',
-    renderer: 'renderers/react/ · renderers/flutter/',
-  }}
-/>
-
 One server serves the API, the React app at `/` and the Flutter app at
 `/flutter/`. The clients know nothing about travel: each knows how to draw the
 catalog's components. You, the builder, decide what is in the catalog; the
-agent decides what to draw from it. [How A2UI works](../concepts/overview/)
+agent decides what to draw from it. [How A2UI works](/concepts/overview/)
 walks through the same picture for any A2UI app.
 
 ## What you will learn
 
-Once it runs, your agent (or the [step-by-step quickstart](./step-by-step/))
+Once it runs, your agent (or the [step-by-step walkthrough](/quickstart/step-by-step/))
 explains, with the app open:
 
 1. **What on screen is A2UI** and what is ordinary app code: surfaces, the
@@ -63,6 +51,6 @@ explains, with the app open:
 
 To try A2UI without cloning anything:
 
-- **Agent skills**: run `npx skills add a2ui-project/a2ui` in your project to give your coding agent A2UI's protocol rules, SDK integration guides and catalog authoring workflows (see [Get Help](../get-help/)).
+- **Agent skills**: run `npx skills add a2ui-project/a2ui` in your project to give your coding agent A2UI's protocol rules, SDK integration guides and catalog authoring workflows (see [Get Help](/get-help/)).
 - **[A2UI Composer](https://a2ui-editor.ag-ui.com)** ([source](https://github.com/a2ui-project/a2ui/tree/main/tools/composer)): a visual workspace for prompting an assistant, inspecting streamed messages and `dataModel` updates, and editing surfaces side by side.
 - **[A2UI Playground](https://go.copilotkit.ai/a2ui-playground)**: a browser sandbox for trying A2UI prompts and component catalogs with no local setup.
