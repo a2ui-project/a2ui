@@ -42,7 +42,7 @@ export const V0_9: VersionProfile = {
   basicCatalogPath: 'specification/v0_9/catalogs/basic/catalog.json',
 };
 
-/** The v1.0 candidate protocol. */
+/** The v1.0 protocol. */
 export const V1_0: VersionProfile = {
   version: '1.0',
   capabilitiesKey: 'a2uiRendererCapabilities',

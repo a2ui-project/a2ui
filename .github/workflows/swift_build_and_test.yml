@@ -54,7 +54,24 @@ jobs:
         with:
           persist-credentials: false
       - name: Run tests
-        run: swift test --enable-swift-testing
+        env:
+          A2UI_CONFORMANCE_MANIFEST_DIR: ${{ runner.temp }}/a2ui-manifest
+        run: swift test --enable-swift-testing --no-parallel
+      - name: Set up Python
+        uses: ./.github/actions/setup-python
+      - name: Check executed conformance cases
+        run: |
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --harness swift-core \
+            --corpus core \
+            --exclude "core/message_processor_scaling.yaml=performance: runs in the test (performance) job with A2UI_RUN_TIMING=1"
+      - name: Check executed adapter conformance cases
+        run: |
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --harness swiftui \
+            --corpus adapter
 
   ios-build:
     # `swift test` above builds for macOS only, so `#if os(iOS)` and UIKit code
@@ -108,3 +125,24 @@ jobs:
           -skipPackagePluginValidation
           ARCHS=arm64
           CODE_SIGNING_ALLOWED=NO
+
+  # The timing cases of conformance/core/message_processor_scaling.yaml compare
+  # the time to process a payload written at two sizes, as
+  # conformance/agent/direct_json/scaling.yaml describes. A slow or loaded
+  # runner can fail them, so they run only with A2UI_RUN_TIMING=1, in a job of
+  # their own, built for release as an app ships.
+  performance:
+    name: test (performance)
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run timing tests
+        env:
+          A2UI_PERFORMANCE: "1"
+          A2UI_RUN_TIMING: "1"
+        run: >-
+          swift test -c release -Xswiftc -enable-testing --enable-swift-testing
+          --filter MessageProcessorScalingConformanceTests

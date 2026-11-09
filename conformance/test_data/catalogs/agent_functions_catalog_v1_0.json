@@ -3,7 +3,7 @@
   "$id": "https://a2ui.org/conformance/test_data/catalogs/agent_functions_catalog_v1_0.json",
   "protocolVersion": "1.0",
   "title": "Conformance Agent Functions Catalog (v1.0)",
-  "description": "A catalog whose function the agent may call, for the cases that compile a callRendererFunction. The functions of the other fixtures declare no allowedCallers, so only the renderer may call them.",
+  "description": "A catalog for the cases that compile a callRendererFunction. The agent may call notify and record, and only the agent may call peek. The functions of the other fixtures declare no allowedCallers, so only the renderer may call them.",
   "catalogId": "conformance/agent_functions",
   "components": {},
   "functions": {
@@ -33,6 +33,60 @@
         "@call",
         "args"
       ]
+    },
+    "record": {
+      "type": "object",
+      "description": "Records a value as given, of any shape.",
+      "returnType": "void",
+      "allowedCallers": "rendererOrAgent",
+      "properties": {
+        "@call": {
+          "const": "record"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "description": "The value to record."
+            }
+          },
+          "required": [
+            "value"
+          ],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": [
+        "@call",
+        "args"
+      ]
+    },
+    "peek": {
+      "type": "object",
+      "description": "Reads a value that only the agent may ask for.",
+      "returnType": "string",
+      "allowedCallers": "agentOnly",
+      "properties": {
+        "@call": {
+          "const": "peek"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "key"
+          ],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": [
+        "@call",
+        "args"
+      ]
     }
   },
   "$defs": {
@@ -40,6 +94,12 @@
       "oneOf": [
         {
           "$ref": "#/functions/notify"
+        },
+        {
+          "$ref": "#/functions/record"
+        },
+        {
+          "$ref": "#/functions/peek"
         }
       ]
     }

@@ -19,6 +19,7 @@ import type {z} from 'zod';
 import {zodToJsonSchema} from 'zod-to-json-schema';
 
 import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
+import {isAgentFunction} from './agent_function_brand.js';
 import {exclusiveUnionOverride} from './exclusive_union.js';
 import {loadedDefinition} from './json_entries.js';
 import {getSpecAnnotation, type JsonSchemaObject} from './spec_annotations.js';
@@ -201,7 +202,12 @@ export function retainedDefs(
 ): Readonly<JsonObject> | undefined {
   if (!defs) return defs;
   const definitions = (entries: ReadonlyArray<ComponentApi | FunctionApi>) =>
-    entries.map(entry => entryDefinition(entry, defs)).filter(d => d !== undefined);
+    entries
+      .map(
+        entry =>
+          entryDefinition(entry, defs) ?? (isAgentFunction(entry) ? entry.jsonSchema : undefined),
+      )
+      .filter(d => d !== undefined);
   const reachedBefore = reachableDefs(definitions(before), defs);
   const unconditional = Object.keys(defs).filter(name => !reachedBefore.has(name));
   const reachedAfter = reachableDefs(
@@ -311,6 +317,7 @@ function serializeComponentModel(
   name: string,
   comp: ComponentApi,
   localDefs: ReadonlySet<string>,
+  isAtLeastV10: boolean,
   commonTypesUri: string = DEFAULT_COMMON_TYPES_URI,
 ): JsonObject {
   const json = zodToUnbundledJson(comp.schema, localDefs, commonTypesUri);
@@ -323,17 +330,32 @@ function serializeComponentModel(
     ? (json.required as string[]).filter(r => r !== 'component' && r !== 'id')
     : [];
   const extra = json.unevaluatedProperties ?? json.additionalProperties;
+  // From v1.0 the protocol's Component envelope combines the entry with
+  // ComponentCommon in a sibling `allOf` branch under an outer
+  // `unevaluatedProperties: false` (and forbids wrapping ComponentCommon
+  // inside individual component entries), so emitting `false` or a catchall
+  // subschema on the entry itself would apply to ComponentCommon fields.
+  const closure = isAtLeastV10
+    ? extra === true
+      ? true
+      : undefined
+    : typeof extra === 'boolean' || isObject(extra)
+      ? extra
+      : false;
   const result: JsonObject = {
     type: 'object',
     properties: {component: {const: name}, ...props},
     required: ['component', ...required],
-    unevaluatedProperties: typeof extra === 'boolean' || isObject(extra) ? extra : false,
+    ...(closure !== undefined ? {unevaluatedProperties: closure} : {}),
   };
   if (comp.allowedParents && comp.allowedParents.length > 0) {
     result.allowedParents = [...comp.allowedParents];
   }
   if (comp.allowedChildren && comp.allowedChildren.length > 0) {
     result.allowedChildren = [...comp.allowedChildren];
+  }
+  if (comp.metadata !== undefined) {
+    result.metadata = deepCopyJson(comp.metadata);
   }
   return result;
 }
@@ -352,16 +374,20 @@ function serializeFunctionModel(
   defs?: Readonly<JsonObject>,
 ): JsonObject {
   const args = zodToUnbundledJson(fn.schema, localDefs, commonTypesUri);
+  // An agent function writes only what its declaration or constructor set,
+  // not its defaults.
+  const allowedCallers = isAgentFunction(fn) ? fn.explicitAllowedCallers : fn.allowedCallers;
+  const requiresUserActivation = isAgentFunction(fn)
+    ? fn.explicitRequiresUserActivation
+    : fn.requiresUserActivation;
   if (asListItem) {
     return {
       name,
       ...(fn.description ? {description: fn.description} : {}),
       returnType: fn.returnType,
       parameters: args,
-      ...(fn.allowedCallers ? {allowedCallers: fn.allowedCallers} : {}),
-      ...(fn.requiresUserActivation !== undefined
-        ? {requiresUserActivation: fn.requiresUserActivation}
-        : {}),
+      ...(allowedCallers ? {allowedCallers} : {}),
+      ...(requiresUserActivation !== undefined ? {requiresUserActivation} : {}),
     };
   }
   closeObjectSchema(args);
@@ -372,17 +398,17 @@ function serializeFunctionModel(
   if (fn.description) result.description = fn.description;
   if (isAtLeastV10) {
     result.returnType = fn.returnType;
-    if (fn.allowedCallers) result.allowedCallers = fn.allowedCallers;
-    if (fn.requiresUserActivation !== undefined) {
-      result.requiresUserActivation = fn.requiresUserActivation;
+    if (allowedCallers) result.allowedCallers = allowedCallers;
+    if (requiresUserActivation !== undefined) {
+      result.requiresUserActivation = requiresUserActivation;
     }
     result.properties = {'@call': {const: name}, args};
     result.required = argsRequired ? ['@call', 'args'] : ['@call'];
     return result;
   }
-  if (fn.allowedCallers) result.allowedCallers = fn.allowedCallers;
-  if (fn.requiresUserActivation !== undefined) {
-    result.requiresUserActivation = fn.requiresUserActivation;
+  if (allowedCallers) result.allowedCallers = allowedCallers;
+  if (requiresUserActivation !== undefined) {
+    result.requiresUserActivation = requiresUserActivation;
   }
   result.properties = {call: {const: name}, args, returnType: {const: fn.returnType}};
   result.required = argsRequired ? ['call', 'args'] : ['call'];
@@ -484,6 +510,9 @@ function buildDocumentModel(catalog: SerializableCatalog): CatalogDocumentModel 
       comp.allowedParents,
       comp.allowedChildren,
     );
+    if (comp.metadata !== undefined) {
+      schema['metadata'] = deepCopyJson(comp.metadata);
+    }
     shapedComponents.set(name, deepFreeze(schema));
     for (const [defName, defModel] of catalogDefs) computedDefs.set(defName, defModel);
   }
@@ -589,7 +618,7 @@ export function serializeCatalogDocument(catalog: SerializableCatalog): JsonObje
       const definition = model.components.get(name);
       components[name] = definition
         ? deepCopyJson(definition)
-        : serializeComponentModel(name, comp, localDefs, commonTypesUri);
+        : serializeComponentModel(name, comp, localDefs, isAtLeastV10, commonTypesUri);
     }
     doc.components = components;
   }

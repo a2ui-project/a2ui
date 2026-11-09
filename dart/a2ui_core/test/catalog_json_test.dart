@@ -584,20 +584,30 @@ void main() {
             'type': 'object',
             'returnType': 'void',
             'allowedCallers': 'agentOnly',
-            'requiresUserActivation': true,
             'properties': {
               '@call': {'const': 'guarded'},
+            },
+          },
+          'activated': {
+            'type': 'object',
+            'returnType': 'void',
+            'requiresUserActivation': true,
+            'properties': {
+              '@call': {'const': 'activated'},
             },
           },
         },
       }).validationSchema['functions']! as Map<String, Object?>;
       final plain = functions['plain']! as Map;
       final guarded = functions['guarded']! as Map;
+      final activated = functions['activated']! as Map;
 
       expect(plain.containsKey('allowedCallers'), isFalse);
       expect(plain.containsKey('requiresUserActivation'), isFalse);
       expect(guarded['allowedCallers'], 'agentOnly');
-      expect(guarded['requiresUserActivation'], isTrue);
+      expect(guarded.containsKey('requiresUserActivation'), isFalse);
+      expect(activated.containsKey('allowedCallers'), isFalse);
+      expect(activated['requiresUserActivation'], isTrue);
     });
 
     test('closes the entry and restates returnType before protocol 1.0', () {
@@ -2153,7 +2163,7 @@ void main() {
       );
     });
 
-    test('use the legacy inline catalog shape before v1.0', () {
+    test('use the v0.9 inline catalog shape before v1.0', () {
       final Map<String, Object?> json = A2uiRendererCapabilities(
         versions: {
           A2uiProtocolVersion.v0_9: A2uiVersionCapabilities(
@@ -2163,11 +2173,11 @@ void main() {
         },
       ).toJson();
 
-      final legacy = ((json['v0.9']! as Map)['inlineCatalogs'] as List).single
-          as Map<String, Object?>;
-      expect(legacy, equals(catalog.toLegacyInlineCatalog()));
-      expect(legacy.keys, ['catalogId', 'components', 'functions']);
-      expect((legacy['functions']! as List).single, {
+      final v09Inline = ((json['v0.9']! as Map)['inlineCatalogs'] as List)
+          .single as Map<String, Object?>;
+      expect(v09Inline, equals(catalog.toV09InlineCatalog()));
+      expect(v09Inline.keys, ['catalogId', 'components', 'functions']);
+      expect((v09Inline['functions']! as List).single, {
         'name': 'launch',
         'description': 'Launches a URL.',
         'returnType': 'void',
@@ -2204,7 +2214,15 @@ void main() {
       );
       expect(
         ((json['v0.9']! as Map)['inlineCatalogs'] as List).single,
-        equals(TestCatalog().toLegacyInlineCatalog()),
+        equals(TestCatalog().toV09InlineCatalog()),
+      );
+    });
+
+    test('keep toLegacyInlineCatalog as a deprecated alias', () {
+      expect(
+        // ignore: deprecated_member_use_from_same_package
+        catalog.toLegacyInlineCatalog(),
+        equals(catalog.toV09InlineCatalog()),
       );
     });
   });

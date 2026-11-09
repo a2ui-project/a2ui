@@ -40,6 +40,14 @@ const ValidationConfig _inProgressValidation = ValidationConfig(
 /// Undoes one change to the state.
 typedef _Undo = void Function();
 
+typedef _BaselineEntry = ({
+  int position,
+  String type,
+  Map<String, dynamic> properties,
+  String? catalog,
+  Map<String, Object?>? metadata,
+});
+
 /// The agent's mirror of the surfaces a renderer holds.
 ///
 /// The state wraps one `MessageProcessor` and runs the agent's outbound
@@ -163,6 +171,10 @@ class RendererState {
   /// checked.
   final Map<String, Set<String>> _changed = {};
 
+  /// The pre-turn state of each component touched since its surface's tree was
+  /// last checked (`null` when the component did not exist before the turn).
+  final Map<String, Map<String, _BaselineEntry?>> _baseline = {};
+
   /// How to undo each change made since the outermost open [apply] or
   /// transaction began.
   final List<_Undo> _log = [];
@@ -184,6 +196,71 @@ class RendererState {
   /// The surface with [surfaceId], or null. Callers must not modify it.
   SurfaceModel<ComponentApi>? getSurface(String surfaceId) =>
       _processor.model.getSurface(surfaceId);
+
+  /// Removes or restores a provisional component on [surfaceId] when a later
+  /// statement in the same scope supersedes its wire ID.
+  void dropProvisionalComponent(String surfaceId, String componentId) {
+    final SurfaceModel<ComponentApi>? surface = _processor.model.getSurface(
+      surfaceId,
+    );
+    if (surface == null) return;
+    final Map<String, _BaselineEntry?>? baseMap = _baseline[surfaceId];
+    if (baseMap == null || !baseMap.containsKey(componentId)) return;
+    final _BaselineEntry? baseEntry = baseMap.remove(componentId);
+    _record(() => baseMap[componentId] = baseEntry);
+
+    final SurfaceComponentsModel components = surface.componentsModel;
+    final ComponentModel? existing = components.get(componentId);
+    if (existing != null) {
+      int position = components.size;
+      for (final (int idx, String id) in components.keys.indexed) {
+        if (id == componentId) {
+          position = idx;
+          break;
+        }
+      }
+      final savedProperties =
+          _deepCopy(existing.properties)! as Map<String, dynamic>;
+      final savedMetadata =
+          _deepCopy(existing.metadata) as Map<String, Object?>?;
+      final String savedType = existing.type;
+      final String? savedCatalog = existing.catalog;
+      components.removeComponent(componentId);
+      if (baseEntry != null) {
+        components.insertComponent(
+          baseEntry.position.clamp(0, components.size),
+          ComponentModel(
+            componentId,
+            baseEntry.type,
+            _deepCopy(baseEntry.properties)! as Map<String, dynamic>,
+            catalog: baseEntry.catalog,
+            metadata: _deepCopy(baseEntry.metadata) as Map<String, Object?>?,
+          ),
+        );
+      }
+      _record(() {
+        final SurfaceComponentsModel? current = getSurface(
+          surfaceId,
+        )?.componentsModel;
+        if (current == null) return;
+        current.removeComponent(componentId);
+        current.insertComponent(
+          position.clamp(0, current.size),
+          ComponentModel(
+            componentId,
+            savedType,
+            savedProperties,
+            catalog: savedCatalog,
+            metadata: savedMetadata,
+          ),
+        );
+      });
+    }
+    final Set<String>? changedSet = _changed[surfaceId];
+    if (changedSet != null && changedSet.remove(componentId)) {
+      _record(() => changedSet.add(componentId));
+    }
+  }
 
   /// Checks [messages] against the state and applies them.
   ///
@@ -341,20 +418,56 @@ class RendererState {
   /// included, so that a call it hands over is not rejected once nothing
   /// can be rolled back.
   void _holdCall(CallRendererFunctionMessage message) {
+    _checkCall(message);
+    _calls.add(message);
+    _record(_calls.removeLast);
+  }
+
+  /// Checks [message] as the processor would, without running it.
+  ///
+  /// The surface it names must exist, unless [assumesSurface], for a call on
+  /// a surface the state assumes (see [_assumesCallSurface]). A call nested
+  /// in the arguments that names no catalog runs in the default catalog of
+  /// that surface, which the state knows only for a surface it did not
+  /// assume: a placeholder's catalog is a guess.
+  void _checkCall(
+    CallRendererFunctionMessage message, {
+    bool assumesSurface = false,
+  }) {
     if (message.surfaceId case final String surfaceId
-        when getSurface(surfaceId) == null) {
+        when !assumesSurface && getSurface(surfaceId) == null) {
       throw A2uiValidationError(
         "Function call '${message.functionCallId}' names surface "
         "'$surfaceId', which does not exist.",
       );
     }
     _asValidationError(() {
-      _processor.checkRendererFunctionCall(message);
+      _processor.checkRendererFunctionCall(
+        message,
+        assumesSurface: assumesSurface || _assumed.contains(message.surfaceId),
+      );
       checkPathsAndRecursion(message.toJson());
     });
-    _calls.add(message);
-    _record(_calls.removeLast);
   }
+
+  /// Whether a payload state assumes the surface [message], the message at
+  /// [index] of [payload], names: one the state lacks, or holds only as a
+  /// placeholder.
+  ///
+  /// As for an update (see [_assumes]), an earlier payload may have created
+  /// a surface the payload never named before. A call does not create the
+  /// surface, so it is checked as on a surface that exists, whose default
+  /// catalog is unknown.
+  bool _assumesCallSurface(
+    CallRendererFunctionMessage message,
+    List<AgentToRendererMessage> payload,
+    int index,
+  ) => switch (message.surfaceId) {
+    final String surfaceId =>
+      _assumed.contains(surfaceId) ||
+          getSurface(surfaceId) == null && _assumes(surfaceId, payload, index),
+    null => false,
+  };
 
   /// Undoes the changes logged after [mark], latest first.
   ///
@@ -386,6 +499,61 @@ class RendererState {
     }
   }
 
+  /// Snapshots components on [surfaceId] before their first change since last
+  /// check.
+  void _noteBaseline(String surfaceId, Iterable<String> componentIds) {
+    final List<String> ids = componentIds.toList();
+    if (ids.isEmpty) return;
+    Map<String, _BaselineEntry?>? baseMap = _baseline[surfaceId];
+    if (baseMap == null) {
+      baseMap = _baseline[surfaceId] = {};
+      _record(() => _baseline.remove(surfaceId));
+    }
+    final Map<String, _BaselineEntry?> map = baseMap;
+    final List<String> unseen = [
+      for (final String id in ids)
+        if (!map.containsKey(id)) id,
+    ];
+    if (unseen.isEmpty) return;
+    final SurfaceModel<ComponentApi>? surface = _assumed.contains(surfaceId)
+        ? null
+        : getSurface(surfaceId);
+    final SurfaceComponentsModel? components = surface?.componentsModel;
+    final positions = <String, int>{};
+    if (components != null) {
+      final Set<String> wanted = {
+        for (final String id in unseen)
+          if (components.has(id)) id,
+      };
+      if (wanted.isNotEmpty) {
+        for (final (int position, String id) in components.keys.indexed) {
+          if (!wanted.contains(id)) continue;
+          positions[id] = position;
+          if (positions.length == wanted.length) break;
+        }
+      }
+    }
+    for (final id in unseen) {
+      final ComponentModel? existing = components?.get(id);
+      if (existing == null) {
+        map[id] = null;
+      } else {
+        map[id] = (
+          position: positions[id] ?? components!.size,
+          type: existing.type,
+          properties: _deepCopy(existing.properties)! as Map<String, dynamic>,
+          catalog: existing.catalog,
+          metadata: _deepCopy(existing.metadata) as Map<String, Object?>?,
+        );
+      }
+    }
+    _record(() {
+      for (final id in unseen) {
+        map.remove(id);
+      }
+    });
+  }
+
   /// Records components a surface added or replaced since its tree was last
   /// checked.
   void _noteChanged(String surfaceId, Iterable<String> componentIds) {
@@ -405,8 +573,13 @@ class RendererState {
   /// Stops holding what a surface changed against its next tree check.
   void _forgetChanged(String surfaceId) {
     final Set<String>? changed = _changed.remove(surfaceId);
-    if (changed == null) return;
-    _record(() => _changed[surfaceId] = changed);
+    if (changed != null) {
+      _record(() => _changed[surfaceId] = changed);
+    }
+    final Map<String, _BaselineEntry?>? baseMap = _baseline.remove(surfaceId);
+    if (baseMap != null) {
+      _record(() => _baseline[surfaceId] = baseMap);
+    }
   }
 
   /// Runs [message] through the processor, logging what it replaces.
@@ -684,12 +857,18 @@ class RendererState {
     final AgentToRendererMessage message = payload[index];
     final String? surfaceId = _target(message);
     if (surfaceId == null) {
-      if (_sharesProcessor && message is CallRendererFunctionMessage) {
+      if (message is CallRendererFunctionMessage && _sharesProcessor) {
         _holdCall(message);
+      } else if (message is CallRendererFunctionMessage &&
+          _assumesCallSurface(message, payload, index)) {
+        _checkCall(message, assumesSurface: true);
       } else {
         _process(message);
       }
       return null;
+    }
+    if (message is! DeleteSurfaceMessage) {
+      _noteBaseline(surfaceId, _componentIds(message));
     }
     switch (message) {
       case CreateSurfaceMessage():

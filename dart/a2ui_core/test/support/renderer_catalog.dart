@@ -48,6 +48,9 @@ class _UncallableFunction extends FunctionImplementation {
           name: api.name,
           argumentSchema: api.argumentSchema,
           returnType: api.returnType,
+          description: api.description,
+          allowedCallers: api.declaredAllowedCallers,
+          requiresUserActivation: api.declaredRequiresUserActivation,
           definition: api.definition,
         );
 

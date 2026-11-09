@@ -181,4 +181,50 @@ describe('Modal Component', () => {
     // Modal overlay should remain open because inner content click event stops propagation
     assert.notStrictEqual(el.querySelector('.a2ui-modal-overlay'), null);
   });
+
+  it('places aria-label and aria-description onto the role="dialog" container when open', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'modal_a11y',
+              component: 'Modal',
+              trigger: 'txt1',
+              content: 'txt2',
+              accessibility: {
+                label: 'Confirm Reservation',
+                description: 'Review party size and date before booking',
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-modal') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'modal_a11y');
+    });
+
+    assert.strictEqual(el.hasAttribute('aria-label'), false);
+    const trigger = el.querySelector('.a2ui-modal-trigger') as HTMLElement;
+    trigger.click();
+    await asyncUpdate(el, () => {});
+
+    const dialog = el.querySelector('.a2ui-modal-content');
+    assert.notStrictEqual(dialog, null);
+    assert.strictEqual(dialog?.getAttribute('role'), 'dialog');
+    assert.strictEqual(dialog?.getAttribute('aria-modal'), 'true');
+    assert.strictEqual(dialog?.getAttribute('aria-label'), 'Confirm Reservation');
+    assert.strictEqual(
+      dialog?.getAttribute('aria-description'),
+      'Review party size and date before booking',
+    );
+  });
 });

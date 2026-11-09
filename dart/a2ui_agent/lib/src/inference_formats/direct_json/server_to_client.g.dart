@@ -22,7 +22,7 @@ const String serverToClientV0_9Json = r'''
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://a2ui.org/specification/v0_9/server_to_client.json",
   "title": "A2UI Message Schema",
-  "description": "Describes a JSON payload for an A2UI (Agent to UI) message, which is used to dynamically construct and update user interfaces.",
+  "description": "Describes a JSON payload for an A2UI message, which is used to dynamically construct and update user interfaces.",
   "type": "object",
   "oneOf": [
     {"$ref": "#/$defs/CreateSurfaceMessage"},
@@ -158,7 +158,7 @@ const String agentToRendererV1_0Json = r'''
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://a2ui.org/specification/v1_0/agent_to_renderer.json",
   "title": "A2UI Message Schema",
-  "description": "Describes a JSON payload for an A2UI (Agent to UI) message, which is used to dynamically construct and update user interfaces.",
+  "description": "Describes a JSON payload for an A2UI message, which is used to dynamically construct and update user interfaces.",
   "type": "object",
   "oneOf": [
     {"$ref": "#/$defs/CreateSurfaceMessage"},
@@ -177,7 +177,7 @@ const String agentToRendererV1_0Json = r'''
         },
         "createSurface": {
           "type": "object",
-          "description": "Signals the renderer to create a new surface and begin rendering it. Creating a surface implicitly instantiates the canonical 'Surface' container component ('common_types.json#/$defs/Surface') with 'child': 'root'. It is an error to try to create a surface with an existing ID without first deleting it; surfaceId MUST be globally unique for the renderer's lifetime. When this message is sent, the renderer expects 'updateComponents' and/or 'updateDataModel' messages for the same surfaceId to define the component tree.",
+          "description": "Signals the renderer to create a new surface and begin rendering it. Creating a surface implicitly instantiates the canonical 'Surface' container component ('common_types.json#/$defs/Surface') with 'child': 'root'. It is an error to try to create a surface with an existing ID without first deleting it; surfaceId MUST be globally unique for the renderer's lifetime. The component tree and initial data model may be provided inline via 'components' and 'dataModel', or sent later in 'updateComponents' and/or 'updateDataModel' messages for the same surfaceId.",
           "properties": {
             "surfaceId": {
               "type": "string",

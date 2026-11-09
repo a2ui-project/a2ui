@@ -1,10 +1,8 @@
 # Specification v1.0
 
-This directory contains the specification for version 1.0 of the A2UI (Agent-to-UI) protocol. This version was previously known as version 0.10 when it was in draft.
+This directory contains the specification for version 1.0 of the A2UI protocol. This version was previously known as version 0.10.
 
-**This specification is currently a candidate for becoming stable.**
-
-Once a sufficient number of renderers are ported to use this version of the spec and feedback from that process has been incorporated, this will become the stable 1.0 release of the specification. There is a high bar for accepting breaking changes to a candidate specification.
+**This specification is stable.** Breaking changes go into a future major version.
 
 If you have proposed changes or new features, please open an issue or submit a pull request to the [A2UI repository](https://github.com/a2ui-project/a2ui).
 
