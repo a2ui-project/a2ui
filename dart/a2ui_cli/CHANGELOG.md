@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.3.0
+
+- **Breaking:** Requires `a2ui_core` `^0.6.0` (`a2ui_cli` exposes `a2ui_core`
+  types in its public API).
+
 ## 0.2.0
 
 - **Breaking:** Bump `a2ui_core` dependency to `^0.5.0` (`a2ui_cli` exposes

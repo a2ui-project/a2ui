@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.2.0
+
+- **Breaking:** Requires `a2ui_core` `^0.6.0`, whose types this library
+  re-exports.
+
 - (v1_0) `validatePayload` accepts a `callRendererFunction` on a surface the
   payload never named, as it does an update to one, since an earlier payload
   may have created it. A surface the payload deleted earlier, or creates only

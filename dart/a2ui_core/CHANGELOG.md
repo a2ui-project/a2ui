@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.0
+
 - Rename `Catalog.toLegacyInlineCatalog()` to `Catalog.toV09InlineCatalog()`.
   `toLegacyInlineCatalog()` remains as a deprecated alias
   ([#4006](https://github.com/a2ui-project/a2ui/pull/4006)).

@@ -18,6 +18,11 @@
 
 ## Unreleased
 
+## 0.2.0
+
+- **Breaking:** Requires `a2ui_core` `^0.6.0`, whose types this library
+  re-exports.
+
 ## 0.1.0
 
 - Requires `a2ui_core` `^0.5.0`.
