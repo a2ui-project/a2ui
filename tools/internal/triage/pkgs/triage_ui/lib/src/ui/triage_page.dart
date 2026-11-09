@@ -34,6 +34,10 @@ class TriagePage extends StatefulWidget {
 class _TriagePageState extends State<TriagePage> {
   late final AppLifecycleListener _lifecycle;
 
+  /// The width of the item list, which the triager changes by dragging the
+  /// divider.
+  double _listWidth = 400;
+
   @override
   void initState() {
     super.initState();
@@ -73,17 +77,27 @@ class _TriagePageState extends State<TriagePage> {
             onPressed: () => menu.isOpen ? menu.close() : menu.open(),
           ),
           menuChildren: [
-            MenuItemButton(
-              leadingIcon: const Icon(Icons.refresh),
-              onPressed: controller.isConnected && !controller.loading
-                  ? controller.refresh
-                  : null,
-              child: const Text('Refresh'),
+            Tooltip(
+              message:
+                  'Load the items from GitHub again. Your edits are kept, '
+                  'except for items that changed on GitHub.',
+              child: MenuItemButton(
+                leadingIcon: const Icon(Icons.refresh),
+                onPressed: controller.isConnected && !controller.loading
+                    ? controller.refresh
+                    : null,
+                child: const Text('Refresh'),
+              ),
             ),
-            MenuItemButton(
-              leadingIcon: const Icon(Icons.summarize_outlined),
-              onPressed: () => showSessionReport(context, controller),
-              child: const Text('Session report'),
+            Tooltip(
+              message:
+                  'Show what you did in this session, to share with the '
+                  'team',
+              child: MenuItemButton(
+                leadingIcon: const Icon(Icons.summarize_outlined),
+                onPressed: () => showSessionReport(context, controller),
+                child: const Text('Session report'),
+              ),
             ),
           ],
         ),
@@ -111,21 +125,38 @@ class _TriagePageState extends State<TriagePage> {
             MaterialBanner(
               content: Text(error),
               actions: [
-                TextButton(
-                  onPressed: controller.dismissError,
-                  child: const Text('Dismiss'),
+                Tooltip(
+                  message: 'Hide this message',
+                  child: TextButton(
+                    onPressed: controller.dismissError,
+                    child: const Text('Dismiss'),
+                  ),
                 ),
               ],
             ),
           Expanded(
             child: controller.isConnected
-                ? const Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SizedBox(width: 400, child: ItemList()),
-                      VerticalDivider(width: 1),
-                      Expanded(child: ItemDetails()),
-                    ],
+                ? LayoutBuilder(
+                    builder: (context, constraints) {
+                      final double width = _listWidth.clamp(
+                        _minColumnWidth,
+                        (constraints.maxWidth - _minColumnWidth).clamp(
+                          _minColumnWidth,
+                          double.infinity,
+                        ),
+                      );
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(width: width, child: const ItemList()),
+                          _ColumnDivider(
+                            onDrag: (double delta) =>
+                                setState(() => _listWidth = width + delta),
+                          ),
+                          const Expanded(child: ItemDetails()),
+                        ],
+                      );
+                    },
                   )
                 : Center(
                     child: controller.loading
@@ -135,9 +166,12 @@ class _TriagePageState extends State<TriagePage> {
                             spacing: 16,
                             children: [
                               Text(error ?? ''),
-                              FilledButton(
-                                onPressed: controller.start,
-                                child: const Text('Try again'),
+                              Tooltip(
+                                message: 'Connect to GitHub again',
+                                child: FilledButton(
+                                  onPressed: controller.start,
+                                  child: const Text('Try again'),
+                                ),
                               ),
                             ],
                           ),
@@ -147,4 +181,32 @@ class _TriagePageState extends State<TriagePage> {
       ),
     );
   }
+}
+
+/// The narrowest that the item list and the details can be.
+const double _minColumnWidth = 240;
+
+/// The divider between the item list and the details, which the triager
+/// drags to resize them.
+class _ColumnDivider extends StatelessWidget {
+  const _ColumnDivider({required this.onDrag});
+
+  /// Called with how far the divider moved to the right.
+  final void Function(double delta) onDrag;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: 'Resize the item list',
+    child: MouseRegion(
+      cursor: SystemMouseCursors.resizeColumn,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragUpdate: (DragUpdateDetails d) => onDrag(d.delta.dx),
+        child: const SizedBox(
+          width: 9,
+          child: VerticalDivider(width: 9, thickness: 1),
+        ),
+      ),
+    ),
+  );
 }

@@ -66,6 +66,28 @@ void main() {
     expect(numbers(controller.relatedInQueue(controller.item(11)!)), [20]);
   });
 
+  test('lists the items with a suggestion first', () async {
+    github.items[12] = itemNode(
+      12,
+      createdAt: day(9),
+      comments: [
+        commentNode(
+          suggestionComment(
+            'root = TriageSuggestion(summary="S", '
+            'suggestion="T")',
+          ),
+          at: day(9),
+        ),
+      ],
+    );
+
+    await controller.start();
+
+    // 12 is the most recently updated issue, but the only one with a
+    // suggestion.
+    expect(numbers(controller.newItems), [12, 10, 11, 20, 21]);
+  });
+
   test('reports a failure to connect, and can try again', () async {
     var fail = true;
     controller = TriageController(

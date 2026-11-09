@@ -84,9 +84,10 @@ class ItemCard extends StatelessWidget {
               style: theme.textTheme.titleLarge,
             ),
             Text(
-              'Opened ${ago(item.createdAt)} by ${item.author ?? 'a deleted '
-                      'account'}. Labels: ${none(item.labels)}. Assignees: '
-              '${none(item.assignees)}.',
+              'Opened ${ago(item.createdAt)} by '
+              '${item.author ?? 'a deleted account'}.\n'
+              'Labels: ${none(item.labels)}.\n'
+              'Assignees: ${none(item.assignees)}.',
             ),
             if (controller.session.isApplied(item.number))
               const _Notice(

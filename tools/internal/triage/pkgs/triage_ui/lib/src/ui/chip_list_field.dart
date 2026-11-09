@@ -16,14 +16,17 @@ import 'package:flutter/material.dart';
 
 /// A field that holds a list of names, such as labels or logins, as chips.
 ///
-/// The triager adds a name by picking one of [options] or by typing it and
-/// pressing Enter, and removes one with its chip's delete button.
+/// The triager adds a name by typing it and pressing Enter, by picking one
+/// of [options] as they type, or by checking it in the dropdown of
+/// [options]. They remove a name with its chip's delete button, or by
+/// unchecking it in the dropdown.
 class ChipListField extends StatefulWidget {
   const ChipListField({
     super.key,
     required this.label,
     required this.values,
     required this.onChanged,
+    required this.chooseTooltip,
     this.options = const [],
   });
 
@@ -31,7 +34,12 @@ class ChipListField extends StatefulWidget {
   final List<String> values;
   final ValueChanged<List<String>> onChanged;
 
-  /// The names to suggest as the triager types.
+  /// The tooltip of the button that opens the dropdown, such as "Choose
+  /// labels to add".
+  final String chooseTooltip;
+
+  /// The names to suggest as the triager types, and to show in the
+  /// dropdown.
   final List<String> options;
 
   @override
@@ -49,6 +57,15 @@ class _ChipListFieldState extends State<ChipListField> {
     widget.onChanged([...widget.values, name]);
   }
 
+  void _toggle(String name, {required bool checked}) => widget.onChanged(
+    checked
+        ? [...widget.values, name]
+        : [
+            for (final v in widget.values)
+              if (v != name) v,
+          ],
+  );
+
   @override
   void dispose() {
     _text.dispose();
@@ -58,6 +75,13 @@ class _ChipListFieldState extends State<ChipListField> {
 
   @override
   Widget build(BuildContext context) {
+    // The values that are not among the options, such as names that the
+    // triager typed, come first, so that they can be unchecked too.
+    final List<String> choices = [
+      for (final v in widget.values)
+        if (!widget.options.contains(v)) v,
+      ...widget.options,
+    ];
     return InputDecorator(
       decoration: InputDecoration(
         labelText: widget.label,
@@ -126,6 +150,25 @@ class _ChipListFieldState extends State<ChipListField> {
                   ),
                 ),
               ),
+            ),
+          ),
+          MenuAnchor(
+            menuChildren: [
+              for (final String choice in choices)
+                CheckboxMenuButton(
+                  value: widget.values.contains(choice),
+                  closeOnActivate: false,
+                  onChanged: (bool? checked) =>
+                      _toggle(choice, checked: checked ?? false),
+                  child: Text(choice),
+                ),
+            ],
+            builder: (context, menu, _) => IconButton(
+              icon: const Icon(Icons.arrow_drop_down),
+              tooltip: widget.chooseTooltip,
+              onPressed: choices.isEmpty
+                  ? null
+                  : () => menu.isOpen ? menu.close() : menu.open(),
             ),
           ),
         ],

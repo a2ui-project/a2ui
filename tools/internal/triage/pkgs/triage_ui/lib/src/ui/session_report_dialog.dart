@@ -50,29 +50,43 @@ Future<bool> showSessionReport(
       ),
       actions: closing
           ? [
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Close'),
+              Tooltip(
+                message: 'Close the triage UI without copying the report',
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Close'),
+                ),
               ),
-              FilledButton(
-                onPressed: () async {
-                  await copy();
-                  if (context.mounted) Navigator.pop(context, true);
-                },
-                child: const Text('Copy and close'),
+              Tooltip(
+                message:
+                    'Copy the report to the clipboard, then close the '
+                    'triage UI',
+                child: FilledButton(
+                  onPressed: () async {
+                    await copy();
+                    if (context.mounted) Navigator.pop(context, true);
+                  },
+                  child: const Text('Copy and close'),
+                ),
               ),
             ]
           : [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Close'),
+              Tooltip(
+                message: 'Close the report',
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Close'),
+                ),
               ),
-              FilledButton(
-                onPressed: () async {
-                  await copy();
-                  if (context.mounted) Navigator.pop(context);
-                },
-                child: const Text('Copy'),
+              Tooltip(
+                message: 'Copy the report to the clipboard',
+                child: FilledButton(
+                  onPressed: () async {
+                    await copy();
+                    if (context.mounted) Navigator.pop(context);
+                  },
+                  child: const Text('Copy'),
+                ),
               ),
             ],
     ),

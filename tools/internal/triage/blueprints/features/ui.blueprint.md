@@ -14,6 +14,8 @@ The main parts of the UI:
 2. The items, on the left.
 3. The details, on the right.
 
+The triager can drag the divider between the items and the details to resize them.
+
 ### Header
 
 1. The hamburger menu, with **Refresh** and **Session report**.
@@ -27,7 +29,9 @@ The list of items, in groups:
 2. **Needs team input**: open items with `status: needs-team-input`.
 3. **Not in the queue**: items that the triager opened from a [suggestion comment](triage_item.blueprint.md#the-suggestion-comment) and that are in neither group above.
 
-Each group lists issues first, then PRs with linked issues, then PRs without linked issues. Each of these lists starts with the least recently updated item.
+Each group lists issues first, then PRs with linked issues, then PRs without linked issues. Each of these lists starts with the items that have a suggestion, current or outdated, and then the items without one. Within each of these, the least recently updated item comes first.
+
+Each group has a subgroup for each type of item it has. The groups and the subgroups start collapsed. When the tool selects an item itself, such as an item opened from its suggestion comment or the next item after **Apply**, the list expands the item's group and subgroup, and scrolls to the item.
 
 An item's flags show:
 
@@ -50,7 +54,7 @@ The editable suggestion for the selected item, followed by an editable suggestio
 
 The editable suggestion is the triage UI's implementation of the [`TriageSuggestion`](triage_item.blueprint.md#the-triagesuggestion-component) A2UI component. It renders the component from the item's suggestion comment, or an empty one when the item has no suggestion.
 
-The `summary` and the `suggestion` are shown as text. The triager can change the other properties: the reply, how to close the item, the labels and the assignees. The related issues and PRs are links.
+The `summary` and the `suggestion` are shown as text. The triager can change the other properties: the reply, how to close the item, the labels and the assignees. The triager types labels and logins, or checks them in a dropdown of the possible options: the repository's labels and the people who can be assigned for the labels and assignees to add, and the item's own labels and assignees for the ones to remove. The related issues and PRs are links.
 
 There are two buttons:
 

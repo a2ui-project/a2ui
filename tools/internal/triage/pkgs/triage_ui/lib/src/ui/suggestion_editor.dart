@@ -84,24 +84,33 @@ class SuggestionEditor extends StatelessWidget {
                     const ButtonSegment(
                       value: _keepOpen,
                       label: Text('Keep open'),
+                      tooltip: 'Apply does not close the item',
                     ),
                     if (item.isPullRequest)
                       const ButtonSegment(
                         value: TriageCloseReason.completed,
                         label: Text('Close'),
+                        tooltip: 'Apply closes the PR without merging it',
                       )
                     else ...const [
                       ButtonSegment(
                         value: TriageCloseReason.completed,
                         label: Text('Close as completed'),
+                        tooltip: 'Apply closes the issue as done',
                       ),
                       ButtonSegment(
                         value: TriageCloseReason.notPlanned,
                         label: Text('Close as not planned'),
+                        tooltip:
+                            'Apply closes the issue, because the team does not '
+                            'plan to work on it',
                       ),
                       ButtonSegment(
                         value: TriageCloseReason.duplicate,
                         label: Text('Close as duplicate'),
+                        tooltip:
+                            'Apply closes the issue as a duplicate of the '
+                            'issue you enter',
                       ),
                     ],
                   ],
@@ -135,27 +144,31 @@ class SuggestionEditor extends StatelessWidget {
             ),
             ChipListField(
               label: 'Add labels',
+              chooseTooltip: 'Choose labels to add',
               values: draft.addedLabels,
-              options: [
+              options: _prioritiesFirst([
                 for (final String label in controller.repositoryInfo.labels)
                   if (!item.labels.contains(label)) label,
-              ],
+              ]),
               onChanged: (List<String> v) => draft.addedLabels = v,
             ),
             ChipListField(
               label: 'Remove labels',
+              chooseTooltip: 'Choose labels to remove',
               values: draft.removedLabels,
-              options: item.labels,
+              options: _prioritiesFirst(item.labels),
               onChanged: (List<String> v) => draft.removedLabels = v,
             ),
             ChipListField(
               label: 'Assign',
+              chooseTooltip: 'Choose people to assign',
               values: draft.newAssignees,
               options: controller.repositoryInfo.assignableUsers,
               onChanged: (List<String> v) => draft.newAssignees = v,
             ),
             ChipListField(
               label: 'Unassign',
+              chooseTooltip: 'Choose people to unassign',
               values: draft.removedAssignees,
               options: item.assignees,
               onChanged: (List<String> v) => draft.removedAssignees = v,
@@ -165,18 +178,28 @@ class SuggestionEditor extends StatelessWidget {
               runSpacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                FilledButton(
-                  onPressed: problem == null && !applying
-                      ? () => controller.apply(item)
-                      : null,
-                  child: const Text('Apply'),
+                Tooltip(
+                  message:
+                      'Post the reply, change the labels and assignees, and '
+                      'close the item on GitHub, as set above',
+                  child: FilledButton(
+                    onPressed: problem == null && !applying
+                        ? () => controller.apply(item)
+                        : null,
+                    child: const Text('Apply'),
+                  ),
                 ),
                 if (!item.needsTeamInput)
-                  OutlinedButton(
-                    onPressed: applying
-                        ? null
-                        : () => _sendToTeam(context, controller, item),
-                    child: const Text('Needs team input'),
+                  Tooltip(
+                    message:
+                        'Add "$needsTeamInputLabel", so that the team '
+                        'discusses the item. The suggestion is not applied.',
+                    child: OutlinedButton(
+                      onPressed: applying
+                          ? null
+                          : () => _sendToTeam(context, controller, item),
+                      child: const Text('Needs team input'),
+                    ),
                   ),
                 if (applying)
                   const SizedBox.square(
@@ -194,6 +217,18 @@ class SuggestionEditor extends StatelessWidget {
     );
   }
 }
+
+/// The priority labels, which the triager sets most often.
+const List<String> _priorities = ['P0', 'P1', 'P2', 'P3'];
+
+/// [labels] with the priority labels first, in priority order, and the
+/// other labels after them, in their order.
+List<String> _prioritiesFirst(List<String> labels) => [
+  for (final p in _priorities)
+    if (labels.contains(p)) p,
+  for (final l in labels)
+    if (!_priorities.contains(l)) l,
+];
 
 /// Asks for an optional comment for the team, then sends [item] to the
 /// team.
@@ -251,13 +286,19 @@ class _TeamInputDialogState extends State<_TeamInputDialog> {
       ),
     ),
     actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
+      Tooltip(
+        message: 'Change nothing on GitHub',
+        child: TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
       ),
-      FilledButton(
-        onPressed: () => Navigator.pop(context, _comment.text.trim()),
-        child: const Text('Add "$needsTeamInputLabel"'),
+      Tooltip(
+        message: 'Add the label, and post the comment if there is one',
+        child: FilledButton(
+          onPressed: () => Navigator.pop(context, _comment.text.trim()),
+          child: const Text('Add "$needsTeamInputLabel"'),
+        ),
       ),
     ],
   );

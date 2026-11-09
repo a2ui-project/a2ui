@@ -32,45 +32,174 @@ import 'triage_scope.dart';
     ),
     ItemKind.prWithoutIssues => (
       'PR without issues',
-      Icons.call_merge,
+      Icons.link_off,
       shade(Colors.orange),
     ),
   };
 }
 
+/// The background of an item of a kind with [color].
+Color kindBackground(Color color) => color.withValues(alpha: 0.08);
+
 /// The items, in the groups `ui.blueprint.md` describes: **New**, **Needs
 /// team input**, and the items opened by URL that are not in the queue.
-class ItemList extends StatelessWidget {
+///
+/// The groups start collapsed. When the controller selects an item on its
+/// own, such as an item opened by URL, the list expands the item's group
+/// and scrolls to the item.
+class ItemList extends StatefulWidget {
   const ItemList({super.key});
+
+  @override
+  State<ItemList> createState() => _ItemListState();
+}
+
+class _ItemListState extends State<ItemList> {
+  final Set<String> _expanded = {};
+  final GlobalKey _selectedKey = GlobalKey();
+  var _revealCount = 0;
 
   @override
   Widget build(BuildContext context) {
     final TriageController controller = TriageScope.of(context);
+    final int? selected = controller.selected?.number;
     final sections = <(String, List<TriageItem>)>[
       ('New', controller.newItems),
       ('Needs team input', controller.teamInputItems),
       if (controller.opened.isNotEmpty) ('Not in the queue', controller.opened),
     ];
-    return ListView(
-      children: [
-        const _Legend(),
-        for (final (String title, List<TriageItem> items) in sections) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-            child: Text(
+    if (controller.revealCount != _revealCount) {
+      _revealCount = controller.revealCount;
+      for (final (String title, List<TriageItem> items) in sections) {
+        for (final i in items) {
+          if (i.number == selected) {
+            _expanded.addAll([title, _subgroupKey(title, i.kind)]);
+          }
+        }
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final BuildContext? tile = _selectedKey.currentContext;
+        if (tile != null && tile.mounted) {
+          Scrollable.ensureVisible(
+            tile,
+            alignment: 0.3,
+            duration: const Duration(milliseconds: 200),
+          );
+        }
+      });
+    }
+
+    // Not a lazy list, so that every tile exists to scroll to.
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const _Legend(),
+          for (final (String title, List<TriageItem> items) in sections) ...[
+            _GroupHeader(
               '$title (${items.length})',
-              style: Theme.of(context).textTheme.titleSmall,
+              expanded: _expanded.contains(title),
+              onTap: () => setState(() {
+                if (!_expanded.remove(title)) _expanded.add(title);
+              }),
             ),
-          ),
-          for (final TriageItem item in items) _ItemTile(item),
+            if (_expanded.contains(title))
+              for (final ItemKind kind in ItemKind.values)
+                ..._subgroup(_subgroupKey(title, kind), kind, [
+                  for (final i in items)
+                    if (i.kind == kind) i,
+                ], selected: selected),
+          ],
         ],
-      ],
+      ),
     );
+  }
+
+  /// The header of the subgroup of [kind] with [key], and its [items] if it
+  /// is expanded. Nothing if there are no [items].
+  List<Widget> _subgroup(
+    String key,
+    ItemKind kind,
+    List<TriageItem> items, {
+    required int? selected,
+  }) {
+    if (items.isEmpty) return const [];
+    final bool expanded = _expanded.contains(key);
+    final (_, IconData icon, Color color) = kindStyle(context, kind);
+    return [
+      _GroupHeader(
+        '${switch (kind) {
+          ItemKind.issue => 'Issues',
+          ItemKind.prWithIssues => 'PRs with issues',
+          ItemKind.prWithoutIssues => 'PRs without issues',
+        }} (${items.length})',
+        expanded: expanded,
+        indent: 24,
+        icon: Icon(icon, size: 18, color: color),
+        onTap: () => setState(() {
+          if (!_expanded.remove(key)) _expanded.add(key);
+        }),
+      ),
+      if (expanded)
+        for (final TriageItem item in items)
+          _ItemTile(
+            item,
+            key: item.number == selected ? _selectedKey : ValueKey(item.number),
+          ),
+    ];
   }
 }
 
+/// The key of the subgroup of [kind] in the group [title], in
+/// `_ItemListState._expanded`.
+String _subgroupKey(String title, ItemKind kind) => '$title/${kind.name}';
+
+class _GroupHeader extends StatelessWidget {
+  const _GroupHeader(
+    this.title, {
+    required this.expanded,
+    required this.onTap,
+    this.indent = 0,
+    this.icon,
+  });
+
+  final String title;
+  final bool expanded;
+  final VoidCallback onTap;
+
+  /// How far the header is indented, for a subgroup.
+  final double indent;
+
+  /// The icon of the subgroup's kind of items.
+  final Widget? icon;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: expanded ? 'Collapse the group' : 'Expand the group',
+    child: InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(8 + indent, indent > 0 ? 6 : 12, 16, 6),
+        child: Row(
+          spacing: 4,
+          children: [
+            Icon(expanded ? Icons.expand_more : Icons.chevron_right),
+            ?icon,
+            Text(
+              title,
+              style: indent > 0
+                  ? Theme.of(context).textTheme.labelLarge
+                  : Theme.of(context).textTheme.titleSmall,
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 class _ItemTile extends StatelessWidget {
-  const _ItemTile(this.item);
+  const _ItemTile(this.item, {super.key});
 
   final TriageItem item;
 
@@ -86,7 +215,7 @@ class _ItemTile extends StatelessWidget {
     );
     return ListTile(
       selected: controller.selected?.number == item.number,
-      tileColor: color.withValues(alpha: 0.06),
+      tileColor: kindBackground(color),
       selectedTileColor: theme.colorScheme.secondaryContainer,
       leading: Tooltip(
         message: kind,
@@ -161,13 +290,22 @@ class _Legend extends StatelessWidget {
             final IconData icon,
             final Color color,
           ))
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              spacing: 4,
-              children: [
-                Icon(icon, size: 16, color: color),
-                Text(name, style: Theme.of(context).textTheme.labelMedium),
-              ],
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: kindBackground(color),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: 4,
+                  children: [
+                    Icon(icon, size: 16, color: color),
+                    Text(name, style: Theme.of(context).textTheme.labelMedium),
+                  ],
+                ),
+              ),
             ),
       ],
     ),

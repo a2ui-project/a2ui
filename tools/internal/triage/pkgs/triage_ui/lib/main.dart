@@ -16,6 +16,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'src/github/github_client.dart';
 import 'src/github/github_token.dart';
@@ -38,7 +39,10 @@ Future<void> main(List<String> args) async {
 
   try {
     await ItemServer.start(
-      onItem: (GitHubItem item) => unawaited(controller.open(item)),
+      onItem: (GitHubItem item) {
+        unawaited(_activateWindow());
+        unawaited(controller.open(item));
+      },
     );
   } on SocketException catch (e) {
     debugPrint(
@@ -49,6 +53,18 @@ Future<void> main(List<String> args) async {
 
   unawaited(controller.start());
   runApp(TriageApp(controller: controller));
+}
+
+/// Brings the app's window to the front, so that the triager sees the item
+/// that triage_ui.sh sent. The channel is in `macos/Runner/`.
+Future<void> _activateWindow() async {
+  try {
+    await const MethodChannel(
+      'triage_ui/window',
+    ).invokeMethod<void>('activate');
+  } on MissingPluginException {
+    // Not on macOS.
+  }
 }
 
 GitHubItem? _initialItem(List<String> args) {

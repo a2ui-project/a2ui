@@ -17,8 +17,10 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:triage_ui/src/github_item.dart';
 import 'package:triage_ui/src/model/triage_controller.dart';
 import 'package:triage_ui/src/model/triage_item.dart';
+import 'package:triage_ui/src/ui/item_list.dart';
 import 'package:triage_ui/src/ui/triage_app.dart';
 
 import '../../support/fake_github.dart';
@@ -90,6 +92,13 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// Expands [group], a group or a subgroup. When several headers read the
+  /// same, expands the last one.
+  Future<void> expand(WidgetTester tester, String group) async {
+    await tester.tap(find.text(group).last);
+    await tester.pumpAndSettle();
+  }
+
   Finder inList(String text) =>
       find.descendant(of: find.byType(ListTile), matching: find.text(text));
 
@@ -99,8 +108,16 @@ void main() {
     await pumpApp(tester);
 
     expect(find.text('3 items need triage'), findsOneWidget);
-    expect(find.text('New (3)'), findsOneWidget);
     expect(find.text('Needs team input (0)'), findsOneWidget);
+    // The groups start collapsed.
+    expect(find.byType(ListTile), findsNothing);
+
+    await expand(tester, 'New (3)');
+    // So do the subgroups, which only show the kinds the group has.
+    expect(find.byType(ListTile), findsNothing);
+    expect(find.text('PRs without issues (0)'), findsNothing);
+    await expand(tester, 'Issues (2)');
+    await expand(tester, 'PRs with issues (1)');
     expect(find.byTooltip('PR with issues'), findsOneWidget);
     expect(inList('suggestion'), findsOneWidget);
     expect(inList('no suggestion'), findsNWidgets(2));
@@ -152,6 +169,33 @@ void main() {
     expect(find.text('Issue #11: Docs are unclear'), findsOneWidget);
   });
 
+  testWidgets('picks labels from the dropdown', (tester) async {
+    await pumpApp(tester);
+
+    await tester.tap(find.byTooltip('Choose labels to add').first);
+    await tester.pumpAndSettle();
+    // The priority labels come first.
+    final List<String> choices = [
+      for (final CheckboxMenuButton b in tester.widgetList(
+        find.byType(CheckboxMenuButton),
+      ))
+        (b.child! as Text).data!,
+    ];
+    expect(choices.take(4), ['P0', 'P1', 'P2', 'P3']);
+    await tester.tap(find.widgetWithText(CheckboxMenuButton, 'P2'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(CheckboxMenuButton, 'P1'));
+    await tester.pumpAndSettle();
+
+    // The dropdown stays open, and shows what is checked.
+    final CheckboxMenuButton p2 = tester.widget(
+      find.widgetWithText(CheckboxMenuButton, 'P2'),
+    );
+    expect(p2.value, isTrue);
+    expect(find.widgetWithText(InputChip, 'P2'), findsOneWidget);
+    expect(find.widgetWithText(InputChip, 'P1'), findsNothing);
+  });
+
   testWidgets('sends an item to the team', (tester) async {
     await pumpApp(tester);
 
@@ -173,13 +217,52 @@ void main() {
       'POST issues/10/comments {"body":"Is this a P0?"}',
     ]);
     expect(find.text('New (2)'), findsOneWidget);
-    expect(find.text('Needs team input (1)'), findsOneWidget);
-    expect(find.byIcon(Icons.groups), findsOneWidget);
     expect(find.text('Issue #11: Docs are unclear'), findsOneWidget);
+    await expand(tester, 'Needs team input (1)');
+    await expand(tester, 'Issues (1)');
+    expect(find.byIcon(Icons.groups), findsOneWidget);
+  });
+
+  testWidgets('shows an item opened by URL in its group', (tester) async {
+    await pumpApp(tester);
+    expect(controller.selected!.number, 10);
+
+    await settle(
+      tester,
+      () => controller.open(
+        GitHubItem.tryParse('https://github.com/a2ui-project/a2ui/pull/20')!,
+      ),
+    );
+
+    expect(controller.selected!.number, 20);
+    expect(find.text('PR #20: Fix the Row crash'), findsOneWidget);
+    final ListTile tile = tester.widget(
+      find.ancestor(
+        of: find.text('#20 Fix the Row crash'),
+        matching: find.byType(ListTile),
+      ),
+    );
+    expect(tile.selected, isTrue);
+  });
+
+  testWidgets('the divider resizes the item list', (tester) async {
+    await pumpApp(tester);
+    final Finder list = find.byType(ItemList);
+    expect(tester.getSize(list).width, 400);
+
+    await tester.drag(
+      find.bySemanticsLabel('Resize the item list'),
+      const Offset(150, 0),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.getSize(list).width, greaterThan(500));
   });
 
   testWidgets('an item without a suggestion starts empty', (tester) async {
     await pumpApp(tester);
+    await expand(tester, 'New (3)');
+    await expand(tester, 'Issues (2)');
     await tester.tap(inList('#11 Docs are unclear'));
     await tester.pumpAndSettle();
 

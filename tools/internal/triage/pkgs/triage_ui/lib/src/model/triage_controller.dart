@@ -103,6 +103,14 @@ class TriageController extends ChangeNotifier {
 
   TriageItem? get selected => _selected == null ? null : item(_selected!);
 
+  var _revealCount = 0;
+
+  /// Grows each time the controller selects an item on its own, such as an
+  /// item opened by URL or the next item after an apply, so that the list
+  /// shows the selected item even if it is in a collapsed group or
+  /// scrolled out of view.
+  int get revealCount => _revealCount;
+
   /// The loaded item with [number], or null.
   TriageItem? item(int number) {
     for (final TriageItem i in [..._queue, ..._opened]) {
@@ -200,7 +208,10 @@ class TriageController extends ChangeNotifier {
         _opened = [..._opened, fetched];
       });
     }
-    if (this.item(item.number) != null) select(item.number);
+    if (this.item(item.number) != null) {
+      _revealCount++;
+      select(item.number);
+    }
   }
 
   void select(int number) {
@@ -354,6 +365,7 @@ class TriageController extends ChangeNotifier {
     for (final i in candidates) {
       if (!session.isHandled(i.number)) {
         _selected = i.number;
+        _revealCount++;
         return;
       }
     }
@@ -391,13 +403,16 @@ class TriageController extends ChangeNotifier {
   }
 
   /// [items] in the order `ui.blueprint.md` lists them: by kind, then the
-  /// least recently updated first.
+  /// items with a suggestion first, then the least recently updated first.
   List<TriageItem> _sorted(Iterable<TriageItem> items) {
     DateTime updatedAt(TriageItem i) =>
         _listedUpdatedAt[i.number] ?? i.updatedAt;
+    int withoutSuggestion(TriageItem i) => i.suggestion == null ? 1 : 0;
     return items.toList()..sort(
       (a, b) => a.kind != b.kind
           ? a.kind.index.compareTo(b.kind.index)
+          : withoutSuggestion(a) != withoutSuggestion(b)
+          ? withoutSuggestion(a).compareTo(withoutSuggestion(b))
           : updatedAt(a).compareTo(updatedAt(b)),
     );
   }

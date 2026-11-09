@@ -128,7 +128,9 @@ class FakeGitHub {
   /// Request lines, such as `POST issues/12/labels`, that fail with 500.
   final Set<String> failing = {};
 
+  // Sorted by name, as GitHub returns them, so the priorities are not first.
   List<String> labels = [
+    'area: docs',
     'P0',
     'P1',
     'P2',
