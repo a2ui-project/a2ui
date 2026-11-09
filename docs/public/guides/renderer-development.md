@@ -4,7 +4,7 @@ This document outlines the required features for a new renderer implementation o
 
 > NOTE: Version-Aware Guide
 >
-> This guide provides implementation checklists for v1.0, v0.9.1, and v0.8. Use the tabs below to select the version you are targeting.
+> This guide provides implementation checklists for v1.0 and v0.9.1. Use the tabs below to select the version you are targeting.
 
 ## Web Renderers: Use `@a2ui/web_core` (`web_core`)
 
@@ -19,7 +19,7 @@ If you're building a renderer for the web (React, Vue, Svelte, etc.), you don't 
 | **`DataModel` / `DataContext`**          | Data binding resolution, path-based lookups, template list rendering                             |
 | **`ComponentModel`**                     | Component tree state, adjacency list → tree resolution                                           |
 | **Types & Schemas**                      | TypeScript types for all A2UI components, primitives, colors, styles, and JSON schema validation |
-| **Expression parser**                    | Client-side function evaluation (v0.9+)                                                          |
+| **Expression parser**                    | Client-side function evaluation                                                                  |
 
 ### How the maintained renderers use it
 
@@ -29,9 +29,6 @@ All three web renderers follow the same pattern — `web_core` handles the proto
 // Types — shared across all renderers
 import type * as Types from '@a2ui/web_core/types/types';
 import type * as Primitives from '@a2ui/web_core/types/primitives';
-
-// v0.8: Message processing and state
-import {A2uiMessageProcessor} from '@a2ui/web_core/data/model-processor';
 
 // v0.9.1 / v1.0: Message processing, surfaces, catalogs
 import {MessageProcessor} from '@a2ui/web_core/v0_9';
@@ -53,7 +50,6 @@ See the [React renderer](../../../typescript/renderers/react), [Lit renderer](..
 
 `web_core` exports API sets per version:
 
-- `@a2ui/web_core/v0_8` — deprecated v0.8
 - `@a2ui/web_core/v0_9` — v0.9/v0.9.1 support with `createSurface`, custom catalogs, client-side functions
 - `@a2ui/web_core/v1_0` — v1.0 support including RPC action responses
 
@@ -70,15 +66,15 @@ This section details the fundamental mechanics of the A2UI protocol. A compliant
 === "v1.0"
 
     All requirements from v0.9.1, with the following extensions:
-    - **Surface Properties**:
-        - Handle `createSurface` with `surfaceProperties` (renamed from `theme`). Custom primary brand colors are no longer supported inside the surface schema.
+    - **Surface Creation**:
+        - Handle `createSurface` without `theme` (removed in v1.0). Accept optional initial `components` and `dataModel`, and treat `catalogId` as an optional default catalog.
     - **Directional Function Calls (RPC)**:
         - Handle `callRendererFunction` messages from the agent and return `rendererFunctionResponse` (or `error`).
     - **Client-to-Server**:
         - Support initiating `callAgentFunction` messages to the agent for remote function execution.
-        - If using A2A, every A2A `Message` sent to the server must include an `a2uiClientCapabilities` object in the `metadata` field of the A2A `Message`.
-    - **Capabilities**:
-        - Expose `surfaceProperties` in place of `theme` during capabilities exchange.
+        - If using A2A, every A2A `Message` sent to the server must include an `a2uiRendererCapabilities` object in the `metadata` field of the A2A `Message`.
+    - **Data Binding Resolution**:
+        - Resolve `{"@path": "..."}` bindings and `{"@call": "..."}` function calls.
 
 === "v0.9.1"
 
@@ -105,34 +101,9 @@ This section details the fundamental mechanics of the A2UI protocol. A compliant
     - **Client-side Functions**:
         - Evaluate registered catalog-defined functions (e.g. `formatString` interpolation).
     - **Client-to-Server**:
-        - Dispatch `action` (replaces `userAction`) containing context with resolved paths.
+        - Dispatch `action` containing context with resolved paths.
         - Automatically include the full client-side data model in the metadata if `sendDataModel` was requested.
         - Send structured `ValidationFailed` error messages to the server if a schema validation fails.
-
-=== "v0.8"
-
-    - **JSONL Stream Parsing**: Read a streaming response line by line, decoding each line as a distinct JSON object.
-    - **Message Dispatcher**: Identify message types (`beginRendering`, `surfaceUpdate`, `dataModelUpdate`, `deleteSurface`) and route to the correct handler.
-    - **Surface Management**:
-        - Key surfaces by `surfaceId`.
-        - Handle `surfaceUpdate`: Add/update components in the surface's buffer.
-        - Handle `deleteSurface`: Remove the surface and all associated data/components.
-    - **Component Buffering**:
-        - Maintain a component buffer (e.g., `Map<String, Component>`) for each surface.
-        - Reconstruct the UI tree by resolving `id` references (`children.explicitList`, `child`, `contentChild`, etc.).
-    - **Data Model Store**:
-        - Maintain data model state for each surface.
-        - Handle `dataModelUpdate`: Update values at paths using the adjacency list representation (`[{ "key": "name", "valueString": "Bob" }]`).
-    - **Progressive Rendering**:
-        - Buffer updates until `beginRendering` is received.
-        - Start rendering from the specified `root` ID upon receiving `beginRendering`. Apply theme styles.
-    - **Data Binding Resolution**:
-        - Resolve `BoundValue` objects using `literalString` / `literalNumber` / `path`.
-    - **Dynamic Lists**:
-        - For `children.template`, iterate over the data list at `template.dataBinding` and render components using `template.componentId`.
-    - **Client-to-Server**:
-        - Dispatch `userAction` containing context with resolved paths to the server.
-        - Include `a2uiClientCapabilities` in transport metadata.
 
 ---
 
@@ -142,13 +113,15 @@ To ensure a consistent user experience across platforms, A2UI defines a basic se
 
 === "v1.0"
 
-    All components from v0.9.1, with the following extensions:
+    All components from v0.9.1, with the following changes:
+    - **Text**: `variant` is `caption` or `body`. Render simple Markdown, including headings.
     - **Video**: Support the `posterUrl` property to display a preview image.
-    - **TextField**: Support the `placeholder` property.
+    - **TextField**: Support the `placeholder` property. `value` is required, and `validationRegexp` is removed in favor of `checks` with the `regex` function.
+    - **Slider**: Support the `steps` property to snap to discrete values.
 
 === "v0.9.1"
 
-    - **Text**: Render text. Support `variant` (replaces `usageHint`).
+    - **Text**: Render text. Support `variant`.
     - **Image**: Render image from URL. Support `fit` and `variant`.
     - **Icon**: Render system icons.
     - **Video**: Render video player.
@@ -161,25 +134,6 @@ To ensure a consistent user experience across platforms, A2UI defines a basic se
     - **Modal**: Popup triggered by `trigger` displaying `content`.
     - **Button**: Clickable button triggering `action`. Support `variant` (primary, borderless).
     - **CheckBox**: Boolean checkbox.
-    - **TextField**: Input field supporting `label`, `value` (replaces `text`), `variant` (`shortText`, `longText`, etc.), and `checks` (validation functions).
-    - **ChoicePicker**: (Replaces MultipleChoice) Support `options` and `variant` (`mutuallyExclusive`, `multipleSelection`).
-    - **Slider**: Support ranges using `min`, `max` (replaces `minValue`, `maxValue`).
-
-=== "v0.8"
-
-    - **Text**: Render text. Support `usageHint` (h1-h5, body, caption).
-    - **Image**: Render image from URL. Support `fit` and `usageHint` (avatar, hero, etc.).
-    - **Icon**: Render system icons.
-    - **Video**: Render video player.
-    - **AudioPlayer**: Render audio player with description.
-    - **Divider**: Render horizontal/vertical lines.
-    - **Row** / **Column**: Arrange children horizontally/vertically. Support `distribution` and `alignment`. Support child `weight`.
-    - **List**: Render scrollable list.
-    - **Card**: Box layout with rounded corners and shadows.
-    - **Tabs**: Tabbed navigation using `tabItems`.
-    - **Modal**: Popup triggered by `entryPointChild` displaying `contentChild`.
-    - **Button**: Clickable button triggering `userAction`. Support `primary` variant.
-    - **CheckBox**: Boolean checkbox.
-    - **TextField**: Input field supporting `label`, `textFieldType` (`shortText`, `longText`, etc.), and `validationRegexp`.
-    - **MultipleChoice**: Support `options`, `maxAllowedSelections`, and single/multiple value selections.
-    - **Slider**: Support ranges using `minValue`, `maxValue`.
+    - **TextField**: Input field supporting `label`, `value`, `variant` (`shortText`, `longText`, etc.), and `checks` (validation functions).
+    - **ChoicePicker**: Support `options` and `variant` (`mutuallyExclusive`, `multipleSelection`).
+    - **Slider**: Support ranges using `min` and `max`.

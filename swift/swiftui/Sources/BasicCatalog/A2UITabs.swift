@@ -54,14 +54,14 @@ public struct A2UITabs: View {
   private var tabs: [TabData] {
     if let array = node.array(for: "tabs") {
       return array.enumerated().map { index, element in
-        let dict = element as? ResolvedDictionary
+        let dictionary = element as? ResolvedDictionary
         let title =
-          (dict?["title"] as? String)
-          ?? (dict?["title"] as? DataBinding<String>)?.value
+          (dictionary?["title"] as? String)
+          ?? (dictionary?["title"] as? DataBinding<String>)?.value
           ?? "Tab \(index + 1)"
         let child =
-          (dict?["child"] as? Node)
-          ?? node.allChildNodes.first { $0.id == (dict?["child"] as? String ?? "") }
+          (dictionary?["child"] as? Node)
+          ?? node.allChildNodes.first { $0.id == (dictionary?["child"] as? String ?? "") }
         return TabData(id: index, title: title, childNode: child)
       }
     } else if let json = node.jsonValue(for: "tabs"), let array = json.arrayValue {
@@ -105,6 +105,7 @@ public struct A2UITabs: View {
                 .clipShape(Capsule())
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("a2ui-\(node.id)-tab-\(tab.id)")
             .accessibilityAddTraits(activeSelectedIndex == tab.id ? .isSelected : [])
           }
         }

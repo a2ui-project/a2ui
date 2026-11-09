@@ -32,6 +32,7 @@ from .message_processor import (
     MessageProcessorOptions,
 )
 from .operations import (
+    InternalCallRendererFunctionOp,
     InternalCreateSurfaceOp,
     InternalDeleteSurfaceOp,
     InternalOperation,
@@ -43,6 +44,7 @@ __all__ = [
     "CapabilitiesOptions",
     "ErrorEnvelopeContext",
     "ExecutionContext",
+    "InternalCallRendererFunctionOp",
     "InternalCreateSurfaceOp",
     "InternalDeleteSurfaceOp",
     "InternalOperation",
