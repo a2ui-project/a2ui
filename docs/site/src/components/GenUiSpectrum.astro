@@ -1,0 +1,1451 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+---
+
+<section class="a2-section gs-section" id="spectrum">
+  <div class="gs-wrap">
+    <div class="gs-header">
+      <h2 class="gs-h2">
+        Three patterns. <span class="gs-accent">One generative UI spectrum.</span>
+      </h2>
+      <p class="gs-sub">
+        Slide across the spectrum to see how the same user prompt turns into different UI outcomes.
+      </p>
+    </div>
+
+    <div
+      class="gs-flow"
+      id="gs-instrument"
+      data-active="a2ui"
+      role="region"
+      aria-label="Interactive generative UI spectrum"
+    >
+      <!-- =================================================================
+           SHARED USER PROMPT (Constant input above the spectrum)
+           ================================================================= -->
+      <div class="gs-prompt-stage">
+        <div class="gs-prompt-card">
+          <span class="gs-prompt-card__avatar" aria-hidden="true">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+              <path
+                d="M2.5 3.5A1.5 1.5 0 0 1 4 2h8a1.5 1.5 0 0 1 1.5 1.5v6A1.5 1.5 0 0 1 12 11H6.2L3.3 13.4a.5.5 0 0 1-.8-.4V3.5Z"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </span>
+          <p class="gs-prompt-card__quote">
+            “Flight delayed — rebook me on the next nonstop with an aisle seat.”
+          </p>
+        </div>
+
+        <div class="gs-prompt-stem" aria-hidden="true">
+          <span class="gs-prompt-stem__line gs-prompt-stem__line--arrow"></span>
+        </div>
+      </div>
+
+      <!-- =================================================================
+           UNIFIED SPECTRUM SLIDER + OUTCOME STAGE
+           ================================================================= -->
+      <div class="gs-card">
+        <!-- Spectrum Slider Header (Zero eyebrows) -->
+        <div class="gs-slider-band">
+          <div class="gs-stops" role="tablist" aria-label="Generative UI spectrum">
+            <button
+              type="button"
+              class="gs-stop"
+              role="tab"
+              id="gs-tab-static"
+              aria-selected="false"
+              aria-controls="gs-stage-panel"
+              tabindex="-1"
+              data-stop="static"
+            >
+              <span class="gs-stop__title">Strict control</span>
+              <span class="gs-stop__sub">Pre-built widgets</span>
+            </button>
+
+            <button
+              type="button"
+              class="gs-stop is-active"
+              role="tab"
+              id="gs-tab-a2ui"
+              aria-selected="true"
+              aria-controls="gs-stage-panel"
+              tabindex="0"
+              data-stop="a2ui"
+            >
+              <span class="gs-stop__title">Flexible composition</span>
+              <span class="gs-stop__sub">Native widget catalog</span>
+            </button>
+
+            <button
+              type="button"
+              class="gs-stop"
+              role="tab"
+              id="gs-tab-sandbox"
+              aria-selected="false"
+              aria-controls="gs-stage-panel"
+              tabindex="-1"
+              data-stop="sandbox"
+            >
+              <span class="gs-stop__title">Render anything</span>
+              <span class="gs-stop__sub">Sandboxed HTML &amp; JS</span>
+            </button>
+          </div>
+
+          <!-- Draggable / clickable continuum rail -->
+          <div class="gs-rail-wrap" id="gs-rail" aria-hidden="true">
+            <div class="gs-rail">
+              <div class="gs-rail__gradient"></div>
+              <span class="gs-rail__tick" style="left: 16.6667%"></span>
+              <span class="gs-rail__tick gs-rail__tick--mid" style="left: 50%"></span>
+              <span class="gs-rail__tick" style="left: 83.3333%"></span>
+              <div class="gs-rail__puck" id="gs-puck">
+                <span class="gs-rail__puck-core"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Outcome Stage: Visual Screen Outcome (Left) + 3 Consolidated Points (Right) -->
+        <div class="gs-body" id="gs-stage-panel" role="tabpanel" aria-labelledby="gs-tab-a2ui">
+          <!-- LEFT: VISUAL OUTCOME FOR THE SHARED PROMPT -->
+          <div class="gs-canvas">
+            <div class="gs-scenes">
+              <!-- =========================================================
+                   OUTCOME 1 · STRICT CONTROL
+                   ========================================================= -->
+              <div class="gs-scene" data-scene="static" aria-hidden="true">
+                <div class="gs-wire-pill gs-wire-pill--cyan">
+                  <span class="gs-wire-pill__verb">Agent calls</span>
+                  <code>flight_card(&#123; flight: "UA 418", gate: "B12" &#125;)</code>
+                </div>
+
+                <div class="gs-wire-drop gs-wire-drop--cyan" aria-hidden="true"></div>
+
+                <div class="gs-app">
+                  <div class="gs-app__chrome">
+                    <span class="gs-app__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                    <span class="gs-app__name">Host App · Hardcoded Template</span>
+                  </div>
+                  <div class="gs-app__body">
+                    <div class="gs-flight">
+                      <div class="gs-flight__top">
+                        <span class="gs-badge gs-badge--cyan">NONSTOP</span>
+                        <span class="gs-flight__meta">Departs 6:45 PM · Gate B12</span>
+                      </div>
+                      <strong class="gs-flight__route">UA 418 · SFO → JFK</strong>
+                    </div>
+
+                    <button type="button" class="gs-missing" id="gs-static-locked">
+                      <span class="gs-missing__hdr">
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                          <rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5" />
+                          <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" stroke-width="1.5" />
+                        </svg>
+                        <span>Aisle seat picker unavailable</span>
+                      </span>
+                      <span class="gs-missing__sub" id="gs-static-locked-msg">
+                        This template only renders flight details — seat selection wasn't hardcoded.
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- =========================================================
+                   OUTCOME 2 · FLEXIBLE COMPOSITION (A2UI)
+                   ========================================================= -->
+              <div class="gs-scene is-active" data-scene="a2ui" aria-hidden="false">
+                <div class="gs-wire-pill gs-wire-pill--blue">
+                  <span class="gs-wire-pill__verb">Agent composes</span>
+                  <code>FlightCard + ChoiceChips + Button</code>
+                </div>
+
+                <div class="gs-wire-drop gs-wire-drop--blue" aria-hidden="true"></div>
+
+                <div class="gs-app gs-app--a2ui">
+                  <div class="gs-app__chrome">
+                    <span class="gs-app__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                    <span class="gs-app__name">Host App · Native Catalog</span>
+                  </div>
+                  <div class="gs-app__body">
+                    <div class="gs-flight gs-flight--a2ui">
+                      <div class="gs-flight__top">
+                        <span class="gs-badge gs-badge--blue">NONSTOP</span>
+                        <span class="gs-flight__meta">Departs 6:45 PM · Gate B12</span>
+                      </div>
+                      <strong class="gs-flight__route">UA 418 · SFO → JFK</strong>
+                    </div>
+
+                    <div class="gs-seats" role="group" aria-label="Choose an aisle seat">
+                      <button type="button" class="gs-seat is-on" data-seat="14C">
+                        <strong>14C</strong>
+                        <span>Main aisle</span>
+                      </button>
+                      <button type="button" class="gs-seat" data-seat="9F">
+                        <strong>9F</strong>
+                        <span>Exit aisle</span>
+                      </button>
+                    </div>
+
+                    <button type="button" class="gs-cta" id="gs-a2ui-cta">
+                      <span id="gs-a2ui-cta-lbl">Confirm rebooking · Seat 14C</span>
+                      <span aria-hidden="true">→</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- =========================================================
+                   OUTCOME 3 · RENDER ANYTHING
+                   ========================================================= -->
+              <div class="gs-scene" data-scene="sandbox" aria-hidden="true">
+                <div class="gs-wire-pill gs-wire-pill--amber">
+                  <span class="gs-wire-pill__verb">Agent ships</span>
+                  <code>&lt;iframe sandbox&gt; HTML, CSS &amp; JS bundle</code>
+                </div>
+
+                <div class="gs-wire-drop gs-wire-drop--amber" aria-hidden="true"></div>
+
+                <div class="gs-app">
+                  <div class="gs-app__chrome">
+                    <span class="gs-app__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                    <span class="gs-app__name">Host App · Embedded Sandbox</span>
+                  </div>
+                  <div class="gs-app__body">
+                    <div class="gs-sandbox-frame">
+                      <div class="gs-sandbox-frame__bar">
+                        <span>&lt;iframe sandbox&gt; · Custom cabin map</span>
+                        <span id="gs-sandbox-seat-readout">Seat 14C</span>
+                      </div>
+                      <svg
+                        class="gs-cabin-svg"
+                        viewBox="0 0 260 92"
+                        aria-label="Interactive custom aircraft cabin map"
+                      >
+                        <path
+                          d="M10 15 Q130 5 250 15 M10 77 Q130 87 250 77"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-opacity="0.24"
+                          stroke-width="1.3"
+                        />
+                        <path
+                          d="M104 11 L128 2 L160 2 L144 11 M104 81 L128 90 L160 90 L144 81"
+                          fill="currentColor"
+                          fill-opacity="0.1"
+                        />
+                        <line
+                          x1="20"
+                          y1="46"
+                          x2="240"
+                          y2="46"
+                          stroke="currentColor"
+                          stroke-opacity="0.2"
+                          stroke-dasharray="3 3"
+                        />
+                        <g class="gs-cabin-seats">
+                          <rect x="36" y="22" width="15" height="13" rx="2.5" opacity="0.25" />
+                          <rect x="60" y="22" width="15" height="13" rx="2.5" opacity="0.25" />
+                          <rect x="84" y="22" width="15" height="13" rx="2.5" opacity="0.25" />
+                          <rect
+                            class="gs-cabin-pick is-picked"
+                            data-deck-seat="Seat 14C"
+                            x="112"
+                            y="21"
+                            width="17"
+                            height="15"
+                            rx="3"
+                          />
+                          <rect
+                            class="gs-cabin-pick"
+                            data-deck-seat="Seat 15C"
+                            x="138"
+                            y="21"
+                            width="17"
+                            height="15"
+                            rx="3"
+                          />
+                          <rect x="166" y="22" width="15" height="13" rx="2.5" opacity="0.25" />
+                          <rect x="190" y="22" width="15" height="13" rx="2.5" opacity="0.25" />
+
+                          <rect x="36" y="57" width="15" height="13" rx="2.5" opacity="0.25" />
+                          <rect x="60" y="57" width="15" height="13" rx="2.5" opacity="0.25" />
+                          <rect
+                            class="gs-cabin-pick"
+                            data-deck-seat="Seat 12D"
+                            x="84"
+                            y="56"
+                            width="17"
+                            height="15"
+                            rx="3"
+                          />
+                          <rect x="112" y="57" width="15" height="13" rx="2.5" opacity="0.25" />
+                          <rect x="138" y="57" width="15" height="13" rx="2.5" opacity="0.25" />
+                          <rect
+                            class="gs-cabin-pick"
+                            data-deck-seat="Seat 16D"
+                            x="166"
+                            y="56"
+                            width="17"
+                            height="15"
+                            rx="3"
+                          />
+                          <rect x="190" y="57" width="15" height="13" rx="2.5" opacity="0.25" />
+                        </g>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT: CONSOLIDATED HIGH-LEVEL SUMMARY (1 headline + 3 crisp points, zero eyebrows) -->
+          <div class="gs-details">
+            <!-- Slide 1: Strict control -->
+            <div class="gs-detail" data-detail="static" aria-hidden="true">
+              <h3 class="gs-detail__title">Hardcoded screens filled with agent data.</h3>
+              <ul class="gs-points">
+                <li class="gs-point">
+                  <span class="gs-point__icon gs-point__icon--pos" aria-hidden="true">+</span>
+                  <div>
+                    <strong>100% host-controlled</strong>
+                    <span>Inherits your app's exact styling, components, and security model.</span>
+                  </div>
+                </li>
+                <li class="gs-point">
+                  <span class="gs-point__icon gs-point__icon--lim" aria-hidden="true">–</span>
+                  <div>
+                    <strong>Locked to pre-built views</strong>
+                    <span>Agents can fill data slots, but cannot combine widgets for new requests.</span>
+                  </div>
+                </li>
+                <li class="gs-point">
+                  <span class="gs-point__icon gs-point__icon--lim" aria-hidden="true">–</span>
+                  <div>
+                    <strong>New flows require app releases</strong>
+                    <span>Anything you didn't anticipate upfront falls back to plain chat text.</span>
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Slide 2: Flexible composition (A2UI) -->
+            <div class="gs-detail is-active" data-detail="a2ui" aria-hidden="false">
+              <h3 class="gs-detail__title">Tailored layouts assembled from your native catalog.</h3>
+              <ul class="gs-points">
+                <li class="gs-point">
+                  <span class="gs-point__icon gs-point__icon--blue" aria-hidden="true">+</span>
+                  <div>
+                    <strong>Adapts to every prompt</strong>
+                    <span>Agents compose multi-step flows on the fly from widgets you approve.</span>
+                  </div>
+                </li>
+                <li class="gs-point">
+                  <span class="gs-point__icon gs-point__icon--blue" aria-hidden="true">+</span>
+                  <div>
+                    <strong>Native &amp; safe by default</strong>
+                    <span>Streams declarative JSON data with two-way bindings — never executable code.</span>
+                  </div>
+                </li>
+                <li class="gs-point">
+                  <span class="gs-point__icon gs-point__icon--blue" aria-hidden="true">+</span>
+                  <div>
+                    <strong>One stream, every screen</strong>
+                    <span>Renders natively across React, Lit, Angular, Flutter, SwiftUI, and Compose.</span>
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Slide 3: Render anything -->
+            <div class="gs-detail" data-detail="sandbox" aria-hidden="true">
+              <h3 class="gs-detail__title">Self-contained web bundles inside an isolated sandbox.</h3>
+              <ul class="gs-points">
+                <li class="gs-point">
+                  <span class="gs-point__icon gs-point__icon--amber" aria-hidden="true">+</span>
+                  <div>
+                    <strong>Unrestricted custom visuals</strong>
+                    <span>Built for bespoke 2D/3D canvases, interactive maps, and full mini-apps.</span>
+                  </div>
+                </li>
+                <li class="gs-point">
+                  <span class="gs-point__icon gs-point__icon--lim" aria-hidden="true">–</span>
+                  <div>
+                    <strong>Isolated from your design system</strong>
+                    <span>Runs inside an iframe boundary with separate styling, state, and a11y.</span>
+                  </div>
+                </li>
+                <li class="gs-point">
+                  <span class="gs-point__icon gs-point__icon--lim" aria-hidden="true">–</span>
+                  <div>
+                    <strong>Tied to web &amp; WebViews</strong>
+                    <span>Ships heavier HTML/JS payloads rather than native mobile or desktop widgets.</span>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script is:inline>
+  (() => {
+    const root = document.getElementById('gs-instrument');
+    if (!root) return;
+
+    const stops = Array.from(root.querySelectorAll('[data-stop]'));
+    const scenes = Array.from(root.querySelectorAll('[data-scene]'));
+    const details = Array.from(root.querySelectorAll('[data-detail]'));
+    const panel = document.getElementById('gs-stage-panel');
+    const rail = document.getElementById('gs-rail');
+    const puck = document.getElementById('gs-puck');
+
+    const ORDER = ['static', 'a2ui', 'sandbox'];
+    const POS = { static: 16.6667, a2ui: 50, sandbox: 83.3333 };
+
+    const setMode = (mode, focusTab = false) => {
+      if (!POS[mode]) return;
+      root.setAttribute('data-active', mode);
+      if (puck) {
+        puck.style.left = `${POS[mode]}%`;
+      }
+
+      stops.forEach((btn) => {
+        const active = btn.getAttribute('data-stop') === mode;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-selected', active ? 'true' : 'false');
+        btn.setAttribute('tabindex', active ? '0' : '-1');
+        if (active) {
+          if (panel) panel.setAttribute('aria-labelledby', btn.id);
+          if (focusTab) btn.focus();
+        }
+      });
+
+      scenes.forEach((el) => {
+        const active = el.getAttribute('data-scene') === mode;
+        el.classList.toggle('is-active', active);
+        el.setAttribute('aria-hidden', active ? 'false' : 'true');
+      });
+
+      details.forEach((el) => {
+        const active = el.getAttribute('data-detail') === mode;
+        el.classList.toggle('is-active', active);
+        el.setAttribute('aria-hidden', active ? 'false' : 'true');
+      });
+    };
+
+    stops.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        setMode(btn.getAttribute('data-stop') || 'a2ui');
+      });
+
+      btn.addEventListener('keydown', (e) => {
+        const idx = ORDER.indexOf(btn.getAttribute('data-stop') || 'a2ui');
+        if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          setMode(ORDER[(idx + 1) % ORDER.length], true);
+        } else if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          setMode(ORDER[(idx - 1 + ORDER.length) % ORDER.length], true);
+        } else if (e.key === 'Home') {
+          e.preventDefault();
+          setMode(ORDER[0], true);
+        } else if (e.key === 'End') {
+          e.preventDefault();
+          setMode(ORDER[ORDER.length - 1], true);
+        }
+      });
+    });
+
+    /* Pointer drag / click scrubbing along the continuum rail */
+    if (rail && puck) {
+      let dragging = false;
+
+      const updateFromPointer = (clientX, snap) => {
+        const rect = rail.getBoundingClientRect();
+        if (!rect.width) return;
+        const pct = Math.max(8, Math.min(92, ((clientX - rect.left) / rect.width) * 100));
+        const mode = pct < 33.34 ? 'static' : pct > 66.66 ? 'sandbox' : 'a2ui';
+        if (snap) {
+          root.classList.remove('is-scrubbing');
+          setMode(mode);
+        } else {
+          root.classList.add('is-scrubbing');
+          setMode(mode);
+          puck.style.left = `${pct}%`;
+        }
+      };
+
+      rail.addEventListener('pointerdown', (e) => {
+        dragging = true;
+        if (e.isTrusted) {
+          rail.setPointerCapture(e.pointerId);
+        }
+        updateFromPointer(e.clientX, false);
+      });
+
+      rail.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        updateFromPointer(e.clientX, false);
+      });
+
+      const endDrag = (e) => {
+        if (!dragging) return;
+        dragging = false;
+        updateFromPointer(e.clientX, true);
+      };
+
+      rail.addEventListener('pointerup', endDrag);
+      rail.addEventListener('pointercancel', () => {
+        dragging = false;
+        root.classList.remove('is-scrubbing');
+        setMode(root.getAttribute('data-active') || 'a2ui');
+      });
+    }
+
+    /* Slide 1 micro-interaction */
+    const lockedBtn = document.getElementById('gs-static-locked');
+    const lockedMsg = document.getElementById('gs-static-locked-msg');
+    if (lockedBtn && lockedMsg) {
+      lockedBtn.addEventListener('click', () => {
+        lockedBtn.classList.remove('is-shake');
+        void lockedBtn.offsetWidth;
+        lockedBtn.classList.add('is-shake');
+        lockedMsg.textContent = 'Blocked — shipping a seat picker requires updating host app code.';
+      });
+    }
+
+    /* Slide 2 micro-interaction */
+    const seatBtns = Array.from(root.querySelectorAll('[data-seat]'));
+    const a2uiCta = document.getElementById('gs-a2ui-cta');
+    const a2uiCtaLbl = document.getElementById('gs-a2ui-cta-lbl');
+    let currentSeat = '14C';
+
+    seatBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        currentSeat = btn.getAttribute('data-seat') || '14C';
+        seatBtns.forEach((b) => b.classList.toggle('is-on', b === btn));
+        if (a2uiCta && a2uiCtaLbl) {
+          a2uiCta.classList.remove('is-done');
+          a2uiCtaLbl.textContent = `Confirm rebooking · Seat ${currentSeat}`;
+        }
+      });
+    });
+
+    if (a2uiCta && a2uiCtaLbl) {
+      a2uiCta.addEventListener('click', () => {
+        const done = a2uiCta.classList.toggle('is-done');
+        a2uiCtaLbl.textContent = done
+          ? `✓ Rebooked on UA 418 · Seat ${currentSeat}`
+          : `Confirm rebooking · Seat ${currentSeat}`;
+      });
+    }
+
+    /* Slide 3 micro-interaction */
+    const cabinPicks = Array.from(root.querySelectorAll('.gs-cabin-pick'));
+    const cabinReadout = document.getElementById('gs-sandbox-seat-readout');
+    cabinPicks.forEach((rect) => {
+      rect.addEventListener('click', () => {
+        cabinPicks.forEach((r) => r.classList.toggle('is-picked', r === rect));
+        if (cabinReadout) {
+          cabinReadout.textContent = rect.getAttribute('data-deck-seat') || 'Seat 14C';
+        }
+      });
+    });
+  })();
+</script>
+
+<style>
+  .gs-section {
+    position: relative;
+    padding: 112px 0 124px;
+    background: var(--a2-bg);
+    border-top: 1px solid var(--a2-border-strong);
+    scroll-margin-top: 72px;
+  }
+
+  @media (max-width: 720px) {
+    .gs-section {
+      padding: 80px 0 88px;
+    }
+  }
+
+  .gs-wrap {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 36px;
+  }
+
+  @media (max-width: 640px) {
+    .gs-wrap {
+      padding: 0 20px;
+    }
+  }
+
+  /* Clean stacked section header (flush optical left alignment, zero eyebrow) */
+  .gs-header {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 40px;
+  }
+
+  .gs-h2 {
+    margin: 0;
+    font-family: var(--a2-font-display);
+    font-size: clamp(2rem, 3.5vw, 2.9rem);
+    font-weight: 700;
+    line-height: 1.08;
+    letter-spacing: var(--a2-tracking-h2);
+    color: var(--a2-text);
+  }
+
+  .gs-accent {
+    color: var(--a2-heading-accent);
+  }
+
+  .gs-sub {
+    margin: 0;
+    padding-left: clamp(7px, 0.75vw, 11px);
+    max-width: 58ch;
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--a2-text-secondary);
+  }
+
+  /* =========================================================================
+     ROOT FLOW: SHARED PROMPT -> SPECTRUM SLIDER -> OUTCOME
+     ========================================================================= */
+  .gs-flow {
+    --gs-mode-color: var(--a2-accent);
+    --gs-mode-strong: var(--a2-accent-strong);
+    --gs-mode-soft: var(--a2-accent-soft);
+    --gs-mode-border: var(--a2-accent-border);
+
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .gs-flow[data-active='static'] {
+    --gs-mode-color: var(--a2-cyan);
+    --gs-mode-strong: var(--a2-cyan-strong);
+    --gs-mode-soft: var(--a2-cyan-soft);
+    --gs-mode-border: var(--a2-cyan-border);
+  }
+
+  .gs-flow[data-active='sandbox'] {
+    --gs-mode-color: var(--a2-amber);
+    --gs-mode-strong: var(--a2-amber-strong);
+    --gs-mode-soft: var(--a2-amber-soft);
+    --gs-mode-border: var(--a2-amber-border);
+  }
+
+  /* --- Shared Prompt Stage (Clearly outside & feeding the spectrum) --- */
+  .gs-prompt-stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .gs-prompt-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    max-width: 680px;
+    padding: 13px 20px;
+    border-radius: 999px;
+    background: var(--a2-surface);
+    border: 1.5px solid var(--gs-mode-border);
+    box-shadow: var(--a2-shadow-sm);
+    transition: border-color 0.24s ease;
+  }
+
+  @media (max-width: 640px) {
+    .gs-prompt-card {
+      border-radius: 14px;
+      padding: 12px 15px;
+    }
+  }
+
+  .gs-prompt-card__avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--gs-mode-soft);
+    color: var(--gs-mode-strong);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background-color 0.24s ease, color 0.24s ease;
+  }
+
+  .gs-prompt-card__quote {
+    margin: 0;
+    font-family: var(--a2-font-display);
+    font-size: 15px;
+    font-weight: 620;
+    line-height: 1.4;
+    color: var(--a2-text);
+  }
+
+  .gs-prompt-stem {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .gs-prompt-stem__line {
+    width: 2px;
+    height: 12px;
+    background: var(--gs-mode-border);
+    transition: background-color 0.24s ease;
+  }
+
+  .gs-prompt-stem__line--arrow {
+    position: relative;
+    height: 22px;
+  }
+
+  .gs-prompt-stem__line--arrow::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: -1px;
+    width: 7px;
+    height: 7px;
+    border-right: 2px solid var(--gs-mode-color);
+    border-bottom: 2px solid var(--gs-mode-color);
+    transform: translateX(-50%) rotate(45deg);
+    transition: border-color 0.24s ease;
+  }
+
+  .gs-prompt-stem__pill {
+    font-family: var(--a2-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--a2-text-muted);
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: var(--a2-surface-subtle);
+    border: 1px solid var(--a2-border);
+  }
+
+  /* =========================================================================
+     SPECTRUM CARD (SLIDER + UNIFIED STAGE)
+     ========================================================================= */
+  .gs-card {
+    border: 1px solid var(--a2-border-strong);
+    border-radius: 12px;
+    background: var(--a2-surface);
+    box-shadow: var(--a2-shadow-md);
+    overflow: hidden;
+  }
+
+  .gs-slider-band {
+    background: var(--a2-surface-subtle);
+    border-bottom: 1px solid var(--a2-border-strong);
+    padding: 6px 0 18px;
+  }
+
+  .gs-stops {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .gs-stop {
+    appearance: none;
+    border: none;
+    background: transparent;
+    padding: 14px 18px 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 3px;
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--a2-text-secondary);
+    transition: color 0.18s ease, opacity 0.18s ease;
+  }
+
+  .gs-stop:hover {
+    color: var(--a2-text);
+  }
+
+  .gs-stop:focus-visible {
+    outline: 2px solid var(--a2-accent);
+    outline-offset: -2px;
+    border-radius: 6px;
+  }
+
+  .gs-stop__title {
+    font-family: var(--a2-font-display);
+    font-size: 16.5px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+    color: var(--a2-text-secondary);
+    transition: color 0.18s ease;
+  }
+
+  .gs-stop.is-active .gs-stop__title {
+    color: var(--a2-text);
+  }
+
+  .gs-stop__sub {
+    font-size: 12.5px;
+    color: var(--a2-text-muted);
+  }
+
+  @media (max-width: 680px) {
+    .gs-stop {
+      padding: 12px 8px 8px;
+    }
+
+    .gs-stop__title {
+      font-size: 13.5px;
+    }
+
+    .gs-stop__sub {
+      display: none;
+    }
+  }
+
+  /* Continuum Scrubber Rail */
+  .gs-rail-wrap {
+    padding: 6px 28px 0;
+    cursor: pointer;
+    touch-action: none;
+    user-select: none;
+  }
+
+  @media (max-width: 680px) {
+    .gs-rail-wrap {
+      padding: 6px 16px 0;
+    }
+  }
+
+  .gs-rail {
+    position: relative;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--a2-bg);
+    border: 1px solid var(--a2-border-strong);
+  }
+
+  .gs-rail__gradient {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+      90deg,
+      var(--a2-cyan) 0%,
+      var(--a2-accent) 50%,
+      var(--a2-amber) 100%
+    );
+    opacity: 0.36;
+  }
+
+  .gs-rail__tick {
+    position: absolute;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--a2-text-muted);
+    transform: translate(-50%, -50%);
+    opacity: 0.55;
+  }
+
+  .gs-rail__tick--mid {
+    background: var(--a2-accent);
+    opacity: 0.85;
+  }
+
+  .gs-rail__puck {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--a2-surface);
+    border: 2.5px solid var(--gs-mode-color);
+    box-shadow: var(--a2-shadow-sm);
+    transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition:
+      left 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 0.24s ease,
+      transform 0.16s ease;
+  }
+
+  .gs-flow.is-scrubbing .gs-rail__puck {
+    transition: border-color 0.16s ease;
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+
+  .gs-rail-wrap:hover .gs-rail__puck {
+    transform: translate(-50%, -50%) scale(1.08);
+  }
+
+  .gs-rail__puck-core {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--gs-mode-color);
+    transition: background-color 0.24s ease;
+  }
+
+  /* =========================================================================
+     BODY: LEFT OUTCOME PREVIEW + RIGHT 3-POINT SUMMARY
+     ========================================================================= */
+  .gs-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  @media (max-width: 960px) {
+    .gs-body {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* --- Left Visual Outcome --- */
+  .gs-canvas {
+    padding: 28px 32px 32px;
+    background-color: var(--a2-bg);
+    background-image: radial-gradient(var(--a2-dot-grid) 1px, transparent 1px);
+    background-size: 14px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  @media (max-width: 640px) {
+    .gs-canvas {
+      padding: 22px 16px 24px;
+    }
+  }
+
+  .gs-scenes {
+    display: grid;
+    width: 100%;
+    max-width: 460px;
+    align-items: center;
+  }
+
+  .gs-scene {
+    grid-area: 1 / 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(6px);
+    transition:
+      opacity 0.22s ease,
+      transform 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0.22s;
+  }
+
+  .gs-scene.is-active {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+
+  /* Compact wire pill showing what the agent sends */
+  .gs-wire-pill {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 6px 13px;
+    border-radius: 999px;
+    background: var(--a2-surface);
+    border: 1px solid var(--a2-border-strong);
+    font-size: 12px;
+    box-shadow: var(--a2-shadow-sm);
+  }
+
+  .gs-wire-pill--cyan {
+    border-color: var(--a2-cyan-border);
+  }
+
+  .gs-wire-pill--blue {
+    border-color: var(--a2-accent-border);
+  }
+
+  .gs-wire-pill--amber {
+    border-color: var(--a2-amber-border);
+  }
+
+  .gs-wire-pill__verb {
+    font-weight: 650;
+    color: var(--a2-text-secondary);
+  }
+
+  .gs-wire-pill code {
+    font-family: var(--a2-font-mono);
+    font-size: 11.5px;
+    color: var(--a2-text);
+  }
+
+  .gs-wire-drop {
+    width: 2px;
+    height: 16px;
+    background: var(--a2-border-strong);
+  }
+
+  .gs-wire-drop--cyan {
+    background: var(--a2-cyan);
+  }
+
+  .gs-wire-drop--blue {
+    background: var(--a2-accent);
+  }
+
+  .gs-wire-drop--amber {
+    background: var(--a2-amber);
+  }
+
+  /* App Screen Frame */
+  .gs-app {
+    width: 100%;
+    border-radius: 10px;
+    border: 1px solid var(--a2-border-strong);
+    background: var(--a2-surface);
+    box-shadow: var(--a2-shadow-sm);
+    overflow: hidden;
+  }
+
+  .gs-app--a2ui {
+    border-color: var(--a2-accent-border);
+    box-shadow: 0 0 0 1px var(--a2-accent-soft), var(--a2-shadow-sm);
+  }
+
+  .gs-app__chrome {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 14px;
+    background: var(--a2-surface-subtle);
+    border-bottom: 1px solid var(--a2-border);
+  }
+
+  .gs-app__dots {
+    display: inline-flex;
+    gap: 4px;
+  }
+
+  .gs-app__dots i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--a2-border-strong);
+  }
+
+  .gs-app__name {
+    font-family: var(--a2-font-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--a2-text-muted);
+  }
+
+  .gs-app__body {
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .gs-flight {
+    padding: 11px 13px;
+    border-radius: 7px;
+    background: var(--a2-surface-subtle);
+    border: 1px solid var(--a2-border);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .gs-flight--a2ui {
+    background: var(--a2-accent-soft);
+    border-color: var(--a2-accent-border);
+  }
+
+  .gs-flight__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .gs-badge {
+    font-family: var(--a2-font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 1.5px 6px;
+    border-radius: 3px;
+  }
+
+  .gs-badge--cyan {
+    background: var(--a2-cyan-soft);
+    color: var(--a2-cyan-strong);
+  }
+
+  .gs-badge--blue {
+    background: var(--a2-surface);
+    color: var(--a2-accent-strong);
+  }
+
+  .gs-flight__meta {
+    font-family: var(--a2-font-mono);
+    font-size: 10.5px;
+    color: var(--a2-text-muted);
+  }
+
+  .gs-flight__route {
+    font-family: var(--a2-font-display);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--a2-text);
+  }
+
+  /* Slide 1 missing control */
+  .gs-missing {
+    appearance: none;
+    width: 100%;
+    padding: 12px 13px;
+    border-radius: 7px;
+    border: 1px dashed var(--a2-border-strong);
+    background: transparent;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 0.16s ease, background-color 0.16s ease;
+  }
+
+  .gs-missing:hover {
+    border-color: var(--a2-cyan);
+    background: var(--a2-surface-subtle);
+  }
+
+  .gs-missing.is-shake {
+    animation: gs-shake 0.34s ease;
+    border-color: var(--a2-danger);
+  }
+
+  .gs-missing__hdr {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 650;
+    color: var(--a2-text);
+  }
+
+  .gs-missing__sub {
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--a2-text-muted);
+  }
+
+  /* Slide 2 interactive native widgets */
+  .gs-seats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .gs-seat {
+    appearance: none;
+    padding: 8px 11px;
+    border-radius: 7px;
+    border: 1px solid var(--a2-border-strong);
+    background: var(--a2-surface);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--a2-text);
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+  }
+
+  .gs-seat strong {
+    font-family: var(--a2-font-mono);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .gs-seat span {
+    font-size: 11.5px;
+    color: var(--a2-text-muted);
+  }
+
+  .gs-seat.is-on {
+    border-color: var(--a2-accent);
+    background: var(--a2-accent-soft);
+  }
+
+  .gs-seat.is-on strong {
+    color: var(--a2-accent-strong);
+  }
+
+  .gs-cta {
+    appearance: none;
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 7px;
+    border: 1px solid transparent;
+    background: var(--a2-cta-bg);
+    color: var(--a2-cta-fg);
+    font-family: var(--a2-font-display);
+    font-size: 13px;
+    font-weight: 650;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+  }
+
+  .gs-cta:hover {
+    background: var(--a2-cta-hover);
+  }
+
+  .gs-cta.is-done {
+    background: var(--a2-success-soft);
+    color: var(--a2-success);
+    border-color: var(--a2-success-border);
+  }
+
+  /* Slide 3 sandboxed iframe preview */
+  .gs-sandbox-frame {
+    border-radius: 7px;
+    border: 1.5px dashed var(--a2-amber);
+    background: var(--a2-code-bg);
+    overflow: hidden;
+  }
+
+  .gs-sandbox-frame__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 11px;
+    background: var(--a2-amber-soft);
+    border-bottom: 1px solid var(--a2-amber-border);
+    font-family: var(--a2-font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--a2-amber-strong);
+  }
+
+  .gs-cabin-svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    color: var(--a2-text);
+    padding: 10px 10px 12px;
+  }
+
+  .gs-cabin-seats rect {
+    fill: currentColor;
+  }
+
+  .gs-cabin-pick {
+    fill: var(--a2-amber-soft) !important;
+    stroke: var(--a2-amber);
+    stroke-width: 1.4;
+    cursor: pointer;
+    transition: fill 0.15s ease;
+  }
+
+  .gs-cabin-pick.is-picked {
+    fill: var(--a2-amber) !important;
+  }
+
+  /* =========================================================================
+     RIGHT PANEL: 1 HEADLINE + 3 POINTS (ZERO EYEBROWS)
+     ========================================================================= */
+  .gs-details {
+    padding: 32px 34px;
+    border-left: 1px solid var(--a2-border-strong);
+    background: var(--a2-surface);
+    display: grid;
+    align-items: center;
+  }
+
+  @media (max-width: 960px) {
+    .gs-details {
+      border-left: none;
+      border-top: 1px solid var(--a2-border-strong);
+      padding: 26px 24px 28px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .gs-details {
+      padding: 22px 18px 24px;
+    }
+  }
+
+  .gs-detail {
+    grid-area: 1 / 1;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.2s ease, visibility 0.2s;
+  }
+
+  .gs-detail.is-active {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .gs-detail__title {
+    margin: 0;
+    font-family: var(--a2-font-display);
+    font-size: clamp(1.2rem, 1.8vw, 1.42rem);
+    font-weight: 700;
+    line-height: 1.28;
+    letter-spacing: -0.02em;
+    color: var(--a2-text);
+  }
+
+  .gs-points {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .gs-point {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .gs-point__icon {
+    width: 22px;
+    height: 22px;
+    margin-top: 1px;
+    border-radius: 50%;
+    font-family: var(--a2-font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .gs-point__icon--pos {
+    background: var(--a2-cyan-soft);
+    color: var(--a2-cyan-strong);
+    border: 1px solid var(--a2-cyan-border);
+  }
+
+  .gs-point__icon--blue {
+    background: var(--a2-accent-soft);
+    color: var(--a2-accent-strong);
+    border: 1px solid var(--a2-accent-border);
+  }
+
+  .gs-point__icon--amber {
+    background: var(--a2-amber-soft);
+    color: var(--a2-amber-strong);
+    border: 1px solid var(--a2-amber-border);
+  }
+
+  .gs-point__icon--lim {
+    background: var(--a2-surface-subtle);
+    color: var(--a2-text-muted);
+    border: 1px solid var(--a2-border-strong);
+  }
+
+  .gs-point div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .gs-point strong {
+    font-size: 14.5px;
+    font-weight: 680;
+    color: var(--a2-text);
+    line-height: 1.35;
+  }
+
+  .gs-point span {
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--a2-text-secondary);
+  }
+
+  @keyframes gs-shake {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    25% {
+      transform: translateX(-3px);
+    }
+    75% {
+      transform: translateX(3px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gs-rail__puck,
+    .gs-scene,
+    .gs-detail {
+      transition: none !important;
+      animation: none !important;
+    }
+  }
+</style>

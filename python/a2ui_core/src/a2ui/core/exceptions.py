@@ -180,6 +180,7 @@ class RpcErrorCode(str, enum.Enum):
     DISPOSED = "DISPOSED"
     NO_LISTENER = "NO_LISTENER"
     DUPLICATE = "DUPLICATE"
+    TOO_MANY_PENDING = "TOO_MANY_PENDING"
 
 
 class A2uiRpcError(A2uiError):

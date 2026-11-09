@@ -36,6 +36,7 @@ from a2ui.inference_formats._shared import (
     surface_catalog_id,
 )
 from a2ui.prompt import PromptGenerator
+from a2ui.utils.agent_callable import agent_callable_functions
 
 # Envelope keys of the messages a JSON example may hold to be decompiled.
 _EXAMPLE_MESSAGE_KEYS = (
@@ -260,25 +261,78 @@ def _get_schema_enum(prop_schema: Any) -> list[str] | None:
     return None
 
 
+def _renderer_call_rule(callable_fns: Sequence[str]) -> str:
+    """Formats the Express grammar rule for standalone renderer function calls."""
+    formatted = ", ".join(f"`{name}`" for name in callable_fns)
+    return (
+        "To have the renderer run a function right away, output the call as a"
+        " standalone command (no variable assignment):\n"
+        f"{callable_fns[0]}(...)\n"
+        f"Only these functions can be called this way: {formatted}."
+    )
+
+
+def _strip_rule_prefix(rule: str) -> str:
+    match = re.match(r"^(\d+\. )", rule)
+    if not match:
+        return rule
+    prefix_len = len(match.group(1))
+    return re.sub(rf"\n {{{prefix_len}}}", "\n", rule[prefix_len:])
+
+
+def _renumber_rules(text: str) -> str:
+    """Renumbers all numbered rule paragraphs sequentially starting from 1."""
+    rule_index = 0
+
+    def _replace(match: re.Match[str]) -> str:
+        nonlocal rule_index
+        rule_index += 1
+        old_prefix = match.group(1)
+        body = match.group(2)
+        new_prefix = f"{rule_index}. "
+        if len(old_prefix) != len(new_prefix):
+            body = re.sub(
+                rf"\n {{{len(old_prefix)}}}",
+                "\n" + (" " * len(new_prefix)),
+                body,
+            )
+        return f"{new_prefix}{body}"
+
+    return re.sub(
+        r"(?<=\n\n)(\d+\. )([^\n]*(?:\n(?!\n)[^\n]*)*)",
+        _replace,
+        text,
+    )
+
+
 def _filter_express_rules(
-    allowed_messages: Sequence[str], *, rules_source: str = EXPRESS_RULES
+    allowed_messages: Sequence[str] | None,
+    callable_fns: Sequence[str] = (),
+    *,
+    rules_source: str = EXPRESS_RULES,
 ) -> str:
     """Filters Express rules to only the rules for the allowed message types."""
     rules_source = rules_source.replace("\r\n", "\n")
-    allowed = set(allowed_messages)
-    creates = "createSurface" in allowed or "CreateSurfaceMessage" in allowed
-    components = (
-        creates or "updateComponents" in allowed or "UpdateComponentsMessage" in allowed
-    )
-    data = "updateDataModel" in allowed or "UpdateDataModelMessage" in allowed
-    delete = "deleteSurface" in allowed or "DeleteSurfaceMessage" in allowed
+    if allowed_messages is None:
+        creates = components = data = delete = call_renderer = True
+    else:
+        allowed = set(allowed_messages)
+        creates = "createSurface" in allowed or "CreateSurfaceMessage" in allowed
+        components = (
+            creates
+            or "updateComponents" in allowed
+            or "UpdateComponentsMessage" in allowed
+        )
+        data = "updateDataModel" in allowed or "UpdateDataModelMessage" in allowed
+        delete = "deleteSurface" in allowed or "DeleteSurfaceMessage" in allowed
+        call_renderer = (
+            "callRendererFunction" in allowed
+            or "CallRendererFunctionMessage" in allowed
+        )
 
     contract, _, rules_block = rules_source.partition("## Grammar Rules\n\n")
     raw_rules = re.split(r"\n\n(?=\d+\. )", rules_block.strip())
-    rule_bodies = [
-        re.sub(r"^\d+\. ", "", r).replace("\n   ", "\n").replace("\n    ", "\n ")
-        for r in raw_rules
-    ]
+    rule_bodies = [_strip_rule_prefix(r) for r in raw_rules]
     # rule_bodies indices (0-based, matching rules 1..15):
     # 0: components, 1: root, 2..5: values, 6..8: calls, 9: dataModel,
     # 10: template, 11: deleteSurface, 12..13: arguments, 14: surface
@@ -296,6 +350,8 @@ def _filter_express_rules(
         selected.append(rule_bodies[10])
     if delete:
         selected.append(rule_bodies[11])
+    if call_renderer and callable_fns:
+        selected.append(_renderer_call_rule(callable_fns))
     if components:
         selected.extend(rule_bodies[12:14])
     if components or data:
@@ -358,6 +414,11 @@ class ExpressPromptGenerator(PromptGenerator):
         effective_allowed = (
             allowed_messages if allowed_messages is not None else self._allowed_messages
         )
+        callable_fns = (
+            agent_callable_functions(self.catalogs)
+            if is_at_least_version(self._version, ProtocolVersion.V1_0)
+            else []
+        )
         source_rules = (
             EXPRESS_RULES
             if is_at_least_version(self._version, ProtocolVersion.V1_0)
@@ -365,8 +426,10 @@ class ExpressPromptGenerator(PromptGenerator):
         ).replace("\r\n", "\n")
         base = (
             source_rules
-            if effective_allowed is None
-            else _filter_express_rules(effective_allowed, rules_source=source_rules)
+            if effective_allowed is None and not callable_fns
+            else _filter_express_rules(
+                effective_allowed, callable_fns, rules_source=source_rules
+            )
         )
         root_component = _example_root_component(self.catalogs)
         if root_component is not None:
@@ -388,7 +451,7 @@ class ExpressPromptGenerator(PromptGenerator):
             )
             if not has_comp_or_data:
                 return base
-        return f"{base}\n\n{_multi_catalog_rules(self.helpers)}"
+        return _renumber_rules(f"{base}\n\n{_multi_catalog_rules(self.helpers)}")
 
     def generate_catalog_instructions(
         self,

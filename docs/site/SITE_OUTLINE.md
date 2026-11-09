@@ -70,7 +70,7 @@ All cross-page links must target these exact Starlight routes (with `docs/site/s
 | **Guides**        | A2UI Dynamic Rendering within MCP Applications | **P1**   | `content/docs/guides/a2ui-in-mcp-apps.md`                                 | `/guides/a2ui-in-mcp-apps/`                                |
 | **Guides**        | Authoring Universal Web Components             | **P1**   | `content/docs/guides/authoring-universal-components.md`                   | `/guides/authoring-universal-components/`                  |
 | **Guides**        | SDK Development                                | **P2**   | `content/docs/guides/sdk-development.md`                                  | `/guides/sdk-development/`                                 |
-| **Roadmap**       | Roadmap                                        | **P1**   | `content/docs/roadmap.md`                                                 | `/roadmap/`                                                |
+| **Roadmap**       | Roadmap                                        | **P1**   | `content/docs/roadmap.mdx`                                                | `/roadmap/`                                                |
 | **Ecosystem**     | Ecosystem Renderers & Tools                    | **P1**   | `content/docs/ecosystem/renderers.mdx`                                    | `/ecosystem/renderers/`                                    |
 | **Specification** | `<ver>` Protocol Specification                 | **P1**   | `content/docs/specification/<ver>-a2ui.md`                                | `/specification/<ver>-a2ui/`                               |
 | **Specification** | `<ver>` Custom Functions Guide                 | **P1**   | `content/docs/specification/<ver>-custom-functions.md`                    | `/specification/<ver>-custom-functions/`                   |
@@ -102,7 +102,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
         3. **Declarative Generative UI**: Agent composes catalog primitives on demand for long-tail requests.
         4. **Open-Ended & MCP Apps**: Sandboxed `ui://` MCP App surfaces.
 3. **Real Use Cases in Production**
-    - **Logo Bar**: JetBrains, Alation, ByteDance, Google Home, Gemini Notebook (plus Google Opal & Flutter GenUI).
+    - **Logo Bar**: Alation, ByteDance (Lynx), Atlassian (Jira), Gemini Notebook, and Gemini Enterprise.
     - **Interactive Use-Case Tabs**: Switchable tabs with visual previews and architectural notes along the spectrum.
 
 ### Part II: Why A2UI? (Core Technical Differentiators)
@@ -392,7 +392,10 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 ### Roadmap (`/roadmap/`) [P1]
 
-> **[TODO]**: Roadmap scope and milestone structure to be defined later.
+- Organize the roadmap as the gen-UI lifecycle loop: build, configure, evaluate, distribute, and monitor.
+- Open with the interactive `RoadmapLoop` component (`src/components/docs/RoadmapLoop.astro`), preceded by a text explanation of the loop.
+- For each stage, list what is available today (linked to the relevant guide or source) and what is on the roadmap. Keep the component's stage summaries in sync with these sections.
+- Describe how the A2UI CLI will cover each stage, and include the protocol version table from `specification/versions.json`.
 
 ---
 
