@@ -33,7 +33,7 @@ A delimiter tag in model-to-agent text output, such as `<a2ui>...</a2ui>` (used 
 
 Because a single model response can interleave conversational prose with one or more UI blocks, the [Agent SDK](#agent-sdk) parser scans for A2UI tags to separate prose from raw UI blocks before compiling those blocks into [`agent_to_renderer`](#agent_to_renderer) messages.
 
-See [Swappable Inference Formats](../inference-formats/).
+See [Inference Formats](../inference-formats/).
 
 ### A2uiGenerator
 
@@ -339,7 +339,7 @@ When reading a model response (`parseResponse` / `parse_response` or streaming `
 2. Compilation (`compile`): Translates each raw block from format notation into `agent_to_renderer` messages without checking catalogs or `RendererState`.
 3. Validation and state tracking: `parseResponse` / `parse_response` and `openStream` / `open_stream` validate compiled messages against the active [catalogs](#catalog) and update `RendererState`.
 
-See [Swappable Inference Formats](../inference-formats/).
+See [Inference Formats](../inference-formats/).
 
 ## M
 
@@ -349,7 +349,7 @@ An asymmetric catalog and message transformer in the Python [Agent SDK](#agent-s
 
 `MacroExpander.transform_to_inference_catalog` augments a base catalog with component schemas synthesized from `@macro` function type annotations and docstrings for model prompting, and `MacroExpander.transform_to_transport` expands macro components emitted by the model into primitive `createSurface` and `updateComponents` subtrees so client [renderers](#renderer) need no custom widget code.
 
-See [Agent SDK](/concepts/sdks/#agent-sdk).
+See [Macros](../../guides/macros/) and [Agent SDK](/concepts/sdks/#agent-sdk).
 
 ### MessageProcessor
 

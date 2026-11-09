@@ -58,6 +58,7 @@ export default defineConfig({
     '/concepts/data-flow': `${basePrefix}/concepts/data-binding/`,
     '/concepts/renderer-sdks': `${basePrefix}/concepts/sdks/#renderer-sdk`,
     '/concepts/transports': `${basePrefix}/concepts/messages/`,
+    '/concepts/macros': `${basePrefix}/guides/macros/`,
     '/guides/a2ui_over_mcp': `${basePrefix}/guides/a2ui-over-mcp/`,
     '/guides/defining-your-own-catalog': `${basePrefix}/guides/defining-a-catalog/`,
     '/guides/client-setup': `${basePrefix}/guides/client-integration/`,
@@ -166,16 +167,12 @@ export default defineConfig({
               slug: 'concepts/actions-and-functions',
             },
             {
-              label: 'SDKs',
-              slug: 'concepts/sdks',
-            },
-            {
-              label: 'Swappable Inference Formats',
+              label: 'Inference Formats',
               slug: 'concepts/inference-formats',
             },
             {
-              label: 'Macros',
-              slug: 'concepts/macros',
+              label: 'SDKs',
+              slug: 'concepts/sdks',
             },
             {
               label: 'Glossary',
@@ -197,6 +194,10 @@ export default defineConfig({
             {
               label: 'How to Define a Catalog',
               slug: 'guides/defining-a-catalog',
+            },
+            {
+              label: 'Macros',
+              slug: 'guides/macros',
             },
             {
               label: 'Model Context Protocol (MCP)',
@@ -234,16 +235,16 @@ export default defineConfig({
           label: 'Ecosystem',
           items: [
             {
-              label: 'Ecosystem Renderers & Tools',
+              label: 'Roadmap',
+              slug: 'roadmap',
+            },
+            {
+              label: 'Community Projects',
               slug: 'ecosystem/renderers',
             },
             {
               label: 'Get Help',
               link: '/get-help/',
-            },
-            {
-              label: 'Roadmap',
-              slug: 'roadmap',
             },
           ],
         },

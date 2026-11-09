@@ -263,15 +263,15 @@ export function buildMarkdownPages() {
     pages.push({slug, title: meta.title || slug, markdown: fullMarkdown});
   }
 
-  // Sort in logical reading order: quickstart -> concepts -> guides -> specification/v1.0 -> ecosystem -> roadmap -> v0.9.1
+  // Sort in logical reading order: quickstart -> concepts -> guides -> specification/v1.0 -> roadmap -> ecosystem -> v0.9.1
   const rank = slug => {
     if (slug === 'quickstart') return 0;
     if (slug === 'concepts/overview') return 1;
     if (slug.startsWith('concepts/')) return 2;
     if (slug.startsWith('guides/')) return 3;
     if (slug.startsWith('specification/v1.0')) return 4;
-    if (slug.startsWith('ecosystem/')) return 5;
-    if (slug === 'roadmap') return 6;
+    if (slug === 'roadmap') return 5;
+    if (slug.startsWith('ecosystem/')) return 6;
     return 7;
   };
   pages.sort((a, b) => rank(a.slug) - rank(b.slug) || a.slug.localeCompare(b.slug));
