@@ -132,14 +132,23 @@ The React renderer provides:
 Create one `MessageProcessor`, feed it the messages from your agent, and render an `<A2uiSurface>` for each surface it creates:
 
 ```tsx
-import {useEffect, useMemo, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import {A2uiSurface, ReactCatalogComponent} from '@a2ui/react/v0_9';
 import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import {MessageProcessor, SurfaceModel} from '@a2ui/web_core/v0_9';
 
 export function Surfaces({onAction}: {onAction: (action: unknown) => void}) {
+  // The processor is created once, so route actions through a ref to call the latest handler.
+  const onActionRef = useRef(onAction);
+  useEffect(() => {
+    onActionRef.current = onAction;
+  }, [onAction]);
+
   const processor = useMemo(
-    () => new MessageProcessor<ReactCatalogComponent>([basicCatalog], onAction),
+    () =>
+      new MessageProcessor<ReactCatalogComponent>([basicCatalog], action =>
+        onActionRef.current(action),
+      ),
     [],
   );
   const [surfaces, setSurfaces] = useState<SurfaceModel<ReactCatalogComponent>[]>(() =>
