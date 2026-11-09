@@ -34,6 +34,7 @@ workspace:
   - dart/a2ui_flutter/example
   - dart/a2ui_flutter/example_v0_9
   - tools/internal/triage/pkgs/triage
+  - tools/internal/triage/pkgs/triage_ui
 
 flutter:
   uses-material-design: true
