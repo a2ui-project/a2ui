@@ -154,7 +154,7 @@ describe('AngularCatalog & Catalog Types', () => {
   it('defaults to v0.9 when constructed with the pre-1.0 argument order', () => {
     const themeSchema = z.object({primaryColor: z.string()});
     const catalog = new AngularCatalog(
-      'legacy-catalog',
+      'v09-catalog',
       [{name: 'CustomTest', schema: z.object({}), component: TestCustomComponent}],
       [],
       themeSchema,

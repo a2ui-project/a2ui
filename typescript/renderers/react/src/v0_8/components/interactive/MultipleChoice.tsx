@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-import {useCallback, useId, memo} from 'react';
+import {memo, useCallback} from 'react';
 import type * as Types from '@a2ui/web_core/types/types';
-import type {A2UIComponentProps} from '../../types';
 import {useA2UIComponent} from '../../hooks/useA2UIComponent';
+import {useIdCompat} from '../../hooks/useIdCompat';
 import {classMapToString, stylesToObject} from '../../lib/utils';
+import type {A2UIComponentProps} from '../../types';
 
 /**
  * MultipleChoice component - a selection component using a dropdown.
@@ -32,7 +33,7 @@ export const MultipleChoice = memo(function MultipleChoice({
 }: A2UIComponentProps<Types.MultipleChoiceNode>) {
   const {theme, resolveString, setValue} = useA2UIComponent(node, surfaceId);
   const props = node.properties;
-  const id = useId();
+  const id = useIdCompat();
 
   const options =
     (props.options as {label: {literalString?: string; path?: string}; value: string}[]) ?? [];

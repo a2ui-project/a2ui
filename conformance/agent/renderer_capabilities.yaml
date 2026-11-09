@@ -24,6 +24,7 @@
 
 - name: v1.0 reads a2uiRendererCapabilities
   description: v1.0 reads and validates the '1.0' entry under a2uiRendererCapabilities.
+  features: [F-AGT-18]
   action: read_renderer_capabilities
   args:
     version: "1.0"
