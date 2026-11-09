@@ -58,7 +58,7 @@ All cross-page links must target these exact Starlight routes (with `docs/site/s
 | **Concepts**      | Security and Trust Boundaries                  | **P2**   | `content/docs/concepts/security.mdx`                                      | `/concepts/security/`                                      |
 | **Concepts**      | Accessibility (A11y)                           | **P2**   | `content/docs/concepts/accessibility.mdx`                                 | `/concepts/accessibility/`                                 |
 | **Concepts**      | Glossary                                       | **P2**   | `content/docs/concepts/glossary.mdx`                                      | `/concepts/glossary/`                                      |
-| **Guides**        | How to Integrate with My Client                | **P1**   | `content/docs/guides/client-integration.mdx`                              | `/guides/client-integration/`                              |
+| **Guides**        | How to Integrate A2UI into a Client            | **P1**   | `content/docs/guides/client-integration.mdx`                              | `/guides/client-integration/`                              |
 | **Guides**        | How to Integrate with My Agent Server          | **P1**   | `content/docs/guides/agent-integration.mdx`                               | `/guides/agent-integration/`                               |
 | **Guides**        | How to Define a Catalog                        | **P1**   | `content/docs/guides/defining-a-catalog.mdx`                              | `/guides/defining-a-catalog/`                              |
 | **Guides**        | Using Macros                                   | **P2**   | `content/docs/guides/macros.mdx`                                          | `/guides/macros/`                                          |
@@ -271,19 +271,19 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 ### Guides
 
-<a id="how-to-integrate-with-my-client"></a>
+<a id="how-to-integrate-a2ui-into-a-client"></a>
 
-#### How to Integrate with My Client (`/guides/client-integration/`) [P1]
+#### How to Integrate A2UI into a Client (`/guides/client-integration/`) [P1]
 
 - **Sources**: Link to [SDKs](#sdks) (`/concepts/sdks/#renderer-sdk`) for package coordinates; verify APIs against `dart/a2ui_flutter/`, `typescript/renderers/`, `swift/swiftui/`, `samples/client/`, and [https://developer.android.com/develop/ui/compose/agentic](https://developer.android.com/develop/ui/compose/agentic).
-- **Content Outline** (tabbed across `Flutter` | `Web` | `SwiftUI` | `Jetpack Compose`):
-    1. **Overview**: Link to `/concepts/sdks/#renderer-sdk` and summarize the 6 integration steps.
-    2. **Step 1: Install Dependencies**: Tabbed install commands matching `/concepts/sdks/#renderer-sdk`.
-    3. **Step 2: Initialize `MessageProcessor` & Register Catalogs**: Registering the built-in Basic Catalog plus custom component/function adapters.
-    4. **Step 3: Advertise Renderer Capabilities**: Attaching `supportedCatalogIds` and `inlineCatalogs` in request/session metadata (`a2uiRendererCapabilities` in v1.0 / `a2uiClientCapabilities` in v0.9.1).
-    5. **Step 4: Connect Transport & Apply Incremental Updates**: Passing transport payloads into the processor (`processMessages` in TS/Dart, `process(message:)` / `process(payload:)` in Swift) without assuming hardcoded JSONL framing.
-    6. **Step 5: Mount Surface Components**: Verified surface widget/component mounting snippets per renderer.
-    7. **Step 6: Handle Outbound Actions, RPCs & Validation Errors**: Subscribing to outbound `action` events (attaching `a2uiRendererDataModel` / `a2uiClientDataModel` transport metadata when `sendDataModel: true`), `callAgentFunction`, `rendererFunctionResponse`, and `error` events.
+- **Content Outline** (tabbed across `Flutter` | `React` | `Lit` | `Angular` | `SwiftUI` | `Jetpack Compose`):
+    1. **Overview**: Direct purpose statement linking to `/concepts/sdks/#renderer-sdk` and cross-linking to `/guides/agent-integration/` and `/guides/defining-a-catalog/`.
+    2. **Step 1: Install Dependencies**: Tabbed install commands matching `/concepts/sdks/#renderer-sdk` (including `@a2ui/markdown-it` on Web).
+    3. **Step 2: Initialize `MessageProcessor`**: Registering the built-in Basic Catalog (plus custom catalog pointer), configuring styles and sanitized Markdown on Web, and wiring `onAction` / `actionHandler` directly to transport.
+    4. **Step 3: Mount Surface Views**: Verified surface widget/component mounting snippets per framework.
+    5. **Step 4: Connect Transport and Handle Actions**: Applying incremental updates (`processMessages` / `processMessagesAsync` / `process(payload:)` / `processInput`) and sending outbound `action` messages without assuming hardcoded framing, plus collapsed `v1.0` and `v0.9.1` wire-format examples.
+    6. **Step 5: Wire Everything at the App Entry Point**: Bootstrapping the shared session controller/service and mounted surface view at application startup.
+    7. **Additional Steps**: Customizing Web Basic Catalog CSS custom properties (`--a2ui-*`), advertising renderer capabilities (`a2uiRendererCapabilities` in v1.0 / `a2uiClientCapabilities` in v0.9.1), and synchronizing client data models (`sendDataModel: true` via `a2uiRendererDataModel` / `a2uiClientDataModel`) alongside bidirectional function RPCs (`outboundListener`) and validation error reporting (`errorHandler`).
 
 <a id="how-to-integrate-with-my-agent-server"></a>
 
