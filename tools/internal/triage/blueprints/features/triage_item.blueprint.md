@@ -23,32 +23,66 @@ The advisor only comments. It never changes labels, assignees or the state of an
 
 ## The suggestion comment
 
-The suggestion comment is a [triage bot](../core.blueprint.md#contributors) comment. It has a plain English part for people, and a part for the triage UI, collapsed under **Details**. Both parts say the same thing.
+The suggestion comment is a [triage bot](../core.blueprint.md#contributors) comment. It has a plain English part for people, a command that opens the item in the triage UI, and a part for the triage UI, collapsed under **Details**. The plain English part and the part for the triage UI say the same thing.
+
+For example, the suggestion comment on an illustrative issue #1235:
 
 ````markdown
 **From triage bot:**
 
 ## Triage suggestion
 
-<summary>
+The Flutter renderer throws an exception when a `Row` has an empty `children` list. The report includes a stack trace and a three-line payload that reproduces it.
 
-<suggestion>
+Set P1 and assign `octocat`, who made most of the recent changes to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.
 
-<the other properties that have values, as a numbered list>
+1. Add labels: `type: bug`, `P1`, `component: flutter adapter`, `status: first-line-handled`
+2. Assign: `octocat`
+3. Related issues: #1234
+
+Reply:
+
+> Thanks for the report and the payload that reproduces it. We confirmed the crash and plan to fix it soon. #1234 reports the same crash for `Column`.
+
+To adjust and apply this suggestion, run in your a2ui checkout:
+
+```bash
+tools/internal/triage/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/1235
+```
 
 <details>
 <summary>Details</summary>
 
 ```
 <a2ui>
-<the TriageSuggestion component in A2UI Express>
+root = TriageSuggestion(
+  summary="""The Flutter renderer throws an exception when a `Row` has an empty `children` list. The report includes a stack trace and a three-line payload that reproduces it.""",
+  suggestion="""Set P1 and assign `octocat`, who made most of the recent changes to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.""",
+  reply="""Thanks for the report and the payload that reproduces it. We confirmed the crash and plan to fix it soon. #1234 reports the same crash for `Column`.""",
+  added_labels=["type: bug", "P1", "component: flutter adapter", "status: first-line-handled"],
+  new_assignees=["octocat"],
+  related_issues=[1234]
+)
 </a2ui>
 ```
 
 </details>
 ````
 
+The parts of the comment, in order:
+
+1. The `summary` and the `suggestion`, as paragraphs.
+2. The other properties that have values, as a numbered list: **Close as**, **Add labels**, **Remove labels**, **Assign**, **Unassign**, **Related issues** and **Related PRs**. An example of **Close as** is "Close as: duplicate of #1100".
+3. The `reply`, quoted, under **Reply**. The section is left out when there is no reply.
+4. The command that opens the item in the triage UI.
+5. The component, under **Details**.
+
 The component is written in [A2UI Express](../../../../../specification/inference_formats/express/Express.g4), as one `root = TriageSuggestion(...)` statement. The code fence makes GitHub show it as written, and the triage UI reads the text between `<a2ui>` and `</a2ui>`.
+
+The [triage_ui.sh](../../triage_ui.sh) command takes the item's URL, for example `https://github.com/a2ui-project/a2ui/issues/123`. GitHub shows a copy button on the code block, so the triager copies the command and pastes it into a terminal. The script:
+
+1. Sends the URL to the triage UI if the app is running. The app listens on `127.0.0.1:47123`, accepts `POST /open` with the URL in the `item` form field, and accepts only URLs of issues and PRs in `a2ui-project/a2ui`.
+2. Otherwise starts the app on macOS with `flutter run`, passing the URL as the app's argument.
 
 The comment names people by their GitHub login in backticks, without `@`. A suggestion is not a decision yet, so it does not notify the people it names.
 
