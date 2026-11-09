@@ -160,6 +160,8 @@ jobs:
           uv run --project conformance python conformance/scripts/check_feature_coverage.py \
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --harness ts-agent
+      - name: Test React 17 Compatibility
+        run: yarn workspace @a2ui/react run test:react17
       - name: Test React 18 Compatibility
         run: yarn workspace @a2ui/react run test:react18
       - name: Verify NPM Publish Script

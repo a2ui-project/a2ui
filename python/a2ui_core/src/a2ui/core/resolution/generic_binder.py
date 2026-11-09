@@ -334,7 +334,9 @@ def _classify_value_fallback(
         else:
             if "path" in val or "call" in val:
                 return BehaviorNode(BehaviorType.DYNAMIC)
-        if "event" in val or "functionCall" in val:
+        # Like each branch of the spec's `Action`, an inline action has `event`
+        # or `functionCall` as its only key.
+        if len(val) == 1 and ("event" in val or "functionCall" in val):
             return BehaviorNode(BehaviorType.ACTION)
         shape = {
             k: _classify_value_fallback(k, v, at_least_v10=at_least_v10)
