@@ -32,12 +32,12 @@ During `prebuild`, `docs/site/scripts/prepare-spec-assets.mjs` copies JSON schem
 
 - **Curated entry point (`docs/site/llms.txt`)**:
   - Published at `/llms.txt` and linked in HTML `<head>` via `<link rel="alternate" type="text/markdown" href="/llms.txt">`.
-  - Update `docs/site/llms.txt` whenever you add, rename, or remove major documentation guides, quickstarts, or concept pages.
+  - Update `docs/site/llms.txt` whenever you add, rename, or remove major documentation sections, guides, quickstarts, or concept pages.
   - Preserve dynamic build placeholders (`{{A2UI_PROTOCOL_VERSIONS}}` and `{{A2UI_SPEC_LINKS}}`), which `prepare-spec-assets.mjs` populates from `specification/versions.json`. Always edit the template at `docs/site/llms.txt`, never the generated copy in `public/`.
   - Only advertise SDK install commands for packages verified as published on npm, PyPI, or pub.dev (clearly mark pre-release or unreleased packages).
 - **Full corpus bundle (`llms-full.txt`) and parallel `.md` routes**:
   - `docs/site/scripts/emit-markdown-bundle.mjs` expands `--8<--` directives, strips MDX `import`/`export` statements and JSX wrappers into clean Markdown, writes `llms-full.txt`, and emits parallel raw Markdown mirrors (`<route>.md` and `<route>/index.html.md`) for every documentation page.
   - **Fence-aware MDX cleaning**: If modifying `emit-markdown-bundle.mjs`, always partition content by code fences (`splitByCodeFences()`, supporting 3+ backticks and tildes) before stripping ESM `import`/`export` statements or JSX tags so code examples inside fences remain untouched.
-- **Standalone agent playbook endpoints (`src/pages/**/\*.md.ts`)\*\*:
-  - Dynamic Markdown endpoints (such as `/quickstart/agent.md` or `/starter_app.md`) generate self-contained instructions for coding agents.
+- **Standalone agent playbook endpoints** (`src/pages/**/*.md.ts`):
+  - Dynamic Markdown endpoints generate self-contained, copy-ready instructions for coding agents.
   - Normalize source file line endings (`content.replace(/\r\n/g, '\n')`) before parsing section markers, and resolve URLs from `import.meta.env.SITE || 'https://a2ui.org'` combined with `import.meta.env.BASE_URL` so links work in both PR previews and production.

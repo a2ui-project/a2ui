@@ -1,6 +1,6 @@
-# Custom Astro components and special pages
+# Custom Astro components, landing, and directory pages
 
-Apply these rules—alongside the universal standards in [`../SKILL.md`](../SKILL.md)—when authoring or editing Astro components (`docs/site/src/components/`), site styles (`docs/site/src/styles/`), or special non-tutorial pages such as the landing page (`index.mdx`), `ecosystem/`, `showcase`, `roadmap`, and `get-help`.
+Apply these rules—alongside the universal standards in [`../SKILL.md`](../SKILL.md)—when authoring or editing custom Astro components (`docs/site/src/components/`), site styles (`docs/site/src/styles/`), marketing/landing pages, or curated directory and overview pages.
 
 ---
 
@@ -18,7 +18,7 @@ Apply these rules—alongside the universal standards in [`../SKILL.md`](../SKIL
 
 ## Client-side script safety and interactivity
 
-Interactive widgets (theme switchers, sliders like `GenUiSpectrum`, copy-prompt buttons like `AgentPrompt`, hero animations, media lightboxes) must handle restricted environments and synthetic test events safely:
+Interactive widgets (theme switchers, interactive comparison sliders, copy-prompt buttons, hero animations, media lightboxes) must handle restricted environments and synthetic test events safely:
 
 - **Guard `localStorage` and `sessionStorage` with `try...catch`**: Direct storage reads/writes throw a `SecurityError` inside sandboxed iframes and strict privacy modes. When persisting theme changes, synchronize both `a2ui-theme` and `starlight-theme` keys inside a `try...catch` block.
 - **Guard pointer capture with `if (e.isTrusted)`**: Before calling `el.setPointerCapture(e.pointerId)` or `el.releasePointerCapture(e.pointerId)` in drag/scrub handlers, check `if (e.isTrusted)` so synthetic `PointerEvent`s dispatched in automated browser tests do not throw `NotFoundError`.
@@ -35,8 +35,8 @@ Interactive widgets (theme switchers, sliders like `GenUiSpectrum`, copy-prompt 
 
 ---
 
-## Special pages (Ecosystem, Showcase, Roadmap, Get Help)
+## Landing, overview, and directory pages
 
-- **Direct opening sentences on directory pages**: Even on curated directories (`ecosystem/renderers.mdx`, `showcase`, `get-help`), avoid meta-openings like _"This page lists..."_. State what the ecosystem or resource collection provides directly (for example, _"Community renderers, agent libraries, and developer tools extend A2UI across additional UI frameworks and runtimes."_).
-- **Interactive lifecycle and comparison visuals**: Pages like the Roadmap (`RoadmapLoop.astro`) and Generative UI Spectrum (`GenUiSpectrum.astro`) pair interactive visual components with clear prose descriptions of each stage or category so readers and coding agents alike can read the full content sequentially.
-- **Verified external links and package claims**: Confirm external repository links, consultant/brand assets, and `npx` / package install commands are live and published before listing them on public showcase or help pages.
+- **Direct opening sentences on directory and overview pages**: Even on curated resource directories or high-level overview pages, avoid meta-openings like _"This page lists..."_ or _"Here you will find..."_. State what the collection or overview provides directly (for example, _"Community renderers, agent libraries, and developer tools extend A2UI across additional UI frameworks and runtimes."_).
+- **Pair interactive visuals with sequential prose**: When overview pages use interactive comparison matrices or lifecycle visualizations, accompany them with clear prose descriptions of each stage or category so screen readers and coding agents can read the complete content sequentially.
+- **Verified external links and package claims**: Confirm external repository URLs, visual assets, and CLI or package install commands are live and published before listing them on public directory or landing pages.

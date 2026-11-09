@@ -1,6 +1,6 @@
 # Guides, tutorials, and quickstarts
 
-Apply these rules—alongside the universal standards in [`../SKILL.md`](../SKILL.md)—when creating, editing, or reviewing pages under `docs/site/src/content/docs/guides/` or `docs/site/src/content/docs/quickstart*`.
+Apply these rules—alongside the universal standards in [`../SKILL.md`](../SKILL.md)—when creating, editing, or reviewing procedural how-to guides, integration tutorials, or onboarding quickstarts.
 
 ---
 
@@ -15,7 +15,7 @@ Integration guides, tutorials, and quickstarts exist to get a developer from an 
   4. Connect transport and handle actions
   5. Wire everything together at the application entry point
 - **Defer optional and advanced features to "Additional steps"**: Place topics such as capability advertisement/negotiation, client data-model synchronization (`sendDataModel: true`), custom CSS token theming, and custom validation rules in an **Additional steps** section at the bottom of the guide. Do not inject optional features into the middle of the core onboarding steps.
-- **No upfront theoretical roadblocks**: Do not open a practical guide with protocol sequence diagrams, deep architectural walkthroughs, or table-of-contents summary tables (Starlight's right sidebar already provides page navigation). Open with a direct one-sentence purpose statement linking relevant concept pages (such as `[renderer](../../concepts/glossary/#renderer)`), then begin Step 1 immediately.
+- **No upfront theoretical roadblocks**: Do not open a practical guide with protocol sequence diagrams, deep architectural walkthroughs, or table-of-contents summary tables (Starlight's right sidebar already provides page navigation). Open with a direct one-sentence purpose statement linking relevant concept or glossary definitions, then begin Step 1 immediately.
 - **Application code first, wire JSON in `<details>`**: Developers reading an integration guide interact with SDK APIs, not raw wire envelopes. Always show the platform application code first. If showing the underlying wire JSON payload adds clarity, place it inside a collapsed `<details><summary>View wire payload</summary>...</details>` block **after** the application code, never before.
 - **Omit redundant SDK defaults**: Do not pass configuration options that match SDK defaults (such as default streaming validation flags) across six platform tabs; keep snippets minimal and idiomatic.
 
@@ -27,7 +27,7 @@ Documentation snippets are treated as copy-pasteable reference implementations:
 
 - **End with the application entry point**: Never conclude a guide after defining isolated service or helper classes. The final step of the core path must show the concrete bootstrap file (`App.tsx`, `main.dart`, `MyApp.swift`, `MainActivity.kt`, `app.config.ts`) mounting the surface and connecting the session.
 - **Include essential companion packages by default**: When standard output depends on a companion package—for example, `@a2ui/markdown-it` so basic catalog `Text` components render formatted Markdown instead of raw syntax—include that package in Step 1 installation commands and Step 2 initialization rather than burying it in troubleshooting notes.
-- **Clarify domain placeholders**: When agent or client guides use a sample domain service (such as `OrderAgentService` or `RestaurantFinder`), state briefly on first mention that it represents your application's own domain logic rather than an A2UI SDK class.
+- **Clarify domain placeholders**: When agent or client guides use an illustrative domain service class, state briefly on first mention that it represents the application's own domain logic rather than an A2UI SDK class.
 
 ---
 
@@ -35,7 +35,7 @@ Documentation snippets are treated as copy-pasteable reference implementations:
 
 - **Keep shared guide prose 100% on v1.0**: Main step descriptions, prose explanations, and primary code snippets in guides and quickstarts target **v1.0** exclusively. Do not clutter shared instructions with v0.9 comparisons.
 - **Quickstarts omit version comparison tabs**: Onboarding quickstarts use untabbed v1.0 examples so newcomers are not confronted with legacy protocol branches during their first five minutes.
-- **Isolate platform-specific version lags inside that platform's tab**: If a specific renderer package has not yet migrated to v1.0 (for example, Jetpack Compose `1.0.0-alpha02` targeting `v0.9.1`), document that constraint strictly inside the Jetpack Compose `<TabItem>` (or an `<Aside type="note">` inside that tab), never in shared prose above the tabs.
+- **Isolate platform-specific version lags inside that platform's tab**: If a specific renderer package has not yet migrated to v1.0 (for example, an alpha renderer package targeting `v0.9.1`), document that constraint strictly inside that platform's `<TabItem>` (or an `<Aside type="note">` inside that tab), never in shared prose above the tabs.
 
 ---
 
