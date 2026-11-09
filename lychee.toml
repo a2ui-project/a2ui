@@ -18,9 +18,9 @@
 
 # HTTP status codes treated as success. 403/408/429 are frequent false negatives
 # from sites that block or throttle automated checkers rather than real breakage.
-# 503 is how github.com throttles requests for /blob/ pages from CI, even with a
-# token: on each run a different set of valid links gets it.
-accept = [200, 206, 403, 408, 429, 503]
+# 503 and 504 are how github.com throttles or times out requests from CI, even
+# with a token: on each run a different set of valid links gets them.
+accept = [200, 206, 403, 408, 429, 503, 504]
 
 # Skip mailto: links (this is lychee's default; stated explicitly for clarity).
 include_mail = false
@@ -89,6 +89,10 @@ exclude_path = [
   # nested deeper inside docs/.
   "^docs/public/specification",
   "^docs/site/public/specification",
+  # Starlight content docs under docs/site/src/content/docs/ use root-relative
+  # Astro route links (for example, /get-help/) that are rewritten for
+  # ASTRO_BASE and verified post-build by docs/site/scripts/check-links.mjs.
+  "^docs/site/src/content/docs",
   # Exclude Python virtual environment directories
   "\\.venv",
   "venv",

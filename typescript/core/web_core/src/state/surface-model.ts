@@ -383,7 +383,7 @@ export class SurfaceModel<
         typeof availableCatalogsOrTheme === 'object' &&
         !Array.isArray(availableCatalogsOrTheme)
       ) {
-        // Legacy v0.9 signature:
+        // Pre-1.0 (v0.9) signature:
         // `new SurfaceModel(id, catalog, theme, sendDataModel?, dataModel?)`.
         // A plain object in the third slot is the theme of a pre-1.0 caller,
         // which had no catalogs to pass here, so the arguments after it

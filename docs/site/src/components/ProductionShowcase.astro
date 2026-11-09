@@ -1,0 +1,563 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+interface Props {
+  /** Show the link to the full stories. Turn off on the page that already shows them. */
+  showStoriesLink?: boolean;
+}
+
+const {showStoriesLink = true} = Astro.props;
+const stories = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/build-with-a2ui/`;
+---
+
+<section class="a2-section a2-section--alt ps-section" id="customers">
+  <div class="ps-wrap">
+    <div class="ps-head">
+      <h2 class="ps-h2">
+        Shipping across <span class="ps-accent">Google and the industry.</span>
+      </h2>
+      {
+        showStoriesLink && (
+          <a href={stories} class="ps-more">
+            <span>See what they built</span>
+            <span aria-hidden="true">→</span>
+          </a>
+        )
+      }
+    </div>
+
+    <ul class="ps-brands" aria-label="Teams and products shipping with A2UI">
+      <!-- 1. Alation -->
+      <li class="ps-brand">
+        <a
+          href={`${stories}#alation`}
+          class="ps-brand__inner"
+          aria-label="Alation, Alation AIOS: read the story"
+        >
+          <div class="ps-brand__lockup">
+            <svg
+              class="ps-wordmark-svg"
+              viewBox="0 0 101 23"
+              height="25"
+              aria-hidden="true"
+            >
+              <path
+                fill="currentColor"
+                d="M61.8149 1.86854L58.2081 2.25317L57.2545 4.67134L61.8149 6.41733V1.86854ZM27.6446 20.8779C27.533 20.6765 27.4784 20.3222 27.4784 19.8174V0L20.3862 0.748628V1.38563L21.6285 1.8103C21.9718 1.95226 22.1987 2.12819 22.3103 2.34053C22.4207 2.55286 22.4765 2.95205 22.4765 3.53809V19.8162C22.4765 20.321 22.4207 20.6752 22.3103 20.8767C22.2205 21.0405 22.0543 21.1909 21.8117 21.328C21.7025 21.3899 21.5812 21.4299 21.4562 21.4481C21.1578 21.4942 20.8532 21.4142 20.6215 21.2237C20.5912 21.197 20.5621 21.1715 20.533 21.1424C20.5184 21.129 20.5039 21.1145 20.4905 21.1011C20.4432 21.0538 20.3983 21.0041 20.3546 20.9519C20.2588 20.8354 20.1654 20.7007 20.0744 20.5466C19.9834 20.3925 19.8948 20.219 19.8099 20.0273C19.6376 19.6439 19.4411 19.1185 19.2191 18.4512L18.7593 17.1444H13.3473L14.0668 19.3903C14.1881 19.815 14.2487 20.1377 14.2487 20.361C14.2487 20.5636 14.2038 20.7456 14.1129 20.907C14.0219 21.0696 13.8447 21.2006 13.5827 21.3013L11.8855 21.8777V22.545H29.5723V21.908L28.33 21.4227C27.9867 21.2613 27.7586 21.0793 27.6482 20.8767L27.6446 20.8779ZM5.691 16.1483L6.09499 14.8245L6.20053 14.4812L6.23086 14.3829L9.27229 4.42746L12.4132 14.2336H17.733L12.9737 0.718295H8.94231C8.63901 1.87096 8.23503 3.13405 7.73034 4.50754L3.39567 16.3303C2.99169 17.4417 2.64229 18.3311 2.34992 18.9984C2.05633 19.6658 1.77366 20.196 1.5007 20.5903C1.22773 20.9846 0.919586 21.3025 0.576258 21.5452L0 21.8789V22.5462H7.72913V21.8789L6.15322 21.3329C5.68857 21.1509 5.36951 20.8888 5.19845 20.5442C5.02618 20.2008 4.94126 19.8162 4.94126 19.3915C4.94126 19.0688 4.991 18.6696 5.0929 18.194C5.16933 17.836 5.26275 17.4866 5.37315 17.1444C5.40954 17.034 5.44715 16.9236 5.48719 16.8144L5.691 16.1471V16.1483ZM43.8902 20.3015C43.7786 20.0795 43.724 19.6755 43.724 19.0894V11.9053C43.724 9.96513 43.2242 8.56615 42.2233 7.70711C41.2237 6.84807 39.6514 6.41855 37.5101 6.41855C36.5396 6.41855 35.5448 6.50955 34.5245 6.69155C33.5042 6.87355 32.1249 7.18659 30.3876 7.63067L32.1758 12.2389H32.8127L33.7517 10.2078C33.9944 9.62176 34.2467 9.13642 34.51 8.75301C34.772 8.36959 35.0801 8.07596 35.4344 7.87334C35.7874 7.67192 36.2169 7.57 36.7228 7.57C37.4507 7.57 37.9748 7.7969 38.2987 8.2519C38.6214 8.7069 38.784 9.40942 38.784 10.3583V13.6889C36.7022 14.0796 35.0243 14.5248 33.7529 15.0272C32.3177 15.5926 31.2975 16.2247 30.6921 16.9224C30.0855 17.6201 29.7822 18.4427 29.7822 19.3928C29.7822 20.5454 30.1813 21.4287 30.9796 22.0451C31.7779 22.6615 32.7933 22.9697 34.0259 22.9697C35.0365 22.9697 35.9755 22.7525 36.8453 22.3181C37.5004 21.9905 38.1737 21.544 38.864 20.981C38.9781 21.476 39.2171 21.8825 39.5883 22.198C40.1233 22.653 40.816 22.8799 41.664 22.8799C42.2706 22.8799 42.9015 22.7937 43.559 22.6227C44.2153 22.4516 44.7965 22.2538 45.3023 22.0318L45.6056 21.8801V21.3038L44.5757 20.8488C44.2323 20.708 44.0042 20.526 43.8939 20.3028L43.8902 20.3015ZM38.7828 19.9351C38.511 20.0759 38.2574 20.1911 38.0245 20.2712C37.6205 20.4132 37.1765 20.4835 36.6912 20.4835C36.0446 20.4835 35.489 20.3125 35.0243 19.9679C34.5597 19.6245 34.3268 19.0894 34.3268 18.3614C34.3268 17.836 34.4978 17.3459 34.8424 16.8909C35.1857 16.4359 35.7462 15.9966 36.525 15.572C37.128 15.2431 37.8826 14.9083 38.7828 14.5661V19.9351ZM99.1964 21.4239C98.8531 21.2625 98.625 21.0805 98.5146 20.8779C98.403 20.6765 98.3484 20.3222 98.3484 19.8174V10.6931C98.3484 9.23834 98.0305 8.16211 97.3936 7.46444C96.7567 6.76678 95.7716 6.41855 94.4383 6.41855C93.731 6.41855 92.9777 6.54474 92.1806 6.79711C91.3823 7.04948 90.6193 7.34796 89.8926 7.69134C89.2484 7.99588 88.6539 8.30893 88.1043 8.62925V6.41855L81.0728 7.35767V8.02501L82.3151 8.44967C82.6584 8.57101 82.8853 8.7433 82.9969 8.96534C83.1073 9.18738 83.1631 9.59142 83.1631 10.1775V19.8174C83.1631 20.3222 83.1073 20.6765 82.9969 20.8779C82.8853 21.0805 82.6584 21.2625 82.3151 21.4239L81.0728 21.9092V22.5462H90.1049V21.9092L88.9827 21.4542C88.6588 21.3135 88.4416 21.1363 88.3312 20.924C88.2196 20.7116 88.165 20.3428 88.165 19.8174V9.5708C88.7109 9.40942 89.2763 9.28809 89.8622 9.20679C90.4482 9.1255 90.9238 9.08546 91.2865 9.08546C92.0338 9.08546 92.564 9.24198 92.8782 9.55502C93.1912 9.86806 93.3477 10.3995 93.3477 11.1469V19.8174C93.3477 20.3428 93.2919 20.7116 93.1815 20.924C93.0699 21.1363 92.8527 21.3135 92.53 21.4542L91.409 21.9092V22.5462H100.441V21.9092L99.1988 21.4239H99.1964ZM61.9823 20.8779C61.8707 20.6765 61.8161 20.3222 61.8161 19.8174V6.41733L51.1183 6.94028V3.02242L47.5115 3.38642L46.6926 5.66021C46.592 6.02421 46.4355 6.3324 46.2231 6.58478C46.0108 6.83715 45.7427 7.04463 45.42 7.206L44.1171 7.96434V8.57101H46.1479V18.8783C46.1479 20.1717 46.4755 21.1824 47.133 21.9092C47.7894 22.6372 48.6835 23 49.8154 23C50.8453 23 51.8353 22.727 52.7852 22.181C53.4306 21.8097 54.0166 21.3972 54.5407 20.941L53.9826 19.9375C53.609 20.0188 53.2292 20.0589 52.8459 20.0589C52.2393 20.0589 51.8001 19.9181 51.5271 19.6342C51.2542 19.3515 51.1183 18.9062 51.1183 18.3007V8.56979H54.2883C54.6875 8.56979 55.0817 8.66807 55.4336 8.85735C56.1869 9.26139 56.671 10.0331 56.7086 10.8873L56.8154 13.3698V19.8162C56.8154 20.321 56.7596 20.6752 56.6492 20.8767C56.5376 21.0793 56.3107 21.2613 55.9674 21.4227L54.7251 21.908V22.545H63.9391V21.908L62.6665 21.4227C62.3232 21.2613 62.0951 21.0793 61.9847 20.8767L61.9823 20.8779ZM76.834 7.388C75.5504 6.70126 74.0497 6.35788 72.3331 6.35788C70.6164 6.35788 69.1145 6.70126 67.8322 7.388C66.5487 8.07475 65.5684 9.04542 64.8915 10.2976C64.2145 11.551 63.876 13.0155 63.876 14.6935C63.876 16.3715 64.2145 17.8118 64.8915 19.0736C65.5684 20.3367 66.5487 21.3074 67.8322 21.9844C69.1145 22.6615 70.6152 23 72.3331 23C74.0509 23 75.5504 22.6615 76.834 21.9844C78.1163 21.3074 79.1026 20.3379 79.7892 19.0736C80.4759 17.8106 80.8192 16.3509 80.8192 14.6935C80.8192 13.0361 80.4759 11.551 79.7892 10.2976C79.1026 9.04542 78.1163 8.07475 76.834 7.388ZM75.1367 19.1343C74.8832 20.1754 74.5253 20.8924 74.0606 21.2868C73.596 21.6811 73.0197 21.8777 72.3331 21.8777C71.6464 21.8777 71.075 21.6653 70.6201 21.2407C70.1651 20.816 69.8121 20.0783 69.5598 19.0275C69.3062 17.9768 69.1813 16.5014 69.1813 14.6013C69.1813 12.7012 69.3074 11.2622 69.5598 10.2211C69.8121 9.1801 70.1664 8.46302 70.6201 8.06869C71.075 7.67435 71.6452 7.47779 72.3331 7.47779C73.0209 7.47779 73.596 7.69012 74.0606 8.11479C74.5253 8.53946 74.8832 9.28202 75.1367 10.3425C75.3891 11.4029 75.5152 12.8735 75.5152 14.753C75.5152 16.6324 75.3891 18.0933 75.1367 19.1331V19.1343Z"
+              />
+              <path
+                fill="url(#ps-alation-accent)"
+                d="M6.20053 14.4812L5.691 16.1483L5.48719 16.8156C5.44715 16.9248 5.40954 17.0352 5.37315 17.1457H18.7569L17.7318 14.2324H6.27575L6.20053 14.4812Z"
+              />
+              <defs>
+                <linearGradient
+                  id="ps-alation-accent"
+                  x1="18.758"
+                  y1="15.6896"
+                  x2="5.37431"
+                  y2="15.6896"
+                  gradientUnits="userSpaceOnUse"
+                >
+                  <stop stop-color="#FF9901" />
+                  <stop offset="1" stop-color="#EA5458" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <span class="ps-brand__product">Alation AIOS</span>
+        </a>
+      </li>
+
+      <!-- 2. ByteDance -->
+      <li class="ps-brand">
+        <a
+          href={`${stories}#bytedance`}
+          class="ps-brand__inner"
+          aria-label="ByteDance, Lynx: read the story"
+        >
+          <div class="ps-brand__lockup">
+            <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+              <path fill="#325AB4" d="M0 2.572l4.115 1.0642v16.7354L0 21.428V2.572z" />
+              <path fill="#3C8CFF" d="M6.5291 10.8965l4.115 1.0641v8.9786l-4.115 1.0642v-11.107z" />
+              <path fill="#00C8D2" d="M17.4553 8.1925v11.107l-4.1228-1.0642V9.2568l4.1228-1.0642z" />
+              <path fill="#78E6DC" d="M19.8772 1.4685L24 2.5326v18.9426l-4.1228 1.0563V1.4685z" />
+            </svg>
+            <span class="ps-brand__name">ByteDance</span>
+          </div>
+          <span class="ps-brand__product">Lynx</span>
+        </a>
+      </li>
+
+      <!-- 3. Atlassian -->
+      <li class="ps-brand">
+        <a
+          href={`${stories}#atlassian`}
+          class="ps-brand__inner"
+          aria-label="Atlassian, Jira: read the story"
+        >
+          <div class="ps-brand__lockup">
+            <svg viewBox="0 0 256 256" width="25" height="25" aria-hidden="true">
+              <defs>
+                <linearGradient
+                  id="ps-atlassian-grad"
+                  x1="99.7%"
+                  y1="15.8%"
+                  x2="39.8%"
+                  y2="97.4%"
+                >
+                  <stop offset="0%" stop-color="#0052CC" />
+                  <stop offset="92.3%" stop-color="#2684FF" />
+                </linearGradient>
+              </defs>
+              <path
+                fill="url(#ps-atlassian-grad)"
+                d="M75.793 117.949c-3.82-4.08-9.77-3.849-12.367 1.343L.791 244.565a7.04 7.04 0 0 0 6.697 10.838h87.228a6.98 6.98 0 0 0 6.699-4.141c18.808-38.888 7.413-98.017-25.622-133.313Z"
+              />
+              <path
+                fill="#2684FF"
+                d="M121.756 4.011c-35.033 55.505-32.721 116.978-9.646 163.13l42.06 84.121a7.04 7.04 0 0 0 6.697 4.139h87.227a7.04 7.04 0 0 0 6.697-10.837C238.411 211.891 207.135 123.693 121.756 4.011Z"
+              />
+            </svg>
+            <span class="ps-brand__name">Atlassian</span>
+          </div>
+          <span class="ps-brand__product">Jira</span>
+        </a>
+      </li>
+
+      <!-- 4. Google Cloud -->
+      <li class="ps-brand">
+        <a
+          href={`${stories}#gemini-enterprise`}
+          class="ps-brand__inner"
+          aria-label="Google Cloud, Gemini Enterprise: read the story"
+        >
+          <div class="ps-brand__lockup">
+            <svg viewBox="0 0 256 206" width="30" height="24" aria-hidden="true">
+              <path
+                fill="#EA4335"
+                d="m170.252 56.819 22.253-22.253 1.483-9.37C153.437-11.677 88.976-7.496 52.42 33.92 42.267 45.423 34.734 59.764 30.717 74.573l7.97-1.123 44.505-7.34 3.436-3.513c19.797-21.742 53.27-24.667 76.128-6.168z"
+              />
+              <path
+                fill="#4285F4"
+                d="M224.205 73.918a100.25 100.25 0 0 0-30.217-48.722l-31.232 31.232a55.52 55.52 0 0 1 20.379 44.037v5.544c15.35 0 27.797 12.445 27.797 27.796 0 15.352-12.446 27.485-27.797 27.485h-55.671l-5.466 5.934v33.34l5.466 5.231h55.67c39.93.311 72.553-31.494 72.864-71.424a72.3 72.3 0 0 0-31.793-60.453"
+              />
+              <path
+                fill="#34A853"
+                d="M71.87 205.796h55.593V161.29H71.87a27.3 27.3 0 0 1-11.399-2.498l-7.887 2.42-22.409 22.253-1.952 7.574c12.567 9.489 27.9 14.825 43.647 14.757"
+              />
+              <path
+                fill="#FBBC05"
+                d="M71.87 61.426C31.94 61.663-.237 94.227.001 134.158a72.3 72.3 0 0 0 28.222 56.88l32.248-32.246c-13.99-6.322-20.208-22.786-13.887-36.776s22.786-20.208 36.775-13.888a27.8 27.8 0 0 1 13.887 13.888l32.248-32.248A72.22 72.22 0 0 0 71.87 61.427"
+              />
+            </svg>
+            <span class="ps-brand__name">Google Cloud</span>
+          </div>
+          <span class="ps-brand__product">Gemini Enterprise</span>
+        </a>
+      </li>
+
+      <!-- 5. Gemini -->
+      <li class="ps-brand">
+        <a
+          href={`${stories}#gemini-notebook`}
+          class="ps-brand__inner"
+          aria-label="Gemini, Gemini Notebook: read the story"
+        >
+          <div class="ps-brand__lockup">
+            <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
+              <defs>
+                <linearGradient
+                  id="ps-gemini-fill-0"
+                  gradientUnits="userSpaceOnUse"
+                  x1="7"
+                  y1="15.5"
+                  x2="11"
+                  y2="12"
+                >
+                  <stop stop-color="#08B962" />
+                  <stop offset="1" stop-color="#08B962" stop-opacity="0" />
+                </linearGradient>
+                <linearGradient
+                  id="ps-gemini-fill-1"
+                  gradientUnits="userSpaceOnUse"
+                  x1="8"
+                  y1="5.5"
+                  x2="11.5"
+                  y2="11"
+                >
+                  <stop stop-color="#F94543" />
+                  <stop offset="1" stop-color="#F94543" stop-opacity="0" />
+                </linearGradient>
+                <linearGradient
+                  id="ps-gemini-fill-2"
+                  gradientUnits="userSpaceOnUse"
+                  x1="3.5"
+                  y1="13.5"
+                  x2="17.5"
+                  y2="12"
+                >
+                  <stop stop-color="#FABC12" />
+                  <stop offset=".46" stop-color="#FABC12" stop-opacity="0" />
+                </linearGradient>
+              </defs>
+              <path
+                fill="#3186FF"
+                d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z"
+              />
+              <path
+                fill="url(#ps-gemini-fill-0)"
+                d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z"
+              />
+              <path
+                fill="url(#ps-gemini-fill-1)"
+                d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z"
+              />
+              <path
+                fill="url(#ps-gemini-fill-2)"
+                d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z"
+              />
+            </svg>
+            <span class="ps-brand__name">Gemini</span>
+          </div>
+          <span class="ps-brand__product">Gemini Notebook</span>
+        </a>
+      </li>
+    </ul>
+
+    <!-- Partner quotes (only where approved quotes exist) -->
+    <div class="ps-quotes">
+      <blockquote class="ps-quote">
+        <p>
+          The Alation Intelligence Operating System (AIOS) brings artifacts with data, charts, and
+          insights directly to where teams work with transparency about where each figure comes
+          from. A2UI provides the interactive UI scaffolding that makes these artifacts feel like
+          high-touch, tailored applications, whether they are used in Alation or in the AI
+          Assistants our customers already use.
+        </p>
+        <footer>
+          <strong>GT Volpe</strong>
+          <span>Vice President of Product Management, Alation</span>
+        </footer>
+      </blockquote>
+
+      <blockquote class="ps-quote">
+        <p>
+          A2UI is headed in the right direction: it separates how a model produces an interface
+          from how an app renders it. Swappable inference formats and macros keep generation
+          efficient, and even LLMs can be swapped for a System 1 model. In our playground, a
+          decision model like Jev picks components and values instead of writing text, and then the
+          SDK builds the A2UI screens that Lynx renders natively.
+        </p>
+        <footer>
+          <strong>Shouqun Liu</strong>
+          <span>Engineering Lead for Lynx at ByteDance</span>
+        </footer>
+      </blockquote>
+    </div>
+  </div>
+</section>
+
+<style>
+  .ps-section {
+    position: relative;
+    padding: 96px 0 104px;
+    background: var(--a2-bg-alt);
+    border-top: 1px solid var(--a2-border-strong);
+    scroll-margin-top: 72px;
+  }
+
+  @media (max-width: 720px) {
+    .ps-section {
+      padding: 72px 0 80px;
+    }
+  }
+
+  .ps-wrap {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 36px;
+  }
+
+  @media (max-width: 640px) {
+    .ps-wrap {
+      padding: 0 20px;
+    }
+  }
+
+  .ps-head {
+    margin-bottom: 32px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px 32px;
+  }
+
+  .ps-more {
+    display: inline-flex;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--a2-accent);
+    text-decoration: none;
+  }
+
+  .ps-more:hover span:first-child {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+
+  .ps-h2 {
+    margin: 0;
+    font-family: var(--a2-font-display);
+    font-size: clamp(1.85rem, 3vw, 2.45rem);
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: var(--a2-tracking-h2);
+    color: var(--a2-text);
+  }
+
+  .ps-accent {
+    color: var(--a2-heading-accent);
+  }
+
+  /* Architectural 5-cell brand grid */
+  .ps-brands {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    border: 1px solid var(--a2-border-strong);
+    border-radius: 6px;
+    background: var(--a2-bg);
+    overflow: hidden;
+  }
+
+  .ps-brand + .ps-brand {
+    border-left: 1px solid var(--a2-border);
+  }
+
+  @media (max-width: 1040px) {
+    .ps-brands {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+
+    .ps-brand:nth-child(-n + 3) {
+      grid-column: span 2;
+    }
+
+    .ps-brand:nth-child(n + 4) {
+      grid-column: span 3;
+      border-top: 1px solid var(--a2-border);
+    }
+
+    .ps-brand:nth-child(4) {
+      border-left: none;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .ps-brands {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ps-brand {
+      grid-column: span 1 !important;
+      border-left: none !important;
+      border-top: none !important;
+    }
+
+    .ps-brand:nth-child(even) {
+      border-left: 1px solid var(--a2-border) !important;
+    }
+
+    .ps-brand:nth-child(n + 3) {
+      border-top: 1px solid var(--a2-border) !important;
+    }
+
+    .ps-brand:last-child {
+      grid-column: 1 / -1 !important;
+    }
+  }
+
+  .ps-brand__inner {
+    height: 100%;
+    min-height: 98px;
+    padding: 26px 16px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    text-decoration: none;
+    color: var(--a2-text);
+    transition: background-color 0.16s ease, color 0.16s ease;
+  }
+
+  a.ps-brand__inner:hover {
+    background: var(--a2-surface-raised);
+  }
+
+  .ps-brand__lockup {
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--a2-text);
+  }
+
+  .ps-brand__lockup svg {
+    display: block;
+    flex-shrink: 0;
+  }
+
+  .ps-wordmark-svg {
+    width: auto;
+    height: 25px;
+  }
+
+  .ps-brand__product {
+    font-family: var(--a2-font-mono);
+    font-size: 11.5px;
+    line-height: 1.3;
+    color: var(--a2-text-muted);
+    transition: color 0.16s ease;
+  }
+
+  a.ps-brand__inner:hover .ps-brand__product,
+  a.ps-brand__inner:focus-visible .ps-brand__product {
+    color: var(--a2-accent);
+  }
+
+  .ps-brand__name {
+    font-family: var(--a2-font-display);
+    font-size: 19.5px;
+    font-weight: 680;
+    letter-spacing: -0.025em;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 600px) {
+    .ps-brand__inner {
+      min-height: 86px;
+      padding: 20px 10px;
+    }
+
+    .ps-brand__lockup {
+      gap: 8px;
+    }
+
+    .ps-wordmark-svg {
+      height: 22px;
+    }
+
+    .ps-brand__name {
+      font-size: 17px;
+    }
+  }
+
+  .ps-quotes {
+    margin-top: 56px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 64px;
+    align-items: start;
+  }
+
+  .ps-quote {
+    position: relative;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 14px;
+    height: 100%;
+  }
+
+  .ps-quote + .ps-quote::before {
+    content: '';
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    left: -32px;
+    width: 1px;
+    background: var(--a2-border);
+  }
+
+  @media (max-width: 820px) {
+    .ps-quotes {
+      grid-template-columns: 1fr;
+      row-gap: 28px;
+      margin-top: 32px;
+    }
+
+    .ps-quote + .ps-quote {
+      padding-top: 28px;
+      border-top: 1px solid var(--a2-border);
+    }
+
+    .ps-quote + .ps-quote::before {
+      display: none;
+    }
+  }
+
+  .ps-quote p {
+    margin: 0;
+    font-family: var(--a2-font-display);
+    font-size: clamp(1.05rem, 1.45vw, 1.25rem);
+    font-weight: 500;
+    line-height: 1.55;
+    letter-spacing: -0.012em;
+    color: var(--a2-text);
+  }
+
+  .ps-quote p::before {
+    content: '\201C';
+    display: block;
+    height: 0.62em;
+    margin-bottom: 10px;
+    font-size: 3.4rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--a2-heading-accent);
+  }
+
+  .ps-quote footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 10px;
+    font-size: 14px;
+  }
+
+  .ps-quote strong {
+    font-weight: 650;
+    color: var(--a2-text);
+  }
+
+  .ps-quote span {
+    font-family: var(--a2-font-mono);
+    font-size: 12px;
+    color: var(--a2-text-muted);
+  }
+</style>

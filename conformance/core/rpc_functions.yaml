@@ -436,7 +436,7 @@
     protocolVersion: "1.0"
   action: handle_rpc
   args:
-    catalogId: "legacy_cat"
+    catalogId: "v0_9_cat"
     catalogVersion: "v0.9"
     message:
       version: "1.0"
@@ -444,7 +444,7 @@
         functionCallId: "call-302"
         callFunction:
           "@call": "playMedia"
-          catalogId: "legacy_cat"
+          catalogId: "v0_9_cat"
           args:
             mediaId: "vid1"
     functionMetadata:

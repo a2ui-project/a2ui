@@ -76,15 +76,15 @@
     surface:
       id: main_surface
       defaultCatalogId: "basic_v1_0"
-      supportedCatalogIds: ["basic_v1_0", "legacy_v0_9_catalog"]
+      supportedCatalogIds: ["basic_v1_0", "v0_9_catalog"]
     catalogs:
       basic_v1_0:
         protocolVersion: "1.0"
-      legacy_v0_9_catalog:
+      v0_9_catalog:
         protocolVersion: "v0.9"
   expectError:
     category: "CatalogError"
-    message: "Protocol version mismatch: cannot mix catalog 'legacy_v0_9_catalog' (v0.9) with surface version 1.0."
+    message: "Protocol version mismatch: cannot mix catalog 'v0_9_catalog' (v0.9) with surface version 1.0."
 
 - name: test_multi_catalog_function_resolution_precedence
   description: Verifies function calls with explicit catalogId resolve to the specified catalog.
