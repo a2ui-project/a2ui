@@ -1,11 +1,5 @@
 ## Unreleased
 
-- `resolve_catalogs` reads the capabilities of v0.9 and v0.9.1 catalogs from
-  the `v0.9.1` entry, and from the `v0.9` entry when there is no `v0.9.1` entry
-  or it activates no catalog. It read only `v0.9`, so it rejected the `v0.9.1`
-  entry that web_core and the Python core renderer write for v0.9.1. When a
-  renderer sends both entries, both are validated, and each inline catalog
-  targets the protocol version of the entry that declares it.
 - **BREAKING CHANGE**: (v1_0) `validate_payload` and `RendererState.apply`
   check each `callRendererFunction` against the catalogs instead of running
   it, and reject one the renderer would refuse: a surface that doesn't exist
@@ -38,6 +32,14 @@
   generator through `InferenceFormat.prompt_generator`, and subclass
   `PromptGenerator` to write a format of your own.
   [#3568](https://github.com/a2ui-project/a2ui/pull/3568)
+- `resolve_catalogs` reads the capabilities of v0.9 and v0.9.1 catalogs from
+  the `v0.9.1` entry, falling back to `v0.9` when `v0.9.1` is absent or
+  activates no catalog. When a renderer sends both entries, both are validated,
+  and each inline catalog targets the protocol version of its declaring entry.
+  [#3135](https://github.com/a2ui-project/a2ui/pull/3135)
+- `DirectJsonFormat`, `DirectJsonParser` and `schema_to_prompt` accept v0.9 and
+  v0.9.1 catalogs together, as `RendererState` does.
+  [#3135](https://github.com/a2ui-project/a2ui/pull/3135)
 - `RendererFunctionCalls.call` checks its arguments in a fixed order shared
   with the TypeScript and Dart SDKs. An empty `function_call_id` is now
   refused with `INVALID_FUNCTION_CALL` instead of replaced by a generated
