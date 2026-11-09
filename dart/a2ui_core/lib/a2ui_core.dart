@@ -44,6 +44,28 @@ export 'src/primitives/protocol_version.dart';
 export 'src/primitives/reactivity.dart';
 export 'src/primitives/reference_schema.dart'
     show ComponentRefMap, ListRef, NestedRef, RefFields, RefKind, SingleRef;
+export 'src/primitives/regex_subset.dart'
+    show
+        AltRegexNode,
+        AnchorKind,
+        AnchorRegexNode,
+        CharSetRegexNode,
+        CodePointRange,
+        ConcatRegexNode,
+        EmptyRegexNode,
+        GroupRegexNode,
+        LookaheadRegexNode,
+        RegexAnalysisResult,
+        RegexNode,
+        RegexRejection,
+        RegexSyntaxError,
+        RepeatRegexNode,
+        analyzeRegex,
+        checkRegexSafety,
+        compileGuarded,
+        maxRegexPatternCodePoints,
+        maxRegexValueCodePoints,
+        parseRegexSubset;
 export 'src/primitives/semver.dart' hide releaseNumbers;
 export 'src/primitives/uax31.dart';
 export 'src/processing/adapters/v0_9_adapter.dart';
@@ -58,7 +80,10 @@ export 'src/resolution/component_context.dart';
 export 'src/resolution/component_node.dart'
     hide MutableComponentNode, sameValue;
 export 'src/resolution/data_context.dart'
-    hide createSurfaceDataContext, dataContextWithoutAgentCalls;
+    hide
+        createSurfaceDataContext,
+        dataContextWithoutAgentCalls,
+        disposeSurfaceAgentCalls;
 export 'src/resolution/generic_binder.dart';
 export 'src/resolution/node_resolver.dart';
 export 'src/resolution/resolved_binding.dart';

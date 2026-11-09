@@ -372,6 +372,7 @@ def test_runs_implemented_function_locally() -> None:
 async def test_reports_agent_error_as_expression_error() -> None:
     h = _Harness()
     result = _read(h.ctx, {"@call": "fetchFxRate", "args": {"base": "EUR"}}, peek=False)
+    call_id = h.outbound[0]["callAgentFunction"]["functionCallId"]
     h.respond(
         0,
         error={"code": "UNKNOWN_FUNCTION", "message": "No such function: fetchFxRate"},
@@ -380,6 +381,8 @@ async def test_reports_agent_error_as_expression_error() -> None:
     assert result.peek() is None
     assert len(h.errors) == 1
     assert h.errors[0]["code"] == "EXPRESSION_ERROR"
+    assert h.errors[0]["functionCallId"] == call_id
+    assert "surfaceId" not in h.errors[0]
     assert "No such function: fetchFxRate" in h.errors[0]["message"]
 
 
@@ -1931,3 +1934,98 @@ async def test_format_string_part_ignores_cached_answer() -> None:
     assert [e["code"] for e in errors] == ["EXPRESSION_ERROR"]
     assert "fetchFxRate" in errors[0]["message"]
     sub.unsubscribe()
+
+
+def _echo_caller(surface: SurfaceModel) -> list[str]:
+    """Sets a caller that answers each call with its name; returns the names sent."""
+    sent: list[str] = []
+    loop = asyncio.get_running_loop()
+
+    def caller(c: AgentFunctionCall) -> asyncio.Future[Any]:
+        sent.append(c.call)
+        answer: asyncio.Future[Any] = loop.create_future()
+        answer.set_result(c.call)
+        return answer
+
+    surface.agent_function_caller = caller
+    return sent
+
+
+async def _settle_calls(surface: SurfaceModel, *names: str) -> None:
+    """Sends one call per name and waits for each answer to be cached."""
+    for name in names:
+        assert (
+            await surface.call_agent_function(
+                AgentFunctionCall(call=name, catalog_id=FIN_CATALOG_ID, args={})
+            )
+            == name
+        )
+    await _flush()
+
+
+def _cached(surface: SurfaceModel, name: str) -> bool:
+    found, _ = surface.settled_agent_answer(
+        AgentFunctionCall(call=name, catalog_id=FIN_CATALOG_ID, args={})
+    )
+    return found
+
+
+def test_settled_agent_call_cache_defaults_to_256_entries() -> None:
+    surface = SurfaceModel("s1", None, protocol_version="1.0")
+
+    assert surface.max_agent_call_cache_entries == 256
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("read", ["call_agent_function", "settled_agent_answer"])
+async def test_settled_agent_call_cache_evicts_the_oldest_first(read: str) -> None:
+    surface = SurfaceModel(
+        "s1", None, protocol_version="1.0", max_agent_call_cache_entries=2
+    )
+    sent = _echo_caller(surface)
+    await _settle_calls(surface, "a", "b")
+
+    # Reading the oldest entry does not refresh it.
+    call_a = AgentFunctionCall(call="a", catalog_id=FIN_CATALOG_ID, args={})
+    if read == "call_agent_function":
+        assert await surface.call_agent_function(call_a) == "a"
+    else:
+        assert surface.settled_agent_answer(call_a) == (True, "a")
+    await _settle_calls(surface, "c")
+
+    assert sent == ["a", "b", "c"], "the read of 'a' was served from the cache"
+    assert not _cached(surface, "a")
+    assert _cached(surface, "b")
+    assert _cached(surface, "c")
+
+
+@pytest.mark.parametrize("value", [0, -1, True, 1.5, "2"])
+def test_surface_rejects_a_bad_cache_bound(value: Any) -> None:
+    with pytest.raises(ValueError, match="positive integer"):
+        SurfaceModel(
+            "s1", None, protocol_version="1.0", max_agent_call_cache_entries=value
+        )
+
+
+@pytest.mark.parametrize("value", [0, -1, True])
+def test_message_processor_rejects_a_bad_cache_bound(value: Any) -> None:
+    with pytest.raises(ValueError, match="positive integer"):
+        MessageProcessor(
+            [Catalog("c", "1.0")],
+            options=MessageProcessorOptions(max_agent_call_cache_entries=value),
+        )
+
+
+def test_message_processor_passes_the_cache_bound_to_its_surfaces() -> None:
+    proc = MessageProcessor(
+        [Catalog("c", "1.0")],
+        options=MessageProcessorOptions(max_agent_call_cache_entries=2),
+    )
+
+    proc.process_messages(
+        [{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "c"}}]
+    )
+
+    surface = proc.model.get_surface("s1")
+    assert surface is not None
+    assert surface.max_agent_call_cache_entries == 2

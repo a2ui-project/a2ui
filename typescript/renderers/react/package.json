@@ -64,15 +64,12 @@
         "types": "./dist/styles/index.d.cts",
         "default": "./dist/styles/index.cjs"
       }
-    },
-    "./styles/structural.css": "./dist/structural.css"
+    }
   },
   "files": [
     "dist"
   ],
-  "sideEffects": [
-    "*.css"
-  ],
+  "sideEffects": false,
   "scripts": {
     "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `yarn build` then `cd dist && yarn npm publish`'); process.exit(1); }\"",
     "publish:package": "yarn build && node ../../scripts/prepare-publish.mjs && cd dist && touch yarn.lock && yarn install && yarn npm publish --access public",
@@ -81,6 +78,7 @@
     "test": "wireit",
     "test:unit": "wireit",
     "test:integration": "wireit",
+    "test:react17": "./scripts/test-react17.sh",
     "test:react18": "./scripts/test-react18.sh",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
@@ -98,8 +96,8 @@
     "zod": "^3.25.76"
   },
   "peerDependencies": {
-    "react": "^18.0.0 || ^19.0.0",
-    "react-dom": "^18.0.0 || ^19.0.0",
+    "react": "^17.0.0 || ^18.0.0 || ^19.0.0",
+    "react-dom": "^17.0.0 || ^18.0.0 || ^19.0.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
@@ -145,6 +143,7 @@
       "files": [
         "src/**/*",
         "tsconfig.json",
+        "tsup.config.ts",
         "scripts/**/*"
       ],
       "output": [
@@ -167,6 +166,7 @@
         "tests/**/*",
         "../../../conformance/core/accessibility.yaml",
         "../../../conformance/core/adapter_conformance.yaml",
+        "../../../conformance/adapter/adapter_conformance_v0_9.yaml",
         "../../../catalogs/basic/v1/catalog.json",
         "tsconfig.json"
       ]

@@ -905,7 +905,6 @@ class DataContext {
   ) {
     final _AgentCall? existing = _agentCalls.lookup(call, catalogId, args);
     if (existing != null) return existing;
-    _agentCalls.evictIfFull();
     // A call that names no catalog is filed under the one it resolved to,
     // which a later lookup that does not know it falls back on.
     if (call.catalogId == null) _agentCalls.defaultCatalogId ??= catalogId;
@@ -935,6 +934,7 @@ class DataContext {
       (value) {
         batch(() {
           entry.pending = false;
+          _agentCalls.settled(key, entry);
           // Frozen, so no reader of a shared answer can change it for the
           // others.
           entry.value.value = _frozen(value);
@@ -1798,9 +1798,14 @@ class _AgentCall {
 /// The agent calls a context and the contexts derived from it have sent,
 /// keyed by name, catalog and resolved arguments.
 class _AgentCallCache {
-  _AgentCallCache({this.defaultCatalogId});
+  _AgentCallCache({this.defaultCatalogId, this.maxEntries = 256});
 
-  static const int _maxEntries = 256;
+  /// How many settled entries the cache keeps; pending calls don't count.
+  final int maxEntries;
+
+  /// Set when the surface that owns the cache is disposed, so a call that
+  /// settles afterwards is not kept.
+  bool disposed = false;
 
   String? defaultCatalogId;
 
@@ -1829,14 +1834,39 @@ class _AgentCallCache {
     )];
   }
 
-  void evictIfFull() {
-    if (entries.length < _maxEntries) return;
-    for (final MapEntry<String, _AgentCall> entry in entries.entries) {
-      if (!entry.value.pending) {
-        entries.remove(entry.key);
-        return;
+  /// Records that [entry], filed under [key], settled with a value.
+  ///
+  /// The entry moves to the end, so settled entries are ordered by when they
+  /// settled, and the oldest settled entries are evicted until at most
+  /// [maxEntries] remain. A lookup does not change the order. An entry that
+  /// was already evicted, or that settles after the cache was cleared, is
+  /// not kept.
+  void settled(String key, _AgentCall entry) {
+    if (disposed) {
+      if (identical(entries[key], entry)) entries.remove(key);
+      return;
+    }
+    if (!identical(entries[key], entry)) return;
+    entries
+      ..remove(key)
+      ..[key] = entry;
+    var settledCount = 0;
+    for (final _AgentCall call in entries.values) {
+      if (!call.pending) settledCount++;
+    }
+    for (final String candidate in entries.keys.toList()) {
+      if (settledCount <= maxEntries) break;
+      if (!entries[candidate]!.pending) {
+        entries.remove(candidate);
+        settledCount--;
       }
     }
+  }
+
+  /// Forgets every entry and keeps no call that settles later.
+  void dispose() {
+    disposed = true;
+    entries.clear();
   }
 }
 
@@ -1891,8 +1921,10 @@ DataContext createSurfaceDataContext(
           surface.resolveCatalog(catalogId).invoke,
       isUserActivated: false,
       callAgentFunction: surface.callAgentFunction,
-      agentCalls: _surfaceAgentCalls[surface] ??=
-          _AgentCallCache(defaultCatalogId: surface.defaultCatalog?.id),
+      agentCalls: _surfaceAgentCalls[surface] ??= _AgentCallCache(
+        defaultCatalogId: surface.defaultCatalog?.id,
+        maxEntries: surface.maxAgentCallCacheEntries,
+      ),
       parent: parentDataContext,
       index: index,
       onMissingData: onMissingData ??
@@ -1956,11 +1988,10 @@ extension CatalogInvokerExtension
         expression: name,
       );
     }
-    final bool atLeastV10 =
-        protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
-    final Map<String, dynamic> callArgs = atLeastV10
-        ? coerceValidationResultArgs(fn.argumentSchema.value, args)
-        : args;
+    final Map<String, dynamic> callArgs = coerceValidationResultArgs(
+      fn.argumentSchema.value,
+      args,
+    );
     final List<ValidationError> errors = argumentErrors(fn, callArgs);
     if (errors.isNotEmpty) {
       throw A2uiExpressionError(
@@ -2099,3 +2130,10 @@ const Map<String, Object?> _validityObject = {
   },
   'required': ['valid'],
 };
+
+/// Package-internal: clears [surface]'s shared agent calls when it is
+/// disposed, so no answer, even one that arrives later, is kept for it.
+void disposeSurfaceAgentCalls(SurfaceModel surface) {
+  _surfaceAgentCalls[surface]?.dispose();
+  _surfaceAgentCalls[surface] = null;
+}

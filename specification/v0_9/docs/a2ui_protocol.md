@@ -11,7 +11,7 @@
 A Specification for a JSON-Based, Streaming UI Protocol.
 
 **Version:** 0.9
-**Status:** Stable
+**Status:** Closed
 **Created:** Nov 20, 2025
 
 A Specification for a JSON-Based, Streaming UI Protocol

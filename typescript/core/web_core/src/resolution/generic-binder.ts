@@ -27,6 +27,10 @@ import {
 import {childRefKindOf} from '../types/child-ref-helpers.js';
 import type {Action as V1Action, CheckRule as V1CheckRule} from '../v1_0/schema/common-types.js';
 import {extractRefDefName} from '../catalog/reference-map.js';
+import {
+  coerceDynamicBoolean,
+  isDynamicBooleanSchema,
+} from '../catalog/validation_result_coercion.js';
 import {ActionDispatchOptions} from '../common/metadata.js';
 import {MAX_DYNAMIC_VALUE_DEPTH} from './data-context.js';
 import {resolveSignalKeepingPending} from './data-context-internal.js';
@@ -65,7 +69,7 @@ interface CheckRuleResult {
  * - OBJECT / ARRAY: Recursive traversal nodes for complex nested schemas.
  */
 export type BehaviorNode =
-  | {type: 'DYNAMIC'}
+  | {type: 'DYNAMIC'; isBoolean?: boolean}
   | {type: 'ACTION'}
   | {type: 'STRUCTURAL'}
   | {type: 'CHECKABLE'}
@@ -244,7 +248,16 @@ function isDynamicDef(defName: string, typeName?: string): boolean {
 
 function matchUnionBehavior(options: z.ZodTypeAny[]): BehaviorNode | undefined {
   if (options.some(isActionOption)) return {type: 'ACTION'};
-  if (options.some(isDynamicOption)) return {type: 'DYNAMIC'};
+  if (options.some(isDynamicOption)) {
+    const literalOptions = options.filter(opt => !isDynamicOption(opt));
+    const isBoolean =
+      literalOptions.length > 0 &&
+      literalOptions.every(opt => {
+        const typeName = (unwrapZodSchema(opt) as any)?._def?.typeName;
+        return typeName === 'ZodBoolean' || typeName === 'ZodNull' || typeName === 'ZodUndefined';
+      });
+    return isBoolean ? {type: 'DYNAMIC', isBoolean: true} : {type: 'DYNAMIC'};
+  }
   if (options.some(isChildListOption)) return {type: 'STRUCTURAL'};
   return undefined;
 }
@@ -281,13 +294,19 @@ function getFieldBehavior(type: z.ZodTypeAny): BehaviorNode {
   }
 
   if (isDynamicDef(defName, current._def?.typeName)) {
-    return {type: 'DYNAMIC'};
+    return isDynamicBooleanSchema(type) || defName === 'DynamicBoolean'
+      ? {type: 'DYNAMIC', isBoolean: true}
+      : {type: 'DYNAMIC'};
   }
 
   // Structural matching for A2UI primitives using typeName to avoid dual-module instanceof issues
   if (current._def.typeName === 'ZodUnion') {
     const unionBehavior = matchUnionBehavior(current._def.options as z.ZodTypeAny[]);
-    if (unionBehavior) return unionBehavior;
+    if (unionBehavior) {
+      return unionBehavior.type === 'DYNAMIC' && isDynamicBooleanSchema(type)
+        ? {type: 'DYNAMIC', isBoolean: true}
+        : unionBehavior;
+    }
   }
 
   // Recursive array scraping
@@ -498,6 +517,10 @@ export class GenericBinder<T> {
     string,
     {raw: unknown; closure: (options?: ActionDispatchOptions) => Promise<void>}
   >();
+  private prevActionClosures?: Map<
+    string,
+    {raw: unknown; closure: (options?: ActionDispatchOptions) => Promise<void>}
+  >;
 
   /**
    * Creates a new binder for the given component context and schema.
@@ -519,7 +542,7 @@ export class GenericBinder<T> {
   private resolveInitialProps() {
     const props = this.context.componentModel.properties;
     const resolved = this.resolveAndBind(props, this.behaviorTree, [], true);
-    this.currentProps = mergeBindingState(this.currentProps, resolved ?? {}) as Partial<T>;
+    this.currentProps = (resolved ?? {}) as Partial<T>;
   }
 
   private connect() {
@@ -538,19 +561,31 @@ export class GenericBinder<T> {
 
     const props = this.context.componentModel.properties;
 
-    // Rebuild from an empty snapshot, so a property the update removed is
-    // gone. Check bindings write `isValid` and its siblings into it while
-    // binding.
+    // Rebuild from an empty snapshot and a fresh action closure cache so
+    // properties and actions omitted by the update are evicted.
     this.currentProps = {};
-    const resolved = this.resolveAndBind(props, this.behaviorTree, [], false);
-    this.currentProps = mergeBindingState(this.currentProps, resolved ?? {}) as Partial<T>;
+    this.prevActionClosures = this.actionClosures;
+    this.actionClosures = new Map();
+    let resolved: unknown;
+    try {
+      resolved = this.resolveAndBind(props, this.behaviorTree, [], false);
+    } finally {
+      this.prevActionClosures = undefined;
+    }
+    this.currentProps = (resolved ?? {}) as Partial<T>;
 
     this.notify();
   }
 
-  private bindDynamicValue(value: unknown, path: string[], isSync: boolean): unknown {
+  private bindDynamicValue(
+    value: unknown,
+    path: string[],
+    isSync: boolean,
+    isBoolean?: boolean,
+  ): unknown {
+    const coerce = isBoolean ? coerceDynamicBoolean : (v: unknown) => v;
     const bound = this.context.dataContext.subscribeDynamicValue(value, newVal => {
-      this.updateDeepValue(path, newVal);
+      this.updateDeepValue(path, coerce(newVal));
       this.notify();
     });
 
@@ -559,7 +594,7 @@ export class GenericBinder<T> {
     } else {
       bound.unsubscribe();
     }
-    return bound.value;
+    return coerce(bound.value);
   }
 
   /**
@@ -592,8 +627,9 @@ export class GenericBinder<T> {
     path: string[],
   ): (options?: ActionDispatchOptions) => Promise<void> {
     const cacheKey = path.join('/');
-    const cached = this.actionClosures.get(cacheKey);
+    const cached = this.actionClosures.get(cacheKey) ?? this.prevActionClosures?.get(cacheKey);
     if (cached && jsonEquals(cached.raw, value)) {
+      this.actionClosures.set(cacheKey, cached);
       return cached.closure;
     }
     const closure = async (options?: ActionDispatchOptions) => {
@@ -713,7 +749,12 @@ export class GenericBinder<T> {
     };
   }
 
-  private bindCheckable(value: unknown, path: string[], isSync: boolean): unknown {
+  private bindCheckable(
+    value: unknown,
+    path: string[],
+    isSync: boolean,
+    initialTarget?: Record<string, unknown>,
+  ): unknown {
     const rules = Array.isArray(value) ? value : [];
     const ruleResults: {
       valid: boolean;
@@ -726,15 +767,23 @@ export class GenericBinder<T> {
       severity: 'error',
     }));
 
-    const parentPath = path.slice(0, -1);
-    const applyValidationState = () => {
+    const computeValidationState = () => {
       const errors = ruleResults
         .filter(r => !r.valid && r.severity === 'error')
         .map(r => r.message);
       const failedResults = ruleResults.filter(r => !r.valid);
-      this.updateDeepValue([...parentPath, 'isValid'], errors.length === 0);
-      this.updateDeepValue([...parentPath, 'validationErrors'], errors);
-      this.updateDeepValue([...parentPath, 'validationResults'], failedResults);
+      return {
+        isValid: errors.length === 0,
+        validationErrors: errors,
+        validationResults: failedResults,
+      };
+    };
+    const parentPath = path.slice(0, -1);
+    const applyValidationState = () => {
+      const state = computeValidationState();
+      this.updateDeepValue([...parentPath, 'isValid'], state.isValid);
+      this.updateDeepValue([...parentPath, 'validationErrors'], state.validationErrors);
+      this.updateDeepValue([...parentPath, 'validationResults'], state.validationResults);
     };
     const updateValidationState = () => {
       applyValidationState();
@@ -786,8 +835,15 @@ export class GenericBinder<T> {
       );
     });
 
-    // Set initial state
-    applyValidationState();
+    // Set initial state directly on the enclosing object being built so
+    // rebuilding `this.currentProps` from `resolved` preserves validation
+    // state at root, nested object, and array-element levels.
+    if (initialTarget) {
+      const state = computeValidationState();
+      initialTarget.isValid = state.isValid;
+      initialTarget.validationErrors = state.validationErrors;
+      initialTarget.validationResults = state.validationResults;
+    }
 
     return value;
   }
@@ -892,7 +948,7 @@ export class GenericBinder<T> {
     // 1. Resolve all provided properties
     for (const [k, v] of Object.entries(valObj)) {
       const childBehavior = shape[k] || {type: 'STATIC'};
-      result[k] = this.resolveAndBind(v, childBehavior, [...path, k], isSync);
+      result[k] = this.resolveAndBind(v, childBehavior, [...path, k], isSync, result);
     }
 
     // 2. Ensure all dynamic setters exist, even if the property wasn't provided in the payload
@@ -924,12 +980,18 @@ export class GenericBinder<T> {
     behavior: BehaviorNode,
     path: string[],
     isSync: boolean,
+    parentTarget?: Record<string, unknown>,
   ): unknown {
-    if (value === undefined || value === null) return value;
+    if (
+      value === undefined ||
+      (value === null && !(behavior.type === 'DYNAMIC' && behavior.isBoolean))
+    ) {
+      return value;
+    }
 
     switch (behavior.type) {
       case 'DYNAMIC':
-        return this.bindDynamicValue(value, path, isSync);
+        return this.bindDynamicValue(value, path, isSync, behavior.isBoolean);
 
       case 'ACTION':
         return this.bindAction(value, path);
@@ -938,7 +1000,7 @@ export class GenericBinder<T> {
         return this.bindStructuralTemplate(value, path, isSync);
 
       case 'CHECKABLE':
-        return this.bindCheckable(value, path, isSync);
+        return this.bindCheckable(value, path, isSync, parentTarget);
 
       case 'STATIC':
         return value;
@@ -950,7 +1012,7 @@ export class GenericBinder<T> {
         );
 
       case 'OBJECT':
-        if (typeof value !== 'object') return value;
+        if (typeof value !== 'object' || Array.isArray(value)) return value;
         return this.bindObject(value as Record<string, unknown>, behavior.shape, path, isSync);
     }
   }
@@ -981,6 +1043,7 @@ export class GenericBinder<T> {
    * Disposes all active data subscriptions and detaches component listeners.
    */
   dispose() {
+    this.actionClosures.clear();
     if (!this.isConnected) return;
     this.isConnected = false;
     this.dataListeners.forEach(l => l());
@@ -1023,36 +1086,6 @@ export class GenericBinder<T> {
   get snapshot() {
     return this.currentProps as T;
   }
-}
-
-/**
- * Merges resolved props over the state bindings wrote while binding, at any
- * depth. A check writes `isValid`, `validationErrors` and `validationResults`
- * next to its `checks`, which can be inside a nested object.
- *
- * @param written The props that bindings wrote while binding.
- * @param resolved The props that binding resolved.
- * @returns `resolved`, with the values from `written` that it lacks.
- */
-function mergeBindingState(written: unknown, resolved: unknown): unknown {
-  if (resolved === undefined) return written;
-  if (Array.isArray(written) && Array.isArray(resolved)) {
-    return resolved.map((item, index) => mergeBindingState(written[index], item));
-  }
-  if (isPlainObject(written) && isPlainObject(resolved)) {
-    const merged: Record<string, unknown> = {...written};
-    for (const [key, value] of Object.entries(resolved)) {
-      merged[key] = mergeBindingState(written[key], value);
-    }
-    return merged;
-  }
-  return resolved;
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (typeof value !== 'object' || value === null) return false;
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
 }
 
 /**

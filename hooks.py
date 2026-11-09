@@ -27,8 +27,6 @@ def map_spec_filename(filename, version_str):
             f'{version_str}-basic-catalog-implementation-guide.md'
         ),
     }
-    if version_str == 'v0.8' and filename == 'a2ui_extension_specification.md':
-        return 'v0.8-a2a-extension.md'
     return mapping.get(filename)
 
 

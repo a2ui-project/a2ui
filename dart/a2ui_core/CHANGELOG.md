@@ -2,13 +2,89 @@
 
 ## Unreleased
 
+- **Breaking:** (v1_0) `PayloadValidator.validateComponent`, and
+  `MessageProcessor` for calls into another catalog, reject a call to a
+  function whose `allowedCallers` is `agentOnly` in a property binding, a
+  check or an action, or nested in one, since only an agent's
+  `callRendererFunction` may call one. `PayloadValidator.validateFunctionArgs`
+  rejects one when given a `componentId`. A call nested in the arguments of a
+  `callRendererFunction` is a renderer call too, so `MessageProcessor` rejects
+  one there as well. The error matches the one `Catalog.invoke` reports when
+  such a call is evaluated. v0.9 catalogs are not affected. To migrate, bind
+  only `rendererOnly` or `rendererOrAgent` functions in components
+  ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
+  [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
+- (v1_0) `MessageProcessor` checks a call nested in the arguments of a
+  `callRendererFunction` that names no `catalogId` against the default catalog
+  of the surface the message names, where the renderer runs it, rather than
+  the call's own catalog, and rejects one on a surface with no default
+  catalog. `checkRendererFunctionCall` looks the surface up in `model`; with
+  its new `assumesSurface`, or for a surface `model` lacks, such a call passes
+  if some catalog declares the function and the renderer may make the call.
+  A nested call may not require a user activation unless the message is
+  handled with one, nor hold a null `catalogId` or `args`, nor call `@index`,
+  since the arguments are resolved outside any list template. A data binding
+  in the arguments must hold only a string `@path`.
+  `PayloadValidator.validateFunction` takes `catalogIsDefault`, which, when
+  false, leaves such calls to the caller
+  ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
+  [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
+- (v0_9) Restore `listStyle` property to basic catalog `List` component schema ([#3956](https://github.com/a2ui-project/a2ui/pull/3956)).
+- `RpcHandler.dispose` takes an optional reason, which each cancelled call's
+  error message names. `SurfaceModel` and `MessageProcessor` take
+  `maxAgentCallCacheEntries` (256 by default), the number of settled agent
+  call answers a surface keeps; the oldest answer is evicted first, and calls
+  still in flight don't count
+  ([#3861](https://github.com/a2ui-project/a2ui/pull/3861)).
+- (v1_0) Added `AgentFunction` (`AgentFunction(...)`, `AgentFunction.fromApi`,
+  `withHandler`), `AgentFunctionContext` and `AgentFunctionHandler`, for
+  catalog functions that run on the agent, with `Catalog.agentFunctions`,
+  `Catalog.rendererFunctions`, `Catalog.copyWith(agentFunctions: ...)` and
+  `A2uiRpcError.custom` ([#3536](https://github.com/a2ui-project/a2ui/issues/3536), [#3861](https://github.com/a2ui-project/a2ui/pull/3861)).
+  A catalog with agent functions throws `A2uiCatalogError` when an agent
+  function's local `$defs` defines a name differently from the catalog's
+  `$defs` or from another agent function's local `$defs`.
+- (v1_0) Added `RpcErrorCode.tooManyPending` (`TOO_MANY_PENDING`), which
+  `a2ui_agent`'s `RendererFunctionCalls` reports when an agent has too many
+  calls to renderer functions pending
+  ([#3535](https://github.com/a2ui-project/a2ui/issues/3535)).
+
+## 0.5.0
+
+- **Breaking:** The basic catalog `regex` function now validates patterns
+  against the portable A2UI regex subset and static safety rules, compiles them
+  in Unicode mode, and rejects input values longer than 4,096 code points as
+  non-matching (`parseRegexSubset`, `checkRegexSafety`, `analyzeRegex`,
+  `compileGuarded`, `maxRegexPatternCodePoints`, `maxRegexValueCodePoints`). To
+  migrate, rewrite patterns that use lookbehind, backreferences, named groups,
+  `\p{...}`, inline flags, or nested/overlapping unbounded quantifiers to the
+  portable subset ([#3854](https://github.com/a2ui-project/a2ui/pull/3854)).
 - **Breaking:** (v1_0) The basic catalog `TextField` requires `value`, as
   the other input components do, so a `TextField` without one fails
   validation instead of accepting input that never reaches the data model.
   To migrate, bind `value` to a data model path, such as
   `{"@path": "/form/email"}`. The path does not have to exist yet
   ([#3830](https://github.com/a2ui-project/a2ui/issues/3830), [#3868](https://github.com/a2ui-project/a2ui/pull/3868)).
+- **Breaking:** `DynamicBoolean` properties and function arguments now coerce
+  any resolved value to a boolean according to the protocol specification (via
+  the new `coerceDynamicBoolean` helper): booleans are kept as is,
+  `ValidationResult` objects coerce to `valid`, strings coerce to `true` only
+  when case-insensitively equal to `'true'` (and `false` for `'false'` and all
+  other strings), numbers coerce to `value != 0` (`NaN` is `false`), and
+  `null`, absent values, other objects, and arrays coerce to `false`. To
+  migrate, pass explicit booleans, non-zero/zero numbers, `'true'`/`'false'`
+  strings, or `ValidationResult` maps rather than relying on truthiness or
+  `null` pass-through ([#3850](https://github.com/a2ui-project/a2ui/pull/3850)).
 - (v1_0) The basic catalog `regex` function's `pattern` description now names the A2UI regex dialect and its safety limits ([#3820](https://github.com/a2ui-project/a2ui/pull/3820)).
+- (v1_0) `Catalog.fromJson` now rejects function definitions that set
+  `requiresUserActivation: true` when `allowedCallers` is not `'rendererOnly'`
+  (such as `'agentOnly'` or `'rendererOrAgent'`) by throwing `A2uiCatalogError`,
+  matching the v1.0 catalog definition schema
+  ([#3840](https://github.com/a2ui-project/a2ui/pull/3840)).
+- `MessageProcessor` writes an inline `createSurface.dataModel` as one
+  `DataModel.set` per top-level key (`/<escaped_key>`, escaping `~` as `~0` and
+  `/` as `~1` per RFC 6901) instead of a single root `/` write
+  ([#3857](https://github.com/a2ui-project/a2ui/pull/3857)).
 - **Breaking:** (v1_0) An agent error or timeout (`A2uiRpcError`) in a
   dynamic value, a `checks` rule or an action is reported on
   `SurfaceModel.onError` as `EXPRESSION_ERROR` instead of `EXECUTION_ERROR`,
@@ -80,6 +156,9 @@
 - **Breaking:** A function call naming a `catalogId` on a `DataContext`
   created without `invokerForCatalog` is now reported as a `CATALOG_ERROR`
   rather than an `EXPRESSION_ERROR`.
+- (v1_0) `PayloadValidator` now validates component type names against UAX #31
+  identifier syntax on v1.0+ surfaces
+  ([#3856](https://github.com/a2ui-project/a2ui/pull/3856)).
 - **Breaking:** Unify the v1.0 protocol version wire value on `'1.0'` (without
   a `'v'` prefix) across message envelopes, `MessageProcessor.getRendererCapabilities`,
   `RpcHandler`, and catalog documents (`A2uiProtocolVersion.v1_0.jsonValue` is
