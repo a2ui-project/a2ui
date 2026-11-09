@@ -893,6 +893,98 @@ void main() {
       );
       expect(prunedRes.error, isNull);
       expect(prunedRes.value, 'Pruned: drops');
+
+      // Concurrent async `handleCallRendererFunction` calls across two catalogs
+      // on a shared surface (and surface-less) keep their own catalog scopes.
+      final Catalog<ComponentApi, FunctionImplementation> asyncCatA = _catalog(
+        'async-cat-a',
+        [
+          _Fn(
+            'asyncFormat',
+            (args, ctx) async {
+              await Future<void>.delayed(const Duration(milliseconds: 5));
+              final Object? res = fs.execute(args, ctx);
+              return res is ReadonlySignal ? res.value : res;
+            },
+            allowedCallers: AllowedCallers.rendererOrAgent,
+          ),
+          _Fn(
+            'tag',
+            (args, ctx) => 'A',
+            allowedCallers: AllowedCallers.rendererOrAgent,
+          ),
+        ],
+      );
+      final Catalog<ComponentApi, FunctionImplementation> asyncCatB = _catalog(
+        'async-cat-b',
+        [
+          _Fn(
+            'asyncFormat',
+            (args, ctx) async {
+              await Future<void>.delayed(const Duration(milliseconds: 1));
+              final Object? res = fs.execute(args, ctx);
+              return res is ReadonlySignal ? res.value : res;
+            },
+            allowedCallers: AllowedCallers.rendererOrAgent,
+          ),
+          _Fn(
+            'tag',
+            (args, ctx) => 'B',
+            allowedCallers: AllowedCallers.rendererOrAgent,
+          ),
+        ],
+      );
+      final concurrentHandler = RpcHandler(
+        catalogs: [catalog, asyncCatA, asyncCatB],
+        outboundListener: sent.add,
+      );
+      addTearDown(concurrentHandler.dispose);
+      final List<A2uiFunctionResponse> concurrentRes = await Future.wait([
+        run(
+          concurrentHandler,
+          _inbound(
+            'asyncFormat',
+            catalogId: 'async-cat-a',
+            id: 'conc-1',
+            args: {'value': r'Surface:${tag()}'},
+          ),
+          withSurface: true,
+        ),
+        run(
+          concurrentHandler,
+          _inbound(
+            'asyncFormat',
+            catalogId: 'async-cat-b',
+            id: 'conc-2',
+            args: {'value': r'Surface:${tag()}'},
+          ),
+          withSurface: true,
+        ),
+        run(
+          concurrentHandler,
+          _inbound(
+            'asyncFormat',
+            catalogId: 'async-cat-a',
+            id: 'conc-3',
+            args: {'value': r'Headless:${tag()}'},
+          ),
+          withSurface: false,
+        ),
+        run(
+          concurrentHandler,
+          _inbound(
+            'asyncFormat',
+            catalogId: 'async-cat-b',
+            id: 'conc-4',
+            args: {'value': r'Headless:${tag()}'},
+          ),
+          withSurface: false,
+        ),
+      ]);
+      expect(concurrentRes[0].value, 'Surface:A');
+      expect(concurrentRes[1].value, 'Surface:B');
+      expect(concurrentRes[2].value, 'Headless:A');
+      expect(concurrentRes[3].value, 'Headless:B');
     });
   });
 }

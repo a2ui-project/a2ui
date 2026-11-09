@@ -333,7 +333,6 @@ void main() {
                       '@call': 'nestedFn',
                       'catalogId': 'https://example.com/inspect/catalog.json',
                       'args': <String, Object?>{},
-                      'returnType': 'any',
                     },
                   },
                 },
@@ -348,6 +347,23 @@ void main() {
           'ok',
         );
         expect(checkedPreAdapted, isTrue);
+
+        // Mutating `surface.dataModel` recomputes `resolveSignal` with the
+        // inherited `catalogId` and `@index()` preserved.
+        surface.dataModel.set('/count', 1);
+        final DataContext itemCtx = rootCtx.childContext('items/2', index: 2);
+        final ReadonlySignal<Object?> reactiveSig = itemCtx.resolveSignal({
+          '@call': 'formatString',
+          'catalogId': BasicCatalog.v1_0Id,
+          'args': {
+            'value': r'Row ${@index()}: '
+                r"${pluralize(value: /count, one: 'item', other: 'items')}",
+          },
+        });
+        expect(reactiveSig.value, 'Row 2: item');
+        surface.dataModel.set('/count', 4);
+        expect(reactiveSig.value, 'Row 2: items');
+        expect(errors, isEmpty);
       },
     );
   });
