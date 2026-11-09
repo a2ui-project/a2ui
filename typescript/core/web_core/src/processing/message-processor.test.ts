@@ -2739,6 +2739,22 @@ describe('MessageProcessor', () => {
       await unversionedExplicitSurface.dispatchAction({event: {name: 'act3', context: {}}}, 'c3');
       assert.strictEqual(explicitDefaultOut.length, 1);
       assert.strictEqual(explicitDefaultOut[0].version, 'v0.9.1');
+
+      const unparseableSurface = new SurfaceModel(
+        's-unparseable',
+        undefined,
+        new Map(),
+        undefined,
+        false,
+        undefined,
+        'root',
+        undefined,
+        'not-a-semver',
+      );
+      assert.strictEqual(unparseableSurface.protocolVersion, 'not-a-semver');
+      v10Proc.model.addSurface(unparseableSurface);
+      await unparseableSurface.dispatchAction({event: {name: 'act4', context: {}}}, 'c4');
+      assert.strictEqual(v10Out.length, 1);
     });
 
     it('forwards processing errors to outboundListener and still fires errorHandler', () => {

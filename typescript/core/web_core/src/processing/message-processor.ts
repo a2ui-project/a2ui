@@ -770,10 +770,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   private forwardAction(action: ActionPayload): void {
     if (this.disposed || !this.outboundListener) return;
     const surfaceVersion = this.model.getSurface(action.surfaceId)?.protocolVersion;
-    const version =
-      surfaceVersion && toCanonicalVersion(surfaceVersion)
-        ? surfaceVersion
-        : this.fallbackWireVersion();
+    const version = surfaceVersion ?? this.fallbackWireVersion();
     const envelope = toOutboundActionMessage(action, version);
     if (envelope) {
       this.invokeOutboundListener(envelope);

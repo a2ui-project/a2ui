@@ -46,7 +46,11 @@ export {A2uiRpcError, RpcErrorCode};
  */
 export type OutboundActionMessage =
   | (Omit<ActionMessage, 'action'> & {action: ActionMessage['action'] & {catalogId?: string}})
-  | {version: 'v0.9' | 'v0.9.1'; action: A2uiClientAction & {catalogId?: string}};
+  | {
+      version: 'v0.9' | 'v0.9.1';
+      action: A2uiClientAction &
+        Pick<ActionMessage['action'], 'userMessage' | 'metadata'> & {catalogId?: string};
+    };
 
 /**
  * Callback function type receiving outbound renderer messages intended for the agent.
