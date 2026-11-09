@@ -1,0 +1,172 @@
+/**
+ * ANTLR4 grammar for the A2UI Express language.
+ *
+ * Defines the syntax and lexical rules for A2UI Express DSL.
+ * Compiles plain-text declarations, assignments, and nested function calls
+ * into a structured abstract syntax tree (AST).
+ */
+grammar Express;
+
+/**
+ * Root entrypoint. A program is a sequence of zero or more statements.
+ */
+program
+    : statement* EOF
+    ;
+
+/**
+ * A statement is either a variable assignment or a standalone expression.
+ */
+statement
+    : assignment
+    | expression
+    ;
+
+/**
+ * Assigns an expression to a variable or a data path target.
+ */
+assignment
+    : (identifier | path) '=' expression
+    ;
+
+/**
+ * Represents a parsed value, complex structure, or nested call.
+ */
+expression
+    : array
+    | map
+    | path
+    | check
+    | call
+    | variable
+    | literal
+    ;
+
+/**
+ * A list of expressions enclosed in square brackets with an optional trailing comma.
+ * Note: Commas are only permitted when preceded by a valid expression (prevents empty '[,]').
+ */
+array
+    : '[' (expression (',' expression)* ','?)? ']'
+    ;
+
+/**
+ * A key-value dictionary enclosed in curly braces with an optional trailing comma.
+ * Note: Commas are only permitted when preceded by a valid map entry.
+ */
+map
+    : '{' (map_entry (',' map_entry)* ','?)? '}'
+    ;
+
+/**
+ * A single key-value entry within a map literal.
+ */
+map_entry
+    : (identifier | string) ':' expression
+    ;
+
+/**
+ * A dynamic data binding path starting with '$'.
+ * Resolves to the path value in the data model (e.g. '$/form/name').
+ */
+path
+    : PATH
+    ;
+
+/**
+ * A validation check rule starting with '?'.
+ * Optionally accepts a parenthesized list of parameter expressions.
+ */
+check
+    : CHECK ('(' (expression (',' expression)* ','?)? ')')?
+    ;
+
+call
+    : identifier '(' (arg (',' arg)* ','?)? ')'
+    ;
+
+/**
+ * A single call argument, which can be named or positional.
+ */
+arg
+    : named_arg
+    | expression
+    ;
+
+/**
+ * A named argument assignment (e.g. 'variant = "primary"').
+ */
+named_arg
+    : identifier '=' expression
+    ;
+
+/**
+ * A variable reference, or the special skipped argument sentinel '_'.
+ */
+variable
+    : '_'
+    | identifier
+    ;
+
+/**
+ * A primitive literal value.
+ */
+literal
+    : string
+    | NUMBER
+    | BOOLEAN
+    | 'null'
+    ;
+
+/**
+ * A UAX 31 identifier.
+ */
+identifier
+    : IDENTIFIER
+    ;
+
+/**
+ * A unified parser rule for all supported string literal variants.
+ * Splitting strings into distinct lexer tokens allows the AST visitor to apply
+ * targeted unescaping and prefix-stripping logic.
+ */
+string
+    : RAW_TRIPLE_STRING
+    | TRIPLE_STRING
+    | RAW_STRING
+    | STANDARD_STRING
+    ;
+
+// =============================================================================
+// Lexer Rules
+// =============================================================================
+
+// String literals: must match triple-quoted forms before single-quoted forms.
+RAW_TRIPLE_STRING : [rR] '"""' .*? '"""' ;
+TRIPLE_STRING     : '"""' ( '\\' . | ~'\\' )*? '"""' ;
+RAW_STRING        : [rR] '"' ~[\r\n"]* '"' ;
+STANDARD_STRING   : '"' ( '\\' . | ~'\\' )*? '"' ;
+
+// Data path literal (e.g. '$/user/id')
+PATH : '$' [a-zA-Z0-9_/]* ;
+
+// Validation check identifier (e.g. '?required'); a catalog function name, UAX 31.
+CHECK : '?' [\p{XID_Start}_] [\p{XID_Continue}]* ;
+
+// Numeric literal: a JSON number plus an optional leading '+'. Same grammar as
+// the core `${...}` expression parsers: sign, digits with an optional fraction
+// (`1.` and `.5` included) and an optional exponent.
+NUMBER : [+-]? ([0-9]+ ('.' [0-9]*)? | '.' [0-9]+) ([eE] [+-]? [0-9]+)? ;
+
+// Boolean literal
+BOOLEAN : 'true' | 'false' ;
+
+// UAX 31 identifier: XID_Start or '_', then XID_Continue*. Mirrors the v1.0
+// catalog entity naming rules and the SDKs' isValidUax31Identifier helpers.
+IDENTIFIER : [\p{XID_Start}_] [\p{XID_Continue}]* ;
+
+// Ignored elements: skipped completely at the lexer level.
+COMMENT : ( '#' | '//' ) ~[\r\n]* -> skip ;
+BLOCK_COMMENT : '/*' .*? '*/' -> skip ;
+SEMICOLON : ';' -> skip ; // Semicolons act as statement separators but are skipped like whitespace.
+WS : [ \t\r\n]+ -> skip ;
