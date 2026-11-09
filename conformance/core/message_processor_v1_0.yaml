@@ -2718,7 +2718,7 @@
 
 - name: test_v10_call_naming_catalog_of_other_protocol_version_errors
   description: >-
-    Every catalog a v1.0 surface uses must be built for v1.0. A call that names legacy-v09, a v0.9 catalog the client has, cannot be resolved on a v1.0 surface. The message check only requires the error to name the catalog, since SDKs word the reason differently.
+    Every catalog a v1.0 surface uses must be built for v1.0. A call that names v09-catalog, a v0.9 catalog the client has, cannot be resolved on a v1.0 surface. The message check only requires the error to name the catalog, since SDKs word the reason differently.
   action: process_messages
   protocolVersion: "1.0"
   strictMode: true
@@ -2772,7 +2772,7 @@
               required: ["value"]
               additionalProperties: false
           required: ["@call", "args"]
-    - catalogId: "legacy-v09"
+    - catalogId: "v09-catalog"
       protocolVersion: "v0.9"
       components:
         Badge:
@@ -2796,12 +2796,12 @@
             component: "Text"
             text:
               "@call": "formatString"
-              catalogId: "legacy-v09"
+              catalogId: "v09-catalog"
               args:
                 value: "hi"
   expectError:
     category: "CatalogError"
-    message: "legacy-v09"
+    message: "v09-catalog"
 
 - name: test_v10_call_with_non_string_catalog_id_errors
   description: >-

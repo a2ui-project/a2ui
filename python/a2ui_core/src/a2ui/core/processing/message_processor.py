@@ -397,12 +397,12 @@ class MessageProcessor:
         return _call
 
     @classmethod
-    def _generate_legacy_inline_catalog(
+    def _generate_v09_inline_catalog(
         cls,
         catalog: Any,
         component_envelope_ref: str = "common_types.json#/$defs/ComponentCommon",
     ) -> dict[str, Any]:
-        """Generates a legacy (< 1.0) inline catalog dictionary."""
+        """Generates a pre-1.0 inline catalog dictionary."""
         components: dict[str, Any] = {}
         raw_components = getattr(catalog, "components", {}) or {}
         resolve_component = getattr(catalog, "resolved_component_schema", None)
@@ -578,7 +578,7 @@ class MessageProcessor:
                             inline_catalogs.append(inline)
                     else:
                         inline_catalogs.append(
-                            self._generate_legacy_inline_catalog(c, envelope_ref)
+                            self._generate_v09_inline_catalog(c, envelope_ref)
                         )
                 version_caps["inlineCatalogs"] = inline_catalogs
             capabilities[ver_str] = version_caps

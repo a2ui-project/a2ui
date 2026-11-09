@@ -9,7 +9,7 @@ Define a custom A2UI catalog by writing a `catalog.json` schema file, loading it
 
 ## When you need a catalog.json file
 
-If your agent and client share the same language and repository, you can define component schemas directly in code, as shown in [Catalogs](../../concepts/catalogs/#registering-a-catalog-in-a-renderer). Write a standalone `catalog.json` file when your backend agent and client app use different languages (for example, a Python agent serving a Flutter, React, or SwiftUI app) or when you publish a reusable catalog for other teams.
+If your agent and client share the same language and repository, you can define component schemas directly in code, as shown in [Catalogs](../../concepts/catalogs/#registering-a-catalog-in-a-renderer). Write a standalone `catalog.json` file when your backend agent and client app use different languages (for example, a Python agent serving a Flutter, React, SwiftUI, or Jetpack Compose app) or when you publish a reusable catalog for other teams.
 
 In A2UI v1.0, your catalog works alongside the built-in [basic catalog](../../specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json), so you keep standard layout widgets (`Column`, `Row`, `Text`, `Button`) and define only the custom widgets unique to your app. See [Catalogs](../../concepts/catalogs/) for how catalog negotiation works at runtime.
 
@@ -182,7 +182,7 @@ final generator = A2uiGenerator(
   </TabItem>
 </Tabs>
 
-Swift (`A2UISwiftCore` and `A2UISwiftUI`) is a client-side renderer SDK and does not include a server-side agent generator; see [How to Integrate with My Agent Server](../../guides/agent-integration/) for full backend setup.
+Swift (`A2UISwiftCore` and `A2UISwiftUI`) and Kotlin (`androidx.a2ui` and `androidx.a2ui.compose`) are client-side renderer SDKs and do not include a server-side agent generator; see [How to Integrate with My Agent Server](../../guides/agent-integration/) for full backend setup.
 
 ## Step 3: Register the widget on your client
 
@@ -401,7 +401,88 @@ let processor = MessageProcessor(
   </TabItem>
   <TabItem label="Jetpack Compose">
 
-The Jetpack Compose renderer is maintained in AndroidX rather than this repository. See the [Agentic UI documentation on Android Developers](https://developer.android.com/develop/ui/compose/agentic) for custom component and catalog registration in Compose.
+```kotlin
+import android.content.Context
+
+import androidx.a2ui.compose.runtime.A2uiComponentProperties
+import androidx.a2ui.compose.runtime.A2uiComponentScope
+import androidx.a2ui.compose.runtime.A2uiMessageProcessor
+import androidx.a2ui.compose.runtime.A2uiProperty
+import androidx.a2ui.compose.ui.A2uiCatalog
+import androidx.a2ui.compose.ui.A2uiComponent
+import androidx.a2ui.compose.ui.catalog.A2uiBasicCatalogV1
+import androidx.a2ui.model.processor.A2uiMessageProcessor
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.a2ui.catalog.MaterialA2uiBasicCatalogV1Defaults
+import androidx.compose.material3.a2ui.catalog.materialA2uiBasicCatalogV1
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+
+private val LabelProp = A2uiProperty.dynamicString("label", required = true)
+private val StatusProp =
+    A2uiProperty.stringEnum(
+        "status",
+        enumValues = listOf("info", "success", "warning"),
+        required = true,
+    )
+
+val StatusBadge: A2uiComponent =
+    object : A2uiComponent {
+        override val name = "StatusBadge"
+        override val description = "Displays a short status pill."
+        override val properties = listOf(LabelProp, StatusProp)
+
+        @Composable
+        override fun A2uiComponentScope.isReady(properties: A2uiComponentProperties): Boolean =
+            properties.bind(LabelProp) != null
+
+        @Composable
+        override fun A2uiComponentScope.Content(
+            properties: A2uiComponentProperties,
+            modifier: Modifier,
+        ) {
+            val label = properties.bind(LabelProp) ?: return
+            val status = properties[StatusProp] ?: "info"
+            Surface(
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                modifier = modifier,
+            ) {
+                Text(
+                    text = "${status.uppercase()}: $label",
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+            }
+        }
+    }
+
+// androidx.a2ui implements v0.9.1; match the v0.9.1 catalogId from Step 1.
+// To mix basic widgets and StatusBadge on one v0.9.1 surface, pass basicCatalog.components + StatusBadge.
+val statusCatalog =
+    A2uiCatalog(
+        catalogId = "https://example.com/catalogs/status/v0_9/catalog.json",
+        components = listOf(StatusBadge),
+    )
+
+fun createProcessor(context: Context): A2uiMessageProcessor {
+    val basicCatalog =
+        materialA2uiBasicCatalogV1(
+            image = MaterialA2uiBasicCatalogV1Defaults.image { _, _, _, _, _ -> },
+            video = MaterialA2uiBasicCatalogV1Defaults.video { _, _, _ -> },
+            audioPlayer = MaterialA2uiBasicCatalogV1Defaults.audioPlayer { _, _, _, _ -> },
+            functions = A2uiBasicCatalogV1.Functions(context),
+        )
+    // Launch processor.collectMessages() in a background coroutine scope
+    // (such as viewModelScope) to process queued messages:
+    val processor = A2uiMessageProcessor(catalogs = listOf(basicCatalog, statusCatalog))
+    return processor
+}
+```
 
   </TabItem>
 </Tabs>
@@ -617,7 +698,7 @@ In v0.9.1 standalone files, functions place `"call"` and `"returnType": {"const"
   </TabItem>
 </Tabs>
 
-On the client, register matching `FunctionImplementation` entries on your `Catalog`:
+On the client, register matching function implementations (`FunctionImplementation` or `A2uiFunction`) on your catalog:
 
 <Tabs syncKey="client-sdk">
   <TabItem label="TypeScript">
@@ -822,6 +903,88 @@ let pricingCatalog = Catalog<AnyComponentAPI>(
 ```
 
   </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+import androidx.a2ui.compose.ui.A2uiCatalog
+import androidx.a2ui.model.catalog.A2uiFunction
+import androidx.a2ui.model.catalog.A2uiFunctionDefinition
+import androidx.a2ui.model.catalog.A2uiFunctionReturnType
+import androidx.a2ui.model.protocol.A2uiException
+import androidx.a2ui.model.protocol.A2uiExecutionContext
+import androidx.a2ui.model.schema.A2uiObjectSchema
+import androidx.a2ui.model.schema.A2uiSchema
+import androidx.a2ui.model.schema.commontypes.A2uiDynamicNumberSchema
+import androidx.a2ui.model.schema.commontypes.A2uiDynamicStringSchema
+
+class ShareProductFunction(
+    private val onShare: (title: String, url: String) -> Unit,
+) : A2uiFunction {
+    override val definition =
+        object : A2uiFunctionDefinition {
+            override val name = "shareProduct"
+            override val description = "Opens the device share sheet for a product link."
+            override val returnType = A2uiFunctionReturnType.VOID
+            override val argumentSchema: A2uiSchema =
+                A2uiObjectSchema(
+                    properties =
+                        mapOf(
+                            "title" to A2uiDynamicStringSchema.DEFAULT_INSTANCE,
+                            "url" to A2uiDynamicStringSchema.DEFAULT_INSTANCE,
+                        ),
+                    required = setOf("title", "url"),
+                    isAdditionalPropertiesAllowed = false,
+                )
+        }
+
+    override fun execute(args: Map<String, Any>, executionContext: A2uiExecutionContext): Any? {
+        val title =
+            args["title"] as? String
+                ?: throw A2uiException.A2uiRuntimeException("shareProduct requires a string 'title'")
+        val url =
+            args["url"] as? String
+                ?: throw A2uiException.A2uiRuntimeException("shareProduct requires a string 'url'")
+        onShare(title, url)
+        return Unit
+    }
+}
+
+object ValidDiscountFunction : A2uiFunction {
+    override val definition =
+        object : A2uiFunctionDefinition {
+            override val name = "validDiscount"
+            override val description = "Checks that a discount percentage is between 0 and 70."
+            override val returnType = A2uiFunctionReturnType.BOOLEAN
+            override val argumentSchema: A2uiSchema =
+                A2uiObjectSchema(
+                    properties = mapOf("percentOff" to A2uiDynamicNumberSchema.DEFAULT_INSTANCE),
+                    required = setOf("percentOff"),
+                    isAdditionalPropertiesAllowed = false,
+                )
+        }
+
+    override fun execute(args: Map<String, Any>, executionContext: A2uiExecutionContext): Any? {
+        val pct = (args["percentOff"] as? Number)?.toDouble() ?: return false
+        return pct in 0.0..70.0
+    }
+}
+
+// androidx.a2ui implements v0.9.1, where validation rules return A2uiFunctionReturnType.BOOLEAN.
+val pricingCatalog =
+    A2uiCatalog(
+        catalogId = "https://example.com/catalogs/pricing/v0_9/catalog.json",
+        components = emptyList(),
+        functions =
+            listOf(
+                ShareProductFunction { title, url ->
+                    // Launch Intent.ACTION_SEND chooser with title and url.
+                },
+                ValidDiscountFunction,
+            ),
+    )
+```
+
+  </TabItem>
 </Tabs>
 
 ### Child slots and layout constraints
@@ -915,7 +1078,7 @@ In v1.0, a [`ComponentDefinition`](../../specification/v1.0/schemas/#catalog_def
   </TabItem>
 </Tabs>
 
-In your client renderer, `ChildList` slots resolve to child references that you render through the framework adapter (`buildChild`, `this.renderNode`, `ComponentHostComponent`, or `ComponentNodeView`), while `Action` properties resolve to callable callbacks:
+In your client renderer, `ChildList` slots resolve to child references that you render through the framework adapter (`buildChild`, `this.renderNode`, `ComponentHostComponent`, `ComponentNodeView`, or `observeA2uiComponentState` with `A2uiComponent`), while `Action` properties trigger event or function execution (`dispatchAction` in Jetpack Compose):
 
 <Tabs syncKey="renderer-framework">
   <TabItem label="Flutter">
@@ -1169,7 +1332,86 @@ let productCard = ComponentImplementation(
   </TabItem>
   <TabItem label="Jetpack Compose">
 
-The Jetpack Compose renderer is maintained in AndroidX rather than this repository. See the [Agentic UI documentation on Android Developers](https://developer.android.com/develop/ui/compose/agentic) for rendering child slots and dispatching actions in Compose.
+```kotlin
+import java.util.Locale
+
+import androidx.a2ui.compose.runtime.A2uiComponentProperties
+import androidx.a2ui.compose.runtime.A2uiComponentScope
+import androidx.a2ui.compose.runtime.A2uiComponentState
+import androidx.a2ui.compose.runtime.A2uiProperty
+import androidx.a2ui.compose.runtime.observeA2uiComponentState
+import androidx.a2ui.compose.ui.A2uiComponent
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Card
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+
+private val NameProp = A2uiProperty.dynamicString("name", required = true)
+private val PriceProp = A2uiProperty.dynamicNumber("price", required = true)
+private val ChildrenProp = A2uiProperty.childList("children")
+private val OnSelectProp = A2uiProperty.action("onSelect")
+
+// androidx.a2ui implements v0.9.1, where allowedParents and allowedChildren are not part of the schema.
+val ProductCard: A2uiComponent =
+    object : A2uiComponent {
+        override val name = "ProductCard"
+        override val description = "Displays a product with price and child actions."
+        override val properties = listOf(NameProp, PriceProp, ChildrenProp, OnSelectProp)
+
+        @Composable
+        override fun A2uiComponentScope.isReady(properties: A2uiComponentProperties): Boolean =
+            properties.bind(NameProp) != null && properties.bind(PriceProp) != null
+
+        @Composable
+        override fun A2uiComponentScope.Content(
+            properties: A2uiComponentProperties,
+            modifier: Modifier,
+        ) {
+            val productName = properties.bind(NameProp) ?: return
+            val price = properties.bind(PriceProp) ?: return
+            val children = properties.bindChildReferences(ChildrenProp).orEmpty()
+            val onSelect = properties[OnSelectProp]
+
+            Card(
+                modifier =
+                    if (onSelect != null) {
+                        modifier.fillMaxWidth().clickable { dispatchAction(onSelect) }
+                    } else {
+                        modifier.fillMaxWidth()
+                    }
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text =
+                            "$productName (USD " +
+                                String.format(Locale.US, "%.2f", price.toDouble()) +
+                                ")"
+                    )
+                    if (children.isNotEmpty()) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            for (reference in children) {
+                                key(reference.id, reference.baseDataPath) {
+                                    val state = observeA2uiComponentState(reference)
+                                    if (state is A2uiComponentState.Success) {
+                                        A2uiComponent(state.component)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+```
 
   </TabItem>
 </Tabs>
@@ -1405,9 +1647,9 @@ Place shared scalar or enum schemas (such as `BadgeTone`) under `$defs` alongsid
 
 ### Schema parity tests in CI
 
-When your backend agent loads `status_catalog.json` and your client defines schemas in code (with Zod, `json_schema_builder`, or `JSONSchema`), avoid comparing serialized JSON files as raw strings. Code-built schemas and hand-authored JSON files often differ in key order, `$schema` or `instructions` fields, and localized `#/$defs/...` pointers inside `validationSchema`.
+When your backend agent loads `status_catalog.json` and your client defines schemas in code (with Zod, `json_schema_builder`, `JSONSchema`, or `A2uiProperty` and `A2uiSchema`), avoid comparing serialized JSON files as raw strings. Code-built schemas and hand-authored JSON files often differ in key order, `$schema` or `instructions` fields, and localized `#/$defs/...` pointers inside `validationSchema`.
 
-Instead, parse `status_catalog.json` in a unit test with `Catalog.fromJson` (TypeScript and Dart), `Catalog.from_json` (Python), or `JSONSerialization` (Swift), and compare the normalized `Catalog` properties (`id`, `protocolVersion`, component names and `allowedParents`/`allowedChildren`, and function `returnType` and `allowedCallers`) against your client catalog.
+Instead, parse `status_catalog.json` in a unit test with `Catalog.fromJson` (TypeScript and Dart), `Catalog.from_json` (Python), `JSONSerialization` (Swift), or `kotlinx.serialization.json.Json` (Kotlin), and compare the normalized catalog properties (`id`, `protocolVersion`, component names and `allowedParents`/`allowedChildren`, and function `returnType` and `allowedCallers`) against your client catalog.
 
 <Tabs syncKey="sdk-lang">
   <TabItem label="TypeScript">
@@ -1563,6 +1805,54 @@ func statusCatalogMatchesSpec() throws {
     let expectedCallers = (specFn["allowedCallers"] as? String) ?? "rendererOnly"
     #expect(clientFn.api.allowedCallers.rawValue == expectedCallers)
   }
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+import java.io.File
+
+import androidx.a2ui.compose.ui.toJsonSchemaMap
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+class StatusCatalogParityTest {
+    @Test
+    fun statusCatalog_matchesSpec() {
+        // Compare against the v0.9.1 status_catalog.json file.
+        val spec = Json.parseToJsonElement(File("./status_catalog.json").readText()).jsonObject
+        val specComponents = spec["components"]?.jsonObject.orEmpty()
+        val specFunctions = spec["functions"]?.jsonObject.orEmpty()
+
+        val generated = statusCatalog.toJsonSchemaMap()
+        assertEquals(spec["catalogId"]?.jsonPrimitive?.content, generated["catalogId"])
+        assertEquals(
+            specComponents.keys,
+            statusCatalog.components.map { it.name }.toSet(),
+        )
+        assertEquals(
+            specFunctions.keys,
+            statusCatalog.functions.map { it.definition.name }.toSet(),
+        )
+
+        for ((name, specFn) in specFunctions) {
+            val expectedReturn =
+                specFn.jsonObject["properties"]
+                    ?.jsonObject
+                    ?.get("returnType")
+                    ?.jsonObject
+                    ?.get("const")
+                    ?.jsonPrimitive
+                    ?.content
+            val clientFn = checkNotNull(statusCatalog.functions[name])
+            assertEquals(expectedReturn, clientFn.definition.returnType.value)
+        }
+    }
 }
 ```
 

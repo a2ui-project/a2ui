@@ -134,9 +134,10 @@ struct CatalogResolutionV10Tests {
     #expect(resolver.catalog.id == "b")
 
     // Before v1.0 a single catalog is the default.
-    let legacy = try makeCatalog(id: "a", protocolVersion: .v091)
+    let v091Catalog = try makeCatalog(id: "a", protocolVersion: .v091)
     #expect(
-      SurfaceViewModel(surfaceID: "s", catalogs: [legacy], protocolVersion: .v091).catalog.id == "a"
+      SurfaceViewModel(surfaceID: "s", catalogs: [v091Catalog], protocolVersion: .v091).catalog.id
+        == "a"
     )
   }
 

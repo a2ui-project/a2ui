@@ -150,12 +150,12 @@ public final class DataContext {
       return .array(arr.map { resolveDynamicValue($0) })
     case .object(let dict):
       let allowAtPrefix = protocolVersion?.isAtLeastV10 ?? true
-      let allowLegacyDirectives = !atLeastV10
+      let allowUnprefixedDirectives = !atLeastV10
 
       if allowAtPrefix, let pathStr = dict["@path"]?.stringValue {
         let absPath = JSONValue.absolutePath(for: pathStr, in: self.path)
         return dataModel.get(absPath) ?? .null
-      } else if allowLegacyDirectives,
+      } else if allowUnprefixedDirectives,
         let pathStr = dict["path"]?.stringValue,
         dict["componentId"] == nil
       {
@@ -163,7 +163,7 @@ public final class DataContext {
         return dataModel.get(absPath) ?? .null
       } else if allowAtPrefix, let callName = dict["@call"]?.stringValue {
         return evaluateFunctionCall(name: callName, dict: dict)
-      } else if allowLegacyDirectives, let callName = dict["call"]?.stringValue {
+      } else if allowUnprefixedDirectives, let callName = dict["call"]?.stringValue {
         return evaluateFunctionCall(name: callName, dict: dict)
       }
 

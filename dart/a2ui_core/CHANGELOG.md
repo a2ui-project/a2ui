@@ -9,6 +9,9 @@
   `MessageProcessor` and `PayloadValidator` reject a legacy bare
   `catalogId: null`, as they already did `@catalogId: null`
   ([#4037](https://github.com/a2ui-project/a2ui/pull/4037)).
+- Rename `Catalog.toLegacyInlineCatalog()` to `Catalog.toV09InlineCatalog()`.
+  `toLegacyInlineCatalog()` remains as a deprecated alias
+  ([#4006](https://github.com/a2ui-project/a2ui/pull/4006)).
 - **Breaking:** (v1_0) `PayloadValidator.validateComponent`, and
   `MessageProcessor` for calls into another catalog, reject a call to a
   function whose `allowedCallers` is `agentOnly` in a property binding, a
