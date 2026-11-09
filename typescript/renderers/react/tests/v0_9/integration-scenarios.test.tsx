@@ -21,9 +21,9 @@ import {MessageProcessor} from '@a2ui/web_core';
 import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import {A2uiSurface} from '@a2ui/react/v0_9';
 
-import exMarkdown from '../../../../../specification/v0_9/catalogs/basic/examples/35_markdown-text.json';
-import exTaskCard from '../../../../../specification/v0_9/catalogs/basic/examples/07_task-card.json';
-import exLoginForm from '../../../../../specification/v0_9/catalogs/basic/examples/09_login-form.json';
+import exMarkdown from '../../../../../specification/v0_9/catalogs/basic/examples/markdown-text.json';
+import exTaskCard from '../../../../../specification/v0_9/catalogs/basic/examples/task-card.json';
+import exLoginForm from '../../../../../specification/v0_9/catalogs/basic/examples/login-form.json';
 
 // The basic catalog renders as Custom Elements, whose first paint lands after
 // Lit's update cycle, so every assertion below waits rather than reading the

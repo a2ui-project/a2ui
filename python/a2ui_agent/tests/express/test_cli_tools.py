@@ -180,7 +180,7 @@ class TestCliTools(unittest.TestCase):
 
     def test_decompiler_example_decompiles_whole_message_sequence(self):
         """Verifies every message of a multi-message example is decompiled."""
-        example = os.path.join(EXAMPLES_DIR, "31_incremental-dashboard.json")
+        example = os.path.join(EXAMPLES_DIR, "incremental-dashboard.json")
         dsl = run_decompiler.decompile_example(example, CATALOG_PATH)
         lines = dsl.splitlines()
         self.assertEqual(lines[0], 'surface("gallery-incremental-dashboard")')

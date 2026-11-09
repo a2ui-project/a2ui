@@ -21,7 +21,7 @@ describe('Lit Explorer Sidebars & Navigation', () => {
   let gallery: LocalGallery;
 
   beforeEach(async () => {
-    gallery = await loadExample('00_simple-text.json');
+    gallery = await loadExample('scaffold-simple-text.json');
   });
 
   afterEach(() => {

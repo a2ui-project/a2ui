@@ -17,6 +17,72 @@
 import {EXAMPLES, EXAMPLES_V10, type ExampleModule} from './generated/examples-list';
 
 /**
+ * Explicit display order of example files in the explorer sidebar.
+ * Any unlisted files sort alphabetically after the listed entries.
+ */
+export const EXAMPLE_ORDER: readonly string[] = [
+  'scaffold-simple-text.json',
+  'scaffold-row-layout.json',
+  'scaffold-interactive-button.json',
+  'scaffold-simple-login-form.json',
+  'scaffold-complex-layout.json',
+  'scaffold-formatted-text.json',
+  'scaffold-incremental.json',
+  'flight-status.json',
+  'email-compose.json',
+  'calendar-day.json',
+  'weather-current.json',
+  'product-card.json',
+  'music-player.json',
+  'task-card.json',
+  'user-profile.json',
+  'login-form.json',
+  'notification-permission.json',
+  'purchase-complete.json',
+  'chat-message.json',
+  'coffee-order.json',
+  'sports-player.json',
+  'account-balance.json',
+  'workout-summary.json',
+  'event-detail.json',
+  'track-list.json',
+  'software-purchase.json',
+  'restaurant-card.json',
+  'shipping-status.json',
+  'credit-card.json',
+  'step-counter.json',
+  'recipe-card.json',
+  'contact-card.json',
+  'podcast-episode.json',
+  'stats-card.json',
+  'countdown-timer.json',
+  'movie-card.json',
+  'modal-sample.json',
+  'live-invitation-builder.json',
+  'incremental-dashboard.json',
+  'advanced-form-validator.json',
+  'financial-data-grid.json',
+  'child-list-template.json',
+  'markdown-text.json',
+  'modal.json',
+  'native-grid.json',
+  'mcp-app-3d-geometry.json',
+];
+
+const EXAMPLE_ORDER_INDEX = new Map(EXAMPLE_ORDER.map((name, index) => [name, index]));
+
+function compareExampleFilenames(a: string, b: string): number {
+  const indexA = EXAMPLE_ORDER_INDEX.get(a);
+  const indexB = EXAMPLE_ORDER_INDEX.get(b);
+  if (indexA !== undefined && indexB !== undefined) {
+    return indexA - indexB;
+  }
+  if (indexA !== undefined) return -1;
+  if (indexB !== undefined) return 1;
+  return a.localeCompare(b);
+}
+
+/**
  * Represents a demo item loaded from an example JSON file.
  * Contains metadata and the array of messages to be processed.
  */
@@ -41,7 +107,7 @@ export interface DemoItem {
 export function processExampleModules(modules: Record<string, ExampleModule>): DemoItem[] {
   const items: DemoItem[] = [];
 
-  const sortedEntries = Object.entries(modules).sort((a, b) => a[0].localeCompare(b[0]));
+  const sortedEntries = Object.entries(modules).sort((a, b) => compareExampleFilenames(a[0], b[0]));
 
   for (const [filename, data] of sortedEntries) {
     try {
@@ -101,7 +167,7 @@ function extractMessagesAndDescription(
 function filenameToTitle(filename: string): string {
   return filename
     .replace('.json', '')
-    .replace(/^[0-9]+_/, '')
+    .replace(/^(?:scaffold-|[0-9]+_)/, '')
     .replace(/[-_]/g, ' ')
     .replace(/\b\w/g, l => l.toUpperCase());
 }

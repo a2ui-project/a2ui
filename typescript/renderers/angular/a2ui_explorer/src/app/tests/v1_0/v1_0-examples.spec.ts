@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import {EXAMPLES_V08, EXAMPLES_V09, EXAMPLES_V10} from '../../generated/examples-bundle';
 import {Version, getCanvas, loadExample, wait} from '../utils';
 
 describe('Angular Explorer v1.0 Examples & Version Toggle', () => {
@@ -40,19 +41,19 @@ describe('Angular Explorer v1.0 Examples & Version Toggle', () => {
     expect(getCanvas().textContent).toContain('Hello, Minimal Catalog!');
   });
 
-  it('should render v1.0 00_simple-text.json', async () => {
+  it('should render v1.0 scaffold-simple-text.json', async () => {
     const fixture = await loadExample({name: 'Simple Text', version: '1.0'});
     expect(getCanvas().textContent).toContain('Hello, Minimal Catalog!');
     expect(fixture.componentInstance.messageError).toBeNull();
   });
 
-  it('should render v1.0 02_email-compose.json', async () => {
+  it('should render v1.0 email-compose.json', async () => {
     const fixture = await loadExample({name: 'Email Compose', version: '1.0'});
     expect(getCanvas().textContent).toContain('Send');
     expect(fixture.componentInstance.messageError).toBeNull();
   });
 
-  it('should render v1.0 34_child-list-template.json with template expansion', async () => {
+  it('should render v1.0 child-list-template.json with template expansion', async () => {
     const fixture = await loadExample({name: 'ChildList Template Expansion', version: '1.0'});
     const text = getCanvas().textContent || '';
     expect(text).toContain('Dynamic Item List');
@@ -62,9 +63,34 @@ describe('Angular Explorer v1.0 Examples & Version Toggle', () => {
     expect(fixture.componentInstance.messageError).toBeNull();
   });
 
-  it('should render v1.0 31_incremental-dashboard.json cleanly', async () => {
+  it('should render v1.0 incremental-dashboard.json cleanly', async () => {
     const fixture = await loadExample({name: 'Incremental Dashboard', version: '1.0'});
     expect(getCanvas()).toBeTruthy();
     expect(fixture.componentInstance.messageError).toBeNull();
+  });
+
+  it('should order scaffold examples first and strip the scaffold- prefix from derived names', () => {
+    expect(EXAMPLES_V08.slice(0, 6).map(ex => ex.filename)).toEqual([
+      'scaffold-simple-text.json',
+      'scaffold-row-layout.json',
+      'scaffold-interactive-button.json',
+      'scaffold-simple-login-form.json',
+      'scaffold-complex-layout.json',
+      'flight-status.json',
+    ]);
+    expect(EXAMPLES_V08[0].name).toBe('Simple Text (basic)');
+
+    const expectedScaffoldAndFirst = [
+      'scaffold-simple-text.json',
+      'scaffold-row-layout.json',
+      'scaffold-interactive-button.json',
+      'scaffold-simple-login-form.json',
+      'scaffold-complex-layout.json',
+      'scaffold-formatted-text.json',
+      'scaffold-incremental.json',
+      'flight-status.json',
+    ];
+    expect(EXAMPLES_V09.slice(0, 8).map(ex => ex.filename)).toEqual(expectedScaffoldAndFirst);
+    expect(EXAMPLES_V10.slice(0, 8).map(ex => ex.filename)).toEqual(expectedScaffoldAndFirst);
   });
 });
