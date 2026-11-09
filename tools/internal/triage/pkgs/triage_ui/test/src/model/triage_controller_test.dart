@@ -27,10 +27,18 @@ void main() {
 
   setUp(() {
     github = FakeGitHub([
+      itemNode(21, pr: true, createdAt: day(1)),
       itemNode(20, pr: true, createdAt: day(1), linked: [11]),
-      itemNode(11, createdAt: day(3), linked: [20]),
+      // Opened before 10, but updated after it.
+      itemNode(11, createdAt: day(1), updatedAt: day(3), linked: [20]),
       itemNode(10, createdAt: day(2)),
       itemNode(30, labels: ['P1'], createdAt: day(1)),
+      itemNode(
+        40,
+        labels: [needsTriageLabel, needsTeamInputLabel],
+        createdAt: day(5),
+      ),
+      itemNode(41, pr: true, labels: [needsTeamInputLabel], createdAt: day(4)),
     ]);
     controller = TriageController(connect: () async => github.service());
   });
@@ -44,13 +52,16 @@ void main() {
   GitHubItem url(String path) =>
       GitHubItem.tryParse('https://github.com/a2ui-project/a2ui/$path')!;
 
-  test('loads the queue: issues, then PRs, oldest first', () async {
+  test('loads the queue in groups: issues, then PRs with issues, then PRs '
+      'without issues, least recently updated first', () async {
     await controller.start();
 
     expect(controller.isConnected, isTrue);
-    expect(numbers(controller.orderedItems), [10, 11, 20]);
+    expect(numbers(controller.newItems), [10, 11, 20, 21]);
+    expect(numbers(controller.teamInputItems), [40, 41]);
+    expect(numbers(controller.orderedItems), [10, 11, 20, 21, 40, 41]);
     expect(controller.selected!.number, 10);
-    expect(controller.remaining, 3);
+    expect(controller.remaining, 6);
     expect(controller.repositoryInfo.labels, contains('P1'));
     expect(numbers(controller.relatedInQueue(controller.item(11)!)), [20]);
   });
@@ -87,7 +98,7 @@ void main() {
 
     expect(controller.selected!.number, 30);
     expect(numbers(controller.opened), [30]);
-    expect(controller.remaining, 3);
+    expect(controller.remaining, 6);
   });
 
   test('applies the draft, then selects the next item', () async {
@@ -100,10 +111,10 @@ void main() {
     expect(controller.lastResult(10)!.succeeded, isTrue);
     expect(controller.session.isApplied(10), isTrue);
     expect(controller.selected!.number, 11);
-    expect(controller.remaining, 2);
-    // The item shows its new labels, and stays in the list until a refresh.
+    expect(controller.remaining, 5);
+    // The item shows its new labels, and stays in its place until a refresh.
     expect(controller.item(10)!.labels, contains('P2'));
-    expect(numbers(controller.orderedItems), [10, 11, 20]);
+    expect(numbers(controller.newItems), [10, 11, 20, 21]);
   });
 
   test('keeps a failed item selected, and posts its reply once', () async {
@@ -136,11 +147,12 @@ void main() {
     github
       ..change(10, (item) => item['title'] = 'Renamed')
       ..change(20, (item) => item['labels'] = {'nodes': <Object?>[]})
-      ..items[40] = itemNode(40, createdAt: day(4));
+      ..items[50] = itemNode(50, createdAt: day(4));
 
     await controller.refresh();
 
-    expect(numbers(controller.orderedItems), [10, 11, 40]);
+    // Item 10 was updated last, so it moves after 50.
+    expect(numbers(controller.newItems), [11, 50, 10, 21]);
     expect(controller.changedOnGitHub(10), isTrue);
     expect(controller.changedOnGitHub(11), isFalse);
     expect(controller.item(10)!.title, 'Renamed');
@@ -160,5 +172,82 @@ void main() {
     await controller.refresh();
 
     expect(controller.changedOnGitHub(10), isFalse);
+  });
+
+  test('applying to an item that needs team input removes the label, and '
+      'keeps the item in its group', () async {
+    await controller.start();
+    controller.draftFor(
+      controller.item(40)!,
+      const TriageSuggestion(addedLabels: ['P2']),
+    );
+
+    await controller.apply(controller.item(40)!);
+
+    expect(github.calls, [
+      'DELETE issues/40/labels/status%3A%20needs-team-input',
+      'POST issues/40/labels {"labels":["P2"]}',
+    ]);
+    expect(controller.item(40)!.needsTeamInput, isFalse);
+    expect(numbers(controller.teamInputItems), [40, 41]);
+    expect(controller.session.isApplied(40), isTrue);
+    expect(controller.report(), contains('removed status: needs-team-input'));
+  });
+
+  test('applying a suggestion that adds the label keeps it', () async {
+    await controller.start();
+    controller.draftFor(
+      controller.item(40)!,
+      const TriageSuggestion(addedLabels: [needsTeamInputLabel]),
+    );
+
+    await controller.apply(controller.item(40)!);
+
+    expect(github.calls, [
+      'POST issues/40/labels {"labels":["status: needs-team-input"]}',
+    ]);
+    expect(controller.session.isSentToTeam(40), isTrue);
+  });
+
+  test('sends an item to the team', () async {
+    await controller.start();
+
+    await controller.sendToTeam(controller.item(10)!, comment: 'Thoughts.');
+
+    expect(github.calls, [
+      'POST issues/10/labels {"labels":["status: needs-team-input"]}',
+      'POST issues/10/comments {"body":"Thoughts."}',
+    ]);
+    expect(numbers(controller.newItems), [11, 20, 21]);
+    expect(numbers(controller.teamInputItems), [10, 40, 41]);
+    expect(controller.selected!.number, 11);
+    expect(controller.remaining, 5);
+    expect(controller.session.isSentToTeam(10), isTrue);
+    expect(controller.report(), contains('Sent 1 issue to the team.'));
+  });
+
+  test('sends an item opened by URL to the team', () async {
+    await controller.start();
+    await controller.open(url('issues/30'));
+
+    await controller.sendToTeam(controller.item(30)!);
+
+    expect(github.calls, [
+      'POST issues/30/labels {"labels":["status: needs-team-input"]}',
+    ]);
+    expect(controller.opened, isEmpty);
+    expect(numbers(controller.teamInputItems), [30, 40, 41]);
+  });
+
+  test('reports a failure to send an item to the team', () async {
+    github.failing.add('POST issues/10/labels');
+    await controller.start();
+
+    await controller.sendToTeam(controller.item(10)!, comment: 'Thoughts.');
+
+    expect(controller.error, contains('Could not add'));
+    expect(github.calls.where((c) => c.contains('comments')), isEmpty);
+    expect(controller.session.isSentToTeam(10), isFalse);
+    expect(numbers(controller.newItems), [10, 11, 20, 21]);
   });
 }

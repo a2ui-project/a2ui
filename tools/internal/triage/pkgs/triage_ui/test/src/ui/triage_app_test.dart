@@ -99,8 +99,9 @@ void main() {
     await pumpApp(tester);
 
     expect(find.text('3 items need triage'), findsOneWidget);
-    expect(find.text('Issues (2)'), findsOneWidget);
-    expect(find.text('Pull requests (1)'), findsOneWidget);
+    expect(find.text('New (3)'), findsOneWidget);
+    expect(find.text('Needs team input (0)'), findsOneWidget);
+    expect(find.byTooltip('PR with issues'), findsOneWidget);
     expect(inList('suggestion'), findsOneWidget);
     expect(inList('no suggestion'), findsNWidgets(2));
     expect(inList('PR #20'), findsOneWidget);
@@ -148,6 +149,32 @@ void main() {
     ]);
     expect(find.text('2 items need triage'), findsOneWidget);
     expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    expect(find.text('Issue #11: Docs are unclear'), findsOneWidget);
+  });
+
+  testWidgets('sends an item to the team', (tester) async {
+    await pumpApp(tester);
+
+    await tester.tap(
+      find.widgetWithText(OutlinedButton, 'Needs team input').first,
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Comment for the team'),
+      'Is this a P0?',
+    );
+    await settle(tester, () async {
+      await tester.tap(find.text('Add "$needsTeamInputLabel"'));
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    });
+
+    expect(github.calls, [
+      'POST issues/10/labels {"labels":["status: needs-team-input"]}',
+      'POST issues/10/comments {"body":"Is this a P0?"}',
+    ]);
+    expect(find.text('New (2)'), findsOneWidget);
+    expect(find.text('Needs team input (1)'), findsOneWidget);
+    expect(find.byIcon(Icons.groups), findsOneWidget);
     expect(find.text('Issue #11: Docs are unclear'), findsOneWidget);
   });
 

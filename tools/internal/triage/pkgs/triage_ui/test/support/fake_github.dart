@@ -128,7 +128,15 @@ class FakeGitHub {
   /// Request lines, such as `POST issues/12/labels`, that fail with 500.
   final Set<String> failing = {};
 
-  List<String> labels = ['P0', 'P1', 'P2', 'P3', 'type: bug', needsTriageLabel];
+  List<String> labels = [
+    'P0',
+    'P1',
+    'P2',
+    'P3',
+    'type: bug',
+    needsTriageLabel,
+    needsTeamInputLabel,
+  ];
   List<String> assignableUsers = ['hubot', 'octocat'];
 
   var _clock = 100;
@@ -199,6 +207,9 @@ class FakeGitHub {
 
   http.Response _graphql(String query, Map<String, Object?> variables) {
     if (query.contains('search(')) {
+      final String label = RegExp(
+        r'label:"([^"]+)"',
+      ).firstMatch(variables['query']! as String)!.group(1)!;
       return _json({
         'data': {
           'search': {
@@ -206,7 +217,7 @@ class FakeGitHub {
             'nodes': [
               for (final item in items.values)
                 if (item['state'] == 'OPEN' &&
-                    _names(item, 'labels', 'name').contains(needsTriageLabel))
+                    _names(item, 'labels', 'name').contains(label))
                   item,
             ],
           },

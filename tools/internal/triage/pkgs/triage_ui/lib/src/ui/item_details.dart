@@ -93,8 +93,18 @@ class ItemCard extends StatelessWidget {
                 'You applied a suggestion to this item in this session.',
                 icon: Icons.check_circle_outline,
               ),
+            if (controller.session.isSentToTeam(item.number))
+              const _Notice(
+                'You sent this item to the team in this session.',
+                icon: Icons.groups_outlined,
+              ),
             if (!item.isOpen) const _Notice('The item is closed.'),
-            if (!item.needsTriage)
+            if (item.needsTeamInput)
+              const _Notice(
+                'The item has "$needsTeamInputLabel". Apply removes the '
+                'label, unless the suggestion adds it.',
+              )
+            else if (!item.needsTriage)
               const _Notice('The item does not have "$needsTriageLabel".'),
             if (controller.changedOnGitHub(item.number))
               const _Notice(

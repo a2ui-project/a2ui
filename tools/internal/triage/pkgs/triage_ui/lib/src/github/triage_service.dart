@@ -47,14 +47,32 @@ class TriageService {
 
   String _issuePath(int number) => 'repos/$owner/$name/issues/$number';
 
-  /// The open items with `status: needs-triage`.
+  /// The open items with `status: needs-triage` or
+  /// `status: needs-team-input`.
   Future<List<TriageItem>> fetchQueue() async {
+    final (
+      List<TriageItem> needTriage,
+      List<TriageItem> needTeamInput,
+    ) = await (
+      _search('label:"$needsTriageLabel"'),
+      _search('label:"$needsTeamInputLabel"'),
+    ).wait;
+    final Set<int> found = {for (final i in needTriage) i.number};
+    return [
+      ...needTriage,
+      for (final i in needTeamInput)
+        if (!found.contains(i.number)) i,
+    ];
+  }
+
+  /// The open items that match [filter], a GitHub search filter.
+  Future<List<TriageItem>> _search(String filter) async {
     final items = <TriageItem>[];
     String? cursor;
     do {
       final Map<String, Object?> search = asMap(
         (await _client.graphql(searchQuery, {
-          'query': 'repo:$owner/$name is:open label:"$needsTriageLabel"',
+          'query': 'repo:$owner/$name is:open $filter',
           'cursor': cursor,
         }))['search'],
       );

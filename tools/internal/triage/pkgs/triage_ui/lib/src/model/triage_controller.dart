@@ -36,7 +36,19 @@ class TriageController extends ChangeNotifier {
 
   final TriageSession session = TriageSession();
 
+  /// The items with `status: needs-triage` or `status: needs-team-input`.
   List<TriageItem> _queue = const [];
+
+  /// The items in [_queue] that the list shows under **Needs team input**:
+  /// the ones that had `status: needs-team-input` when they were loaded, and
+  /// the ones that the triager sent to the team since. An item stays in its
+  /// group until a refresh, even if the triager removes the label.
+  Set<int> _teamInput = const {};
+
+  /// When each item in [_queue] was last updated, as of the last load. The
+  /// list is ordered by these times, so that the triager's own changes do
+  /// not move items until a refresh.
+  Map<int, DateTime> _listedUpdatedAt = const {};
 
   /// Items opened by URL that are not in the queue.
   List<TriageItem> _opened = const [];
@@ -65,21 +77,29 @@ class TriageController extends ChangeNotifier {
   final Map<int, ApplyResult> _results = {};
   final Set<int> _applying = {};
 
-  /// The issues in the queue, oldest first.
-  List<TriageItem> get issues => _sorted(_queue.where((i) => !i.isPullRequest));
+  /// The items in the **New** group, in the order the list shows them.
+  List<TriageItem> get newItems =>
+      _sorted(_queue.where((i) => !_teamInput.contains(i.number)));
 
-  /// The pull requests in the queue, oldest first.
-  List<TriageItem> get pullRequests =>
-      _sorted(_queue.where((i) => i.isPullRequest));
+  /// The items in the **Needs team input** group, in the order the list
+  /// shows them.
+  List<TriageItem> get teamInputItems =>
+      _sorted(_queue.where((i) => _teamInput.contains(i.number)));
 
-  /// The items opened by URL that are not in the queue.
+  /// The items opened by URL that are not in the queue, in the order the
+  /// triager opened them.
   List<TriageItem> get opened => _opened;
 
   /// All items, in the order the list shows them.
-  List<TriageItem> get orderedItems => [...issues, ...pullRequests, ..._opened];
+  List<TriageItem> get orderedItems => [
+    ...newItems,
+    ...teamInputItems,
+    ..._opened,
+  ];
 
-  /// How many items in the queue the triager did not apply a suggestion to.
-  int get remaining => _queue.where((i) => !session.isApplied(i.number)).length;
+  /// How many items in the queue the triager neither applied a suggestion
+  /// to nor sent to the team.
+  int get remaining => _queue.where((i) => !session.isHandled(i.number)).length;
 
   TriageItem? get selected => _selected == null ? null : item(_selected!);
 
@@ -91,10 +111,13 @@ class TriageController extends ChangeNotifier {
     return null;
   }
 
-  /// The items in the queue that [item] is linked to and that need triage.
+  /// The items in the queue that [item] is linked to and that need triage
+  /// or team input.
   List<TriageItem> relatedInQueue(TriageItem item) => [
     for (final TriageItem i in _queue)
-      if (item.linkedItems.contains(i.number) && i.needsTriage) i,
+      if (item.linkedItems.contains(i.number) &&
+          (i.needsTriage || i.needsTeamInput))
+        i,
   ];
 
   /// Whether a refresh found that [number] changed on GitHub, which reset
@@ -126,7 +149,7 @@ class TriageController extends ChangeNotifier {
     ).wait;
     _service = service;
     _repositoryInfo = info;
-    _queue = queue;
+    _setQueue(queue);
     _selected ??= orderedItems.firstOrNull?.number;
   }, then: _openPending);
 
@@ -157,7 +180,7 @@ class TriageController extends ChangeNotifier {
         _results.remove(i.number);
       }
     }
-    _queue = queue;
+    _setQueue(queue);
     _opened = opened;
   });
 
@@ -187,11 +210,17 @@ class TriageController extends ChangeNotifier {
 
   /// Applies the draft for [item] to it on GitHub.
   ///
+  /// If the item has `status: needs-team-input` and the draft does not add
+  /// it, also removes the label, since the item is triaged.
+  ///
   /// On success, records the item in the session and, if it is selected,
-  /// selects the next item that is not applied yet.
+  /// selects the next item that is not handled yet.
   Future<void> apply(TriageItem item) async {
     final int n = item.number;
-    final TriageSuggestion suggestion = _drafts[n]!.toSuggestion();
+    final TriageSuggestion suggestion = _withoutTeamInput(
+      item,
+      _drafts[n]!.toSuggestion(),
+    );
     _applying.add(n);
     _results.remove(n);
     notifyListeners();
@@ -207,18 +236,112 @@ class TriageController extends ChangeNotifier {
     if (result.succeeded) {
       session.recordApplied(item, suggestion);
       if (_selected == n) _selectNextAfter(n);
+      if (suggestion.addedLabels.contains(needsTeamInputLabel)) {
+        _moveToTeamInput(item);
+      }
     }
+    await _finish(n);
+  }
 
+  /// Sends [item] to the team: adds `status: needs-team-input` and posts
+  /// [comment], if the triager wrote one. Does not apply the draft.
+  ///
+  /// On success, records the item in the session, moves it to the
+  /// **Needs team input** group and, if it is selected, selects the next
+  /// item that is not handled yet.
+  Future<void> sendToTeam(TriageItem item, {String? comment}) async {
+    final int n = item.number;
+    _applying.add(n);
+    _results.remove(n);
+    _error = null;
+    notifyListeners();
+
+    try {
+      await _service!.addLabels(n, const [needsTeamInputLabel]);
+    } on GitHubException catch (e) {
+      _error = 'Could not add "$needsTeamInputLabel" to #$n: ${e.message}';
+      await _finish(n);
+      return;
+    }
+    var commented = comment != null;
+    if (comment != null) {
+      try {
+        await _service!.postComment(n, comment);
+      } on GitHubException catch (e) {
+        commented = false;
+        _error =
+            'Added "$needsTeamInputLabel" to #$n, but could not post the '
+            'comment: ${e.message}';
+      }
+    }
+    session.recordSentToTeam(item, comment: commented ? comment : null);
+    if (_selected == n) _selectNextAfter(n);
+    _moveToTeamInput(item);
+    await _finish(n);
+  }
+
+  /// Adds `status: needs-team-input` to the labels that [suggestion]
+  /// removes, if [item] has the label and [suggestion] does not add it.
+  static TriageSuggestion _withoutTeamInput(
+    TriageItem item,
+    TriageSuggestion suggestion,
+  ) {
+    if (!item.needsTeamInput ||
+        suggestion.addedLabels.contains(needsTeamInputLabel) ||
+        suggestion.removedLabels.contains(needsTeamInputLabel)) {
+      return suggestion;
+    }
+    return TriageSuggestion(
+      summary: suggestion.summary,
+      suggestion: suggestion.suggestion,
+      reply: suggestion.reply,
+      closeAs: suggestion.closeAs,
+      duplicateOf: suggestion.duplicateOf,
+      addedLabels: suggestion.addedLabels,
+      removedLabels: [...suggestion.removedLabels, needsTeamInputLabel],
+      newAssignees: suggestion.newAssignees,
+      removedAssignees: suggestion.removedAssignees,
+      relatedIssues: suggestion.relatedIssues,
+      relatedPrs: suggestion.relatedPrs,
+    );
+  }
+
+  /// Moves [item] to the **Needs team input** group, from the queue or from
+  /// the items opened by URL.
+  void _moveToTeamInput(TriageItem item) {
+    final int n = item.number;
+    if (this.item(n) != null && !_queue.any((i) => i.number == n)) {
+      _opened = [
+        for (final i in _opened)
+          if (i.number != n) i,
+      ];
+      _queue = [..._queue, item];
+    }
+    _teamInput = {..._teamInput, n};
+    _listedUpdatedAt = {n: item.updatedAt, ..._listedUpdatedAt};
+  }
+
+  /// Loads the item with [number] again, and ends its apply.
+  Future<void> _finish(int number) async {
     // Show the item as it is now, so that a refresh does not take the
     // triager's own changes for someone else's.
     try {
-      final TriageItem? fresh = await _service!.fetchItem(n);
+      final TriageItem? fresh = await _service!.fetchItem(number);
       if (fresh != null) _replace(fresh);
     } on GitHubException {
       // The item keeps its old state until the next refresh.
     }
-    _applying.remove(n);
+    _applying.remove(number);
     notifyListeners();
+  }
+
+  void _setQueue(List<TriageItem> queue) {
+    _queue = queue;
+    _teamInput = {
+      for (final i in queue)
+        if (i.needsTeamInput) i.number,
+    };
+    _listedUpdatedAt = {for (final i in queue) i.number: i.updatedAt};
   }
 
   void _selectNextAfter(int number) {
@@ -229,7 +352,7 @@ class TriageController extends ChangeNotifier {
       ...items.take(index),
     ];
     for (final i in candidates) {
-      if (!session.isApplied(i.number)) {
+      if (!session.isHandled(i.number)) {
         _selected = i.number;
         return;
       }
@@ -267,8 +390,17 @@ class TriageController extends ChangeNotifier {
     await then?.call();
   }
 
-  static List<TriageItem> _sorted(Iterable<TriageItem> items) =>
-      items.toList()..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+  /// [items] in the order `ui.blueprint.md` lists them: by kind, then the
+  /// least recently updated first.
+  List<TriageItem> _sorted(Iterable<TriageItem> items) {
+    DateTime updatedAt(TriageItem i) =>
+        _listedUpdatedAt[i.number] ?? i.updatedAt;
+    return items.toList()..sort(
+      (a, b) => a.kind != b.kind
+          ? a.kind.index.compareTo(b.kind.index)
+          : updatedAt(a).compareTo(updatedAt(b)),
+    );
+  }
 
   @override
   void dispose() {

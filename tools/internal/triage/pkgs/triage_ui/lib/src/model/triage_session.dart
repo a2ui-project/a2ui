@@ -23,6 +23,11 @@ final class AppliedItem {
 
   final TriageItem item;
   final TriageSuggestion suggestion;
+
+  /// Whether the triager sent the item to the team: added
+  /// `status: needs-team-input` with the **Needs team input** button, or
+  /// with a suggestion that adds the label.
+  bool get sentToTeam => suggestion.addedLabels.contains(needsTeamInputLabel);
 }
 
 /// What the triager did since the triage UI started.
@@ -32,10 +37,19 @@ class TriageSession {
   var _version = 0;
   var _copiedVersion = 0;
 
-  /// The applied items, in the order the triager applied them.
+  /// The applied items, including the ones sent to the team, in the order
+  /// the triager applied them.
   Iterable<AppliedItem> get applied => _applied.values;
 
-  bool isApplied(int number) => _applied.containsKey(number);
+  /// Whether the triager applied a suggestion to the item with [number]
+  /// that did not send it to the team.
+  bool isApplied(int number) => _applied[number]?.sentToTeam == false;
+
+  bool isSentToTeam(int number) => _applied[number]?.sentToTeam ?? false;
+
+  /// Whether the triager applied a suggestion to the item with [number] or
+  /// sent it to the team.
+  bool isHandled(int number) => _applied.containsKey(number);
 
   /// Records that the triager applied [suggestion] to [item]. A later apply
   /// to the same item replaces the earlier one in the report.
@@ -45,6 +59,13 @@ class TriageSession {
       ..[item.number] = AppliedItem(item, suggestion);
     _version++;
   }
+
+  /// Records that the triager sent [item] to the team, with [comment] if
+  /// they wrote one.
+  void recordSentToTeam(TriageItem item, {String? comment}) => recordApplied(
+    item,
+    TriageSuggestion(addedLabels: const [needsTeamInputLabel], reply: comment),
+  );
 
   bool hasReplied(int number) => _replied.contains(number);
 
@@ -59,19 +80,27 @@ class TriageSession {
   /// The session report, as `ui.blueprint.md` describes it.
   String report({required int stillNeedTriage}) {
     final List<AppliedItem> applied = _applied.values.toList();
+    final List<AppliedItem> triaged = [
+      for (final a in applied)
+        if (!a.sentToTeam) a,
+    ];
+    final List<AppliedItem> sent = [
+      for (final a in applied)
+        if (a.sentToTeam) a,
+    ];
     final lines = <String>[
-      if (applied.isEmpty)
-        'Nothing triaged yet.'
-      else
-        'Triaged ${_plural(applied.length, 'item')}: '
-            '${_countByType(applied)}.',
+      if (applied.isEmpty) 'Nothing triaged yet.',
+      if (triaged.isNotEmpty)
+        'Triaged ${_plural(triaged.length, 'item')}: '
+            '${_countByType(triaged)}.',
+      if (sent.isNotEmpty) 'Sent ${_countByType(sent)} to the team.',
       '${_plural(stillNeedTriage, 'item')} still '
           '${stillNeedTriage == 1 ? 'needs' : 'need'} triage.',
     ];
 
     final groups = <String, List<AppliedItem>>{};
     for (final a in applied) {
-      (groups[_group(a.suggestion)] ??= []).add(a);
+      (groups[_group(a)] ??= []).add(a);
     }
     final List<String> order = [..._groupOrder]
       ..retainWhere(groups.containsKey);
@@ -93,16 +122,20 @@ class TriageSession {
   static const List<String> _priorities = ['P0', 'P1', 'P2', 'P3'];
   static const String _closed = 'Closed';
   static const String _assignedForTriage = 'Assigned for triage';
+  static const String _needsTeamInput = 'Needs team input';
   static const String _updated = 'Updated';
   static final List<String> _groupOrder = [
     _closed,
     for (final p in _priorities) 'Assigned $p',
     _assignedForTriage,
+    _needsTeamInput,
     _updated,
   ];
 
-  static String _group(TriageSuggestion s) {
+  static String _group(AppliedItem applied) {
+    final TriageSuggestion s = applied.suggestion;
     if (s.closeAs != null) return _closed;
+    if (applied.sentToTeam) return _needsTeamInput;
     for (final String p in _priorities) {
       if (s.addedLabels.contains(p)) return 'Assigned $p';
     }
@@ -112,7 +145,8 @@ class TriageSession {
     return _updated;
   }
 
-  /// What was applied, such as "added P1, assigned octocat".
+  /// What was applied, such as "added P1, assigned octocat". The reply of
+  /// an item sent to the team is the triager's comment for the team.
   static String _describe(AppliedItem applied) {
     final TriageSuggestion s = applied.suggestion;
     return [
@@ -122,7 +156,7 @@ class TriageSession {
       if (s.newAssignees.isNotEmpty) 'assigned ${_and(s.newAssignees)}',
       if (s.removedAssignees.isNotEmpty)
         'unassigned ${_and(s.removedAssignees)}',
-      if (s.reply != null) 'replied',
+      if (s.reply != null) applied.sentToTeam ? 'commented' : 'replied',
     ].join(', ');
   }
 

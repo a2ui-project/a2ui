@@ -19,6 +19,22 @@ import '../github/json.dart';
 /// The label that the flagger adds to the items that need triage.
 const String needsTriageLabel = 'status: needs-triage';
 
+/// The label that the triager adds to the items that the team should
+/// discuss. See `docs/contributing/triage/triage.md`.
+const String needsTeamInputLabel = 'status: needs-team-input';
+
+/// The types of items, in the order the list shows them. See
+/// `ui.blueprint.md`.
+enum ItemKind {
+  issue,
+
+  /// A pull request that closes issues.
+  prWithIssues,
+
+  /// A pull request that closes no issue.
+  prWithoutIssues,
+}
+
 /// Whether an item has a triage suggestion, and whether it is current. See
 /// `blueprints/features/triage_item.blueprint.md`.
 enum SuggestionStatus {
@@ -161,6 +177,14 @@ final class TriageItem {
   final String? suggestionUrl;
 
   bool get needsTriage => labels.contains(needsTriageLabel);
+
+  bool get needsTeamInput => labels.contains(needsTeamInputLabel);
+
+  ItemKind get kind => !isPullRequest
+      ? ItemKind.issue
+      : linkedItems.isEmpty
+      ? ItemKind.prWithoutIssues
+      : ItemKind.prWithIssues;
 
   /// "Issue #12" or "PR #12".
   String get name => '${isPullRequest ? 'PR' : 'Issue'} #$number';

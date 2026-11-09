@@ -19,8 +19,27 @@ import '../model/triage_item.dart';
 import 'links.dart';
 import 'triage_scope.dart';
 
-/// The items: the issues in the queue, then its pull requests, oldest
-/// first, then the items opened by URL that are not in the queue.
+/// How the list shows an item of [kind]: its name, icon and color.
+(String, IconData, Color) kindStyle(BuildContext context, ItemKind kind) {
+  final dark = Theme.of(context).brightness == Brightness.dark;
+  Color shade(MaterialColor color) => dark ? color.shade300 : color.shade700;
+  return switch (kind) {
+    ItemKind.issue => ('Issue', Icons.adjust, shade(Colors.green)),
+    ItemKind.prWithIssues => (
+      'PR with issues',
+      Icons.call_merge,
+      shade(Colors.deepPurple),
+    ),
+    ItemKind.prWithoutIssues => (
+      'PR without issues',
+      Icons.call_merge,
+      shade(Colors.orange),
+    ),
+  };
+}
+
+/// The items, in the groups `ui.blueprint.md` describes: **New**, **Needs
+/// team input**, and the items opened by URL that are not in the queue.
 class ItemList extends StatelessWidget {
   const ItemList({super.key});
 
@@ -28,12 +47,13 @@ class ItemList extends StatelessWidget {
   Widget build(BuildContext context) {
     final TriageController controller = TriageScope.of(context);
     final sections = <(String, List<TriageItem>)>[
-      ('Issues', controller.issues),
-      ('Pull requests', controller.pullRequests),
+      ('New', controller.newItems),
+      ('Needs team input', controller.teamInputItems),
       if (controller.opened.isNotEmpty) ('Not in the queue', controller.opened),
     ];
     return ListView(
       children: [
+        const _Legend(),
         for (final (String title, List<TriageItem> items) in sections) ...[
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
@@ -59,11 +79,18 @@ class _ItemTile extends StatelessWidget {
     final TriageController controller = TriageScope.of(context);
     final ThemeData theme = Theme.of(context);
     final bool applied = controller.session.isApplied(item.number);
+    final bool sentToTeam = controller.session.isSentToTeam(item.number);
+    final (String kind, IconData icon, Color color) = kindStyle(
+      context,
+      item.kind,
+    );
     return ListTile(
       selected: controller.selected?.number == item.number,
-      leading: Icon(
-        item.isPullRequest ? Icons.call_merge : Icons.adjust,
-        semanticLabel: item.isPullRequest ? 'PR' : 'Issue',
+      tileColor: color.withValues(alpha: 0.06),
+      selectedTileColor: theme.colorScheme.secondaryContainer,
+      leading: Tooltip(
+        message: kind,
+        child: Icon(icon, color: color, semanticLabel: kind),
       ),
       title: Text(
         '#${item.number} ${item.title}',
@@ -77,7 +104,7 @@ class _ItemTile extends StatelessWidget {
           runSpacing: 4,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Text('opened ${ago(item.createdAt)}'),
+            Text('updated ${ago(item.updatedAt)}'),
             switch (item.suggestionStatus) {
               SuggestionStatus.current => const _Flag('suggestion'),
               SuggestionStatus.outdated => const _Flag(
@@ -95,6 +122,7 @@ class _ItemTile extends StatelessWidget {
             },
             for (final int n in item.linkedItems)
               _Flag(item.isPullRequest ? 'issue #$n' : 'PR #$n'),
+            if (item.needsTeamInput) const _Flag('needs team input'),
           ],
         ),
       ),
@@ -104,10 +132,46 @@ class _ItemTile extends StatelessWidget {
               color: theme.colorScheme.primary,
               semanticLabel: 'Applied',
             )
+          : sentToTeam
+          ? Icon(
+              Icons.groups,
+              color: theme.colorScheme.primary,
+              semanticLabel: 'Sent to the team',
+            )
           : null,
       onTap: () => controller.select(item.number),
     );
   }
+}
+
+/// What the colors of the items mean.
+class _Legend extends StatelessWidget {
+  const _Legend();
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+    child: Wrap(
+      spacing: 16,
+      runSpacing: 4,
+      children: [
+        for (final ItemKind kind in ItemKind.values)
+          if (kindStyle(context, kind) case (
+            final String name,
+            final IconData icon,
+            final Color color,
+          ))
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 4,
+              children: [
+                Icon(icon, size: 16, color: color),
+                Text(name, style: Theme.of(context).textTheme.labelMedium),
+              ],
+            ),
+      ],
+    ),
+  );
 }
 
 class _Flag extends StatelessWidget {

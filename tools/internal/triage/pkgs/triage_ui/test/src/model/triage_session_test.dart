@@ -80,6 +80,32 @@ Triaged 5 items: 4 issues and 1 PR.
     Question about catalogs: unassigned hubot''');
   });
 
+  test('reports the items sent to the team apart from the triaged ones', () {
+    final session = TriageSession()
+      ..recordApplied(item(1, 'A'), const TriageSuggestion(addedLabels: ['P2']))
+      ..recordSentToTeam(item(2, 'B', pr: true), comment: 'Why?')
+      ..recordSentToTeam(item(3, 'C'));
+
+    expect(session.isApplied(2), isFalse);
+    expect(session.isSentToTeam(2), isTrue);
+    expect(session.isHandled(2), isTrue);
+    expect(session.isSentToTeam(1), isFalse);
+    expect(session.report(stillNeedTriage: 3), '''
+Triaged 1 item: 1 issue.
+Sent 1 issue and 1 PR to the team.
+3 items still need triage.
+
+- Assigned P2: 1 issue
+  - https://github.com/a2ui-project/a2ui/issues/1
+    A: added P2
+
+- Needs team input: 1 issue and 1 PR
+  - https://github.com/a2ui-project/a2ui/pull/2
+    B: added status: needs-team-input, commented
+  - https://github.com/a2ui-project/a2ui/issues/3
+    C: added status: needs-team-input''');
+  });
+
   test('reports an empty session', () {
     expect(
       TriageSession().report(stillNeedTriage: 1),
