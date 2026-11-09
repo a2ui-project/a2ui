@@ -23,15 +23,19 @@ import StarlightHeader from '../components/StarlightHeader.astro';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
-/** Screenshots are GitHub release assets listed in assets-manifest.json. */
+/**
+ * Screenshots are listed in assets-manifest.json. The build downloads them from
+ * the docs-assets release into public/docs-assets/ (scripts/fetch-doc-assets.mjs),
+ * so the page serves its own copies.
+ */
 function releaseAsset(id: string) {
-  const asset = (assetsManifest.assets as Record<string, {url: string; width: number; height: number}>)[
-    id
-  ];
+  const asset = (
+    assetsManifest.assets as Record<string, {filename: string; width: number; height: number}>
+  )[id];
   if (!asset) {
     throw new Error(`Missing "${id}" in docs/site/assets-manifest.json.`);
   }
-  return asset;
+  return {url: `${base}/docs-assets/${asset.filename}`, width: asset.width, height: asset.height};
 }
 
 interface StoryLink {
