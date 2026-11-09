@@ -67,6 +67,16 @@ jobs:
       - name: Install preview site dependencies
         run: npm --prefix docs/site ci || npm --prefix docs/site install --no-package-lock
 
+      - name: Restore docs-assets image cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          # Images downloaded from the docs-assets release by
+          # docs/site/scripts/fetch-doc-assets.mjs, which re-checks each file's
+          # SHA-256 before reusing it.
+          path: docs/site/public/docs-assets
+          key: docs-assets-${{ hashFiles('docs/site/assets-manifest.json') }}
+          restore-keys: docs-assets-
+
       - name: Build preview site
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
