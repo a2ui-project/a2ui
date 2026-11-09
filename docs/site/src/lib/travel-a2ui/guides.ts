@@ -50,6 +50,7 @@ const VALUES: Record<string, string> = {
   REPO,
   STEP_BY_STEP: absolute(STEP_BY_STEP_PATH),
   OVERVIEW: absolute(OVERVIEW_PATH),
+  RENDERER_SDKS: absolute('concepts/sdks/#renderer-sdk'),
   RENDERERS: absolute('ecosystem/renderers/'),
   DOCS: absolute('/'),
 };

@@ -222,8 +222,8 @@ A **renderer** implements the catalog's components and functions with native
 widgets. This app has two: React (`renderers/react/`, `@a2ui/react`) and
 Flutter (`renderers/flutter/`, `a2ui_flutter`); the apps around them are
 `apps/web/` and `apps/flutter/`. The A2UI project also maintains Lit, Angular,
-SwiftUI, Jetpack Compose and Markdown renderers, and the community has UIKit,
-React Native, Vue, Lynx, a terminal renderer and more
+SwiftUI, Jetpack Compose and Markdown renderers ({{RENDERER_SDKS}}), and the
+community has UIKit, React Native, Vue, Lynx, a terminal renderer and more
 ({{RENDERERS}}). The server never knows which client it is talking to; a new
 platform is a new renderer for the same catalog.
 
