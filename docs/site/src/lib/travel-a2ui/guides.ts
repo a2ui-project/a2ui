@@ -40,7 +40,7 @@ import {
 export type App = 'both' | 'web' | 'mobile';
 
 const APPS: ReadonlyArray<App> = ['both', 'web', 'mobile'];
-const BLOCK = /<!-- only:([a-z ]+) -->\n([\s\S]*?)<!-- \/only -->\n?/g;
+const BLOCK = /<!-- only:([a-z ]+) -->\r?\n([\s\S]*?)<!-- \/only -->\r?\n?/g;
 
 const VALUES: Record<string, string> = {
   LABS_REPO,

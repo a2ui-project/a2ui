@@ -264,7 +264,17 @@ export function buildMarkdownPages() {
     );
 
     const expanded = expandIncludes(body);
-    const cleaned = cleanMdxOutsideFences(expanded);
+    const cleaned = cleanMdxOutsideFences(expanded).replace(
+      /(\[[^\]]+\]\()(\.\.?\/[^)\s]+)(\))/g,
+      (_m, open, relUrl, close) => {
+        try {
+          const resolved = new URL(relUrl, `https://a2ui.org/${slug}/`);
+          return `${open}${resolved.pathname}${resolved.search}${resolved.hash}${close}`;
+        } catch {
+          return `${open}${relUrl}${close}`;
+        }
+      },
+    );
     const headerLines = [`# ${meta.title || slug}`];
     if (meta.description) {
       headerLines.push('', `> ${meta.description}`);
