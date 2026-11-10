@@ -1091,7 +1091,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
     const validatedTheme = this.validateSurfaceTheme(theme, catalog, surfaceId);
 
-    const surfaceVersion = catalog?.protocolVersion ?? msgVersion;
+    const surfaceVersion = msgVersion ?? catalog?.protocolVersion;
 
     // A payload may address any registered catalog by `catalogId`, but only
     // those speaking a compatible protocol version can be resolved against this

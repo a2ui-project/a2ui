@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.6.0 (2026-11-10)
+
 - **BREAKING CHANGE**: (v1_0) Component validation
   (`PayloadValidator.validate_component`, and `MessageProcessor` for calls into
   another catalog) rejects a call to a function whose `allowedCallers` is

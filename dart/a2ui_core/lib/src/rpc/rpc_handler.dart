@@ -33,10 +33,14 @@ import '../resolution/data_context.dart';
 /// `callAgentFunction` requests a renderer makes and the
 /// `rendererFunctionResponse` answers it gives. A transport forwards them.
 ///
+/// When passed to `MessageProcessor`, it also receives mapped [ErrorMessage]s
+/// from `processMessages`, and, when `MessageProcessor(unifiedOutbound: true)`
+/// is set, [ActionMessage]s dispatched on its `model.onAction`.
+///
 /// A listener may return a `Future`. For an outbound call, a listener that
 /// throws or whose future fails fails the call with that error. For a
-/// response, a listener failure is ignored: the response is still returned
-/// to the processor that asked for it.
+/// response, action, or error, a listener failure is ignored: the response is
+/// still returned to the processor that asked for it when answering a call.
 typedef OutboundMessageListener = FutureOr<void> Function(
   RendererToAgentMessage message,
 );
