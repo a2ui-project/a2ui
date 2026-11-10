@@ -53,23 +53,20 @@ void main() {
   GitHubItem url(String path) =>
       GitHubItem.tryParse('https://github.com/a2ui-project/a2ui/$path')!;
 
-  test(
-    'loads the queue in groups: issues with open PRs, issues without open PRs, PRs '
-    'with issues, then PRs without issues, least recently updated '
-    'first',
-    () async {
-      await controller.start();
+  test('loads the queue in groups: issues with open PRs, issues without open '
+      'PRs, PRs with issues, then PRs without issues, least recently updated '
+      'first', () async {
+    await controller.start();
 
-      expect(controller.isConnected, isTrue);
-      expect(numbers(controller.newItems), [11, 10, 20, 21]);
-      expect(numbers(controller.teamInputItems), [40, 41]);
-      expect(numbers(controller.orderedItems), [11, 10, 20, 21, 40, 41]);
-      expect(controller.selected, isNull);
-      expect(controller.remaining, 6);
-      expect(controller.repositoryInfo.labels, contains('P1'));
-      expect(numbers(controller.relatedInQueue(controller.item(11)!)), [20]);
-    },
-  );
+    expect(controller.isConnected, isTrue);
+    expect(numbers(controller.newItems), [11, 10, 20, 21]);
+    expect(numbers(controller.teamInputItems), [40, 41]);
+    expect(numbers(controller.orderedItems), [11, 10, 20, 21, 40, 41]);
+    expect(controller.selected, isNull);
+    expect(controller.remaining, 6);
+    expect(controller.repositoryInfo.labels, contains('P1'));
+    expect(numbers(controller.relatedInQueue(controller.item(11)!)), [20]);
+  });
 
   test('loads the PRs on genui, least recently updated first, and loads '
       'them again on refresh', () async {
