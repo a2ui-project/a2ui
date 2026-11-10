@@ -44,9 +44,11 @@ import {
   isComponentNode,
 } from '@a2ui/web_core';
 import {
+  A2UI_ELEMENT_CONNECTED_EVENT,
   bindHostAccessibility,
   isWebComponentImplementation,
   registerUniversalElement,
+  type A2uiWebComponentElement,
   type WebComponentImplementation,
 } from '@a2ui/web_core/universal';
 import {A2UI_ACCESSIBILITY_TARGETS, provideAccessibilityTargets} from './accessibility';
@@ -205,6 +207,10 @@ export class ComponentHostComponent {
 
   constructor() {
     registerUniversalHostInjector(this.elementRef.nativeElement, this.injector);
+    this.elementRef.nativeElement.addEventListener(
+      A2UI_ELEMENT_CONNECTED_EVENT,
+      this.onElementConnected,
+    );
 
     effect(() => {
       const key = this.componentKey();
@@ -225,11 +231,31 @@ export class ComponentHostComponent {
 
     this.destroyRef.onDestroy(() => {
       registerUniversalHostInjector(this.elementRef.nativeElement, undefined);
+      this.elementRef.nativeElement.removeEventListener(
+        A2UI_ELEMENT_CONNECTED_EVENT,
+        this.onElementConnected,
+      );
       this.resetState();
       this.ownResolver?.ngOnDestroy();
       this.ownResolver = undefined;
     });
   }
+
+  /**
+   * Hands a universal element that connected below this host to its catalog entry's
+   * `onElementConnected` callback. The nearest host handles the event, so ancestors don't
+   * call the callback again.
+   */
+  private readonly onElementConnected = (event: Event): void => {
+    const element = event.target as A2uiWebComponentElement | null;
+    const context = element?.context ?? element?.node?.context;
+    const componentModel = context?.componentModel;
+    if (!element || !context || !componentModel) return;
+    event.stopPropagation();
+    const catalog = componentModel.catalog as AngularCatalog;
+    const entry = catalog?.components?.get(componentModel.type);
+    entry?.onElementConnected?.(element, context, this.injector);
+  };
 
   private waitForSurface(surfaceId: string): void {
     this.resetState();

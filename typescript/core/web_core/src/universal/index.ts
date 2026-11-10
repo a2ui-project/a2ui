@@ -15,6 +15,7 @@
  */
 
 export {
+  A2UI_ELEMENT_CONNECTED_EVENT,
   type A2uiChildRef,
   A2uiLitElement,
   type CheckableResolvedProps,

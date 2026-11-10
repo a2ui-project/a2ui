@@ -21,6 +21,7 @@ import {A2uiRendererService} from './a2ui-renderer.service';
 import {
   A2uiMetadata,
   ComponentApi,
+  ComponentContext,
   ComponentModel,
   NodeResolver,
   SurfaceModel,
@@ -34,6 +35,7 @@ import {
   EnvironmentInjector,
   EventEmitter,
   InjectionToken,
+  Injector,
   Input,
   NgZone,
   Type,
@@ -45,7 +47,11 @@ import {CatalogComponent} from './catalog_component';
 import {CatalogComponentInstance} from './catalog_component_instance';
 import {A2UI_RENDERER_CONFIG} from './a2ui-renderer.service';
 import {SurfaceComponent} from './surface.component';
-import {AngularCatalog, createComponentImplementation} from '../catalog/types';
+import {
+  AngularCatalog,
+  type AngularComponentImplementation,
+  createComponentImplementation,
+} from '../catalog/types';
 import {UniversalOnlyComponent} from '../catalog/universal_only.component';
 import {initializeAngularReactivity} from './reactivity';
 import {ComponentBinder} from './component-binder.service';
@@ -738,6 +744,77 @@ describe('ComponentHostComponent', () => {
       fixtureA.destroy();
       fixtureA.nativeElement.remove();
       fixtureB.nativeElement.remove();
+    });
+
+    it('calls onElementConnected once for root and nested universal elements', async () => {
+      const LOG_LABEL = new InjectionToken<string>('LOG_LABEL');
+      const connected: string[] = [];
+      const onElementConnected = (
+        element: HTMLElement,
+        context: ComponentContext,
+        injector: Injector,
+      ) => {
+        connected.push(
+          `${element.localName}:${context.componentModel.id}:${injector.get(LOG_LABEL)}`,
+        );
+      };
+      const column: WebComponentImplementation &
+        Pick<AngularComponentImplementation, 'onElementConnected'> = {
+        ...A2uiColumn,
+        onElementConnected,
+      };
+      const text: WebComponentImplementation &
+        Pick<AngularComponentImplementation, 'onElementConnected'> = {
+        ...A2uiText,
+        onElementConnected,
+      };
+      const hookCatalog = new AngularCatalog('hook-catalog', '0.9', [column, text]);
+
+      @Component({
+        selector: 'test-hook-host',
+        imports: [SurfaceComponent],
+        providers: [
+          {provide: LOG_LABEL, useValue: 'host'},
+          {
+            provide: A2UI_RENDERER_CONFIG,
+            useValue: {catalogs: [hookCatalog], useUniversalComponents: true},
+          },
+          A2uiRendererService,
+        ],
+        template: '<a2ui-v09-surface surfaceId="hook" />',
+      })
+      class TestHookHostComponent {
+        readonly renderer = inject(A2uiRendererService);
+      }
+
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({imports: [TestHookHostComponent]});
+      const hookFixture = TestBed.createComponent(TestHookHostComponent);
+      document.body.appendChild(hookFixture.nativeElement);
+
+      hookFixture.componentInstance.renderer.processMessages([
+        {version: 'v0.9', createSurface: {surfaceId: 'hook', catalogId: 'hook-catalog'}},
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'hook',
+            components: [
+              {id: 'root', component: 'Column', children: ['title']},
+              {id: 'title', component: 'Text', text: 'Hi'},
+            ],
+          },
+        },
+      ]);
+      flush(hookFixture);
+      await settle();
+      flush(hookFixture);
+
+      expect(connected).toEqual([
+        `${A2uiColumn.tagName}:root:host`,
+        `${A2uiText.tagName}:title:host`,
+      ]);
+      hookFixture.destroy();
+      hookFixture.nativeElement.remove();
     });
   });
 });

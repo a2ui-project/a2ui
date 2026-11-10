@@ -59,6 +59,13 @@ interface LightDomStyleCacheEntry {
 // the parent's sheet, which is scoped to the parent's tag and never matches the subclass.
 const lightDomStyleCache = new WeakMap<Function, LightDomStyleCacheEntry>();
 
+/**
+ * Name of the event an `A2uiLitElement` dispatches the first time it is connected to the DOM with a
+ * `node` or `context`. It bubbles and is composed, so host renderers can observe every element of a surface,
+ * including the ones universal containers create, from a single ancestor.
+ */
+export const A2UI_ELEMENT_CONNECTED_EVENT = 'a2ui-element-connected';
+
 /** The surface a child renders on, as its data context reports it. */
 type ChildSurface = NonNullable<ComponentContext['dataContext']['surface']>;
 
@@ -115,6 +122,7 @@ export abstract class A2uiLitElement<
   private _controller?: A2uiController<Api, Props>;
   private _controllerContext?: ComponentContext;
   private _controllerNode?: ComponentNode;
+  private connectedEventDispatched = false;
   private fallbackDomId?: string;
   private readonly _hostAccessibility = new HostAccessibility(this);
 
@@ -354,6 +362,20 @@ export abstract class A2uiLitElement<
   override connectedCallback() {
     super.connectedCallback();
     this.adoptLightDomStyles();
+    this.dispatchConnectedEvent();
+  }
+
+  private dispatchConnectedEvent() {
+    if (
+      !this.connectedEventDispatched &&
+      this.isConnected &&
+      (this.context ?? this.node?.context)
+    ) {
+      this.connectedEventDispatched = true;
+      this.dispatchEvent(
+        new CustomEvent(A2UI_ELEMENT_CONNECTED_EVENT, {bubbles: true, composed: true}),
+      );
+    }
   }
 
   /**
@@ -531,6 +553,7 @@ export abstract class A2uiLitElement<
 
   protected override updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
+    this.dispatchConnectedEvent();
     const props = this.controller?.props as CheckableResolvedProps | undefined;
     this.applyAccessibilityAttributes(resolveAccessibilityProps(props), props);
   }
