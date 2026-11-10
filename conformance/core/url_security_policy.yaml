@@ -286,7 +286,8 @@
   features: [F-CORE-46]
   description: >-
     An exact entry matches only that hostname, compared without regard to case and
-    on any port. Look-alike hosts, subdomains and userinfo tricks don't match.
+    on any port. Look-alike hosts, subdomains, and an allowed host hidden in the
+    userinfo, query or fragment don't match.
     Contexts without a list keep the baseline only.
   action: url_policy_check
   policy:
@@ -312,6 +313,15 @@
       context: media
       expect: null
     - url: "https://cdn.example.com@evil.example/a.png"
+      context: media
+      expect: null
+    - url: "https://cdn.example.com:443@evil.example/a.png"
+      context: media
+      expect: null
+    - url: "https://evil.example#@cdn.example.com/a.png"
+      context: media
+      expect: null
+    - url: "https://evil.example?@cdn.example.com/a.png"
       context: media
       expect: null
     - url: "https://any.example.org/page"
@@ -356,12 +366,13 @@
 - name: allowlist_entries_with_ports
   features: [F-CORE-46]
   description: >-
-    An entry with a port matches only that host and port. An entry without a port
-    matches the hostname on any port.
+    An entry with a port matches only that host and port, including the scheme's
+    default port written out. An entry without a port matches the hostname on any
+    port.
   action: url_policy_check
   policy:
     type: allowlist
-    media: ["localhost:8080", cdn.example.com]
+    media: ["localhost:8080", cdn.example.com, "secure.example.com:443"]
   steps:
     - url: "http://localhost:8080/a.png"
       context: media
@@ -378,6 +389,18 @@
     - url: "https://cdn.example.com:444/a.png"
       context: media
       expect: "https://cdn.example.com:444/a.png"
+    - url: "https://secure.example.com/a.png"
+      context: media
+      expect: "https://secure.example.com/a.png"
+    - url: "https://secure.example.com:443/a.png"
+      context: media
+      expect: "https://secure.example.com:443/a.png"
+    - url: "http://secure.example.com/a.png"
+      context: media
+      expect: null
+    - url: "https://secure.example.com:8443/a.png"
+      context: media
+      expect: null
 
 - name: allowlist_blocks_relative_urls_once_a_list_is_set
   features: [F-CORE-46]
