@@ -62,7 +62,7 @@ public struct A2UIList: View {
         }
         .padding(.horizontal, 4)
       }
-      .scrollIndicators(.hidden)
+      .scrollIndicators(.hidden, axes: .horizontal)
       .a2uiAccessibilityElement(for: node, children: .contain)
     } else {
       ScrollView(.vertical) {
@@ -75,7 +75,7 @@ public struct A2UIList: View {
         }
         .padding(.vertical, 4)
       }
-      .scrollIndicators(.visible)
+      .scrollIndicators(.automatic, axes: .vertical)
       .frame(maxWidth: align == "stretch" ? .infinity : nil)
       .a2uiAccessibilityElement(for: node, children: .contain)
     }

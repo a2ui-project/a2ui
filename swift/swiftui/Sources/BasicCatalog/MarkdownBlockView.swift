@@ -33,12 +33,13 @@ struct MarkdownBlockView: View {
   }
 
   var body: some View {
-    if blocks.count == 1 {
-      renderBlock(blocks[0])
+    let parsedBlocks = blocks
+    if parsedBlocks.count == 1 {
+      renderBlock(parsedBlocks[0])
     } else {
       VStack(alignment: .leading, spacing: 8) {
-        ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
-          renderBlock(block)
+        ForEach(parsedBlocks.indices, id: \.self) { index in
+          renderBlock(parsedBlocks[index])
         }
       }
     }
@@ -54,15 +55,16 @@ struct MarkdownBlockView: View {
 
     case .unorderedList(let items):
       VStack(alignment: .leading, spacing: 4) {
-        ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-          Text("• \(attributedMarkdown(item))")
+        ForEach(items.indices, id: \.self) { index in
+          Text("• \(attributedMarkdown(items[index]))")
             .font(.body)
         }
       }
 
     case .orderedList(let items):
       VStack(alignment: .leading, spacing: 4) {
-        ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+        ForEach(items.indices, id: \.self) { index in
+          let item = items[index]
           Text("\(item.0). \(attributedMarkdown(item.1))")
             .font(.body)
         }
@@ -108,15 +110,17 @@ struct MarkdownBlockView: View {
       let trimmed = rawBlock.trimmingCharacters(in: .whitespacesAndNewlines)
       guard !trimmed.isEmpty else { continue }
 
-      if trimmed.hasPrefix("```") && trimmed.hasSuffix("```") && trimmed.count >= 6 {
-        var lines = trimmed.components(separatedBy: "\n")
-        lines.removeFirst()
-        if !lines.isEmpty { lines.removeLast() }
-        result.append(.codeBlock(code: lines.joined(separator: "\n")))
-      } else if trimmed.hasPrefix("#"),
-        trimmed.components(separatedBy: "\n").contains(where: Self.isATXHeadingLine)
+      let blockLines = trimmed.components(separatedBy: "\n")
+      if blockLines.count >= 2,
+        trimmed.hasPrefix("```"),
+        blockLines.last?.trimmingCharacters(in: .whitespaces) == "```"
       {
-        for line in trimmed.components(separatedBy: "\n") {
+        let codeLines = blockLines.dropFirst().dropLast()
+        result.append(.codeBlock(code: codeLines.joined(separator: "\n")))
+      } else if trimmed.hasPrefix("#"),
+        blockLines.contains(where: Self.isATXHeadingLine)
+      {
+        for line in blockLines {
           let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
           guard !trimmedLine.isEmpty else { continue }
           let level = trimmedLine.prefix(while: { $0 == "#" }).count
@@ -130,14 +134,18 @@ struct MarkdownBlockView: View {
             result.append(.paragraph(text: trimmedLine))
           }
         }
-      } else if trimmed.hasPrefix("> ") {
-        let quoteContent = trimmed.components(separatedBy: "\n").map { line in
-          line.hasPrefix("> ")
-            ? String(line.dropFirst(2)) : (line.hasPrefix(">") ? String(line.dropFirst(1)) : line)
+      } else if trimmed.hasPrefix(">") {
+        let quoteContent = blockLines.map { line -> String in
+          if line.hasPrefix("> ") {
+            return String(line.dropFirst(2))
+          } else if line.hasPrefix(">") {
+            return String(line.dropFirst(1))
+          }
+          return line
         }.joined(separator: "\n")
         result.append(.blockquote(text: quoteContent))
       } else {
-        let lines = trimmed.components(separatedBy: "\n")
+        let lines = blockLines
         let isUnordered = lines.allSatisfy { line in
           let trimmedLine = line.trimmingCharacters(in: .whitespaces)
           return trimmedLine.hasPrefix("- ") || trimmedLine.hasPrefix("* ")
@@ -180,7 +188,7 @@ struct MarkdownBlockView: View {
       }
     }
 
-    if result.isEmpty && !raw.isEmpty {
+    if result.isEmpty, !raw.isEmpty {
       result.append(.paragraph(text: raw))
     }
 

@@ -12,9 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import A2UICore
 import OrderedJSON
 import SwiftUI
+
+/// Environment key storing the active A2UI surface theme.
+@available(*, deprecated, message: "Use EnvironmentValues.a2uiTheme instead.")
+public struct A2UIThemeKey: EnvironmentKey {
+  public static let defaultValue: [String: JSONValue]? = nil
+}
 
 extension EnvironmentValues {
   /// The active A2UI surface theme, if any.

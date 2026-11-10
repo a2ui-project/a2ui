@@ -109,9 +109,10 @@ public struct A2UITabs: View {
             .accessibilityAddTraits(activeSelectedIndex == tab.id ? .isSelected : [])
           }
         }
-        .modifier(TabBarAccessibility())
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isTabBar)
       }
-      .scrollIndicators(.hidden)
+      .scrollIndicators(.hidden, axes: .horizontal)
 
       Divider()
 
@@ -123,14 +124,5 @@ public struct A2UITabs: View {
         ComponentNodeView(node: childNode)
       }
     }
-  }
-}
-
-/// Marks the row of tab headers as a tab bar so assistive technologies treat the headers as tabs.
-private struct TabBarAccessibility: ViewModifier {
-  func body(content: Content) -> some View {
-    content
-      .accessibilityElement(children: .contain)
-      .accessibilityAddTraits(.isTabBar)
   }
 }

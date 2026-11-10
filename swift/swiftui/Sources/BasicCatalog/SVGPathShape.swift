@@ -18,23 +18,25 @@ import SwiftUI
 public struct SVGPathShape: Shape {
   public let pathData: String
   private let parsedPath: Path
+  private let boundingBox: CGRect
 
   public init(pathData: String) {
     self.pathData = pathData
-    self.parsedPath = SVGPathParser.parse(pathData)
+    let parsed = SVGPathParser.parse(pathData)
+    self.parsedPath = parsed
+    self.boundingBox = parsed.boundingRect
   }
 
   public func path(in rect: CGRect) -> Path {
-    let boundingBox = parsedPath.boundingRect
     guard boundingBox.width > 0, boundingBox.height > 0 else {
       return parsedPath
     }
 
     let contentWidth = max(boundingBox.width, boundingBox.maxX)
     let contentHeight = max(boundingBox.height, boundingBox.maxY)
-    let refSize = max(max(contentWidth, contentHeight), 24.0)
+    let referenceSize = max(contentWidth, contentHeight, 24.0)
 
-    let scale = min(rect.width / refSize, rect.height / refSize)
+    let scale = min(rect.width / referenceSize, rect.height / referenceSize)
 
     var transform = CGAffineTransform.identity
     let scaledWidth = boundingBox.width * scale

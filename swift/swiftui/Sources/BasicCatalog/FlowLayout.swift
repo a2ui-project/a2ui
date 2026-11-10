@@ -19,48 +19,60 @@ struct FlowLayout: Layout {
   var spacing: CGFloat = 8
   var lineSpacing: CGFloat = 8
 
-  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-    guard !subviews.isEmpty else { return .zero }
-    let maxWidth = proposal.width ?? .infinity
+  private struct ItemPlacement {
+    let origin: CGPoint
+    let size: CGSize
+  }
+
+  private func computeLayout(
+    maxWidth: CGFloat,
+    subviews: Subviews
+  ) -> (size: CGSize, placements: [ItemPlacement]) {
+    guard !subviews.isEmpty else { return (.zero, []) }
+    var placements: [ItemPlacement] = []
+    placements.reserveCapacity(subviews.count)
+
     var currentX: CGFloat = 0
     var currentY: CGFloat = 0
     var lineHeight: CGFloat = 0
     var maxLineWidth: CGFloat = 0
 
     for subview in subviews {
-      let size = subview.sizeThatFits(.unspecified)
-      if currentX + size.width > maxWidth && currentX > 0 {
+      let idealSize = subview.sizeThatFits(.unspecified)
+      let size =
+        if maxWidth.isFinite, idealSize.width > maxWidth {
+          subview.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
+        } else {
+          idealSize
+        }
+      if currentX > 0, currentX + size.width > maxWidth {
         maxLineWidth = max(maxLineWidth, currentX - spacing)
         currentX = 0
         currentY += lineHeight + lineSpacing
         lineHeight = 0
       }
+      placements.append(ItemPlacement(origin: CGPoint(x: currentX, y: currentY), size: size))
       currentX += size.width + spacing
       lineHeight = max(lineHeight, size.height)
     }
     maxLineWidth = max(maxLineWidth, currentX > 0 ? currentX - spacing : 0)
+    return (CGSize(width: maxLineWidth, height: currentY + lineHeight), placements)
+  }
 
-    return CGSize(width: maxLineWidth, height: currentY + lineHeight)
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    computeLayout(maxWidth: proposal.width ?? .infinity, subviews: subviews).size
   }
 
   func placeSubviews(
     in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
   ) {
-    guard !subviews.isEmpty else { return }
-    var currentX: CGFloat = bounds.minX
-    var currentY: CGFloat = bounds.minY
-    var lineHeight: CGFloat = 0
-
-    for subview in subviews {
-      let size = subview.sizeThatFits(.unspecified)
-      if currentX + size.width > bounds.maxX && currentX > bounds.minX {
-        currentX = bounds.minX
-        currentY += lineHeight + lineSpacing
-        lineHeight = 0
-      }
-      subview.place(at: CGPoint(x: currentX, y: currentY), proposal: ProposedViewSize(size))
-      currentX += size.width + spacing
-      lineHeight = max(lineHeight, size.height)
+    let (_, placements) = computeLayout(maxWidth: bounds.width, subviews: subviews)
+    for (subview, placement) in zip(subviews, placements) {
+      let point = CGPoint(
+        x: bounds.minX + placement.origin.x,
+        y: bounds.minY + placement.origin.y
+      )
+      subview.place(at: point, proposal: ProposedViewSize(placement.size))
     }
   }
 }

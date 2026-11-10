@@ -248,6 +248,7 @@ public struct A2UIChoicePicker: View {
 
             Spacer()
           }
+          .padding(.vertical, 4)
           .frame(minHeight: 44)
           .contentShape(.rect)
         }

@@ -16,22 +16,22 @@ import SwiftUI
 
 /// Lightweight parser converting SVG path data strings into SwiftUI `Path` instances.
 public enum SVGPathParser {
-  public static func parse(_ d: String) -> Path {
+  public static func parse(_ pathData: String) -> Path {
     var path = Path()
     var currentPoint: CGPoint = .zero
     var startPoint: CGPoint = .zero
-    var lastControlPoint: CGPoint? = nil
+    var lastCubicControlPoint: CGPoint? = nil
+    var lastQuadraticControlPoint: CGPoint? = nil
 
-    let tokens = tokenize(d)
+    let tokens = tokenize(pathData)
     var index = 0
 
     func nextNumber() -> CGFloat? {
-      guard index < tokens.count else { return nil }
-      if case .number(let val) = tokens[index] {
-        index += 1
-        return CGFloat(val)
+      guard index < tokens.count, case .number(let value) = tokens[index] else {
+        return nil
       }
-      return nil
+      index += 1
+      return CGFloat(value)
     }
 
     func nextPoint(relative: Bool) -> CGPoint? {
@@ -40,110 +40,120 @@ public enum SVGPathParser {
     }
 
     while index < tokens.count {
-      guard case .command(let cmd) = tokens[index] else {
+      guard case .command(let command) = tokens[index] else {
         index += 1
         continue
       }
       index += 1
 
-      switch cmd {
+      switch command {
       case "M", "m":
-        let isRel = (cmd == "m")
-        if let pt = nextPoint(relative: isRel) {
-          currentPoint = pt
-          startPoint = pt
-          path.move(to: pt)
-          lastControlPoint = nil
-          while let nextPt = nextPoint(relative: isRel) {
-            currentPoint = nextPt
-            path.addLine(to: nextPt)
+        let isRelative = (command == "m")
+        if let point = nextPoint(relative: isRelative) {
+          currentPoint = point
+          startPoint = point
+          path.move(to: point)
+          lastCubicControlPoint = nil
+          lastQuadraticControlPoint = nil
+          while let nextPointValue = nextPoint(relative: isRelative) {
+            currentPoint = nextPointValue
+            path.addLine(to: nextPointValue)
           }
         }
 
       case "L", "l":
-        let isRel = (cmd == "l")
-        while let pt = nextPoint(relative: isRel) {
-          currentPoint = pt
-          path.addLine(to: pt)
-          lastControlPoint = nil
+        let isRelative = (command == "l")
+        while let point = nextPoint(relative: isRelative) {
+          currentPoint = point
+          path.addLine(to: point)
+          lastCubicControlPoint = nil
+          lastQuadraticControlPoint = nil
         }
 
       case "H", "h":
-        let isRel = (cmd == "h")
+        let isRelative = (command == "h")
         while let x = nextNumber() {
-          let targetX = isRel ? currentPoint.x + x : x
+          let targetX = isRelative ? currentPoint.x + x : x
           currentPoint = CGPoint(x: targetX, y: currentPoint.y)
           path.addLine(to: currentPoint)
-          lastControlPoint = nil
+          lastCubicControlPoint = nil
+          lastQuadraticControlPoint = nil
         }
 
       case "V", "v":
-        let isRel = (cmd == "v")
+        let isRelative = (command == "v")
         while let y = nextNumber() {
-          let targetY = isRel ? currentPoint.y + y : y
+          let targetY = isRelative ? currentPoint.y + y : y
           currentPoint = CGPoint(x: currentPoint.x, y: targetY)
           path.addLine(to: currentPoint)
-          lastControlPoint = nil
+          lastCubicControlPoint = nil
+          lastQuadraticControlPoint = nil
         }
 
       case "C", "c":
-        let isRel = (cmd == "c")
-        while let cp1 = nextPoint(relative: isRel),
-          let cp2 = nextPoint(relative: isRel),
-          let endPt = nextPoint(relative: isRel)
+        let isRelative = (command == "c")
+        while let controlPoint1 = nextPoint(relative: isRelative),
+          let controlPoint2 = nextPoint(relative: isRelative),
+          let endPoint = nextPoint(relative: isRelative)
         {
-          path.addCurve(to: endPt, control1: cp1, control2: cp2)
-          lastControlPoint = cp2
-          currentPoint = endPt
+          path.addCurve(to: endPoint, control1: controlPoint1, control2: controlPoint2)
+          lastCubicControlPoint = controlPoint2
+          lastQuadraticControlPoint = nil
+          currentPoint = endPoint
         }
 
       case "S", "s":
-        let isRel = (cmd == "s")
-        while let cp2 = nextPoint(relative: isRel),
-          let endPt = nextPoint(relative: isRel)
+        let isRelative = (command == "s")
+        while let controlPoint2 = nextPoint(relative: isRelative),
+          let endPoint = nextPoint(relative: isRelative)
         {
-          let cp1: CGPoint
-          if let last = lastControlPoint {
-            cp1 = CGPoint(x: 2 * currentPoint.x - last.x, y: 2 * currentPoint.y - last.y)
+          let controlPoint1: CGPoint
+          if let last = lastCubicControlPoint {
+            controlPoint1 = CGPoint(x: 2 * currentPoint.x - last.x, y: 2 * currentPoint.y - last.y)
           } else {
-            cp1 = currentPoint
+            controlPoint1 = currentPoint
           }
-          path.addCurve(to: endPt, control1: cp1, control2: cp2)
-          lastControlPoint = cp2
-          currentPoint = endPt
+          path.addCurve(to: endPoint, control1: controlPoint1, control2: controlPoint2)
+          lastCubicControlPoint = controlPoint2
+          lastQuadraticControlPoint = nil
+          currentPoint = endPoint
         }
 
       case "Q", "q":
-        let isRel = (cmd == "q")
-        while let cp = nextPoint(relative: isRel),
-          let endPt = nextPoint(relative: isRel)
+        let isRelative = (command == "q")
+        while let controlPoint = nextPoint(relative: isRelative),
+          let endPoint = nextPoint(relative: isRelative)
         {
-          path.addQuadCurve(to: endPt, control: cp)
-          lastControlPoint = cp
-          currentPoint = endPt
+          path.addQuadCurve(to: endPoint, control: controlPoint)
+          lastQuadraticControlPoint = controlPoint
+          lastCubicControlPoint = nil
+          currentPoint = endPoint
         }
 
       case "T", "t":
-        let isRel = (cmd == "t")
-        while let endPt = nextPoint(relative: isRel) {
-          let cp: CGPoint
-          if let last = lastControlPoint {
-            cp = CGPoint(x: 2 * currentPoint.x - last.x, y: 2 * currentPoint.y - last.y)
+        let isRelative = (command == "t")
+        while let endPoint = nextPoint(relative: isRelative) {
+          let controlPoint: CGPoint
+          if let last = lastQuadraticControlPoint {
+            controlPoint = CGPoint(x: 2 * currentPoint.x - last.x, y: 2 * currentPoint.y - last.y)
           } else {
-            cp = currentPoint
+            controlPoint = currentPoint
           }
-          path.addQuadCurve(to: endPt, control: cp)
-          lastControlPoint = cp
-          currentPoint = endPt
+          path.addQuadCurve(to: endPoint, control: controlPoint)
+          lastQuadraticControlPoint = controlPoint
+          lastCubicControlPoint = nil
+          currentPoint = endPoint
         }
 
       case "Z", "z":
         path.closeSubpath()
         currentPoint = startPoint
-        lastControlPoint = nil
+        lastCubicControlPoint = nil
+        lastQuadraticControlPoint = nil
 
       default:
-        break
+        lastCubicControlPoint = nil
+        lastQuadraticControlPoint = nil
       }
     }
 
@@ -157,43 +167,53 @@ public enum SVGPathParser {
 
   private static func tokenize(_ input: String) -> [Token] {
     var tokens: [Token] = []
-    let commandChars: Set<Character> = [
+    let commandCharacters: Set<Character> = [
       "M", "m", "L", "l", "H", "h", "V", "v", "C", "c", "S", "s", "Q", "q", "T", "t", "A", "a",
       "Z", "z",
     ]
-    var currentNumberStr = ""
+    var currentNumber = ""
+    var hasDecimalInCurrent = false
+    var hasExponentInCurrent = false
 
     func flushNumber() {
-      if !currentNumberStr.isEmpty {
-        if let num = Double(currentNumberStr) {
-          tokens.append(.number(num))
-        }
-        currentNumberStr = ""
+      guard !currentNumber.isEmpty else { return }
+      if let number = Double(currentNumber) {
+        tokens.append(.number(number))
       }
+      currentNumber = ""
+      hasDecimalInCurrent = false
+      hasExponentInCurrent = false
     }
 
-    var hasDecimalInCurrent = false
-
-    for char in input {
-      if commandChars.contains(char) {
+    for character in input {
+      if (character == "e" || character == "E"),
+        !hasExponentInCurrent,
+        currentNumber.contains(where: { $0.isASCII && $0.isWholeNumber })
+      {
+        hasExponentInCurrent = true
+        currentNumber.append(character)
+      } else if commandCharacters.contains(character) {
         flushNumber()
-        hasDecimalInCurrent = false
-        tokens.append(.command(char))
-      } else if char.isWhitespace || char == "," {
+        tokens.append(.command(character))
+      } else if character.isWhitespace || character == "," {
         flushNumber()
-        hasDecimalInCurrent = false
-      } else if char == "-" {
-        flushNumber()
-        hasDecimalInCurrent = false
-        currentNumberStr.append(char)
-      } else if char == "." {
-        if hasDecimalInCurrent {
+      } else if character == "-" || character == "+" {
+        if currentNumber.last == "e" || currentNumber.last == "E" {
+          currentNumber.append(character)
+        } else {
+          flushNumber()
+          if character == "-" {
+            currentNumber.append(character)
+          }
+        }
+      } else if character == "." {
+        if hasDecimalInCurrent || hasExponentInCurrent {
           flushNumber()
         }
         hasDecimalInCurrent = true
-        currentNumberStr.append(char)
-      } else if char.isNumber {
-        currentNumberStr.append(char)
+        currentNumber.append(character)
+      } else if character.isASCII, character.isWholeNumber {
+        currentNumber.append(character)
       }
     }
     flushNumber()
