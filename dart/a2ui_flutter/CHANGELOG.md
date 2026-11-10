@@ -16,6 +16,13 @@
 
 # [a2ui_flutter](https://pub.dev/packages/a2ui_flutter) Changelog
 
+## Unreleased
+
+- `Slider` treats an infinite `min` or `max`, which a JSON number such as
+  `-1e400` decodes to, as absent, as an HTML range input does. A `min` of
+  negative infinity failed a Material `Slider` assertion
+  ([#TBD](https://github.com/a2ui-project/a2ui/pull/TBD)).
+
 ## 0.2.0
 
 - **Breaking:** Requires `a2ui_core` `^0.6.0`, whose types this library

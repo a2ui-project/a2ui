@@ -228,6 +228,36 @@ void main() {
     expect(slider.divisions, isNull);
   });
 
+  testWidgets('treats an infinite min or max as absent', (tester) async {
+    // A JSON number past the largest double, such as -1e400, decodes to an
+    // infinity.
+    final SurfaceHarness harness = await _pumpSlider(tester, {
+      'min': double.negativeInfinity,
+      'max': 10,
+      'value': 5,
+    });
+
+    expect(tester.takeException(), isNull);
+    expect(_slider(tester).min, 0);
+    expect(_slider(tester).max, 10);
+    expect(_slider(tester).value, 5);
+
+    await harness.send([
+      updateComponents([
+        {
+          'id': 'root',
+          'component': 'Slider',
+          'min': 2,
+          'max': double.infinity,
+          'value': 5,
+        },
+      ]),
+    ]);
+
+    expect(_slider(tester).min, 2);
+    expect(_slider(tester).max, 100);
+  });
+
   testWidgets('shows the first failing check and clears it when it passes', (
     tester,
   ) async {
