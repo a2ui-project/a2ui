@@ -1,0 +1,132 @@
+{
+  "name": "Loan amortization explorer",
+  "description": "Native sliders write the interest rate and the annual payment to the data model. A ReactApp reads them live with useData, draws the remaining balance for ten years with VegaChart, and formats amounts with the catalog function formatCurrency. Clicking a bar writes /loan/selectedYear and /loan/selectedYearSummary, which a native Text shows. A native button sends the plan to the agent.",
+  "messages": [
+    {
+      "version": "1.0",
+      "createSurface": {
+        "surfaceId": "loan",
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      }
+    },
+    {
+      "version": "1.0",
+      "updateDataModel": {
+        "surfaceId": "loan",
+        "value": {
+          "loan": {
+            "principal": 250000,
+            "rate": 5,
+            "annualPayment": 30000,
+            "selectedYear": 0,
+            "selectedYearSummary": "Click a bar to see a year."
+          }
+        }
+      }
+    },
+    {
+      "version": "1.0",
+      "updateComponents": {
+        "surfaceId": "loan",
+        "components": [
+          {
+            "id": "root",
+            "component": "Column",
+            "children": [
+              "heading",
+              "principal_text",
+              "rate_slider",
+              "payment_slider",
+              "chart",
+              "summary_text",
+              "email_button"
+            ]
+          },
+          {
+            "id": "heading",
+            "component": "Text",
+            "text": "## Your loan"
+          },
+          {
+            "id": "principal_text",
+            "component": "Text",
+            "text": {
+              "@call": "formatString",
+              "args": {
+                "value": "Principal: ${formatCurrency(value:${/loan/principal}, currency:'USD')}"
+              }
+            }
+          },
+          {
+            "id": "rate_slider",
+            "component": "Slider",
+            "label": "Interest rate (%)",
+            "value": {
+              "@path": "/loan/rate"
+            },
+            "min": 1,
+            "max": 12
+          },
+          {
+            "id": "payment_slider",
+            "component": "Slider",
+            "label": "Annual payment (USD)",
+            "value": {
+              "@path": "/loan/annualPayment"
+            },
+            "min": 10000,
+            "max": 60000
+          },
+          {
+            "id": "chart",
+            "component": "ReactApp",
+            "catalogId": "https://a2ui.org/labs/react_app/v1/catalog.json",
+            "title": "Balance by year",
+            "height": 340,
+            "dataPaths": [
+              "/loan"
+            ],
+            "functions": [
+              "formatCurrency"
+            ],
+            "source": "import { useEffect, useMemo, useState } from \"react\";\nimport { Card, Stack, Text, VegaChart, callFunction, setData, theme, useData } from \"a2ui\";\n\ntype Row = { year: number; balance: number; label: string };\n\nfunction schedule(principal: number, ratePct: number, payment: number) {\n  const rows: { year: number; balance: number }[] = [];\n  let balance = principal;\n  for (let year = 1; year <= 10; year++) {\n    balance = Math.max(0, balance * (1 + ratePct / 100) - payment);\n    rows.push({ year, balance: Math.round(balance) });\n  }\n  return rows;\n}\n\nexport default function App() {\n  const [principal] = useData<number>(\"/loan/principal\", 250000);\n  const [rate] = useData<number>(\"/loan/rate\", 5);\n  const [payment] = useData<number>(\"/loan/annualPayment\", 30000);\n  const [selectedYear, setSelectedYear] = useData<number>(\"/loan/selectedYear\", 0);\n  const balances = useMemo(() => schedule(principal, rate, payment), [principal, rate, payment]);\n  const [rows, setRows] = useState<Row[]>([]);\n\n  // Format every balance with the catalog's formatCurrency, for tooltips and the summary.\n  useEffect(() => {\n    let current = true;\n    Promise.all(\n      balances.map((b) => callFunction<string>(\"formatCurrency\", { value: b.balance, currency: \"USD\" })),\n    ).then((labels) => {\n      if (current) setRows(balances.map((b, i) => ({ ...b, label: labels[i] })));\n    });\n    return () => {\n      current = false;\n    };\n  }, [balances]);\n\n  useEffect(() => {\n    const row = rows.find((r) => r.year === selectedYear);\n    if (row) setData(\"/loan/selectedYearSummary\", `After year ${row.year}: ${row.label} left to pay`);\n  }, [rows, selectedYear]);\n\n  const spec = {\n    data: { name: \"table\" },\n    mark: { type: \"bar\", cursor: \"pointer\" },\n    encoding: {\n      x: { field: \"year\", type: \"ordinal\", title: \"Year\" },\n      y: { field: \"balance\", type: \"quantitative\", title: \"Remaining balance\" },\n      tooltip: [{ field: \"label\", title: \"Balance\" }],\n      color: {\n        condition: { test: `datum.year === ${selectedYear}`, value: theme.colors.primary },\n        value: theme.colors.secondary,\n      },\n    },\n  };\n\n  return (\n    <Card title=\"Balance by year\">\n      <Stack gap={2}>\n        <VegaChart\n          spec={spec}\n          data={{ table: rows }}\n          height={240}\n          onSelect={(datum) => datum && setSelectedYear(datum.year as number)}\n        />\n        <Text variant=\"caption\" tone=\"muted\">Click a bar to see that year below.</Text>\n      </Stack>\n    </Card>\n  );\n}\n"
+          },
+          {
+            "id": "summary_text",
+            "component": "Text",
+            "text": {
+              "@path": "/loan/selectedYearSummary"
+            }
+          },
+          {
+            "id": "email_label",
+            "component": "Text",
+            "text": "Email me this plan"
+          },
+          {
+            "id": "email_button",
+            "component": "Button",
+            "child": "email_label",
+            "variant": "primary",
+            "action": {
+              "event": {
+                "name": "emailPlan",
+                "context": {
+                  "rate": {
+                    "@path": "/loan/rate"
+                  },
+                  "annualPayment": {
+                    "@path": "/loan/annualPayment"
+                  },
+                  "selectedYear": {
+                    "@path": "/loan/selectedYear"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

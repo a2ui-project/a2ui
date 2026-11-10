@@ -1,0 +1,91 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+[project]
+name = "a2ui-react-app"
+version = "0.1.0"
+description = "Agent-side support for the A2UI ReactApp component (labs): catalog, prompt fragment and transport checks."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "a2ui-agent-sdk",
+  "a2ui-core",
+]
+
+[dependency-groups]
+dev = [
+  "mypy>=1.14.0",
+  "pyink>=25.12.0",
+  "pytest>=9.1.1",
+  "types-jsonschema>=4.26.0",
+  "types-PyYAML>=6.0.12.20241221",
+  "types-regex>=2024.11.6",
+]
+
+# The package sits inside the repository's root uv workspace without being a
+# member of it. Declaring its own workspace makes this directory a workspace
+# root of its own, so `uv` resolves it here, with its own lock file, and never
+# edits the root workspace. The SDKs come from the monorepo as editable path
+# dependencies, so the package always runs against the SDK source next to it.
+[tool.uv.workspace]
+members = []
+
+[tool.uv.sources]
+a2ui-agent-sdk = { path = "../../../../../python/a2ui_agent", editable = true }
+a2ui-core = { path = "../../../../../python/a2ui_core", editable = true }
+
+[[tool.uv.index]]
+url = "https://pypi.org/simple"
+default = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/a2ui_react_app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--import-mode=importlib"
+
+[tool.pyink]
+unstable = true
+target-version = []
+pyink-indentation = 4
+pyink-use-majority-quotes = true
+pyink-annotation-pragmas = [
+  "noqa",
+  "pylint:",
+  "type: ignore",
+  "pytype:",
+  "mypy:",
+  "pyright:",
+  "pyre-",
+]
+
+[tool.mypy]
+strict = true
+explicit_package_bases = true
+namespace_packages = true
+mypy_path = "src"
+files = ["src", "tests", "scripts"]
+
+[[tool.mypy.overrides]]
+module = [
+  "a2ui.inference_formats.express.generated.*",
+  "antlr4.*",
+]
+follow_imports = "skip"
+ignore_missing_imports = true
