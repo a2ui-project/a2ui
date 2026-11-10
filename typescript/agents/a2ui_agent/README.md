@@ -92,7 +92,12 @@ An app that calls the model and renders its answer itself, such as a chat in the
 ```ts
 import {MessageProcessor} from '@a2ui/web_core';
 
-const renderer = new MessageProcessor([catalog], onAction);
+const renderer = new MessageProcessor([catalog], undefined, {
+  outboundListener: message => {
+    if (!('error' in message)) sendToAgent(message);
+  },
+  unifiedOutbound: true,
+});
 const stream = processor.openStream({state: RendererState.of(renderer)});
 stream.feed(chunk); // the surfaces show up in renderer.model
 ```
@@ -100,7 +105,14 @@ stream.feed(chunk); // the surfaces show up in renderer.model
 `StreamedAnswer` does this for one answer and keeps its parts in the order the model wrote them: its text, a part for each surface it creates, and an `ErrorPart` where it rejected a block, followed by the text and surfaces after it.
 
 ```ts
-const answer = new StreamedAnswer(processor, {renderer: new MessageProcessor([catalog], onAction)});
+const answer = new StreamedAnswer(processor, {
+  renderer: new MessageProcessor([catalog], undefined, {
+    outboundListener: message => {
+      if (!('error' in message)) sendToAgent(message);
+    },
+    unifiedOutbound: true,
+  }),
+});
 answer.feed(chunk);
 answer.close();
 answer.parts; // text, surfaces and errors, in order
