@@ -512,7 +512,7 @@ enum A2UISchemaGenerator {
 
   private static func generateBasicCatalogComponents(repoRoot: URL) throws -> String {
     let v091CatalogURL = repoRoot.appendingPathComponent(
-      "specification/v0_9_1/catalogs/basic/catalog.json"
+      "catalogs/basic/v0_9_1/catalog.json"
     )
     let v10CatalogURL = repoRoot.appendingPathComponent(
       "catalogs/basic/v1/catalog.json"

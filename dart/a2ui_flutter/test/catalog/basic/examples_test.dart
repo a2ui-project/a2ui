@@ -146,7 +146,7 @@ List<_Example> _examplesIn(
 void main() {
   final Map<String, List<_Example>> examplesByVersion = {
     'v0.9': _examplesIn(
-      '../../specification/v0_9/catalogs/basic/examples',
+      '../../catalogs/basic/v0_9/examples',
       v0_9.basicCatalog,
     ),
     '1.0': _examplesIn('../../catalogs/basic/v1/examples', v1_0.basicCatalog),

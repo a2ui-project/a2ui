@@ -281,7 +281,8 @@ function loadExtraCatalogs(catalogPaths: string[]): ExtraCatalogEntry[] {
   for (const relPath of catalogPaths) {
     if (
       relPath === 'catalogs/basic/v1/catalog.json' ||
-      relPath === 'specification/v0_9_1/catalogs/basic/catalog.json' ||
+      relPath === 'catalogs/basic/v0_9/catalog.json' ||
+      relPath === 'catalogs/basic/v0_9_1/catalog.json' ||
       relPath === 'specification/v0_9/json/standard_catalog_definition.json'
     ) {
       continue;

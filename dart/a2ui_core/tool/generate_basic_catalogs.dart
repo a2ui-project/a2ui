@@ -52,7 +52,7 @@ typedef BasicCatalogSource = ({
 /// write, relative to the package directory.
 const List<BasicCatalogSource> sources = [
   (
-    source: 'specification/v0_9/catalogs/basic/catalog.json',
+    source: 'catalogs/basic/v0_9/catalog.json',
     output: 'lib/src/basic_catalog/v0_9/catalog.g.dart',
     suffix: 'V0_9',
     label: 'v0.9',

@@ -28,6 +28,6 @@ CatalogApi loadBasicCatalog(A2uiProtocolVersion version) =>
         '../../../catalogs/basic/v1/catalog.json',
       ).load()
     : FileSystemCatalogProvider(
-        '../../../specification/v0_9/catalogs/basic/catalog.json',
+        '../../../catalogs/basic/v0_9/catalog.json',
         protocolVersion: version,
       ).load();

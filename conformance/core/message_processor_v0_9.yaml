@@ -23,7 +23,7 @@
   description: Tests creating a surface with catalogId and theme, verifying sendDataModel defaults to false.
   action: process_messages
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   messages:
     - version: "v0.9"
       createSurface:
@@ -44,7 +44,7 @@
   description: Tests creating a surface with sendDataModel explicitly enabled.
   action: process_messages
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   messages:
     - version: "v0.9"
       createSurface:
@@ -61,7 +61,7 @@
   description: Tests that creating a surface with an already existing surfaceId raises an IntegrityError.
   action: process_messages
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   messages:
     - version: "v0.9"
       createSurface:
@@ -86,7 +86,7 @@
   description: Tests that creating a surface referencing an unregistered catalogId raises a CatalogError.
   action: process_messages
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   messages:
     - version: "v0.9"
       createSurface:
@@ -102,7 +102,7 @@
   action: process_messages
   protocolVersion: "v0.9"
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   messages:
     - version: "v0.9"
       createSurface:
@@ -117,7 +117,7 @@
   action: process_messages
   protocolVersion: "v0.9.1"
   catalogPaths:
-    - "specification/v0_9_1/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9_1/catalog.json"
   messages:
     - version: "v0.9.1"
       createSurface:
@@ -131,7 +131,7 @@
   description: Tests deleting an active surface by surfaceId, cleanly removing it from state.
   action: process_messages
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   messages:
     - version: "v0.9"
       createSurface:
@@ -152,7 +152,7 @@
   description: Tests adding multiple components to an active surface and querying their properties.
   action: process_messages
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   messages:
     - version: "v0.9"
       createSurface:
@@ -183,7 +183,7 @@
   description: Tests updating the properties of an existing component on a surface.
   action: process_messages
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   messages:
     - version: "v0.9"
       createSurface:
@@ -215,7 +215,7 @@
   description: Tests that changing a component's type recreates the component model and clears previous properties.
   action: process_messages
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   messages:
     - version: "v0.9"
       createSurface:
@@ -247,7 +247,7 @@
   description: Tests that updating components on a non-existent surface raises an IntegrityError.
   action: process_messages
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   messages:
     - version: "v0.9"
       updateComponents:
@@ -270,7 +270,7 @@
   description: Tests that component entries missing an 'id' property raise a validation error.
   action: process_messages
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   messages:
     - version: "v0.9"
       createSurface:
@@ -290,7 +290,7 @@
   description: Tests that creating a brand new component without a component type name raises a validation error.
   action: process_messages
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   messages:
     - version: "v0.9"
       createSurface:
@@ -701,7 +701,7 @@
   description: Tests updating the data model at root and nested JSON pointer paths.
   action: process_messages
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   messages:
     - version: "v0.9"
       createSurface:
@@ -723,7 +723,7 @@
   description: Tests that updating data on a non-existent surface raises an IntegrityError.
   action: process_messages
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   messages:
     - version: "v0.9"
       updateDataModel:
@@ -745,7 +745,7 @@
   description: Tests that getRendererDataModel filters out surfaces where sendDataModel is false.
   action: get_renderer_data_model
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   messages:
     - version: "v0.9"
       createSurface:
@@ -779,7 +779,7 @@
   description: Tests that getRendererDataModel returns null/undefined when no active surfaces have sendDataModel enabled.
   action: get_renderer_data_model
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   messages:
     - version: "v0.9"
       createSurface:
@@ -834,7 +834,7 @@
   description: Tests that a message containing multiple conflicting update types raises a validation error.
   action: process_messages
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   messages:
     - version: "v0.9"
       createSurface:
@@ -850,7 +850,7 @@
   description: "Tests processing messages wrapped inside a { messages: [...] } container object."
   action: process_messages
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   messages:
     messages:
       - version: "v0.9"
@@ -877,7 +877,7 @@
   description: Tests v0.9 surface creation with standard theme object.
   action: process_messages
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   messages:
     - version: "v0.9"
       createSurface:
@@ -1071,7 +1071,7 @@
   description: Tests that a v0.9 action with a non-string surfaceId raises a ValidationError.
   action: process_messages
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   messages:
     - version: "v0.9"
       createSurface:
@@ -1086,7 +1086,7 @@
   description: Tests that components are added to the surface the message names, not to every open surface.
   action: process_messages
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   messages:
     - version: "v0.9"
       createSurface:
@@ -1120,7 +1120,7 @@
   description: Tests that each surface owns its data model, so the same path holds a different value per surface.
   action: process_messages
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   messages:
     - version: "v0.9"
       createSurface:
@@ -1154,7 +1154,7 @@
   description: Tests that messages carrying version 'v0.9.1' are accepted compatibly by v0.9 processors and catalogs.
   action: process_messages
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   messages:
     - version: "v0.9.1"
       createSurface:
@@ -1345,7 +1345,7 @@
   action: process_messages
   protocolVersion: "v0.9"
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   messages:
     - version: "v0.9"
       createSurface:

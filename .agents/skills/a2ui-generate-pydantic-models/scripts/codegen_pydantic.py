@@ -359,7 +359,11 @@ def generate_basic_catalog(
     s_root = spec_root or SPEC_ROOT
     o_root = out_root or CORE_SRC_ROOT
 
+    catalogs_root = os.path.join(
+        os.path.dirname(os.path.normpath(s_root)), "catalogs/basic"
+    )
     possible_paths = [
+        os.path.join(catalogs_root, dir_name, "catalog.json"),
         os.path.join(s_root, dir_name, "catalogs/basic/catalog.json"),
         os.path.join(s_root, dir_name, "json/standard_catalog_definition.json"),
         os.path.join(s_root, dir_name, "json/catalogs/basic/catalog.json"),
@@ -371,7 +375,6 @@ def generate_basic_catalog(
         # From v1.0 on, catalogs are versioned separately from the protocol and live
         # in the top-level `catalogs/` directory. Fall back to the v1 catalog until
         # a catalog for the new major version exists.
-        catalogs_root = os.path.join(os.path.dirname(s_root), "catalogs/basic")
         possible_paths[:0] = [
             os.path.join(catalogs_root, f"v{major}/catalog.json"),
             os.path.join(catalogs_root, "v1/catalog.json"),

@@ -48,7 +48,7 @@ After changing the generator or a basic catalog schema, regenerate the Python SD
 ```bash
 # Protocol v0.9 / v0.9.1:
 dart run dart/a2ui_cli/bin/a2ui.dart codegen \
-  --catalog specification/v0_9_1/catalogs/basic/catalog.json \
+  --catalog catalogs/basic/v0_9_1/catalog.json \
   --out python/a2ui_agent/src/a2ui/builder/v0_9/catalogs/basic.py
 
 # Protocol v1.0:

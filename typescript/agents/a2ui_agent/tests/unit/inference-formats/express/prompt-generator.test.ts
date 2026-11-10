@@ -426,10 +426,7 @@ describe('ExpressPromptGenerator', () => {
     it('translates fenced v0.9 examples in catalog instructions', () => {
       const doc = JSON.parse(
         fs.readFileSync(
-          path.join(
-            __dirname,
-            '../../../../../../../specification/v0_9/catalogs/basic/catalog.json',
-          ),
+          path.join(__dirname, '../../../../../../../catalogs/basic/v0_9/catalog.json'),
           'utf8',
         ),
       );
@@ -486,10 +483,7 @@ describe('ExpressPromptGenerator', () => {
     it('rejects multiple v0.9 catalogs with A2uiCatalogError', () => {
       const schema1 = JSON.parse(
         fs.readFileSync(
-          path.join(
-            __dirname,
-            '../../../../../../../specification/v0_9/catalogs/basic/catalog.json',
-          ),
+          path.join(__dirname, '../../../../../../../catalogs/basic/v0_9/catalog.json'),
           'utf8',
         ),
       );

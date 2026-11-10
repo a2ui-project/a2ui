@@ -58,7 +58,7 @@
 		A20000000000000000000107 /* InspectorPanes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectorPanes.swift; sourceTree = "<group>"; };
 		A20000000000000000000108 /* GalleryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryDetailView.swift; sourceTree = "<group>"; };
 		A20000000000000000000109 /* GalleryMainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryMainView.swift; sourceTree = "<group>"; };
-		A20000000000000000000201 /* examples (v0.9.1) */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "examples (v0.9.1)"; path = "../../specification/v0_9_1/catalogs/basic/examples"; sourceTree = "<group>"; };
+		A20000000000000000000201 /* examples (v0.9.1) */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "examples (v0.9.1)"; path = "../../catalogs/basic/v0_9_1/examples"; sourceTree = "<group>"; };
 		A20000000000000000000202 /* cases */ = {isa = PBXFileReference; lastKnownFileType = folder; name = cases; path = "../../specification/v0_9_1/test/cases"; sourceTree = "<group>"; };
 		A20000000000000000000203 /* examples (v1.0) */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "examples (v1.0)"; path = "../../catalogs/basic/v1/examples"; sourceTree = "<group>"; };
 		A20000000000000000000300 /* A2UISampleClient.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = A2UISampleClient.app; sourceTree = BUILT_PRODUCTS_DIR; };

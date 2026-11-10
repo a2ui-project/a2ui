@@ -51,7 +51,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 _CATALOG_PATHS = {
     "1.0": ["catalogs/basic/v1/catalog.json"],
-    "v0.9": ["specification/v0_9_1/catalogs/basic/catalog.json"],
+    "v0.9": ["catalogs/basic/v0_9_1/catalog.json"],
 }
 
 # Values the renderer picks at run time, which a golden cannot pin.

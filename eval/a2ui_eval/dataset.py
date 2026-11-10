@@ -53,6 +53,9 @@ def _version_to_dir_name(version: str) -> str:
 # `catalogs/` directory. Dataset entries (including the encrypted ones) may still
 # use the old location, so both spellings resolve to the same file.
 _MOVED_CATALOG_PREFIXES = {
+    "specification/v0_9/catalogs/basic/": "catalogs/basic/v0_9/",
+    "specification/v0_9/catalogs/minimal/": "catalogs/minimal/v0_9/",
+    "specification/v0_9_1/catalogs/basic/": "catalogs/basic/v0_9_1/",
     "specification/v1_0/catalogs/basic/": "catalogs/basic/v1/",
 }
 

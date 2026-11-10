@@ -19,7 +19,7 @@
  * that the published v0.9 basic catalog document never defined.
  *
  * They are kept out of `basicCatalog`, whose `toJson()` must match
- * `specification/v0_9/catalogs/basic/catalog.json`, and out of the generated
+ * `catalogs/basic/v0_9/catalog.json`, and out of the generated
  * `BASIC_FUNCTION_APIS`, but stay in `BASIC_FUNCTIONS` so catalogs that
  * composed their function list from it keep resolving `add`, `equals`, and
  * the rest.

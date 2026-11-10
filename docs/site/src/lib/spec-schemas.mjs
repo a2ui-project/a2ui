@@ -61,7 +61,7 @@ export const SPEC_DOC_ROUTES = {
   'specification/v0_9_1/docs/a2ui_extension_specification.md':
     'specification/v0.9.1-a2ui-extension-specification',
   'specification/v0_9_1/docs/evolution_guide.md': 'specification/v0.9.1-evolution-guide',
-  'specification/v0_9_1/docs/basic_catalog_implementation_guide.md':
+  'catalogs/basic/v0_9_1/basic_catalog_implementation_guide.md':
     'specification/v0.9.1-basic-catalog-implementation-guide',
 
 };
@@ -226,7 +226,7 @@ export const SPEC_CATALOG_SCHEMAS = {
     {
       category: 'Catalog Schema',
       alias: 'basic_catalog.json',
-      sourcePath: 'specification/v0_9_1/catalogs/basic/catalog.json',
+      sourcePath: 'catalogs/basic/v0_9_1/catalog.json',
       rawPublicPath: '/specification/v0_9_1/catalogs/basic/catalog.json',
       guideRoute: 'specification/v0.9.1-basic-catalog-implementation-guide',
     },

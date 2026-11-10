@@ -55,9 +55,9 @@ the code sends or expects (fixtures, goldens, prompts, transport code):
 | `"version": "1.0"`; bindings as `{"@path": ...}`, calls as `{"@call": ...}`; per-component `catalogId`; `callRendererFunction` / `callAgentFunction`       | v1.0     |
 
 Other signs: catalog ids (`.../specification/v0_9/catalogs/basic/catalog.json`
-is v0.9, `.../specification/v1_0/catalogs/basic/catalog.json` is v1.0; the
-v1.0 catalog files live under `catalogs/<name>/v1/`, but their ids keep the
-`specification/v1_0` path), the metadata keys for capabilities
+is v0.9, `.../specification/v1_0/catalogs/basic/catalog.json` is v1.0; catalog
+files live under `catalogs/`, but their ids keep the `specification/<version>`
+path), the metadata keys for capabilities
 (`a2uiClientCapabilities` is v0.9, `a2uiRendererCapabilities` is v1.0), and
 the names of the schema directories a project validates against
 (`specification/v0_9/json` versus `specification/v1_0/json`).

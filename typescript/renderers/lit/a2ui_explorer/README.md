@@ -34,7 +34,7 @@ For more details on building the renderers, see:
     yarn dev
     ```
     This command will:
-    - Load all JSON examples from `specification/v0_9/catalogs/basic/examples/`.
+    - Load all JSON examples from `catalogs/basic/v0_9/examples/`.
     - Start the Vite server at `http://localhost:5173`.
 
 ## Architecture

@@ -26,8 +26,7 @@ import 'conformance/conformance_harness.dart';
 import 'support/test_catalog.dart';
 
 /// The published basic catalog, which agent-side tests are measured against.
-const String basicCatalogPath =
-    '../specification/v0_9_1/catalogs/basic/catalog.json';
+const String basicCatalogPath = '../catalogs/basic/v0_9_1/catalog.json';
 
 const String basicCatalogId =
     'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
@@ -984,7 +983,7 @@ void main() {
 
     for (final path in [
       '../catalogs/basic/v1/catalog.json',
-      '../specification/v0_9/catalogs/basic/catalog.json',
+      '../catalogs/basic/v0_9/catalog.json',
       '../catalogs/mcp/catalog.json',
     ]) {
       test('writes $path back unchanged', () {

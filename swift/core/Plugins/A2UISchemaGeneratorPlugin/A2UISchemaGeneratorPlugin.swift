@@ -29,7 +29,7 @@ struct A2UISchemaGeneratorPlugin: BuildToolPlugin {
       "specification/v0_9_1/json/server_to_client.json",
       "specification/v0_9_1/json/client_to_server.json",
       "specification/v0_9_1/json/client_capabilities.json",
-      "specification/v0_9_1/catalogs/basic/catalog.json",
+      "catalogs/basic/v0_9_1/catalog.json",
       "specification/v1_0/json/common_types.json",
       "specification/v1_0/json/catalog_definition.json",
       "specification/v1_0/json/agent_to_renderer.json",

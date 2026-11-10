@@ -32,10 +32,10 @@ void main() {
   group('v0.9 basic catalog', () {
     _roundTrips(
       basic: const FileSystemCatalogProvider(
-        '../../specification/v0_9/catalogs/basic/catalog.json',
+        '../../catalogs/basic/v0_9/catalog.json',
         protocolVersion: A2uiProtocolVersion.v0_9,
       ).load(),
-      examples: '../../specification/v0_9/catalogs/basic/examples',
+      examples: '../../catalogs/basic/v0_9/examples',
     );
   });
 

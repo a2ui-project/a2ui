@@ -9,7 +9,7 @@ Dart and TypeScript run the same cases against their native node resolvers.
 Each case names a YAML `fixture` under `test_data/node/`. A fixture contains a
 `catalog` JSON path, initial `data`, and flat `components` with `id`, `component`,
 and properties. Both paths are relative to `conformance/`, including catalog
-paths such as `../specification/v0_9_1/catalogs/basic/catalog.json`.
+paths such as `../catalogs/basic/v0_9_1/catalog.json`.
 
 Runners load that catalog, seed a surface model (unless the fixture sets
 `surface: false`, in which case the runner does not pre-create surface `s` and

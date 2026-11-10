@@ -22,7 +22,7 @@ Adhering to the A2UI Spec-Driven Development framework adapter blueprint (`a2ui_
 
 To preserve Git repository efficiency, this application **does not duplicate** sample JSON files in source control. Instead, `A2UISampleClient.xcodeproj` uses native **Xcode Folder References** to point directly to authoritative repository specifications at build time:
 
-- `specification/v0_9_1/catalogs/basic/examples/` (`v0.9.1` `.json` streams)
+- `catalogs/basic/v0_9_1/examples/` (`v0.9.1` `.json` streams)
 - `catalogs/basic/v1/examples/` (`v1.0` `.json` streams)
 - `specification/v0_9_1/test/cases/` (`v0.9.1` `.jsonl` test streams)
 

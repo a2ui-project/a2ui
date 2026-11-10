@@ -32,7 +32,7 @@ void main() {
           as Map<String, Object?>;
   final CatalogApi basic = InMemoryCatalogProvider(basicDocument).load();
   final CatalogApi v0_9Basic = const FileSystemCatalogProvider(
-    '../../specification/v0_9/catalogs/basic/catalog.json',
+    '../../catalogs/basic/v0_9/catalog.json',
     protocolVersion: A2uiProtocolVersion.v0_9,
   ).load();
 

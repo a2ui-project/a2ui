@@ -28,10 +28,7 @@ import path from 'path';
  *   the examples from web_core.
  */
 describe('v0.9 Basic Catalog Examples', () => {
-  const examplesDir = path.resolve(
-    process.cwd(),
-    '../../../specification/v0_9/catalogs/basic/examples',
-  );
+  const examplesDir = path.resolve(process.cwd(), '../../../catalogs/basic/v0_9/examples');
 
   const files = fs.readdirSync(examplesDir).filter(f => f.endsWith('.json'));
 

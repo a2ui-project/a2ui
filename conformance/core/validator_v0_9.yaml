@@ -22,7 +22,7 @@
   action: validate
   protocolVersion: "v0.9"
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   steps:
     - messages:
         - version: "v0.9"
@@ -185,7 +185,7 @@
   action: validate
   protocolVersion: "v0.9"
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   strictMode: true
   steps:
     - messages:
@@ -225,7 +225,7 @@
   action: validate
   protocolVersion: "v0.9"
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   strictMode: true
   steps:
     - messages:
@@ -251,7 +251,7 @@
   action: validate
   protocolVersion: "v0.9"
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   strictMode: true
   steps:
     - messages:
@@ -273,7 +273,7 @@
   action: validate
   protocolVersion: "v0.9"
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   strictMode: true
   steps:
     - messages:
@@ -295,7 +295,7 @@
   action: validate
   protocolVersion: "v0.9"
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   strictMode: true
   steps:
     - messages:
@@ -320,7 +320,7 @@
   action: validate
   protocolVersion: "v0.9"
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   strictMode: true
   steps:
     - messages:
@@ -342,7 +342,7 @@
   action: validate
   protocolVersion: "v0.9"
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   steps:
     - messages:
         - version: "v0.9"
@@ -371,7 +371,7 @@
   action: validate
   protocolVersion: "v0.9"
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   steps:
     - messages:
         - version: "v0.9"
@@ -394,7 +394,7 @@
   action: validate
   protocolVersion: "v0.9"
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   steps:
     - messages:
         - version: "v0.9"
@@ -420,7 +420,7 @@
   action: validate
   protocolVersion: "v0.9"
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   steps:
     - messages:
         - version: "v0.9"
@@ -447,7 +447,7 @@
   action: validate
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   strictMode: true
   steps:
     - messages:
@@ -484,7 +484,7 @@
   action: validate
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   strictMode: true
   steps:
     - messages:
@@ -510,7 +510,7 @@
   action: validate
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   strictMode: true
   steps:
     - messages:
@@ -545,7 +545,7 @@
   action: validate
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   strictMode: true
   steps:
     - messages:
@@ -570,7 +570,7 @@
   action: validate
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   strictMode: true
   steps:
     - messages:
@@ -762,7 +762,7 @@
   action: validate
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   strictMode: true
   steps:
     - messages:
@@ -906,7 +906,7 @@
   action: validate
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   strictMode: true
   steps:
     - messages:
@@ -1046,7 +1046,7 @@
   action: validate
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   strictMode: true
   steps:
     - messages:
@@ -1084,7 +1084,7 @@
   action: validate
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   strictMode: true
   steps:
     - messages:
@@ -1119,7 +1119,7 @@
   action: validate
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   strictMode: true
   steps:
     - messages:
@@ -1157,7 +1157,7 @@
   action: validate
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   strictMode: true
   steps:
     - messages:
@@ -1195,7 +1195,7 @@
   action: validate
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   strictMode: true
   steps:
     - messages:
@@ -1236,7 +1236,7 @@
   action: validate
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   strictMode: true
   steps:
     - messages:
@@ -1283,7 +1283,7 @@
   action: validate
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   strictMode: true
   steps:
     - messages:
@@ -1314,7 +1314,7 @@
   action: validate
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   strictMode: true
   steps:
     - messages:
@@ -1510,7 +1510,7 @@
   action: validate
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   strictMode: true
   steps:
     - messages:
@@ -1537,7 +1537,7 @@
   action: validate
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   strictMode: true
   steps:
     - messages:
@@ -1559,7 +1559,7 @@
   action: validate
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   strictMode: true
   steps:
     - messages:
@@ -1586,7 +1586,7 @@
   action: validate
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   strictMode: true
   steps:
     - messages:
@@ -1611,7 +1611,7 @@
   action: validate
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   strictMode: true
   steps:
     - messages:

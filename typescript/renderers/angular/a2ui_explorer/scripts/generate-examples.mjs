@@ -158,11 +158,12 @@ function readExamples(specPath, catalogs, version) {
   const examples = [];
 
   for (const catalog of catalogs) {
+    const versionSubdir = version === '0.9' ? 'v0_9' : 'v1';
     const candidateDirs = [
       path.resolve(import.meta.dirname, specPath, catalog, 'examples'),
-      path.resolve(import.meta.dirname, specPath, catalog, 'v1', 'examples'),
+      path.resolve(import.meta.dirname, specPath, catalog, versionSubdir, 'examples'),
       path.join(specPath, catalog, 'examples'),
-      path.join(specPath, catalog, 'v1', 'examples'),
+      path.join(specPath, catalog, versionSubdir, 'examples'),
       path.resolve(import.meta.dirname, specPath),
       specPath,
     ];
@@ -208,7 +209,7 @@ async function main() {
     '0.8',
   ).sort((a, b) => compareExampleFilenames(a.filename, b.filename));
   const examplesV09 = [
-    ...readExamples('../../../../specification/v0_9/catalogs', catalogs, '0.9'),
+    ...readExamples('../../../../catalogs', catalogs, '0.9'),
     ...MCP_EXAMPLES.map(({filePath, catalog}) => readExampleFile(filePath, catalog, '0.9')),
   ].sort((a, b) => compareExampleFilenames(a.filename, b.filename));
   const examplesV10 = [
