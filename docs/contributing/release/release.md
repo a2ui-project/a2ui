@@ -216,7 +216,9 @@ The Swift package is defined by [Package.swift](../../../Package.swift) at the
 repository root. Its four libraries, `A2UISwiftCore`, `A2UISwiftUI`,
 `BasicCatalog` and `BasicCatalogSwiftUI`, are released together under one
 version, following [Semver](https://semver.org/). Before 1.0.0, a breaking
-change bumps the minor version.
+change bumps the minor version. Between releases, merged pull requests record
+public API and behavioral changes under `## Unreleased` at the top of
+[swift/CHANGELOG.md](../../../swift/CHANGELOG.md).
 
 Swift has no package registry. Swift Package Manager installs a package from
 its git repository and takes versions from its tags, so users depend on this
@@ -247,23 +249,32 @@ the package. This has two consequences:
   must therefore be higher than 0.9.0.
 - No other release process in this repository may push tags of that form.
 
-**1. Choose the commit**
+**1. Update the changelog**
 
-Pick a commit on `main` where the
-[Swift Core (iOS)](../../../.github/workflows/swift_build_and_test.yml) workflow
-passed. Its `test` job runs `swift test`, and its `ios-build` job builds the
-libraries and the sample app for the iOS Simulator.
+Check the notes under `## Unreleased` in
+[swift/CHANGELOG.md](../../../swift/CHANGELOG.md) and choose the next version.
+Open a pull request that replaces `## Unreleased` with an empty `## Unreleased`
+section above `## <version>`, and merge it to `main`.
 
-**2. Tag the commit**
+**2. Choose the commit**
+
+Use the commit on `main` that merged the changelog pull request, after checking
+that the latest [Swift Core (iOS)](../../../.github/workflows/swift_build_and_test.yml)
+run on `main` passed (a changelog-only commit does not trigger that workflow).
+Its `test` job runs `swift test`, and its `ios-build` job builds the libraries
+and the sample app for the iOS Simulator.
+
+**3. Tag the commit**
 
 ```bash
 git tag v<version>+swift <commit>
 git push origin v<version>+swift
 ```
 
-Create a GitHub release for `v<version>+swift` with the release notes.
+Create a GitHub release for `v<version>+swift` using the `## <version>` notes
+from [swift/CHANGELOG.md](../../../swift/CHANGELOG.md).
 
-**3. Check the release**
+**4. Check the release**
 
 In a scratch package that depends on
 `.package(url: "https://github.com/a2ui-project/a2ui", exact: "<version>")`,
