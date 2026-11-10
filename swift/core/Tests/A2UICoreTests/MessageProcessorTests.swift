@@ -563,8 +563,8 @@ struct MessageProcessorTests {
     let catalog = Catalog(
       id: "cat-escaped",
       protocolVersion: .v10,
-      components: [AnyComponentAPI(name: "a/b", schema: schema)],
-      functions: [TestNamedFunction(name: "x~y", schema: schema)]
+      components: [AnyComponentAPI(name: "a~1/b", schema: schema)],
+      functions: [TestNamedFunction(name: "x~0/y", schema: schema)]
     )
     let processor = MessageProcessor(catalogs: [catalog])
     let capabilities = try processor.getRendererCapabilities(
@@ -581,21 +581,16 @@ struct MessageProcessorTests {
     let functionRef = try #require(
       inlineCatalog["$defs"]?["anyFunction"]?["oneOf"]?.arrayValue?.first?["$ref"]?.stringValue
     )
-    #expect(componentRef == "#/components/a~1b")
-    #expect(functionRef == "#/functions/x~0y")
+    #expect(componentRef == "#/components/a~01~1b")
+    #expect(functionRef == "#/functions/x~00~1y")
 
     // Each reference, read as a JSON pointer into the inline catalog, reaches its entry.
-    func resolve(_ ref: String) -> JSONValue? {
-      ref.dropFirst(2).split(separator: "/").reduce(inlineCatalog as JSONValue?) { node, token in
-        let key = token.replacingOccurrences(of: "~1", with: "/")
-          .replacingOccurrences(of: "~0", with: "~")
-        return node?.objectValue?[key]
-      }
-    }
-    #expect(resolve(componentRef) == inlineCatalog["components"]?.objectValue?["a/b"])
-    #expect(resolve(componentRef) != nil)
-    #expect(resolve(functionRef) == inlineCatalog["functions"]?.objectValue?["x~y"])
-    #expect(resolve(functionRef) != nil)
+    let resolvedComponent = inlineCatalog[String(componentRef.dropFirst())]
+    let resolvedFunction = inlineCatalog[String(functionRef.dropFirst())]
+    #expect(resolvedComponent == inlineCatalog["components"]?.objectValue?["a~1/b"])
+    #expect(resolvedComponent != nil)
+    #expect(resolvedFunction == inlineCatalog["functions"]?.objectValue?["x~0/y"])
+    #expect(resolvedFunction != nil)
   }
 
   @Test func getRendererCapabilitiesV10InlineCatalogsMatchCatalogDefinition() throws {
@@ -632,7 +627,15 @@ struct MessageProcessorTests {
       protocolVersion: .v10,
       components: [AnyComponentAPI(name: "Button", schema: buttonSchema)]
     )
-    let processor = MessageProcessor(catalogs: [withFunctions, withoutFunctions])
+    let withoutComponents = Catalog(
+      id: "cat-without-components",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI](),
+      functions: [TestAddFunction(schema: addSchema)]
+    )
+    let processor = MessageProcessor(
+      catalogs: [withFunctions, withoutFunctions, withoutComponents]
+    )
     let capabilities = try processor.getRendererCapabilities(
       options: MessageProcessor.CapabilitiesOptions(
         protocolVersion: .v10,
@@ -645,18 +648,22 @@ struct MessageProcessorTests {
       context: A2UISchemaRegistry.makeContext()
     )
     let inlineCatalogs = try #require(capabilities["1.0"]?["inlineCatalogs"]?.arrayValue)
-    #expect(inlineCatalogs.count == 2)
+    #expect(inlineCatalogs.count == 3)
     for inlineCatalog in inlineCatalogs {
       let result = catalogDefinition.validate(inlineCatalog)
       #expect(result.isValid, "\(inlineCatalog["catalogId"] ?? .null): \(result)")
     }
 
     // The schema rejects `$defs` that leave out either union.
-    var withoutFunctionUnion = try #require(inlineCatalogs.first?.objectValue)
-    var defs = try #require(withoutFunctionUnion["$defs"]?.objectValue)
-    defs.removeValue(forKey: "anyFunction")
-    withoutFunctionUnion["$defs"] = .object(defs)
-    #expect(!catalogDefinition.validate(.object(withoutFunctionUnion)).isValid)
+    let baseCatalog = try #require(inlineCatalogs.first?.objectValue)
+    let baseDefs = try #require(baseCatalog["$defs"]?.objectValue)
+    for unionKey in ["anyComponent", "anyFunction"] {
+      var missingUnionCatalog = baseCatalog
+      var defs = baseDefs
+      defs.removeValue(forKey: unionKey)
+      missingUnionCatalog["$defs"] = .object(defs)
+      #expect(!catalogDefinition.validate(.object(missingUnionCatalog)).isValid)
+    }
   }
 
   @Test func getRendererCapabilitiesWrapsComponentEnvelopeOnlyBeforeV10() throws {
