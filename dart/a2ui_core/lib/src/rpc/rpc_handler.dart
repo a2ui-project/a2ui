@@ -28,6 +28,7 @@ import '../primitives/protocol_version.dart';
 import '../primitives/reactivity.dart';
 import '../primitives/semver.dart';
 import '../resolution/data_context.dart';
+import '../security/url_security_policy.dart';
 
 /// Receives every message the RPC layer sends to the agent: the
 /// `callAgentFunction` requests a renderer makes and the
@@ -92,11 +93,21 @@ class ExecutionContext {
 /// messages to it; a renderer calls [callAgentFunction] through the
 /// processor or directly.
 class RpcHandler {
+  /// [urlSecurityPolicy] and [openUrlHandler] apply to a call that targets
+  /// no surface; a call on a surface uses the surface's own.
   RpcHandler({
     required this.catalogs,
     OutboundMessageListener? outboundListener,
     this.defaultTimeout = const Duration(seconds: 30),
+    this.urlSecurityPolicy = defaultUrlSecurityPolicy,
+    this.openUrlHandler,
   }) : _outboundListener = outboundListener;
+
+  /// The URL security policy of a call that targets no surface.
+  final UrlSecurityPolicy urlSecurityPolicy;
+
+  /// Opens the URLs `openUrl` allows in a call that targets no surface.
+  final OpenUrlCallback? openUrlHandler;
 
   /// Catalogs an inbound call may name when the target surface does not
   /// hold the catalog itself.
@@ -465,6 +476,8 @@ class RpcHandler {
         // call to the agent, so an argument naming a function the renderer
         // does not implement fails, as before fallback routing.
         isUserActivated: execution.isUserActivated,
+        urlSanitizer: surface.sanitizeUrl,
+        openUrlHandler: surface.openUrlHandler,
       );
     }
     return DataContext(
@@ -481,6 +494,13 @@ class RpcHandler {
         );
       },
       isUserActivated: execution.isUserActivated,
+      urlSanitizer: (url, context, {info}) => applyUrlSecurityPolicy(
+        urlSecurityPolicy,
+        url,
+        context,
+        info: info,
+      ),
+      openUrlHandler: openUrlHandler,
     );
   }
 

@@ -27,13 +27,7 @@ import '../primitives/errors.dart';
 import '../primitives/reactivity.dart';
 import '../primitives/regex_subset.dart';
 import '../resolution/data_context.dart';
-
-/// Opens [url] on behalf of the basic catalog's `openUrl` function.
-///
-/// The URL has already been checked against the allowed schemes (`http`,
-/// `https`, `mailto` and `tel`). A returned future is passed back to the
-/// caller, which may await it.
-typedef OpenUrlCallback = FutureOr<void> Function(Uri url);
+import '../security/url_security_policy.dart';
 
 /// Evaluates one basic catalog function call.
 typedef BasicFunctionBody = Object? Function(
@@ -285,40 +279,41 @@ Object? formatTemplate(Object? template, DataContext dataContext) {
 // openUrl
 // ---------------------------------------------------------------------------
 
-const Set<String> _allowedUrlSchemes = {'http', 'https', 'mailto', 'tel'};
-
-/// Validates [url] and hands it to [onOpen].
+/// Checks [url] against the URL security policy of [context] as
+/// `navigation` and hands the allowed URL to the context's open-URL handler,
+/// or to [onOpen] when the context has none.
 ///
-/// A missing or blank [url] does nothing. Throws [A2uiExpressionError] when
-/// [url] is not an absolute `http`, `https`, `mailto` or `tel` URL, or when
-/// there is no [onOpen] to open it with. Returns the callback's future, if
-/// it returns one, and otherwise null.
-Future<void>? openUrl(Object? url, OpenUrlCallback? onOpen) {
-  if (url is! String || url.trim().isEmpty) return null;
-  final Uri? uri = Uri.tryParse(url.trim());
+/// A missing or empty [url] does nothing. Throws [A2uiUrlBlockedError] when
+/// the policy blocks [url], and [A2uiExpressionError] when there is no
+/// handler to open it with. Returns the handler's future, if it returns one,
+/// and otherwise null.
+Future<void>? openUrl(
+  Object? url,
+  DataContext context,
+  OpenUrlCallback? onOpen,
+) {
+  if (url is! String || url.isEmpty) return null;
+  final String? allowed = context.sanitizeUrl(
+    url,
+    UrlContext.navigation,
+    info: const UrlCheckInfo(functionName: 'openUrl'),
+  );
+  final Uri? uri = allowed == null ? null : Uri.tryParse(allowed);
   if (uri == null) {
-    throw A2uiExpressionError(
-      'Invalid URL specified: $url',
+    throw A2uiUrlBlockedError(
+      'The URL security policy blocked the URL passed to openUrl.',
       expression: 'openUrl',
     );
   }
-  final String scheme = uri.scheme.toLowerCase();
-  if (!_allowedUrlSchemes.contains(scheme)) {
+  final OpenUrlCallback? handler = context.openUrlHandler ?? onOpen;
+  if (handler == null) {
     throw A2uiExpressionError(
-      scheme.isEmpty
-          ? 'URL must be absolute: $url'
-          : 'Unsupported URL scheme: $scheme:',
+      'openUrl has no handler; pass openUrlHandler to MessageProcessor or an '
+      'OpenUrlCallback when building the basic catalog.',
       expression: 'openUrl',
     );
   }
-  if (onOpen == null) {
-    throw A2uiExpressionError(
-      'openUrl has no handler; pass an OpenUrlCallback when building the '
-      'basic catalog.',
-      expression: 'openUrl',
-    );
-  }
-  final FutureOr<void> result = onOpen(uri);
+  final FutureOr<void> result = handler(uri);
   return result is Future<void> ? result : null;
 }
 
@@ -370,7 +365,7 @@ Map<String, BasicFunctionBody> basicFunctionBodies({
     'formatCurrency': formatter(formatCurrency),
     'formatDate': formatter(formatDate),
     'pluralize': formatter(pluralize),
-    'openUrl': (args, _) => openUrl(args['url'], onOpenUrl),
+    'openUrl': (args, context) => openUrl(args['url'], context, onOpenUrl),
     'and': (args, _) => evaluateAnd(args['values'], truthy),
     'or': (args, _) => evaluateOr(args['values'], truthy),
     'not': (args, _) => !truthy(args['value']),

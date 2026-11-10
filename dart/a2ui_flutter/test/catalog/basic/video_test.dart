@@ -211,9 +211,10 @@ void main() {
     ) async {
       for (final (String url, bool fails) in [
         ('', false),
-        ('http://[::1', true),
-        ('file:///tmp/trailer.mp4', true),
-        ('rtsp://example.com/live', true),
+        // The URL security policy blocks these, so the player gets no URL.
+        ('http://[::1', false),
+        ('file:///tmp/trailer.mp4', false),
+        ('rtsp://example.com/live', false),
       ]) {
         await pumpComponents(tester, [_video(url)], catalog: _catalog);
 

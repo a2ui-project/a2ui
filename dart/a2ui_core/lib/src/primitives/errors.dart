@@ -224,6 +224,36 @@ class A2uiExpressionError extends A2uiError {
       );
 }
 
+/// Thrown when the URL security policy blocks a URL a function was asked to
+/// use, such as the URL passed to `openUrl`. Its [code] is `URL_BLOCKED`.
+///
+/// The message never includes the URL, whose path or query may carry the
+/// data being exfiltrated.
+class A2uiUrlBlockedError extends A2uiExpressionError {
+  A2uiUrlBlockedError(
+    super.message, {
+    super.expression,
+    super.details,
+    super.cause,
+    super.surfaceId,
+    super.functionCallId,
+  }) : super(code: 'URL_BLOCKED');
+
+  @override
+  A2uiUrlBlockedError withContext({
+    String? surfaceId,
+    String? functionCallId,
+  }) =>
+      A2uiUrlBlockedError(
+        message,
+        expression: expression,
+        details: details,
+        cause: cause,
+        surfaceId: this.surfaceId ?? surfaceId,
+        functionCallId: this.functionCallId ?? functionCallId,
+      );
+}
+
 /// Thrown for structural issues in the UI tree (missing surfaces, duplicate
 /// components).
 class A2uiStateError extends A2uiError {

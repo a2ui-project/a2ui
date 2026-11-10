@@ -91,6 +91,10 @@ const Map<String, Map<String, String>> coreSuiteActions = {
   'core/rpc_functions.yaml': {
     'handle_rpc': 'rpc_conformance_test.dart',
   },
+  'core/url_security_policy.yaml': {
+    'url_policy_check': 'url_security_policy_conformance_test.dart',
+    'url_policy_resolution': 'url_security_policy_conformance_test.dart',
+  },
   'core/validation_result.yaml': {
     'validate': 'validator_conformance_test.dart',
   },
@@ -115,8 +119,6 @@ const Map<String, String> unsupportedCoreSuites = {
       'Protocol envelope schema generation is not implemented in a2ui_core.',
   'core/message_processor_v0_8.yaml':
       'Targets protocol v0.8, which a2ui_core does not implement.',
-  'core/url_security_policy.yaml':
-      'URL security policy not implemented yet (#4045)',
   'core/validator_v0_8.yaml':
       'Targets protocol v0.8, which a2ui_core does not implement.',
 };

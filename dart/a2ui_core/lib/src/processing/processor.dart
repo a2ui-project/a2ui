@@ -32,6 +32,8 @@ import '../primitives/reactivity.dart';
 import '../primitives/semver.dart';
 import '../resolution/data_context.dart';
 import '../rpc/rpc_handler.dart';
+import '../security/url_schema.dart';
+import '../security/url_security_policy.dart';
 import '../validation/component_graph.dart';
 import '../validation/component_refs.dart';
 import '../validation/nested_calls.dart';
@@ -161,6 +163,8 @@ class MessageProcessor<T extends ComponentApi> {
     catalogs: catalogs,
     outboundListener: _outboundListener,
     defaultTimeout: _defaultTimeout,
+    urlSecurityPolicy: urlSecurityPolicy,
+    openUrlHandler: openUrlHandler,
   );
 
   final OutboundMessageListener? _outboundListener;
@@ -175,11 +179,24 @@ class MessageProcessor<T extends ComponentApi> {
   /// [SurfaceModel.maxAgentCallCacheEntries].
   final int maxAgentCallCacheEntries;
 
+  /// Decides which URLs components and functions may load, open, or embed
+  /// on every surface this processor creates, and in a `callRendererFunction`
+  /// that targets no surface. Defaults to [PermissiveUrlSecurityPolicy],
+  /// which applies only the built-in baseline checks.
+  final UrlSecurityPolicy urlSecurityPolicy;
+
+  /// Opens the URLs `openUrl` was allowed to open, for example after asking
+  /// the user to confirm, in place of the callback the basic catalog was
+  /// built with. It only ever receives URLs [urlSecurityPolicy] allowed.
+  final OpenUrlCallback? openUrlHandler;
+
   /// [outboundListener] receives every message the RPC layer sends to the
   /// agent, and [defaultTimeout] bounds how long [callAgentFunction] waits
   /// for an answer; see [RpcHandler]. [maxAgentCallCacheEntries] is passed
   /// to each surface (see [SurfaceModel.maxAgentCallCacheEntries]); it must
   /// be at least 1, or the constructor throws [ArgumentError].
+  /// [urlSecurityPolicy] and [openUrlHandler] are passed to each surface
+  /// too; there is one policy per processor.
   MessageProcessor({
     required List<Catalog<T, FunctionImplementation>> catalogs,
     this.defaultVersion,
@@ -192,6 +209,8 @@ class MessageProcessor<T extends ComponentApi> {
     Duration defaultTimeout = const Duration(seconds: 30),
     this.reportErrorsOnly = false,
     this.maxAgentCallCacheEntries = 256,
+    this.urlSecurityPolicy = defaultUrlSecurityPolicy,
+    this.openUrlHandler,
   })  : catalogs = List.unmodifiable(catalogs),
         adapterRegistry = adapterRegistry ?? VersionAdapterRegistry.standard(),
         model = SurfaceGroupModel<T>(),
@@ -1036,6 +1055,10 @@ class MessageProcessor<T extends ComponentApi> {
         !operation.version.isAtLeast(A2uiProtocolVersion.v1_0)) {
       validatorFor(catalog).validateTheme(operation.theme);
     }
+    final (
+      Map<String, dynamic> theme,
+      String? blockedIconUrl,
+    ) = _sanitizeThemeIconUrl(operation.theme ?? {}, catalog, operation);
 
     late final SurfaceModel<T> surface;
     surface = SurfaceModel<T>(
@@ -1049,12 +1072,14 @@ class MessageProcessor<T extends ComponentApi> {
           ))
             candidate,
       ],
-      theme: operation.theme ?? {},
+      theme: theme,
       sendDataModel: operation.sendDataModel,
       protocolVersion: operation.version.jsonValue,
       rootId: _config?.rootId ?? 'root',
       metadata: operation.metadata,
       maxAgentCallCacheEntries: maxAgentCallCacheEntries,
+      urlSecurityPolicy: urlSecurityPolicy,
+      openUrlHandler: openUrlHandler,
       // Only a v1.0 surface routes calls to the agent, and only when this
       // processor can send it messages. Once the surface is deleted, a call
       // that was waiting on a local argument is cancelled instead of sent.
@@ -1087,6 +1112,17 @@ class MessageProcessor<T extends ComponentApi> {
     }
 
     model.addSurface(surface);
+    if (blockedIconUrl != null) {
+      // Reports the blocked URL on the new surface's warning stream.
+      surface.sanitizeUrl(
+        blockedIconUrl,
+        UrlContext.media,
+        info: UrlCheckInfo(
+          catalogId: catalog?.id,
+          propertyName: 'theme.iconUrl',
+        ),
+      );
+    }
     try {
       if (operation.dataModel case final Map<String, Object?> dataModel) {
         for (final MapEntry<String, Object?> entry in dataModel.entries) {
@@ -1114,6 +1150,38 @@ class MessageProcessor<T extends ComponentApi> {
       model.deleteSurface(operation.surfaceId);
       rethrow;
     }
+  }
+
+  /// Passes the basic catalog theme's `iconUrl` through [urlSecurityPolicy]
+  /// as `media`. A blocked URL is removed from the theme and returned for
+  /// reporting, and a rewritten one (for example, through a media proxy)
+  /// replaces the original.
+  (Map<String, dynamic>, String?) _sanitizeThemeIconUrl(
+    Map<String, dynamic> theme,
+    Catalog<T, FunctionImplementation>? catalog,
+    CreateSurfaceOp operation,
+  ) {
+    final Object? iconUrl = theme['iconUrl'];
+    if (catalog == null ||
+        !basicCatalogIds.contains(catalog.id) ||
+        iconUrl is! String) {
+      return (theme, null);
+    }
+    final String? allowed = applyUrlSecurityPolicy(
+      urlSecurityPolicy,
+      iconUrl,
+      UrlContext.media,
+      info: UrlCheckInfo(
+        surfaceId: operation.surfaceId,
+        catalogId: catalog.id,
+        propertyName: 'theme.iconUrl',
+      ),
+    );
+    if (allowed == iconUrl) return (theme, null);
+    if (allowed == null) {
+      return (Map<String, dynamic>.of(theme)..remove('iconUrl'), iconUrl);
+    }
+    return (<String, dynamic>{...theme, 'iconUrl': allowed}, null);
   }
 
   /// The default catalog of the surface [operation] creates, or null when a

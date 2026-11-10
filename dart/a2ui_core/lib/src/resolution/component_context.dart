@@ -16,6 +16,7 @@ import '../core/component_model.dart';
 import '../core/messages.dart';
 import '../core/surface_model.dart';
 import '../primitives/errors.dart';
+import '../security/url_security_policy.dart';
 import 'data_context.dart';
 
 /// Context provided to components during rendering.
@@ -95,6 +96,33 @@ class ComponentContext {
       metadata: metadata,
     );
   }
+
+  /// Checks a URL the component is about to load, open, or embed against the
+  /// surface's URL security policy, and returns the URL to use (possibly
+  /// rewritten), or null when it is blocked.
+  ///
+  /// Use it for URLs that don't come from a property annotated as a URL
+  /// (those arrive already checked), such as Markdown links or a URL the
+  /// component builds itself. Fills in the surface ID, catalog ID,
+  /// component type, and component ID.
+  ///
+  /// ```dart
+  /// final String? src = context.sanitizeUrl(
+  ///   '$baseUrl/tile.png',
+  ///   UrlContext.media,
+  ///   info: const UrlCheckInfo(propertyName: 'baseUrl'),
+  /// );
+  /// ```
+  String? sanitizeUrl(String url, UrlContext context, {UrlCheckInfo? info}) =>
+      dataContext.sanitizeUrl(
+        url,
+        context,
+        info: UrlCheckInfo(
+          catalogId: componentModel.catalog ?? surface.defaultCatalog?.id,
+          componentType: componentModel.type,
+          componentId: componentModel.id,
+        ).merge(info),
+      );
 
   /// Returns a context for rendering a child component.
   ///

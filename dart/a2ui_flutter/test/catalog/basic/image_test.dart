@@ -192,7 +192,20 @@ void main() {
     expect(harness.errors, isEmpty);
   });
 
-  for (final url in ['assets/photo.png', 'file:///tmp/photo.png']) {
+  _testImages('renders nothing for a URL the policy blocks', (
+    tester,
+    server,
+  ) async {
+    await _pumpImages(tester, [
+      _image({'url': 'file:///tmp/photo.png'}),
+    ]);
+
+    expect(find.byType(Image), findsNothing);
+    expect(find.byIcon(Icons.broken_image), findsNothing);
+    expect(server.requested, isEmpty);
+  });
+
+  for (final url in ['assets/photo.png']) {
     _testImages('shows a placeholder for $url', (tester, server) async {
       await _pumpImages(tester, [
         _image({'url': url}),

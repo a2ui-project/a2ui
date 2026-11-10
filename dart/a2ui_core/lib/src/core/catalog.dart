@@ -25,6 +25,7 @@ import '../primitives/reactivity.dart';
 import '../primitives/reference_schema.dart';
 import '../primitives/uax31.dart';
 import '../resolution/data_context.dart';
+import '../security/url_schema.dart';
 import '../validation/schema_resolution.dart';
 import 'metadata.dart';
 import 'v09_inline_catalog.dart';
@@ -2675,6 +2676,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     'readOnly',
     'writeOnly',
     'examples',
+    urlContextKeyword,
   };
 
   /// This catalog in the inline catalog shape of renderer capabilities below

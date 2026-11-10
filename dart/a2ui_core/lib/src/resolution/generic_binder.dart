@@ -28,6 +28,8 @@ import '../primitives/errors.dart';
 import '../primitives/event_notifier.dart';
 import '../primitives/reactivity.dart';
 import '../primitives/reference_schema.dart';
+import '../security/url_schema.dart';
+import '../security/url_security_policy.dart';
 import 'component_context.dart';
 import 'data_context.dart';
 import 'resolved_binding.dart';
@@ -42,7 +44,24 @@ class BehaviorNode {
   final BehaviorNode? element;
   final bool isBoolean;
 
-  BehaviorNode(this.type, {this.shape, this.element, this.isBoolean = false});
+  /// How a [Behavior.dynamic] or [Behavior.static] property uses the URL it
+  /// holds, when its schema marks it with `x-a2ui-url-context`. The binder
+  /// passes every resolved value of such a property through the surface's
+  /// URL security policy.
+  final UrlContext? urlContext;
+
+  /// Whether the schema declares the property's URL context, including
+  /// `"none"`, which leaves [urlContext] null.
+  final bool declaresUrlContext;
+
+  BehaviorNode(
+    this.type, {
+    this.shape,
+    this.element,
+    this.isBoolean = false,
+    this.urlContext,
+    this.declaresUrlContext = false,
+  });
 }
 
 /// An unresolved child reference and the data scope it would render against.
@@ -116,7 +135,10 @@ class GenericBinder {
       document: catalog.validationSchema,
       commonTypes: catalog.commonTypesSchema,
     );
-    _behaviorTree = _withAccessibility(_scrapeSchemaBehavior(schema.value));
+    _behaviorTree = _withUrlPropertyOverrides(
+      _withAccessibility(_scrapeSchemaBehavior(schema.value)),
+      catalog.id,
+    );
     _resolvedProps = signal<Map<String, dynamic>>({});
     connect();
   }
@@ -213,8 +235,12 @@ class GenericBinder {
             ? (value[atLeastV10 ? '@path' : 'path'] as String)
             : null;
         ResolvedBinding<Object?> wrap(Object? current) {
-          final Object? coerced =
-              behavior.isBoolean ? coerceDynamicBoolean(current) : current;
+          final UrlContext? urlContext = behavior.urlContext;
+          final Object? coerced = behavior.isBoolean
+              ? coerceDynamicBoolean(current)
+              : urlContext != null
+                  ? _filterUrl(current, path, urlContext)
+                  : current;
           final Object? snapshot = _snapshotBindingValue(coerced);
           return boundPath == null
               ? ResolvedBinding<Object?>(snapshot)
@@ -484,8 +510,24 @@ class GenericBinder {
             .toList();
 
       case Behavior.static:
-        return value;
+        final UrlContext? urlContext = behavior.urlContext;
+        return urlContext == null ? value : _filterUrl(value, path, urlContext);
     }
+  }
+
+  /// Passes a resolved value of a URL property through the surface's URL
+  /// security policy. Components receive the result and don't check it
+  /// again, which keeps a rewritten URL (such as a proxy URL) from being
+  /// checked against the allowlist a second time.
+  ///
+  /// Returns the URL to use, or null when it is blocked or not a string.
+  Object? _filterUrl(Object? value, List<String> path, UrlContext urlContext) {
+    if (value is! String) return null;
+    return context.sanitizeUrl(
+      value,
+      urlContext,
+      info: UrlCheckInfo(propertyName: _propertyNameOf(path)),
+    );
   }
 
   void _updateDeepValue(List<String> path, Object? newValue) {
@@ -538,6 +580,34 @@ class GenericBinder {
   }
 
   BehaviorNode _scrapeSchemaBehavior(
+    Object? schema, [
+    String? propertyName,
+    Set<Object>? ancestors,
+  ]) {
+    final BehaviorNode behavior = _scrapeSchemaBehaviorIgnoringUrl(
+      schema,
+      propertyName,
+      ancestors,
+    );
+    if (behavior.type != Behavior.dynamic && behavior.type != Behavior.static) {
+      return behavior;
+    }
+    // The annotation sits next to the property's `$ref`, or on a schema the
+    // reference leads to.
+    for (final Object? node in [
+      schema,
+      if (schema != null) ..._schemaReader.schemas(schema),
+    ]) {
+      final ({bool declared, UrlContext? context}) annotation =
+          urlAnnotationOf(node);
+      if (annotation.declared) {
+        return _withUrlContext(behavior, annotation.context);
+      }
+    }
+    return behavior;
+  }
+
+  BehaviorNode _scrapeSchemaBehaviorIgnoringUrl(
     Object? schema, [
     String? propertyName,
     Set<Object>? ancestors,
@@ -675,6 +745,49 @@ class GenericBinder {
 
   static const String _accessibilityProperty = 'accessibility';
 
+  static BehaviorNode _withUrlContext(BehaviorNode node, UrlContext? context) =>
+      BehaviorNode(
+        node.type,
+        shape: node.shape,
+        element: node.element,
+        isBoolean: node.isBoolean,
+        urlContext: context,
+        declaresUrlContext: true,
+      );
+
+  /// Applies the URL properties listed for the component outside its
+  /// schema: the built-in list for the basic catalogs, where the schema says
+  /// nothing, and then the host's [UrlSecurityPolicy.urlProperties], which
+  /// wins over the schema. Only top-level properties resolved as values
+  /// (dynamic or static) can be marked.
+  BehaviorNode _withUrlPropertyOverrides(BehaviorNode root, String catalogId) {
+    final Map<String, BehaviorNode>? shape = root.shape;
+    if (root.type != Behavior.object || shape == null) return root;
+    final String type = context.componentModel.type;
+    final Map<String, UrlContext>? builtIn = basicCatalogIds.contains(catalogId)
+        ? basicComponentUrlProperties[type]
+        : null;
+    final Map<String, UrlContext?>? host =
+        context.surface.urlSecurityPolicy.urlProperties?[catalogId]?[type];
+    if (builtIn == null && host == null) return root;
+
+    final next = Map<String, BehaviorNode>.of(shape);
+    void apply(String property, UrlContext? urlContext, bool overrideSchema) {
+      final BehaviorNode node = next[property] ?? BehaviorNode(Behavior.static);
+      if (node.type != Behavior.dynamic && node.type != Behavior.static) return;
+      if (!overrideSchema && node.declaresUrlContext) return;
+      next[property] = _withUrlContext(node, urlContext);
+    }
+
+    builtIn?.forEach((property, urlContext) {
+      apply(property, urlContext, false);
+    });
+    host?.forEach((property, urlContext) {
+      apply(property, urlContext, true);
+    });
+    return BehaviorNode(Behavior.object, shape: next);
+  }
+
   /// Runs a function action against the component's data context, within a
   /// user activation, and awaits its result.
   ///
@@ -738,6 +851,23 @@ class GenericBinder {
     _disposeSubscriptions();
   }
 }
+
+/// Writes a property path as [UrlCheckInfo.propertyName] does: dotted, with
+/// `[]` for list items, such as `items[].imageUrl`.
+String _propertyNameOf(List<String> path) {
+  final buffer = StringBuffer();
+  for (final segment in path) {
+    if (_digitsOnly.hasMatch(segment)) {
+      buffer.write('[]');
+    } else {
+      if (buffer.isNotEmpty) buffer.write('.');
+      buffer.write(segment);
+    }
+  }
+  return buffer.toString();
+}
+
+final RegExp _digitsOnly = RegExp(r'^\d+$');
 
 /// The maximum number of children a `ChildList` expands to, whether a static id
 /// array or a template bound to a very large array, bounding resource use.

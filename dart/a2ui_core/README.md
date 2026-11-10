@@ -139,6 +139,37 @@ void bindSurface(SurfaceModel<ComponentApi> surface) {
 }
 ```
 
+### Limiting URLs with a URL Security Policy
+
+A URL security policy decides which URLs components and functions may load,
+open, or embed. Set one on the processor; every surface it creates uses it.
+Without one, `PermissiveUrlSecurityPolicy` applies a built-in baseline that
+blocks script schemes, unlisted `data:` URLs, and URLs a parser could read as
+a different host.
+
+```dart
+final processor = MessageProcessor(
+  catalogs: [BasicCatalog.v1_0()],
+  urlSecurityPolicy: AllowlistUrlSecurityPolicy(
+    media: ['cdn.example.com', '*.googleusercontent.com'],
+    navigation: ['*.example.com'],
+  ),
+  // Receives only URLs the policy allowed, for example to ask the user.
+  openUrlHandler: launchUrl,
+);
+```
+
+The resolver checks the basic catalog's media props (`Image.url`, `Video.url`,
+`Video.posterUrl`, `AudioPlayer.url`) and any custom prop marked with
+`UrlSchema.media()`, `UrlSchema.navigation()`, or `UrlSchema.iframe()`; a
+blocked value resolves to null and is reported as a `URL_BLOCKED` warning. Code
+that builds its own URL calls `sanitizeUrl` on the `ComponentContext` or
+`DataContext` it already has:
+
+```dart
+final String? src = context.sanitizeUrl(markdownImageUrl, UrlContext.media);
+```
+
 ## Development & Testing
 
 Run static analysis, formatting checks, and the unit and conformance test suites from `dart/a2ui_core`:
