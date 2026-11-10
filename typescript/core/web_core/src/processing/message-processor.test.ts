@@ -1632,6 +1632,45 @@ describe('MessageProcessor', () => {
         },
       });
     });
+
+    it('keeps metadata as an ordinary property below v1.0', () => {
+      const cardApi: ComponentApi = {
+        name: 'Card',
+        schema: z.object({metadata: z.record(z.string(), z.unknown())}).strict(),
+      };
+      const proc = new MessageProcessor<ComponentApi>([new Catalog('v09', '0.9', [cardApi])]);
+
+      proc.processMessages([
+        {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'v09'}},
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's',
+            components: [{id: 'root', component: 'Card', metadata: {source: 'crm'}}],
+          },
+        },
+      ]);
+
+      const card = proc.getSurface('s')?.componentsModel.get('root');
+      assert.ok(card);
+      assert.deepStrictEqual(card.properties, {metadata: {source: 'crm'}});
+      assert.strictEqual(card.metadata, undefined);
+
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's',
+            components: [
+              {id: 'root', component: 'Card', metadata: {extensions: {vendor_app: 'v'}}},
+            ],
+          },
+        },
+      ]);
+
+      assert.deepStrictEqual(card.properties, {metadata: {extensions: {vendor_app: 'v'}}});
+      assert.strictEqual(card.metadata, undefined);
+    });
   });
 
   // The conformance suite (conformance/core/message_processor_v1_0.yaml) covers

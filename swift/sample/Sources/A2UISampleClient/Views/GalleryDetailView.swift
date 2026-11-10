@@ -16,7 +16,7 @@ import SwiftUI
 
 /// Adapts the Gallery UI layout dynamically between compact (iPhone) and regular (iPad/Mac) width size classes.
 public struct GalleryDetailView: View {
-  @ObservedObject var viewModel: GalleryViewModel
+  var viewModel: GalleryViewModel
   let sample: SampleStream
 
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
