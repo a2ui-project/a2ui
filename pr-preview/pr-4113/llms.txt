@@ -1,0 +1,75 @@
+# A2UI
+
+> A2UI (Agent-to-User Interface) is an open-source generative UI framework and streaming protocol. Agents compose declarative surfaces, registered catalog components, and reactive data models (via A2UI Express, Jev-style decision models, or server-side macros), while clients render them with native framework widgets across React, Lit, Angular, Flutter, SwiftUI, and Jetpack Compose. No untrusted code is executed on the client. Protocol versions: v1.0 (current), v0.9.1 (previous), v0.9 (previous), v0.8 (deprecated).
+
+Parallel Markdown editions of documentation pages are available by appending `.md` to the route path (for example, `https://a2ui.org/quickstart.md` or `https://a2ui.org/concepts/overview.md`), and the combined documentation corpus is served at [llms-full.txt](https://a2ui.org/llms-full.txt).
+
+## Agent Harness Skills & Visual Tools
+
+- Agent skills CLI (Claude Code, Gemini CLI, Cursor, Codex, Windsurf): `npx skills add a2ui-project/a2ui`
+- [Get Help & Agent Skills](https://a2ui.org/get-help/)
+- [Built with A2UI: teams shipping A2UI and what they built](https://a2ui.org/built-with-a2ui/)
+- [A2UI Composer & Inspector](https://a2ui-editor.ag-ui.com)
+- [A2UI Playground](https://go.copilotkit.ai/a2ui-playground)
+
+## When to Use A2UI
+
+- Dynamic multi-step user journeys where static tool-bound cards are too rigid, while arbitrary iframe code would break native brand consistency, accessibility, or security boundaries.
+- Cross-platform generative UI rendered natively on Web (React, Lit, Angular), mobile/desktop (Flutter, SwiftUI, Jetpack Compose, Lynx), or terminal (Go Bubble Tea, Ink) from a single agent stream.
+- Remote, multi-agent, or cross-trust-boundary integrations where agents must send declarative data rather than executable code.
+- Flutter projects: use [`a2ui_flutter`](https://pub.dev/packages/a2ui_flutter) with [`a2ui_core`](https://pub.dev/packages/a2ui_core) (and [`a2ui_agent`](https://pub.dev/packages/a2ui_agent) when calling models from Dart). Do not use the discontinued `flutter_genui` or `genui_a2ui` packages.
+
+## Install Official SDKs
+
+- React: `npm install @a2ui/react @a2ui/web_core`
+- Lit: `npm install @a2ui/lit @a2ui/web_core`
+- Angular: `npm install @a2ui/angular @a2ui/web_core`
+- Flutter: `flutter pub add a2ui_flutter a2ui_core`
+- Swift (SPM): `https://github.com/a2ui-project/a2ui` (`A2UISwiftCore`, `A2UISwiftUI`, `BasicCatalogSwiftUI`)
+- Android Jetpack Compose (Google Maven): `androidx.compose.material3:material3-a2ui`, `androidx.a2ui.compose:compose-ui`, `androidx.a2ui.compose:compose-runtime`, and `androidx.a2ui:a2ui-model`
+- Agent SDKs: `pip install a2ui-agent-sdk` (Python, plus `a2ui-adk` and `a2ui-a2a`); `npm install @a2ui/agent` (TypeScript); `dart pub add a2ui_agent` (Dart)
+
+## Getting Started & Concepts
+
+- [Quickstart](https://a2ui.org/quickstart/) ([Markdown](https://a2ui.org/quickstart.md)): run Travel A2UI, a Python agent server with React and Flutter clients from A2UI Labs, from one prompt to a coding agent
+- [Step-by-Step Walkthrough](https://a2ui.org/quickstart/step-by-step/) ([Markdown](https://a2ui.org/quickstart/step-by-step.md)): the same, by hand, then how A2UI works from what is on screen
+- Quickstart agent guides, for coding agents asked to give someone the quickstart: [web and mobile apps](https://a2ui.org/quickstart/agent.md) (the default), [web app only](https://a2ui.org/quickstart/agent/web.md), [mobile app only](https://a2ui.org/quickstart/agent/mobile.md)
+- [Overview: How A2UI Works](https://a2ui.org/concepts/overview/) ([Markdown](https://a2ui.org/concepts/overview.md))
+- [Messages](https://a2ui.org/concepts/messages/) ([Markdown](https://a2ui.org/concepts/messages.md))
+- [Catalogs](https://a2ui.org/concepts/catalogs/) ([Markdown](https://a2ui.org/concepts/catalogs.md))
+- [Data Model and Data Binding](https://a2ui.org/concepts/data-binding/) ([Markdown](https://a2ui.org/concepts/data-binding.md))
+- [Actions, Events and Functions](https://a2ui.org/concepts/actions-and-functions/) ([Markdown](https://a2ui.org/concepts/actions-and-functions.md))
+- [Inference Formats](https://a2ui.org/concepts/inference-formats/) ([Markdown](https://a2ui.org/concepts/inference-formats.md))
+- [SDKs (Core, Agent, Renderer, and Go/Community)](https://a2ui.org/concepts/sdks/) ([Markdown](https://a2ui.org/concepts/sdks.md))
+- [Glossary](https://a2ui.org/concepts/glossary/) ([Markdown](https://a2ui.org/concepts/glossary.md))
+
+## Integration Guides
+
+- [How to Integrate A2UI into a Client](https://a2ui.org/guides/client-integration/) ([Markdown](https://a2ui.org/guides/client-integration.md))
+- [How to Integrate A2UI into an Agent](https://a2ui.org/guides/agent-integration/) ([Markdown](https://a2ui.org/guides/agent-integration.md))
+- [How to Define a Catalog](https://a2ui.org/guides/defining-a-catalog/) ([Markdown](https://a2ui.org/guides/defining-a-catalog.md))
+- [How to Restrict URLs with a URL Security Policy](https://a2ui.org/guides/url-security/) ([Markdown](https://a2ui.org/guides/url-security.md))
+- [Using Macros](https://a2ui.org/guides/macros/) ([Markdown](https://a2ui.org/guides/macros.md))
+- [MCP Overview](https://a2ui.org/guides/mcp-overview/) ([Markdown](https://a2ui.org/guides/mcp-overview.md))
+- [Call MCP Tools from A2UI](https://a2ui.org/guides/mcp-catalog/) ([Markdown](https://a2ui.org/guides/mcp-catalog.md))
+- [Serve A2UI Layouts from an MCP Server](https://a2ui.org/guides/a2ui-over-mcp/) ([Markdown](https://a2ui.org/guides/a2ui-over-mcp.md))
+- [Embed MCP Apps in A2UI Surfaces](https://a2ui.org/guides/mcp-apps-in-a2ui/) ([Markdown](https://a2ui.org/guides/mcp-apps-in-a2ui.md))
+- [Render A2UI Inside an MCP App](https://a2ui.org/guides/a2ui-in-mcp-apps/) ([Markdown](https://a2ui.org/guides/a2ui-in-mcp-apps.md))
+- [Authoring Universal Web Components](https://a2ui.org/guides/authoring-universal-components/) ([Markdown](https://a2ui.org/guides/authoring-universal-components.md))
+
+## Specifications & Schemas
+
+- [Specification v1.0 (current)](https://a2ui.org/specification/v1.0-a2ui/)
+- [Specification v0.9.1 (previous)](https://a2ui.org/specification/v0.9.1-a2ui/)
+- [Specification v0.9 (previous)](https://github.com/a2ui-project/a2ui/tree/main/specification/v0_9)
+- [v1.0 JSON Schemas](https://a2ui.org/specification/v1.0/schemas/) ([Raw catalog.json](https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json))
+- [v1.0 Basic Catalog Implementation Guide](https://a2ui.org/specification/v1.0-basic-catalog-implementation-guide/) ([Markdown](https://a2ui.org/specification/v1.0-basic-catalog-implementation-guide.md))
+- [v1.0 A2A Extension Specification](https://a2ui.org/specification/v1.0-a2ui-extension-specification/) ([Markdown](https://a2ui.org/specification/v1.0-a2ui-extension-specification.md))
+- [v1.0 Evolution Guide](https://a2ui.org/specification/v1.0-evolution-guide/) ([Markdown](https://a2ui.org/specification/v1.0-evolution-guide.md))
+
+## Ecosystem & Optional
+
+- [Roadmap](https://a2ui.org/roadmap/) ([Markdown](https://a2ui.org/roadmap.md))
+- [Community Projects (including Lynx, Svelte, Vue, Compose Multiplatform, and Go)](https://a2ui.org/ecosystem/renderers/) ([Markdown](https://a2ui.org/ecosystem/renderers.md))
+- [Get Help & Agent Skills](https://a2ui.org/get-help/)
+- [Full Documentation Corpus (llms-full.txt)](https://a2ui.org/llms-full.txt)
