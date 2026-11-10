@@ -28,21 +28,9 @@
       "types": "./dist/src/index.d.ts",
       "default": "./dist/src/index.js"
     },
-    "./0.8": {
-      "types": "./dist/src/0.8/core.d.ts",
-      "default": "./dist/src/0.8/core.js"
-    },
-    "./v0_8": {
-      "types": "./dist/src/0.8/core.d.ts",
-      "default": "./dist/src/0.8/core.js"
-    },
     "./v0_9": {
       "types": "./dist/src/v0_9/index.d.ts",
       "default": "./dist/src/v0_9/index.js"
-    },
-    "./ui": {
-      "types": "./dist/src/0.8/ui/ui.d.ts",
-      "default": "./dist/src/0.8/ui/ui.js"
     }
   },
   "type": "module",
@@ -70,7 +58,7 @@
       ]
     },
     "test:unit": {
-      "command": "node --test --enable-source-maps --test-reporter spec dist/src/0.8/*.test.js dist/src/tests/**/*.test.js",
+      "command": "node --test --enable-source-maps --test-reporter spec dist/src/tests/**/*.test.js",
       "dependencies": [
         "build"
       ]
@@ -130,10 +118,8 @@
   },
   "dependencies": {
     "@a2ui/web_core": "workspace:*",
-    "@lit-labs/signals": "^0.3.0",
     "@lit/context": "^1.1.6",
     "lit": "^3.3.3",
-    "signal-utils": "^0.21.1",
     "zod": "^3.25.76"
   }
 }

@@ -12,7 +12,7 @@ Integrate A2UI into your application using the renderer for your platform.
 | **[Flutter (`a2ui_flutter`)](../../../dart/a2ui_flutter)**                      | Mobile/Desktop/Web | ✅   | ✅     | 🧪 Alpha  |
 | **[Jetpack Compose](https://developer.android.com/develop/ui/compose/agentic)** | Android            | 🚧   | ✅     | 🧪 Alpha  |
 
-The React, Lit, and Angular renderers also support the deprecated v0.8. 🚧 means support is planned.
+The React and Angular renderers also support the deprecated v0.8. 🚧 means support is planned.
 
 For more see all [A2UI Renderers](../reference/renderers.md) and [Community A2UI Renderers](../ecosystem/renderers.md).
 
@@ -40,11 +40,11 @@ The shared `web_core` library provides:
 npm install @a2ui/lit @a2ui/web_core
 ```
 
-Once installed, you can use the renderer in your app. The Lit renderer uses:
+Once installed, you can use the renderer in your app. The Lit renderer provides:
 
-- **Message Processor**: Wraps the A2UI message processor.
-- **`<a2ui-surface>` component**: Renders surfaces in your app.
-- **Lit Signals**: Provides reactive state management for automatic UI updates.
+- **`MessageProcessor` (`@a2ui/web_core`)**: Manages surfaces, reactive data bindings, and user action dispatch.
+- **`<a2ui-surface>` component (`@a2ui/lit`)**: Renders A2UI surfaces in your app.
+- **`A2uiLitElement` (`@a2ui/lit`)**: Base class for authoring custom Lit components.
 
 **See working example:** [Lit shell sample](../../../samples/client/lit/shell) — Check its README for detailed run instructions.
 
@@ -171,7 +171,7 @@ When users interact with A2UI components (clicking buttons, submitting forms, et
 3. Sends the action to the agent
 4. Processes the agent's response messages
 
-See the `@a2uiaction` event handler in `#maybeRenderData` in [samples/client/lit/shell/app.ts](../../../samples/client/lit/shell/app.ts) for an example of handling button clicks and form submissions.
+See the `MessageProcessor` action callback in [samples/client/lit/shell/app.ts](../../../samples/client/lit/shell/app.ts) for an example of handling button clicks and form submissions.
 
 ## Error Handling
 

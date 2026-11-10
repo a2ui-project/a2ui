@@ -19,7 +19,6 @@ import {describe, it} from 'node:test';
 /* eslint-disable no-restricted-imports */
 import * as root from '@a2ui/lit';
 import * as v09 from '@a2ui/lit/v0_9';
-import * as v08 from '@a2ui/lit/v0_8';
 /* eslint-enable no-restricted-imports */
 
 describe('Lit package exports', () => {
@@ -41,29 +40,7 @@ describe('Lit package exports', () => {
         `Expected ${name} to share identity between root and v0_9`,
       );
     }
-  });
 
-  it('isolates v0_8 from root runtime identity', () => {
-    const runtimeExports = [
-      'A2uiController',
-      'A2uiLitElement',
-      'A2uiSurface',
-      'Context',
-      'renderA2uiNode',
-    ];
-
-    for (const name of runtimeExports) {
-      assert.ok(!(name in v08), `Expected v0_8 not to export runtime member ${name}`);
-    }
-
-    for (const key of Object.keys(v08)) {
-      if (key in root) {
-        assert.notStrictEqual(
-          (root as Record<string, unknown>)[key],
-          (v08 as Record<string, unknown>)[key],
-          `Expected v0_8 member ${key} not to share export identity with root`,
-        );
-      }
-    }
+    assert.ok(!('v0_8' in root), 'Expected root not to export v0_8');
   });
 });
