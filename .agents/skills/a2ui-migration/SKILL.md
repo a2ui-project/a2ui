@@ -116,11 +116,18 @@ guide:
 When the migration is a pull request to someone else's repository, such as a
 package on pub.dev that depends on `genui`:
 
-1. Read the repository's CI workflows, its agent instructions
-   (`AGENTS.md`, `CLAUDE.md`) and its commit and PR title conventions first
-   (some repositories check PR titles against Conventional Commits). Run the
-   CI steps locally before and after the change, including in the example
-   package. CI usually runs the latest stable SDK, so use it locally too.
+1. Read the repository's CI workflows, its task runner (melos scripts,
+   `Taskfile.yml`) and local gate scripts, its agent instructions (`AGENTS.md`, `CLAUDE.md`), its
+   `CONTRIBUTING.md` (some require a signed CLA before a PR is merged) and
+   its commit and PR title conventions first (some repositories check PR
+   titles against Conventional Commits; follow the history's language too).
+   Run the CI steps locally before and after the change, including in the
+   example package and in every package that depends on the migrated one
+   through a path dependency, even when CI skips them. CI usually runs the
+   latest stable SDK, so use it locally too. When the repository pins the
+   Flutter SDK exactly and `pub get` refuses the local release, relax the
+   pin to run the checks, then restore the pubspecs and the `sdks:` section
+   of the lock.
 2. Keep the package's name and public class names. Keep its API shape where
    the new SDK allows, and list each breaking change in its `CHANGELOG.md`
    under an `Unreleased` heading; leave the version number to the maintainer.
@@ -128,8 +135,16 @@ package on pub.dev that depends on `genui`:
    SDK's API, so they do not teach code that no longer compiles.
 4. Commit only the migration. Revert edits that tools make on their own: for
    example, Flutter 3.47 and later rewrites `analysis_options.yaml` to
-   exclude build and platform directories on `flutter pub get` and
-   `flutter analyze`. Do commit a tracked `pubspec.lock` and the plugin
+   exclude build and platform directories on `flutter pub get`,
+   `flutter analyze` and `flutter test`, in every workspace member and in
+   `example/`, so revert after every run. A plain `pub get` on a newer SDK
+   may already change a tracked lock before any edit (packages the SDK
+   pins, such as `meta` and `vector_math`); say so in the change
+   description. When the change only removes dependencies, delete instead
+   the packages that disappear between the regenerated locks from the
+   committed lock, keep any that another entry still needs, and check that
+   `pub get --dry-run` then adds and removes nothing. Do commit a tracked
+   `pubspec.lock` and the plugin
    registrant entries that dropping a dependency removes (genui pulled in
    `url_launcher`, `audioplayers` and `video_player_win`), but revert
    unrelated registrant changes, and never commit generated files that hold
@@ -140,11 +155,25 @@ package on pub.dev that depends on `genui`:
    newer SDK: in Dart, a higher lower bound raises the language version, and
    `dart format` then reformats every file. Resolution stays correct, since
    pub refuses an SDK older than a dependency needs and names that
-   dependency in the error.
+   dependency in the error. A lock resolved with a newer Flutter can still
+   pick releases the project's own Flutter (CI, `.tool-versions`, `.fvmrc`)
+   cannot use, such as `video_player_avfoundation` 2.12.3, which needs
+   Flutter 3.47. Compare each new package's `environment` with that version;
+   to hold one back, add it as a temporary root dev dependency with an exact
+   version, run `pub get`, then remove it and run `pub get` again, since pub
+   keeps locked versions.
 6. Read the APIs of the published SDK releases (for Dart, in the pub cache),
    not this repository's sources, which may be ahead of the release.
 7. Leave behavior the migration did not have to change as it is, including
    bugs you notice, and mention them in the change description instead.
+8. In an app repository, update living docs (architecture notes, READMEs,
+   comments in other languages) but leave decision records, specs and plans
+   of their time as they are, and dated experiments outside the workspace
+   and CI when the project's tooling says to. When the repository requires a decision
+   record for a changed dependency, add one as proposed and leave the
+   decision to the owner. When the agent side is in another language and
+   the client translates its records to the wire version, keep that
+   translation, so the agent and its stored data do not change.
 
 ## Adding a case
 
