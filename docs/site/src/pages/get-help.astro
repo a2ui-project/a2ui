@@ -16,9 +16,18 @@
  */
 import '../styles/tokens.css';
 
+import assetsManifest from '../../assets-manifest.json';
 import StarlightHeader from '../components/StarlightHeader.astro';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+function releaseAsset(id: string): string {
+  const asset = (assetsManifest.assets as Record<string, {filename: string}>)[id];
+  if (!asset) {
+    throw new Error(`Missing "${id}" in docs/site/assets-manifest.json.`);
+  }
+  return `${base}/docs-assets/${asset.filename}`;
+}
 
 interface ConsultantEntry {
   slug: string;
@@ -49,6 +58,36 @@ interface ConsultantEntry {
 }
 
 const consultants: ConsultantEntry[] = [
+  {
+    slug: 'copilotkit',
+    agency: 'CopilotKit',
+    agencyUrl: 'https://www.copilotkit.ai',
+    domain: 'Developer tools',
+    logoLight: releaseAsset('get-help/copilotkit/logo-light'),
+    logoDark: releaseAsset('get-help/copilotkit/logo-dark'),
+    logoHeight: 25,
+    appName: 'A2UI Playground',
+    appTagline: 'Live multi-catalog generative UI',
+    summary:
+      'Streams A2UI Express and JSON surfaces from Gemini Flash over AG-UI while a side-by-side inspector displays the compiled wire operations. Switches live between CopilotKit Standard, shadcn/ui, Material 3 Expressive, and custom catalogs without re-running the agent.',
+    stack: 'React · Next.js · A2UI Express · CopilotKit · AG-UI',
+    catalog: '69 standard + 52 playground components',
+    videoSrc: releaseAsset('get-help/copilotkit/walkthrough'),
+    videoLabel: 'Walkthrough',
+    videoCaption: 'CopilotKit · A2UI Playground live capture',
+    primaryImg: releaseAsset('get-help/copilotkit/primary'),
+    primaryAlt:
+      'CopilotKit A2UI Playground streaming a Q3 Regional Sales Performance dashboard alongside 13 lines of A2UI Express code.',
+    primaryCaption: 'Live Q3 sales dashboard rendered alongside streamed A2UI Express source.',
+    catalogImg: releaseAsset('get-help/copilotkit/catalog'),
+    catalogAlt:
+      'CopilotKit A2UI Playground component reference showing 69 standard components, 52 playground components, and 3 server macros.',
+    catalogCaption:
+      'Component reference covering 69 standard components, 52 playground additions, and 3 macros.',
+    demoUrl: 'https://go.copilotkit.ai/a2ui-playground',
+    catalogUrl: 'https://docs.copilotkit.ai/generative-ui/components/standard-catalog',
+    repoUrl: 'https://github.com/CopilotKit/CopilotKit',
+  },
   {
     slug: 'lr',
     agency: 'L+R',
@@ -202,6 +241,36 @@ const consultants: ConsultantEntry[] = [
     demoUrl: 'https://finance-a2ui-v1.web.app/',
     repoUrl: 'https://github.com/somnio-projects/finance-google-a2ui',
     figmaUrl: 'https://www.figma.com/design/SMA3Y4sLh9D03Cp3xl37zh/A2UI-FINANCE-UI-KIT',
+  },
+  {
+    slug: 'soverius',
+    agency: 'Soverius AI',
+    agencyUrl: 'https://soverius.ai/',
+    domain: 'AI Engineering',
+    logoLight: releaseAsset('get-help/soverius/logo-light'),
+    logoDark: releaseAsset('get-help/soverius/logo-dark'),
+    logoHeight: 28,
+    appName: 'A2UI Express Browser Demo',
+    appTagline: 'Local Gemma 4 UI with error recovery',
+    summary:
+      'Runs base and fine-tuned Gemma 4 models in the browser over WebGPU and the Chrome Prompt API with zero server inference. Compiles streamed A2UI Express into Angular surfaces and feeds compiler diagnostics back into local retry loops.',
+    stack: 'Angular 22 · WebGPU · Gemma 4 · A2UI Express · CopilotKit',
+    catalog: 'CopilotKit Angular Standard Catalog',
+    videoSrc: releaseAsset('get-help/soverius/walkthrough'),
+    videoLabel: 'Walkthrough',
+    videoCaption: 'Soverius AI · A2UI Express Browser Demo walkthrough',
+    primaryImg: releaseAsset('get-help/soverius/primary'),
+    primaryAlt:
+      'Soverius AI A2UI Express Browser Demo showing the three-pane Angular workbench and System prompt inspector.',
+    primaryCaption:
+      'Three-pane Angular workbench for on-device Gemma 4 inference, Express source, and live preview.',
+    catalogImg: releaseAsset('get-help/soverius/catalog'),
+    catalogAlt:
+      'Expanded System prompt inspector displaying A2UI Express component signatures from the CopilotKit Angular Standard Catalog.',
+    catalogCaption:
+      'Generated A2UI Express component signatures from the registered CopilotKit Angular Standard Catalog.',
+    demoUrl: 'https://a2ui-express-demo-8d8183.web.app/',
+    repoUrl: 'https://github.com/Soverius-AI/gemma4-a2ui-express-demo',
   },
   {
     slug: 'vgv',
