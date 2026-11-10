@@ -33,12 +33,6 @@ uv run agent.py
 
 The agent listens on `http://localhost:8000`.
 
-## Development Notes
-
-- **Module Resolution**: Because this is a development environment, the iframe dynamically loads the `app-with-deps.js` bundle from the workspace's `node_modules` via Vite's `/@fs/` prefix. An `importmap` is used to resolve the bare imports inside that bundle.
-- **CORS**: The iframe must be loaded from `127.0.0.1` to match the origin expected by the sandbox proxy and avoid CORS blocks.
-- **Content Security Policy (CSP)**: This sample uses a static CSP in `sandbox.html` that allows `'unsafe-inline'` and `'unsafe-eval'` for compatibility with development tools. For production deployments, it is recommended to remove these relaxed settings and implement a dynamic CSP derived from app metadata as recommended by the MCP Apps spec.
-
 ## Disclaimer
 
 Important: The sample code provided is for demonstration purposes and illustrates the mechanics of A2UI and the Agent-to-Agent (A2A) protocol. When building production applications, it is critical to treat any agent operating outside of your direct control as a potentially untrusted entity.
