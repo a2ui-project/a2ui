@@ -966,10 +966,13 @@ void main() {
   });
 
   group('MessageProcessor component envelope', () {
-    Catalog<ComponentApi, FunctionImplementation> alphaCatalog(String id) =>
+    Catalog<ComponentApi, FunctionImplementation> alphaCatalog(
+      String id, {
+      A2uiProtocolVersion version = A2uiProtocolVersion.v0_9,
+    }) =>
         Catalog<ComponentApi, FunctionImplementation>(
           id: id,
-          protocolVersion: A2uiProtocolVersion.v0_9,
+          protocolVersion: version,
           components: [
             ComponentApi(
               name: 'Alpha',
@@ -1012,32 +1015,94 @@ void main() {
     SurfaceComponentsModel components() =>
         processor.model.getSurface('s1')!.componentsModel;
 
-    test('keeps catalogId and metadata out of properties', () {
-      update({
-        'id': 'root',
-        'component': 'Alpha',
-        'a': 'x',
-        'catalogId': 'cat2',
-        'metadata': {
-          'extensions': {'k': 'v'},
-        },
-      });
+    test('keeps catalogId out of properties', () {
+      update(
+          {'id': 'root', 'component': 'Alpha', 'a': 'x', 'catalogId': 'cat2'});
 
       final ComponentModel root = components().get('root')!;
       expect(root.properties, {'a': 'x'});
       expect(root.catalog, 'cat2');
+      expect(root.toJson(), {
+        'id': 'root',
+        'component': 'Alpha',
+        'catalogId': 'cat2',
+        'a': 'x',
+      });
+    });
+
+    test('keeps metadata out of properties from v1.0', () {
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [alphaCatalog('v10', version: A2uiProtocolVersion.v1_0)],
+      );
+      processor.processMessages([
+        {
+          'version': '1.0',
+          'createSurface': {'surfaceId': 's1', 'catalogId': 'v10'},
+        },
+        {
+          'version': '1.0',
+          'updateComponents': {
+            'surfaceId': 's1',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Alpha',
+                'a': 'x',
+                'metadata': {
+                  'extensions': {'k': 'v'},
+                },
+              },
+            ],
+          },
+        },
+      ]);
+
+      final ComponentModel root =
+          processor.model.getSurface('s1')!.componentsModel.get('root')!;
+      expect(root.properties, {'a': 'x'});
       expect(root.metadata, {
         'extensions': {'k': 'v'},
       });
       expect(root.toJson(), {
         'id': 'root',
         'component': 'Alpha',
-        'catalogId': 'cat2',
         'metadata': {
           'extensions': {'k': 'v'},
         },
         'a': 'x',
       });
+    });
+
+    test('keeps metadata among properties before v1.0', () {
+      update({
+        'id': 'root',
+        'component': 'Alpha',
+        'a': 'x',
+        'metadata': {'source': 'crm'},
+      });
+      update({
+        'id': 'other',
+        'component': 'Alpha',
+        'a': 'y',
+        'metadata': {
+          'extensions': {'k': 'v'},
+        },
+      });
+
+      final ComponentModel root = components().get('root')!;
+      expect(root.properties, {
+        'a': 'x',
+        'metadata': {'source': 'crm'},
+      });
+      expect(root.metadata, isNull);
+      final ComponentModel other = components().get('other')!;
+      expect(other.properties, {
+        'a': 'y',
+        'metadata': {
+          'extensions': {'k': 'v'},
+        },
+      });
+      expect(other.metadata, isNull);
     });
 
     test('recreates a component whose catalogId changes', () {
