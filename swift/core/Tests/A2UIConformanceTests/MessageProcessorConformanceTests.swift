@@ -807,7 +807,9 @@ struct MessageProcessorConformanceTests {
         "[\(name)] Component '\(id)' catalogId mismatch"
       )
     }
-    if compObj.keys.contains("metadata") {
+    // Component metadata exists from v1.0; on v0.9 `metadata` is a property.
+    let metadataIsEnvelope = surface.protocolVersion.isAtLeastV10
+    if metadataIsEnvelope, compObj.keys.contains("metadata") {
       let expectedMeta = compObj["metadata"].map { ConformanceTestHelper.toJSONValue($0) } ?? .null
       if expectedMeta == .null {
         #expect(
@@ -824,7 +826,7 @@ struct MessageProcessorConformanceTests {
     }
     for (propKey, propVal) in compObj
     where propKey != "id" && propKey != "component" && propKey != "catalogId"
-      && propKey != "metadata"
+      && !(metadataIsEnvelope && propKey == "metadata")
     {
       #expect(
         actualComp.properties[propKey] == ConformanceTestHelper.toJSONValue(propVal),
