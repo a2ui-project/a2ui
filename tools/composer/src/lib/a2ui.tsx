@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */ // TODO: remediate legacy any types
-/**
+/*
  * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,17 +18,17 @@
  * A2UI renderer adapter.
  *
  * All composer code imports from this file instead of the renderer package
- * directly. Switches between v0.8 and v0.9 renderers based on specVersion.
- *
- * The adapter is the only place that interprets component structure.
- * All other code treats components as opaque A2UIComponent[] arrays.
+ * directly. Normalizes legacy v0.8 widget definitions into v0.9 surface
+ * inputs and renders all surfaces through `@a2ui/react`.
  */
 'use client';
 
 import dynamic from 'next/dynamic';
-import {A2UIViewer as BaseA2UIViewer} from '@a2ui/react/v0_8';
-import {viewerTheme} from './viewerTheme';
+import {useMemo} from 'react';
+
 import type {A2UIComponent, SpecVersion} from '@/types/widget';
+
+import {normalizeV08Surface, type V09Component} from './v08-to-v09';
 
 const V09Viewer = dynamic(() => import('./v09Viewer').then(m => ({default: m.V09Viewer})), {
   ssr: false,
@@ -44,26 +43,41 @@ export interface A2UIViewerProps {
   className?: string;
 }
 
-export function A2UIViewer({specVersion = '0.8', components, ...props}: A2UIViewerProps) {
-  if (specVersion === '0.9') {
-    return (
-      <V09Viewer
-        root={props.root}
-        components={components as Array<{id: string; component: string; [key: string]: unknown}>}
-        data={props.data}
-        onAction={props.onAction}
-      />
-    );
-  }
+function hasV08Envelope(components: A2UIComponent[]): boolean {
+  return components.some(
+    comp =>
+      !Array.isArray(comp['component']) &&
+      typeof comp['component'] === 'object' &&
+      comp['component'] !== null,
+  );
+}
+
+export function A2UIViewer({
+  specVersion = '0.8',
+  root,
+  components,
+  data,
+  onAction,
+  className,
+}: A2UIViewerProps) {
+  const normalized = useMemo(() => {
+    if (specVersion === '0.9' && !hasV08Envelope(components)) {
+      return {
+        root,
+        components: components as V09Component[],
+        data,
+      };
+    }
+    return normalizeV08Surface({root, components, data});
+  }, [specVersion, root, components, data]);
 
   return (
-    <BaseA2UIViewer
-      theme={viewerTheme}
-      root={props.root}
-      components={components as Array<{id: string; component: Record<string, unknown>}>}
-      data={props.data}
-      onAction={props.onAction as any}
-      className={props.className}
+    <V09Viewer
+      root={normalized.root}
+      components={normalized.components}
+      data={normalized.data}
+      onAction={onAction}
+      className={className}
     />
   );
 }

@@ -32,8 +32,6 @@ export default defineConfig({
     alias: {
       '@a2ui/react/v1_0': resolve(__dirname, '../src/v1_0/index.ts'),
       '@a2ui/react/v0_9': resolve(__dirname, '../src/v0_9/index.ts'),
-      '@a2ui/react/v0_8': resolve(__dirname, '../src/v0_8/index.ts'),
-      '@a2ui/react/styles': resolve(__dirname, '../src/styles/index.ts'),
       '@a2ui/react': resolve(__dirname, '../src/index.ts'),
       '@a2ui/markdown-it': resolve(__dirname, '../../markdown-it/dist/src/markdown.js'),
     },
