@@ -10,7 +10,7 @@ description: >-
 
 # A2UI triage advisor
 
-The advisor is the triage job that writes triage suggestions (see [Triage jobs](../../../tools/internal/triage/blueprints/core.blueprint.md#triage-jobs)). For each item, it posts one comment that says in plain English what the triager should do, and carries the same suggestion as a `TriageSuggestion` A2UI component. The triage UI parses that component, the triager finalizes it, and the UI applies it. The workflow is described in [triage_item.blueprint.md](../../../tools/internal/triage/blueprints/features/triage_item.blueprint.md).
+The advisor is the triage job that writes triage suggestions (see [Triage jobs](../../../tools/internal/triage_new/blueprints/core.blueprint.md#triage-jobs)). For each item, it posts one comment that says in plain English what the triager should do, and carries the same suggestion as a `TriageSuggestion` A2UI component. The triage UI parses that component, the triager finalizes it, and the UI applies it. The workflow is described in [triage_item.blueprint.md](../../../tools/internal/triage_new/blueprints/features/triage_item.blueprint.md).
 
 The advisor only comments. It never adds or removes labels, assigns people, closes items, or changes milestones: those are the triager's decisions.
 
@@ -54,7 +54,7 @@ Skip locked items: a comment cannot be posted on them.
 
 A suggestion comment is a comment whose body starts with `**From triage bot:**` and contains `## Triage suggestion`. There is at most one per item.
 
-[Current and outdated suggestions](../../../tools/internal/triage/blueprints/features/triage_item.blueprint.md#current-and-outdated-suggestions) defines when a suggestion is current. In the fields that [item.graphql](references/item.graphql) returns, the suggestion is current when its `updatedAt` is later than all of the following:
+[Current and outdated suggestions](../../../tools/internal/triage_new/blueprints/features/triage_item.blueprint.md#current-and-outdated-suggestions) defines when a suggestion is current. In the fields that [item.graphql](references/item.graphql) returns, the suggestion is current when its `updatedAt` is later than all of the following:
 
 1. The `createdAt` of every other comment, excluding other triage bot comments.
 2. The `submittedAt` of every PR review.
@@ -66,7 +66,7 @@ Otherwise the suggestion is outdated. Skip items with a current suggestion. For 
 
 ## Step 4: Research the item
 
-1. Read the title, body, every comment and every review. Note questions from out-of-team contributors that no team member has answered (see [Contributors](../../../tools/internal/triage/blueprints/core.blueprint.md#contributors) for who is in the team).
+1. Read the title, body, every comment and every review. Note questions from out-of-team contributors that no team member has answered (see [Contributors](../../../tools/internal/triage_new/blueprints/core.blueprint.md#contributors) for who is in the team).
 2. For a bug, diagnose it from the logs, stack traces, specification (`specification/`) and code. Reproduce it only when the steps are short and clear. Do it in a temporary clone or worktree in your scratch directory, and delete it when you finish.
 3. For a PR, read the changed files and the issues it closes. Check whether a closed issue is assigned to the PR author, and whether open PRs touch the same files.
 4. Look for related items. Start with the cross-referenced items in the timeline, then run at most three searches, such as `gh search issues --repo a2ui-project/a2ui "<keywords>"` and `gh search prs --repo a2ui-project/a2ui "<keywords>"`. Open each candidate before you call it related or a duplicate.
@@ -85,7 +85,7 @@ Decide what the triager should do, following [triage_criteria.md](references/tri
 
 ## Step 6: Fill in the suggestion
 
-The [`TriageSuggestion`](../../../tools/internal/triage/pkgs/triage/lib/src/triage_item/triage_suggestion.dart) component has these properties:
+The [`TriageSuggestion`](../../../tools/internal/triage_new/pkgs/triage/lib/src/triage_item/triage_suggestion.dart) component has these properties:
 
 1. `summary` (required): what the item is about, in one or two sentences, for a triager who has not read it.
 2. `suggestion` (required): what the triager should do and why. Name the evidence with links.
@@ -103,7 +103,7 @@ Rules for the lists:
 
 1. Omit a list that is empty.
 2. Use only labels that exist in the repository (`gh label list -R a2ui-project/a2ui --limit 200`). Add only labels the item does not have, and remove only labels it has.
-3. Never add or remove `status: needs-triage`. The [flagger](../../../tools/internal/triage/blueprints/features/flagging.blueprint.md) manages it and would undo the change.
+3. Never add or remove `status: needs-triage`. The [flagger](../../../tools/internal/triage_new/blueprints/features/flagging.blueprint.md) manages it and would undo the change.
 4. Assign only logins that pass the assignee check in step 4, and that are not assigned yet.
 5. List a related item only if the suggestion says how it relates. Do not list the item itself, or the item in `duplicate_of`.
 6. Do not repeat an entry in a list.

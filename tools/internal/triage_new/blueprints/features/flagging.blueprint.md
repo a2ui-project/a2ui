@@ -2,7 +2,7 @@
 
 The flagger adds `status: needs-triage` to every open issue and PR that matches the rules below, and removes the label from the rest. It supports the process described in [triage.md](../../../../../docs/contributing/triage/triage.md). The terms are defined in [core.blueprint.md](../core.blueprint.md).
 
-The flagger is the [flagging.mts](../../archive/packages/flagging/flagging.mts) script, which runs in the [`Flag/Unflag issues and PRs`](../../../../../.github/workflows/triage.yml) GitHub Actions workflow.
+The flagger is the [triage.mts](../../../triage/flagging/triage.mts) script, which runs in the [`Flag/Unflag issues and PRs`](../../../../../.github/workflows/triage.yml) GitHub Actions workflow.
 
 The script handles [triage bot](../core.blueprint.md#contributors) comments in two ways:
 
@@ -54,4 +54,4 @@ The script prints which items it flags or unflags and why.
 
 The workflow runs daily on a schedule (15:00 UTC / 07:00 PST), on manual dispatch, and on issue events (opened, edited, labeled, unlabeled, assigned, unassigned, reopened), new issue comments, and submitted PR reviews or review comments.
 
-Every run uses the script from `main`, whatever event triggers it. Otherwise a PR review event runs the copy from the PR's merge commit, which can have older rules, and the two copies keep undoing each other's labels. Running the workflow from a branch also applies the rules from `main`, so test a rule change with `node --test tools/internal/triage/archive/packages/flagging/flagging.test.mts`.
+Every run uses the script from `main`, whatever event triggers it. Otherwise a PR review event runs the copy from the PR's merge commit, which can have older rules, and the two copies keep undoing each other's labels. Running the workflow from a branch also applies the rules from `main`, so test a rule change with `node --test tools/internal/triage/flagging/triage.test.mts`.

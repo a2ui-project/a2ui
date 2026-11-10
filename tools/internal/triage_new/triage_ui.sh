@@ -18,10 +18,10 @@
 #
 # If the triage UI is running, sends the item to it. Otherwise starts the app on
 # macOS with the item. See
-# tools/internal/triage/blueprints/features/triage_item.blueprint.md.
+# tools/internal/triage_new/blueprints/features/triage_item.blueprint.md.
 #
-# Usage: tools/internal/triage/triage_ui.sh <item URL>
-# Example: tools/internal/triage/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/123
+# Usage: tools/internal/triage_new/triage_ui.sh <item URL>
+# Example: tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/123
 
 set -euo pipefail
 

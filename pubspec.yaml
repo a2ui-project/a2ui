@@ -33,8 +33,8 @@ workspace:
   - dart/a2ui_flutter/e2e_test_v0_9
   - dart/a2ui_flutter/example
   - dart/a2ui_flutter/example_v0_9
-  - tools/internal/triage/pkgs/triage
-  - tools/internal/triage/pkgs/triage_ui
+  - tools/internal/triage_new/pkgs/triage
+  - tools/internal/triage_new/pkgs/triage_ui
 
 flutter:
   uses-material-design: true

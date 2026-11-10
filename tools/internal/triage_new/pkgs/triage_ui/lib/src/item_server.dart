@@ -17,12 +17,12 @@ import 'dart:io';
 
 import 'github_item.dart';
 
-/// Receives the items that `tools/internal/triage/triage_ui.sh` sends to the
+/// Receives the items that `tools/internal/triage_new/triage_ui.sh` sends to the
 /// running app.
 ///
 /// Listens on 127.0.0.1 and accepts `POST /open` with the URL of an item in
 /// the `item` form field. See
-/// `tools/internal/triage/blueprints/features/triage_item.blueprint.md`.
+/// `tools/internal/triage_new/blueprints/features/triage_item.blueprint.md`.
 final class ItemServer {
   ItemServer._(this._server);
 

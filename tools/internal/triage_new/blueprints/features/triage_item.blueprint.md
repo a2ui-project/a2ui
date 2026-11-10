@@ -47,7 +47,7 @@ Reply:
 To adjust and apply this suggestion, run in your a2ui checkout:
 
 ```bash
-tools/internal/triage/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/1235
+tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/1235
 ```
 
 <details>

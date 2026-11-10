@@ -20,7 +20,7 @@ From VS Code, run the `triage_ui` launch configuration. From a terminal, in
 the repository root:
 
 ```bash
-tools/internal/triage/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/123
+tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/123
 ```
 
 The script opens the item in the running app, or starts the app with it. While

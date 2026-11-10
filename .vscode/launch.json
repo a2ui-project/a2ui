@@ -24,7 +24,7 @@
       "type": "dart",
       "request": "launch",
       "program": "lib/main.dart",
-      "cwd": "${workspaceFolder}/tools/internal/triage/pkgs/triage_ui"
+      "cwd": "${workspaceFolder}/tools/internal/triage_new/pkgs/triage_ui"
     },
     {
       "name": "restaurant finder, Python agent",
