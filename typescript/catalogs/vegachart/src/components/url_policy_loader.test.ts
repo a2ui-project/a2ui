@@ -124,6 +124,27 @@ describe('createUrlPolicyLoader', () => {
     );
   });
 
+  it('checks the URL the base loader resolves against its baseURL', async () => {
+    const {base} = recordingBase();
+    const resolving: VegaBaseLoader = {
+      ...base,
+      async sanitize(url, options) {
+        return base.sanitize(/^[a-z]+:/.test(url) ? url : `https://evil.example/${url}`, options);
+      },
+    };
+    const checks: string[] = [];
+    const loader = createUrlPolicyLoader(resolving, url => {
+      checks.push(url);
+      return url.startsWith('https://evil.example/') ? undefined : url;
+    });
+
+    await assert.rejects(loader.load('data.csv'), new RegExp(BLOCKED_CHART_URL_MESSAGE));
+    assert.deepStrictEqual(checks, ['data.csv', 'https://evil.example/data.csv']);
+    const absolute = await loader.sanitize('https://cdn.example.com/a.csv');
+    assert.strictEqual(absolute.href, 'https://cdn.example.com/a.csv');
+    assert.strictEqual(checks.length, 3, 'an unchanged URL is checked once');
+  });
+
   it('loads local files through the base file loader', async () => {
     const {base, calls} = recordingBase();
     const loader = createUrlPolicyLoader(base, url => url);

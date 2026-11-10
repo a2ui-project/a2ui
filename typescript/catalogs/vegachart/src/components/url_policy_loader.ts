@@ -65,7 +65,9 @@ export const BLOCKED_CHART_URL_MESSAGE = 'URL blocked by the URL security policy
  * checked as `navigation` and every other URL as `media`. A blocked URL
  * rejects, so Vega doesn't request or open it; an allowed one, possibly
  * rewritten, goes through the base loader's own checks and `baseURL`
- * handling, and is fetched by the base loader.
+ * handling, and is fetched by the base loader. When the base loader changes
+ * the URL (for example resolving it against `baseURL`), the result is checked
+ * again, so the URL Vega fetches or opens is always one the policy allowed.
  *
  * The policy check runs synchronously when Vega calls the loader, so `base`
  * may still be loading.
@@ -88,7 +90,18 @@ export function createUrlPolicyLoader(
       if (allowed === undefined) {
         throw new Error(BLOCKED_CHART_URL_MESSAGE);
       }
-      return (await ready).sanitize(allowed, options);
+      const sanitized = await (await ready).sanitize(allowed, options);
+      // The base loader may resolve the URL further, for example against a
+      // `baseURL` option. What it resolves to is checked too, so the URL that
+      // is fetched or opened is always one the policy allowed.
+      if (sanitized.href !== allowed) {
+        const resolved = sanitizeUrl(sanitized.href, context);
+        if (resolved === undefined) {
+          throw new Error(BLOCKED_CHART_URL_MESSAGE);
+        }
+        sanitized.href = resolved;
+      }
+      return sanitized;
     },
     async load(uri, options) {
       const sanitized = await loader.sanitize(uri, options);
