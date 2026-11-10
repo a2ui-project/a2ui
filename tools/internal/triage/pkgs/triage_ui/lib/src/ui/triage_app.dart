@@ -28,8 +28,17 @@ class TriageApp extends StatelessWidget {
     controller: controller,
     child: MaterialApp(
       title: 'A2UI triage',
-      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      theme: _theme,
       home: const TriagePage(),
     ),
   );
 }
+
+/// A white background, and gray as the main color.
+final ThemeData _theme = ThemeData(
+  colorScheme: ColorScheme.fromSeed(
+    seedColor: Colors.grey,
+    dynamicSchemeVariant: DynamicSchemeVariant.monochrome,
+  ).copyWith(primary: Colors.grey.shade700, surface: Colors.white),
+  scaffoldBackgroundColor: Colors.white,
+);
