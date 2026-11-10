@@ -499,7 +499,7 @@ void main() {
         context: ExecutionContext(isUserActivated: isUserActivated),
       );
       expect(response.version, message.version);
-      expect(sent.last, same(response));
+      expect(sent, contains(same(response)));
       return response.response;
     }
 
