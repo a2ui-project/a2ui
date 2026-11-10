@@ -17,13 +17,17 @@
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
 import {z} from 'zod';
-import {RpcHandler, A2uiRpcError, RpcErrorCode} from './rpc-handler.js';
-import {A2uiError} from '../errors.js';
 import {Catalog, createFunctionImplementation} from '../catalog/types.js';
+import {
+  FormatStringImplementation,
+  PluralizeImplementation,
+} from '../catalogs/basic/v1/functions/basic_functions.js';
+import {A2uiError} from '../errors.js';
+import {isSignal, peekValue, signal} from '../reactivity/signals.js';
 import {DataContext} from '../resolution/data-context.js';
 import {SurfaceModel} from '../state/surface-model.js';
-import {signal} from '../reactivity/signals.js';
 import {IndexImplementation} from '../v1_0/functions/system_functions.js';
+import {A2uiRpcError, RpcErrorCode, RpcHandler} from './rpc-handler.js';
 
 describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', () => {
   const customRpcApi = {
@@ -748,5 +752,290 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
       },
     });
     assert.strictEqual(pendingMap.size, 0);
+  });
+
+  it('scopes formatString template calls to resolved.catalog.id across concurrent async calls and standalone RpcHandler catalogs', async () => {
+    const catAId = 'https://example.com/cat-a/catalog.json';
+    const catBId = 'https://example.com/cat-b/catalog.json';
+    const standaloneId = 'https://example.com/standalone/catalog.json';
+
+    const labelA = createFunctionImplementation(
+      {name: 'label', returnType: 'string' as const, schema: z.object({})},
+      () => 'from-A',
+    );
+    const labelB = createFunctionImplementation(
+      {name: 'label', returnType: 'string' as const, schema: z.object({})},
+      () => 'from-B',
+    );
+    const labelStandalone = createFunctionImplementation(
+      {name: 'label', returnType: 'string' as const, schema: z.object({})},
+      () => 'from-standalone',
+    );
+
+    let releaseA!: () => void;
+    const gateA = new Promise<void>(resolve => {
+      releaseA = resolve;
+    });
+    const asyncFormatA = createFunctionImplementation(
+      {
+        name: 'asyncFormat',
+        returnType: 'any' as const,
+        schema: z.object({value: z.string()}),
+        allowedCallers: 'rendererOrAgent' as const,
+      },
+      async (args, ctx) => {
+        await gateA;
+        const sigOrStr = FormatStringImplementation.execute({value: args.value}, ctx);
+        return isSignal(sigOrStr) ? peekValue(sigOrStr) : sigOrStr;
+      },
+    );
+    const asyncFormatB = createFunctionImplementation(
+      {
+        name: 'asyncFormat',
+        returnType: 'any' as const,
+        schema: z.object({value: z.string()}),
+        allowedCallers: 'rendererOrAgent' as const,
+      },
+      async (args, ctx) => {
+        const sigOrStr = FormatStringImplementation.execute({value: args.value}, ctx);
+        return isSignal(sigOrStr) ? peekValue(sigOrStr) : sigOrStr;
+      },
+    );
+    const rpcFormatString = {
+      ...FormatStringImplementation,
+      allowedCallers: 'rendererOrAgent' as const,
+    };
+
+    const catA = new Catalog(
+      catAId,
+      '1.0',
+      [],
+      [rpcFormatString, PluralizeImplementation, labelA, asyncFormatA],
+    );
+    const catB = new Catalog(catBId, '1.0', [], [rpcFormatString, labelB, asyncFormatB]);
+    const standaloneCat = new Catalog(
+      standaloneId,
+      '1.0',
+      [],
+      [rpcFormatString, PluralizeImplementation, labelStandalone],
+    );
+
+    const surface = new SurfaceModel(
+      's-rpc-defaultless',
+      undefined,
+      new Map([
+        [catAId, catA],
+        [catBId, catB],
+      ]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '1.0',
+    );
+    const surfaceErrors: unknown[] = [];
+    surface.onError.subscribe(err => {
+      surfaceErrors.push(err);
+    });
+    const sharedCtx = new DataContext(surface, '/items/0', 0);
+
+    const handler = new RpcHandler({
+      catalogs: [catA, catB, standaloneCat],
+    });
+
+    // Launch slow call A, let fast call B run and finish on the same DataContext while A waits, then release A.
+    const pendingA = handler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-cat-a',
+          callFunction: {
+            '@call': 'asyncFormat',
+            catalogId: catAId,
+            args: {
+              value:
+                "Row ${@index()}: ${label()} (${pluralize(value: 2, one: 'drop', other: 'drops')})",
+            },
+          },
+        },
+      },
+      sharedCtx,
+    );
+    const resB = await handler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-cat-b',
+          callFunction: {
+            '@call': 'asyncFormat',
+            catalogId: catBId,
+            args: {value: 'Row ${@index()}: ${label()}'},
+          },
+        },
+      },
+      sharedCtx,
+    );
+    releaseA();
+    const resA = await pendingA;
+
+    assert.strictEqual(resB.rendererFunctionResponse.value, 'Row 0: from-B');
+    assert.strictEqual(resA.rendererFunctionResponse.value, 'Row 0: from-A (drops)');
+
+    // Standalone catalog registered only in `RpcHandler.catalogs` (absent from `surface.availableCatalogs`).
+    const resStandalone = await handler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-standalone',
+          callFunction: {
+            '@call': 'formatString',
+            catalogId: standaloneId,
+            args: {
+              value:
+                "Row ${@index()}: ${label()} (${pluralize(value: 1, one: 'drop', other: 'drops')})",
+            },
+          },
+        },
+      },
+      sharedCtx,
+    );
+    assert.strictEqual(
+      resStandalone.rendererFunctionResponse.value,
+      'Row 0: from-standalone (drop)',
+    );
+    assert.strictEqual(surface.availableCatalogs.has(standaloneId), false);
+    assert.strictEqual(surfaceErrors.length, 0);
+
+    // Dynamic `@call` inside `callFunction.args` targeting `standaloneId` resolves cleanly,
+    // while targeting an unnegotiated catalog fails with `EXECUTION_ERROR`.
+    const makeLabelHelper = (text: string) =>
+      createFunctionImplementation(
+        {name: 'label', returnType: 'string' as const, schema: z.object({})},
+        () => text,
+      );
+    const echoLabelImpl = createFunctionImplementation(
+      {
+        name: 'echoLabel',
+        returnType: 'string' as const,
+        schema: z.object({label: z.string()}),
+        allowedCallers: 'agentOnly' as const,
+      },
+      args => args.label,
+    );
+    const echoStandaloneCat = new Catalog(
+      'https://example.com/rpc-echo-standalone/catalog.json',
+      '1.0',
+      [],
+      [echoLabelImpl, FormatStringImplementation, makeLabelHelper('arg-standalone')],
+    );
+    const otherUnnegotiatedCat = new Catalog(
+      'https://example.com/rpc-other-unnegotiated/catalog.json',
+      '1.0',
+      [],
+      [makeLabelHelper('leaked')],
+    );
+    const argHandler = new RpcHandler({
+      catalogs: [echoStandaloneCat, otherUnnegotiatedCat],
+    });
+    const argRes = await argHandler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-standalone-arg',
+          callFunction: {
+            '@call': 'echoLabel',
+            catalogId: echoStandaloneCat.id,
+            args: {
+              label: {
+                '@call': 'formatString',
+                catalogId: echoStandaloneCat.id,
+                args: {value: 'Arg: ${label()}'},
+              },
+            },
+          },
+        },
+      },
+      sharedCtx,
+    );
+    assert.strictEqual(argRes.rendererFunctionResponse.value, 'Arg: arg-standalone');
+
+    const badArgRes = await argHandler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-unnegotiated-arg',
+          callFunction: {
+            '@call': 'echoLabel',
+            catalogId: echoStandaloneCat.id,
+            args: {
+              label: {
+                '@call': 'label',
+                catalogId: otherUnnegotiatedCat.id,
+                args: {},
+              },
+            },
+          },
+        },
+      },
+      sharedCtx,
+    );
+    assert.strictEqual(badArgRes.rendererFunctionResponse.error?.code, 'EXECUTION_ERROR');
+
+    // Same-ID negotiated schema-only surface catalog + executable `RpcHandler` catalog.
+    const sharedId = 'https://example.com/rpc-shared-schema-only/catalog.json';
+    const schemaOnlySurfaceCat = Catalog.fromJson(
+      {
+        catalogId: sharedId,
+        protocolVersion: '1.0',
+        components: {},
+        functions: {
+          formatString: {
+            returnType: 'string',
+            allowedCallers: 'rendererOrAgent',
+            parameters: {type: 'object', properties: {value: {type: 'string'}}},
+          },
+          label: {
+            returnType: 'string',
+            parameters: {type: 'object', properties: {}},
+          },
+        },
+      },
+      '1.0',
+    );
+    const execRpcCat = new Catalog(
+      sharedId,
+      '1.0',
+      [],
+      [rpcFormatString, makeLabelHelper('from-exec-rpc')],
+    );
+    const schemaOnlySurface = new SurfaceModel(
+      's-rpc-schema-only',
+      schemaOnlySurfaceCat,
+      new Map([[sharedId, schemaOnlySurfaceCat]]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '1.0',
+    );
+    const schemaOnlyCtx = new DataContext(schemaOnlySurface, '/');
+    const sharedHandler = new RpcHandler({catalogs: [execRpcCat]});
+    const sharedRes = await sharedHandler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-same-id-schema-only',
+          callFunction: {
+            '@call': 'formatString',
+            catalogId: sharedId,
+            args: {value: 'Resolved: ${label()}'},
+          },
+        },
+      },
+      schemaOnlyCtx,
+    );
+    assert.strictEqual(sharedRes.rendererFunctionResponse.value, 'Resolved: from-exec-rpc');
   });
 });

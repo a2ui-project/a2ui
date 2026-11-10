@@ -16,7 +16,10 @@
 
 import {Catalog, FunctionImplementation} from '../catalog/types.js';
 import {DataContext} from '../resolution/data-context.js';
-import {resolveArgumentValue} from '../resolution/data-context-internal.js';
+import {
+  resolveArgumentValue,
+  withActiveCallCatalogId,
+} from '../resolution/data-context-internal.js';
 import {isSignal, getValue} from '../reactivity/signals.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {FunctionCall} from '../v1_0/schema/common-types.js';
@@ -190,11 +193,11 @@ export class RpcHandler {
     }
 
     const effectiveContext = this.ensureDataContext(context, resolved.catalog, functionCallId);
-    const resolvedArgsResult = this.resolveDynamicArguments(
-      args,
-      effectiveContext,
-      isUserActivated,
-    );
+    const scopedContext =
+      effectiveContext && resolved.catalog.id
+        ? withActiveCallCatalogId(effectiveContext, resolved.catalog.id, resolved.catalog)
+        : effectiveContext;
+    const resolvedArgsResult = this.resolveDynamicArguments(args, scopedContext, isUserActivated);
     if ('error' in resolvedArgsResult) {
       const errorResponse = this.createResponseError(
         functionCallId,
@@ -256,7 +259,7 @@ export class RpcHandler {
     const response = await this.executeFunctionSafely(
       resolved.funcImpl,
       parsedArgsResult.args,
-      effectiveContext,
+      scopedContext,
       functionCallId,
       version,
     );
@@ -467,9 +470,13 @@ export class RpcHandler {
   ): {funcImpl: FunctionImplementation; catalog: Catalog<any>} | {error: string} {
     let catalog: Catalog<any> | undefined;
     if (catalogId) {
+      const surfaceCatalog = context?.surface?.availableCatalogs?.get(catalogId);
+      const handlerCatalog = this.catalogs.find(c => c.id === catalogId);
+      const surfaceFunc = surfaceCatalog?.functions?.get(call);
       catalog =
-        context?.surface?.availableCatalogs?.get(catalogId) ??
-        this.catalogs.find(c => c.id === catalogId);
+        typeof (surfaceFunc as Partial<FunctionImplementation> | undefined)?.execute === 'function'
+          ? surfaceCatalog
+          : (handlerCatalog ?? surfaceCatalog);
       if (!catalog) {
         return {error: `Catalog not found: ${catalogId}`};
       }
