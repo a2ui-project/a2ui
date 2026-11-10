@@ -317,6 +317,23 @@ describe('PayloadValidator', () => {
       );
     });
 
+    it('validates component metadata when the component schema declares it', () => {
+      const tags = new Catalog(CATALOG_ID, '1.0', [
+        {
+          name: 'Tag',
+          schema: z.object({label: z.string(), metadata: z.unknown().optional()}).strict(),
+        },
+      ]);
+      const validator = new PayloadValidator(tags, STRICT_VALIDATION);
+      const tag = (metadata: unknown) => ({id: 'root', component: 'Tag', label: 'Hi', metadata});
+
+      assert.doesNotThrow(() => validator.validateComponent(tag({extensions: {vendor_x: 1}})));
+      assertValidationError(
+        () => validator.validateComponent(tag({extensions: {'bad-key': true}})),
+        /Validation failed for component 'Tag' \(root\): .*Invalid extension key "bad-key"/,
+      );
+    });
+
     it('leaves component metadata unchecked below v1.0', () => {
       const tags = new Catalog('https://example.com/v09', '0.9', [
         {name: 'Tag', schema: z.object({label: z.string()}).strict()},

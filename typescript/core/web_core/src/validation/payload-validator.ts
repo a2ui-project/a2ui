@@ -305,13 +305,15 @@ export class PayloadValidator {
   }
 
   /**
-   * Validates `accessibility` and `metadata` from `ComponentCommon` when the
-   * component schema does not explicitly declare them, removing
-   * `accessibility` from `properties` before strict component schema parsing.
+   * Validates `accessibility` from `ComponentCommon` when the component schema
+   * does not explicitly declare it, removing it from `properties` before
+   * strict component schema parsing.
    *
-   * `metadata` is an envelope key, so `stripEnvelopeKeys` has already removed
-   * it from `properties`; it is passed separately and, as it exists only from
-   * v1.0, checked only on v1.0+ catalogs.
+   * Also validates `metadata` against `ComponentCommon`. It is an envelope
+   * key, so `stripEnvelopeKeys` has already removed it from `properties` and
+   * the component schema never sees it, even when it declares `metadata`. It
+   * is passed separately and, as it exists only from v1.0, checked only on
+   * v1.0+ catalogs.
    */
   private validateCommonEnvelopeFields(
     properties: Record<string, unknown>,
@@ -338,7 +340,7 @@ export class PayloadValidator {
       this.validateNestedFunctions(accVal, componentCatalogId, '/accessibility');
     }
 
-    if (this.enforceIdentifiers && metadata !== undefined && !knownKeys?.has('metadata')) {
+    if (this.enforceIdentifiers && metadata !== undefined) {
       const metaResult = ComponentCommonSchema.shape.metadata.safeParse(metadata);
       if (!metaResult.success) {
         const formattedErrors = metaResult.error.errors.map(formatZodIssue).join(', ');
