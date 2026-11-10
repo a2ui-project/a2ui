@@ -1,0 +1,49 @@
+{
+  "schema": "server_to_client.json",
+  "tests": [
+    {
+      "description": "Tabs with empty tabs array (should fail)",
+      "valid": false,
+      "data": {
+        "version": "v0.9",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "tabs_empty",
+              "component": "Tabs",
+              "tabs": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Tabs with valid tabs array",
+      "valid": true,
+      "data": {
+        "version": "v0.9",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "tabs_valid",
+              "component": "Tabs",
+              "tabs": [
+                {
+                  "title": "Tab 1",
+                  "child": "txt1"
+                }
+              ]
+            },
+            {
+              "id": "txt1",
+              "component": "Text",
+              "text": "Tab 1 content"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

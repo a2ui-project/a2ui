@@ -1,0 +1,25 @@
+$/album = "After Hours"
+$/albumArt = "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop"
+$/artist = "The Weeknd"
+$/currentTime = "1:48"
+$/playIcon = "pause"
+$/progress = 0.45
+$/title = "Blinding Lights"
+$/totalTime = "4:22"
+root = Card(main_column)
+main_column = Column([album_art, track_info, progress, time_row, controls], _, "center")
+album_art = Image($/albumArt, _, "cover")
+track_info = Column([song_title, artist], _, "center")
+song_title = Text($/title)
+artist = Text($/artist, "caption")
+progress = Slider(_, _, 1, $/progress)
+time_row = Row([current_time, total_time], "spaceBetween")
+current_time = Text($/currentTime, "caption")
+total_time = Text($/totalTime, "caption")
+controls = Row([prev_btn, play_btn, next_btn], "center")
+prev_btn_icon = Icon("skipPrevious")
+prev_btn = Button(prev_btn_icon, _, Event("previous"))
+play_btn_icon = Icon($/playIcon)
+play_btn = Button(play_btn_icon, _, Event("playPause"))
+next_btn_icon = Icon("skipNext")
+next_btn = Button(next_btn_icon, _, Event("next"))
