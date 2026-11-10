@@ -443,9 +443,8 @@ def test_standalone_components_datasets_and_catalogs_v091_and_v10() -> None:
     assert len(ds_v10) == 10
 
     sample_completion = (
-        "<a2ui>\n"
-        'FlightStatusCard("UA 421", "United Airlines", "SFO", "JFK", status="on_time")\n'
-        "</a2ui>"
+        '<a2ui>\nFlightStatusCard("UA 421", "United Airlines", "SFO", "JFK",'
+        ' status="on_time")\n</a2ui>'
     )
     v091_cat = str(GIT_ROOT / "eval/catalogs/standalone_components/catalog.json")
     v10_cat = str(GIT_ROOT / "eval/catalogs/standalone_components/v1/catalog.json")
@@ -457,8 +456,6 @@ def test_standalone_components_datasets_and_catalogs_v091_and_v10() -> None:
     assert len(res_v091["compiled_jsons"]) == 2
 
     assert "FlightStatusCard(" in generate_prompt("vertical", "1.0", v10_cat)
-    res_v10 = parse_and_validate(
-        "vertical", "1.0", v10_cat, "main", sample_completion
-    )
+    res_v10 = parse_and_validate("vertical", "1.0", v10_cat, "main", sample_completion)
     assert len(res_v10["compiled_jsons"]) == 1
     assert res_v10["compiled_jsons"][0]["version"] == "1.0"

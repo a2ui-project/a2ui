@@ -38,12 +38,7 @@
         },
         "status": {
           "type": "string",
-          "enum": [
-            "on_time",
-            "delayed",
-            "cancelled",
-            "boarding"
-          ],
+          "enum": ["on_time", "delayed", "cancelled", "boarding"],
           "description": "Flight status"
         },
         "gate": {
@@ -54,14 +49,7 @@
           "$ref": "#/$defs/Weight"
         }
       },
-      "required": [
-        "component",
-        "flightNumber",
-        "airline",
-        "origin",
-        "destination",
-        "status"
-      ]
+      "required": ["component", "flightNumber", "airline", "origin", "destination", "status"]
     },
     "StockTicker": {
       "type": "object",
@@ -100,11 +88,7 @@
           "$ref": "#/$defs/Weight"
         }
       },
-      "required": [
-        "component",
-        "symbol",
-        "price"
-      ]
+      "required": ["component", "symbol", "price"]
     },
     "WeatherWidget": {
       "type": "object",
@@ -124,13 +108,7 @@
         },
         "condition": {
           "type": "string",
-          "enum": [
-            "sunny",
-            "cloudy",
-            "rainy",
-            "snowy",
-            "windy"
-          ],
+          "enum": ["sunny", "cloudy", "rainy", "snowy", "windy"],
           "description": "Weather condition"
         },
         "high": {
@@ -147,22 +125,14 @@
         },
         "unit": {
           "type": "string",
-          "enum": [
-            "celsius",
-            "fahrenheit"
-          ],
+          "enum": ["celsius", "fahrenheit"],
           "default": "fahrenheit"
         },
         "weight": {
           "$ref": "#/$defs/Weight"
         }
       },
-      "required": [
-        "component",
-        "city",
-        "temperature",
-        "condition"
-      ]
+      "required": ["component", "city", "temperature", "condition"]
     },
     "OrderTrackingTile": {
       "type": "object",
@@ -182,13 +152,7 @@
         },
         "status": {
           "type": "string",
-          "enum": [
-            "ordered",
-            "shipped",
-            "in_transit",
-            "out_for_delivery",
-            "delivered"
-          ],
+          "enum": ["ordered", "shipped", "in_transit", "out_for_delivery", "delivered"],
           "description": "Current tracking status"
         },
         "estimatedDelivery": {
@@ -207,12 +171,7 @@
           "$ref": "#/$defs/Weight"
         }
       },
-      "required": [
-        "component",
-        "orderId",
-        "status",
-        "estimatedDelivery"
-      ]
+      "required": ["component", "orderId", "status", "estimatedDelivery"]
     },
     "RestaurantReservation": {
       "type": "object",
@@ -245,25 +204,14 @@
         },
         "tableType": {
           "type": "string",
-          "enum": [
-            "indoor",
-            "outdoor",
-            "bar",
-            "booth"
-          ],
+          "enum": ["indoor", "outdoor", "bar", "booth"],
           "default": "indoor"
         },
         "weight": {
           "$ref": "#/$defs/Weight"
         }
       },
-      "required": [
-        "component",
-        "restaurantName",
-        "date",
-        "time",
-        "partySize"
-      ]
+      "required": ["component", "restaurantName", "date", "time", "partySize"]
     },
     "ProductCard": {
       "type": "object",
@@ -301,11 +249,7 @@
           "$ref": "#/$defs/Weight"
         }
       },
-      "required": [
-        "component",
-        "title",
-        "price"
-      ]
+      "required": ["component", "title", "price"]
     },
     "UserProfileCard": {
       "type": "object",
@@ -343,11 +287,7 @@
           "$ref": "#/$defs/Weight"
         }
       },
-      "required": [
-        "component",
-        "name",
-        "role"
-      ]
+      "required": ["component", "name", "role"]
     },
     "AppointmentReminder": {
       "type": "object",
@@ -382,11 +322,7 @@
           "$ref": "#/$defs/Weight"
         }
       },
-      "required": [
-        "component",
-        "title",
-        "dateTime"
-      ]
+      "required": ["component", "title", "dateTime"]
     },
     "MetricsTile": {
       "type": "object",
@@ -410,11 +346,7 @@
         },
         "trend": {
           "type": "string",
-          "enum": [
-            "up",
-            "down",
-            "neutral"
-          ],
+          "enum": ["up", "down", "neutral"],
           "description": "Direction of trend"
         },
         "period": {
@@ -425,11 +357,7 @@
           "$ref": "#/$defs/Weight"
         }
       },
-      "required": [
-        "component",
-        "label",
-        "value"
-      ]
+      "required": ["component", "label", "value"]
     },
     "MediaPlaybackTile": {
       "type": "object",
@@ -467,11 +395,7 @@
           "$ref": "#/$defs/Weight"
         }
       },
-      "required": [
-        "component",
-        "trackTitle",
-        "artist"
-      ]
+      "required": ["component", "trackTitle", "artist"]
     }
   },
   "functions": {
@@ -490,16 +414,11 @@
               "$ref": "common_types.json#/$defs/DynamicString"
             }
           },
-          "required": [
-            "url"
-          ],
+          "required": ["url"],
           "unevaluatedProperties": false
         }
       },
-      "required": [
-        "@call",
-        "args"
-      ]
+      "required": ["@call", "args"]
     }
   },
   "$defs": {
