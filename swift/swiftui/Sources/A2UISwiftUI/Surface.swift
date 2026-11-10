@@ -65,6 +65,7 @@ public struct Surface: View {
         .environment(\.a2uiSurfaceMetadata, viewModel.metadata)
         .environment(\.a2uiCatalogs, catalogs)
         .environment(\.a2uiDefaultCatalogID, defaultCatalogID)
+        .environment(\.a2uiURLSanitizer, A2UIURLSanitizer(surface: viewModel))
     } else {
       // Nothing to show until the root component arrives.
       EmptyView()

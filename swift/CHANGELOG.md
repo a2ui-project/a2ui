@@ -23,3 +23,15 @@
 - (`BasicCatalog`) Deprecate `BasicCatalog.sanitizeMediaURL(_:)`. It now runs the URL
   security policy baseline for `media`, which also rejects `data:image/svg+xml` and `data:`
   URLs that aren't images, audio, or video ([#4121](https://github.com/a2ui-project/a2ui/pull/4121)).
+- (`BasicCatalogSwiftUI`) `A2UIImage`, `A2UIVideo`, and `A2UIAudioPlayer` load the URL the
+  resolver returns after the surface's URL security policy, possibly rewritten, and only run
+  the baseline on it, so a rewritten proxy URL isn't checked against the allowlist again. They
+  no longer trim whitespace around a URL or call the deprecated `sanitizeMediaURL(_:)`
+  ([#PR_B](https://github.com/a2ui-project/a2ui/pull/PR_B)).
+- (`BasicCatalogSwiftUI`) `A2UIText` can render Markdown links whose targets the surface's
+  policy allows as navigation: set `.environment(\.a2uiMarkdownURLOptions, .links)` or pass
+  `markdownURLOptions: .links`. Link syntax still renders as plain text by default, and image
+  syntax always does ([#PR_B](https://github.com/a2ui-project/a2ui/pull/PR_B)).
+- (`A2UISwiftUI`) `Surface` sets `\.a2uiURLSanitizer` (`A2UIURLSanitizer`), which views use to
+  check URLs they build themselves against the surface's policy; blocked URLs are reported on
+  the surface ([#PR_B](https://github.com/a2ui-project/a2ui/pull/PR_B)).

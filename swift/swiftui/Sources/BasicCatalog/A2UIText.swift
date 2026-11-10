@@ -31,6 +31,12 @@ extension BasicCatalogImplementation {
 // MARK: - View
 
 /// SwiftUI component view for the A2UI Basic Catalog `Text` component.
+///
+/// Markdown link and image syntax renders as plain text by default. Set
+/// ``A2UIMarkdownURLOptions/links`` (with `.environment(\.a2uiMarkdownURLOptions, .links)` or the
+/// initializer) to render links whose targets the surface's URL security policy allows as
+/// navigation; a blocked target stays plain text. Image syntax always renders as plain text,
+/// since SwiftUI `Text` doesn't display Markdown images.
 public struct A2UIText: View {
   /// Summary of the visible text and semantic formatting constructs rendered by ``A2UIText``.
   @_spi(Testing)
@@ -45,9 +51,35 @@ public struct A2UIText: View {
   }
 
   public let node: Node
+  private let markdownURLOptions: A2UIMarkdownURLOptions?
+  @Environment(\.a2uiMarkdownURLOptions) private var environmentMarkdownURLOptions
+  @Environment(\.a2uiURLSanitizer) private var urlSanitizer
 
-  public init(node: Node) {
+  /// Creates the view.
+  ///
+  /// - Parameters:
+  ///   - node: The resolved `Text` node.
+  ///   - markdownURLOptions: The Markdown URL constructs to render, or `nil` to use the
+  ///     environment's ``A2UIMarkdownURLOptions``.
+  public init(node: Node, markdownURLOptions: A2UIMarkdownURLOptions? = nil) {
     self.node = node
+    self.markdownURLOptions = markdownURLOptions
+  }
+
+  /// How Markdown link targets in this view are treated.
+  private var linkPolicy: MarkdownLinkPolicy {
+    guard (markdownURLOptions ?? environmentMarkdownURLOptions).contains(.links) else {
+      return .stripped
+    }
+    return MarkdownLinkPolicy(
+      sanitizer: urlSanitizer,
+      info: URLCheckInfo(
+        catalogID: node.catalogID,
+        componentType: node.type,
+        componentID: node.id,
+        propertyName: "text"
+      )
+    )
   }
 
   private var textContent: String {
@@ -69,7 +101,7 @@ public struct A2UIText: View {
   public var renderedMarkdown: RenderedMarkdown {
     switch variant {
     case "h1", "h2", "h3", "h4", "h5":
-      let attributed = attributedMarkdown(textContent)
+      let attributed = attributedMarkdown(textContent, links: linkPolicy)
       var semantics = inlineMarkdownSemantics(in: attributed)
       semantics.insert("heading")
       Self.collectRenderedViewSemantics(in: body, into: &semantics)
@@ -78,7 +110,7 @@ public struct A2UIText: View {
         presentSemantics: semantics
       )
     case "caption":
-      let attributed = attributedMarkdown(textContent)
+      let attributed = attributedMarkdown(textContent, links: linkPolicy)
       var semantics = inlineMarkdownSemantics(in: attributed)
       semantics.insert("emphasis")
       Self.collectRenderedViewSemantics(in: body, into: &semantics)
@@ -87,7 +119,7 @@ public struct A2UIText: View {
         presentSemantics: semantics
       )
     default:
-      let summary = MarkdownBlockView(text: textContent).renderedMarkdown()
+      let summary = MarkdownBlockView(text: textContent, links: linkPolicy).renderedMarkdown()
       var semantics = summary.presentSemantics
       Self.collectRenderedViewSemantics(in: body, into: &semantics)
       return RenderedMarkdown(visibleText: summary.visibleText, presentSemantics: semantics)
@@ -115,16 +147,16 @@ public struct A2UIText: View {
     switch variant {
     case "h1", "h2", "h3", "h4", "h5":
       let level = Int(variant.dropFirst()) ?? 1
-      Text(attributedMarkdown(text))
+      Text(attributedMarkdown(text, links: linkPolicy))
         .font(Self.headingFont(level: level))
         .a2uiHeading(level: level)
     case "caption":
-      Text(attributedMarkdown(text))
+      Text(attributedMarkdown(text, links: linkPolicy))
         .font(.caption)
         .italic()
         .foregroundStyle(.secondary)
     default:
-      MarkdownBlockView(text: text)
+      MarkdownBlockView(text: text, links: linkPolicy)
     }
   }
 
@@ -175,9 +207,36 @@ extension View {
   }
 }
 
-/// Parses inline Markdown into an `AttributedString`, stripping link and image URL attributes
-/// because Basic Catalog `Text` renders link and image syntax as plain text without targets.
-private func attributedMarkdown(_ text: String) -> AttributedString {
+/// How ``A2UIText`` treats the targets of Markdown links.
+private struct MarkdownLinkPolicy {
+  /// Strips every link target, so link syntax renders as plain text.
+  static let stripped = MarkdownLinkPolicy(sanitizer: nil, info: nil)
+
+  /// Checks link targets as navigation, or `nil` to strip them.
+  let sanitizer: A2UIURLSanitizer?
+  /// Where the links come from, for the policy and its warnings.
+  let info: URLCheckInfo?
+
+  /// Returns the target to keep for a link, or `nil` to render the link as plain text.
+  @MainActor
+  func allowedTarget(for url: URL) -> URL? {
+    guard let sanitizer,
+      let allowed = sanitizer(url.absoluteString, context: .navigation, info: info)
+    else {
+      return nil
+    }
+    return URL(string: allowed)
+  }
+}
+
+/// Parses inline Markdown into an `AttributedString`. Image URL attributes are always stripped,
+/// and link targets are kept only when `links` allows them, so Basic Catalog `Text` renders
+/// that syntax as plain text without targets.
+@MainActor
+private func attributedMarkdown(
+  _ text: String,
+  links: MarkdownLinkPolicy = .stripped
+) -> AttributedString {
   guard
     var attributed = try? AttributedString(
       markdown: text,
@@ -190,8 +249,8 @@ private func attributedMarkdown(_ text: String) -> AttributedString {
   }
   for run in attributed.runs {
     let linkURL: URL? = run.link
-    if linkURL != nil {
-      attributed[run.range].link = nil
+    if let linkURL {
+      attributed[run.range].link = links.allowedTarget(for: linkURL)
     }
     let imageURL: URL? = run.imageURL
     if imageURL != nil {
@@ -230,6 +289,7 @@ private func inlineMarkdownSemantics(in attributed: AttributedString) -> Set<Str
 /// Structured view rendering multi-block Markdown content (headings, lists, quotes, paragraphs).
 private struct MarkdownBlockView: View {
   let text: String
+  var links: MarkdownLinkPolicy = .stripped
 
   private enum MarkdownBlock: Identifiable {
     case heading(level: Int, text: String)
@@ -277,14 +337,14 @@ private struct MarkdownBlockView: View {
   private func renderBlock(_ block: MarkdownBlock) -> some View {
     switch block {
     case .heading(let level, let headingText):
-      Text(attributedMarkdown(headingText))
+      Text(attributedMarkdown(headingText, links: links))
         .font(A2UIText.headingFont(level: level))
         .a2uiHeading(level: level)
 
     case .unorderedList(let items):
       VStack(alignment: .leading, spacing: 4) {
         ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-          Text("• \(attributedMarkdown(item))")
+          Text("• \(attributedMarkdown(item, links: links))")
             .font(.body)
         }
       }
@@ -292,7 +352,7 @@ private struct MarkdownBlockView: View {
     case .orderedList(let items):
       VStack(alignment: .leading, spacing: 4) {
         ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-          Text("\(item.0). \(attributedMarkdown(item.1))")
+          Text("\(item.0). \(attributedMarkdown(item.1, links: links))")
             .font(.body)
         }
       }
@@ -310,13 +370,13 @@ private struct MarkdownBlockView: View {
         Rectangle()
           .fill(Color.secondary.opacity(0.4))
           .frame(width: 3)
-        Text(attributedMarkdown(quoteText))
+        Text(attributedMarkdown(quoteText, links: links))
           .font(.body)
           .foregroundStyle(.secondary)
       }
 
     case .paragraph(let paragraphText):
-      Text(attributedMarkdown(paragraphText))
+      Text(attributedMarkdown(paragraphText, links: links))
         .font(.body)
     }
   }
@@ -422,7 +482,7 @@ private struct MarkdownBlockView: View {
       switch block {
       case .heading(_, let headingText):
         semantics.insert("heading")
-        let attributed = attributedMarkdown(headingText)
+        let attributed = attributedMarkdown(headingText, links: links)
         semantics.formUnion(inlineMarkdownSemantics(in: attributed))
         return String(attributed.characters)
       case .unorderedList(let items):
@@ -430,7 +490,7 @@ private struct MarkdownBlockView: View {
           semantics.insert("list_item")
         }
         return items.map { item in
-          let attributed = attributedMarkdown(item)
+          let attributed = attributedMarkdown(item, links: links)
           semantics.formUnion(inlineMarkdownSemantics(in: attributed))
           return String(attributed.characters)
         }.joined(separator: " ")
@@ -439,7 +499,7 @@ private struct MarkdownBlockView: View {
           semantics.insert("list_item")
         }
         return items.map { item in
-          let attributed = attributedMarkdown(item.1)
+          let attributed = attributedMarkdown(item.1, links: links)
           semantics.formUnion(inlineMarkdownSemantics(in: attributed))
           return String(attributed.characters)
         }.joined(separator: " ")
@@ -447,11 +507,11 @@ private struct MarkdownBlockView: View {
         semantics.insert("code")
         return code
       case .blockquote(let quoteText):
-        let attributed = attributedMarkdown(quoteText)
+        let attributed = attributedMarkdown(quoteText, links: links)
         semantics.formUnion(inlineMarkdownSemantics(in: attributed))
         return String(attributed.characters)
       case .paragraph(let paragraphText):
-        let attributed = attributedMarkdown(paragraphText)
+        let attributed = attributedMarkdown(paragraphText, links: links)
         semantics.formUnion(inlineMarkdownSemantics(in: attributed))
         return String(attributed.characters)
       }

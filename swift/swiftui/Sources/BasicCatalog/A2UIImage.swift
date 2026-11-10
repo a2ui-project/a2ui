@@ -54,7 +54,7 @@ public struct A2UIImage: View {
   }
 
   public var body: some View {
-    if let url = BasicCatalog.sanitizeMediaURL(urlString) {
+    if let url = MediaURL.url(from: urlString) {
       AsyncImage(url: url) { phase in
         switch phase {
         case .empty:

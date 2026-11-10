@@ -49,7 +49,7 @@ public struct A2UIVideo: View {
   }
 
   private var resolvedURL: URL? {
-    BasicCatalog.sanitizeMediaURL(urlString)
+    MediaURL.url(from: urlString)
   }
 
   /// The optional poster image URL string resolved from the `posterUrl` property.
@@ -90,7 +90,7 @@ public struct A2UIVideo: View {
           }
 
           if isShowingPoster,
-            let posterURL = BasicCatalog.sanitizeMediaURL(posterURLString)
+            let posterURL = MediaURL.url(from: posterURLString)
           {
             Button {
               isShowingPoster = false
