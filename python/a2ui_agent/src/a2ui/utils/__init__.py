@@ -20,11 +20,15 @@ from .examples import load_examples, resolve_examples_path
 from .renderer_state import RendererState, validate_payload
 from .schema_pruning import prune_common_types_schema, prune_messages_schema
 from .schemas import load_agent_to_renderer_schema, load_common_types_schema
+from .url_check import BlockedPayloadUrl, PayloadUrlCheckResult, check_payload_urls
 from .versions import to_version_number
 
 __all__ = [
+    "BlockedPayloadUrl",
+    "PayloadUrlCheckResult",
     "RendererState",
     "agent_callable_functions",
+    "check_payload_urls",
     "load_agent_to_renderer_schema",
     "load_common_types_schema",
     "load_examples",
