@@ -6,7 +6,7 @@
   The baseline rejects URLs the old scheme check let through, such as `https:host` and URLs
   with spaces or control characters. Only allowed, possibly rewritten, URLs reach the
   `OpenURLHandler`, and the user activation rule still applies. Recommended migration: catch
-  `URLBlockedError` where you caught `FunctionError` for blocked URLs.
+  `URLBlockedError` where you caught `FunctionError` for blocked URLs ([#4121](https://github.com/a2ui-project/a2ui/pull/4121)).
 - (`A2UICore`) Add a URL security policy: `URLSecurityPolicy` with
   `sanitizeURL(_:context:info:)`, the default `PermissiveURLSecurityPolicy`,
   `AllowlistURLSecurityPolicy` (per-context host lists with `*.` subdomain wildcards and
@@ -19,7 +19,7 @@
   removed or rewritten. Blocked URLs are published, redacted, as `URLBlockedWarning` on
   `SurfaceViewModel.urlBlockedPublisher` and `MessageProcessor.urlBlockedPublisher`.
   Functions and components check URLs they build with `sanitizeURL(_:context:info:)` on
-  `DataContext` or `SurfaceViewModel`.
+  `DataContext` or `SurfaceViewModel` ([#4121](https://github.com/a2ui-project/a2ui/pull/4121)).
 - (`BasicCatalog`) Deprecate `BasicCatalog.sanitizeMediaURL(_:)`. It now runs the URL
   security policy baseline for `media`, which also rejects `data:image/svg+xml` and `data:`
-  URLs that aren't images, audio, or video.
+  URLs that aren't images, audio, or video ([#4121](https://github.com/a2ui-project/a2ui/pull/4121)).
