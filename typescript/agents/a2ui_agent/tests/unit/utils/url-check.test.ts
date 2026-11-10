@@ -250,6 +250,38 @@ describe('checkPayloadUrls', () => {
     ).toBe(1);
   });
 
+  it('reads bindings into lists the payload creates or updates', () => {
+    const result = checkPayloadUrls(
+      [BASIC_V10],
+      [
+        createV10(BASIC_CATALOG_IDS['1.0'], {
+          dataModel: {items: [{url: 'https://cdn.example.com/0.png'}]},
+        }),
+        v10({
+          updateDataModel: {
+            surfaceId: 's',
+            path: '/items/1/url',
+            value: 'https://attacker.example/',
+          },
+        }),
+        v10({
+          updateDataModel: {
+            surfaceId: 's',
+            path: '/fresh/0/url',
+            value: 'https://attacker.example/',
+          },
+        }),
+        updateV10(
+          {id: 'root', component: 'Image', url: {'@path': '/items/0/url'}},
+          {id: 'second', component: 'Image', url: {'@path': '/items/1/url'}},
+          {id: 'fresh', component: 'Image', url: {'@path': '/fresh/0/url'}},
+        ),
+      ],
+      {policy: CDN_ONLY},
+    );
+    expect(result.blocked.map(b => b.componentId)).toEqual(['second', 'fresh']);
+  });
+
   it('strips blocked values from copies of the messages', () => {
     const payload = [
       createV10(BASIC_CATALOG_IDS['1.0'], {dataModel: {leak: 'https://attacker.example/'}}),

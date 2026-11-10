@@ -469,9 +469,13 @@ function applyDataUpdate(
   if (segments.length === 0) return hasValue ? value : undefined;
   const result: unknown = isJsonObject(root) || Array.isArray(root) ? structuredClone(root) : {};
   let current = result as JsonObject | unknown[];
-  for (const segment of segments.slice(0, -1)) {
+  for (let i = 0; i < segments.length - 1; i++) {
+    const segment = segments[i];
     const next = (current as JsonObject)[segment];
-    if (!isJsonObject(next) && !Array.isArray(next)) (current as JsonObject)[segment] = {};
+    if (!isJsonObject(next) && !Array.isArray(next)) {
+      // A missing container is a list when the path indexes into it.
+      (current as JsonObject)[segment] = /^\d+$/.test(segments[i + 1]) ? [] : {};
+    }
     current = (current as JsonObject)[segment] as JsonObject | unknown[];
   }
   const last = segments[segments.length - 1];

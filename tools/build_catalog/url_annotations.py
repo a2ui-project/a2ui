@@ -96,7 +96,12 @@ def _resolve_local_ref(root: dict[str, Any], ref: str) -> Any:
         part = part.replace("~1", "/").replace("~0", "~")
         if isinstance(current, dict) and part in current:
             current = current[part]
-        elif isinstance(current, list) and part.isdigit() and int(part) < len(current):
+        elif (
+            isinstance(current, list)
+            and part.isascii()
+            and part.isdigit()
+            and int(part) < len(current)
+        ):
             current = current[int(part)]
         else:
             return None
