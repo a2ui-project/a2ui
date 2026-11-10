@@ -14,6 +14,7 @@
   `validate_reserved_directives` from `a2ui.core.resolution`
   ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
   [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
+- (v1_0) The common types `IndexSystemFunction` schema declares `"returnType": "number"`, like catalog functions do ([#3725](https://github.com/a2ui-project/a2ui/issues/3725), [#4025](https://github.com/a2ui-project/a2ui/pull/4025)).
 - Add `MessageProcessor.add_catalog(catalog)`, which adds a catalog to a
   processor after it is built. `createSurface` messages, renderer function
   calls and `get_renderer_capabilities` see the catalog from then on; surfaces
@@ -260,6 +261,12 @@
   renderer function refused because too many are pending
   ([#3535](https://github.com/a2ui-project/a2ui/issues/3535),
   [#3939](https://github.com/a2ui-project/a2ui/pull/3939)).
+- `GenericBinder` treats the value of an undeclared property as an inline
+  action only when its only key is `event` or `functionCall`, as in the
+  specification's `Action`. A value such as `{"label": ..., "event": ...}`, or
+  a list of them, now resolves as plain values instead of action closures
+  ([#4086](https://github.com/a2ui-project/a2ui/issues/4086),
+  [#4087](https://github.com/a2ui-project/a2ui/pull/4087)).
 
 ## 0.4.0 (2026-10-17)
 

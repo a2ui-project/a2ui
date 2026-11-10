@@ -1,7 +1,10 @@
 # [a2ui_core](https://pub.dev/packages/a2ui_core) Changelog
 
-## Unreleased
+## 0.6.0
 
+- Rename `Catalog.toLegacyInlineCatalog()` to `Catalog.toV09InlineCatalog()`.
+  `toLegacyInlineCatalog()` remains as a deprecated alias
+  ([#4006](https://github.com/a2ui-project/a2ui/pull/4006)).
 - **Breaking:** (v1_0) `PayloadValidator.validateComponent`, and
   `MessageProcessor` for calls into another catalog, reject a call to a
   function whose `allowedCallers` is `agentOnly` in a property binding, a
@@ -29,6 +32,7 @@
   false, leaves such calls to the caller
   ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
   [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
+- (v1_0) The common types `IndexSystemFunction` schema declares `"returnType": "number"`, like catalog functions do ([#3725](https://github.com/a2ui-project/a2ui/issues/3725), [#4025](https://github.com/a2ui-project/a2ui/pull/4025)).
 - Added `MessageProcessor.addCatalog`, which adds a catalog to a processor
   after it is built. `createSurface` messages, renderer function calls and
   `getRendererCapabilities` see the catalog from then on; surfaces created
@@ -56,6 +60,13 @@
   `a2ui_agent`'s `RendererFunctionCalls` reports when an agent has too many
   calls to renderer functions pending
   ([#3535](https://github.com/a2ui-project/a2ui/issues/3535)).
+- `GenericBinder` treats an object schema without an `Action` reference as an
+  inline action only when its only property is `event` or `functionCall`, as
+  in the specification's `Action`, and never treats a component's own schema
+  as one. A component that declares an `event` property, or a list whose items
+  declare one, now gets those values as written instead of action closures
+  ([#4086](https://github.com/a2ui-project/a2ui/issues/4086),
+  [#4087](https://github.com/a2ui-project/a2ui/pull/4087)).
 
 ## 0.5.0
 

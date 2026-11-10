@@ -336,16 +336,16 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
   describe('3. Specific error cases (§Wave 2a item 3)', () => {
     it('throws ExpressSyntaxError on lexer error', () => {
       const compiler = new ExpressCompiler([simplifiedCatalog], '1.0');
-      expect(() => compiler.compile('root = @Text("Hello")')).toThrow(ExpressSyntaxError);
+      expect(() => compiler.compile('root = ^Text("Hello")')).toThrow(ExpressSyntaxError);
       try {
-        compiler.compile('root = @Text("Hello")');
+        compiler.compile('root = ^Text("Hello")');
       } catch (err: unknown) {
         expect(err).toBeInstanceOf(ExpressSyntaxError);
         const synErr = err as ExpressSyntaxError;
         expect(synErr.isLexer).toBe(true);
         expect(synErr.line).toBe(1);
         expect(synErr.column).toBe(7);
-        expect(synErr.message).toContain("token recognition error at: '@'");
+        expect(synErr.message).toContain("token recognition error at: '^'");
       }
     });
 
@@ -831,6 +831,14 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
 
     it('rejects a v1.0 target for a v0.9 catalog', () => {
       expect(() => new ExpressCompiler(basicCatalogV09, '1.0')).toThrow(A2uiCatalogError);
+    });
+
+    it('names a per-call version in a system function error', () => {
+      const compiler = new ExpressCompiler(basicCatalogV09);
+      const dsl = 'root = List(_template($/items, itemRow))\nitemRow = Text(@index())';
+      expect(() => compiler.compile(dsl, 's', true, 'v0.9.1')).toThrow(
+        /Unknown system function '@index' in A2UI v0\.9\.1\. System functions: none\./,
+      );
     });
 
     it('rejects a per-call v1.0 version for a v0.9 catalog', () => {
