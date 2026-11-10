@@ -30,9 +30,9 @@ The list of items, in groups:
 3. **Not in the queue**: items that the triager opened from a [suggestion comment](triage_item.blueprint.md#the-suggestion-comment) and that are in neither group above.
 4. **PRs on genui**: open PRs in [`flutter/genui`](https://github.com/flutter/genui) with `status: needs-triage`, least recently updated first. Each PR shows its number, title and when it was last updated. The tool does not triage these PRs, and they do not count in the number of items that need triage. When the triager selects one, the details show a card that is not editable: the PR's title, with a link to it on GitHub, its age, when it was last updated, its author, labels and assignees.
 
-The first three groups list issues with linked PRs first, then issues without linked PRs, then PRs with linked issues, then PRs without linked issues. Each of these lists starts with the items that have a suggestion, current or outdated, and then the items without one. Within each of these, the least recently updated item comes first.
+The first three groups list issues with open PRs first, then issues without open PRs, then PRs with linked issues, then PRs without linked issues. Each of these lists starts with the items that have a suggestion, current or outdated, and then the items without one. Within each of these, the least recently updated item comes first.
 
-Each of the first three groups has a subgroup for each type of item it has. The groups and the subgroups start collapsed. When the tool selects an item itself, such as an item opened from its suggestion comment or the next item after **Apply**, the list expands the item's group and subgroup, and scrolls to the item.
+Each of the first three groups has a subgroup for each type of item it has. An open PR of an issue is any open PR linked to close the issue, whoever opened it. Closed and merged PRs do not count. The groups and the subgroups start collapsed. When the tool selects an item itself, such as an item opened from its suggestion comment or the next item after **Apply**, the list expands the item's group and subgroup, and scrolls to the item.
 
 An item's flags show:
 
@@ -43,8 +43,8 @@ An item's flags show:
 
 Issues are green and PRs are orange, in every group. Each type of item has its own icon:
 
-- Issues with PRs
-- Issues without PRs: an empty circle, for the missing PR.
+- Issues with open PRs
+- Issues without open PRs: an empty circle, for the missing PR.
 - PRs with issues
 - PRs without issues: a broken link, for the missing issue.
 
