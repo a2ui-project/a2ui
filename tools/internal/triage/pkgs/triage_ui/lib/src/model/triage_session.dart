@@ -15,14 +15,21 @@
 import 'package:triage/triage.dart';
 
 import 'applier.dart';
+import 'milestone_change.dart';
 import 'triage_item.dart';
 
-/// An item that the triager applied a suggestion to, and the suggestion.
+/// An item that the triager applied a suggestion to, the suggestion, and
+/// the milestone change applied with it.
 final class AppliedItem {
-  const AppliedItem(this.item, this.suggestion);
+  const AppliedItem(
+    this.item,
+    this.suggestion, {
+    this.milestone = MilestoneChange.none,
+  });
 
   final TriageItem item;
   final TriageSuggestion suggestion;
+  final MilestoneChange milestone;
 
   /// Whether the triager sent the item to the team: added
   /// `status: needs-team-input` with the **Needs team input** button, or
@@ -53,10 +60,14 @@ class TriageSession {
 
   /// Records that the triager applied [suggestion] to [item]. A later apply
   /// to the same item replaces the earlier one in the report.
-  void recordApplied(TriageItem item, TriageSuggestion suggestion) {
+  void recordApplied(
+    TriageItem item,
+    TriageSuggestion suggestion, {
+    MilestoneChange milestone = MilestoneChange.none,
+  }) {
     _applied
       ..remove(item.number)
-      ..[item.number] = AppliedItem(item, suggestion);
+      ..[item.number] = AppliedItem(item, suggestion, milestone: milestone);
     _version++;
   }
 
@@ -156,8 +167,9 @@ class TriageSession {
       if (s.newAssignees.isNotEmpty) 'assigned ${_and(s.newAssignees)}',
       if (s.removedAssignees.isNotEmpty)
         'unassigned ${_and(s.removedAssignees)}',
-      if (s.newMilestone case final String m) 'set milestone $m',
-      if (s.removedMilestone case final String m when s.newMilestone == null)
+      if (applied.milestone.set case final String m) 'set milestone $m',
+      if (applied.milestone.remove case final String m
+          when applied.milestone.set == null)
         'removed milestone $m',
       if (s.reply != null) applied.sentToTeam ? 'commented' : 'replied',
     ].join(', ');

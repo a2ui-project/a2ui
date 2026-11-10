@@ -315,14 +315,11 @@ class _PriorityField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String? priority = _priority;
-    return InputDecorator(
-      decoration: const InputDecoration(
-        labelText: 'Priority',
-        border: OutlineInputBorder(),
-      ),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: SegmentedButton<String>(
+    return Row(
+      spacing: 12,
+      children: [
+        Text('Priority', style: Theme.of(context).textTheme.titleSmall),
+        SegmentedButton<String>(
           showSelectedIcon: false,
           emptySelectionAllowed: true,
           segments: [
@@ -339,7 +336,7 @@ class _PriorityField extends StatelessWidget {
           onSelectionChanged: (Set<String> selected) =>
               _select(selected.firstOrNull),
         ),
-      ),
+      ],
     );
   }
 }

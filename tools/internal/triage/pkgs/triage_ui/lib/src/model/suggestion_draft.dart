@@ -15,6 +15,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:triage/triage.dart';
 
+import 'milestone_change.dart';
+
 /// A triage suggestion as the triager edits it, before applying it.
 class SuggestionDraft extends ChangeNotifier {
   SuggestionDraft(TriageSuggestion suggestion)
@@ -29,8 +31,6 @@ class SuggestionDraft extends ChangeNotifier {
       _removedLabels = suggestion.removedLabels,
       _newAssignees = suggestion.newAssignees,
       _removedAssignees = suggestion.removedAssignees,
-      _newMilestone = suggestion.newMilestone,
-      _removedMilestone = suggestion.removedMilestone,
       relatedIssues = suggestion.relatedIssues,
       relatedPrs = suggestion.relatedPrs {
     reply.addListener(notifyListeners);
@@ -76,7 +76,8 @@ class SuggestionDraft extends ChangeNotifier {
   set removedAssignees(List<String> value) =>
       _set(() => _removedAssignees = value);
 
-  /// The title of the milestone to set, or null for no change.
+  /// The title of the milestone to set, or null for no change. The
+  /// triager sets it, since the advisor does not suggest milestones.
   String? get newMilestone => _newMilestone;
   set newMilestone(String? value) => _set(() => _newMilestone = value);
 
@@ -106,14 +107,17 @@ class SuggestionDraft extends ChangeNotifier {
         s.removedLabels.isEmpty &&
         s.newAssignees.isEmpty &&
         s.removedAssignees.isEmpty &&
-        s.newMilestone == null &&
-        s.removedMilestone == null) {
+        milestoneChange.isEmpty) {
       return 'Nothing to apply.';
     }
     return null;
   }
 
-  /// The draft as the suggestion to apply.
+  /// The milestone change to apply with [toSuggestion].
+  MilestoneChange get milestoneChange =>
+      MilestoneChange(set: _newMilestone, remove: _removedMilestone);
+
+  /// The draft as the suggestion to apply, without the milestone change.
   TriageSuggestion toSuggestion() {
     final String text = reply.text.trim();
     return TriageSuggestion(
@@ -128,8 +132,6 @@ class SuggestionDraft extends ChangeNotifier {
       removedLabels: _removedLabels,
       newAssignees: _newAssignees,
       removedAssignees: _removedAssignees,
-      newMilestone: _newMilestone,
-      removedMilestone: _removedMilestone,
       relatedIssues: relatedIssues,
       relatedPrs: relatedPrs,
     );

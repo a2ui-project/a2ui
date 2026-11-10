@@ -14,6 +14,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:triage/triage.dart';
+import 'package:triage_ui/src/model/milestone_change.dart';
 import 'package:triage_ui/src/model/triage_item.dart';
 import 'package:triage_ui/src/model/triage_session.dart';
 
@@ -110,14 +111,16 @@ Sent 1 issue and 1 PR to the team.
     final session = TriageSession()
       ..recordApplied(
         item(1, 'A'),
-        const TriageSuggestion(
-          newMilestone: 'December launch',
-          removedMilestone: 'November launch',
+        const TriageSuggestion(),
+        milestone: const MilestoneChange(
+          set: 'December launch',
+          remove: 'November launch',
         ),
       )
       ..recordApplied(
         item(2, 'B'),
-        const TriageSuggestion(removedMilestone: 'November launch'),
+        const TriageSuggestion(),
+        milestone: const MilestoneChange(remove: 'November launch'),
       );
 
     final String report = session.report(stillNeedTriage: 0);

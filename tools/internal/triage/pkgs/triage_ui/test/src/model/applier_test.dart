@@ -15,6 +15,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:triage/triage.dart';
 import 'package:triage_ui/src/model/applier.dart';
+import 'package:triage_ui/src/model/milestone_change.dart';
 import 'package:triage_ui/src/model/triage_item.dart';
 
 import '../../support/fake_github.dart';
@@ -36,12 +37,14 @@ void main() {
     TriageSuggestion suggestion, {
     bool replyPosted = false,
     void Function()? onReplyPosted,
+    MilestoneChange milestone = MilestoneChange.none,
   }) => applySuggestion(
     github.service(),
     item(number),
     suggestion,
     replyPosted: replyPosted,
     onReplyPosted: onReplyPosted ?? () {},
+    milestone: milestone,
     milestones: github.milestones,
   );
 
@@ -142,9 +145,10 @@ void main() {
   test('sets a milestone, which replaces the old one', () async {
     final ApplyResult result = await apply(
       14,
-      const TriageSuggestion(
-        newMilestone: 'December launch',
-        removedMilestone: 'November launch',
+      const TriageSuggestion(),
+      milestone: const MilestoneChange(
+        set: 'December launch',
+        remove: 'November launch',
       ),
     );
 
@@ -158,11 +162,13 @@ void main() {
   test('removes the milestone, if the item still has it', () async {
     final ApplyResult removed = await apply(
       14,
-      const TriageSuggestion(removedMilestone: 'November launch'),
+      const TriageSuggestion(),
+      milestone: const MilestoneChange(remove: 'November launch'),
     );
     final ApplyResult skipped = await apply(
       12,
-      const TriageSuggestion(removedMilestone: 'November launch'),
+      const TriageSuggestion(),
+      milestone: const MilestoneChange(remove: 'November launch'),
     );
 
     expect(removed.steps.single.status, StepStatus.done);
@@ -173,7 +179,8 @@ void main() {
   test('fails to set a milestone that is not open', () async {
     final ApplyResult result = await apply(
       12,
-      const TriageSuggestion(newMilestone: 'Long ago'),
+      const TriageSuggestion(),
+      milestone: const MilestoneChange(set: 'Long ago'),
     );
 
     expect(result.steps.single.status, StepStatus.failed);

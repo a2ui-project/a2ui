@@ -96,10 +96,8 @@ The [`TriageSuggestion`](../../../tools/internal/triage/pkgs/triage/lib/src/tria
 7. `removed_labels`: labels to remove.
 8. `new_assignees`: GitHub logins to assign.
 9. `removed_assignees`: GitHub logins to unassign.
-10. `new_milestone`: the title of an open milestone to set (`gh api repos/a2ui-project/a2ui/milestones --jq '.[].title'`). It replaces the item's current milestone. Omit it to keep the milestone.
-11. `removed_milestone`: the title of the item's milestone, to remove it without setting another. Omit it to keep the milestone.
-12. `related_issues`: numbers of related issues in `a2ui-project/a2ui`.
-13. `related_prs`: numbers of related PRs in `a2ui-project/a2ui`.
+10. `related_issues`: numbers of related issues in `a2ui-project/a2ui`.
+11. `related_prs`: numbers of related PRs in `a2ui-project/a2ui`.
 
 Rules for the lists:
 
@@ -130,10 +128,8 @@ The comment has a plain English part for people and a hidden part for the triage
 3. Remove labels: `<label>`
 4. Assign: `<login>`
 5. Unassign: `<login>`
-6. Set milestone: <title>
-7. Remove milestone: <title>
-8. Related issues: #<number>, #<number>
-9. Related PRs: #<number>
+6. Related issues: #<number>, #<number>
+7. Related PRs: #<number>
 
 Reply:
 

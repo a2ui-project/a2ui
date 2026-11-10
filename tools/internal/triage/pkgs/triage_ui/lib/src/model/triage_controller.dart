@@ -20,6 +20,7 @@ import '../github/triage_service.dart';
 import '../github_item.dart';
 import 'applier.dart';
 import 'genui_pull_request.dart';
+import 'milestone_change.dart';
 import 'suggestion_draft.dart';
 import 'triage_item.dart';
 import 'triage_session.dart';
@@ -276,6 +277,7 @@ class TriageController extends ChangeNotifier {
       item,
       _drafts[n]!.toSuggestion(),
     );
+    final MilestoneChange milestone = _drafts[n]!.milestoneChange;
     _applying.add(n);
     _results.remove(n);
     notifyListeners();
@@ -286,11 +288,12 @@ class TriageController extends ChangeNotifier {
       suggestion,
       replyPosted: session.hasReplied(n),
       onReplyPosted: () => session.recordReplied(n),
+      milestone: milestone,
       milestones: _repositoryInfo.milestones,
     );
     _results[n] = result;
     if (result.succeeded) {
-      session.recordApplied(item, suggestion);
+      session.recordApplied(item, suggestion, milestone: milestone);
       if (_selected == n) _selectNextAfter(n);
       if (suggestion.addedLabels.contains(needsTeamInputLabel)) {
         _moveToTeamInput(item);
@@ -357,8 +360,6 @@ class TriageController extends ChangeNotifier {
       removedLabels: [...suggestion.removedLabels, needsTeamInputLabel],
       newAssignees: suggestion.newAssignees,
       removedAssignees: suggestion.removedAssignees,
-      newMilestone: suggestion.newMilestone,
-      removedMilestone: suggestion.removedMilestone,
       relatedIssues: suggestion.relatedIssues,
       relatedPrs: suggestion.relatedPrs,
     );

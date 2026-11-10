@@ -16,6 +16,7 @@ import 'package:triage/triage.dart';
 
 import '../github/github_client.dart';
 import '../github/triage_service.dart';
+import 'milestone_change.dart';
 import 'triage_item.dart';
 
 enum StepStatus {
@@ -65,8 +66,9 @@ String closeReason(TriageItem item, TriageSuggestion suggestion) {
 }
 
 /// Applies [suggestion] to [item] on GitHub: posts the reply, changes the
-/// labels, assignees and milestone, and closes the item, in this order.
-/// [milestones] gives the numbers of the open milestones by title.
+/// labels, assignees and, with [milestone], the milestone, and closes the
+/// item, in this order. [milestones] gives the numbers of the open
+/// milestones by title.
 ///
 /// Stops at the first step that fails. Skips the reply if [replyPosted],
 /// so that retrying after a failure does not post it twice, and calls
@@ -77,13 +79,14 @@ Future<ApplyResult> applySuggestion(
   TriageSuggestion suggestion, {
   required bool replyPosted,
   required void Function() onReplyPosted,
+  MilestoneChange milestone = MilestoneChange.none,
   Map<String, int> milestones = const {},
 }) async {
   final int n = item.number;
   final String? reply = suggestion.reply;
   final String? closeAs = suggestion.closeAs;
-  final String? newMilestone = suggestion.newMilestone;
-  final String? removedMilestone = suggestion.removedMilestone;
+  final String? newMilestone = milestone.set;
+  final String? removedMilestone = milestone.remove;
   final steps = <(String, Future<void> Function()?)>[
     if (reply != null)
       replyPosted
