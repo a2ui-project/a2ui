@@ -40,7 +40,13 @@ describe('Lit package exports', () => {
         `Expected ${name} to share identity between root and v0_9`,
       );
     }
+  });
 
+  it('does not expose removed v0_8 exports or subpaths', async () => {
     assert.ok(!('v0_8' in root), 'Expected root not to export v0_8');
+
+    for (const subpath of ['@a2ui/lit/0.8', '@a2ui/lit/v0_8', '@a2ui/lit/ui']) {
+      await assert.rejects(() => import(subpath), {code: 'ERR_PACKAGE_PATH_NOT_EXPORTED'});
+    }
   });
 });

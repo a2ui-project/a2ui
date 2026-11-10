@@ -172,6 +172,14 @@ You can find the full specification of the basic catalog in the [GitHub reposito
 
 The standard basic catalog components are implemented as framework-agnostic universal Custom Elements in `@a2ui/web_core` ([source code on GitHub](../../core/web_core/src/v0_9/basic_catalog/components)) and re-exported from `@a2ui/lit/v0_9` for backwards compatibility.
 
+## Migrating from v0.8 (Removed)
+
+The legacy v0.8 adapter (`@a2ui/lit/0.8`, `@a2ui/lit/v0_8`, `@a2ui/lit/ui`, and the `v0_8` root namespace) has been removed. To migrate an existing v0.8 Lit application to v0.9 or v1.0, see the [v0.8 to v0.9 Evolution Guide](../../../specification/v0_9/docs/evolution_guide.md), the [v0.9.1 to v1.0 Evolution Guide](../../../specification/v1_0/docs/evolution_guide.md), and the shell sample migration in [Pull Request #1105](https://github.com/a2ui-project/a2ui/pull/1105):
+
+- **Extension Header**: Request the target protocol version in `X-A2A-Extensions` (for example, `https://a2ui.org/a2a-extension/a2ui/v0.9` or `https://a2ui.org/a2a-extension/a2ui/v1.0`).
+- **Action Handling via `MessageProcessor`**: Replace manual `@a2uiaction` DOM event listeners with the action handler callback on `MessageProcessor` from `@a2ui/web_core`.
+- **CSS Custom Property Theming**: Replace v0.8 JS theme class maps with `--a2ui-*` CSS custom properties (such as `--a2ui-color-primary`).
+
 ## Security
 
 > [!IMPORTANT]

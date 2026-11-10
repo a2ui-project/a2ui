@@ -1805,16 +1805,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@lit-labs/signals@npm:^0.3.0":
-  version: 0.3.0
-  resolution: "@lit-labs/signals@npm:0.3.0"
-  dependencies:
-    lit: "npm:^2.0.0 || ^3.0.0"
-    signal-polyfill: "npm:^0.2.2"
-  checksum: 10c0/8b42262679ae64447b820dad46c3697afa8e82c19f0c67d24744d428b56a4b2244c19aa310ae3835da41cf466262afc3648d79c3549bc02b031963267bd3ac70
-  languageName: node
-  linkType: hard
-
 "@lit-labs/ssr-dom-shim@npm:^1.5.0":
   version: 1.6.0
   resolution: "@lit-labs/ssr-dom-shim@npm:1.6.0"
@@ -4577,7 +4567,6 @@ __metadata:
   dependencies:
     "@a2a-js/sdk": "npm:^0.3.13"
     "@a2ui/markdown-it": "npm:*"
-    "@lit-labs/signals": "npm:^0.3.0"
     "@lit/context": "npm:^1.1.6"
     "@modelcontextprotocol/sdk": "npm:^1.29.0"
     "@playwright/test": "npm:1.58.1"
@@ -4612,7 +4601,6 @@ __metadata:
   resolution: "a2ui-over-mcp-filesystem-client@workspace:mcp/a2ui-over-mcp-filesystem/client"
   dependencies:
     "@a2ui/markdown-it": "npm:*"
-    "@lit-labs/signals": "npm:^0.3.0"
     "@lit/context": "npm:^1.1.6"
     "@modelcontextprotocol/sdk": "npm:^1.29.0"
     eslint: "npm:^10.4.1"
@@ -4646,7 +4634,6 @@ __metadata:
   resolution: "a2ui-over-mcp-recipe-client@workspace:mcp/a2ui-over-mcp-recipe/client"
   dependencies:
     "@a2ui/markdown-it": "npm:*"
-    "@lit-labs/signals": "npm:^0.3.0"
     "@lit/context": "npm:^1.1.6"
     "@modelcontextprotocol/sdk": "npm:^1.29.0"
     eslint: "npm:^10.4.1"
@@ -8412,7 +8399,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lit@npm:^2.0.0 || ^3.0.0, lit@npm:^3.3.3":
+"lit@npm:^3.3.3":
   version: 3.3.3
   resolution: "lit@npm:3.3.3"
   dependencies:
@@ -10840,13 +10827,6 @@ __metadata:
   version: 4.1.0
   resolution: "signal-exit@npm:4.1.0"
   checksum: 10c0/41602dce540e46d599edba9d9860193398d135f7ff72cab629db5171516cfae628d21e7bfccde1bbfdf11c48726bc2a6d1a8fb8701125852fbfda7cf19c6aa83
-  languageName: node
-  linkType: hard
-
-"signal-polyfill@npm:^0.2.2":
-  version: 0.2.2
-  resolution: "signal-polyfill@npm:0.2.2"
-  checksum: 10c0/485b0e66d93961454af32e7fbff88130138dffcbf7bce35e5c873d760ceb9ce33a125dd63cc59454c739c43246980515b1162cbe0ebc975a974ee036fb58d18a
   languageName: node
   linkType: hard
 

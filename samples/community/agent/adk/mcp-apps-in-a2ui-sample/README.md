@@ -4,14 +4,13 @@ This sample demonstrates how to integrate an **MCP (Model Context Protocol) App*
 
 ## Overview
 
-The sample consists of:
+This directory contains `agent.py`, a standalone Python FastAPI server emitting legacy A2UI v0.8 payloads containing a custom `McpApp` component and handling forwarded tool calls.
 
-1.  **Agent** (`agent.py`): A Python FastAPI server that acts as the agent. It serves the UI manifest containing the `McpApp` component and handles tool calls forwarded by the client.
-2.  **Client** (`samples/client/lit/mcp-apps-in-a2ui-sample`): A Lit-based client application that renders the A2UI interface and the `McpApp` component.
+> **Note**: The companion Lit v0.8 client sample (`samples/community/client/lit/mcp-apps-in-a2ui-sample`) was removed along with the `@a2ui/lit` v0.8 adapter. For an end-to-end Lit + MCP App sample on protocol v1.0 using `@a2ui/catalog-mcp`, see [`samples/community/mcp/a2ui-kanban/`](../../../mcp/a2ui-kanban/README.md).
 
 ## Architecture
 
-To ensure security when running untrusted third-party widget code, this sample uses a **double-iframe isolation** model:
+To ensure security when running untrusted third-party widget code, A2UI MCP App hosts use a **double-iframe isolation** model:
 
 - **Host Page**: The main A2UI application.
 - **Sandbox Proxy**: An iframe hosted on a separate origin (`127.0.0.1`) to enforce origin isolation.
@@ -21,36 +20,18 @@ Communication between the host and the app is handled via the `@modelcontextprot
 
 ## Prerequisites
 
-- Node.js (v18+ recommended)
 - Python 3.10+ with `uv` package manager
 
-## How to Run
+## How to Run the Agent
 
-### 1. Start the Client Dev Server
-
-Navigate to the client sample directory and start the Vite server:
+Navigate to this directory and start the FastAPI server:
 
 ```bash
-cd ../../../client/lit/mcp-apps-in-a2ui-sample
-yarn dev
-```
-
-This will start the server at `http://localhost:5173`.
-
-### 2. Start the Agent
-
-In a separate terminal, navigate to this directory and start the agent:
-
-```bash
-cd samples/agent/adk/mcp-apps-in-a2ui-sample
+cd samples/community/agent/adk/mcp-apps-in-a2ui-sample
 uv run agent.py
 ```
 
-The agent will run on `http://localhost:8000`.
-
-### 3. View the Application
-
-Open your browser and navigate to `http://localhost:5173`. You should see the A2UI interface loading the MCP App. Clicking the "Call Agent Tool" button inside the iframe will trigger an action that is handled by the agent.
+The agent listens on `http://localhost:8000`.
 
 ## Development Notes
 

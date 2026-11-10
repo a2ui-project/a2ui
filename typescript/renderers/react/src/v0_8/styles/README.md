@@ -35,7 +35,7 @@ Light DOM, so host-app resets leak in.
 ### 2. Structural / Utility Classes (`structuralStyles`)
 
 ```
-Imported from: @a2ui/web_core/v0_8 → Styles.structuralStyles
+Imported from: @a2ui/web_core/styles/index → Styles.structuralStyles
 Transform:     :host { ... }  →  .a2ui-surface { ... }
 ```
 

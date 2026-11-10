@@ -205,7 +205,7 @@ Open `http://localhost:5173/` and try these interactions to see the widget, the 
 5. Open the **Protocol Debug Inspector** drawer on the right side of the page to inspect the live A2UI messages, `postMessage` frames, and MCP tool calls behind each action.
 
 <details>
-<summary>Legacy pre-v1.0 sample (Calculator and Pong)</summary>
+<summary>Pre-1.0 sample (Calculator and Pong)</summary>
 
 This earlier sample predates A2UI v1.0 and `@a2ui/catalog-mcp` (using protocol v0.9) and defines its own sample-local custom component rather than importing `McpApp` from `@a2ui/catalog-mcp`.
 
@@ -279,7 +279,7 @@ If a sample fails to build or load, check these common issues:
 | Angular client shows a blank page or missing renderer imports     | Run `yarn build:all` at the repository root before running `yarn start mcp_calculator` in `samples/community/client/angular/`.                   |
 | `ng serve` not found in the Angular sample                        | Run `yarn install` inside `samples/community/client/angular/` to install `@angular/cli`.                                                         |
 | `"URL with hostname not allowed"` in Angular                      | Open `http://localhost:4200/` rather than `0.0.0.0` (Angular's dev server restricts allowed hosts by default).                                   |
-| Security self-test error in the legacy Angular sample             | Append `?disable_security_self_test=true` to `http://localhost:4200/`.                                                                           |
+| Security self-test error in the pre-1.0 Angular sample            | Append `?disable_security_self_test=true` to `http://localhost:4200/`.                                                                           |
 
 </details>
 
