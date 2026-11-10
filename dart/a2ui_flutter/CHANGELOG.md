@@ -25,7 +25,8 @@
   `UrlContext.media`, and opens or loads only the URL it returns; a blocked
   URL returns null and is reported as a `URL_BLOCKED` warning. To migrate, add
   the parameter to your builder and route link and image URLs through it
-  ([#4045](https://github.com/a2ui-project/a2ui/issues/4045)).
+  ([#4045](https://github.com/a2ui-project/a2ui/issues/4045),
+  [#4120](https://github.com/a2ui-project/a2ui/pull/4120)).
 - **Breaking:** `Image`, `Video` and `AudioPlayer` load the URLs the surface's
   URL security policy resolved, in place of their own `http`/`https` check.
   A URL the policy blocks (by default `javascript:`, `file:`, SVG and
@@ -35,7 +36,8 @@
   `Image.network`, and a player shows a failure for an allowed URL it can't
   stream, such as a `data:` URL. Set `urlSecurityPolicy` on
   `MessageProcessor` to limit which hosts media loads from
-  ([#4045](https://github.com/a2ui-project/a2ui/issues/4045)).
+  ([#4045](https://github.com/a2ui-project/a2ui/issues/4045),
+  [#4120](https://github.com/a2ui-project/a2ui/pull/4120)).
 
 ## 0.2.0
 
