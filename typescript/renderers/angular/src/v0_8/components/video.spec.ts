@@ -90,4 +90,11 @@ describe('Video Component', () => {
     const sectionEl = fixture.nativeElement.querySelector('section');
     expect(sectionEl).toBeNull();
   });
+
+  it('should not render a video for a URL the baseline rejects', () => {
+    fixture.componentRef.setInput('url', {literalString: 'javascript:alert(1)'});
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('video')).toBeNull();
+  });
 });

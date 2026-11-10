@@ -15,6 +15,13 @@
  */
 
 import {Injectable, inject, Signal as AngularSignal, EnvironmentInjector} from '@angular/core';
+import type {z} from 'zod';
+import {
+  BASIC_CATALOG_URL_PROPERTIES,
+  urlContextOf,
+  type UrlContext,
+  type UrlPropertyMap,
+} from '@a2ui/web_core';
 import {
   ComponentContext,
   type ComponentNode,
@@ -199,11 +206,20 @@ export class ComponentBinder {
       ? this.createChildListSignal(value, context, cleanups)
       : context.dataContext.resolveSignal(value);
 
-    const {valueSignal, template} = this.transformStructuralSignal(key, value, baseSignal, context);
+    const {valueSignal: structuralSignal, template} = this.transformStructuralSignal(
+      key,
+      value,
+      baseSignal,
+      context,
+    );
 
-    if (valueSignal?.unsubscribe) {
-      cleanups.push(() => valueSignal.unsubscribe!());
+    if (structuralSignal?.unsubscribe) {
+      cleanups.push(() => structuralSignal.unsubscribe!());
     }
+    const urlContext = urlContextOfProperty(context, key);
+    const valueSignal = urlContext
+      ? this.filterUrlSignal(structuralSignal, key, urlContext, context)
+      : structuralSignal;
 
     return {
       value: valueSignal as AngularSignal<unknown>,
@@ -213,6 +229,26 @@ export class ComponentBinder {
         ? (newValue: unknown) => context.dataContext.set(value.path, newValue)
         : () => {}, // No-op for non-bound values
     };
+  }
+
+  /**
+   * Passes every value of a URL property through the surface's URL security policy, as
+   * `GenericBinder` does on the `bindNode` path.
+   */
+  private filterUrlSignal(
+    valueSignal: unknown,
+    key: string,
+    urlContext: UrlContext,
+    context: ComponentContext,
+  ) {
+    assertAngularSignal(valueSignal);
+    return computed(() => {
+      const url = valueSignal();
+      if (url === undefined || url === null) return url;
+      return typeof url === 'string'
+        ? context.sanitizeUrl(url, urlContext, {propertyName: key})
+        : undefined;
+    });
   }
 
   private createChildListSignal(
@@ -355,6 +391,29 @@ export class ComponentBinder {
       errorMessage: (messageSig() as string) || 'Validation failed',
     };
   }
+}
+
+/**
+ * Returns the URL context of a top-level property, with the precedence `GenericBinder` uses: the
+ * host's `UrlSecurityPolicy.urlProperties`, then the schema's mark (see `mediaUrl()`), then the
+ * built-in list for the basic catalogs.
+ */
+function urlContextOfProperty(context: ComponentContext, key: string): UrlContext | undefined {
+  const {catalog, type} = context.componentModel;
+  if (!catalog) return undefined;
+  const lookup = (map: UrlPropertyMap | undefined) => {
+    const properties = map && Object.hasOwn(map, catalog.id) ? map[catalog.id] : undefined;
+    const component = properties && Object.hasOwn(properties, type) ? properties[type] : undefined;
+    return component && Object.hasOwn(component, key) ? component[key] : undefined;
+  };
+  const schema = (catalog.components.get(type)?.schema as z.AnyZodObject | undefined)?.shape?.[
+    key
+  ] as z.ZodTypeAny | undefined;
+  const annotation =
+    lookup(context.dataContext.surface?.urlSecurityPolicy?.urlProperties) ??
+    (schema ? urlContextOf(schema) : undefined) ??
+    lookup(BASIC_CATALOG_URL_PROPERTIES);
+  return annotation === 'none' ? undefined : annotation;
 }
 
 function toChild(node: ComponentNode): Child {

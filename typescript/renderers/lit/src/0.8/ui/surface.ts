@@ -16,6 +16,7 @@
 
 import {html, css, nothing} from 'lit';
 import {customElement, property} from 'lit/decorators.js';
+import {sanitizeMediaUrl} from '@a2ui/web_core';
 import * as Types from '@a2ui/web_core/types/types';
 import {A2uiMessageProcessor} from '@a2ui/web_core/data/model-processor';
 import {Root} from './root.js';
@@ -59,12 +60,13 @@ export class Surface extends Root {
   ];
 
   #renderLogo() {
-    if (!this.surface?.styles.logoUrl) {
+    const logoUrl = sanitizeMediaUrl(this.surface?.styles.logoUrl);
+    if (!logoUrl) {
       return nothing;
     }
 
     return html`<div id="surface-logo">
-      <img src=${this.surface.styles.logoUrl} />
+      <img src=${logoUrl} />
     </div>`;
   }
 

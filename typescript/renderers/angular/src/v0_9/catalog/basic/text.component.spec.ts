@@ -65,7 +65,9 @@ describe('TextComponent', () => {
     const p = element.query(By.css('p'));
     expect(p).toBeTruthy();
     expect(p.nativeElement.textContent.trim()).toBe('Hello World');
-    expect(mockMarkdownRenderer.render).toHaveBeenCalledWith('Hello World');
+    expect(mockMarkdownRenderer.render).toHaveBeenCalledWith('Hello World', {
+      sanitizeUrl: jasmine.any(Function),
+    });
   });
 
   it('should handle variant h1', async () => {
@@ -176,6 +178,8 @@ describe('TextComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(mockMarkdownRenderer.render).toHaveBeenCalledWith('');
+    expect(mockMarkdownRenderer.render).toHaveBeenCalledWith('', {
+      sanitizeUrl: jasmine.any(Function),
+    });
   });
 });

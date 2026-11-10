@@ -97,4 +97,17 @@ describe('Image Component', () => {
     const sectionEl = fixture.debugElement.query(By.css('section'));
     expect(sectionEl.nativeElement.className).toContain('image-avatar-class');
   });
+
+  for (const url of [
+    'javascript:alert(1)',
+    'https:attacker.example/a.png',
+    'data:image/svg+xml;base64,PHN2Zz4=',
+  ]) {
+    it(`should NOT render <img> for a URL the baseline rejects: ${url}`, () => {
+      fixture.componentRef.setInput('url', {literalString: url});
+      fixture.detectChanges();
+
+      expect(fixture.debugElement.query(By.css('img'))).toBeFalsy();
+    });
+  }
 });

@@ -16,12 +16,17 @@
 
 import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
 import {DynamicComponent} from '../rendering/dynamic-component';
+import {checkMediaUrl} from './media-url';
 import type {AudioPlayerNode, StringValue} from '../types';
 
 @Component({
   selector: 'a2ui-audio',
   template: `
-    <audio controls [src]="resolvedUrl()" [style]="theme.additionalStyles?.AudioPlayer"></audio>
+    <audio
+      controls
+      [attr.src]="resolvedUrl()"
+      [style]="theme.additionalStyles?.AudioPlayer"
+    ></audio>
   `,
   styles: `
     :host {
@@ -35,5 +40,5 @@ import type {AudioPlayerNode, StringValue} from '../types';
 })
 export class AudioPlayer extends DynamicComponent<AudioPlayerNode> {
   readonly url = input.required<StringValue | null>();
-  protected readonly resolvedUrl = computed(() => this.resolvePrimitive(this.url()));
+  protected readonly resolvedUrl = computed(() => checkMediaUrl(this.resolvePrimitive(this.url())));
 }

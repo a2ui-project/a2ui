@@ -16,7 +16,12 @@
 
 import {Signal} from '@angular/core';
 import {z} from 'zod';
-import {ComponentApi, DataBindingSchema, FunctionCallSchema} from '@a2ui/web_core/v0_9';
+import {
+  ComponentApi,
+  DataBindingSchema,
+  FunctionCallSchema,
+  type ResolveA2uiProp,
+} from '@a2ui/web_core/v0_9';
 import {Child} from './component-binder.service';
 
 /** Data structure that represents a template used to render a collection of children. */
@@ -66,13 +71,21 @@ export interface BoundProperty<T = unknown> {
 type DataBindingType = z.infer<typeof DataBindingSchema>;
 type FunctionCallType = z.infer<typeof FunctionCallSchema>;
 type DynamicSchemaValueToRaw<Input> = Exclude<Input, DataBindingType | FunctionCallType>;
+/**
+ * The resolved value of a property. A property marked as a URL (see `mediaUrl()`) may resolve
+ * to `undefined`, since the URL security policy may block its value.
+ */
+type ResolvedValue<Input> =
+  undefined extends ResolveA2uiProp<Input>
+    ? DynamicSchemaValueToRaw<Input> | undefined
+    : DynamicSchemaValueToRaw<Input>;
 
 type InferredInterfaceToProps<InferredSchema> = {
   [K in keyof InferredSchema]: K extends 'children'
     ? BoundProperty<Child[]>
     : K extends 'child' | 'trigger' | 'content'
       ? BoundProperty<Child>
-      : BoundProperty<DynamicSchemaValueToRaw<InferredSchema[K]>>;
+      : BoundProperty<ResolvedValue<InferredSchema[K]>>;
 };
 
 /** Structured validation result emitted by check rules. */

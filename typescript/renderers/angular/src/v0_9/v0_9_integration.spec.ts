@@ -19,6 +19,7 @@ import {Component, ChangeDetectionStrategy} from '@angular/core';
 import {A2uiRendererService, A2UI_RENDERER_CONFIG} from '../core/a2ui-renderer.service';
 import {SurfaceComponent} from '../core/surface.component';
 import {BasicCatalog} from './catalog/basic/basic-catalog';
+import {AllowlistUrlSecurityPolicy, type UrlContext} from '@a2ui/web_core';
 import {A2uiMessage} from '@a2ui/web_core/v0_9';
 import {MarkdownRenderer} from '../core/markdown';
 
@@ -374,5 +375,104 @@ describe('v0.9.1 Angular Renderer Integration', () => {
     expect(() => {
       rendererService.processMessages([invalidThemeMessage]);
     }).toThrow();
+  });
+});
+
+describe('v0.9 Angular Renderer URL security policy', () => {
+  let fixture: ComponentFixture<TestHost>;
+  let rendererService: A2uiRendererService;
+  let markdownCalls: Array<{
+    markdown: string;
+    sanitizeUrl?: (u: string, c: UrlContext) => unknown;
+  }>;
+
+  beforeEach(async () => {
+    markdownCalls = [];
+    await TestBed.configureTestingModule({
+      imports: [TestHost],
+      providers: [
+        A2uiRendererService,
+        BasicCatalog,
+        {
+          provide: A2UI_RENDERER_CONFIG,
+          useFactory: (basicCatalog: BasicCatalog) => ({
+            catalogs: [basicCatalog],
+            processorOptions: {
+              urlSecurityPolicy: new AllowlistUrlSecurityPolicy({
+                media: ['cdn.example.com'],
+                navigation: ['docs.example.com'],
+              }),
+            },
+          }),
+          deps: [BasicCatalog],
+        },
+        {
+          provide: MarkdownRenderer,
+          useValue: {
+            render: (
+              markdown: string,
+              options?: {sanitizeUrl?: (u: string, c: UrlContext) => unknown},
+            ) => {
+              markdownCalls.push({markdown, sanitizeUrl: options?.sanitizeUrl});
+              return Promise.resolve(markdown);
+            },
+          },
+        },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(TestHost);
+    rendererService = TestBed.inject(A2uiRendererService);
+  });
+
+  async function render(components: Array<Record<string, unknown>>): Promise<void> {
+    rendererService.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'test-surface',
+          catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+        },
+      },
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: components as never,
+        },
+      },
+    ]);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+  }
+
+  it('renders an allowed Image URL and leaves out a blocked one', async () => {
+    await render([
+      {id: 'root', component: 'Column', children: ['allowed', 'blocked']},
+      {id: 'allowed', component: 'Image', url: 'https://cdn.example.com/a.png'},
+      {id: 'blocked', component: 'Image', url: 'https://attacker.example/?d=secret'},
+    ]);
+
+    const images = fixture.nativeElement.querySelectorAll(
+      'a2ui-v09-image img',
+    ) as NodeListOf<HTMLImageElement>;
+    expect(images.length).toBe(2);
+    expect(images[0].getAttribute('src')).toBe('https://cdn.example.com/a.png');
+    expect(images[1].hasAttribute('src')).toBeFalse();
+  });
+
+  it('passes the surface policy to the Markdown renderer', async () => {
+    await render([{id: 'root', component: 'Text', text: 'See [docs](https://docs.example.com)'}]);
+
+    const call = markdownCalls.find(c => c.markdown.includes('docs'));
+    expect(call?.sanitizeUrl).toBeDefined();
+    expect(call!.sanitizeUrl!('https://docs.example.com/a', 'navigation')).toBe(
+      'https://docs.example.com/a',
+    );
+    expect(call!.sanitizeUrl!('https://attacker.example/a', 'navigation')).toBeUndefined();
+    expect(call!.sanitizeUrl!('https://cdn.example.com/a.png', 'media')).toBe(
+      'https://cdn.example.com/a.png',
+    );
   });
 });

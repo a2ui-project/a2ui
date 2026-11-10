@@ -15,7 +15,23 @@
  */
 
 import {clsx, type ClassValue} from 'clsx';
+import {PermissiveUrlSecurityPolicy} from '@a2ui/web_core';
 import * as Styles from '@a2ui/web_core/styles/index';
+
+// v0.8 surfaces have no URL security policy, so media URLs get the built-in
+// baseline checks only.
+const BASELINE_URL_POLICY = new PermissiveUrlSecurityPolicy();
+
+/**
+ * Returns a media URL if it passes the built-in URL security baseline checks
+ * (for example, it rejects `javascript:` URLs, hostless `https:` URLs, and SVG
+ * data URLs), or `undefined` if it doesn't.
+ *
+ * @param url The resolved URL.
+ */
+export function checkMediaUrl(url: string | null | undefined): string | undefined {
+  return url ? BASELINE_URL_POLICY.sanitizeUrl(url, 'media') : undefined;
+}
 
 /**
  * Utility function to merge class names.

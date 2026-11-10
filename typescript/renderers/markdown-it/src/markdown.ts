@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {rawMarkdownRenderer} from './raw-markdown.js';
+import {MarkdownItRenderer, type MarkdownItRendererOptions} from './raw-markdown.js';
 import {sanitize} from './sanitizer.js';
 import type {
   MarkdownRenderer,
@@ -22,10 +22,44 @@ import type {
   MarkdownRendererTagClassMap,
 } from '@a2ui/web_core';
 
+export type {MarkdownItRendererOptions};
 export type {MarkdownRenderer, MarkdownRendererOptions, MarkdownRendererTagClassMap};
 
 /**
- * A Markdown to HTML renderer using markdown-it and dompurify.
+ * Creates a Markdown to HTML renderer using markdown-it and dompurify.
+ *
+ * Without options it follows the A2UI Markdown subset, like
+ * {@link renderMarkdown}. Enabling links or images renders them only when
+ * their URL passes `MarkdownRendererOptions.sanitizeUrl`, which A2UI `Text`
+ * components fill in with their surface's URL security policy (`navigation`
+ * for links, `media` for images). Without a `sanitizeUrl`, the built-in
+ * baseline checks apply. A blocked link renders as its text and a blocked
+ * image as its alt text.
+ *
+ * @example
+ * ```ts
+ * setMarkdownRenderer(createMarkdownRenderer({allowLinks: true}));
+ * ```
+ *
+ * @param rendererOptions Which elements outside the Markdown subset to render.
+ * @returns A renderer to register with the A2UI renderer.
+ */
+export function createMarkdownRenderer(
+  rendererOptions: MarkdownItRendererOptions = {},
+): MarkdownRenderer {
+  const renderer = new MarkdownItRenderer(rendererOptions);
+  return async (value: string, options?: MarkdownRendererOptions) =>
+    sanitize(renderer.render(value, options?.tagClassMap, options?.sanitizeUrl));
+}
+
+const subsetRenderer = createMarkdownRenderer();
+
+/**
+ * A Markdown to HTML renderer using markdown-it and dompurify that follows
+ * the A2UI Markdown subset: links render as their text, images as their alt
+ * text, and raw HTML as text. Use {@link createMarkdownRenderer} to enable
+ * links or images.
+ *
  * @param value The markdown code to render.
  * @param options Options for the markdown renderer.
  * @returns A promise that resolves to the rendered HTML as a string.
@@ -34,6 +68,5 @@ export async function renderMarkdown(
   value: string,
   options?: MarkdownRendererOptions,
 ): Promise<string> {
-  const htmlString = rawMarkdownRenderer.render(value, options?.tagClassMap);
-  return sanitize(htmlString);
+  return subsetRenderer(value, options);
 }

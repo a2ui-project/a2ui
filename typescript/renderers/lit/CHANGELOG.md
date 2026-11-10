@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_8) `<a2ui-surface>` renders the surface logo only when `styles.logoUrl` passes the built-in media URL checks, like the v0.8 `Image`, `Video`, and `AudioPlayer`. [#4115](https://github.com/a2ui-project/a2ui/pull/4115)
+
 ## 0.15.0
 
 - **BREAKING CHANGE**: `<a2ui-surface>` renders nothing until its root component arrives, instead of `Loading surface...`. Apps that relied on the built-in text should render their own loading state until the fallback API from [#2013](https://github.com/a2ui-project/a2ui/issues/2013) lands. [#3723](https://github.com/a2ui-project/a2ui/pull/3723)
