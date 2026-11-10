@@ -83,7 +83,6 @@ jobs:
               - '.github/workflows/web_ci.yml'
               - '.github/actions/setup-node/**'
             other:
-              - 'samples/personalized_learning/**'
               - 'specification/**'
               - 'catalogs/**'
               - 'typescript/**'

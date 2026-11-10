@@ -38,7 +38,13 @@ import {
   unescapeObjectKey,
   validateReservedDirectives,
 } from './data-context.js';
+import {withActiveCallCatalogId} from './data-context-internal.js';
 import {Catalog, createFunctionImplementation} from '../catalog/types.js';
+import {
+  FormatStringImplementation,
+  NotImplementation,
+  PluralizeImplementation,
+} from '../catalogs/basic/v1/functions/basic_functions.js';
 import {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
 import {
   A2uiCatalogError,
@@ -1730,5 +1736,288 @@ describe('DataContext asynchronous function arguments', () => {
       ctx.resolveDynamicValue<{nested: unknown}>({nested: pendingValue}).nested,
       pendingValue,
     );
+  });
+
+  it('inherits formatString catalogId for v1.0 template calls while keeping @index catalogless', () => {
+    const basicId = 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json';
+    const basicCat = new Catalog(
+      basicId,
+      '1.0',
+      [],
+      [FormatStringImplementation, NotImplementation, PluralizeImplementation],
+    );
+    const defaultlessSurface = new SurfaceModel(
+      's-no-default',
+      undefined,
+      new Map([[basicId, basicCat]]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '1.0',
+    );
+    const errors: unknown[] = [];
+    defaultlessSurface.onError.subscribe(e => {
+      errors.push(e);
+    });
+    const itemCtx = new DataContext(defaultlessSurface, '/items/2', 2);
+
+    const callExpr = {
+      '@call': 'formatString',
+      catalogId: basicId,
+      args: {
+        value:
+          "Row ${@index()}: ${pluralize(value: 2, one: 'drop', other: 'drops')} (${not(value: not(value: true))})",
+      },
+    };
+    assert.strictEqual(itemCtx.resolveDynamicValue(callExpr), 'Row 2: drops (true)');
+    assert.strictEqual(getValue(itemCtx.resolveSignal(callExpr)), 'Row 2: drops (true)');
+    assert.strictEqual(errors.length, 0);
+  });
+
+  it('scopes formatString template calls to formatString catalogId even when surface.defaultCatalog differs', () => {
+    const basicId = 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json';
+    const basicCat = new Catalog(
+      basicId,
+      '1.0',
+      [],
+      [FormatStringImplementation, PluralizeImplementation],
+    );
+    const otherDefaultCat = new Catalog('https://example.com/other/catalog.json', '1.0', [], []);
+    const mixedSurface = new SurfaceModel(
+      's-mixed',
+      otherDefaultCat,
+      new Map([
+        [otherDefaultCat.id, otherDefaultCat],
+        [basicId, basicCat],
+      ]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '1.0',
+    );
+    const errors: unknown[] = [];
+    mixedSurface.onError.subscribe(e => {
+      errors.push(e);
+    });
+    const itemCtx = new DataContext(mixedSurface, '/items/1', 1);
+
+    const callExpr = {
+      '@call': 'formatString',
+      catalogId: basicId,
+      args: {
+        value: "Item ${@index()}: ${pluralize(value: 1, one: 'drop', other: 'drops')}",
+      },
+    };
+    assert.strictEqual(itemCtx.resolveDynamicValue(callExpr), 'Item 1: drop');
+    assert.strictEqual(getValue(itemCtx.resolveSignal(callExpr)), 'Item 1: drop');
+    assert.strictEqual(errors.length, 0);
+  });
+
+  it('scopes formatString template calls when invoked directly via Catalog.invoker or over partial surface stand-ins', () => {
+    const basicId = 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json';
+    const basicCat = new Catalog(
+      basicId,
+      '1.0',
+      [],
+      [FormatStringImplementation, PluralizeImplementation],
+    );
+    const extHelper = createFunctionImplementation(
+      {
+        name: 'extOnly',
+        returnType: 'string' as const,
+        schema: z.object({}),
+      },
+      () => 'from-ext',
+    );
+    const extCat = new Catalog(
+      'https://example.com/ext/catalog.json',
+      '1.0',
+      [],
+      [FormatStringImplementation, extHelper],
+    );
+
+    // 1. Direct `basicCat.invoker(...)` on a defaultless surface.
+    const defaultlessSurface = new SurfaceModel(
+      's-direct-defaultless',
+      undefined,
+      new Map([[basicId, basicCat]]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '1.0',
+    );
+    const defaultlessErrors: unknown[] = [];
+    defaultlessSurface.onError.subscribe(e => {
+      defaultlessErrors.push(e);
+    });
+    const defaultlessCtx = new DataContext(defaultlessSurface, '/');
+    const directRes = basicCat.invoker(
+      'formatString',
+      {value: "${pluralize(value: 2, one: 'drop', other: 'drops')}"},
+      defaultlessCtx,
+    );
+    assert.strictEqual(getValue(directRes as any), 'drops');
+    assert.strictEqual(defaultlessErrors.length, 0);
+
+    // 2. Direct `extCat.invoker(...)` when `surface.defaultCatalog !== extCat` and `extCat` is standalone.
+    const surfaceWithBasicDefault = new SurfaceModel(
+      's-direct-mixed',
+      basicCat,
+      new Map([[basicId, basicCat]]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '1.0',
+    );
+    const mixedErrors: unknown[] = [];
+    surfaceWithBasicDefault.onError.subscribe(e => {
+      mixedErrors.push(e);
+    });
+    const mixedCtx = new DataContext(surfaceWithBasicDefault, '/');
+    const extRes = extCat.invoker('formatString', {value: 'Got ${extOnly()}'}, mixedCtx);
+    assert.strictEqual(getValue(extRes as any), 'Got from-ext');
+    assert.strictEqual(mixedErrors.length, 0);
+
+    // 3. Partial surface stand-in with empty `availableCatalogs` and `defaultCatalog: basicCat`.
+    const standInErrors: unknown[] = [];
+    const standInSurface = {
+      id: 'stand-in',
+      dataModel: new DataModel(),
+      defaultCatalog: basicCat,
+      availableCatalogs: new Map(),
+      protocolVersion: '1.0',
+      dispatchError: (err: unknown) => {
+        standInErrors.push(err);
+      },
+    } as unknown as SurfaceModel<any>;
+    const standInCtx = new DataContext(standInSurface, '/');
+    assert.strictEqual(
+      standInCtx.resolveDynamicValue({
+        '@call': 'formatString',
+        args: {value: "${pluralize(value: 2, one: 'drop', other: 'drops')}"},
+      }),
+      'drops',
+    );
+    assert.strictEqual(standInErrors.length, 0);
+
+    // 4. Surface-less `new DataContext(new DataModel(), '/')` invoked via `basicCat.invoker(...)`.
+    const surfacelessCtx = new DataContext(new DataModel(), '/');
+    assert.strictEqual(surfacelessCtx.atLeastV10, false);
+    const surfacelessRes = basicCat.invoker(
+      'formatString',
+      {value: "Standalone: ${pluralize(value: 1, one: 'item', other: 'items')}"},
+      surfacelessCtx,
+    );
+    assert.strictEqual(getValue(surfacelessRes as any), 'Standalone: item');
+    assert.strictEqual(surfacelessCtx.atLeastV10, false);
+
+    // 5. Same-ID negotiated schema-only surface catalog + executable `basicCat.invoker(...)`
+    // (including when `ctx` was pre-scoped to `basicId` without `basicCat`).
+    const schemaOnlyBasic = Catalog.fromJson(
+      {
+        catalogId: basicId,
+        protocolVersion: '1.0',
+        components: {},
+        functions: {
+          formatString: {
+            returnType: 'string',
+            parameters: {type: 'object', properties: {value: {type: 'string'}}},
+          },
+          pluralize: {
+            returnType: 'string',
+            parameters: {
+              type: 'object',
+              properties: {
+                value: {type: 'number'},
+                one: {type: 'string'},
+                other: {type: 'string'},
+              },
+            },
+          },
+        },
+      },
+      '1.0',
+    );
+    const schemaOnlySurface = new SurfaceModel(
+      's-schema-only-invoker',
+      schemaOnlyBasic,
+      new Map([[basicId, schemaOnlyBasic]]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '1.0',
+    );
+    const schemaOnlyErrors: unknown[] = [];
+    schemaOnlySurface.onError.subscribe(e => {
+      schemaOnlyErrors.push(e);
+    });
+    const schemaOnlyCtx = new DataContext(schemaOnlySurface, '/');
+    const preScopedCtx = withActiveCallCatalogId(schemaOnlyCtx, basicId);
+    const schemaOnlyRes = basicCat.invoker(
+      'formatString',
+      {value: "Count: ${pluralize(value: 1, one: 'drop', other: 'drops')}"},
+      preScopedCtx,
+    );
+    assert.strictEqual(getValue(schemaOnlyRes as any), 'Count: drop');
+    assert.strictEqual(schemaOnlyErrors.length, 0);
+
+    // 6. Nested `DataContext` with an inner catalog scope does not leak an ancestor's standalone catalog.
+    const rpcScoped = withActiveCallCatalogId(mixedCtx, extCat.id, extCat);
+    const innerScoped = withActiveCallCatalogId(rpcScoped.nested('/items/0', 0), basicId, basicCat);
+    assert.strictEqual(
+      innerScoped.resolveDynamicValue({'@call': 'extOnly', catalogId: extCat.id, args: {}}),
+      undefined,
+    );
+    assert.strictEqual(mixedErrors.length, 1);
+    assert.strictEqual((mixedErrors[0] as {code?: string}).code, 'CATALOG_ERROR');
+  });
+
+  it('rejects __proto__ arguments in formatString template calls as own unknown arguments', () => {
+    const basicId = 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json';
+    const basicCat = new Catalog(
+      basicId,
+      '1.0',
+      [],
+      [FormatStringImplementation, PluralizeImplementation],
+    );
+    const surfaceWithBasic = new SurfaceModel(
+      's-proto',
+      basicCat,
+      new Map([[basicId, basicCat]]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '1.0',
+    );
+    surfaceWithBasic.dataModel.set('/secret', {leaked: true});
+    const errors: Array<{code?: string; message?: string}> = [];
+    surfaceWithBasic.onError.subscribe(e => {
+      errors.push(e);
+    });
+    const protoCtx = new DataContext(surfaceWithBasic, '/');
+
+    const expr = {
+      '@call': 'formatString',
+      args: {
+        value: "Count: ${pluralize(__proto__: /secret, value: 2, one: 'drop', other: 'drops')}",
+      },
+    };
+    assert.strictEqual(protoCtx.resolveDynamicValue(expr), 'Count: ');
+    assert.strictEqual(errors.length, 1);
+    assert.strictEqual(errors[0].code, 'EXPRESSION_ERROR');
+    assert.match(errors[0].message ?? '', /Unknown argument '__proto__'/);
+    assert.strictEqual(({} as Record<string, unknown>)['leaked'], undefined);
   });
 });
