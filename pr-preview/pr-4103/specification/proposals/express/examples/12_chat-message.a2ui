@@ -1,0 +1,16 @@
+$/channelName = "project-updates"
+$/messages = [{avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop", username: "Mike Chen", timestamp: "2025-12-15T10:32:00Z", text: "Just pushed the new API changes. Ready for review."}, {avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop", username: "Sarah Kim", timestamp: "2025-12-15T10:45:00Z", text: "Great! I'll take a look after standup."}]
+root = Card(main_column)
+main_column = Column([header, divider, messages_list])
+header = Row([channel_icon, channel_name], _, "center")
+channel_icon = Icon("info")
+channel_name = Text($/channelName)
+divider = Divider()
+messages_list = Column(_template($/messages, message_template), _, "start")
+message_template = Row([msg_avatar, msg_content], _, "start")
+msg_avatar = Image($avatar, _, "cover", "avatar")
+msg_content = Column([msg_header, msg_text])
+msg_header = Row([msg_username, msg_time], _, "center")
+msg_username = Text($username)
+msg_time = Text(formatDate($timestamp, "h:mm a"), "caption")
+msg_text = Text($text, "body")

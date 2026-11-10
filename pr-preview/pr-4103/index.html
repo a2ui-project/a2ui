@@ -1,0 +1,673 @@
+<!DOCTYPE html><html lang="en" data-theme="light" class="astro-j7pv25f6"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>A2UI — Build delightful, fast, reliable agentic experiences</title><meta name="description" content="An open-source generative UI framework with an agent-optimized streaming protocol, native web and mobile renderers, and multi-language agent SDKs."><link rel="icon" type="image/svg+xml" href="/pr-preview/pr-4103/assets/favicon.svg"><link rel="alternate" type="text/markdown" href="/pr-preview/pr-4103/llms.txt" title="A2UI documentation index for LLMs"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Playfair+Display:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet"><script>
+      (() => {
+        try {
+          const saved =
+            localStorage.getItem('starlight-theme') || localStorage.getItem('a2ui-theme');
+          if (saved === 'dark' || saved === 'light') {
+            document.documentElement.setAttribute('data-theme', saved);
+          } else {
+            document.documentElement.setAttribute('data-theme', 'light');
+          }
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      })();
+    </script><link rel="stylesheet" href="/pr-preview/pr-4103/_astro/index.DaZ5r1Ob.css">
+<style>.copilotkit-logo:where(.astro-nbk3bhdi){flex-shrink:0}.team-logo:where(.astro-saxuaypl){display:inline-flex;align-items:center;gap:.4em;white-space:nowrap}.team-logo__mark:where(.astro-saxuaypl){display:block;flex-shrink:0}.team-logo__wordmark:where(.astro-saxuaypl){width:auto}
+</style>
+<link rel="stylesheet" href="/pr-preview/pr-4103/_astro/index.CBJHEymx.css">
+<style>.rmark:where(.astro-tdxwluyp){display:inline-block;flex-shrink:0;color:currentColor;transition:color .18s ease}
+</style><script type="module" src="/pr-preview/pr-4103/_astro/page.B1D-nYk3.js"></script><meta name="robots" content="noindex, nofollow">
+</head> <body class="a2-page astro-j7pv25f6"> <!-- Unified Sticky Navigation --> <header class="a2-topbar astro-j7pv25f6"> <div class="a2-topbar__inner astro-j7pv25f6"> <div class="a2-sl-header astro-wtntqkmy"> <div class="a2-sl-header__left astro-wtntqkmy"> <a href="/pr-preview/pr-4103/" class="a2-sl-brand astro-wtntqkmy" aria-label="A2UI Home" aria-current="page"> <svg class="a2-sl-logo astro-wtntqkmy" width="26" height="26" viewBox="12 11 48 47" fill="none" aria-hidden="true"> <path d="M52 44C55.866 44 59 47.134 59 51C59 54.866 55.866 58 52 58H44C40.134 58 37 54.866 37 51C37 47.134 40.134 44 44 44H52ZM52 47C49.7909 47 48 48.7909 48 51C48 53.2091 49.7909 55 52 55C54.2091 55 56 53.2091 56 51C56 48.7909 54.2091 47 52 47Z" fill="currentColor" class="astro-wtntqkmy"></path> <path d="M27 41C22.85 41 19.3 39.55 16.35 36.65C13.45 33.7 12 30.15 12 26C12 21.85 13.45 18.325 16.35 15.425C19.3 12.475 22.85 11 27 11H45C49.15 11 52.675 12.475 55.575 15.425C58.525 18.325 60 21.85 60 26C60 30.15 58.525 33.7 55.575 36.65C52.675 39.55 49.15 41 45 41H27ZM27 36.5H45C47.9 36.5 50.375 35.475 52.425 33.425C54.475 31.375 55.5 28.9 55.5 26C55.5 23.1 54.475 20.625 52.425 18.575C50.375 16.525 47.9 15.5 45 15.5H27C24.1 15.5 21.625 16.525 19.575 18.575C17.525 20.625 16.5 23.1 16.5 26C16.5 28.9 17.525 31.375 19.575 33.425C21.625 35.475 24.1 36.5 27 36.5ZM27 28.25C27.65 28.25 28.175 28.05 28.575 27.65C29.025 27.2 29.25 26.65 29.25 26C29.25 25.35 29.025 24.825 28.575 24.425C28.175 23.975 27.65 23.75 27 23.75C26.35 23.75 25.8 23.975 25.35 24.425C24.95 24.825 24.75 25.35 24.75 26C24.75 26.65 24.95 27.2 25.35 27.65C25.8 28.05 26.35 28.25 27 28.25ZM45 28.25C45.65 28.25 46.175 28.05 46.575 27.65C47.025 27.2 47.25 26.65 47.25 26C47.25 25.35 47.025 24.825 46.575 24.425C46.175 23.975 45.65 23.75 45 23.75C44.35 23.75 43.8 23.975 43.35 24.425C42.95 24.825 42.75 25.35 42.75 26C42.75 26.65 42.95 27.2 43.35 27.65C43.8 28.05 44.35 28.25 45 28.25Z" fill="currentColor" class="astro-wtntqkmy"></path> <path d="M32.5 53C33.8807 53 35 54.1193 35 55.5C35 56.8807 33.8807 58 32.5 58H22.5C21.1193 58 20 56.8807 20 55.5C20 54.1193 21.1193 53 22.5 53H32.5Z" fill="currentColor" class="astro-wtntqkmy"></path> <path d="M14.5 53C15.8807 53 17 54.1193 17 55.5C17 56.8807 15.8807 58 14.5 58C13.1193 58 12 56.8807 12 55.5C12 54.1193 13.1193 53 14.5 53Z" fill="currentColor" class="astro-wtntqkmy"></path> <path d="M32.5 44C33.8807 44 35 45.1193 35 46.5C35 47.8807 33.8807 49 32.5 49C31.1193 49 30 47.8807 30 46.5C30 45.1193 31.1193 44 32.5 44Z" fill="currentColor" class="astro-wtntqkmy"></path> <path d="M24.5 44C25.8807 44 27 45.1193 27 46.5C27 47.8807 25.8807 49 24.5 49H17.5C16.1193 49 15 47.8807 15 46.5C15 45.1193 16.1193 44 17.5 44H24.5Z" fill="currentColor" class="astro-wtntqkmy"></path> </svg> <span class="astro-wtntqkmy">A2UI</span> <span class="a2-sl-brand__ver astro-wtntqkmy">v1.0</span> </a> <span class="a2-sl-header__slash astro-wtntqkmy" aria-hidden="true">/</span> <nav class="a2-sl-header__tabs astro-wtntqkmy" aria-label="Primary section navigation"> <a href="/pr-preview/pr-4103/quickstart/" class="a2-sl-tab astro-wtntqkmy">Docs</a> <a href="/pr-preview/pr-4103/built-with-a2ui/" class="a2-sl-tab astro-wtntqkmy">Built<span class="a2-sl-tab__xlong astro-wtntqkmy"> with A2UI</span></a> <a href="/pr-preview/pr-4103/get-help/" class="a2-sl-tab astro-wtntqkmy"><span class="a2-sl-tab__xlong astro-wtntqkmy">Get </span>Help</a> </nav> </div> <div class="a2-sl-header__right print:hidden astro-wtntqkmy"> <a2-site-search> <button type="button" data-open-modal class="a2-sl-search-btn astro-wtntqkmy" aria-label="Search docs" aria-keyshortcuts="Meta+K Control+K" title="Search documentation (⌘K / Ctrl+K)"> <span class="a2-sl-search-btn__lead astro-wtntqkmy"> <svg class="a2-sl-search-icon astro-wtntqkmy" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"> <path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5" class="astro-wtntqkmy"></path> </svg> <span class="a2-sl-search-label astro-wtntqkmy">Search docs</span> </span> <kbd class="a2-sl-search-kbd astro-wtntqkmy" aria-hidden="true"> <span data-platform-key class="astro-wtntqkmy">⌘</span><span class="astro-wtntqkmy">K</span> </kbd> </button> <dialog class="a2-sl-search-dialog astro-wtntqkmy" aria-label="Search docs"> <div class="a2-sl-dialog-frame astro-wtntqkmy"> <button type="button" data-close-modal class="a2-sl-search-cancel astro-wtntqkmy">Cancel</button> <div class="a2-sl-search-container astro-wtntqkmy"> <div id="starlight__search" class="astro-wtntqkmy"></div> </div> </div> </dialog> </a2-site-search> <div class="a2-sl-header__controls astro-wtntqkmy"> <a class="a2-sl-icon-btn astro-wtntqkmy" href="https://github.com/a2ui-project/a2ui" target="_blank" rel="noopener" aria-label="GitHub Repository" title="GitHub"> <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="astro-wtntqkmy"> <path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.08-.73.08-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z" class="astro-wtntqkmy"></path> </svg> </a> <button type="button" class="a2-sl-icon-btn a2-sl-theme-btn astro-wtntqkmy" id="a2-sl-theme-toggle" title="Toggle color theme" aria-label="Toggle color theme"> <svg class="a2-theme-icon a2-theme-icon--dark astro-wtntqkmy" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"> <path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z" class="astro-wtntqkmy"></path> </svg> <svg class="a2-theme-icon a2-theme-icon--light astro-wtntqkmy" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"> <path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z" class="astro-wtntqkmy"></path> </svg> </button> </div> </div> </div> <script>
+  (() => {
+    const platformKey = document.querySelector('[data-platform-key]');
+    if (platformKey && !/(Mac|iPhone|iPod|iPad)/i.test(navigator.platform)) {
+      platformKey.textContent = 'Ctrl+';
+    }
+
+    const btn = document.getElementById('a2-sl-theme-toggle');
+    if (!btn) return;
+    const syncLabel = () => {
+      const current = document.documentElement.getAttribute('data-theme') || 'dark';
+      const label = current === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+      btn.setAttribute('title', label);
+      btn.setAttribute('aria-label', label);
+    };
+    syncLabel();
+    new MutationObserver(syncLabel).observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
+    btn.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme') || 'dark';
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      try {
+        localStorage.setItem('starlight-theme', next);
+        localStorage.setItem('a2ui-theme', next);
+      } catch (e) {}
+      if (
+        typeof StarlightThemeProvider !== 'undefined' &&
+        typeof StarlightThemeProvider.updatePickers === 'function'
+      ) {
+        StarlightThemeProvider.updatePickers(next);
+      }
+      window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme: next } }));
+    });
+  })();
+</script> <script type="module" src="/pr-preview/pr-4103/_astro/StarlightHeader.astro_astro_type_script_index_0_lang.CNWE5LHQ.js"></script> <script type="module" src="/pr-preview/pr-4103/_astro/StarlightHeader.astro_astro_type_script_index_1_lang.CfmpUogS.js"></script>   </div> </header> <main class="astro-j7pv25f6"> <!-- =================================================================
+           HERO: ARCHITECTURAL MASTHEAD + FREESTANDING ARTIFACT STAGE
+           ================================================================= --> <section class="a2-hero astro-j7pv25f6" id="hero"> <div class="a2-hero__grid-bg astro-j7pv25f6" aria-hidden="true"></div> <div class="a2-wrap astro-j7pv25f6"> <div class="a2-masthead astro-j7pv25f6"> <div class="a2-masthead__split astro-j7pv25f6"> <div class="a2-masthead__copy astro-j7pv25f6"> <h1 class="a2-h1 a2-h1--long astro-j7pv25f6">
+Build delightful, fast, reliable<br class="astro-j7pv25f6"> <span class="a2-h-accent astro-j7pv25f6">agentic experiences.</span> </h1> <p class="a2-lead astro-j7pv25f6">
+A2UI is a generative UI protocol that enables agents to
+                  compose experiences tailored to each user's needs in real time.
+                  Using an agent-optimized protocol and native framework renderers,
+                  A2UI achieves low latency, predictability, and visual fidelity
+                  across all screens.
+</p> <div class="a2-hero__actions astro-j7pv25f6"> <a href="/pr-preview/pr-4103/quickstart/" class="a2-btn a2-btn--primary astro-j7pv25f6"> <span class="astro-j7pv25f6">Run in 5 Minutes</span> <span aria-hidden="true" class="astro-j7pv25f6">→</span> </a> <a href="https://go.copilotkit.ai/a2ui-playground" target="_blank" rel="noopener noreferrer" class="a2-btn a2-btn--outline astro-j7pv25f6"> <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true" class="copilotkit-logo astro-nbk3bhdi"><defs class="astro-nbk3bhdi"><linearGradient gradientUnits="userSpaceOnUse" id="hero-ck-0" x1="17.852" x2="14.202" y1="1.467" y2="11.504" class="astro-nbk3bhdi"><stop stop-color="#6430AB" class="astro-nbk3bhdi"></stop><stop offset="1" stop-color="#AA89D8" class="astro-nbk3bhdi"></stop></linearGradient><linearGradient gradientUnits="userSpaceOnUse" id="hero-ck-1" x1="15.024" x2="10.324" y1="7.125" y2="16.204" class="astro-nbk3bhdi"><stop stop-color="#005DBB" class="astro-nbk3bhdi"></stop><stop offset="1" stop-color="#3D92E8" class="astro-nbk3bhdi"></stop></linearGradient><linearGradient gradientUnits="userSpaceOnUse" id="hero-ck-2" x1="17.122" x2="15.707" y1="1.467" y2="5.892" class="astro-nbk3bhdi"><stop stop-color="#1B70C4" class="astro-nbk3bhdi"></stop><stop offset="1" stop-color="#54A4F2" class="astro-nbk3bhdi"></stop></linearGradient><linearGradient gradientUnits="userSpaceOnUse" id="hero-ck-3" x1="6.577" x2="21.506" y1="21.758" y2="21.758" class="astro-nbk3bhdi"><stop stop-color="#4497EA" class="astro-nbk3bhdi"></stop><stop offset=".255" stop-color="#1463B2" class="astro-nbk3bhdi"></stop><stop offset=".499" stop-color="#0A437D" class="astro-nbk3bhdi"></stop><stop offset=".667" stop-color="#2476C8" class="astro-nbk3bhdi"></stop><stop offset=".973" stop-color="#0C549A" class="astro-nbk3bhdi"></stop></linearGradient></defs><path d="M8.162 7.758c2.093-2.738 3.831-5.445 4.498-7.63a.093.093 0 01.14-.051c2.324 1.539 6.558 2.552 10.301 2.576a.09.09 0 01.085.124c-1.243 3.158-2.765 8.817-2.823 15.28-.001.095-.135.13-.183.046-2.131-3.729-8.955-8.968-11.982-10.205a.09.09 0 01-.036-.14z" fill="url(#hero-ck-0)" class="astro-nbk3bhdi"></path><path d="M15.223 6.083A61.492 61.492 0 018.25 7.827c-.045.008-.055.071-.012.089 3.05 1.267 9.84 6.492 11.952 10.206a.017.017 0 00.022.007.018.018 0 00.01-.024l-4.999-12.02z" fill="url(#hero-ck-1)" class="astro-nbk3bhdi"></path><path d="M12.81.07c2.8 1.528 6.037 2.214 10.33 2.575.028.002.036.039.012.051-.55.282-3.695 1.883-6.03 2.74-.626.23-1.256.443-1.876.64a.028.028 0 01-.033-.016L12.746.128c-.017-.04.027-.078.065-.058z" fill="url(#hero-ck-2)" class="astro-nbk3bhdi"></path><path d="M12.725.075c.046-.019.1.003.119.05l7.514 17.923a.091.091 0 01-.148.1l-.02-.03L12.675.195a.091.091 0 01.049-.12z" fill="#513C9F" class="astro-nbk3bhdi"></path><path d="M23.06 2.66c.044-.025.1-.01.125.034.025.044.009.1-.035.124v.001l-.008.004-.025.015-.1.054a41.384 41.384 0 01-1.811.92A47.05 47.05 0 0116.33 5.82c-1.954.674-3.97 1.197-5.497 1.552a66.27 66.27 0 01-2.38.507l-.138.026-.036.007h-.01l-.002.002a.091.091 0 11-.033-.18l.016.09-.015-.09h.002l.01-.002.035-.007.137-.025a66.16 66.16 0 002.373-.506c1.524-.354 3.533-.876 5.479-1.547a46.857 46.857 0 006.276-2.709c.166-.087.295-.156.381-.204l.099-.054.024-.014.008-.004z" fill="#513C9F" class="astro-nbk3bhdi"></path><path d="M13.838 2.272a.16.16 0 01.107.2l-2.72 9.055h6.4l.061.013a.16.16 0 010 .295l-.061.013h-6.541L.679 24.099l-.05.04a.16.16 0 01-.194-.245l10.43-12.285 2.773-9.23a.16.16 0 01.2-.107z" fill="#ABABAB" class="astro-nbk3bhdi"></path><path d="M7.809 21.461l-1.232.173c.638 1.69 1.949 2.427 3.514 2.427 3.831 0 2.661-4.334 4.883-4.334 1.61 0 .956 3.513 4.423 3.513 2.116 0 2.326-2.131 1.966-3.048l-.008-.016-.567-.868c-.037-.058-.127-.036-.133.032l-.106 1.053a1.01 1.01 0 00.003.219c.088.727.144 2.491-1.155 2.491-1.37 0-1.7-3.467-4.423-3.467-3.196 0-2.785 4.289-4.747 4.289-1.294 0-2.28-1.46-2.418-2.464z" fill="url(#hero-ck-3)" class="astro-nbk3bhdi"></path></svg>  <span class="astro-j7pv25f6">Playground</span> <span aria-hidden="true" class="astro-j7pv25f6">↗</span> </a> <button type="button" class="a2-cmd-bar astro-j7pv25f6" id="hero-copy-clone" data-copy="npx skills add a2ui-project/a2ui" aria-label="Copy command to install A2UI agent skills: npx skills add a2ui-project/a2ui"> <span class="a2-cmd-bar__sig astro-j7pv25f6" aria-hidden="true">$</span> <span class="astro-j7pv25f6">npx skills add a2ui-project/a2ui</span> <span class="a2-cmd-bar__act astro-j7pv25f6" id="hero-copy-act">COPY</span> </button> </div> </div> <!-- One message, every form factor --> <div class="a2-masthead__visual astro-j7pv25f6"> <div class="ff astro-5yoew3gg" id="hero-form-factors" role="img" aria-label="One A2UI message rendering natively on a TV, a desktop browser, a tablet, a phone and a watch — the same content laid out for each screen"> <div class="ff-box astro-5yoew3gg" aria-hidden="true"> <!-- Wires: message → each device --> <svg class="ff-wires astro-5yoew3gg" viewBox="0 0 600 400" preserveAspectRatio="none"> <g class="ff-wire-base astro-5yoew3gg"> <path d="M300 108 C300 170 95 180 95 245" class="astro-5yoew3gg"></path> <path d="M300 108 C300 180 280 190 280 260" class="astro-5yoew3gg"></path> <path d="M300 108 C300 166 421 166 421 231" class="astro-5yoew3gg"></path> <path d="M300 108 C300 170 510 172 510 238" class="astro-5yoew3gg"></path> <path d="M300 108 C300 196 573 200 573 284" class="astro-5yoew3gg"></path> </g> <g class="ff-wire-pkt astro-5yoew3gg"> <path style="--d:0s" d="M300 108 C300 170 95 180 95 245" class="astro-5yoew3gg"></path> <path style="--d:.35s" d="M300 108 C300 180 280 190 280 260" class="astro-5yoew3gg"></path> <path style="--d:.7s" d="M300 108 C300 166 421 166 421 231" class="astro-5yoew3gg"></path> <path style="--d:1.05s" d="M300 108 C300 170 510 172 510 238" class="astro-5yoew3gg"></path> <path style="--d:1.4s" d="M300 108 C300 196 573 200 573 284" class="astro-5yoew3gg"></path> </g> <rect class="ff-wire-src astro-5yoew3gg" x="297" y="105" width="6" height="6"></rect> </svg> <!-- The message --> <div class="ff-src astro-5yoew3gg" style="--x:165;--y:0;--w:270;--h:108"> <div class="ff-src__hd astro-5yoew3gg"> <span class="astro-5yoew3gg">A2UI MESSAGE</span> </div> <div class="ff-src__body astro-5yoew3gg"> <p class="ff-ln is-on astro-5yoew3gg"><b class="astro-5yoew3gg">createSurface</b><span class="astro-5yoew3gg">"home"</span></p> <p class="ff-ln is-on astro-5yoew3gg"><b class="astro-5yoew3gg">Card</b><span class="astro-5yoew3gg">"Order #7731"</span></p> <p class="ff-ln is-on astro-5yoew3gg"><b class="astro-5yoew3gg">Text</b><span class="astro-5yoew3gg">"Arrives 8:12am"</span></p> <p class="ff-ln is-on astro-5yoew3gg"><b class="astro-5yoew3gg">Button</b><span class="astro-5yoew3gg">"Reorder"</span><i class="ff-caret astro-5yoew3gg"></i></p> </div> </div> <!-- TV --> <div class="ff-dev ff-tv astro-5yoew3gg" data-ff-dev="tv" style="--x:0;--y:245;--w:190;--h:107"> <div class="ff-scr astro-5yoew3gg"> <div class="ff-skel astro-5yoew3gg"><i style="width:58%" class="astro-5yoew3gg"></i><i style="width:84%" class="astro-5yoew3gg"></i><i style="width:40%" class="astro-5yoew3gg"></i></div> <div class="ff-view is-on astro-5yoew3gg" data-ff-v="1"> <div class="ff-row astro-5yoew3gg"> <i class="tb astro-5yoew3gg" style="width:40%"></i> <div class="ff-col astro-5yoew3gg"><i class="t astro-5yoew3gg" style="width:72%"></i><i class="t astro-5yoew3gg" style="width:48%"></i><i class="t astro-5yoew3gg" style="width:60%"></i><i class="b astro-5yoew3gg" style="width:44%"></i></div> </div> </div> <div class="ff-view astro-5yoew3gg" data-ff-v="2"> <i class="t astro-5yoew3gg" style="width:34%"></i> <div class="ff-row astro-5yoew3gg"> <div class="ff-ch astro-5yoew3gg" style="flex:1.4"><i style="height:45%" class="astro-5yoew3gg"></i><i style="height:70%" class="astro-5yoew3gg"></i><i style="height:52%" class="astro-5yoew3gg"></i><i style="height:64%" class="astro-5yoew3gg"></i><i class="hi astro-5yoew3gg" style="height:88%"></i><i style="height:58%" class="astro-5yoew3gg"></i></div> <div class="ff-col astro-5yoew3gg"><i class="t astro-5yoew3gg" style="width:80%"></i><i class="t astro-5yoew3gg" style="width:55%"></i><i class="b astro-5yoew3gg" style="width:70%"></i></div> </div> </div> <div class="ff-view astro-5yoew3gg" data-ff-v="3"> <i class="t astro-5yoew3gg" style="width:38%"></i> <div class="ff-row astro-5yoew3gg"> <div class="ff-col astro-5yoew3gg"> <div class="ff-op on astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:60%"></i></div> <div class="ff-op astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:48%"></i></div> <div class="ff-op astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:54%"></i></div> </div> <div class="ff-col astro-5yoew3gg"><i class="b astro-5yoew3gg" style="width:70%"></i></div> </div> </div> </div> <i class="ff-tv__neck astro-5yoew3gg"></i> <i class="ff-tv__base astro-5yoew3gg"></i> </div> <!-- Desktop browser --> <div class="ff-dev ff-lap astro-5yoew3gg" data-ff-dev="lap" style="--x:205;--y:260;--w:150;--h:94"> <div class="ff-scr astro-5yoew3gg"> <div class="ff-skel astro-5yoew3gg"><i style="width:58%" class="astro-5yoew3gg"></i><i style="width:84%" class="astro-5yoew3gg"></i><i style="width:40%" class="astro-5yoew3gg"></i></div> <div class="ff-view is-on astro-5yoew3gg" data-ff-v="1"> <div class="ff-row astro-5yoew3gg"> <div class="ff-sb astro-5yoew3gg"><i class="t astro-5yoew3gg" style="width:90%"></i><i class="t astro-5yoew3gg" style="width:70%"></i><i class="t astro-5yoew3gg" style="width:80%"></i></div> <div class="ff-col astro-5yoew3gg"><i class="tb astro-5yoew3gg" style="height:40%"></i><i class="t astro-5yoew3gg" style="width:70%"></i><i class="t astro-5yoew3gg" style="width:50%"></i><i class="b astro-5yoew3gg" style="width:56%"></i></div> </div> </div> <div class="ff-view astro-5yoew3gg" data-ff-v="2"> <div class="ff-row astro-5yoew3gg"> <div class="ff-sb astro-5yoew3gg"><i class="t astro-5yoew3gg" style="width:90%"></i><i class="t astro-5yoew3gg" style="width:70%"></i><i class="t astro-5yoew3gg" style="width:80%"></i></div> <div class="ff-col astro-5yoew3gg"><i class="t astro-5yoew3gg" style="width:46%"></i><div class="ff-ch astro-5yoew3gg"><i style="height:45%" class="astro-5yoew3gg"></i><i style="height:70%" class="astro-5yoew3gg"></i><i style="height:52%" class="astro-5yoew3gg"></i><i style="height:64%" class="astro-5yoew3gg"></i><i class="hi astro-5yoew3gg" style="height:88%"></i></div><i class="b astro-5yoew3gg" style="width:56%"></i></div> </div> </div> <div class="ff-view astro-5yoew3gg" data-ff-v="3"> <div class="ff-row astro-5yoew3gg"> <div class="ff-sb astro-5yoew3gg"><i class="t astro-5yoew3gg" style="width:90%"></i><i class="t astro-5yoew3gg" style="width:70%"></i><i class="t astro-5yoew3gg" style="width:80%"></i></div> <div class="ff-col astro-5yoew3gg"> <i class="t astro-5yoew3gg" style="width:46%"></i> <div class="ff-op on astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:62%"></i></div> <div class="ff-op astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:50%"></i></div> <div class="ff-op astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:56%"></i></div> <i class="b astro-5yoew3gg" style="width:56%"></i> </div> </div> </div> </div> <i class="ff-lap__base astro-5yoew3gg"></i> </div> <!-- Tablet --> <div class="ff-dev ff-tab astro-5yoew3gg" data-ff-dev="tab" style="--x:370;--y:231;--w:102;--h:131"> <div class="ff-scr astro-5yoew3gg"> <div class="ff-skel astro-5yoew3gg"><i style="width:58%" class="astro-5yoew3gg"></i><i style="width:84%" class="astro-5yoew3gg"></i><i style="width:40%" class="astro-5yoew3gg"></i></div> <div class="ff-view is-on astro-5yoew3gg" data-ff-v="1"> <i class="tb astro-5yoew3gg" style="height:36%"></i><i class="t astro-5yoew3gg" style="width:74%"></i><i class="t astro-5yoew3gg" style="width:52%"></i><i class="t astro-5yoew3gg" style="width:64%"></i><i class="b astro-5yoew3gg" style="width:62%"></i> </div> <div class="ff-view astro-5yoew3gg" data-ff-v="2"> <i class="t astro-5yoew3gg" style="width:50%"></i><div class="ff-ch astro-5yoew3gg"><i style="height:45%" class="astro-5yoew3gg"></i><i style="height:70%" class="astro-5yoew3gg"></i><i style="height:52%" class="astro-5yoew3gg"></i><i style="height:64%" class="astro-5yoew3gg"></i><i class="hi astro-5yoew3gg" style="height:88%"></i></div><i class="t astro-5yoew3gg" style="width:60%"></i><i class="b astro-5yoew3gg" style="width:62%"></i> </div> <div class="ff-view astro-5yoew3gg" data-ff-v="3"> <i class="t astro-5yoew3gg" style="width:54%"></i> <div class="ff-op on astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:66%"></i></div> <div class="ff-op astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:52%"></i></div> <div class="ff-op astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:58%"></i></div> <i class="b astro-5yoew3gg" style="width:62%"></i> </div> </div> </div> <!-- Phone --> <div class="ff-dev ff-ph astro-5yoew3gg" data-ff-dev="ph" style="--x:478;--y:238;--w:64;--h:124"> <i class="ff-ph__island astro-5yoew3gg"></i> <div class="ff-scr astro-5yoew3gg"> <div class="ff-skel astro-5yoew3gg"><i style="width:58%" class="astro-5yoew3gg"></i><i style="width:84%" class="astro-5yoew3gg"></i><i style="width:40%" class="astro-5yoew3gg"></i></div> <div class="ff-view is-on astro-5yoew3gg" data-ff-v="1"> <i class="tb astro-5yoew3gg" style="height:32%"></i><i class="t astro-5yoew3gg" style="width:80%"></i><i class="t astro-5yoew3gg" style="width:56%"></i><i class="t astro-5yoew3gg" style="width:68%"></i><i class="b astro-5yoew3gg" style="width:100%"></i> </div> <div class="ff-view astro-5yoew3gg" data-ff-v="2"> <i class="t astro-5yoew3gg" style="width:60%"></i><div class="ff-ch astro-5yoew3gg"><i style="height:45%" class="astro-5yoew3gg"></i><i style="height:70%" class="astro-5yoew3gg"></i><i style="height:52%" class="astro-5yoew3gg"></i><i class="hi astro-5yoew3gg" style="height:88%"></i></div><i class="t astro-5yoew3gg" style="width:70%"></i><i class="b astro-5yoew3gg" style="width:100%"></i> </div> <div class="ff-view astro-5yoew3gg" data-ff-v="3"> <i class="t astro-5yoew3gg" style="width:64%"></i> <div class="ff-op on astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:70%"></i></div> <div class="ff-op astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:54%"></i></div> <div class="ff-op astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:62%"></i></div> <i class="b astro-5yoew3gg" style="width:100%"></i> </div> </div> </div> <!-- Watch --> <div class="ff-dev ff-w astro-5yoew3gg" data-ff-dev="w" style="--x:548;--y:293;--w:50;--h:60"> <i class="ff-w__band ff-w__band--top astro-5yoew3gg"></i> <i class="ff-w__band ff-w__band--bot astro-5yoew3gg"></i> <i class="ff-w__crown astro-5yoew3gg"></i> <div class="ff-scr astro-5yoew3gg"> <div class="ff-skel astro-5yoew3gg"><i style="width:70%" class="astro-5yoew3gg"></i><i style="width:50%" class="astro-5yoew3gg"></i></div> <div class="ff-view is-on astro-5yoew3gg" data-ff-v="1"> <i class="tb astro-5yoew3gg" style="height:40%"></i><i class="t astro-5yoew3gg" style="width:80%"></i><i class="b astro-5yoew3gg" style="width:100%"></i> </div> <div class="ff-view astro-5yoew3gg" data-ff-v="2"> <div class="ff-ch astro-5yoew3gg"><i style="height:45%" class="astro-5yoew3gg"></i><i style="height:70%" class="astro-5yoew3gg"></i><i class="hi astro-5yoew3gg" style="height:90%"></i></div><i class="b astro-5yoew3gg" style="width:100%"></i> </div> <div class="ff-view astro-5yoew3gg" data-ff-v="3"> <div class="ff-op on astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:70%"></i></div> <div class="ff-op astro-5yoew3gg"><i class="r astro-5yoew3gg"></i><i class="t astro-5yoew3gg" style="width:55%"></i></div> <i class="b astro-5yoew3gg" style="width:100%"></i> </div> </div> </div> <!-- Floor + labels --> <i class="ff-floor astro-5yoew3gg"></i> <div class="ff-lbl astro-5yoew3gg" style="--y:374;--x:0;--w:190"><b class="astro-5yoew3gg">TV</b></div> <div class="ff-lbl astro-5yoew3gg" style="--y:374;--x:196;--w:168"><b class="astro-5yoew3gg">DESKTOP</b></div> <div class="ff-lbl astro-5yoew3gg" style="--y:374;--x:370;--w:102"><b class="astro-5yoew3gg">TABLET</b></div> <div class="ff-lbl astro-5yoew3gg" style="--y:374;--x:478;--w:64"><b class="astro-5yoew3gg">PHONE</b></div> <div class="ff-lbl astro-5yoew3gg" style="--y:374;--x:548;--w:50"><b class="astro-5yoew3gg">WATCH</b></div> </div> </div> <script>
+  (() => {
+    const root = document.getElementById('hero-form-factors');
+    if (!root) return;
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const devs = Array.from(root.querySelectorAll('.ff-dev'));
+    const lines = Array.from(root.querySelectorAll('.ff-ln'));
+    if (reduce || !devs.length || !lines.length) return;
+
+    /* Three payloads — the devices repaint the same message in their own layout */
+    const payloads = [
+      [['createSurface', '"home"'], ['Card', '"Order #7731"'], ['Text', '"Arrives 8:12am"'], ['Button', '"Reorder"']],
+      [['updateComponents', ''], ['Card', '"Weekly spend"'], ['BarChart', '/spend'], ['Button', '"Set a $90 cap"']],
+      [['updateComponents', ''], ['Card', '"Delivery slot"'], ['ChoiceGroup', '/slots'], ['Button', '"Book Sat 10am"']],
+    ];
+
+    let v = 0;
+    let timers = [];
+    let visible = true;
+    const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+    const clear = () => { timers.forEach(clearTimeout); timers = []; };
+
+    const showView = (dev, n) => {
+      dev.querySelectorAll('[data-ff-v]').forEach((el) => el.classList.toggle('is-on', el.getAttribute('data-ff-v') === String(n)));
+    };
+
+    const cycle = () => {
+      clear();
+      const p = payloads[v];
+      // 1. a new message starts streaming: the surfaces wait
+      devs.forEach((d) => d.classList.add('is-wait'));
+      lines.forEach((ln) => ln.classList.remove('is-on'));
+      p.forEach((pair, i) => {
+        later(() => {
+          const ln = lines[i];
+          if (!ln) return;
+          ln.querySelector('b').textContent = pair[0];
+          ln.querySelector('span').textContent = pair[1];
+          ln.classList.add('is-on');
+        }, 100 + i * 150);
+      });
+      // 2. each renderer paints it — same payload, its own layout
+      devs.forEach((d, i) => {
+        later(() => {
+          showView(d, v + 1);
+          d.classList.remove('is-wait');
+          d.classList.remove('is-paint');
+          void d.offsetWidth;
+          d.classList.add('is-paint');
+        }, 920 + i * 90);
+      });
+      // 3. hold, then the next message
+      later(() => {
+        v = (v + 1) % payloads.length;
+        if (visible) cycle();
+      }, 4150);
+    };
+
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver((entries) => {
+        entries.forEach((e) => {
+          const was = visible;
+          visible = e.isIntersecting;
+          if (visible && !was) cycle();
+          if (!visible) clear();
+        });
+      }, { threshold: 0.2 }).observe(root);
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { clear(); } else if (visible) { cycle(); }
+    });
+
+    later(() => { v = 1; cycle(); }, 2100);
+  })();
+</script>  </div> </div> <!-- Team strip: products shipping A2UI, each linking to its story --> <div class="a2-renderers a2-renderers--teams astro-j7pv25f6"> <span class="a2-renderers__lbl astro-j7pv25f6">SHIPPING IN</span> <ul class="a2-renderers__list astro-j7pv25f6" aria-label="Teams shipping A2UI"> <li class="astro-j7pv25f6"> <a href="/pr-preview/pr-4103/built-with-a2ui/#alation" title="Alation: Alation AIOS" class="astro-j7pv25f6"><span class="team-logo astro-saxuaypl">  <svg class="team-logo__mark team-logo__wordmark astro-saxuaypl" viewBox="0 0 101 23" height="18" aria-hidden="true"> <path fill="currentColor" d="M61.8149 1.86854L58.2081 2.25317L57.2545 4.67134L61.8149 6.41733V1.86854ZM27.6446 20.8779C27.533 20.6765 27.4784 20.3222 27.4784 19.8174V0L20.3862 0.748628V1.38563L21.6285 1.8103C21.9718 1.95226 22.1987 2.12819 22.3103 2.34053C22.4207 2.55286 22.4765 2.95205 22.4765 3.53809V19.8162C22.4765 20.321 22.4207 20.6752 22.3103 20.8767C22.2205 21.0405 22.0543 21.1909 21.8117 21.328C21.7025 21.3899 21.5812 21.4299 21.4562 21.4481C21.1578 21.4942 20.8532 21.4142 20.6215 21.2237C20.5912 21.197 20.5621 21.1715 20.533 21.1424C20.5184 21.129 20.5039 21.1145 20.4905 21.1011C20.4432 21.0538 20.3983 21.0041 20.3546 20.9519C20.2588 20.8354 20.1654 20.7007 20.0744 20.5466C19.9834 20.3925 19.8948 20.219 19.8099 20.0273C19.6376 19.6439 19.4411 19.1185 19.2191 18.4512L18.7593 17.1444H13.3473L14.0668 19.3903C14.1881 19.815 14.2487 20.1377 14.2487 20.361C14.2487 20.5636 14.2038 20.7456 14.1129 20.907C14.0219 21.0696 13.8447 21.2006 13.5827 21.3013L11.8855 21.8777V22.545H29.5723V21.908L28.33 21.4227C27.9867 21.2613 27.7586 21.0793 27.6482 20.8767L27.6446 20.8779ZM5.691 16.1483L6.09499 14.8245L6.20053 14.4812L6.23086 14.3829L9.27229 4.42746L12.4132 14.2336H17.733L12.9737 0.718295H8.94231C8.63901 1.87096 8.23503 3.13405 7.73034 4.50754L3.39567 16.3303C2.99169 17.4417 2.64229 18.3311 2.34992 18.9984C2.05633 19.6658 1.77366 20.196 1.5007 20.5903C1.22773 20.9846 0.919586 21.3025 0.576258 21.5452L0 21.8789V22.5462H7.72913V21.8789L6.15322 21.3329C5.68857 21.1509 5.36951 20.8888 5.19845 20.5442C5.02618 20.2008 4.94126 19.8162 4.94126 19.3915C4.94126 19.0688 4.991 18.6696 5.0929 18.194C5.16933 17.836 5.26275 17.4866 5.37315 17.1444C5.40954 17.034 5.44715 16.9236 5.48719 16.8144L5.691 16.1471V16.1483ZM43.8902 20.3015C43.7786 20.0795 43.724 19.6755 43.724 19.0894V11.9053C43.724 9.96513 43.2242 8.56615 42.2233 7.70711C41.2237 6.84807 39.6514 6.41855 37.5101 6.41855C36.5396 6.41855 35.5448 6.50955 34.5245 6.69155C33.5042 6.87355 32.1249 7.18659 30.3876 7.63067L32.1758 12.2389H32.8127L33.7517 10.2078C33.9944 9.62176 34.2467 9.13642 34.51 8.75301C34.772 8.36959 35.0801 8.07596 35.4344 7.87334C35.7874 7.67192 36.2169 7.57 36.7228 7.57C37.4507 7.57 37.9748 7.7969 38.2987 8.2519C38.6214 8.7069 38.784 9.40942 38.784 10.3583V13.6889C36.7022 14.0796 35.0243 14.5248 33.7529 15.0272C32.3177 15.5926 31.2975 16.2247 30.6921 16.9224C30.0855 17.6201 29.7822 18.4427 29.7822 19.3928C29.7822 20.5454 30.1813 21.4287 30.9796 22.0451C31.7779 22.6615 32.7933 22.9697 34.0259 22.9697C35.0365 22.9697 35.9755 22.7525 36.8453 22.3181C37.5004 21.9905 38.1737 21.544 38.864 20.981C38.9781 21.476 39.2171 21.8825 39.5883 22.198C40.1233 22.653 40.816 22.8799 41.664 22.8799C42.2706 22.8799 42.9015 22.7937 43.559 22.6227C44.2153 22.4516 44.7965 22.2538 45.3023 22.0318L45.6056 21.8801V21.3038L44.5757 20.8488C44.2323 20.708 44.0042 20.526 43.8939 20.3028L43.8902 20.3015ZM38.7828 19.9351C38.511 20.0759 38.2574 20.1911 38.0245 20.2712C37.6205 20.4132 37.1765 20.4835 36.6912 20.4835C36.0446 20.4835 35.489 20.3125 35.0243 19.9679C34.5597 19.6245 34.3268 19.0894 34.3268 18.3614C34.3268 17.836 34.4978 17.3459 34.8424 16.8909C35.1857 16.4359 35.7462 15.9966 36.525 15.572C37.128 15.2431 37.8826 14.9083 38.7828 14.5661V19.9351ZM99.1964 21.4239C98.8531 21.2625 98.625 21.0805 98.5146 20.8779C98.403 20.6765 98.3484 20.3222 98.3484 19.8174V10.6931C98.3484 9.23834 98.0305 8.16211 97.3936 7.46444C96.7567 6.76678 95.7716 6.41855 94.4383 6.41855C93.731 6.41855 92.9777 6.54474 92.1806 6.79711C91.3823 7.04948 90.6193 7.34796 89.8926 7.69134C89.2484 7.99588 88.6539 8.30893 88.1043 8.62925V6.41855L81.0728 7.35767V8.02501L82.3151 8.44967C82.6584 8.57101 82.8853 8.7433 82.9969 8.96534C83.1073 9.18738 83.1631 9.59142 83.1631 10.1775V19.8174C83.1631 20.3222 83.1073 20.6765 82.9969 20.8779C82.8853 21.0805 82.6584 21.2625 82.3151 21.4239L81.0728 21.9092V22.5462H90.1049V21.9092L88.9827 21.4542C88.6588 21.3135 88.4416 21.1363 88.3312 20.924C88.2196 20.7116 88.165 20.3428 88.165 19.8174V9.5708C88.7109 9.40942 89.2763 9.28809 89.8622 9.20679C90.4482 9.1255 90.9238 9.08546 91.2865 9.08546C92.0338 9.08546 92.564 9.24198 92.8782 9.55502C93.1912 9.86806 93.3477 10.3995 93.3477 11.1469V19.8174C93.3477 20.3428 93.2919 20.7116 93.1815 20.924C93.0699 21.1363 92.8527 21.3135 92.53 21.4542L91.409 21.9092V22.5462H100.441V21.9092L99.1988 21.4239H99.1964ZM61.9823 20.8779C61.8707 20.6765 61.8161 20.3222 61.8161 19.8174V6.41733L51.1183 6.94028V3.02242L47.5115 3.38642L46.6926 5.66021C46.592 6.02421 46.4355 6.3324 46.2231 6.58478C46.0108 6.83715 45.7427 7.04463 45.42 7.206L44.1171 7.96434V8.57101H46.1479V18.8783C46.1479 20.1717 46.4755 21.1824 47.133 21.9092C47.7894 22.6372 48.6835 23 49.8154 23C50.8453 23 51.8353 22.727 52.7852 22.181C53.4306 21.8097 54.0166 21.3972 54.5407 20.941L53.9826 19.9375C53.609 20.0188 53.2292 20.0589 52.8459 20.0589C52.2393 20.0589 51.8001 19.9181 51.5271 19.6342C51.2542 19.3515 51.1183 18.9062 51.1183 18.3007V8.56979H54.2883C54.6875 8.56979 55.0817 8.66807 55.4336 8.85735C56.1869 9.26139 56.671 10.0331 56.7086 10.8873L56.8154 13.3698V19.8162C56.8154 20.321 56.7596 20.6752 56.6492 20.8767C56.5376 21.0793 56.3107 21.2613 55.9674 21.4227L54.7251 21.908V22.545H63.9391V21.908L62.6665 21.4227C62.3232 21.2613 62.0951 21.0793 61.9847 20.8767L61.9823 20.8779ZM76.834 7.388C75.5504 6.70126 74.0497 6.35788 72.3331 6.35788C70.6164 6.35788 69.1145 6.70126 67.8322 7.388C66.5487 8.07475 65.5684 9.04542 64.8915 10.2976C64.2145 11.551 63.876 13.0155 63.876 14.6935C63.876 16.3715 64.2145 17.8118 64.8915 19.0736C65.5684 20.3367 66.5487 21.3074 67.8322 21.9844C69.1145 22.6615 70.6152 23 72.3331 23C74.0509 23 75.5504 22.6615 76.834 21.9844C78.1163 21.3074 79.1026 20.3379 79.7892 19.0736C80.4759 17.8106 80.8192 16.3509 80.8192 14.6935C80.8192 13.0361 80.4759 11.551 79.7892 10.2976C79.1026 9.04542 78.1163 8.07475 76.834 7.388ZM75.1367 19.1343C74.8832 20.1754 74.5253 20.8924 74.0606 21.2868C73.596 21.6811 73.0197 21.8777 72.3331 21.8777C71.6464 21.8777 71.075 21.6653 70.6201 21.2407C70.1651 20.816 69.8121 20.0783 69.5598 19.0275C69.3062 17.9768 69.1813 16.5014 69.1813 14.6013C69.1813 12.7012 69.3074 11.2622 69.5598 10.2211C69.8121 9.1801 70.1664 8.46302 70.6201 8.06869C71.075 7.67435 71.6452 7.47779 72.3331 7.47779C73.0209 7.47779 73.596 7.69012 74.0606 8.11479C74.5253 8.53946 74.8832 9.28202 75.1367 10.3425C75.3891 11.4029 75.5152 12.8735 75.5152 14.753C75.5152 16.6324 75.3891 18.0933 75.1367 19.1331V19.1343Z" class="astro-saxuaypl"></path> <path fill="url(#hero-alation-alation-accent)" d="M6.20053 14.4812L5.691 16.1483L5.48719 16.8156C5.44715 16.9248 5.40954 17.0352 5.37315 17.1457H18.7569L17.7318 14.2324H6.27575L6.20053 14.4812Z" class="astro-saxuaypl"></path> <defs class="astro-saxuaypl"> <linearGradient id="hero-alation-alation-accent" x1="18.758" y1="15.6896" x2="5.37431" y2="15.6896" gradientUnits="userSpaceOnUse" class="astro-saxuaypl"> <stop stop-color="#FF9901" class="astro-saxuaypl"></stop> <stop offset="1" stop-color="#EA5458" class="astro-saxuaypl"></stop> </linearGradient> </defs> </svg>      </span> </a> </li> <li class="astro-j7pv25f6"> <a href="/pr-preview/pr-4103/built-with-a2ui/#bytedance" title="ByteDance: Lynx" class="astro-j7pv25f6"><span class="team-logo astro-saxuaypl">   <svg class="team-logo__mark astro-saxuaypl" viewBox="0 0 24 24" height="18.7" width="18.7" aria-hidden="true"> <path fill="#325AB4" d="M0 2.572l4.115 1.0642v16.7354L0 21.428V2.572z" class="astro-saxuaypl"></path> <path fill="#3C8CFF" d="M6.5291 10.8965l4.115 1.0641v8.9786l-4.115 1.0642v-11.107z" class="astro-saxuaypl"></path> <path fill="#00C8D2" d="M17.4553 8.1925v11.107l-4.1228-1.0642V9.2568l4.1228-1.0642z" class="astro-saxuaypl"></path> <path fill="#78E6DC" d="M19.8772 1.4685L24 2.5326v18.9426l-4.1228 1.0563V1.4685z" class="astro-saxuaypl"></path> </svg> <span class="team-logo__name astro-saxuaypl">ByteDance</span>     </span> </a> </li> <li class="astro-j7pv25f6"> <a href="/pr-preview/pr-4103/built-with-a2ui/#atlassian" title="Atlassian: Jira" class="astro-j7pv25f6"><span class="team-logo astro-saxuaypl">    <svg class="team-logo__mark astro-saxuaypl" viewBox="0 0 256 256" height="18" width="18" aria-hidden="true"> <defs class="astro-saxuaypl"> <linearGradient id="hero-atlassian-atlassian-grad" x1="99.7%" y1="15.8%" x2="39.8%" y2="97.4%" class="astro-saxuaypl"> <stop offset="0%" stop-color="#0052CC" class="astro-saxuaypl"></stop> <stop offset="92.3%" stop-color="#2684FF" class="astro-saxuaypl"></stop> </linearGradient> </defs> <path fill="url(#hero-atlassian-atlassian-grad)" d="M75.793 117.949c-3.82-4.08-9.77-3.849-12.367 1.343L.791 244.565a7.04 7.04 0 0 0 6.697 10.838h87.228a6.98 6.98 0 0 0 6.699-4.141c18.808-38.888 7.413-98.017-25.622-133.313Z" class="astro-saxuaypl"></path> <path fill="#2684FF" d="M121.756 4.011c-35.033 55.505-32.721 116.978-9.646 163.13l42.06 84.121a7.04 7.04 0 0 0 6.697 4.139h87.227a7.04 7.04 0 0 0 6.697-10.837C238.411 211.891 207.135 123.693 121.756 4.011Z" class="astro-saxuaypl"></path> </svg> <span class="team-logo__name astro-saxuaypl">Atlassian</span>    </span> </a> </li> <li class="astro-j7pv25f6"> <a href="/pr-preview/pr-4103/built-with-a2ui/#gemini-enterprise" title="Google Cloud: Gemini Enterprise" class="astro-j7pv25f6"><span class="team-logo astro-saxuaypl">     <svg class="team-logo__mark astro-saxuaypl" viewBox="0 0 256 206" height="17.3" width="21.6" aria-hidden="true"> <path fill="#EA4335" d="m170.252 56.819 22.253-22.253 1.483-9.37C153.437-11.677 88.976-7.496 52.42 33.92 42.267 45.423 34.734 59.764 30.717 74.573l7.97-1.123 44.505-7.34 3.436-3.513c19.797-21.742 53.27-24.667 76.128-6.168z" class="astro-saxuaypl"></path> <path fill="#4285F4" d="M224.205 73.918a100.25 100.25 0 0 0-30.217-48.722l-31.232 31.232a55.52 55.52 0 0 1 20.379 44.037v5.544c15.35 0 27.797 12.445 27.797 27.796 0 15.352-12.446 27.485-27.797 27.485h-55.671l-5.466 5.934v33.34l5.466 5.231h55.67c39.93.311 72.553-31.494 72.864-71.424a72.3 72.3 0 0 0-31.793-60.453" class="astro-saxuaypl"></path> <path fill="#34A853" d="M71.87 205.796h55.593V161.29H71.87a27.3 27.3 0 0 1-11.399-2.498l-7.887 2.42-22.409 22.253-1.952 7.574c12.567 9.489 27.9 14.825 43.647 14.757" class="astro-saxuaypl"></path> <path fill="#FBBC05" d="M71.87 61.426C31.94 61.663-.237 94.227.001 134.158a72.3 72.3 0 0 0 28.222 56.88l32.248-32.246c-13.99-6.322-20.208-22.786-13.887-36.776s22.786-20.208 36.775-13.888a27.8 27.8 0 0 1 13.887 13.888l32.248-32.248A72.22 72.22 0 0 0 71.87 61.427" class="astro-saxuaypl"></path> </svg> <span class="team-logo__name astro-saxuaypl">Google Cloud</span>   </span> </a> </li> <li class="astro-j7pv25f6"> <a href="/pr-preview/pr-4103/built-with-a2ui/#gemini-notebook" title="Gemini: Gemini Notebook" class="astro-j7pv25f6"><span class="team-logo astro-saxuaypl">      <svg class="team-logo__mark astro-saxuaypl" viewBox="0 0 24 24" height="20.2" width="20.2" aria-hidden="true"> <defs class="astro-saxuaypl"> <linearGradient id="hero-gemini-gemini-fill-0" gradientUnits="userSpaceOnUse" x1="7" y1="15.5" x2="11" y2="12" class="astro-saxuaypl"> <stop stop-color="#08B962" class="astro-saxuaypl"></stop> <stop offset="1" stop-color="#08B962" stop-opacity="0" class="astro-saxuaypl"></stop> </linearGradient> <linearGradient id="hero-gemini-gemini-fill-1" gradientUnits="userSpaceOnUse" x1="8" y1="5.5" x2="11.5" y2="11" class="astro-saxuaypl"> <stop stop-color="#F94543" class="astro-saxuaypl"></stop> <stop offset="1" stop-color="#F94543" stop-opacity="0" class="astro-saxuaypl"></stop> </linearGradient> <linearGradient id="hero-gemini-gemini-fill-2" gradientUnits="userSpaceOnUse" x1="3.5" y1="13.5" x2="17.5" y2="12" class="astro-saxuaypl"> <stop stop-color="#FABC12" class="astro-saxuaypl"></stop> <stop offset=".46" stop-color="#FABC12" stop-opacity="0" class="astro-saxuaypl"></stop> </linearGradient> </defs> <path fill="#3186FF" d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" class="astro-saxuaypl"></path> <path fill="url(#hero-gemini-gemini-fill-0)" d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" class="astro-saxuaypl"></path> <path fill="url(#hero-gemini-gemini-fill-1)" d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" class="astro-saxuaypl"></path> <path fill="url(#hero-gemini-gemini-fill-2)" d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" class="astro-saxuaypl"></path> </svg> <span class="team-logo__name astro-saxuaypl">Gemini</span>  </span> </a> </li> <li class="a2-renderers__more astro-j7pv25f6"> <a href="/pr-preview/pr-4103/built-with-a2ui/" class="astro-j7pv25f6"><span class="astro-j7pv25f6">See what they built</span><span aria-hidden="true" class="astro-j7pv25f6">→</span></a> </li> </ul> </div> <!-- Renderer strip: the same stream renders natively in each of these --> <div class="a2-renderers astro-j7pv25f6"> <span class="a2-renderers__lbl astro-j7pv25f6">RENDERS NATIVELY IN</span> <ul class="a2-renderers__list astro-j7pv25f6" aria-label="A2UI renderers"> <li class="astro-j7pv25f6"> <a href="https://www.npmjs.com/package/@a2ui/react" target="_blank" rel="noopener noreferrer" class="astro-j7pv25f6"><svg class="rmark astro-j7pv25f6 astro-tdxwluyp" width="20" height="20" viewBox="0 0 24 24" role="img" aria-label="React" style="--brand: #61DAFB"> <path fill="currentColor" d="M14.23 12.004a2.236 2.236 0 0 1-2.235 2.236 2.236 2.236 0 0 1-2.236-2.236 2.236 2.236 0 0 1 2.235-2.236 2.236 2.236 0 0 1 2.236 2.236zm2.648-10.69c-1.346 0-3.107.96-4.888 2.622-1.78-1.653-3.542-2.602-4.887-2.602-.41 0-.783.093-1.106.278-1.375.793-1.683 3.264-.973 6.365C1.98 8.917 0 10.42 0 12.004c0 1.59 1.99 3.097 5.043 4.03-.704 3.113-.39 5.588.988 6.38.32.187.69.275 1.102.275 1.345 0 3.107-.96 4.888-2.624 1.78 1.654 3.542 2.603 4.887 2.603.41 0 .783-.09 1.106-.275 1.374-.792 1.683-3.263.973-6.365C22.02 15.096 24 13.59 24 12.004c0-1.59-1.99-3.097-5.043-4.032.704-3.11.39-5.587-.988-6.38-.318-.184-.688-.277-1.092-.278zm-.005 1.09v.006c.225 0 .406.044.558.127.666.382.955 1.835.73 3.704-.054.46-.142.945-.25 1.44-.96-.236-2.006-.417-3.107-.534-.66-.905-1.345-1.727-2.035-2.447 1.592-1.48 3.087-2.292 4.105-2.295zm-9.77.02c1.012 0 2.514.808 4.11 2.28-.686.72-1.37 1.537-2.02 2.442-1.107.117-2.154.298-3.113.538-.112-.49-.195-.964-.254-1.42-.23-1.868.054-3.32.714-3.707.19-.09.4-.127.563-.132zm4.882 3.05c.455.468.91.992 1.36 1.564-.44-.02-.89-.034-1.345-.034-.46 0-.915.01-1.36.034.44-.572.895-1.096 1.345-1.565zM12 8.1c.74 0 1.477.034 2.202.093.406.582.802 1.203 1.183 1.86.372.64.71 1.29 1.018 1.946-.308.655-.646 1.31-1.013 1.95-.38.66-.773 1.288-1.18 1.87-.728.063-1.466.098-2.21.098-.74 0-1.477-.035-2.202-.093-.406-.582-.802-1.204-1.183-1.86-.372-.64-.71-1.29-1.018-1.946.303-.657.646-1.313 1.013-1.954.38-.66.773-1.286 1.18-1.868.728-.064 1.466-.098 2.21-.098zm-3.635.254c-.24.377-.48.763-.704 1.16-.225.39-.435.782-.635 1.174-.265-.656-.49-1.31-.676-1.947.64-.15 1.315-.283 2.015-.386zm7.26 0c.695.103 1.365.23 2.006.387-.18.632-.405 1.282-.66 1.933-.2-.39-.41-.783-.64-1.174-.225-.392-.465-.774-.705-1.146zm3.063.675c.484.15.944.317 1.375.498 1.732.74 2.852 1.708 2.852 2.476-.005.768-1.125 1.74-2.857 2.475-.42.18-.88.342-1.355.493-.28-.958-.646-1.956-1.1-2.98.45-1.017.81-2.01 1.085-2.964zm-13.395.004c.278.96.645 1.957 1.1 2.98-.45 1.017-.812 2.01-1.086 2.964-.484-.15-.944-.318-1.37-.5-1.732-.737-2.852-1.706-2.852-2.474 0-.768 1.12-1.742 2.852-2.476.42-.18.88-.342 1.356-.494zm11.678 4.28c.265.657.49 1.312.676 1.948-.64.157-1.316.29-2.016.39.24-.375.48-.762.705-1.158.225-.39.435-.788.636-1.18zm-9.945.02c.2.392.41.783.64 1.175.23.39.465.772.705 1.143-.695-.102-1.365-.23-2.006-.386.18-.63.406-1.282.66-1.933zM17.92 16.32c.112.493.2.968.254 1.423.23 1.868-.054 3.32-.714 3.708-.147.09-.338.128-.563.128-1.012 0-2.514-.807-4.11-2.28.686-.72 1.37-1.536 2.02-2.44 1.107-.118 2.154-.3 3.113-.54zm-11.83.01c.96.234 2.006.415 3.107.532.66.905 1.345 1.727 2.035 2.446-1.595 1.483-3.092 2.295-4.11 2.295-.22-.005-.406-.05-.553-.132-.666-.38-.955-1.834-.73-3.703.054-.46.142-.944.25-1.438zm4.56.64c.44.02.89.034 1.345.034.46 0 .915-.01 1.36-.034-.44.572-.895 1.095-1.345 1.565-.455-.47-.91-.993-1.36-1.565z" class="astro-tdxwluyp"></path> </svg> <span class="astro-j7pv25f6">React</span></a> </li> <li class="astro-j7pv25f6"> <a href="https://www.npmjs.com/package/@a2ui/lit" target="_blank" rel="noopener noreferrer" class="astro-j7pv25f6"><svg class="rmark astro-j7pv25f6 astro-tdxwluyp" width="20" height="20" viewBox="0 0 24 24" role="img" aria-label="Lit" style="--brand: #324FFF"> <path fill="currentColor" d="M2.4 9.6l4.8 4.8V24l-4.8-4.8V9.6zm4.8-4.8v9.6L12 9.6V0L7.2 4.8zM12 9.6v9.6l4.8-4.8V4.8L12 9.6zm4.8 4.8V24l4.8-4.8V9.6l-4.8 4.8z" class="astro-tdxwluyp"></path> </svg> <span class="astro-j7pv25f6">Lit</span></a> </li> <li class="astro-j7pv25f6"> <a href="https://www.npmjs.com/package/@a2ui/angular" target="_blank" rel="noopener noreferrer" class="astro-j7pv25f6"><svg class="rmark astro-j7pv25f6 astro-tdxwluyp" width="20" height="20" viewBox="0 0 24 24" role="img" aria-label="Angular" style="--brand: #DD0031"> <path fill="currentColor" d="M16.712 17.711H7.288l-1.204 2.916L12 24l5.916-3.373-1.204-2.916ZM14.692 0l7.832 16.855.814-12.856L14.692 0ZM9.308 0 .662 3.999l.814 12.856L9.308 0Zm-.405 13.93h6.198L12 6.396 8.903 13.93Z" class="astro-tdxwluyp"></path> </svg> <span class="astro-j7pv25f6">Angular</span></a> </li> <li class="astro-j7pv25f6"> <a href="https://pub.dev/packages/a2ui_flutter" target="_blank" rel="noopener noreferrer" class="astro-j7pv25f6"><svg class="rmark astro-j7pv25f6 astro-tdxwluyp" width="20" height="20" viewBox="0 0 24 24" role="img" aria-label="Flutter" style="--brand: #02569B"> <path fill="currentColor" d="M14.314 0L2.3 12 6 15.7 21.684.013h-7.357zm.014 11.072L7.857 17.53l6.47 6.47H21.7l-6.46-6.468 6.46-6.46h-7.37z" class="astro-tdxwluyp"></path> </svg> <span class="astro-j7pv25f6">Flutter</span></a> </li> <li class="astro-j7pv25f6"> <a href="https://github.com/a2ui-project/a2ui/tree/main/swift/swiftui" target="_blank" rel="noopener noreferrer" class="astro-j7pv25f6"><svg class="rmark astro-j7pv25f6 astro-tdxwluyp" width="20" height="20" viewBox="0 0 24 24" role="img" aria-label="SwiftUI" style="--brand: #F05138"> <path fill="currentColor" d="M7.508 0c-.287 0-.573 0-.86.002-.241.002-.483.003-.724.01-.132.003-.263.009-.395.015A9.154 9.154 0 0 0 4.348.15 5.492 5.492 0 0 0 2.85.645 5.04 5.04 0 0 0 .645 2.848c-.245.48-.4.972-.495 1.5-.093.52-.122 1.05-.136 1.576a35.2 35.2 0 0 0-.012.724C0 6.935 0 7.221 0 7.508v8.984c0 .287 0 .575.002.862.002.24.005.481.012.722.014.526.043 1.057.136 1.576.095.528.25 1.02.495 1.5a5.03 5.03 0 0 0 2.205 2.203c.48.244.97.4 1.498.495.52.093 1.05.124 1.576.138.241.007.483.009.724.01.287.002.573.002.86.002h8.984c.287 0 .573 0 .86-.002.241-.001.483-.003.724-.01a10.523 10.523 0 0 0 1.578-.138 5.322 5.322 0 0 0 1.498-.495 5.035 5.035 0 0 0 2.203-2.203c.245-.48.4-.972.495-1.5.093-.52.124-1.05.138-1.576.007-.241.009-.481.01-.722.002-.287.002-.575.002-.862V7.508c0-.287 0-.573-.002-.86a33.662 33.662 0 0 0-.01-.724 10.5 10.5 0 0 0-.138-1.576 5.328 5.328 0 0 0-.495-1.5A5.039 5.039 0 0 0 21.152.645 5.32 5.32 0 0 0 19.654.15a10.493 10.493 0 0 0-1.578-.138 34.98 34.98 0 0 0-.722-.01C17.067 0 16.779 0 16.492 0H7.508zm6.035 3.41c4.114 2.47 6.545 7.162 5.549 11.131-.024.093-.05.181-.076.272l.002.001c2.062 2.538 1.5 5.258 1.236 4.745-1.072-2.086-3.066-1.568-4.088-1.043a6.803 6.803 0 0 1-.281.158l-.02.012-.002.002c-2.115 1.123-4.957 1.205-7.812-.022a12.568 12.568 0 0 1-5.64-4.838c.649.48 1.35.902 2.097 1.252 3.019 1.414 6.051 1.311 8.197-.002C9.651 12.73 7.101 9.67 5.146 7.191a10.628 10.628 0 0 1-1.005-1.384c2.34 2.142 6.038 4.83 7.365 5.576C8.69 8.408 6.208 4.743 6.324 4.86c4.436 4.47 8.528 6.996 8.528 6.996.154.085.27.154.36.213.085-.215.16-.437.224-.668.708-2.588-.09-5.548-1.893-7.992z" class="astro-tdxwluyp"></path> </svg> <span class="astro-j7pv25f6">SwiftUI</span></a> </li> <li class="astro-j7pv25f6"> <a href="https://developer.android.com/jetpack/androidx/releases/a2ui-compose" target="_blank" rel="noopener noreferrer" class="astro-j7pv25f6"><svg class="rmark astro-j7pv25f6 astro-tdxwluyp" width="20" height="20" viewBox="0 0 24 24" role="img" aria-label="Jetpack Compose" style="--brand: #4285F4"> <path fill="currentColor" d="M12.135.003a2.577 2.577 0 0 0-1.42.344L2.55 5.06a2.577 2.577 0 0 0-.953.967l3.957 2.17a1.765 1.765 0 0 1 .603-.588l4.951-2.86a1.761 1.761 0 0 1 1.76 0l4.951 2.86a1.753 1.753 0 0 1 .526.46l3.921-2.265a2.577 2.577 0 0 0-.816-.744L13.291.347a2.577 2.577 0 0 0-1.152-.34Zm-.145 4.912a1.36 1.36 0 0 0-.68.182L6.36 7.953a1.345 1.345 0 0 0-.454.435l1.92 1.055a1.05 1.05 0 0 1 .31-.275l3.34-1.928a1.054 1.054 0 0 1 1.051 0l3.336 1.928a1.066 1.066 0 0 1 .238.199l.018-.01-.002-.002 1.877-1.08a1.353 1.353 0 0 0-.373-.322l-4.95-2.86a1.357 1.357 0 0 0-.68-.178Zm10.432 1.149-3.92 2.26a1.757 1.757 0 0 1 .2.812v5.715c0 .627-.332 1.21-.88 1.528l-4.95 2.86a1.761 1.761 0 0 1-.64.214v4.524a2.577 2.577 0 0 0 1.059-.313l8.162-4.713a2.577 2.577 0 0 0 1.289-2.23V7.297a2.577 2.577 0 0 0-.318-1.228Zm-20.937.238a2.577 2.577 0 0 0-.227.99v9.43c0 .918.491 1.767 1.293 2.229l8.162 4.713a2.57 2.57 0 0 0 1.225.336v-4.531a1.761 1.761 0 0 1-.833-.235L6.156 16.38a1.765 1.765 0 0 1-.877-1.528V9.136a1.776 1.776 0 0 1 .131-.676Zm16.67 2.223-1.89 1.092a1.058 1.058 0 0 1 .124.46v3.856c0 .378-.2.72-.526.907l-3.336 1.93a1.04 1.04 0 0 1-.295.107v2.17c.152-.027.304-.078.44-.157l4.949-2.859a1.36 1.36 0 0 0 .68-1.18V9.136a1.36 1.36 0 0 0-.147-.607Zm-12.387.13a1.36 1.36 0 0 0-.088.481v5.715a1.36 1.36 0 0 0 .68 1.18l4.95 2.86c.194.112.412.166.627.177v-2.174a1.054 1.054 0 0 1-.46-.123L8.14 14.843a1.054 1.054 0 0 1-.532-.908v-3.853a.99.99 0 0 1 .077-.38l-.034-.013z" class="astro-tdxwluyp"></path> </svg> <span class="astro-j7pv25f6">Jetpack Compose</span></a> </li> <li class="a2-renderers__more astro-j7pv25f6"> <a href="/pr-preview/pr-4103/ecosystem/renderers/" title="Lynx, Svelte, Vue, Compose Multiplatform, Go TUI, and other community renderers" class="astro-j7pv25f6"><span class="astro-j7pv25f6">and more community renderers</span><span aria-hidden="true" class="astro-j7pv25f6">→</span></a> </li> </ul> </div> </div> </div> </section> <!-- =================================================================
+           THE IDEA — INTERACTIVE STAGE (own section, alternate tone)
+           ================================================================= --> <section class="a2-section a2-section--alt a2-section--stage astro-j7pv25f6" id="custom-ui"> <span id="examples" class="a2-anchor-alias astro-j7pv25f6" aria-hidden="true"></span> <div class="a2-wrap astro-j7pv25f6"> <div class="a2-chapter a2-chapter--stage astro-j7pv25f6"> <div class="a2-chapter__stage-row astro-j7pv25f6"> <h2 class="a2-h2 astro-j7pv25f6">
+Custom UI for <span class="a2-h-accent astro-j7pv25f6">each user's intent.</span> </h2> <div class="a2-stage__actions astro-j7pv25f6"> <a href="/pr-preview/pr-4103/built-with-a2ui/" class="a2-btn a2-btn--primary astro-j7pv25f6"> <span class="astro-j7pv25f6">Built with A2UI</span> <span aria-hidden="true" class="astro-j7pv25f6">→</span> </a> <a href="https://go.copilotkit.ai/a2ui-playground" target="_blank" rel="noopener noreferrer" class="a2-btn a2-btn--outline astro-j7pv25f6"> <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true" class="copilotkit-logo astro-nbk3bhdi"><defs class="astro-nbk3bhdi"><linearGradient gradientUnits="userSpaceOnUse" id="stage-ck-0" x1="17.852" x2="14.202" y1="1.467" y2="11.504" class="astro-nbk3bhdi"><stop stop-color="#6430AB" class="astro-nbk3bhdi"></stop><stop offset="1" stop-color="#AA89D8" class="astro-nbk3bhdi"></stop></linearGradient><linearGradient gradientUnits="userSpaceOnUse" id="stage-ck-1" x1="15.024" x2="10.324" y1="7.125" y2="16.204" class="astro-nbk3bhdi"><stop stop-color="#005DBB" class="astro-nbk3bhdi"></stop><stop offset="1" stop-color="#3D92E8" class="astro-nbk3bhdi"></stop></linearGradient><linearGradient gradientUnits="userSpaceOnUse" id="stage-ck-2" x1="17.122" x2="15.707" y1="1.467" y2="5.892" class="astro-nbk3bhdi"><stop stop-color="#1B70C4" class="astro-nbk3bhdi"></stop><stop offset="1" stop-color="#54A4F2" class="astro-nbk3bhdi"></stop></linearGradient><linearGradient gradientUnits="userSpaceOnUse" id="stage-ck-3" x1="6.577" x2="21.506" y1="21.758" y2="21.758" class="astro-nbk3bhdi"><stop stop-color="#4497EA" class="astro-nbk3bhdi"></stop><stop offset=".255" stop-color="#1463B2" class="astro-nbk3bhdi"></stop><stop offset=".499" stop-color="#0A437D" class="astro-nbk3bhdi"></stop><stop offset=".667" stop-color="#2476C8" class="astro-nbk3bhdi"></stop><stop offset=".973" stop-color="#0C549A" class="astro-nbk3bhdi"></stop></linearGradient></defs><path d="M8.162 7.758c2.093-2.738 3.831-5.445 4.498-7.63a.093.093 0 01.14-.051c2.324 1.539 6.558 2.552 10.301 2.576a.09.09 0 01.085.124c-1.243 3.158-2.765 8.817-2.823 15.28-.001.095-.135.13-.183.046-2.131-3.729-8.955-8.968-11.982-10.205a.09.09 0 01-.036-.14z" fill="url(#stage-ck-0)" class="astro-nbk3bhdi"></path><path d="M15.223 6.083A61.492 61.492 0 018.25 7.827c-.045.008-.055.071-.012.089 3.05 1.267 9.84 6.492 11.952 10.206a.017.017 0 00.022.007.018.018 0 00.01-.024l-4.999-12.02z" fill="url(#stage-ck-1)" class="astro-nbk3bhdi"></path><path d="M12.81.07c2.8 1.528 6.037 2.214 10.33 2.575.028.002.036.039.012.051-.55.282-3.695 1.883-6.03 2.74-.626.23-1.256.443-1.876.64a.028.028 0 01-.033-.016L12.746.128c-.017-.04.027-.078.065-.058z" fill="url(#stage-ck-2)" class="astro-nbk3bhdi"></path><path d="M12.725.075c.046-.019.1.003.119.05l7.514 17.923a.091.091 0 01-.148.1l-.02-.03L12.675.195a.091.091 0 01.049-.12z" fill="#513C9F" class="astro-nbk3bhdi"></path><path d="M23.06 2.66c.044-.025.1-.01.125.034.025.044.009.1-.035.124v.001l-.008.004-.025.015-.1.054a41.384 41.384 0 01-1.811.92A47.05 47.05 0 0116.33 5.82c-1.954.674-3.97 1.197-5.497 1.552a66.27 66.27 0 01-2.38.507l-.138.026-.036.007h-.01l-.002.002a.091.091 0 11-.033-.18l.016.09-.015-.09h.002l.01-.002.035-.007.137-.025a66.16 66.16 0 002.373-.506c1.524-.354 3.533-.876 5.479-1.547a46.857 46.857 0 006.276-2.709c.166-.087.295-.156.381-.204l.099-.054.024-.014.008-.004z" fill="#513C9F" class="astro-nbk3bhdi"></path><path d="M13.838 2.272a.16.16 0 01.107.2l-2.72 9.055h6.4l.061.013a.16.16 0 010 .295l-.061.013h-6.541L.679 24.099l-.05.04a.16.16 0 01-.194-.245l10.43-12.285 2.773-9.23a.16.16 0 01.2-.107z" fill="#ABABAB" class="astro-nbk3bhdi"></path><path d="M7.809 21.461l-1.232.173c.638 1.69 1.949 2.427 3.514 2.427 3.831 0 2.661-4.334 4.883-4.334 1.61 0 .956 3.513 4.423 3.513 2.116 0 2.326-2.131 1.966-3.048l-.008-.016-.567-.868c-.037-.058-.127-.036-.133.032l-.106 1.053a1.01 1.01 0 00.003.219c.088.727.144 2.491-1.155 2.491-1.37 0-1.7-3.467-4.423-3.467-3.196 0-2.785 4.289-4.747 4.289-1.294 0-2.28-1.46-2.418-2.464z" fill="url(#stage-ck-3)" class="astro-nbk3bhdi"></path></svg>  <span class="astro-j7pv25f6">Playground</span> <span aria-hidden="true" class="astro-j7pv25f6">↗</span> </a> </div> </div> </div> <!-- Intent → Composed Screen Stage --> <div class="a2-hero__stage astro-j7pv25f6"> <div class="ic-root astro-awthgajc" id="hero-chat-visual" role="region" aria-label="One app screen whose surface is composed differently for each customer intent"> <div class="ic-split astro-awthgajc"> <!-- =================================================================
+         INTENTS — four requests, one screen. Explicit trigger; zero timers.
+         ================================================================= --> <div class="ic-picker astro-awthgajc"> <div class="ic-steps astro-awthgajc" id="ic-steps" role="group" aria-label="Choose a customer intent to compose"> <button type="button" class="ic-step is-active astro-awthgajc" data-ic="dinner" aria-pressed="true"> <span class="ic-step__head astro-awthgajc"> <span class="ic-step__tag astro-awthgajc">PLAN</span> <span class="ic-step__play astro-awthgajc" aria-hidden="true"> <i class="ic-step__play-ico astro-awthgajc"></i> <span class="ic-step__play-lbl astro-awthgajc" data-lbl-idle="Play" data-lbl-live="Live"></span> </span> </span> <span class="ic-step__q astro-awthgajc">"Dinner for four tonight, one vegetarian, under $40."</span> <span class="ic-step__desc astro-awthgajc">A recipe that fits the diet and the budget, a basket built from it, pantry items skipped, and the 5:30 slot booked — as one screen.</span> </button> <button type="button" class="ic-step astro-awthgajc" data-ic="bill" aria-pressed="false"> <span class="ic-step__head astro-awthgajc"> <span class="ic-step__tag astro-awthgajc">EXPLAIN</span> <span class="ic-step__play astro-awthgajc" aria-hidden="true"> <i class="ic-step__play-ico astro-awthgajc"></i> <span class="ic-step__play-lbl astro-awthgajc" data-lbl-idle="Play" data-lbl-live="Live"></span> </span> </span> <span class="ic-step__q astro-awthgajc">"Why was last week's order $23 more than usual?"</span> <span class="ic-step__desc astro-awthgajc">Same screen, different shape: a comparison, the three lines that moved, and a switch that stops it happening again.</span> </button> <button type="button" class="ic-step astro-awthgajc" data-ic="party" aria-pressed="false"> <span class="ic-step__head astro-awthgajc"> <span class="ic-step__tag astro-awthgajc">HOST</span> <span class="ic-step__play astro-awthgajc" aria-hidden="true"> <i class="ic-step__play-ico astro-awthgajc"></i> <span class="ic-step__play-lbl astro-awthgajc" data-lbl-idle="Play" data-lbl-live="Live"></span> </span> </span> <span class="ic-step__q astro-awthgajc">"Hosting twelve kids Saturday afternoon — help me not forget anything."</span> <span class="ic-step__desc astro-awthgajc">Now it's a plan: a timeline to the party, a checklist seeded from the RSVPs, and the two nut allergies already flagged.</span> </button> <button type="button" class="ic-step astro-awthgajc" data-ic="eggs" aria-pressed="false"> <span class="ic-step__head astro-awthgajc"> <span class="ic-step__tag astro-awthgajc">FIX</span> <span class="ic-step__play astro-awthgajc" aria-hidden="true"> <i class="ic-step__play-ico astro-awthgajc"></i> <span class="ic-step__play-lbl astro-awthgajc" data-lbl-idle="Play" data-lbl-live="Live"></span> </span> </span> <span class="ic-step__q astro-awthgajc">"Half the eggs arrived cracked."</span> <span class="ic-step__desc astro-awthgajc">No form, no ticket. The item is already found, you say how many, pick refund or replace, done.</span> </button> </div> </div> <!-- =================================================================
+         RIGHT: INTERACTIVE STAGE — THE SAME ASSIST SCREEN
+         ================================================================= --> <!-- The phone, interactive inside assist_zone --> <div class="ic-stage astro-awthgajc"> <div class="ic-device astro-awthgajc" role="group" aria-label="Interactive A2UI composed surface preview"> <div class="ic-device__status astro-awthgajc" aria-hidden="true"> <span class="astro-awthgajc">9:41</span> <span class="ic-device__sig astro-awthgajc"><i class="astro-awthgajc"></i><i class="astro-awthgajc"></i><i class="astro-awthgajc"></i></span> </div> <!-- Constant app header --> <div class="ic-shell-hdr astro-awthgajc" aria-hidden="true"> <span class="ic-shell-brand astro-awthgajc"> <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" class="astro-awthgajc"><path d="M2.5 6.5h11l-1.2 6.5h-8.6z" class="astro-awthgajc"></path><path d="M5.5 6.5 8 2.5l2.5 4" class="astro-awthgajc"></path></svg>
+Marigold Market
+</span> <svg class="ic-shell-bell astro-awthgajc" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 11h8l-1-1.4V7a3 3 0 0 0-6 0v2.6L4 11z" class="astro-awthgajc"></path><path d="M6.8 13a1.3 1.3 0 0 0 2.4 0" class="astro-awthgajc"></path></svg> </div> <!-- Chat thread: the sent prompt rises to the top, the composed surface answers below --> <div class="ic-thread astro-awthgajc"> <div class="ic-sent astro-awthgajc" id="ic-sent" aria-live="polite"> <p id="ic-sent-text" class="astro-awthgajc">Dinner for four tonight, one vegetarian, under $40.</p> </div> <!-- The one surface slot that A2UI composes --> <div class="ic-zone astro-awthgajc"> <span class="ic-zone__tag astro-awthgajc" aria-hidden="true">A2UI SURFACE · interactive</span> <div class="ic-zone__skel astro-awthgajc" aria-hidden="true"> <span class="ic-zone__skel-lbl astro-awthgajc">COMPOSING FROM INTENT…</span> <i style="width: 58%" class="astro-awthgajc"></i> <i style="width: 100%; height: 72px" class="astro-awthgajc"></i> <i style="width: 100%; height: 40px" class="astro-awthgajc"></i> </div> <!-- 01 · PLAN: one recipe, one action --> <div class="ic-screen is-active astro-awthgajc" data-ic-screen="dinner"> <header class="ic-greet astro-awthgajc"> <strong class="astro-awthgajc">Tonight · 4 servings</strong> <span class="astro-awthgajc">Vegetarian · under $40 · 5:30pm slot open</span> </header> <div class="ic-recipe astro-awthgajc"> <span class="ic-lbl astro-awthgajc">PICKED FOR YOU</span> <strong class="astro-awthgajc">Sheet-pan gnocchi &amp; peppers</strong> <span class="ic-recipe__meta astro-awthgajc">32 min · 5 items · $24.92</span> </div> <button type="button" class="ic-cta astro-awthgajc" data-ic-cta data-done="✓ Added · arrives 5:30pm"> <span class="astro-awthgajc">Add 5 items · $24.92</span><span aria-hidden="true" class="astro-awthgajc">→</span> </button> </div> <!-- 02 · EXPLAIN: the comparison, one action --> <div class="ic-screen astro-awthgajc" data-ic-screen="bill"> <header class="ic-greet astro-awthgajc"> <strong class="astro-awthgajc">Last week vs. usual</strong> <span class="astro-awthgajc">Salmon was up 18% · raspberries out of season</span> </header> <div class="ic-bars2 astro-awthgajc" aria-hidden="true"> <div class="astro-awthgajc"><span class="astro-awthgajc">USUAL</span><div class="ic-bars2__track astro-awthgajc"><i style="width: 79%" class="astro-awthgajc"></i></div><b class="astro-awthgajc">$86</b></div> <div class="is-hi astro-awthgajc"><span class="astro-awthgajc">LAST WK</span><div class="ic-bars2__track astro-awthgajc"><i style="width: 100%" class="astro-awthgajc"></i></div><b class="astro-awthgajc">$109</b></div> </div> <button type="button" class="ic-cta astro-awthgajc" data-ic-cta data-done="✓ Weekly cap set · $90"> <span class="astro-awthgajc">Set a $90 weekly cap</span><span aria-hidden="true" class="astro-awthgajc">→</span> </button> </div> <!-- 03 · HOST: a short checklist, one action --> <div class="ic-screen astro-awthgajc" data-ic-screen="party"> <header class="ic-greet astro-awthgajc"> <strong class="astro-awthgajc">Saturday · 12 kids</strong> <span class="astro-awthgajc">2 nut allergies flagged from your list</span> </header> <div class="ic-checklist astro-awthgajc" id="ic-pt-list" role="group" aria-label="Party checklist"> <button type="button" class="ic-ck is-done astro-awthgajc"><i class="astro-awthgajc"></i><span class="astro-awthgajc">Cake · ordered Tuesday</span></button> <button type="button" class="ic-ck astro-awthgajc"><i class="astro-awthgajc"></i><span class="astro-awthgajc">Nut-free snacks ×2 <b class="astro-awthgajc">ALLERGY</b></span></button> <button type="button" class="ic-ck astro-awthgajc"><i class="astro-awthgajc"></i><span class="astro-awthgajc">Ice · pick up Sat 1pm</span></button> </div> <button type="button" class="ic-cta astro-awthgajc" id="ic-pt-cta" data-ic-cta data-done="✓ Added · Sat 10am delivery"> <span class="astro-awthgajc">Add the 2 missing · Sat 10am</span><span aria-hidden="true" class="astro-awthgajc">→</span> </button> </div> <!-- 04 · FIX: refund or replace, one action --> <div class="ic-screen astro-awthgajc" data-ic-screen="eggs"> <header class="ic-greet astro-awthgajc"> <strong class="astro-awthgajc">Organic eggs · 6 of 12 cracked</strong> <span class="astro-awthgajc">Order #7731 · delivered 8:12am</span> </header> <div class="ic-choice2 astro-awthgajc" role="group" aria-label="Resolution"> <button type="button" class="ic-choice is-on astro-awthgajc" data-eg-choice="refund"><span class="astro-awthgajc">REFUND</span><strong class="astro-awthgajc">$3.25</strong><em class="astro-awthgajc">back on card today</em></button> <button type="button" class="ic-choice astro-awthgajc" data-eg-choice="replace"><span class="astro-awthgajc">REPLACE</span><strong class="astro-awthgajc">Tomorrow</strong><em class="astro-awthgajc">7–9am · free</em></button> </div> <button type="button" class="ic-cta astro-awthgajc" id="ic-eg-cta" data-ic-cta data-done="✓ Done · sorry about that"> <span class="astro-awthgajc">Refund $3.25 now</span><span aria-hidden="true" class="astro-awthgajc">→</span> </button> </div> </div> </div> <!-- Constant composer: where the intent is typed, then sent --> <div class="ic-composer astro-awthgajc" id="ic-composer" aria-hidden="true"> <span class="ic-composer__ico astro-awthgajc"></span> <span class="ic-composer__txt astro-awthgajc"><span id="ic-composer-text" data-placeholder="Ask Marigold anything…" class="astro-awthgajc"></span><i class="ic-caret astro-awthgajc"></i></span> <span class="ic-composer__send astro-awthgajc">↑</span> </div> <!-- Constant tab bar --> <nav class="ic-tabbar astro-awthgajc" aria-hidden="true"> <span class="astro-awthgajc"><i class="ic-tab-ico ic-tab-ico--shop astro-awthgajc"></i>Shop</span> <span class="is-on astro-awthgajc"><i class="ic-tab-ico ic-tab-ico--assist astro-awthgajc"></i>Assist</span> <span class="astro-awthgajc"><i class="ic-tab-ico ic-tab-ico--orders astro-awthgajc"></i>Orders</span> <span class="astro-awthgajc"><i class="ic-tab-ico ic-tab-ico--you astro-awthgajc"></i>You</span> </nav> </div> </div> </div> <!-- ===================================================================
+       WHAT THE AGENT COMPOSES FROM — THREE ALIGNED ARCHITECTURAL COLUMNS
+       =================================================================== --> <div class="ic-sources astro-awthgajc"> <div class="ic-sources__grid astro-awthgajc"> <!-- 01 · Personalized in the moment: user intent + preferences -> tailored UI surface --> <div class="ic-source astro-awthgajc"> <svg class="ic-art astro-awthgajc" viewBox="0 0 320 160" preserveAspectRatio="xMidYMid meet" aria-hidden="true"> <!-- Left: user prompt + personal constraints --> <text class="lbl lbl--tiny astro-awthgajc" x="6" y="23">USER INTENT</text> <rect class="card-surface astro-awthgajc" x="4" y="29" width="128" height="44" rx="4"></rect> <text class="lbl lbl--ink astro-awthgajc" x="13" y="46">"Dinner for 4,</text> <text class="lbl lbl--acc astro-awthgajc" x="13" y="61">under $40"</text> <rect class="card-surface astro-awthgajc" x="4" y="83" width="128" height="47" rx="4"></rect> <text class="lbl lbl--tiny astro-awthgajc" x="13" y="98">PREFERENCES</text> <rect class="soft-fill acc astro-awthgajc" x="12" y="105" width="60" height="17" rx="3"></rect> <text class="lbl lbl--chip astro-awthgajc" x="42" y="116.5" text-anchor="middle">vegetarian</text> <rect class="node astro-awthgajc" x="76" y="105" width="48" height="17" rx="3"></rect> <text class="lbl lbl--chip-muted astro-awthgajc" x="100" y="116.5" text-anchor="middle">5:30pm</text> <!-- Middle: dynamic composition --> <path class="ln dash astro-awthgajc" d="M132 51 C 149 51, 151 80, 164 80"></path> <path class="ln dash astro-awthgajc" d="M132 106 C 149 106, 151 80, 164 80"></path> <rect class="node astro-awthgajc" x="158" y="74" width="12" height="12" transform="rotate(45 164 80)"></rect> <rect class="acc-fill ic-art__blink astro-awthgajc" x="161.5" y="77.5" width="5" height="5" transform="rotate(45 164 80)"></rect> <line class="acc ic-art__flow astro-awthgajc" x1="172" y1="80" x2="188" y2="80"></line> <path class="acc astro-awthgajc" d="M184 76l4 4-4 4"></path> <!-- Right: bespoke UI tailored to that exact user --> <rect class="card-surface astro-awthgajc" x="192" y="22" width="124" height="116" rx="5"></rect> <line class="ln-subtle astro-awthgajc" x1="192" y1="41" x2="316" y2="41"></line> <circle class="acc-fill astro-awthgajc" cx="202" cy="31.5" r="2.5"></circle> <text class="lbl lbl--tiny astro-awthgajc" x="210" y="34.5">TAILORED UI</text> <rect class="soft-fill acc astro-awthgajc" x="200" y="48" width="108" height="35" rx="3"></rect> <text class="lbl lbl--card-strong astro-awthgajc" x="207" y="61.5">Veg gnocchi</text> <text class="lbl lbl--chip astro-awthgajc" x="207" y="75">Serves 4 · $24.92</text> <rect class="node astro-awthgajc" x="200" y="89" width="108" height="18" rx="3"></rect> <text class="lbl lbl--chip-muted astro-awthgajc" x="207" y="101">5:30pm slot</text> <path class="acc w15 astro-awthgajc" d="M294 98l2.5 2.5 5-5"></path> <rect class="acc-fill astro-awthgajc" x="200" y="113" width="108" height="17" rx="3"></rect> <text class="lbl lbl--cta astro-awthgajc" x="254" y="124.5" text-anchor="middle">Add 5 items →</text> </svg> <h3 class="astro-awthgajc">Personalized in the moment</h3> <p class="astro-awthgajc">Your agent constructs UI that adapts to each user's unique needs and preferences.</p> </div> <!-- 02 · Native to your brand: locked component catalog -> 1:1 native host widgets --> <div class="ic-source astro-awthgajc"> <svg class="ic-art astro-awthgajc" viewBox="0 0 320 160" preserveAspectRatio="xMidYMid meet" aria-hidden="true"> <!-- Left: locked component catalog --> <rect class="card-surface astro-awthgajc" x="4" y="22" width="130" height="116" rx="5"></rect> <line class="ln-subtle astro-awthgajc" x1="4" y1="41" x2="134" y2="41"></line> <rect class="acc w15 astro-awthgajc" x="12" y="30.5" width="7.5" height="5.5" rx="1"></rect> <path class="acc w15 astro-awthgajc" d="M13.6 30.5v-1.8a2.15 2.15 0 0 1 4.3 0v1.8"></path> <text class="lbl lbl--tiny lbl--acc astro-awthgajc" x="24" y="34.5">LOCKED CATALOG</text> <!-- Registered components --> <rect class="soft-fill acc astro-awthgajc" x="12" y="48" width="114" height="18" rx="3"></rect> <text class="lbl lbl--chip astro-awthgajc" x="20" y="60">Card</text> <circle class="acc-fill astro-awthgajc" cx="126" cy="57" r="2.3"></circle> <rect class="soft-fill acc astro-awthgajc" x="12" y="70" width="114" height="18" rx="3"></rect> <text class="lbl lbl--chip astro-awthgajc" x="20" y="82">ChoiceChip</text> <circle class="acc-fill astro-awthgajc" cx="126" cy="79" r="2.3"></circle> <rect class="node astro-awthgajc" x="12" y="92" width="114" height="18" rx="3"></rect> <text class="lbl lbl--chip-muted astro-awthgajc" x="20" y="104">DatePicker</text> <rect class="soft-fill acc astro-awthgajc" x="12" y="114" width="114" height="18" rx="3"></rect> <text class="lbl lbl--chip astro-awthgajc" x="20" y="126">Button</text> <circle class="acc-fill astro-awthgajc" cx="126" cy="123" r="2.3"></circle> <!-- Middle: 1:1 catalog-to-widget binding --> <path class="acc dash-map astro-awthgajc" d="M128 57 C 158 57, 168 59, 200 59"></path> <path class="acc dash-map astro-awthgajc" d="M128 79 C 158 79, 168 86, 200 86"></path> <path class="acc dash-map astro-awthgajc" d="M128 123 C 158 123, 168 121, 200 121"></path> <!-- Right: native host app styled by your design system --> <rect class="card-surface astro-awthgajc" x="192" y="22" width="124" height="116" rx="5"></rect> <line class="ln-subtle astro-awthgajc" x1="192" y1="41" x2="316" y2="41"></line> <rect class="acc-fill astro-awthgajc" x="200" y="28" width="7" height="7" rx="1.5"></rect> <text class="lbl lbl--tiny astro-awthgajc" x="212" y="34.5">YOUR DESIGN SYSTEM</text> <!-- Native Card --> <rect class="plane astro-awthgajc" x="200" y="48" width="108" height="22" rx="3"></rect> <line class="ln ln-strong w2 astro-awthgajc" x1="208" y1="56" x2="262" y2="56"></line> <line class="ln astro-awthgajc" x1="208" y1="63" x2="244" y2="63"></line> <!-- Native ChoiceChips --> <rect class="soft-fill acc astro-awthgajc" x="200" y="77" width="52" height="18" rx="9"></rect> <circle class="acc-fill astro-awthgajc" cx="209" cy="86" r="2"></circle> <line class="acc w2 astro-awthgajc" x1="215" y1="86" x2="242" y2="86"></line> <rect class="node astro-awthgajc" x="256" y="77" width="52" height="18" rx="9"></rect> <line class="ln astro-awthgajc" x1="267" y1="86" x2="296" y2="86"></line> <!-- Native Branded Button --> <rect class="acc-fill astro-awthgajc" x="200" y="112" width="108" height="18" rx="4"></rect> <line class="cta-bar astro-awthgajc" x1="234" y1="121" x2="274" y2="121"></line> </svg> <h3 class="astro-awthgajc">Native to your brand</h3> <p class="astro-awthgajc">Your design system, locked. Agents place only components you registered.</p> </div> <!-- 03 · Fast, reliable, secure: Jev, Express, or your own DSL + server macros all compile to one wire message --> <div class="ic-source astro-awthgajc"> <svg class="ic-art astro-awthgajc" viewBox="0 0 320 160" preserveAspectRatio="xMidYMid meet" aria-hidden="true"> <!-- Left: swappable model formats --> <rect class="card-surface astro-awthgajc" x="4" y="24" width="104" height="28" rx="4"></rect> <text class="lbl lbl--ink astro-awthgajc" x="14" y="41.5">jev format</text> <rect class="soft-fill acc astro-awthgajc" x="4" y="66" width="104" height="28" rx="4"></rect> <text class="lbl lbl--acc astro-awthgajc" x="14" y="83.5">&lt;a2ui&gt; express</text> <rect class="card-surface astro-awthgajc" x="4" y="108" width="104" height="28" rx="4"></rect> <text class="lbl astro-awthgajc" x="14" y="125.5">your format</text> <!-- Middle: @MACRO compiler -> ONE WIRE stream --> <path class="ln dash astro-awthgajc" d="M108 38 C 131 38, 136 80, 147 80"></path> <path class="acc dash-map astro-awthgajc" d="M108 80 H147"></path> <path class="ln dash astro-awthgajc" d="M108 122 C 131 122, 136 80, 147 80"></path> <text class="lbl lbl--tiny lbl--acc astro-awthgajc" x="154" y="61" text-anchor="middle">@MACRO</text> <rect class="node astro-awthgajc" x="148" y="74" width="12" height="12" transform="rotate(45 154 80)"></rect> <rect class="acc-fill ic-art__blink astro-awthgajc" x="151.5" y="77.5" width="5" height="5" transform="rotate(45 154 80)"></rect> <line class="acc ic-art__flow astro-awthgajc" x1="162" y1="80" x2="204" y2="80"></line> <path class="acc astro-awthgajc" d="M200 76l4 4-4 4"></path> <text class="lbl lbl--tiny astro-awthgajc" x="183" y="96" text-anchor="middle">ONE WIRE</text> <!-- Right: progressive streamed surface --> <rect class="card-surface astro-awthgajc" x="210" y="22" width="106" height="116" rx="5"></rect> <line class="ln-subtle astro-awthgajc" x1="210" y1="41" x2="316" y2="41"></line> <circle class="acc-fill ic-art__blink astro-awthgajc" cx="220" cy="31.5" r="2.5"></circle> <text class="lbl lbl--tiny astro-awthgajc" x="228" y="34.5">STREAMING</text> <rect class="plane astro-awthgajc" x="218" y="48" width="90" height="25" rx="3"></rect> <line class="ln ln-strong w2 astro-awthgajc" x1="225" y1="57" x2="274" y2="57"></line> <line class="ln astro-awthgajc" x1="225" y1="65" x2="258" y2="65"></line> <rect class="soft-fill acc astro-awthgajc" x="218" y="80" width="90" height="24" rx="3"></rect> <line class="acc w2 astro-awthgajc" x1="225" y1="89" x2="282" y2="89"></line> <line class="ln astro-awthgajc" x1="225" y1="97" x2="264" y2="97"></line> <rect class="acc-fill astro-awthgajc" x="218" y="112" width="90" height="18" rx="4"></rect> <line class="cta-bar astro-awthgajc" x1="246" y1="121" x2="280" y2="121"></line> </svg> <h3 class="astro-awthgajc">Fast, reliable, secure in production</h3> <p class="astro-awthgajc">Agents compose UI with A2UI Express or Jev-style decision models. Macros bind data and components reliably, and the client streams it in as the agent thinks.</p> </div> </div> </div> </div> <script>
+  (() => {
+    const root = document.getElementById('hero-chat-visual');
+    if (!root) return;
+
+    const intents = {
+      dinner: {
+        quote: 'Dinner for four tonight, one vegetarian, under $40.',
+      },
+      bill: {
+        quote: "Why was last week's order $23 more than usual?",
+      },
+      party: {
+        quote: 'Hosting twelve kids Saturday afternoon — help me not forget anything.',
+      },
+      eggs: {
+        quote: 'Half the eggs arrived cracked.',
+      },
+    };
+
+    const steps = Array.from(root.querySelectorAll('[data-ic]'));
+    const screens = Array.from(root.querySelectorAll('[data-ic-screen]'));
+    const zone = root.querySelector('.ic-zone');
+    const composer = document.getElementById('ic-composer');
+    const composerText = document.getElementById('ic-composer-text');
+    const sentBubble = document.getElementById('ic-sent');
+    const sentText = document.getElementById('ic-sent-text');
+    const reduceMotion =
+      window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const narrow = window.matchMedia ? window.matchMedia('(max-width: 920px)') : { matches: false };
+
+    /* --- Interactive surface controls inside assist_zone --- */
+    const ctas = Array.from(root.querySelectorAll('[data-ic-cta]'));
+    ctas.forEach((btn) => {
+      const firstSpan = btn.querySelector('span');
+      if (firstSpan && !btn.dataset.defaultLabel) {
+        btn.dataset.defaultLabel = firstSpan.textContent || '';
+      }
+    });
+
+    const resetCta = (btn) => {
+      btn.classList.remove('is-done');
+      const label = btn.dataset.defaultLabel || '';
+      btn.innerHTML = '';
+      const txt = document.createElement('span');
+      txt.textContent = label;
+      const arr = document.createElement('span');
+      arr.setAttribute('aria-hidden', 'true');
+      arr.textContent = '→';
+      btn.append(txt, arr);
+    };
+
+    const syncPartyChecklistCta = () => {
+      const list = document.getElementById('ic-pt-list');
+      const ptCta = document.getElementById('ic-pt-cta');
+      if (!list || !ptCta) return;
+      const items = Array.from(list.querySelectorAll('.ic-ck'));
+      const missing = items.filter((el) => !el.classList.contains('is-done')).length;
+      const nextLabel =
+        missing === 0
+          ? 'Confirm all 3 · Sat 10am'
+          : `Add the ${missing} missing · Sat 10am`;
+      ptCta.dataset.defaultLabel = nextLabel;
+      resetCta(ptCta);
+    };
+
+    const resetDeviceState = () => {
+      const partyItems = Array.from(root.querySelectorAll('#ic-pt-list .ic-ck'));
+      partyItems.forEach((el, idx) => {
+        const done = idx === 0;
+        el.classList.toggle('is-done', done);
+        el.setAttribute('aria-pressed', done ? 'true' : 'false');
+      });
+
+      const eggChoices = Array.from(root.querySelectorAll('[data-eg-choice]'));
+      eggChoices.forEach((el) => {
+        const on = el.getAttribute('data-eg-choice') === 'refund';
+        el.classList.toggle('is-on', on);
+        el.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+      const egCta = document.getElementById('ic-eg-cta');
+      if (egCta) {
+        egCta.dataset.defaultLabel = 'Refund $3.25 now';
+        egCta.setAttribute('data-done', '✓ Refunded $3.25 · back today');
+      }
+
+      syncPartyChecklistCta();
+      ctas.forEach(resetCta);
+    };
+
+    root.querySelectorAll('#ic-pt-list .ic-ck').forEach((item) => {
+      item.setAttribute('aria-pressed', item.classList.contains('is-done') ? 'true' : 'false');
+      item.addEventListener('click', () => {
+        const nowDone = !item.classList.contains('is-done');
+        item.classList.toggle('is-done', nowDone);
+        item.setAttribute('aria-pressed', nowDone ? 'true' : 'false');
+        syncPartyChecklistCta();
+      });
+    });
+
+    root.querySelectorAll('[data-eg-choice]').forEach((choice) => {
+      choice.setAttribute('aria-pressed', choice.classList.contains('is-on') ? 'true' : 'false');
+      choice.addEventListener('click', () => {
+        const mode = choice.getAttribute('data-eg-choice');
+        root.querySelectorAll('[data-eg-choice]').forEach((other) => {
+          const on = other === choice;
+          other.classList.toggle('is-on', on);
+          other.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        const egCta = document.getElementById('ic-eg-cta');
+        if (egCta) {
+          if (mode === 'replace') {
+            egCta.dataset.defaultLabel = 'Replace tomorrow 7–9am';
+            egCta.setAttribute('data-done', '✓ Replacement booked · 7–9am');
+          } else {
+            egCta.dataset.defaultLabel = 'Refund $3.25 now';
+            egCta.setAttribute('data-done', '✓ Refunded $3.25 · back today');
+          }
+          resetCta(egCta);
+        }
+      });
+    });
+
+    ctas.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (btn.classList.contains('is-done')) {
+          resetCta(btn);
+          return;
+        }
+        const doneText = btn.getAttribute('data-done') || '✓ Done';
+        btn.classList.add('is-done');
+        btn.innerHTML = '';
+        const span = document.createElement('span');
+        span.textContent = doneText;
+        btn.appendChild(span);
+      });
+    });
+
+    /* --- Explicit user-triggered intent selection (zero background timers) --- */
+    let timers = [];
+    let current = 'dinner';
+    const clearTimers = () => {
+      timers.forEach(clearTimeout);
+      timers = [];
+    };
+
+    const showScreen = (key) => {
+      screens.forEach((s) =>
+        s.classList.toggle('is-active', s.getAttribute('data-ic-screen') === key),
+      );
+    };
+
+    const composeZone = (key) => {
+      if (!zone || reduceMotion) {
+        showScreen(key);
+        return;
+      }
+      zone.classList.add('is-composing');
+      timers.push(
+        setTimeout(() => {
+          showScreen(key);
+          zone.classList.remove('is-composing');
+        }, 560),
+      );
+    };
+
+    const sendPrompt = (text) => {
+      if (sentText) sentText.textContent = text;
+      if (composerText) composerText.textContent = '';
+      if (sentBubble && !reduceMotion) {
+        sentBubble.classList.remove('is-fly');
+        void sentBubble.offsetWidth;
+        sentBubble.classList.add('is-fly');
+      }
+    };
+
+    const typeIntoComposer = (text, done) => {
+      if (!composer || !composerText || reduceMotion) {
+        done();
+        return;
+      }
+      composer.classList.remove('is-sent');
+      composer.classList.add('is-typing');
+      composerText.textContent = '';
+      const chars = Array.from(text);
+      let i = 0;
+      const step = () => {
+        i += 2;
+        composerText.textContent = chars.slice(0, i).join('');
+        if (i < chars.length) {
+          timers.push(setTimeout(step, 14));
+        } else {
+          composer.classList.remove('is-typing');
+          composer.classList.add('is-sent');
+          timers.push(setTimeout(() => composer.classList.remove('is-sent'), 550));
+          done();
+        }
+      };
+      step();
+    };
+
+    const setIntent = (key, animate) => {
+      const d = intents[key];
+      if (!d) return;
+      current = key;
+      clearTimers();
+      if (zone) zone.classList.remove('is-composing');
+      if (composer) composer.classList.remove('is-typing', 'is-sent');
+      resetDeviceState();
+
+      steps.forEach((s) => {
+        const on = s.getAttribute('data-ic') === key;
+        s.classList.toggle('is-active', on);
+        s.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+
+      if (!animate) {
+        if (sentText) sentText.textContent = d.quote;
+        if (composerText) composerText.textContent = '';
+        showScreen(key);
+        return;
+      }
+      typeIntoComposer(d.quote, () => {
+        sendPrompt(d.quote);
+        composeZone(key);
+      });
+    };
+
+    const order = steps.map((st) => st.getAttribute('data-ic') || 'dinner');
+    const strip = document.getElementById('ic-steps');
+
+    const stripScrollTo = (st, smooth) => {
+      if (!strip || !narrow.matches) return;
+      const left = st.offsetLeft - (strip.clientWidth - st.offsetWidth) / 2;
+      strip.scrollTo({
+        left: Math.max(0, left),
+        behavior: smooth && !reduceMotion ? 'smooth' : 'auto',
+      });
+    };
+
+    const go = (key, animate) => {
+      setIntent(key, animate);
+      const st = root.querySelector(`.ic-step[data-ic="${key}"]`);
+      if (st) stripScrollTo(st, true);
+    };
+
+    steps.forEach((st) => {
+      st.addEventListener('click', () => {
+        const key = st.getAttribute('data-ic') || 'dinner';
+        go(key, true);
+      });
+      st.addEventListener('keydown', (e) => {
+        if (
+          e.key !== 'ArrowDown' &&
+          e.key !== 'ArrowRight' &&
+          e.key !== 'ArrowUp' &&
+          e.key !== 'ArrowLeft'
+        ) {
+          return;
+        }
+        e.preventDefault();
+        const idx = order.indexOf(st.getAttribute('data-ic') || 'dinner');
+        const delta = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : -1;
+        const nextIdx = (idx + delta + order.length) % order.length;
+        const nextKey = order[nextIdx];
+        const nextEl = steps[nextIdx];
+        if (nextEl) nextEl.focus();
+        go(nextKey, true);
+      });
+    });
+
+    // narrow: a manual swipe selects whichever card snaps to the centre
+    if (strip) {
+      let scrollEndTimer = 0;
+      const onSettle = () => {
+        if (!narrow.matches) return;
+        const mid = strip.scrollLeft + strip.clientWidth / 2;
+        let best = null;
+        let bestDist = Infinity;
+        steps.forEach((st) => {
+          const c = st.offsetLeft + st.offsetWidth / 2;
+          const dist = Math.abs(c - mid);
+          if (dist < bestDist) {
+            bestDist = dist;
+            best = st;
+          }
+        });
+        if (!best) return;
+        const key = best.getAttribute('data-ic') || 'dinner';
+        if (key !== current) go(key, true);
+      };
+      strip.addEventListener(
+        'scroll',
+        () => {
+          clearTimeout(scrollEndTimer);
+          scrollEndTimer = setTimeout(onSettle, 140);
+        },
+        { passive: true },
+      );
+    }
+
+    if (narrow.addEventListener) {
+      narrow.addEventListener('change', () => {
+        const st = root.querySelector('.ic-step.is-active');
+        if (st) stripScrollTo(st, false);
+      });
+    }
+  })();
+</script>  </div> </div> </section> <!-- =================================================================
+           ARCHITECTURE — THE GENERATIVE UI SPECTRUM
+           ================================================================= --> <section class="a2-section gs-section astro-7jdpoepv" id="spectrum"> <div class="gs-wrap astro-7jdpoepv"> <div class="gs-header astro-7jdpoepv"> <h2 class="gs-h2 astro-7jdpoepv">
+Generative UI spectrum <span class="gs-accent astro-7jdpoepv">with A2UI</span> </h2> <p class="gs-sub astro-7jdpoepv">
+The same request can come back as a pre-built widget, a composed screen, or generated code.
+        Move the slider to see each one and how A2UI handles it.
+</p> </div> <div class="gs-flow astro-7jdpoepv" id="gs-instrument" data-active="a2ui" role="region" aria-label="Interactive generative UI spectrum"> <!-- =================================================================
+           SHARED USER PROMPT (Constant input above the spectrum)
+           ================================================================= --> <div class="gs-prompt-stage astro-7jdpoepv"> <div class="gs-prompt-card astro-7jdpoepv"> <span class="gs-prompt-card__avatar astro-7jdpoepv" aria-hidden="true"> <svg width="15" height="15" viewBox="0 0 16 16" fill="none" class="astro-7jdpoepv"> <path d="M2.5 3.5A1.5 1.5 0 0 1 4 2h8a1.5 1.5 0 0 1 1.5 1.5v6A1.5 1.5 0 0 1 12 11H6.2L3.3 13.4a.5.5 0 0 1-.8-.4V3.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" class="astro-7jdpoepv"></path> </svg> </span> <p class="gs-prompt-card__quote astro-7jdpoepv">
+“Flight delayed — rebook me on the next nonstop with an aisle seat.”
+</p> </div> <div class="gs-prompt-stem astro-7jdpoepv" aria-hidden="true"> <span class="gs-prompt-stem__line gs-prompt-stem__line--arrow astro-7jdpoepv"></span> </div> </div> <!-- =================================================================
+           UNIFIED SPECTRUM SLIDER + OUTCOME STAGE
+           ================================================================= --> <div class="gs-card astro-7jdpoepv"> <!-- Spectrum Slider Header (Zero eyebrows) --> <div class="gs-slider-band astro-7jdpoepv"> <div class="gs-stops astro-7jdpoepv" role="tablist" aria-label="Generative UI spectrum"> <button type="button" class="gs-stop astro-7jdpoepv" role="tab" id="gs-tab-static" aria-selected="false" aria-controls="gs-stage-panel" tabindex="-1" data-stop="static"> <span class="gs-stop__title astro-7jdpoepv">Controlled</span> <span class="gs-stop__sub astro-7jdpoepv">Pre-built widgets</span> </button> <button type="button" class="gs-stop is-active astro-7jdpoepv" role="tab" id="gs-tab-a2ui" aria-selected="true" aria-controls="gs-stage-panel" tabindex="0" data-stop="a2ui"> <span class="gs-stop__title astro-7jdpoepv">Composition</span> <span class="gs-stop__sub astro-7jdpoepv">Native component catalog</span> </button> <button type="button" class="gs-stop astro-7jdpoepv" role="tab" id="gs-tab-sandbox" aria-selected="false" aria-controls="gs-stage-panel" tabindex="-1" data-stop="sandbox"> <span class="gs-stop__title astro-7jdpoepv">Code generation</span> <span class="gs-stop__sub astro-7jdpoepv">Generated HTML &amp; JS</span> </button> </div> <!-- Draggable / clickable continuum rail --> <div class="gs-rail-wrap astro-7jdpoepv" id="gs-rail" aria-hidden="true"> <div class="gs-rail astro-7jdpoepv"> <div class="gs-rail__gradient astro-7jdpoepv"></div> <span class="gs-rail__tick astro-7jdpoepv" style="left: 16.6667%"></span> <span class="gs-rail__tick gs-rail__tick--mid astro-7jdpoepv" style="left: 50%"></span> <span class="gs-rail__tick astro-7jdpoepv" style="left: 83.3333%"></span> <div class="gs-rail__puck astro-7jdpoepv" id="gs-puck"> <span class="gs-rail__puck-core astro-7jdpoepv"></span> </div> </div> </div> </div> <!-- Outcome Stage: Visual Screen Outcome (Left) + 3 Consolidated Points (Right) --> <div class="gs-body astro-7jdpoepv" id="gs-stage-panel" role="tabpanel" aria-labelledby="gs-tab-a2ui"> <!-- LEFT: VISUAL OUTCOME FOR THE SHARED PROMPT --> <div class="gs-canvas astro-7jdpoepv"> <div class="gs-scenes astro-7jdpoepv"> <!-- =========================================================
+                   OUTCOME 1 · STRICT CONTROL
+                   ========================================================= --> <div class="gs-scene astro-7jdpoepv" data-scene="static" aria-hidden="true"> <div class="gs-wire-pill gs-wire-pill--cyan astro-7jdpoepv"> <span class="gs-wire-pill__verb astro-7jdpoepv">Agent calls</span> <code class="astro-7jdpoepv">flight_card(&#123; flight: "UA 418", gate: "B12" &#125;)</code> </div> <div class="gs-wire-drop gs-wire-drop--cyan astro-7jdpoepv" aria-hidden="true"></div> <div class="gs-app astro-7jdpoepv"> <div class="gs-app__chrome astro-7jdpoepv"> <span class="gs-app__dots astro-7jdpoepv" aria-hidden="true"><i class="astro-7jdpoepv"></i><i class="astro-7jdpoepv"></i><i class="astro-7jdpoepv"></i></span> <span class="gs-app__name astro-7jdpoepv">Host App · Hardcoded Template</span> </div> <div class="gs-app__body astro-7jdpoepv"> <div class="gs-flight astro-7jdpoepv"> <div class="gs-flight__top astro-7jdpoepv"> <span class="gs-badge gs-badge--cyan astro-7jdpoepv">NONSTOP</span> <span class="gs-flight__meta astro-7jdpoepv">Departs 6:45 PM · Gate B12</span> </div> <strong class="gs-flight__route astro-7jdpoepv">UA 418 · SFO → JFK</strong> </div> <button type="button" class="gs-missing astro-7jdpoepv" id="gs-static-locked"> <span class="gs-missing__hdr astro-7jdpoepv"> <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" class="astro-7jdpoepv"> <rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5" class="astro-7jdpoepv"></rect> <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" stroke-width="1.5" class="astro-7jdpoepv"></path> </svg> <span class="astro-7jdpoepv">Aisle seat picker unavailable</span> </span> <span class="gs-missing__sub astro-7jdpoepv" id="gs-static-locked-msg">
+This template only renders flight details — seat selection wasn't hardcoded.
+</span> </button> </div> </div> </div> <!-- =========================================================
+                   OUTCOME 2 · FLEXIBLE COMPOSITION (A2UI)
+                   ========================================================= --> <div class="gs-scene is-active astro-7jdpoepv" data-scene="a2ui" aria-hidden="false"> <div class="gs-wire-pill gs-wire-pill--blue astro-7jdpoepv"> <span class="gs-wire-pill__verb astro-7jdpoepv">Agent composes</span> <code class="astro-7jdpoepv">FlightCard + ChoiceChips + Button</code> </div> <div class="gs-wire-drop gs-wire-drop--blue astro-7jdpoepv" aria-hidden="true"></div> <div class="gs-app gs-app--a2ui astro-7jdpoepv"> <div class="gs-app__chrome astro-7jdpoepv"> <span class="gs-app__dots astro-7jdpoepv" aria-hidden="true"><i class="astro-7jdpoepv"></i><i class="astro-7jdpoepv"></i><i class="astro-7jdpoepv"></i></span> <span class="gs-app__name astro-7jdpoepv">Host App · Native Catalog</span> </div> <div class="gs-app__body astro-7jdpoepv"> <div class="gs-flight gs-flight--a2ui astro-7jdpoepv"> <div class="gs-flight__top astro-7jdpoepv"> <span class="gs-badge gs-badge--blue astro-7jdpoepv">NONSTOP</span> <span class="gs-flight__meta astro-7jdpoepv">Departs 6:45 PM · Gate B12</span> </div> <strong class="gs-flight__route astro-7jdpoepv">UA 418 · SFO → JFK</strong> </div> <div class="gs-seats astro-7jdpoepv" role="group" aria-label="Choose an aisle seat"> <button type="button" class="gs-seat is-on astro-7jdpoepv" data-seat="14C"> <strong class="astro-7jdpoepv">14C</strong> <span class="astro-7jdpoepv">Main aisle</span> </button> <button type="button" class="gs-seat astro-7jdpoepv" data-seat="9F"> <strong class="astro-7jdpoepv">9F</strong> <span class="astro-7jdpoepv">Exit aisle</span> </button> </div> <button type="button" class="gs-cta astro-7jdpoepv" id="gs-a2ui-cta"> <span id="gs-a2ui-cta-lbl" class="astro-7jdpoepv">Confirm rebooking · Seat 14C</span> <span aria-hidden="true" class="astro-7jdpoepv">→</span> </button> </div> </div> </div> <!-- =========================================================
+                   OUTCOME 3 · RENDER ANYTHING
+                   ========================================================= --> <div class="gs-scene astro-7jdpoepv" data-scene="sandbox" aria-hidden="true"> <div class="gs-wire-pill gs-wire-pill--amber astro-7jdpoepv"> <span class="gs-wire-pill__verb astro-7jdpoepv">Agent writes</span> <code class="astro-7jdpoepv">&lt;iframe sandbox&gt; HTML, CSS &amp; JS bundle</code> </div> <div class="gs-wire-drop gs-wire-drop--amber astro-7jdpoepv" aria-hidden="true"></div> <div class="gs-app astro-7jdpoepv"> <div class="gs-app__chrome astro-7jdpoepv"> <span class="gs-app__dots astro-7jdpoepv" aria-hidden="true"><i class="astro-7jdpoepv"></i><i class="astro-7jdpoepv"></i><i class="astro-7jdpoepv"></i></span> <span class="gs-app__name astro-7jdpoepv">Host App · Embedded Sandbox</span> </div> <div class="gs-app__body astro-7jdpoepv"> <div class="gs-sandbox-frame astro-7jdpoepv"> <div class="gs-sandbox-frame__bar astro-7jdpoepv"> <span class="astro-7jdpoepv">&lt;iframe sandbox&gt; · Custom cabin map</span> <span id="gs-sandbox-seat-readout" class="astro-7jdpoepv">Seat 14C</span> </div> <svg class="gs-cabin-svg astro-7jdpoepv" viewBox="0 0 260 92" aria-label="Interactive custom aircraft cabin map"> <path d="M10 15 Q130 5 250 15 M10 77 Q130 87 250 77" fill="none" stroke="currentColor" stroke-opacity="0.24" stroke-width="1.3" class="astro-7jdpoepv"></path> <path d="M104 11 L128 2 L160 2 L144 11 M104 81 L128 90 L160 90 L144 81" fill="currentColor" fill-opacity="0.1" class="astro-7jdpoepv"></path> <line x1="20" y1="46" x2="240" y2="46" stroke="currentColor" stroke-opacity="0.2" stroke-dasharray="3 3" class="astro-7jdpoepv"></line> <g class="gs-cabin-seats astro-7jdpoepv"> <rect x="36" y="22" width="15" height="13" rx="2.5" opacity="0.25" class="astro-7jdpoepv"></rect> <rect x="60" y="22" width="15" height="13" rx="2.5" opacity="0.25" class="astro-7jdpoepv"></rect> <rect x="84" y="22" width="15" height="13" rx="2.5" opacity="0.25" class="astro-7jdpoepv"></rect> <rect class="gs-cabin-pick is-picked astro-7jdpoepv" data-deck-seat="Seat 14C" x="112" y="21" width="17" height="15" rx="3"></rect> <rect class="gs-cabin-pick astro-7jdpoepv" data-deck-seat="Seat 15C" x="138" y="21" width="17" height="15" rx="3"></rect> <rect x="166" y="22" width="15" height="13" rx="2.5" opacity="0.25" class="astro-7jdpoepv"></rect> <rect x="190" y="22" width="15" height="13" rx="2.5" opacity="0.25" class="astro-7jdpoepv"></rect> <rect x="36" y="57" width="15" height="13" rx="2.5" opacity="0.25" class="astro-7jdpoepv"></rect> <rect x="60" y="57" width="15" height="13" rx="2.5" opacity="0.25" class="astro-7jdpoepv"></rect> <rect class="gs-cabin-pick astro-7jdpoepv" data-deck-seat="Seat 12D" x="84" y="56" width="17" height="15" rx="3"></rect> <rect x="112" y="57" width="15" height="13" rx="2.5" opacity="0.25" class="astro-7jdpoepv"></rect> <rect x="138" y="57" width="15" height="13" rx="2.5" opacity="0.25" class="astro-7jdpoepv"></rect> <rect class="gs-cabin-pick astro-7jdpoepv" data-deck-seat="Seat 16D" x="166" y="56" width="17" height="15" rx="3"></rect> <rect x="190" y="57" width="15" height="13" rx="2.5" opacity="0.25" class="astro-7jdpoepv"></rect> </g> </svg> </div> </div> </div> </div> </div> </div> <!-- RIGHT: CONSOLIDATED HIGH-LEVEL SUMMARY (1 headline + 3 crisp points, zero eyebrows) --> <div class="gs-details astro-7jdpoepv"> <!-- Slide 1: Controlled --> <div class="gs-detail astro-7jdpoepv" data-detail="static" aria-hidden="true"> <h3 class="gs-detail__title astro-7jdpoepv">The model picks a pre-built widget and fills in its data.</h3> <ul class="gs-points astro-7jdpoepv"> <li class="gs-point astro-7jdpoepv"> <span class="gs-point__icon gs-point__icon--pos astro-7jdpoepv" aria-hidden="true">+</span> <div class="astro-7jdpoepv"> <strong class="astro-7jdpoepv">100% host-controlled</strong> <span class="astro-7jdpoepv">Inherits your app's exact styling, components, and security model.</span> </div> </li> <li class="gs-point astro-7jdpoepv"> <span class="gs-point__icon gs-point__icon--lim astro-7jdpoepv" aria-hidden="true">–</span> <div class="astro-7jdpoepv"> <strong class="astro-7jdpoepv">Locked to pre-built views</strong> <span class="astro-7jdpoepv">Agents can fill data slots, but cannot combine widgets for new requests.</span> </div> </li> <li class="gs-point astro-7jdpoepv"> <span class="gs-point__icon gs-point__icon--lim astro-7jdpoepv" aria-hidden="true">–</span> <div class="astro-7jdpoepv"> <strong class="astro-7jdpoepv">New flows require app releases</strong> <span class="astro-7jdpoepv">Anything you didn't anticipate upfront falls back to plain chat text.</span> </div> </li> </ul> <p class="gs-with astro-7jdpoepv"> <strong class="astro-7jdpoepv">With A2UI:</strong> You register each pre-built widget as a catalog component or a server-side macro. The model picks one, and the A2UI renderer on the client draws it.
+</p> <p class="gs-with__links astro-7jdpoepv"> <a href="/pr-preview/pr-4103/guides/macros/" class="astro-7jdpoepv">Macros →</a> </p> </div> <!-- Slide 2: Composition --> <div class="gs-detail is-active astro-7jdpoepv" data-detail="a2ui" aria-hidden="false"> <h3 class="gs-detail__title astro-7jdpoepv">Tailored layouts assembled from your native catalog.</h3> <ul class="gs-points astro-7jdpoepv"> <li class="gs-point astro-7jdpoepv"> <span class="gs-point__icon gs-point__icon--blue astro-7jdpoepv" aria-hidden="true">+</span> <div class="astro-7jdpoepv"> <strong class="astro-7jdpoepv">Adapts to every prompt</strong> <span class="astro-7jdpoepv">Agents compose multi-step flows on the fly from widgets you approve.</span> </div> </li> <li class="gs-point astro-7jdpoepv"> <span class="gs-point__icon gs-point__icon--blue astro-7jdpoepv" aria-hidden="true">+</span> <div class="astro-7jdpoepv"> <strong class="astro-7jdpoepv">Native &amp; safe by default</strong> <span class="astro-7jdpoepv">Streams declarative JSON data with two-way bindings — never executable code.</span> </div> </li> <li class="gs-point astro-7jdpoepv"> <span class="gs-point__icon gs-point__icon--blue astro-7jdpoepv" aria-hidden="true">+</span> <div class="astro-7jdpoepv"> <strong class="astro-7jdpoepv">One stream, every screen</strong> <span class="astro-7jdpoepv">Renders natively across React, Lit, Angular, Flutter, SwiftUI, and Compose.</span> </div> </li> </ul> <p class="gs-with astro-7jdpoepv"> <strong class="astro-7jdpoepv">With A2UI:</strong> The model builds the screen from components in your catalog, and the renderer draws it with your own components as it streams in. In hosts that support MCP Apps, the same A2UI surface can run inside an MCP App.
+</p> <p class="gs-with__links astro-7jdpoepv"> <a href="/pr-preview/pr-4103/concepts/overview/" class="astro-7jdpoepv">How A2UI works →</a> <a href="/pr-preview/pr-4103/guides/a2ui-in-mcp-apps/" class="astro-7jdpoepv">A2UI in MCP Apps →</a> </p> </div> <!-- Slide 3: Code generation --> <div class="gs-detail astro-7jdpoepv" data-detail="sandbox" aria-hidden="true"> <h3 class="gs-detail__title astro-7jdpoepv">The model writes HTML and JS that runs in a sandbox.</h3> <ul class="gs-points astro-7jdpoepv"> <li class="gs-point astro-7jdpoepv"> <span class="gs-point__icon gs-point__icon--amber astro-7jdpoepv" aria-hidden="true">+</span> <div class="astro-7jdpoepv"> <strong class="astro-7jdpoepv">Unrestricted custom visuals</strong> <span class="astro-7jdpoepv">Built for bespoke 2D/3D canvases, interactive maps, and full mini-apps.</span> </div> </li> <li class="gs-point astro-7jdpoepv"> <span class="gs-point__icon gs-point__icon--lim astro-7jdpoepv" aria-hidden="true">–</span> <div class="astro-7jdpoepv"> <strong class="astro-7jdpoepv">Isolated from your design system</strong> <span class="astro-7jdpoepv">Runs inside an iframe boundary with separate styling, state, and a11y.</span> </div> </li> <li class="gs-point astro-7jdpoepv"> <span class="gs-point__icon gs-point__icon--lim astro-7jdpoepv" aria-hidden="true">–</span> <div class="astro-7jdpoepv"> <strong class="astro-7jdpoepv">Tied to web &amp; WebViews</strong> <span class="astro-7jdpoepv">Ships heavier HTML/JS payloads rather than native mobile or desktop widgets.</span> </div> </li> </ul> <p class="gs-with astro-7jdpoepv"> <strong class="astro-7jdpoepv">With A2UI:</strong> Generated HTML and JS can run as an MCP App inside an A2UI surface, next to your native components.
+</p> <p class="gs-with__links astro-7jdpoepv"> <a href="/pr-preview/pr-4103/guides/mcp-apps-in-a2ui/" class="astro-7jdpoepv">MCP Apps in A2UI →</a> </p> </div> </div> </div> </div> </div> </div> </section> <script>
+  (() => {
+    const root = document.getElementById('gs-instrument');
+    if (!root) return;
+
+    const stops = Array.from(root.querySelectorAll('[data-stop]'));
+    const scenes = Array.from(root.querySelectorAll('[data-scene]'));
+    const details = Array.from(root.querySelectorAll('[data-detail]'));
+    const panel = document.getElementById('gs-stage-panel');
+    const rail = document.getElementById('gs-rail');
+    const puck = document.getElementById('gs-puck');
+
+    const ORDER = ['static', 'a2ui', 'sandbox'];
+    const POS = { static: 16.6667, a2ui: 50, sandbox: 83.3333 };
+
+    const setMode = (mode, focusTab = false) => {
+      if (!POS[mode]) return;
+      root.setAttribute('data-active', mode);
+      if (puck) {
+        puck.style.left = `${POS[mode]}%`;
+      }
+
+      stops.forEach((btn) => {
+        const active = btn.getAttribute('data-stop') === mode;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-selected', active ? 'true' : 'false');
+        btn.setAttribute('tabindex', active ? '0' : '-1');
+        if (active) {
+          if (panel) panel.setAttribute('aria-labelledby', btn.id);
+          if (focusTab) btn.focus();
+        }
+      });
+
+      scenes.forEach((el) => {
+        const active = el.getAttribute('data-scene') === mode;
+        el.classList.toggle('is-active', active);
+        el.setAttribute('aria-hidden', active ? 'false' : 'true');
+      });
+
+      details.forEach((el) => {
+        const active = el.getAttribute('data-detail') === mode;
+        el.classList.toggle('is-active', active);
+        el.setAttribute('aria-hidden', active ? 'false' : 'true');
+      });
+    };
+
+    stops.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        setMode(btn.getAttribute('data-stop') || 'a2ui');
+      });
+
+      btn.addEventListener('keydown', (e) => {
+        const idx = ORDER.indexOf(btn.getAttribute('data-stop') || 'a2ui');
+        if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          setMode(ORDER[(idx + 1) % ORDER.length], true);
+        } else if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          setMode(ORDER[(idx - 1 + ORDER.length) % ORDER.length], true);
+        } else if (e.key === 'Home') {
+          e.preventDefault();
+          setMode(ORDER[0], true);
+        } else if (e.key === 'End') {
+          e.preventDefault();
+          setMode(ORDER[ORDER.length - 1], true);
+        }
+      });
+    });
+
+    /* Pointer drag / click scrubbing along the continuum rail */
+    if (rail && puck) {
+      let dragging = false;
+
+      const updateFromPointer = (clientX, snap) => {
+        const rect = rail.getBoundingClientRect();
+        if (!rect.width) return;
+        const pct = Math.max(8, Math.min(92, ((clientX - rect.left) / rect.width) * 100));
+        const mode = pct < 33.34 ? 'static' : pct > 66.66 ? 'sandbox' : 'a2ui';
+        if (snap) {
+          root.classList.remove('is-scrubbing');
+          setMode(mode);
+        } else {
+          root.classList.add('is-scrubbing');
+          setMode(mode);
+          puck.style.left = `${pct}%`;
+        }
+      };
+
+      rail.addEventListener('pointerdown', (e) => {
+        dragging = true;
+        if (e.isTrusted) {
+          rail.setPointerCapture(e.pointerId);
+        }
+        updateFromPointer(e.clientX, false);
+      });
+
+      rail.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        updateFromPointer(e.clientX, false);
+      });
+
+      const endDrag = (e) => {
+        if (!dragging) return;
+        dragging = false;
+        updateFromPointer(e.clientX, true);
+      };
+
+      rail.addEventListener('pointerup', endDrag);
+      rail.addEventListener('pointercancel', () => {
+        dragging = false;
+        root.classList.remove('is-scrubbing');
+        setMode(root.getAttribute('data-active') || 'a2ui');
+      });
+    }
+
+    /* Slide 1 micro-interaction */
+    const lockedBtn = document.getElementById('gs-static-locked');
+    const lockedMsg = document.getElementById('gs-static-locked-msg');
+    if (lockedBtn && lockedMsg) {
+      lockedBtn.addEventListener('click', () => {
+        lockedBtn.classList.remove('is-shake');
+        void lockedBtn.offsetWidth;
+        lockedBtn.classList.add('is-shake');
+        lockedMsg.textContent = 'Blocked — shipping a seat picker requires updating host app code.';
+      });
+    }
+
+    /* Slide 2 micro-interaction */
+    const seatBtns = Array.from(root.querySelectorAll('[data-seat]'));
+    const a2uiCta = document.getElementById('gs-a2ui-cta');
+    const a2uiCtaLbl = document.getElementById('gs-a2ui-cta-lbl');
+    let currentSeat = '14C';
+
+    seatBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        currentSeat = btn.getAttribute('data-seat') || '14C';
+        seatBtns.forEach((b) => b.classList.toggle('is-on', b === btn));
+        if (a2uiCta && a2uiCtaLbl) {
+          a2uiCta.classList.remove('is-done');
+          a2uiCtaLbl.textContent = `Confirm rebooking · Seat ${currentSeat}`;
+        }
+      });
+    });
+
+    if (a2uiCta && a2uiCtaLbl) {
+      a2uiCta.addEventListener('click', () => {
+        const done = a2uiCta.classList.toggle('is-done');
+        a2uiCtaLbl.textContent = done
+          ? `✓ Rebooked on UA 418 · Seat ${currentSeat}`
+          : `Confirm rebooking · Seat ${currentSeat}`;
+      });
+    }
+
+    /* Slide 3 micro-interaction */
+    const cabinPicks = Array.from(root.querySelectorAll('.gs-cabin-pick'));
+    const cabinReadout = document.getElementById('gs-sandbox-seat-readout');
+    cabinPicks.forEach((rect) => {
+      rect.addEventListener('click', () => {
+        cabinPicks.forEach((r) => r.classList.toggle('is-picked', r === rect));
+        if (cabinReadout) {
+          cabinReadout.textContent = rect.getAttribute('data-deck-seat') || 'Seat 14C';
+        }
+      });
+    });
+  })();
+</script>  <!-- =================================================================
+           CLOSING ARCHITECTURAL BANNER
+           ================================================================= --> <section class="a2-closing astro-j7pv25f6"> <div class="a2-wrap astro-j7pv25f6"> <div class="a2-closing__inner astro-j7pv25f6"> <div class="a2-closing__copy astro-j7pv25f6"> <h2 class="a2-closing__title astro-j7pv25f6">
+Stop building chatbots that render <span class="a2-closing__hi astro-j7pv25f6">walls of text.</span> </h2> <div class="a2-closing__btns astro-j7pv25f6"> <a href="/pr-preview/pr-4103/quickstart/" class="a2-btn a2-closing__primary astro-j7pv25f6"> <span class="astro-j7pv25f6">Run the 5-Min Quickstart</span> <span aria-hidden="true" class="astro-j7pv25f6">→</span> </a> <a href="/pr-preview/pr-4103/specification/v1.0-a2ui/" class="a2-btn a2-closing__ghost astro-j7pv25f6">
+Read v1.0 Specification
+</a> </div> </div> </div> </div> </section> </main> <footer class="a2-footer astro-j7pv25f6"> <div class="a2-wrap a2-footer__inner astro-j7pv25f6"> <div class="a2-footer__brand astro-j7pv25f6"> <strong class="astro-j7pv25f6">A2UI</strong> <span class="astro-j7pv25f6">/</span> <span class="astro-j7pv25f6">Apache 2.0 Open Source Project</span> </div> <nav class="a2-footer__links astro-j7pv25f6" aria-label="Footer links"> <a href="/pr-preview/pr-4103/quickstart/" class="astro-j7pv25f6">Quickstart</a> <a href="/pr-preview/pr-4103/built-with-a2ui/" class="astro-j7pv25f6">Built with A2UI</a> <a href="/pr-preview/pr-4103/concepts/overview/" class="astro-j7pv25f6">Concepts</a> <a href="/pr-preview/pr-4103/concepts/sdks/" class="astro-j7pv25f6">SDKs</a> <a href="/pr-preview/pr-4103/specification/v1.0-a2ui/" class="astro-j7pv25f6">Specification</a> <a href="/pr-preview/pr-4103/get-help/" class="astro-j7pv25f6">Get Help</a> <a href="/pr-preview/pr-4103/llms.txt" class="astro-j7pv25f6">llms.txt</a> <a href="https://github.com/a2ui-project/a2ui" target="_blank" rel="noopener" class="astro-j7pv25f6">GitHub</a> </nav> </div> </footer> <script>
+      (() => {
+        /* Hero Copy Command */
+        const copyBtn = document.getElementById('hero-copy-clone');
+        const copyAct = document.getElementById('hero-copy-act');
+        if (copyBtn && copyAct) {
+          copyBtn.addEventListener('click', async () => {
+            const cmd = copyBtn.getAttribute('data-copy') || '';
+            try {
+              await navigator.clipboard.writeText(cmd);
+              copyAct.textContent = 'COPIED ✓';
+              copyBtn.classList.add('is-copied');
+              setTimeout(() => {
+                copyAct.textContent = 'COPY';
+                copyBtn.classList.remove('is-copied');
+              }, 1800);
+            } catch (e) {}
+          });
+        }
+      })();
+    </script>  </body> </html>

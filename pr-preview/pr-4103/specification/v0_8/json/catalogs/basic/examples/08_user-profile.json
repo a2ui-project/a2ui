@@ -1,0 +1,261 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "gallery-user-profile",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Card": {
+              "child": "main-column"
+            }
+          }
+        },
+        {
+          "id": "main-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["header", "info", "bio", "stats-row", "follow-btn"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "header",
+          "component": {
+            "Image": {
+              "url": {
+                "path": "/avatar"
+              },
+              "fit": "cover",
+              "usageHint": "avatar"
+            }
+          }
+        },
+        {
+          "id": "info",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["name", "username"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "name",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/name"
+              },
+              "usageHint": "h2"
+            }
+          }
+        },
+        {
+          "id": "username",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/username"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "bio",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/bio"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "stats-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["followers-col", "following-col", "posts-col"]
+              },
+              "distribution": "spaceAround"
+            }
+          }
+        },
+        {
+          "id": "followers-col",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["followers-count", "followers-label"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "followers-count",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/followers"
+              },
+              "usageHint": "h3"
+            }
+          }
+        },
+        {
+          "id": "followers-label",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Followers"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "following-col",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["following-count", "following-label"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "following-count",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/following"
+              },
+              "usageHint": "h3"
+            }
+          }
+        },
+        {
+          "id": "following-label",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Following"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "posts-col",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["posts-count", "posts-label"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "posts-count",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/posts"
+              },
+              "usageHint": "h3"
+            }
+          }
+        },
+        {
+          "id": "posts-label",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Posts"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "follow-btn-text",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/followText"
+              }
+            }
+          }
+        },
+        {
+          "id": "follow-btn",
+          "component": {
+            "Button": {
+              "child": "follow-btn-text",
+              "action": {
+                "name": "follow",
+                "context": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "gallery-user-profile",
+      "contents": [
+        {
+          "key": "avatar",
+          "valueString": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop"
+        },
+        {
+          "key": "name",
+          "valueString": "Sarah Chen"
+        },
+        {
+          "key": "username",
+          "valueString": "@sarahchen"
+        },
+        {
+          "key": "bio",
+          "valueString": "Product Designer at Tech Co. Creating delightful experiences."
+        },
+        {
+          "key": "followers",
+          "valueString": "12.4K"
+        },
+        {
+          "key": "following",
+          "valueString": "892"
+        },
+        {
+          "key": "posts",
+          "valueString": "347"
+        },
+        {
+          "key": "followText",
+          "valueString": "Follow"
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "gallery-user-profile",
+      "root": "root"
+    }
+  }
+]
