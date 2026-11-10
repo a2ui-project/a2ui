@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.3.0 (2026-11-10)
+
 - `a2ui_rpc_callback` takes `renderer_calls`, a provider of the session's
   `RendererFunctionCalls` such as `A2uiRendererCallsStore.get`, and `catalogs`
   becomes optional (pass one or both). The callback processes each message

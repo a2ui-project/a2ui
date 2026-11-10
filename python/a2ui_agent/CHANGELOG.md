@@ -1,5 +1,13 @@
 ## Unreleased
 
+- Add `read_renderer_capabilities(metadata, version)` in `a2ui.utils` to extract
+  and validate version-keyed renderer capability dictionaries from transport
+  metadata (`a2uiRendererCapabilities` in v1.0 and `a2uiClientCapabilities` in
+  v0.8, v0.9, and v0.9.1).
+  [#4013](https://github.com/a2ui-project/a2ui/pull/4013)
+
+## 0.11.0 (2026-11-10)
+
 - **BREAKING CHANGE**: (v1_0) `validate_payload` and `RendererState.apply`
   check each `callRendererFunction` against the catalogs instead of running
   it, and reject one the renderer would refuse: a surface that doesn't exist
@@ -38,11 +46,6 @@
   `value=DataBinding(path="/form/email")`. The path does not have to exist yet
   ([#3830](https://github.com/a2ui-project/a2ui/issues/3830),
   [#3868](https://github.com/a2ui-project/a2ui/pull/3868)).
-- Add `read_renderer_capabilities(metadata, version)` in `a2ui.utils` to extract
-  and validate version-keyed renderer capability dictionaries from transport
-  metadata (`a2uiRendererCapabilities` in v1.0 and `a2uiClientCapabilities` in
-  v0.8, v0.9, and v0.9.1).
-  [#4013](https://github.com/a2ui-project/a2ui/pull/4013)
 - (v1_0) Express compiles, decompiles and prompts the protocol's system
   functions, which no catalog defines: `@index()` and `@index(offset=1)`
   compile to `{"@call": "@index", ...}` without a `catalogId`, the decompiler
