@@ -61,6 +61,23 @@ Map<String, Object?> _props(SurfaceModel<ComponentApi> surface, String id) {
 }
 
 void main() {
+  group('baseline', () {
+    test('blocks http(s) URLs with a port above 65535', () {
+      final surface = SurfaceModel<ComponentApi>('s');
+      addTearDown(surface.dispose);
+      expect(
+        surface.sanitizeUrl(
+            'https://cdn.example.com:65535/a.png', UrlContext.media),
+        'https://cdn.example.com:65535/a.png',
+      );
+      expect(
+        surface.sanitizeUrl(
+            'https://cdn.example.com:65536/a.png', UrlContext.media),
+        isNull,
+      );
+    });
+  });
+
   group('AllowlistUrlSecurityPolicy', () {
     test('rejects host entries that are not hosts', () {
       for (final entry in ['https://cdn.example.com', 'a/b', '*', 'a@b', '']) {

@@ -299,12 +299,14 @@ String? checkUrlBaseline(
         : url! as String;
 
 /// The parsed URL of an absolute `http(s)` [url] with a non-empty host, or
-/// null when it can't be parsed or has no host.
+/// null when it can't be parsed, has no host, or has a port above 65535
+/// (which `Uri` accepts but the other SDKs' URL parsers reject).
 ///
 /// Package-internal.
 Uri? parseUrlHost(String url) {
   final Uri? parsed = Uri.tryParse(url);
   if (parsed == null || parsed.host.isEmpty) return null;
+  if (parsed.hasPort && parsed.port > 65535) return null;
   return parsed;
 }
 
