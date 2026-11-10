@@ -20,9 +20,10 @@ import '../../component_implementation.dart';
 import '../../component_props.dart';
 import 'media.dart';
 
-/// Builds the basic `Video` component: the video at an `http` or `https`
-/// `url` above its playback controls, showing the image at `posterUrl` until
-/// playback starts or fails.
+/// Builds the basic `Video` component: the video at `url` above its playback
+/// controls, showing the image at `posterUrl` until playback starts or fails.
+/// Both URLs arrive already checked by the surface's URL security policy, and
+/// a blocked one is absent.
 Widget buildVideo(
   BuildContext context,
   ComponentNode<ComponentImplementation> node,

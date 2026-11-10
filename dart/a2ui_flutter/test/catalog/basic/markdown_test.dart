@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:a2ui_flutter/v0_9/basic_catalog.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
@@ -30,7 +31,7 @@ final CatalogImplementation _catalog = basicTestCatalog([
 /// `md:` followed by the source, recording each base style in [styles].
 SurfaceHost _markdownHost(List<TextStyle> styles) =>
     (surfaces) => A2uiMarkdown(
-      builder: (context, markdown, style) {
+      builder: (context, markdown, style, _) {
         styles.add(style);
         return Text('md:$markdown');
       },
@@ -173,5 +174,52 @@ void main() {
     // Quadratic patterns take tens of seconds on these texts.
     expect(stopwatch.elapsed, lessThan(const Duration(seconds: 5)));
     expect(find.byType(Text), findsNWidgets(texts.length));
+  });
+
+  testWidgets('hands the builder a sanitizer bound to the surface policy', (
+    tester,
+  ) async {
+    final results = <String?>[];
+    final SurfaceHarness harness = await pumpComponents(
+      tester,
+      [
+        {'id': 'root', 'component': 'Text', 'text': '[a](x) ![b](y)'},
+      ],
+      catalog: _catalog,
+      urlSecurityPolicy: AllowlistUrlSecurityPolicy(
+        media: ['cdn.example.com'],
+        navigation: ['*.example.com'],
+      ),
+      host: (surfaces) => A2uiMarkdown(
+        builder: (context, markdown, style, sanitizeUrl) {
+          results
+            ..add(
+              sanitizeUrl('https://shop.example.com/p', UrlContext.navigation),
+            )
+            ..add(
+              sanitizeUrl('https://evil.test/?d=secret', UrlContext.navigation),
+            )
+            ..add(
+              sanitizeUrl('https://cdn.example.com/a.png', UrlContext.media),
+            )
+            ..add(sanitizeUrl('javascript:alert(1)', UrlContext.media));
+          return Text(markdown);
+        },
+        child: scrollingHost(surfaces),
+      ),
+    );
+    await tester.pump();
+
+    expect(results.take(4), [
+      'https://shop.example.com/p',
+      null,
+      'https://cdn.example.com/a.png',
+      null,
+    ]);
+    expect(harness.warnings.map((w) => w.details?['propertyName']), [
+      'text',
+      'text',
+    ]);
+    expect(harness.warnings.first.details?['componentId'], 'root');
   });
 }

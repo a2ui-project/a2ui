@@ -222,7 +222,14 @@ Models often write Markdown in Text. To render it, wrap the surface in an
 
 ```dart
 A2uiMarkdown(
-  builder: (context, markdown, style) => MarkdownBody(data: markdown),
+  builder: (context, markdown, style, sanitizeUrl) => MarkdownBody(
+    data: markdown,
+    onTapLink: (text, href, title) {
+      final String? url =
+          href == null ? null : sanitizeUrl(href, UrlContext.navigation);
+      if (url != null) launchUrl(Uri.parse(url)).ignore();
+    },
+  ),
   child: A2uiSurface(surface: surface),
 );
 ```
@@ -353,9 +360,29 @@ Not supported yet:
 `launchUrl`: `basicCatalog(openUrl: launchUrl)`. On v1.0 it runs only from an
 action, which the basic components run only from a tap, such as a Button's.
 On v0.9 a bound `openUrl` call runs
-whenever it resolves, so with a callback the agent can open an `http`,
-`https`, `mailto` or `tel` URL without the user acting. Pass one only for an
-agent you trust.
+whenever it resolves, so with a callback the agent can open any URL the URL
+security policy allows without the user acting. Pass one only for an agent
+you trust.
+
+The URL security policy set with `MessageProcessor`'s `urlSecurityPolicy`
+decides which URLs `Image`, `Video`, `AudioPlayer`, `openUrl` and Markdown
+links and images may use. By default it blocks only script schemes, unlisted
+`data:` URLs and URLs a parser could read as a different host, so any `https`
+host can be fetched. Limit the hosts for agents you don't control:
+
+```dart
+final processor = MessageProcessor(
+  catalogs: [basicCatalog(openUrl: launchUrl)],
+  urlSecurityPolicy: AllowlistUrlSecurityPolicy(
+    media: ['cdn.example.com'],
+    navigation: ['*.example.com'],
+  ),
+);
+```
+
+An `A2uiMarkdown` builder gets a sanitizer as its fourth argument and should
+pass every link target and image source through it before opening or loading
+it.
 
 ## Protocol v0.9
 

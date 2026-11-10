@@ -18,12 +18,15 @@ import 'package:flutter/material.dart';
 
 import '../../component_implementation.dart';
 import '../../component_props.dart';
+import 'media_image.dart';
 
-/// Builds the basic `Image` component: the image at an `http` or `https`
-/// `url`, sized by `variant`, resized by `fit` (`cover` for a header without
-/// one) and labelled for accessibility by `description`. Any other URL, and
-/// an image that fails to load, shows a broken-image icon labelled by the
-/// same `description`.
+/// Builds the basic `Image` component: the image at `url`, sized by
+/// `variant`, resized by `fit` (`cover` for a header without one) and
+/// labelled for accessibility by `description`.
+///
+/// `url` arrives already checked by the surface's URL security policy, so a
+/// blocked URL is absent and builds nothing. An image that fails to load
+/// shows a broken-image icon labelled by the same `description`.
 Widget buildImage(
   BuildContext context,
   ComponentNode<ComponentImplementation> node,
@@ -43,17 +46,15 @@ Widget buildImage(
           label: description,
           child: const Icon(Icons.broken_image),
         );
-  final Widget image = url.startsWith('http://') || url.startsWith('https://')
-      ? Image.network(
-          url,
-          fit:
-              BoxFit.values.asNameMap()[props.string('fit')] ??
-              (variant == 'header' ? BoxFit.cover : BoxFit.fill),
-          semanticLabel: description,
-          excludeFromSemantics: description.isEmpty,
-          errorBuilder: (context, error, stackTrace) => broken,
-        )
-      : broken;
+  final Widget image = mediaImage(
+    url,
+    fit:
+        BoxFit.values.asNameMap()[props.string('fit')] ??
+        (variant == 'header' ? BoxFit.cover : BoxFit.fill),
+    semanticLabel: description,
+    excludeFromSemantics: description.isEmpty,
+    errorBuilder: (context, error, stackTrace) => broken,
+  );
   return switch (variant) {
     'icon' => _atStart(SizedBox.square(dimension: 24, child: image)),
     'avatar' => _atStart(

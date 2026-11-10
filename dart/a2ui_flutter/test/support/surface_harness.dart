@@ -104,6 +104,9 @@ class SurfaceHarness {
   /// Errors reported on any surface's `onError`.
   final List<A2uiRendererError> errors = [];
 
+  /// Warnings reported on any surface's `onWarning`.
+  final List<A2uiWarning> warnings = [];
+
   final ValueNotifier<List<SurfaceModel<ComponentImplementation>>> _surfaces =
       ValueNotifier(const []);
 
@@ -148,12 +151,15 @@ Future<SurfaceHarness> pumpSurface(
   List<CatalogImplementation> moreCatalogs = const [],
   ValidationConfig? validationConfig = ValidationConfig.strict,
   SurfaceHost host = scrollingHost,
+  UrlSecurityPolicy? urlSecurityPolicy,
 }) async {
   final harness = SurfaceHarness._(
     tester,
     MessageProcessor<ComponentImplementation>(
       catalogs: [catalog ?? fixtureCatalog(), ...moreCatalogs],
       validationConfig: validationConfig,
+      urlSecurityPolicy:
+          urlSecurityPolicy ?? const PermissiveUrlSecurityPolicy(),
     ),
   );
   final SurfaceGroupModel<ComponentImplementation> group =
@@ -161,6 +167,7 @@ Future<SurfaceHarness> pumpSurface(
   group.onAction.subscribe(harness.actions.add);
   group.onSurfaceCreated.subscribe((surface) {
     surface.onError.subscribe(harness.errors.add);
+    surface.onWarning.subscribe(harness.warnings.add);
     harness._surfaces.value = [...harness._surfaces.value, surface];
   });
   group.onSurfaceDeleted.subscribe((id) {
@@ -199,6 +206,7 @@ Future<SurfaceHarness> pumpComponents(
   Map<String, Object?>? data,
   ValidationConfig? validationConfig = ValidationConfig.strict,
   SurfaceHost host = scrollingHost,
+  UrlSecurityPolicy? urlSecurityPolicy,
 }) {
   final CatalogImplementation resolved = catalog ?? fixtureCatalog();
   return pumpSurface(
@@ -211,5 +219,6 @@ Future<SurfaceHarness> pumpComponents(
     catalog: resolved,
     validationConfig: validationConfig,
     host: host,
+    urlSecurityPolicy: urlSecurityPolicy,
   );
 }

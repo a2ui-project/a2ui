@@ -151,16 +151,30 @@ Widget _buildEntry(BuildContext context, ChatEntry entry) {
   );
 }
 
-/// Renders [markdown] with [style] as its paragraph style, and opens a
-/// tapped link.
-Widget _markdown(BuildContext context, String markdown, TextStyle style) =>
-    MarkdownBody(
-      data: markdown,
-      onTapLink: _openLink,
-      styleSheet: MarkdownStyleSheet.fromTheme(
-        Theme.of(context),
-      ).copyWith(p: style),
-    );
+/// Renders [markdown] with [style] as its paragraph style, opening links and
+/// loading images only when the surface's URL security policy allows them.
+Widget _markdown(
+  BuildContext context,
+  String markdown,
+  TextStyle style,
+  A2uiMarkdownUrlSanitizer sanitizeUrl,
+) => MarkdownBody(
+  data: markdown,
+  onTapLink: (text, href, title) {
+    final String? url = href == null
+        ? null
+        : sanitizeUrl(href, UrlContext.navigation);
+    final Uri? uri = url == null ? null : Uri.tryParse(url);
+    if (uri != null) launchUrl(uri).ignore();
+  },
+  imageBuilder: (uri, title, alt) {
+    final String? src = sanitizeUrl('$uri', UrlContext.media);
+    return src == null ? Text(alt ?? '') : Image.network(src);
+  },
+  styleSheet: MarkdownStyleSheet.fromTheme(
+    Theme.of(context),
+  ).copyWith(p: style),
+);
 
 /// Opens [href] with `url_launcher`.
 void _openLink(String text, String? href, String title) {

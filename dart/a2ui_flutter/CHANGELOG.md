@@ -16,6 +16,27 @@
 
 # [a2ui_flutter](https://pub.dev/packages/a2ui_flutter) Changelog
 
+## Unreleased
+
+- **Breaking:** `A2uiMarkdownBuilder` takes a fourth argument, an
+  `A2uiMarkdownUrlSanitizer` bound to the Text and the surface's URL security
+  policy. A builder that renders links or images passes each link target
+  through it as `UrlContext.navigation` and each image source as
+  `UrlContext.media`, and opens or loads only the URL it returns; a blocked
+  URL returns null and is reported as a `URL_BLOCKED` warning. To migrate, add
+  the parameter to your builder and route link and image URLs through it
+  ([#4045](https://github.com/a2ui-project/a2ui/issues/4045)).
+- **Breaking:** `Image`, `Video` and `AudioPlayer` load the URLs the surface's
+  URL security policy resolved, in place of their own `http`/`https` check.
+  A URL the policy blocks (by default `javascript:`, `file:`, SVG and
+  non-media `data:` URLs, and `http(s)` URLs without a host) renders nothing,
+  where it used to show a broken-image or failure icon. `Image` now decodes an
+  allowed `data:` image in memory and fetches a relative URL with
+  `Image.network`, and a player shows a failure for an allowed URL it can't
+  stream, such as a `data:` URL. Set `urlSecurityPolicy` on
+  `MessageProcessor` to limit which hosts media loads from
+  ([#4045](https://github.com/a2ui-project/a2ui/issues/4045)).
+
 ## 0.2.0
 
 - **Breaking:** Requires `a2ui_core` `^0.6.0`, whose types this library

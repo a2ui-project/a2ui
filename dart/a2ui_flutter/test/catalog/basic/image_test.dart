@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:convert';
+
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:a2ui_flutter/v0_9/basic_catalog.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
@@ -192,31 +195,88 @@ void main() {
     expect(harness.errors, isEmpty);
   });
 
-  _testImages('renders nothing for a URL the policy blocks', (
-    tester,
-    server,
-  ) async {
-    await _pumpImages(tester, [
-      _image({'url': 'file:///tmp/photo.png'}),
-    ]);
-
-    expect(find.byType(Image), findsNothing);
-    expect(find.byIcon(Icons.broken_image), findsNothing);
-    expect(server.requested, isEmpty);
-  });
-
-  for (final url in ['assets/photo.png']) {
-    _testImages('shows a placeholder for $url', (tester, server) async {
-      await _pumpImages(tester, [
-        _image({'url': url}),
+  for (final url in [
+    'file:///tmp/photo.png',
+    'javascript:alert(1)',
+    'data:image/svg+xml;base64,PHN2Zz4=',
+    'https:images.test/wide.png',
+  ]) {
+    _testImages('renders nothing for $url, which the policy blocks', (
+      tester,
+      server,
+    ) async {
+      final SurfaceHarness harness = await _pumpImages(tester, [
+        _image({'url': url, 'description': 'Blocked'}),
       ]);
 
       expect(find.byType(Image), findsNothing);
+      expect(find.byIcon(Icons.broken_image), findsNothing);
       expect(server.requested, isEmpty);
-      expect(find.byIcon(Icons.broken_image), findsOneWidget);
+      expect(harness.warnings.map((w) => w.code), ['URL_BLOCKED']);
       expect(tester.takeException(), isNull);
     });
   }
+
+  _testImages('loads only the hosts an allowlist policy names', (
+    tester,
+    server,
+  ) async {
+    final SurfaceHarness harness = await pumpComponents(
+      tester,
+      [
+        {
+          'id': 'root',
+          'component': 'Column',
+          'children': ['allowed', 'blocked'],
+        },
+        {'id': 'allowed', 'component': 'Image', 'url': _wide},
+        {
+          'id': 'blocked',
+          'component': 'Image',
+          'url': 'https://evil.test/a.png?d=secret',
+        },
+      ],
+      catalog: _catalog,
+      urlSecurityPolicy: AllowlistUrlSecurityPolicy(media: ['images.test']),
+    );
+    await settleImages(tester);
+
+    expect(server.requested, [_wide]);
+    expect(find.byType(Image), findsOneWidget);
+    expect(
+      harness.warnings.single.details?['redactedUrl'],
+      'https://evil.test',
+    );
+  });
+
+  _testImages('loads the rewritten URL a policy returns', (
+    tester,
+    server,
+  ) async {
+    await pumpComponents(
+      tester,
+      [
+        _image({'url': 'https://cdn.test/wide.png'}),
+      ],
+      catalog: _catalog,
+      urlSecurityPolicy: AllowlistUrlSecurityPolicy(
+        rewrite: {UrlContext.media: (url, _, _) => _wide},
+      ),
+    );
+    await settleImages(tester);
+
+    expect(server.requested, [_wide]);
+  });
+
+  _testImages('decodes a data: URL in memory', (tester, server) async {
+    await _pumpImages(tester, [
+      _image({'url': 'data:image/png;base64,${base64Encode(widePng)}'}),
+    ]);
+
+    expect(_imageWidget(tester).image, isA<MemoryImage>());
+    expect(server.requested, isEmpty);
+    expect(find.byIcon(Icons.broken_image), findsNothing);
+  });
 
   for (final (String description, Map<String, Object?> data) in [
     ('an empty URL', {'url': ''}),
