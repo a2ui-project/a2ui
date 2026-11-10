@@ -6,6 +6,7 @@
   [#4013](https://github.com/a2ui-project/a2ui/pull/4013)
 
 ## 0.3.0 (2026-11-10)
+
 - Add `get_a2ui_messages`, which returns the A2UI messages in an A2A message's
   A2UI parts, and `create_a2ui_parts`, which wraps A2UI messages, such as the
   replies of `RendererToAgentMessageProcessor`, as A2UI parts. Models are
