@@ -21,7 +21,7 @@
 - `Slider` treats an infinite `min` or `max`, which a JSON number such as
   `-1e400` decodes to, as absent, as an HTML range input does. A `min` of
   negative infinity failed a Material `Slider` assertion
-  ([#TBD](https://github.com/a2ui-project/a2ui/pull/TBD)).
+  ([#4108](https://github.com/a2ui-project/a2ui/pull/4108)).
 
 ## 0.2.0
 
