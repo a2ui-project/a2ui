@@ -46,6 +46,7 @@
             text: "Quarterly Revenue"
 
 - name: test_express_compile_component_catalog_override
+  features: [F-AGT-05]
   description: With multiple active catalogs, createSurface omits catalogId and each component resolves its catalog by name or explicit catalogId override and carries catalogId in the compiled output.
   action: compile
   args:
