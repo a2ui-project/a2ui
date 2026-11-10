@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type {A2UIComponent} from '@/types/widget';
+import type {A2UIComponent, SpecVersion} from '@/types/widget';
 
 export interface V09Component {
   id: string;
@@ -170,9 +170,21 @@ function splitJsonPointer(pointer: string): string[] {
   return trimmed.split('/').map(unescapeJsonPointerSegment);
 }
 
+function parseArrayIndex(segment: string): number | null {
+  return /^(0|[1-9]\d*)$/.test(segment) ? Number(segment) : null;
+}
+
 function getAtSegments(obj: Record<string, unknown>, segments: string[]): unknown {
   let cur: unknown = obj;
   for (const seg of segments) {
+    if (Array.isArray(cur)) {
+      const idx = parseArrayIndex(seg);
+      if (idx === null || idx >= cur.length) {
+        return undefined;
+      }
+      cur = cur[idx];
+      continue;
+    }
     if (!isRecord(cur) || UNSAFE_KEYS.has(seg) || !Object.hasOwn(cur, seg)) {
       return undefined;
     }
@@ -181,27 +193,94 @@ function getAtSegments(obj: Record<string, unknown>, segments: string[]): unknow
   return cur;
 }
 
+function writeSegmentsImmutable(
+  container: unknown,
+  segments: string[],
+  value: unknown,
+  onlyIfAbsent: boolean,
+): unknown {
+  const [head, ...rest] = segments;
+  if (head === undefined) {
+    if (onlyIfAbsent && container !== undefined) {
+      return container;
+    }
+    return isRecord(value) ? {...value} : value;
+  }
+
+  if (Array.isArray(container)) {
+    const idx = parseArrayIndex(head);
+    if (idx === null) {
+      return container;
+    }
+    if (rest.length === 0) {
+      if (onlyIfAbsent && idx < container.length && container[idx] !== undefined) {
+        return container;
+      }
+      const nextArr = container.slice();
+      nextArr[idx] = value;
+      return nextArr;
+    }
+    const elem = idx < container.length ? container[idx] : undefined;
+    if (onlyIfAbsent && elem !== undefined && !isRecord(elem) && !Array.isArray(elem)) {
+      return container;
+    }
+    const childContainer = isRecord(elem) || Array.isArray(elem) ? elem : {};
+    const nextElem = writeSegmentsImmutable(childContainer, rest, value, onlyIfAbsent);
+    if (idx < container.length && nextElem === elem) {
+      return container;
+    }
+    const nextArr = container.slice();
+    nextArr[idx] = nextElem;
+    return nextArr;
+  }
+
+  if (!isRecord(container) || UNSAFE_KEYS.has(head)) {
+    return container;
+  }
+
+  const hasOwn = Object.hasOwn(container, head);
+  const existing = hasOwn ? container[head] : undefined;
+
+  if (rest.length === 0) {
+    if (onlyIfAbsent && existing !== undefined) {
+      return container;
+    }
+    const copy: Record<string, unknown> = {...container};
+    setSafeProp(copy, head, value);
+    return copy;
+  }
+
+  if (onlyIfAbsent && existing !== undefined && !isRecord(existing) && !Array.isArray(existing)) {
+    return container;
+  }
+
+  const childContainer = isRecord(existing) || Array.isArray(existing) ? existing : {};
+  const nextChild = writeSegmentsImmutable(childContainer, rest, value, onlyIfAbsent);
+  if (hasOwn && nextChild === existing) {
+    return container;
+  }
+  const copy: Record<string, unknown> = {...container};
+  setSafeProp(copy, head, nextChild);
+  return copy;
+}
+
 function setAtSegmentsImmutable(
   obj: Record<string, unknown>,
   segments: string[],
   value: unknown,
 ): Record<string, unknown> {
-  const [head, ...rest] = segments;
-  if (head === undefined) {
-    return isRecord(value) ? {...value} : obj;
-  }
-  if (UNSAFE_KEYS.has(head)) {
-    return obj;
-  }
-  const copy: Record<string, unknown> = {...obj};
-  if (rest.length === 0) {
-    setSafeProp(copy, head, value);
-    return copy;
-  }
-  const existing =
-    Object.hasOwn(obj, head) && isRecord(obj[head]) ? (obj[head] as Record<string, unknown>) : {};
-  setSafeProp(copy, head, setAtSegmentsImmutable(existing, rest, value));
-  return copy;
+  const updated = writeSegmentsImmutable(obj, segments, value, false);
+  return isRecord(updated) ? updated : obj;
+}
+
+function seedAtSegmentsIfAbsent(
+  obj: Record<string, unknown>,
+  segments: string[],
+  value: unknown,
+): Record<string, unknown> {
+  if (segments.length === 0) return obj;
+  const updated = writeSegmentsImmutable(obj, segments, value, true);
+  return isRecord(updated) ? updated : obj;
 }
 
 function extractV08Envelope(
@@ -585,6 +664,8 @@ function buildTemplateScopesAndData(
     }
   }
 
+  const deferredRootScopes: TemplateScope[] = [];
+
   const convertScopeInRecord = (
     record: Record<string, unknown>,
     scope: TemplateScope,
@@ -606,6 +687,14 @@ function buildTemplateScopesAndData(
           stringListPaths: [],
         })
       : scope.rawBinding;
+
+    if (parentScope !== null && resolvedBinding.startsWith('/')) {
+      if (!deferredRootScopes.includes(scope)) {
+        deferredRootScopes.push(scope);
+      }
+      activeScopes.delete(scope);
+      return record;
+    }
 
     const segments = splitJsonPointer(resolvedBinding);
     if (segments.length === 0) {
@@ -676,6 +765,16 @@ function buildTemplateScopesAndData(
         new Set<TemplateScope>(),
       );
     }
+  }
+  for (let i = 0; i < deferredRootScopes.length; i++) {
+    const rootBoundScope = deferredRootScopes[i]!;
+    normalizedData = convertScopeInRecord(
+      normalizedData,
+      rootBoundScope,
+      null,
+      normalizedData,
+      new Set<TemplateScope>(),
+    );
   }
 
   return {scopeByComponentId, normalizedData};
@@ -1264,16 +1363,20 @@ export function normalizeV08Surface({
   root,
   components,
   data = EMPTY_DATA,
+  specVersion,
 }: {
   root: string;
   components: A2UIComponent[];
   data?: Record<string, unknown>;
+  specVersion?: SpecVersion;
 }): NormalizedSurfaceInput {
-  const preparedComponents = separateSharedTemplateNodes(root, components);
-  const {scopeByComponentId, normalizedData: templateNormalizedData} = buildTemplateScopesAndData(
-    preparedComponents,
-    data,
-  );
+  const isPureV09 =
+    specVersion === '0.9' && components.every(comp => extractV08Envelope(comp) === null);
+
+  const preparedComponents = isPureV09 ? components : separateSharedTemplateNodes(root, components);
+  const {scopeByComponentId, normalizedData: templateNormalizedData} = isPureV09
+    ? {scopeByComponentId: new Map<string, TemplateScope>(), normalizedData: data}
+    : buildTemplateScopesAndData(preparedComponents, data);
 
   let normalizedData = templateNormalizedData;
   const existingIconRecord =
@@ -1300,11 +1403,15 @@ export function normalizeV08Surface({
     const env = extractV08Envelope(comp);
     if (!env) {
       const compType = typeof comp['component'] === 'string' ? (comp['component'] as string) : '';
-      if (compType === 'Icon' && comp['name'] !== undefined) {
+      if (compType === 'Icon' && typeof comp['name'] === 'string') {
         return {
           ...comp,
           component: 'Icon',
-          name: normalizeIconName(comp.id, comp['name'], ctx),
+          name: normalizeIconName(comp.id, comp['name'], {
+            ...ctx,
+            inTemplate: false,
+            itemKeys: EMPTY_STRING_SET,
+          }),
         };
       }
       return {
@@ -1329,9 +1436,7 @@ export function normalizeV08Surface({
   for (const init of initializers) {
     const segs = splitJsonPointer(init.path);
     if (segs.length === 0) continue;
-    if (getAtSegments(normalizedData, segs) === undefined) {
-      normalizedData = setAtSegmentsImmutable(normalizedData, segs, init.value);
-    }
+    normalizedData = seedAtSegmentsIfAbsent(normalizedData, segs, init.value);
   }
 
   if (iconBindings.size > 0) {

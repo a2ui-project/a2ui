@@ -587,6 +587,142 @@ describe('normalizeV08Surface, V09Viewer, and A2UIViewer', () => {
     });
   });
 
+  it('preserves arrays and existing primitives when seeding array-indexed path + literal* initializers', () => {
+    const normalized = normalizeV08Surface({
+      root: 'form',
+      components: [
+        {
+          id: 'form',
+          component: {
+            Column: {
+              children: {explicitList: ['tf-existing-arr', 'tf-missing-arr', 'tf-primitive-guard']},
+            },
+          },
+        },
+        {
+          id: 'tf-existing-arr',
+          component: {
+            TextField: {
+              label: {literalString: 'First'},
+              text: {path: '/items/0/name', literalString: 'Guest'},
+            },
+          },
+        },
+        {
+          id: 'tf-missing-arr',
+          component: {
+            TextField: {
+              label: {literalString: 'Role'},
+              text: {path: '/items/1/role', literalString: 'Member'},
+            },
+          },
+        },
+        {
+          id: 'tf-primitive-guard',
+          component: {
+            TextField: {
+              label: {literalString: 'User Subpath'},
+              text: {path: '/user/name', literalString: 'Guest'},
+            },
+          },
+        },
+      ],
+      data: {
+        items: [{name: 'Ada'}, {name: 'Bob'}],
+        user: 'ada',
+      },
+    });
+
+    expect(Array.isArray(normalized.data['items'])).toBe(true);
+    expect(normalized.data['items']).toEqual([{name: 'Ada'}, {name: 'Bob', role: 'Member'}]);
+    expect(normalized.data['user']).toBe('ada');
+    expect(processNormalizedStrict(normalized)).toBeDefined();
+  });
+
+  it('preserves v0.9 object maps, template absolute paths, and non-string Icon errors when specVersion is 0.9', () => {
+    const v09Normalized = normalizeV08Surface({
+      specVersion: '0.9',
+      root: 'root',
+      components: [
+        {id: 'root', component: 'Column', children: ['direct-ref', 'tmpl-list']} as A2UIComponent,
+        {
+          id: 'direct-ref',
+          component: 'Text',
+          text: {path: '/items/k1/name'},
+        } as A2UIComponent,
+        {
+          id: 'tmpl-list',
+          component: 'List',
+          children: {componentId: 'tmpl-icon', path: '/items'},
+        } as A2UIComponent,
+        {
+          id: 'tmpl-icon',
+          component: 'Icon',
+          name: {path: '/iconName'},
+        } as A2UIComponent,
+      ],
+      data: {
+        iconName: 'home',
+        items: {k1: {name: 'KeptInMap', iconName: 'star'}},
+      },
+    });
+
+    // Object map at `/items` and absolute `/iconName` inside v0.9 template stay untouched.
+    expect(v09Normalized.data['items']).toEqual({k1: {name: 'KeptInMap', iconName: 'star'}});
+    const byId = new Map(v09Normalized.components.map(c => [c.id, c]));
+    expect(byId.get('tmpl-icon')?.['name']).toEqual({path: '/iconName'});
+
+    // Non-string primitive `Icon.name` is not coerced to `'info'` in v0.9 mode.
+    const invalidIconNormalized = normalizeV08Surface({
+      specVersion: '0.9',
+      root: 'root',
+      components: [{id: 'root', component: 'Icon', name: 123} as unknown as A2UIComponent],
+    });
+    expect(() => processNormalizedStrict(invalidIconNormalized)).toThrow();
+  });
+
+  it('converts root-only object maps referenced by nested templates', () => {
+    const normalized = normalizeV08Surface({
+      root: 'outer-list',
+      components: [
+        {
+          id: 'outer-list',
+          component: {
+            List: {
+              children: {template: {componentId: 'inner-row', dataBinding: '/items'}},
+            },
+          },
+        },
+        {
+          id: 'inner-row',
+          component: {
+            Row: {
+              children: {template: {componentId: 'tag-lbl', dataBinding: '/globalTags'}},
+            },
+          },
+        },
+        {
+          id: 'tag-lbl',
+          component: {Text: {text: {path: '/label'}}},
+        },
+      ],
+      data: {
+        items: {i1: {title: 'First'}},
+        globalTags: {g1: {label: 'Featured'}},
+      },
+    });
+
+    expect(normalized.data['items']).toEqual([{title: 'First'}]);
+    expect(normalized.data['globalTags']).toEqual([{label: 'Featured'}]);
+    const byId = new Map(normalized.components.map(c => [c.id, c]));
+    expect(byId.get('inner-row')?.['children']).toEqual({
+      componentId: 'tag-lbl',
+      path: '/globalTags',
+    });
+    expect(byId.get('tag-lbl')?.['text']).toEqual({path: 'label'});
+    expect(processNormalizedStrict(normalized)).toBeDefined();
+  });
+
   it('normalizes MultipleChoice defaults, description labels, valueMap selections, DateTimeInput, empty Tabs, and prototype keys', () => {
     const normalized = normalizeV08Surface({
       root: 'col',

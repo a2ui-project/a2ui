@@ -42,10 +42,17 @@ export interface A2UIViewerProps {
   className?: string;
 }
 
-export function A2UIViewer({root, components, data, onAction, className}: A2UIViewerProps) {
+export function A2UIViewer({
+  specVersion = '0.8',
+  root,
+  components,
+  data,
+  onAction,
+  className,
+}: A2UIViewerProps) {
   const normalized = useMemo(
-    () => normalizeV08Surface({root, components, data}),
-    [root, components, data],
+    () => normalizeV08Surface({root, components, data, specVersion}),
+    [specVersion, root, components, data],
   );
 
   return (
