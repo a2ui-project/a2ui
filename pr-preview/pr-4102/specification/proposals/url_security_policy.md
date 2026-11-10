@@ -75,7 +75,7 @@ The allowlist policy adds a host list per context, and accepts `allowSvgDataUrls
 2. Once a context has a list, an `http(s)` URL passes only if its host matches an entry. An empty list matches nothing.
 3. An entry is a hostname, a `host:port` pair, or a wildcard such as `*.example.com`.
    1. A hostname entry matches that host on any port.
-   2. A `host:port` entry matches only that host and port.
+   2. A `host:port` entry matches only that host and port, even when the port is the scheme's default: `example.com:443` matches `https://example.com/` but not `http://example.com/`.
    3. `*.example.com` matches subdomains at any depth (`a.example.com`, `a.b.example.com`) but not `example.com` itself, and not hosts such as `evil-example.com` or `example.com.evil.com`.
    4. Hosts compare without regard to case.
 4. Once a context has a list, relative URLs are blocked in that context unless the host opts in for it.
