@@ -109,6 +109,26 @@ export {resolveCatalogs} from './utils/catalog-resolver.js';
 // Renderer state and payload validation
 export {RendererState} from './utils/renderer-state.js';
 export {validatePayload} from './utils/validation.js';
+export {
+  type BlockedPayloadUrl,
+  checkPayloadUrls,
+  type PayloadUrlCheckOptions,
+  type PayloadUrlCheckResult,
+} from './utils/url-check.js';
+
+// The URL security policy of web_core. Re-exported because `checkPayloadUrls` takes one.
+export {
+  AllowlistUrlSecurityPolicy,
+  type AllowlistUrlSecurityPolicyOptions,
+  PermissiveUrlSecurityPolicy,
+  type UrlCheckInfo,
+  type UrlContext,
+  type UrlContextAnnotation,
+  type UrlPropertyMap,
+  type UrlRewriteHook,
+  type UrlSecurityPolicy,
+  type UrlSecurityPolicyOptions,
+} from './internal/web-core.js';
 
 // The surface model of web_core. Re-exported because `RendererState.getSurface` returns it.
 export type {SurfaceModel} from './internal/web-core.js';

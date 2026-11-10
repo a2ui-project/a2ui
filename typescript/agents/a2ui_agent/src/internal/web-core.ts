@@ -110,10 +110,11 @@ export type {ValidationConfig} from '@a2ui/web_core/validating';
 export type {ComponentRefMap} from '@a2ui/web_core/validating';
 
 // ./resolution
-export {validateReservedDirectives} from '@a2ui/web_core/resolution';
+export {scrapeSchemaBehavior, validateReservedDirectives} from '@a2ui/web_core/resolution';
+export type {BehaviorNode} from '@a2ui/web_core/resolution';
 
 // ./state
-export {ComponentModel, DataModel, SurfaceModel} from '@a2ui/web_core/state';
+export {ComponentModel, DataModel, MAX_ARRAY_INDEX, SurfaceModel} from '@a2ui/web_core/state';
 
 // ./processing
 export {MessageProcessor} from '@a2ui/web_core/processing';
@@ -141,3 +142,22 @@ export type {ProtocolVersion} from '@a2ui/web_core/adapters';
 
 // ./semver
 export {compareSemVer, isAtLeastVersion, normalizeVersionString} from '@a2ui/web_core/semver';
+
+// URL security policy, which only the package root exports.
+export {
+  AllowlistUrlSecurityPolicy,
+  applyUrlSecurityPolicy,
+  BASIC_CATALOG_URL_PROPERTIES,
+  PermissiveUrlSecurityPolicy,
+  redactUrl,
+} from '@a2ui/web_core';
+export type {
+  AllowlistUrlSecurityPolicyOptions,
+  UrlCheckInfo,
+  UrlContext,
+  UrlContextAnnotation,
+  UrlPropertyMap,
+  UrlRewriteHook,
+  UrlSecurityPolicy,
+  UrlSecurityPolicyOptions,
+} from '@a2ui/web_core';

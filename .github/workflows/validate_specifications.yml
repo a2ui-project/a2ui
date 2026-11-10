@@ -23,6 +23,7 @@ on:
       - "catalogs/**"
       - ".github/workflows/validate_specifications.yml"
       - "specification/scripts/validate.py"
+      - "tools/build_catalog/url_annotations.py"
   pull_request:
     paths:
       - "specification/**/json/**"
@@ -30,6 +31,7 @@ on:
       - "catalogs/**"
       - ".github/workflows/validate_specifications.yml"
       - "specification/scripts/validate.py"
+      - "tools/build_catalog/url_annotations.py"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
@@ -66,3 +68,12 @@ jobs:
 
       - name: Run validation script
         run: python3 specification/scripts/validate.py
+
+      # Catalogs the A2UI team owns must mark every URL property with
+      # x-a2ui-url-context, or with "none" when the property holds no URL.
+      - name: Check catalog URL annotations
+        run: >-
+          python3 tools/build_catalog/url_annotations.py
+          catalogs
+          specification/v0_9/catalogs
+          specification/v0_9_1/catalogs

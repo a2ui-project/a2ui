@@ -31,6 +31,8 @@ from pathlib import Path
 from typing import Any
 from urllib.error import URLError
 
+from url_annotations import add_built_in_url_marks, find_url_annotation_problems
+
 try:
     import jsonschema
 except ImportError:
@@ -130,6 +132,10 @@ class CatalogAssembler:
                 logger.debug(f"Reading local JSON: {path}")
                 data = json.loads(path.read_text(encoding="utf-8"))
 
+            # The published basic catalogs carry no URL marks; renderers know
+            # their URL properties by catalog ID, which the assembled catalog
+            # doesn't keep, so the marks are written into the copy.
+            add_built_in_url_marks(data)
             self.file_cache[uri] = data
             return data
         except Exception as e:
@@ -462,6 +468,14 @@ class CatalogAssembler:
                             combined_catalog["instructions"] += f"\n\n{content}"
                 else:
                     logger.warning(f"Instructions file not found: {instr_path}")
+
+        for problem in find_url_annotation_problems(combined_catalog):
+            logger.warning(
+                f"URL annotation: {problem}. Renderers check a URL"
+                " property against the URL security policy only when it is marked with"
+                ' x-a2ui-url-context (media, navigation, or iframe); mark it "none" if'
+                " it does not hold a URL."
+            )
 
         return combined_catalog
 

@@ -117,3 +117,26 @@ $ uv run tools/build_catalog/assemble_catalog.py sample_popup_catalog.json --out
 
 3. Your bundled catalog containing the fully synthesized `basic_catalog` and
    `common_types` requirements will be mapped out to `dist/sample_popup_catalog.json`.
+
+## URL property annotations
+
+Renderers check a component property against the URL security policy only when
+the catalog marks it with `x-a2ui-url-context`: `media` (loaded automatically),
+`navigation` (opened when the user acts), or `iframe` (embedded). A property
+whose name looks like a URL but holds something else is marked `"none"`.
+
+`assemble_catalog.py` logs a warning for each component property whose name
+looks like a URL (`url`, `uri`, `href`, `src`, or a name ending in `Url`, `Uri`,
+`_url`, or `_uri`), whose schema may hold a string, and that has no mark. It
+also writes the marks for the basic catalog's `Image.url`, `Video.url`,
+`Video.posterUrl`, and `AudioPlayer.url` into the assembled catalog, since the
+published basic catalogs carry none and renderers only recognize those
+properties by the basic catalog's ID.
+
+`url_annotations.py` runs the same check on catalog files, or on every
+`catalog.json` under a directory, and exits with status 1 when it finds a
+problem. CI runs it on the catalogs in this repository:
+
+```bash
+python3 tools/build_catalog/url_annotations.py catalogs
+```

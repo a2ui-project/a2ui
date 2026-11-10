@@ -18,6 +18,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import tempfile
 
 # Add the parent directory to the path so we can import assemble_catalog
 sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
@@ -468,6 +469,73 @@ class TestAssembleCatalog(unittest.TestCase):
             self.assertIn("Basic layout rules.", result["instructions"])
             self.assertIn("Custom component rules.", result["instructions"])
             self.assertIn("External CLI rules.", result["instructions"])
+
+    def assemble_files(self, documents, **kwargs):
+        """Writes documents to a temporary directory and assembles them."""
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = []
+            for name, document in documents.items():
+                path = Path(tmp) / name
+                path.write_text(json.dumps(document), encoding="utf-8")
+                paths.append(str(path))
+            assembler = CatalogAssembler(
+                version="1.0", local_basic_catalog_path=str(self.basic_catalog_path)
+            )
+            return assembler.assemble("Assembled", paths, **kwargs)
+
+    def test_warns_about_unmarked_url_properties(self):
+        string = {"type": "string"}
+        with self.assertLogs("a2ui-assembler", level="WARNING") as logs:
+            result = self.assemble_files({
+                "custom.json": {
+                    "components": {
+                        "Card": {
+                            "properties": {
+                                "imageUrl": string,
+                                "linkUrl": {
+                                    **string,
+                                    "x-a2ui-url-context": "navigation",
+                                },
+                                "labelUrl": {**string, "x-a2ui-url-context": "none"},
+                            }
+                        }
+                    }
+                }
+            })
+        url_warnings = [line for line in logs.output if "URL annotation" in line]
+        self.assertEqual(len(url_warnings), 1)
+        self.assertIn("Card.imageUrl: no x-a2ui-url-context", url_warnings[0])
+        self.assertIn("Card", result["components"])
+
+    def test_marks_basic_catalog_url_properties(self):
+        basic = {
+            "catalogId": (
+                "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            ),
+            "components": {
+                "Image": {"properties": {"url": {"type": "string"}}},
+                "Video": {
+                    "properties": {
+                        "url": {"type": "string", "x-a2ui-url-context": "none"},
+                        "posterUrl": {"type": "string"},
+                    }
+                },
+            },
+        }
+        with self.assertNoLogs("a2ui-assembler", level="WARNING"):
+            result = self.assemble_files({"basic.json": basic})
+        components = result["components"]
+        self.assertEqual(
+            components["Image"]["properties"]["url"]["x-a2ui-url-context"], "media"
+        )
+        # A mark the catalog already has is kept.
+        self.assertEqual(
+            components["Video"]["properties"]["url"]["x-a2ui-url-context"], "none"
+        )
+        self.assertEqual(
+            components["Video"]["properties"]["posterUrl"]["x-a2ui-url-context"],
+            "media",
+        )
 
 
 if __name__ == "__main__":
