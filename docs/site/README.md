@@ -56,9 +56,15 @@ To include every specification version on `a2ui.org` **without duplicating Markd
 
 1. **Canonical JSON Schema `$id` Hosting (`scripts/prepare-spec-assets.mjs`)**:
     - Copies `specification/*` and `catalogs/{basic,mcp}/v1/{catalog.json,examples}` (plus `catalogs/mcp/catalog.json` for v0.9) into `docs/site/public/specification/` and flattens `<version>/json/*.json` to `<version>/*.json` before `astro build` runs, so `https://a2ui.org/specification/...` schema `$id` URLs resolve as static JSON.
-2. **GitHub Pages Deployment & Legacy Redirects (`.github/workflows/docs.yml` & `astro.config.mjs`)**:
+2. **Release Asset Pipeline for Screenshots and Videos (`scripts/upload-doc-asset.mjs`)**:
+    - Prevents binary bloat in Git commit history: raster screenshots (`.png`, `.jpg`, `.webp`) and videos must **never** be committed to `docs/site/src/assets/`.
+    - Converts images to optimized `.webp` and assigns immutable, content-addressed filenames (`<namespace--name>.<sha256_8>.webp`).
+    - Uploads assets to the `docs-assets` GitHub Release tag without `--clobber`, and records entries (dimensions, SHA-256, URL) in `docs/site/assets-manifest.json`.
+    - Run `node scripts/upload-doc-asset.mjs --verify` (enforced during `npm run build` prebuild) to guarantee that all assets are tracked and no binary raster files are committed in `src/assets/`.
+    - The build serves its own copies: `node scripts/fetch-doc-assets.mjs` (run in `prebuild` and `predev`) downloads every manifest asset into `public/docs-assets/` and checks it against its SHA-256, retrying failed downloads. Pages still write the release URL from the manifest; `src/plugins/rehype-local-doc-assets.mjs` points Markdown and MDX images at `/docs-assets/<filename>`, and Astro pages build the same path from the manifest `filename`.
+3. **GitHub Pages Deployment & Legacy Redirects (`.github/workflows/docs.yml` & `astro.config.mjs`)**:
     - Builds `docs/site/dist/` (including `CNAME` for `a2ui.org`, `.nojekyll`, and Astro `redirects` for renamed legacy MkDocs paths) and deploys to the `gh-pages` branch on `a2ui-project/a2ui`.
-3. **Pull Request Previews (`.github/workflows/docs_site_preview.yml` & `.github/workflows/docs_site_preview_deploy.yml`)**:
+4. **Pull Request Previews (`.github/workflows/docs_site_preview.yml` & `.github/workflows/docs_site_preview_deploy.yml`)**:
     - Pull requests touching `docs/site/`, `specification/`, `catalogs/`, or `docs/public/assets/` build with `ASTRO_BASE=/pr-preview/pr-<PR_NUMBER>/` and publish a `noindex` preview to `https://a2ui.org/pr-preview/pr-<PR_NUMBER>/` on `gh-pages`, posting a sticky comment on the pull request and removing the preview directory after the pull request closes.
 
 ---
@@ -68,7 +74,7 @@ To include every specification version on `a2ui.org` **without duplicating Markd
 1. **Phase 1 — Scaffold Astro + Starlight in `docs/site/`**
     - Initialize `docs/site/package.json`, `astro.config.mjs`, `tsconfig.json`, `src/content.config.ts`, `scripts/prepare-spec-assets.mjs`, and `src/plugins/remark-a2ui-includes.mjs`.
 2. **Phase 2 — Build the Landing Page (`src/pages/index.astro`)**
-    - Implement the landing page following the Part I & Part II outline (_Give your agents UI on every surface_, _The Generative UI Spectrum_, _Real Use Cases_ with JetBrains/Alation/ByteDance/Google Home/Gemini Notebook logos & screenshot tabs, and _Why A2UI_: Express, Macros, Multi-Platform Client Rendering).
+    - Implement the landing page following the Part I & Part II outline (_Give your agents UI on every surface_, _The Generative UI Spectrum_, _Real Use Cases_ with Alation/ByteDance/Atlassian/Gemini Notebook logos & screenshots, and _Why A2UI_: Express, Macros, Multi-Platform Client Rendering).
     - Visually inspect every section in Light and Dark modes using Playwright screenshots.
 3. **Phase 3 — Pilot Markdown Pages Verification (2 Pilot Pages)**
     - Add **two representative pilot Markdown pages** before migrating the rest of `docs/public/`:

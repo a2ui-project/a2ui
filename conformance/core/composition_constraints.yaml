@@ -13,6 +13,7 @@
 # limitations under the License.
 
 - name: test_composition_surface_implicit_parent_container
+  features: [F-CORE-11, F-CORE-12]
   description: Verifies root components treating Surface as canonical parent container when allowedParents includes Surface.
   catalog:
     protocolVersion: "1.0"
@@ -43,6 +44,7 @@
             text: "Hello World"
 
 - name: test_composition_unallowed_parent_error
+  features: [F-CORE-12]
   description: Verifies validation error thrown when component is placed under an unallowed parent component type.
   catalog:
     catalogId: "custom"
@@ -126,6 +128,7 @@
         message: "Component 'root' (ColumnHeader) cannot be placed under parent 'Surface' (Surface). Allowed parents: ['Column']."
 
 - name: test_composition_unallowed_child_error
+  features: [F-CORE-12]
   description: Verifies validation error thrown when container contains an unallowed child component type.
   catalog:
     catalogId: "custom"
@@ -307,6 +310,7 @@
         message: "Component 'root' (Card) cannot be placed under parent 'Surface' (Surface). Allowed parents: ['Box']."
 
 - name: test_composition_multiple_parents_disallowed_first
+  features: [F-CORE-12]
   description: >-
     Every parent of a component is checked against its allowedParents. Here the
     disallowed parent comes first in surface order.

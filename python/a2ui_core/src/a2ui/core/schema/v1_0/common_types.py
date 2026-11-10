@@ -289,7 +289,8 @@ class IndexSystemFunction(SpecBaseModel):
 
     model_config = ConfigDict(
         json_schema_extra=SchemaKeywords(
-            {"unevaluatedProperties": False}, drop=("additionalProperties",)
+            {"unevaluatedProperties": False, "returnType": "number"},
+            drop=("additionalProperties",),
         ),
         populate_by_name=True,
     )

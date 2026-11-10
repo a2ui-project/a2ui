@@ -578,7 +578,8 @@ const String commonTypesV1_0Json = r'''
         }
       },
       "required": ["@call"],
-      "unevaluatedProperties": false
+      "unevaluatedProperties": false,
+      "returnType": "number"
     },
     "FunctionCall": {
       "type": "object",

@@ -15,10 +15,14 @@
  */
 
 // @ts-check
+import fs from 'node:fs';
+
 import starlight from '@astrojs/starlight';
 import {defineConfig} from 'astro/config';
 
 import {normalizeBasePrefix} from './src/lib/spec-schemas.mjs';
+import {googleAnalytics} from './src/plugins/google-analytics.mjs';
+import {rehypeLocalDocAssets} from './src/plugins/rehype-local-doc-assets.mjs';
 import {rehypeWrapTables} from './src/plugins/rehype-wrap-tables.mjs';
 import {remarkA2uiIncludes} from './src/plugins/remark-a2ui-includes.mjs';
 
@@ -44,11 +48,17 @@ function rehypePreserveJsonHeadingIds() {
 }
 
 const basePrefix = normalizeBasePrefix(process.env.ASTRO_BASE);
+const docAssetsManifest = JSON.parse(
+  fs.readFileSync(new URL('./assets-manifest.json', import.meta.url), 'utf8'),
+);
 
 export default defineConfig({
   site: process.env.ASTRO_SITE || 'https://a2ui.org',
   base: process.env.ASTRO_BASE || undefined,
   redirects: {
+    '/gallery': `${basePrefix}/built-with-a2ui/`,
+    '/showcase': `${basePrefix}/built-with-a2ui/`,
+    '/build-with-a2ui': `${basePrefix}/built-with-a2ui/`,
     '/specification/v0.9-a2ui': `${basePrefix}/specification/v0.9.1-a2ui/`,
     '/specification/v0.9-evolution-guide': `${basePrefix}/specification/v0.9.1-evolution-guide/`,
     '/concepts/actions': `${basePrefix}/concepts/actions-and-functions/`,
@@ -57,6 +67,7 @@ export default defineConfig({
     '/concepts/data-flow': `${basePrefix}/concepts/data-binding/`,
     '/concepts/renderer-sdks': `${basePrefix}/concepts/sdks/#renderer-sdk`,
     '/concepts/transports': `${basePrefix}/concepts/messages/`,
+    '/concepts/macros': `${basePrefix}/guides/macros/`,
     '/guides/a2ui_over_mcp': `${basePrefix}/guides/a2ui-over-mcp/`,
     '/guides/defining-your-own-catalog': `${basePrefix}/guides/defining-a-catalog/`,
     '/guides/client-setup': `${basePrefix}/guides/client-integration/`,
@@ -65,12 +76,18 @@ export default defineConfig({
     '/specification/v0.8-a2a-extension': `${basePrefix}/specification/v1.0-a2ui-extension-specification/`,
     '/specification/v0.8-custom-catalog-changes': `${basePrefix}/specification/v1.0-a2ui/`,
     '/specification/v0.8/schemas': `${basePrefix}/specification/v1.0/schemas/`,
+    '/consultants': `${basePrefix}/get-help/#consultants`,
   },
   markdown: {
     remarkPlugins: [remarkA2uiIncludes],
-    rehypePlugins: [rehypeWrapTables, rehypePreserveJsonHeadingIds],
+    rehypePlugins: [
+      rehypeWrapTables,
+      rehypePreserveJsonHeadingIds,
+      [rehypeLocalDocAssets, {manifest: docAssetsManifest, basePrefix}],
+    ],
   },
   integrations: [
+    googleAnalytics('G-YX9TPV8DCC'),
     starlight({
       title: 'A2UI',
       description:
@@ -83,7 +100,6 @@ export default defineConfig({
       favicon: '/assets/favicon.svg',
       social: {
         github: 'https://github.com/a2ui-project/a2ui',
-        discord: 'https://discord.gg/6fS2326966',
       },
       head: [
         {
@@ -108,6 +124,15 @@ export default defineConfig({
             href: 'https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,400..700;1,400..700&display=swap',
           },
         },
+        {
+          tag: 'link',
+          attrs: {
+            rel: 'alternate',
+            type: 'text/markdown',
+            href: `${basePrefix}/llms.txt`,
+            title: 'A2UI documentation index for LLMs',
+          },
+        },
       ],
       components: {
         Header: './src/components/StarlightHeader.astro',
@@ -115,20 +140,20 @@ export default defineConfig({
       customCss: ['./src/styles/tokens.css', './src/styles/custom.css'],
       sidebar: [
         {
-          label: 'Navigation',
-          items: [
-            {
-              label: '← Back to Overview',
-              link: '/',
-            },
-          ],
-        },
-        {
           label: 'Getting Started',
           items: [
             {
-              label: 'Quick start',
+              label: 'Quickstart',
               slug: 'quickstart',
+            },
+            {
+              label: 'Step-by-Step Walkthrough',
+              slug: 'quickstart/step-by-step',
+            },
+            {
+              label: 'Playground ↗',
+              link: 'https://go.copilotkit.ai/a2ui-playground',
+              attrs: {target: '_blank', rel: 'noopener noreferrer'},
             },
           ],
         },
@@ -156,16 +181,12 @@ export default defineConfig({
               slug: 'concepts/actions-and-functions',
             },
             {
-              label: 'SDKs',
-              slug: 'concepts/sdks',
-            },
-            {
-              label: 'Swappable Inference Formats',
+              label: 'Inference Formats',
               slug: 'concepts/inference-formats',
             },
             {
-              label: 'Macros',
-              slug: 'concepts/macros',
+              label: 'SDKs',
+              slug: 'concepts/sdks',
             },
             {
               label: 'Glossary',
@@ -177,11 +198,11 @@ export default defineConfig({
           label: 'Guides',
           items: [
             {
-              label: 'How to Integrate with My Client',
+              label: 'How to Integrate A2UI into a Client',
               slug: 'guides/client-integration',
             },
             {
-              label: 'How to Integrate with My Agent Server',
+              label: 'How to Integrate A2UI into an Agent',
               slug: 'guides/agent-integration',
             },
             {
@@ -189,7 +210,12 @@ export default defineConfig({
               slug: 'guides/defining-a-catalog',
             },
             {
+              label: 'Using Macros',
+              slug: 'guides/macros',
+            },
+            {
               label: 'Model Context Protocol (MCP)',
+              collapsed: true,
               items: [
                 {
                   label: 'Overview',
@@ -220,20 +246,19 @@ export default defineConfig({
           ],
         },
         {
-          label: 'Roadmap',
+          label: 'Ecosystem',
           items: [
             {
               label: 'Roadmap',
               slug: 'roadmap',
             },
-          ],
-        },
-        {
-          label: 'Ecosystem',
-          items: [
             {
-              label: 'Ecosystem Renderers & Tools',
+              label: 'Community Projects',
               slug: 'ecosystem/renderers',
+            },
+            {
+              label: 'Get Help',
+              link: '/get-help/',
             },
           ],
         },
@@ -268,6 +293,7 @@ export default defineConfig({
             },
             {
               label: 'v0.9.1',
+              collapsed: true,
               items: [
                 {
                   label: 'Protocol Specification',
