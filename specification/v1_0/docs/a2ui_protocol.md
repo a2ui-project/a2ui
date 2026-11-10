@@ -11,7 +11,7 @@
 A Specification for a JSON-Based, Streaming UI Protocol.
 
 **Version:** 1.0
-**Status:** Candidate
+**Status:** Current
 **Created:** Nov 20, 2025
 **Last Updated:** Jun 8, 2026
 
@@ -517,6 +517,8 @@ When resolving a component (or function call), the renderer evaluates catalog id
 
 > [!IMPORTANT]
 > There is **no fallback** to the list of catalogs declared in `rendererCapabilities` (even if the renderer only advertises a single supported catalog). Every component and function call must resolve through either its explicit `catalogId` or the surface default `catalogId`.
+
+Function calls interpolated inside [`formatString`](#the-formatstring-function) `${...}` expressions have no syntax for naming a `catalogId`. Non-system function calls inside `${...}` resolve against the catalog that the enclosing `formatString` call resolved to (even when the surface defines a different default `catalogId`), while `@`-prefixed system functions such as `@index` remain catalogless.
 
 ### Catalog-Agnostic Accessibility Requirements
 
@@ -1320,6 +1322,8 @@ Results of renderer-side functions can be interpolated. Function calls are ident
 - `${formatDate(value:${/currentDate}, format:'yyyy-MM-dd')}`: A function with named arguments.
 
 Arguments can be **Literals** (quoted strings, numbers, or booleans), or **Nested Expressions**.
+
+Because `${...}` syntax cannot specify a `catalogId`, non-system function calls inside `${...}` (including nested calls inside their arguments) resolve against the catalog that the enclosing `formatString` call resolved to, even if the surface declares a different default `catalogId`. Reserved `@`-prefixed system functions (such as `${@index()}`) belong to no catalog and remain catalogless.
 
 #### `formatString` nested interpolation
 

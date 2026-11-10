@@ -9,6 +9,37 @@ For the platform-agnostic protocol specifications and guidelines, see
 
 ---
 
+## Installation
+
+Add this repository to your `Package.swift` dependencies using Swift Package Manager:
+
+```swift
+dependencies: [
+  .package(url: "https://github.com/a2ui-project/a2ui", .upToNextMinor(from: "0.10.0")),
+],
+targets: [
+  .target(
+    name: "YourApp",
+    dependencies: [
+      .product(name: "A2UISwiftCore", package: "a2ui"),
+      .product(name: "A2UISwiftUI", package: "a2ui"),
+      .product(name: "BasicCatalog", package: "a2ui"),
+      .product(name: "BasicCatalogSwiftUI", package: "a2ui"),
+    ]
+  ),
+]
+```
+
+In Xcode, open `File > Add Package Dependencies...`, enter `https://github.com/a2ui-project/a2ui`,
+select version `0.10.0` (Up to Next Minor Version), and add the library products to your target.
+
+Swift Package Manager derives the `package: "a2ui"` identifier from the repository URL rather than
+the manifest's `name` field. `A2UISwiftCore` exposes the `A2UICore` and `A2UIJSON` modules for
+`import`. Targets that do not use SwiftUI can depend on `A2UISwiftCore` and `BasicCatalog` alone.
+See [core/README.md](core/README.md) and [swiftui/README.md](swiftui/README.md) for usage examples.
+
+---
+
 ## Directory structure and modules
 
 The Swift library packages are governed by root [Package.swift](../Package.swift):
@@ -75,6 +106,33 @@ is never evaluated as a format string. Missing category text falls back to `othe
 Plural rules and numeric boundary behavior follow the installed operating system, including for
 fractional and very large counts. They are not pinned to an ICU release and may differ from Web
 `Intl.PluralRules`. Non-finite numbers return `other`.
+
+## Opening links
+
+`openUrl` checks that the URL is `http`, `https`, `mailto` or `tel` and passes the resolved URL to
+the `OpenURLHandler` the catalog was built with. Without one, as in `makeCatalog(version:)` and
+`allCatalogs`, it opens nothing. On iOS:
+
+```swift
+final class SystemURLOpener: OpenURLHandler {
+  func open(_ url: URL) {
+    Task { @MainActor in UIApplication.shared.open(url) }
+  }
+}
+
+let urlOpener = SystemURLOpener()  // Keep this alive, e.g. in your view model.
+let catalog = BasicCatalog.makeCatalog(version: .v10, openURLHandler: urlOpener)
+```
+
+The catalog holds the handler weakly, following the delegate pattern, so it never creates a retain
+cycle. Keep a strong reference to the handler outside the catalog, for example in the view or view
+model that owns the `MessageProcessor`, or share one instance across the app. If nothing else
+holds it, it is released and links stop opening.
+
+In SwiftUI, `BasicCatalogImplementation.makeCatalog(version:locale:openURLHandler:)` takes the same
+handler. Pass that catalog to both `MessageProcessor` and `Surface`, since
+`Catalog<ComponentImplementation>` conforms to `CatalogProtocol`. If you use separate catalogs, give
+`openURLHandler` to the `MessageProcessor` catalog, because that is where functions run.
 
 ## Agent guidelines and coding standards
 

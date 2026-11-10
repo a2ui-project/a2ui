@@ -1,0 +1,729 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/* Hero visual: one A2UI message fans out to every form factor and is painted
+ * natively by each — same payload, a layout that fits the screen. Designed on
+ * a 600 × 400 grid; every dimension is expressed in `--px` (container units) so
+ * the whole scene scales with its column while hairlines stay 1px. */
+---
+
+<div
+  class="ff"
+  id="hero-form-factors"
+  role="img"
+  aria-label="One A2UI message rendering natively on a TV, a desktop browser, a tablet, a phone and a watch — the same content laid out for each screen"
+>
+  <div class="ff-box" aria-hidden="true">
+    <!-- Wires: message → each device -->
+    <svg class="ff-wires" viewBox="0 0 600 400" preserveAspectRatio="none">
+      <g class="ff-wire-base">
+        <path d="M300 108 C300 170 95 180 95 245" />
+        <path d="M300 108 C300 180 280 190 280 260" />
+        <path d="M300 108 C300 166 421 166 421 231" />
+        <path d="M300 108 C300 170 510 172 510 238" />
+        <path d="M300 108 C300 196 573 200 573 284" />
+      </g>
+      <g class="ff-wire-pkt">
+        <path style="--d:0s" d="M300 108 C300 170 95 180 95 245" />
+        <path style="--d:.35s" d="M300 108 C300 180 280 190 280 260" />
+        <path style="--d:.7s" d="M300 108 C300 166 421 166 421 231" />
+        <path style="--d:1.05s" d="M300 108 C300 170 510 172 510 238" />
+        <path style="--d:1.4s" d="M300 108 C300 196 573 200 573 284" />
+      </g>
+      <rect class="ff-wire-src" x="297" y="105" width="6" height="6" />
+    </svg>
+
+    <!-- The message -->
+    <div class="ff-src" style="--x:165;--y:0;--w:270;--h:108">
+      <div class="ff-src__hd">
+        <span>A2UI MESSAGE</span>
+      </div>
+      <div class="ff-src__body">
+        <p class="ff-ln is-on"><b>createSurface</b><span>"home"</span></p>
+        <p class="ff-ln is-on"><b>Card</b><span>"Order #7731"</span></p>
+        <p class="ff-ln is-on"><b>Text</b><span>"Arrives 8:12am"</span></p>
+        <p class="ff-ln is-on"><b>Button</b><span>"Reorder"</span><i class="ff-caret"></i></p>
+      </div>
+    </div>
+
+    <!-- TV -->
+    <div class="ff-dev ff-tv" data-ff-dev="tv" style="--x:0;--y:245;--w:190;--h:107">
+      <div class="ff-scr">
+        <div class="ff-skel"><i style="width:58%"></i><i style="width:84%"></i><i style="width:40%"></i></div>
+        <div class="ff-view is-on" data-ff-v="1">
+          <div class="ff-row">
+            <i class="tb" style="width:40%"></i>
+            <div class="ff-col"><i class="t" style="width:72%"></i><i class="t" style="width:48%"></i><i class="t" style="width:60%"></i><i class="b" style="width:44%"></i></div>
+          </div>
+        </div>
+        <div class="ff-view" data-ff-v="2">
+          <i class="t" style="width:34%"></i>
+          <div class="ff-row">
+            <div class="ff-ch" style="flex:1.4"><i style="height:45%"></i><i style="height:70%"></i><i style="height:52%"></i><i style="height:64%"></i><i class="hi" style="height:88%"></i><i style="height:58%"></i></div>
+            <div class="ff-col"><i class="t" style="width:80%"></i><i class="t" style="width:55%"></i><i class="b" style="width:70%"></i></div>
+          </div>
+        </div>
+        <div class="ff-view" data-ff-v="3">
+          <i class="t" style="width:38%"></i>
+          <div class="ff-row">
+            <div class="ff-col">
+              <div class="ff-op on"><i class="r"></i><i class="t" style="width:60%"></i></div>
+              <div class="ff-op"><i class="r"></i><i class="t" style="width:48%"></i></div>
+              <div class="ff-op"><i class="r"></i><i class="t" style="width:54%"></i></div>
+            </div>
+            <div class="ff-col"><i class="b" style="width:70%"></i></div>
+          </div>
+        </div>
+      </div>
+      <i class="ff-tv__neck"></i>
+      <i class="ff-tv__base"></i>
+    </div>
+
+    <!-- Desktop browser -->
+    <div class="ff-dev ff-lap" data-ff-dev="lap" style="--x:205;--y:260;--w:150;--h:94">
+      <div class="ff-scr">
+        <div class="ff-skel"><i style="width:58%"></i><i style="width:84%"></i><i style="width:40%"></i></div>
+        <div class="ff-view is-on" data-ff-v="1">
+          <div class="ff-row">
+            <div class="ff-sb"><i class="t" style="width:90%"></i><i class="t" style="width:70%"></i><i class="t" style="width:80%"></i></div>
+            <div class="ff-col"><i class="tb" style="height:40%"></i><i class="t" style="width:70%"></i><i class="t" style="width:50%"></i><i class="b" style="width:56%"></i></div>
+          </div>
+        </div>
+        <div class="ff-view" data-ff-v="2">
+          <div class="ff-row">
+            <div class="ff-sb"><i class="t" style="width:90%"></i><i class="t" style="width:70%"></i><i class="t" style="width:80%"></i></div>
+            <div class="ff-col"><i class="t" style="width:46%"></i><div class="ff-ch"><i style="height:45%"></i><i style="height:70%"></i><i style="height:52%"></i><i style="height:64%"></i><i class="hi" style="height:88%"></i></div><i class="b" style="width:56%"></i></div>
+          </div>
+        </div>
+        <div class="ff-view" data-ff-v="3">
+          <div class="ff-row">
+            <div class="ff-sb"><i class="t" style="width:90%"></i><i class="t" style="width:70%"></i><i class="t" style="width:80%"></i></div>
+            <div class="ff-col">
+              <i class="t" style="width:46%"></i>
+              <div class="ff-op on"><i class="r"></i><i class="t" style="width:62%"></i></div>
+              <div class="ff-op"><i class="r"></i><i class="t" style="width:50%"></i></div>
+              <div class="ff-op"><i class="r"></i><i class="t" style="width:56%"></i></div>
+              <i class="b" style="width:56%"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+      <i class="ff-lap__base"></i>
+    </div>
+
+    <!-- Tablet -->
+    <div class="ff-dev ff-tab" data-ff-dev="tab" style="--x:370;--y:231;--w:102;--h:131">
+      <div class="ff-scr">
+        <div class="ff-skel"><i style="width:58%"></i><i style="width:84%"></i><i style="width:40%"></i></div>
+        <div class="ff-view is-on" data-ff-v="1">
+          <i class="tb" style="height:36%"></i><i class="t" style="width:74%"></i><i class="t" style="width:52%"></i><i class="t" style="width:64%"></i><i class="b" style="width:62%"></i>
+        </div>
+        <div class="ff-view" data-ff-v="2">
+          <i class="t" style="width:50%"></i><div class="ff-ch"><i style="height:45%"></i><i style="height:70%"></i><i style="height:52%"></i><i style="height:64%"></i><i class="hi" style="height:88%"></i></div><i class="t" style="width:60%"></i><i class="b" style="width:62%"></i>
+        </div>
+        <div class="ff-view" data-ff-v="3">
+          <i class="t" style="width:54%"></i>
+          <div class="ff-op on"><i class="r"></i><i class="t" style="width:66%"></i></div>
+          <div class="ff-op"><i class="r"></i><i class="t" style="width:52%"></i></div>
+          <div class="ff-op"><i class="r"></i><i class="t" style="width:58%"></i></div>
+          <i class="b" style="width:62%"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phone -->
+    <div class="ff-dev ff-ph" data-ff-dev="ph" style="--x:478;--y:238;--w:64;--h:124">
+      <i class="ff-ph__island"></i>
+      <div class="ff-scr">
+        <div class="ff-skel"><i style="width:58%"></i><i style="width:84%"></i><i style="width:40%"></i></div>
+        <div class="ff-view is-on" data-ff-v="1">
+          <i class="tb" style="height:32%"></i><i class="t" style="width:80%"></i><i class="t" style="width:56%"></i><i class="t" style="width:68%"></i><i class="b" style="width:100%"></i>
+        </div>
+        <div class="ff-view" data-ff-v="2">
+          <i class="t" style="width:60%"></i><div class="ff-ch"><i style="height:45%"></i><i style="height:70%"></i><i style="height:52%"></i><i class="hi" style="height:88%"></i></div><i class="t" style="width:70%"></i><i class="b" style="width:100%"></i>
+        </div>
+        <div class="ff-view" data-ff-v="3">
+          <i class="t" style="width:64%"></i>
+          <div class="ff-op on"><i class="r"></i><i class="t" style="width:70%"></i></div>
+          <div class="ff-op"><i class="r"></i><i class="t" style="width:54%"></i></div>
+          <div class="ff-op"><i class="r"></i><i class="t" style="width:62%"></i></div>
+          <i class="b" style="width:100%"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Watch -->
+    <div class="ff-dev ff-w" data-ff-dev="w" style="--x:548;--y:293;--w:50;--h:60">
+      <i class="ff-w__band ff-w__band--top"></i>
+      <i class="ff-w__band ff-w__band--bot"></i>
+      <i class="ff-w__crown"></i>
+      <div class="ff-scr">
+        <div class="ff-skel"><i style="width:70%"></i><i style="width:50%"></i></div>
+        <div class="ff-view is-on" data-ff-v="1">
+          <i class="tb" style="height:40%"></i><i class="t" style="width:80%"></i><i class="b" style="width:100%"></i>
+        </div>
+        <div class="ff-view" data-ff-v="2">
+          <div class="ff-ch"><i style="height:45%"></i><i style="height:70%"></i><i class="hi" style="height:90%"></i></div><i class="b" style="width:100%"></i>
+        </div>
+        <div class="ff-view" data-ff-v="3">
+          <div class="ff-op on"><i class="r"></i><i class="t" style="width:70%"></i></div>
+          <div class="ff-op"><i class="r"></i><i class="t" style="width:55%"></i></div>
+          <i class="b" style="width:100%"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floor + labels -->
+    <i class="ff-floor"></i>
+    <div class="ff-lbl" style="--y:374;--x:0;--w:190"><b>TV</b></div>
+    <div class="ff-lbl" style="--y:374;--x:196;--w:168"><b>DESKTOP</b></div>
+    <div class="ff-lbl" style="--y:374;--x:370;--w:102"><b>TABLET</b></div>
+    <div class="ff-lbl" style="--y:374;--x:478;--w:64"><b>PHONE</b></div>
+    <div class="ff-lbl" style="--y:374;--x:548;--w:50"><b>WATCH</b></div>
+  </div>
+</div>
+
+<script is:inline>
+  (() => {
+    const root = document.getElementById('hero-form-factors');
+    if (!root) return;
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const devs = Array.from(root.querySelectorAll('.ff-dev'));
+    const lines = Array.from(root.querySelectorAll('.ff-ln'));
+    if (reduce || !devs.length || !lines.length) return;
+
+    /* Three payloads — the devices repaint the same message in their own layout */
+    const payloads = [
+      [['createSurface', '"home"'], ['Card', '"Order #7731"'], ['Text', '"Arrives 8:12am"'], ['Button', '"Reorder"']],
+      [['updateComponents', ''], ['Card', '"Weekly spend"'], ['BarChart', '/spend'], ['Button', '"Set a $90 cap"']],
+      [['updateComponents', ''], ['Card', '"Delivery slot"'], ['ChoiceGroup', '/slots'], ['Button', '"Book Sat 10am"']],
+    ];
+
+    let v = 0;
+    let timers = [];
+    let visible = true;
+    const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+    const clear = () => { timers.forEach(clearTimeout); timers = []; };
+
+    const showView = (dev, n) => {
+      dev.querySelectorAll('[data-ff-v]').forEach((el) => el.classList.toggle('is-on', el.getAttribute('data-ff-v') === String(n)));
+    };
+
+    const cycle = () => {
+      clear();
+      const p = payloads[v];
+      // 1. a new message starts streaming: the surfaces wait
+      devs.forEach((d) => d.classList.add('is-wait'));
+      lines.forEach((ln) => ln.classList.remove('is-on'));
+      p.forEach((pair, i) => {
+        later(() => {
+          const ln = lines[i];
+          if (!ln) return;
+          ln.querySelector('b').textContent = pair[0];
+          ln.querySelector('span').textContent = pair[1];
+          ln.classList.add('is-on');
+        }, 100 + i * 150);
+      });
+      // 2. each renderer paints it — same payload, its own layout
+      devs.forEach((d, i) => {
+        later(() => {
+          showView(d, v + 1);
+          d.classList.remove('is-wait');
+          d.classList.remove('is-paint');
+          void d.offsetWidth;
+          d.classList.add('is-paint');
+        }, 920 + i * 90);
+      });
+      // 3. hold, then the next message
+      later(() => {
+        v = (v + 1) % payloads.length;
+        if (visible) cycle();
+      }, 4150);
+    };
+
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver((entries) => {
+        entries.forEach((e) => {
+          const was = visible;
+          visible = e.isIntersecting;
+          if (visible && !was) cycle();
+          if (!visible) clear();
+        });
+      }, { threshold: 0.2 }).observe(root);
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { clear(); } else if (visible) { cycle(); }
+    });
+
+    later(() => { v = 1; cycle(); }, 2100);
+  })();
+</script>
+
+<style>
+  /* Scene scales with its column: 1 design px = --px (600 × 400 grid); colours come from tokens */
+  .ff {
+    container-type: inline-size;
+    width: 100%;
+    --ff-ink: var(--a2-text);
+    --ff-soft: var(--a2-text-muted);
+    --ff-accent: var(--a2-accent);
+    --ff-frame: var(--a2-border-strong);
+    --ff-shell: var(--a2-surface-raised);
+    --ff-screen: var(--a2-surface);
+  }
+
+  .ff-box {
+    --px: calc(100cqw / 600);
+    position: relative;
+    height: calc(var(--px) * 400);
+  }
+
+  .ff-box > [style*='--x'] {
+    position: absolute;
+    left: calc(var(--px) * var(--x));
+    top: calc(var(--px) * var(--y, 0));
+    width: calc(var(--px) * var(--w));
+  }
+
+  /* --- The message (grows with its lines on small screens; wires sit beneath it) --- */
+  .ff-src {
+    min-height: calc(var(--px) * var(--h));
+    z-index: 1;
+    border: 1px solid var(--ff-frame);
+    background: var(--ff-screen);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .ff-src__hd {
+    display: flex;
+    justify-content: space-between;
+    gap: calc(var(--px) * 8);
+    padding: calc(var(--px) * 7) calc(var(--px) * 10) calc(var(--px) * 6);
+    border-bottom: 1px solid var(--a2-border);
+    font-family: var(--a2-font-mono);
+    font-size: max(7px, calc(var(--px) * 9.5));
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--ff-soft);
+    white-space: nowrap;
+  }
+
+  .ff-src__hd span:last-child {
+    color: var(--ff-accent);
+  }
+
+  .ff-src__body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: calc(var(--px) * 2.5);
+    padding: calc(var(--px) * 5) calc(var(--px) * 10);
+  }
+
+  .ff-ln {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: calc(var(--px) * 8);
+    font-family: var(--a2-font-mono);
+    font-size: max(7.5px, calc(var(--px) * 11.5));
+    line-height: 1.35;
+    color: var(--ff-ink);
+    white-space: nowrap;
+    opacity: 0;
+    transform: translateX(calc(var(--px) * -4));
+    transition: opacity 0.28s ease, transform 0.28s ease;
+  }
+
+  .ff-ln.is-on {
+    opacity: 1;
+    transform: none;
+  }
+
+  .ff-ln b {
+    font-weight: 600;
+    color: var(--ff-accent);
+    min-width: calc(var(--px) * 74);
+  }
+
+  .ff-ln span {
+    color: var(--a2-text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ff-caret {
+    display: block;
+    width: calc(var(--px) * 5);
+    height: 1.1em;
+    background: var(--ff-accent);
+    animation: ffCaret 1s steps(1) infinite;
+  }
+
+  @keyframes ffCaret {
+    50% { opacity: 0; }
+  }
+
+  /* --- Wires --- */
+  .ff-wires {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .ff-wire-base path {
+    fill: none;
+    stroke: var(--ff-frame);
+    stroke-width: 1;
+    stroke-dasharray: 2 4;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .ff-wire-pkt path {
+    fill: none;
+    stroke: var(--ff-accent);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-dasharray: 18 700;
+    stroke-dashoffset: 716;
+    vector-effect: non-scaling-stroke;
+    animation: ffPacket 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    animation-delay: var(--d, 0s);
+  }
+
+  @keyframes ffPacket {
+    to { stroke-dashoffset: 300; }
+  }
+
+  .ff-wire-src {
+    fill: var(--ff-accent);
+  }
+
+  /* --- Devices --- */
+  .ff-dev {
+    --u: 4.5;
+    --pad: 9;
+    --gap: 5.5;
+    height: calc(var(--px) * var(--h));
+  }
+
+  .ff-dev.is-paint .ff-scr {
+    animation: ffPaint 0.5s ease;
+  }
+
+  @keyframes ffPaint {
+    0% { box-shadow: 0 0 0 0 var(--a2-accent-border); }
+    100% { box-shadow: 0 0 0 calc(var(--px) * 6) transparent; }
+  }
+
+  .ff-scr {
+    position: absolute;
+    inset: 0;
+    border: 1px solid var(--ff-frame);
+    background: var(--ff-screen);
+    overflow: hidden;
+  }
+
+  .ff-tv .ff-scr { border-radius: calc(var(--px) * 3); }
+  .ff-lap .ff-scr { border-radius: calc(var(--px) * 4) calc(var(--px) * 4) 0 0; }
+  .ff-tab .ff-scr { border-radius: calc(var(--px) * 8); }
+  .ff-ph .ff-scr { border-radius: calc(var(--px) * 9); }
+  .ff-w .ff-scr { border-radius: calc(var(--px) * 12); }
+
+  .ff-tab { --u: 3.5; --pad: 9; --gap: 4.5; }
+  .ff-ph { --u: 3.5; --pad: 7; --gap: 4.5; }
+  .ff-w { --u: 3; --pad: 7; --gap: 3.5; }
+
+  /* shells */
+  .ff-dev i { display: block; }
+
+  .ff-tv__neck,
+  .ff-tv__base,
+  .ff-lap__base,
+  .ff-w__band,
+  .ff-w__crown,
+  .ff-ph__island {
+    position: absolute;
+    background: var(--ff-shell);
+    border: 1px solid var(--ff-frame);
+  }
+
+  .ff-tv__neck {
+    left: 50%;
+    top: 100%;
+    width: calc(var(--px) * 2);
+    height: calc(var(--px) * 7);
+    transform: translateX(-50%);
+    border-top: none;
+  }
+
+  .ff-tv__base {
+    left: 50%;
+    top: calc(100% + var(--px) * 7);
+    width: calc(var(--px) * 44);
+    height: calc(var(--px) * 3);
+    transform: translateX(-50%);
+    border-radius: calc(var(--px) * 2);
+  }
+
+  .ff-lap__base {
+    left: calc(var(--px) * -8);
+    top: 100%;
+    width: calc(100% + var(--px) * 16);
+    height: calc(var(--px) * 8);
+    border-radius: 0 0 calc(var(--px) * 4) calc(var(--px) * 4);
+  }
+
+  .ff-lap__base::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: calc(var(--px) * 22);
+    height: calc(var(--px) * 2);
+    transform: translateX(-50%);
+    background: var(--ff-frame);
+    border-radius: 0 0 2px 2px;
+  }
+
+  .ff-ph__island {
+    left: 50%;
+    top: calc(var(--px) * 5);
+    width: calc(var(--px) * 14);
+    height: calc(var(--px) * 3);
+    transform: translateX(-50%);
+    border-radius: 99px;
+    background: var(--ff-frame);
+    border: none;
+    z-index: 2;
+  }
+
+  .ff-w__band {
+    left: 50%;
+    width: calc(var(--px) * 22);
+    height: calc(var(--px) * 9);
+    transform: translateX(-50%);
+  }
+
+  .ff-w__band--top {
+    bottom: 100%;
+    border-bottom: none;
+    border-radius: calc(var(--px) * 4) calc(var(--px) * 4) 0 0;
+  }
+
+  .ff-w__band--bot {
+    top: 100%;
+    border-top: none;
+    border-radius: 0 0 calc(var(--px) * 4) calc(var(--px) * 4);
+  }
+
+  .ff-w__crown {
+    left: 100%;
+    top: calc(var(--px) * 14);
+    width: calc(var(--px) * 3);
+    height: calc(var(--px) * 9);
+    border-left: none;
+    border-radius: 0 2px 2px 0;
+  }
+
+  /* --- Mini UI primitives (same payload, a layout per form factor) --- */
+  .ff-skel,
+  .ff-view {
+    position: absolute;
+    inset: 0;
+    padding: calc(var(--px) * var(--pad));
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--px) * var(--gap));
+    transition: opacity 0.32s ease, transform 0.32s ease;
+  }
+
+  .ff-ph .ff-view,
+  .ff-ph .ff-skel {
+    padding-top: calc(var(--px) * 12);
+  }
+
+  .ff-view {
+    opacity: 0;
+    transform: translateY(calc(var(--px) * 3));
+  }
+
+  .ff-view.is-on {
+    opacity: 1;
+    transform: none;
+  }
+
+  .ff-dev.is-wait .ff-view.is-on {
+    opacity: 0;
+  }
+
+  .ff-skel {
+    justify-content: center;
+    opacity: 0;
+  }
+
+  .ff-dev.is-wait .ff-skel {
+    opacity: 1;
+  }
+
+  .ff-skel i {
+    height: calc(var(--px) * var(--u));
+    border-radius: 1px;
+    background: var(--ff-soft);
+    opacity: 0.5;
+    animation: ffSkel 1s ease-in-out infinite;
+  }
+
+  .ff-skel i:nth-child(2) { animation-delay: 0.15s; }
+  .ff-skel i:nth-child(3) { animation-delay: 0.3s; }
+
+  @keyframes ffSkel {
+    50% { opacity: 0.18; }
+  }
+
+  .ff-view i {
+    flex: 0 0 auto;
+  }
+
+  .ff-view .t {
+    height: calc(var(--px) * var(--u));
+    border-radius: 1px;
+    background: var(--ff-soft);
+    opacity: 0.55;
+  }
+
+  /* thumbnail = soft blue container, button = solid Google-blue primary */
+  .ff-view .tb {
+    border-radius: calc(var(--px) * 2);
+    background: var(--ff-accent);
+    opacity: 0.45;
+  }
+
+  .ff-view .b {
+    height: calc(var(--px) * var(--u) * 2.4);
+    border-radius: calc(var(--px) * 1.5);
+    background: var(--ff-accent);
+    margin-top: auto;
+  }
+
+  .ff-row {
+    display: flex;
+    gap: calc(var(--px) * var(--gap));
+    flex: 1;
+    min-height: 0;
+  }
+
+  .ff-col {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--px) * var(--gap));
+    flex: 1;
+    min-width: 0;
+  }
+
+  .ff-sb {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--px) * 5);
+    width: 24%;
+    flex: 0 0 auto;
+    padding-right: calc(var(--px) * 5);
+    border-right: 1px solid var(--a2-border);
+  }
+
+  .ff-ch {
+    display: flex;
+    align-items: flex-end;
+    gap: calc(var(--px) * 2);
+    flex: 1;
+    min-height: 0;
+  }
+
+  .ff-ch i {
+    flex: 1 1 0;
+    border-radius: 1px 1px 0 0;
+    background: var(--ff-accent);
+    opacity: 0.7;
+  }
+
+  .ff-ch i.hi {
+    background: var(--ff-ink);
+    opacity: 1;
+  }
+
+  .ff-op {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--px) * 3);
+  }
+
+  .ff-op .r {
+    width: calc(var(--px) * var(--u) * 1.7);
+    height: calc(var(--px) * var(--u) * 1.7);
+    border-radius: 50%;
+    border: 1px solid var(--ff-soft);
+    opacity: 0.8;
+  }
+
+  .ff-op.on .r {
+    background: var(--ff-accent);
+    border-color: var(--ff-accent);
+    opacity: 1;
+  }
+
+  /* --- Floor + labels (device type only) --- */
+  .ff-floor {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(var(--px) * 362);
+    height: 1px;
+    background: var(--ff-frame);
+  }
+
+  .ff-lbl {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: calc(var(--px) * 2);
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .ff-lbl b {
+    font-family: var(--a2-font-mono);
+    font-size: max(7px, calc(var(--px) * 10.5));
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--ff-ink);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ff-wire-pkt path,
+    .ff-caret,
+    .ff-skel i,
+    .ff-dev.is-paint .ff-scr {
+      animation: none;
+    }
+  }
+</style>

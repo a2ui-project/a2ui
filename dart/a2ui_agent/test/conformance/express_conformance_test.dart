@@ -30,7 +30,89 @@ import 'suites.dart';
 ///
 /// A case that needs something this SDK does not implement is skipped with
 /// the reason.
+const Map<String, Set<String>> _knownKeys = {
+  'case:compile': {
+    ...caseMetadataKeys,
+    'args',
+    'expect',
+    'expect_error',
+    'expect_present',
+    'input',
+  },
+  'case:decompile': {
+    ...caseMetadataKeys,
+    'args',
+    'expect_absent',
+    'expect_contains',
+    'expect_error',
+    'expect_recompiled',
+    'expect_round_trip',
+    'messages',
+  },
+  'case:generate_prompt_snippet': {
+    ...caseMetadataKeys,
+    'args',
+    'expect_absent',
+    'expect_callable_functions',
+    'expect_contains',
+    'expect_deterministic',
+    'expect_error',
+  },
+  'case:has_format_content': {...caseMetadataKeys, 'args', 'expect', 'input'},
+  'case:parse_chunk': {
+    ...caseMetadataKeys,
+    'args',
+    'expect_close',
+    'expect_error',
+    'expect_matches_single_shot',
+    'steps',
+  },
+  'case:parse_response': {
+    ...caseMetadataKeys,
+    'args',
+    'expect',
+    'expect_error',
+    'input',
+  },
+  'case:unwrap': {...caseMetadataKeys, 'args', 'expect', 'input'},
+  'case:wrap': {
+    ...caseMetadataKeys,
+    'args',
+    'expect_contains',
+    'expect_output',
+    'expect_round_trip',
+    'parts',
+  },
+  'args:compile': {'catalog', 'catalogs', 'format'},
+  'args:decompile': {'catalog', 'catalogs', 'format'},
+  'args:generate_prompt_snippet': {
+    'allowed_messages',
+    'catalogs',
+    'examples',
+    'format',
+  },
+  'args:has_format_content': {'complete', 'format'},
+  'args:parse_chunk': {
+    'after_rejected_block',
+    'catalog',
+    'format',
+    'progressive_keys',
+    'wrapped',
+  },
+  'args:parse_response': {'catalog', 'format', 'wrapped'},
+  'args:unwrap': {'format'},
+  'args:wrap': {'format'},
+  'step:parse_chunk': {
+    'expect',
+    'expect_error',
+    'expect_in_block',
+    'expect_partial_results',
+    'input',
+  },
+};
+
 void main() {
+  final allCaseNames = <String>{};
   for (final suite in [
     'compiler',
     'response_parser',
@@ -44,15 +126,14 @@ void main() {
         final List<Map<String, Object?>> cases = loadSuite(path);
         test('suite is not empty', () => expect(cases, isNotEmpty));
         for (final testCase in cases) {
-          test(
-            testCase['name']! as String,
-            () => _runCase(testCase, version),
-            skip: _skipReason(testCase, version),
-          );
+          final name = testCase['name']! as String;
+          allCaseNames.add(name);
+          test(name, () => _runCase(testCase, version));
         }
       });
     }
   }
+  verifyNoUnusedEntries('express', allCaseNames, _v1OnlyCases.keys);
 }
 
 const String _oneCatalogPerSurface =
@@ -68,10 +149,48 @@ const String _noUserMessage =
     'The v0.9 Action has no userMessage field, so an event carrying one runs '
     'as written in v1.0 only.';
 
+const String _noSystemFunctions =
+    'v0.9 defines no system functions, so a call to @index runs as written '
+    'in v1.0 only.';
+
 /// Cases that state what v0.9 cannot, or that are already written against a
 /// v0.9 catalog, so they run in [SuiteVersion.v1_0] (as written) only, with
 /// the reason for each.
 const Map<String, String> _v1OnlyCases = {
+  'test_compile_express_index_system_function': _noSystemFunctions,
+  'test_compile_express_index_system_function_positional_offset':
+      _noSystemFunctions,
+  'test_compile_express_index_system_function_named_offset': _noSystemFunctions,
+  'test_compile_express_index_system_function_with_several_catalogs_'
+          'names_no_catalog':
+      _noSystemFunctions,
+  'test_decompile_express_index_system_function': _noSystemFunctions,
+  'test_decompile_express_index_system_function_with_several_catalogs':
+      _noSystemFunctions,
+  'test_express_snippet_lists_system_functions_from_v1_0': _noSystemFunctions,
+  'test_compile_express_system_function_with_catalog_id_is_a_validation_error':
+      _noSystemFunctions,
+  'test_compile_express_unknown_system_function_is_a_validation_error':
+      _noSystemFunctions,
+  'test_compile_express_unreferenced_variable_holding_a_system_function_'
+          'call_with_catalog_id_is_a_validation_error':
+      _noSystemFunctions,
+  'test_compile_express_unreferenced_variable_holding_an_unknown_system_'
+          'function_is_a_validation_error':
+      _noSystemFunctions,
+  'test_compile_express_root_holding_an_unknown_system_function_is_a_'
+          'validation_error':
+      _noSystemFunctions,
+  'test_compile_express_variable_holding_a_system_function_call_is_inlined':
+      _noSystemFunctions,
+  'test_compile_express_variable_holding_a_system_function_call_with_'
+          'catalog_id_is_a_validation_error':
+      _noSystemFunctions,
+  'test_decompile_express_system_function_with_catalog_id_is_a_'
+          'validation_error':
+      _noSystemFunctions,
+  'test_decompile_express_unknown_system_function_is_a_validation_error':
+      _noSystemFunctions,
   'test_compile_express_event_user_message': _noUserMessage,
   'test_compile_express_event_user_message_binding_with_context':
       _noUserMessage,
@@ -115,6 +234,19 @@ const Map<String, String> _v1OnlyCases = {
       'Surface extensions are only supported in A2UI v1.0 or later.',
   'test_compile_express_empty_extensions_preserved':
       'Surface and component extensions require A2UI v1.0 or later.',
+  'test_compile_express_standalone_call_renderer_or_agent_function':
+      'Protocol v0.9 has no callRendererFunction message.',
+  'test_compile_express_standalone_call_agent_only_function':
+      'Protocol v0.9 has no callRendererFunction message.',
+  'test_compile_express_standalone_call_renderer_only_function'
+          '_is_validation_error':
+      'Protocol v0.9 has no callRendererFunction message.',
+  'test_compile_express_standalone_call_user_activation_function'
+          '_is_validation_error':
+      'Protocol v0.9 has no callRendererFunction message.',
+  'test_express_snippet_names_only_agent_callable_functions'
+          '_for_standalone_calls':
+      'Protocol v0.9 function schema does not support allowedCallers.',
 };
 
 /// Why this SDK cannot run [testCase] in [version], or null if it can.
@@ -128,7 +260,20 @@ String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
 }
 
 void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
-  if (testCase['action'] == 'parse_chunk') {
+  if (_skipReason(testCase, version) case final String reason) {
+    markTestSkipped(reason);
+    return;
+  }
+  final action = testCase['action'] as String?;
+  final Set<String>? allowedCaseKeys = _knownKeys['case:$action'];
+  if (allowedCaseKeys == null) {
+    throw UnsupportedError('Unknown action $action');
+  }
+  assertKnownKeys(testCase, allowedCaseKeys, 'case:$action');
+  final args = testCase['args']! as Map<String, Object?>;
+  assertKnownKeys(args, _knownKeys['args:$action']!, 'args:$action');
+  expect(args['format'], 'express');
+  if (action == 'parse_chunk') {
     _runChunks(testCase, version);
     return;
   }
@@ -138,7 +283,7 @@ void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
     return;
   }
   final Object? result = _perform(testCase, version);
-  switch (testCase['action']) {
+  switch (action) {
     case 'generate_prompt_snippet':
       _checkSnippet(testCase, version, result! as String);
     case 'wrap':
@@ -179,6 +324,11 @@ void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
   for (final (int i, Object? step)
       in (testCase['steps']! as List<Object?>).indexed) {
     final stepCase = step! as Map<String, Object?>;
+    assertKnownKeys(
+      stepCase,
+      _knownKeys['step:parse_chunk']!,
+      'step:parse_chunk',
+    );
     final chunk = stepCase['input']! as String;
     chunks.add(chunk);
     if (stepCase['expect_error'] case final Object error) {
@@ -348,6 +498,10 @@ void _checkDecompiled(
       in (testCase['expect_contains'] as List<Object?>?) ?? const []) {
     expect(output, contains(text));
   }
+  for (final Object? text
+      in (testCase['expect_absent'] as List<Object?>?) ?? const []) {
+    expect(output, isNot(contains(text)));
+  }
   if (testCase['expect_round_trip'] == true) {
     expect(
       version.messagesJson(
@@ -376,6 +530,13 @@ void _checkSnippet(
   String snippet,
 ) {
   expectSnippet(snippet, testCase);
+  if (testCase['expect_callable_functions'] case final List<Object?> expected) {
+    final args = testCase['args']! as Map<String, Object?>;
+    expect(agentCallableFunctions(version.catalogs(args)), expected);
+    for (final name in expected) {
+      expect(snippet, contains(name));
+    }
+  }
   if (testCase['expect_deterministic'] == true) {
     expect(_perform(testCase, version), snippet);
   }

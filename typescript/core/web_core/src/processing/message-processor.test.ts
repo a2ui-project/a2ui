@@ -550,6 +550,31 @@ describe('MessageProcessor', () => {
       assert.strictEqual((surface.theme as any)?.defaultedField, 'default-val');
     });
 
+    describe('maxAgentCallCacheEntries', () => {
+      const catalog = new Catalog('cat', '1.0', BASIC_COMPONENTS);
+      const create = {version: '1.0' as const, createSurface: {surfaceId: 's', catalogId: 'cat'}};
+
+      it('applies to the surfaces the processor creates', () => {
+        const proc = new MessageProcessor([catalog], undefined, {maxAgentCallCacheEntries: 2});
+        proc.processMessages(create);
+        assert.strictEqual(proc.model.getSurface('s')!.maxAgentCallCacheEntries, 2);
+
+        const defaulted = new MessageProcessor([catalog]);
+        defaulted.processMessages(create);
+        assert.strictEqual(defaulted.model.getSurface('s')!.maxAgentCallCacheEntries, 256);
+      });
+
+      it('rejects a value that is not a positive integer', () => {
+        for (const value of [0, -1, 1.5, Number.NaN]) {
+          assert.throws(
+            () => new MessageProcessor([catalog], undefined, {maxAgentCallCacheEntries: value}),
+            RangeError,
+            String(value),
+          );
+        }
+      });
+    });
+
     describe('per call', () => {
       const catalog = new Catalog('cat', '1.0', BASIC_COMPONENTS);
       const create = {version: '1.0' as const, createSurface: {surfaceId: 's', catalogId: 'cat'}};
@@ -1606,6 +1631,45 @@ describe('MessageProcessor', () => {
           vendor_app: {analyticsId: 'track_btn_1_updated', role: 'secondary'},
         },
       });
+    });
+
+    it('keeps metadata as an ordinary property below v1.0', () => {
+      const cardApi: ComponentApi = {
+        name: 'Card',
+        schema: z.object({metadata: z.record(z.string(), z.unknown())}).strict(),
+      };
+      const proc = new MessageProcessor<ComponentApi>([new Catalog('v09', '0.9', [cardApi])]);
+
+      proc.processMessages([
+        {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'v09'}},
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's',
+            components: [{id: 'root', component: 'Card', metadata: {source: 'crm'}}],
+          },
+        },
+      ]);
+
+      const card = proc.getSurface('s')?.componentsModel.get('root');
+      assert.ok(card);
+      assert.deepStrictEqual(card.properties, {metadata: {source: 'crm'}});
+      assert.strictEqual(card.metadata, undefined);
+
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's',
+            components: [
+              {id: 'root', component: 'Card', metadata: {extensions: {vendor_app: 'v'}}},
+            ],
+          },
+        },
+      ]);
+
+      assert.deepStrictEqual(card.properties, {metadata: {extensions: {vendor_app: 'v'}}});
+      assert.strictEqual(card.metadata, undefined);
     });
   });
 

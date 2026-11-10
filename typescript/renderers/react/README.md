@@ -341,7 +341,7 @@ export const MyComponent = createComponentImplementation(MyComponentApi, ({props
 
 ## Legacy Support (v0.8)
 
-A2UI v0.8 is maintained for backward compatibility. While it remains the default export for the `@a2ui/react` package, it is recommended to transition to v0.9 for new features like type-safe binders and logic functions.
+A2UI v0.8 is deprecated and maintained only for backward compatibility. It is available from the `@a2ui/react/v0_8` entry point. New projects should use the package root, which supports v0.9 and v1.0 with type-safe binders and logic functions.
 
 ### Import and Usage
 
@@ -367,7 +367,7 @@ function LegacyApp() {
 
 ### Key Differences (v0.8 vs v0.9)
 
-| Feature         | v0.8 (Legacy)                           | v0.9 (Current)                                                   |
+| Feature         | v0.8 (Deprecated)                       | v0.9 and later                                                   |
 | :-------------- | :-------------------------------------- | :--------------------------------------------------------------- |
 | **Protocol**    | Uses `BeginRendering`, `SurfaceUpdate`. | Uses `createSurface`, `updateComponents`, `updateDataModel`.     |
 | **Data Flow**   | Unidirectional surface updates.         | Bidirectional synchronization (`sendDataModel`).                 |
@@ -455,47 +455,3 @@ render( <TestWrapper onAction={onAction}> <TestRenderer messages={messages} />
 
 fireEvent.click(screen.getByRole('button'));
 expect(onAction).toHaveBeenCalled(); }); ```
-
-## Visual Parity Testing
-
-The React renderer maintains visual parity with the Lit renderer (reference
-implementation). A comprehensive test suite compares pixel-perfect screenshots
-between both renderers.
-
-### Running Visual Parity Tests
-
-```bash
-cd visual-parity
-yarn test
-```
-
-### Quick Commands
-
-```bash
-# Run all tests
-yarn test
-
-# Run specific component tests
-yarn test --grep "button"
-
-# Run with UI mode
-yarn test:ui
-
-# Start dev servers for manual inspection
-yarn dev
-# React: http://localhost:5001
-# Lit: http://localhost:5002
-```
-
-### Documentation
-
-- **[visual-parity/README.md](./visual-parity/README.md)** - Test suite usage
-  and fixture creation
-- **[visual-parity/PARITY.md](./visual-parity/PARITY.md)** - CSS
-  transformation approach and implementation status
-
-### Key Concepts
-
-1.  **Structural Mirroring**: React components mirror Lit's Shadow DOM structure
-2.  **CSS Selector Transformation**: `:host` → `.a2ui-surface .a2ui-{component}`
-3.  **Specificity Matching**: Uses `:where()` to match Lit's low specificity

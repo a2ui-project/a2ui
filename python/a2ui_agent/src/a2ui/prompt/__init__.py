@@ -14,6 +14,6 @@
 
 """Prompts package providing abstract prompt generation interfaces."""
 
-from .generator import PromptGenerator
+from .generator import PromptGenerator, assemble_instructions
 
-__all__ = ["PromptGenerator"]
+__all__ = ["PromptGenerator", "assemble_instructions"]

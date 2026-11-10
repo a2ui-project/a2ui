@@ -18,7 +18,7 @@ npm install @a2ui/web_core lit zod
 Create a `ComponentApi` object with the component `name` used in A2UI JSON payloads and a Zod `schema` describing its properties. Use `DynamicStringSchema` so each field accepts either a literal string or a data-model binding (see [Catalogs, Components, and Functions](../../concepts/catalogs/) and [How to Define a Catalog](../../guides/defining-a-catalog/)).
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 ```typescript
 // stat-card.api.ts
@@ -36,7 +36,7 @@ export const StatCardApi = {
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
+  <TabItem label="v0.9.1">
 
 ```typescript
 // stat-card.api.ts
@@ -62,7 +62,7 @@ Extend `A2uiLitElement` parameterized with `typeof StatCardApi`, read resolved v
 HTML custom element `tagName` values such as `'a2ui-stat-card'` require a hyphen under the W3C Custom Elements specification. By contrast, A2UI v1.0 surface component `id` values in JSON payloads must be valid Unicode identifiers ([UAX #31](https://www.unicode.org/reports/tr31/)) such as `'revenue_card'` or `'revenueCard'`, without hyphens.
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 ```typescript
 // stat-card.ts
@@ -107,7 +107,7 @@ export const statCardComponent: WebComponentImplementation<typeof StatCardApi.sc
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
+  <TabItem label="v0.9.1">
 
 ```typescript
 // stat-card.ts
@@ -260,12 +260,12 @@ export class AppComponent {}
   </TabItem>
 </Tabs>
 
-If your app targets v0.9.1, pass `'0.9'` as the catalog version and import from `'@a2ui/lit/v0_9'`, `'@a2ui/react/v0_9'`, `'@a2ui/web_core/v0_9'`, `'@a2ui/web_core/v0_9/basic_catalog'`, or `provideA2Ui({useUniversalComponents: true, ...})` from `'@a2ui/angular/v0_9'`. For agent transport setup, see [How to Integrate with My Client](../../guides/client-integration/).
+If your app targets v0.9.1, pass `'0.9'` as the catalog version and import from `'@a2ui/lit/v0_9'`, `'@a2ui/react/v0_9'`, `'@a2ui/web_core/v0_9'`, `'@a2ui/web_core/v0_9/basic_catalog'`, or `provideA2Ui({useUniversalComponents: true, ...})` from `'@a2ui/angular/v0_9'`. For agent transport setup, see [How to Integrate A2UI into a Client](../../guides/client-integration/).
 
 When your agent streams a `createSurface` and `updateComponents` message pair, the host renderer mounts `<a2ui-stat-card>` with the resolved properties:
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 ```json
 [
@@ -289,7 +289,7 @@ When your agent streams a `createSurface` and `updateComponents` message pair, t
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
+  <TabItem label="v0.9.1">
 
 ```json
 [
@@ -390,7 +390,7 @@ Lit simplifies templates, but the renderer contract has no Lit dependency. Any c
 The example below implements a `StatBadgeElement` for a `StatBadgeApi` schema with `label`, `value`, and optional `children` properties, keying cached child DOM elements by `${childId}:${childPath}` so repeating template items preserve focus and internal state across data updates:
 
 <Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
+  <TabItem label="v1.0">
 
 ```typescript
 // stat-badge.ts
@@ -486,7 +486,7 @@ export const statBadgeComponent: WebComponentImplementation<typeof StatBadgeApi.
 ```
 
   </TabItem>
-  <TabItem label="v0.9.1 (Active)">
+  <TabItem label="v0.9.1">
 
 ```typescript
 // stat-badge.ts

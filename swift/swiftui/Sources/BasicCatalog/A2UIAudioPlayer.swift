@@ -34,14 +34,14 @@ extension BasicCatalogImplementation {
 /// SwiftUI component view for the A2UI Basic Catalog `AudioPlayer` component.
 public struct A2UIAudioPlayer: View {
   public let node: Node
-  @StateObject private var model: A2UIAudioPlayerModel
+  @State private var model: A2UIAudioPlayerModel
 
   public init(
     node: Node,
-    model: @autoclosure @escaping () -> A2UIAudioPlayerModel = A2UIAudioPlayerModel()
+    model: A2UIAudioPlayerModel = A2UIAudioPlayerModel()
   ) {
     self.node = node
-    self._model = StateObject(wrappedValue: model())
+    self._model = State(initialValue: model)
   }
 
   private var urlString: String {
@@ -73,13 +73,7 @@ public struct A2UIAudioPlayer: View {
 
         VStack(spacing: 2) {
           Slider(
-            value: Binding(
-              get: {
-                let val = model.isScrubbing ? model.scrubValue : model.currentTime
-                return min(max(0, val), max(0.1, model.duration))
-              },
-              set: { model.onScrubChange($0) }
-            ),
+            value: $model.displayTime,
             in: 0...max(0.1, model.duration),
             onEditingChanged: { editing in
               if editing {
@@ -94,13 +88,13 @@ public struct A2UIAudioPlayer: View {
 
           HStack {
             Text(formatTime(model.isScrubbing ? model.scrubValue : model.currentTime))
-              .font(.caption2.monospacedDigit())
+              .font(.caption.monospacedDigit())
               .foregroundStyle(.secondary)
 
             Spacer()
 
             Text(formatTime(model.duration))
-              .font(.caption2.monospacedDigit())
+              .font(.caption.monospacedDigit())
               .foregroundStyle(.secondary)
           }
         }
@@ -108,9 +102,8 @@ public struct A2UIAudioPlayer: View {
     }
     .padding(12)
     .background(Color.gray.opacity(0.12))
-    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    .clipShape(.rect(cornerRadius: 10))
     .frame(maxWidth: .infinity)
-    .accessibilityIdentifier("A2UIAudioPlayer_\(node.id)")
     .onAppear {
       model.load(urlString: urlString)
     }

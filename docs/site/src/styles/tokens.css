@@ -1,0 +1,230 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/* ==========================================================================
+   A2UI Unified Design System Tokens & Font Topology
+   Shared across the Overview experience, Starlight docs, and diagrams.
+   ========================================================================== */
+
+:root,
+:root[data-theme='dark'] {
+  /* --- Font Topology ---
+     1. Display: Manrope (geometric grotesque, 600-800 weight, tight tracking)
+     2. Serif: Playfair Display — only inside the "Editorial Luxury" brand mock (§ 02 morph);
+        headline emphasis is carried by colour (--a2-heading-accent), never italics
+     3. Body: Manrope 400-500 (calm measure & leading)
+     4. Technical: IBM Plex Mono for micro-labels, metrics & code */
+  --a2-font-display: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --a2-font-serif: 'Playfair Display', Georgia, Cambria, 'Times New Roman', serif;
+  --a2-font-sans: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --a2-font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* --- Typographic Scale & Tracking --- */
+  --a2-tracking-display: -0.044em;
+  --a2-tracking-h2: -0.034em;
+  --a2-tracking-h3: -0.022em;
+  --a2-tracking-body: -0.008em;
+  --a2-tracking-mono-wide: 0.09em;
+
+  /* --- Dark Theme: Google near-black (Gemini / Material surfaces) --- */
+  --a2-bg: #131314;
+  --a2-bg-alt: #1e1f20;
+  --a2-bg-nav: rgba(19, 19, 20, 0.82);
+  --a2-shell: #1e1f20;
+  --a2-surface: #1e1f20;
+  --a2-surface-raised: #282a2c;
+  --a2-surface-subtle: #1a1a1b;
+  --a2-code-bg: #0e0e0f;
+  --a2-code-header: #1e1f20;
+  --a2-dot-grid: rgba(255, 255, 255, 0.05);
+
+  /* --- Ink Hierarchy (Google greys) --- */
+  --a2-text: #e8eaed;
+  --a2-text-secondary: #9aa0a6;
+  --a2-text-muted: #80868b;
+
+  /* --- Hairlines & Borders --- */
+  --a2-border: rgba(255, 255, 255, 0.08);
+  --a2-border-subtle: rgba(255, 255, 255, 0.05);
+  --a2-border-strong: rgba(255, 255, 255, 0.14);
+
+  /* --- Primary Action: Material dark primary (light blue fill, deep blue ink) --- */
+  --a2-cta-bg: #8ab4f8;
+  --a2-cta-fg: #062e6f;
+  --a2-cta-hover: #aecbfa;
+
+  /* --- Accent: Google Blue family (Blue 300 on dark) --- */
+  --a2-accent: #8ab4f8;
+  --a2-accent-strong: #aecbfa;
+  /* Headline emphasis word(s): the accent itself on dark, the deeper link blue on light */
+  --a2-heading-accent: #8ab4f8;
+  --a2-accent-soft: rgba(138, 180, 248, 0.12);
+  --a2-accent-border: rgba(138, 180, 248, 0.3);
+
+  --a2-blue: #8ab4f8;
+  --a2-blue-soft: rgba(138, 180, 248, 0.12);
+  --a2-blue-border: rgba(138, 180, 248, 0.26);
+
+  /* --- Semantic (Google Yellow / Red / Green, 300 tones on dark) --- */
+  --a2-amber: #fdd663;
+  --a2-amber-strong: #fde293;
+  --a2-amber-soft: rgba(253, 214, 99, 0.12);
+  --a2-amber-border: rgba(253, 214, 99, 0.28);
+
+  /* Google Cyan: secondary diagram category (distinct from the blue accent) */
+  --a2-cyan: #4ecde6;
+  --a2-cyan-strong: #78d9ec;
+  --a2-cyan-soft: rgba(78, 205, 230, 0.12);
+  --a2-cyan-border: rgba(78, 205, 230, 0.28);
+
+  --a2-coral: #f28b82;
+  --a2-coral-soft: rgba(242, 139, 130, 0.12);
+
+  --a2-success: #81c995;
+  --a2-success-soft: rgba(129, 201, 149, 0.12);
+  --a2-success-border: rgba(129, 201, 149, 0.28);
+
+  --a2-danger: #f28b82;
+  --a2-danger-soft: rgba(242, 139, 130, 0.12);
+  --a2-danger-border: rgba(242, 139, 130, 0.28);
+
+  /* --- Syntax Highlighting Tokens --- */
+  --a2-syn-base: #e8eaed;
+  --a2-syn-key: #9aa0a6;
+  --a2-syn-comp: #8ab4f8;
+  --a2-syn-fn: #78d9ec;
+  --a2-syn-str: #81c995;
+  --a2-syn-num: #fdd663;
+  --a2-syn-kw: #aecbfa;
+  --a2-syn-comment: #80868b;
+
+  /* --- Radii & Sculpted Elevation --- */
+  --a2-radius-xs: 6px;
+  --a2-radius-sm: 10px;
+  --a2-radius-md: 14px;
+  --a2-radius-lg: 20px;
+  --a2-radius-xl: 26px;
+
+  --a2-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --a2-shadow-md: 0 16px 36px -10px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --a2-shadow-lg: 0 30px 70px -18px rgba(0, 0, 0, 0.72), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  /* --- Compatibility Aliases --- */
+  --bg: var(--a2-bg);
+  --bg-alt: var(--a2-bg-alt);
+  --surface: var(--a2-surface);
+  --surface-raised: var(--a2-surface-raised);
+  --surface-subtle: var(--a2-surface-subtle);
+  --code-bg: var(--a2-code-bg);
+  --code-header: var(--a2-code-header);
+  --text: var(--a2-text);
+  --text-secondary: var(--a2-text-secondary);
+  --text-muted: var(--a2-text-muted);
+  --border: var(--a2-border);
+  --border-strong: var(--a2-border-strong);
+  --accent: var(--a2-accent);
+  --accent-strong: var(--a2-accent-strong);
+  --accent-soft: var(--a2-accent-soft);
+  --accent-border: var(--a2-accent-border);
+  --blue: var(--a2-blue);
+  --blue-soft: var(--a2-blue-soft);
+  --amber: var(--a2-amber);
+  --amber-soft: var(--a2-amber-soft);
+  --cyan: var(--a2-cyan);
+  --cyan-soft: var(--a2-cyan-soft);
+  --success: var(--a2-success);
+  --success-soft: var(--a2-success-soft);
+  --shadow-sm: var(--a2-shadow-sm);
+  --shadow-md: var(--a2-shadow-md);
+  --shadow-lg: var(--a2-shadow-lg);
+  --font-sans: var(--a2-font-sans);
+  --font-mono: var(--a2-font-mono);
+}
+
+:root[data-theme='light'] {
+  /* Google light: cool off-white surfaces, blue-grey alt band */
+  --a2-bg: #f8fafd;
+  --a2-bg-alt: #ecf1f8;
+  --a2-bg-nav: rgba(248, 250, 253, 0.84);
+  --a2-shell: #ecf1f8;
+  --a2-surface: #ffffff;
+  --a2-surface-raised: #ffffff;
+  --a2-surface-subtle: #f3f6fb;
+  --a2-code-bg: #f3f6fb;
+  --a2-code-header: #e9eef6;
+  --a2-dot-grid: rgba(31, 31, 31, 0.055);
+
+  --a2-text: #1f1f1f;
+  --a2-text-secondary: #444746;
+  --a2-text-muted: #747775;
+
+  --a2-border: rgba(31, 31, 31, 0.09);
+  --a2-border-subtle: rgba(31, 31, 31, 0.05);
+  --a2-border-strong: rgba(31, 31, 31, 0.15);
+
+  /* Primary action: Google Blue fill */
+  --a2-cta-bg: #0b57d0;
+  --a2-cta-fg: #ffffff;
+  --a2-cta-hover: #0842a0;
+
+  --a2-accent: #0b57d0;
+  --a2-accent-strong: #0842a0;
+  --a2-heading-accent: #0b57d0;
+  --a2-accent-soft: rgba(11, 87, 208, 0.08);
+  --a2-accent-border: rgba(11, 87, 208, 0.26);
+
+  --a2-blue: #1a73e8;
+  --a2-blue-soft: rgba(26, 115, 232, 0.08);
+  --a2-blue-border: rgba(26, 115, 232, 0.22);
+
+  --a2-amber: #e37400;
+  --a2-amber-strong: #b06000;
+  --a2-amber-soft: #fef7e0;
+  --a2-amber-border: #fde293;
+
+  --a2-cyan: #12b5cb;
+  --a2-cyan-strong: #098591;
+  --a2-cyan-soft: #e4f7fb;
+  --a2-cyan-border: #a1e4f2;
+
+  --a2-coral: #d93025;
+  --a2-coral-soft: rgba(217, 48, 37, 0.08);
+
+  --a2-success: #188038;
+  --a2-success-soft: #e6f4ea;
+  --a2-success-border: #a8dab5;
+
+  --a2-danger: #d93025;
+  --a2-danger-soft: #fce8e6;
+  --a2-danger-border: #f6aea9;
+
+  --a2-syn-base: #1f1f1f;
+  --a2-syn-key: #5f6368;
+  --a2-syn-comp: #0b57d0;
+  --a2-syn-fn: #007b83;
+  --a2-syn-str: #188038;
+  --a2-syn-num: #b06000;
+  --a2-syn-kw: #1a73e8;
+  --a2-syn-comment: #9aa0a6;
+
+  --a2-shadow-sm: 0 1px 2px rgba(60, 64, 67, 0.08);
+  --a2-shadow-md: 0 14px 34px -8px rgba(60, 64, 67, 0.12), 0 2px 6px rgba(60, 64, 67, 0.06);
+  --a2-shadow-lg: 0 28px 64px -16px rgba(60, 64, 67, 0.16), 0 1px 3px rgba(60, 64, 67, 0.06);
+}
+
+html {
+  scrollbar-gutter: stable;
+}

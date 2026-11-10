@@ -71,6 +71,7 @@
 # --- Components ---
 
 - name: test_scaling_stream_components_v10
+  features: [F-AGT-48]
   description: Streaming a surface of n components in small chunks takes about four times as long at 4n, since each chunk reads and checks only what it adds.
   action: measure_growth
   args:
@@ -126,6 +127,7 @@
   max_ratio: 8
 
 - name: test_scaling_compile_components_v10
+  features: [F-AGT-48]
   description: Compiling a surface of n components takes about four times as long at 4n.
   action: measure_growth
   args:
@@ -183,6 +185,7 @@
 # --- Streaming against compiling ---
 
 - name: test_scaling_stream_over_compile_v10
+  features: [F-AGT-48]
   description: Streaming a surface in small chunks costs at most a fixed multiple of compiling it whole.
   action: measure_overhead
   args:
