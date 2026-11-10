@@ -757,6 +757,7 @@ struct SurfaceViewModelTests {
     let action = try #require(archiveButton.action(for: "onClick"))
     action()
     let dispatched = try #require(handler.capturedActions.first)
+    #expect(dispatched.sourceComponentID == "delete")
     guard case .event(_, let context, _) = dispatched.identity else {
       Issue.record("Expected an event action")
       return

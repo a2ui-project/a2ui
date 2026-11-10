@@ -39,6 +39,7 @@ const Map<String, String> knownGaps = {
 const Set<String> _knownCaseKeys = {
   'name',
   'description',
+  'features',
   'action',
   'markdown',
   'expectVisibleText',
