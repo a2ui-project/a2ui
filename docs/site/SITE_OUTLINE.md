@@ -59,7 +59,7 @@ All cross-page links must target these exact Starlight routes (with `docs/site/s
 | **Concepts**      | Accessibility (A11y)                           | **P2**   | `content/docs/concepts/accessibility.mdx`                                 | `/concepts/accessibility/`                                 |
 | **Concepts**      | Glossary                                       | **P2**   | `content/docs/concepts/glossary.mdx`                                      | `/concepts/glossary/`                                      |
 | **Guides**        | How to Integrate A2UI into a Client            | **P1**   | `content/docs/guides/client-integration.mdx`                              | `/guides/client-integration/`                              |
-| **Guides**        | How to Integrate with My Agent Server          | **P1**   | `content/docs/guides/agent-integration.mdx`                               | `/guides/agent-integration/`                               |
+| **Guides**        | How to Integrate A2UI into an Agent            | **P1**   | `content/docs/guides/agent-integration.mdx`                               | `/guides/agent-integration/`                               |
 | **Guides**        | How to Define a Catalog                        | **P1**   | `content/docs/guides/defining-a-catalog.mdx`                              | `/guides/defining-a-catalog/`                              |
 | **Guides**        | Using Macros                                   | **P2**   | `content/docs/guides/macros.mdx`                                          | `/guides/macros/`                                          |
 | **Guides**        | Architecting an A2UI Integration               | **P2**   | `content/docs/guides/architecting-an-integration.mdx`                     | `/guides/architecting-an-integration/`                     |
@@ -277,7 +277,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 - **Sources**: Link to [SDKs](#sdks) (`/concepts/sdks/#renderer-sdk`) for package coordinates; verify APIs against `dart/a2ui_flutter/`, `typescript/renderers/`, `swift/swiftui/`, `samples/client/`, and [https://developer.android.com/develop/ui/compose/agentic](https://developer.android.com/develop/ui/compose/agentic).
 - **Content Outline** (tabbed across `Flutter` | `React` | `Lit` | `Angular` | `SwiftUI` | `Jetpack Compose`):
-    1. **Overview**: Direct purpose statement linking to `/concepts/sdks/#renderer-sdk` and cross-linking to `/guides/agent-integration/` and `/guides/defining-a-catalog/`.
+    1. **Overview**: Direct purpose statement linking to `/concepts/sdks/#renderer-sdk`, noting single-binary co-location via shared Core SDK data structures, and cross-linking to `/guides/agent-integration/` and `/guides/defining-a-catalog/`.
     2. **Step 1: Install Dependencies**: Tabbed install commands matching `/concepts/sdks/#renderer-sdk` (including `@a2ui/markdown-it` on Web).
     3. **Step 2: Initialize `MessageProcessor`**: Registering the built-in Basic Catalog (plus custom catalog pointer), configuring styles and sanitized Markdown on Web, and wiring `onAction` / `actionHandler` directly to transport.
     4. **Step 3: Mount Surface Views**: Verified surface widget/component mounting snippets per framework.
@@ -285,19 +285,20 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
     6. **Step 5: Wire Everything at the App Entry Point**: Bootstrapping the shared session controller/service and mounted surface view at application startup.
     7. **Additional Steps**: Customizing Web Basic Catalog CSS custom properties (`--a2ui-*`), advertising renderer capabilities (`a2uiRendererCapabilities` in v1.0 / `a2uiClientCapabilities` in v0.9.1), and synchronizing client data models (`sendDataModel: true` via `a2uiRendererDataModel` / `a2uiClientDataModel`) alongside bidirectional function RPCs (`outboundListener`) and validation error reporting (`errorHandler`).
 
-<a id="how-to-integrate-with-my-agent-server"></a>
+<a id="how-to-integrate-a2ui-into-an-agent"></a>
 
-#### How to Integrate with My Agent Server (`/guides/agent-integration/`) [P1]
+#### How to Integrate A2UI into an Agent (`/guides/agent-integration/`) [P1]
 
 - **Sources**: Link to [SDKs](#sdks) (`/concepts/sdks/#agent-sdk`) for package coordinates; verify APIs against `python/a2ui_agent/`, `python/a2ui_adk/`, `python/a2ui_a2a/`, `typescript/agents/a2ui_agent/`, `dart/a2ui_agent/`, and [`docs/public/guides/a2ui-with-any-agent-framework.md`](../public/guides/a2ui-with-any-agent-framework.md).
 - **Content Outline** (tabbed across `TypeScript` | `Python` | `Dart`):
-    1. **Overview**: Link to `/concepts/sdks/#agent-sdk` and summarize the 6 server steps.
+    1. **Overview**: Direct purpose statement linking to `/concepts/sdks/#agent-sdk`, noting single-binary co-location via shared Core SDK data structures, and cross-linking to `/guides/client-integration/`, `/guides/defining-a-catalog/`, and `/concepts/inference-formats/`.
     2. **Step 1: Install Dependencies**: Tabbed install commands matching `/concepts/sdks/#agent-sdk`.
-    3. **Step 2: Configure `A2uiGenerator`, Catalogs & Inference Format**: Initializing `CatalogConfig` and the inference format factory (`inferenceFormatFactory` in TS/Dart, `inference_format_factory` in Python; include a 1-sentence link to `/guides/macros/` for Python `MacroExpander`).
-    4. **Step 3: Negotiate Capabilities & Inject System Prompt**: Creating a request processor from client capabilities (`a2uiRendererCapabilities` / `a2uiClientCapabilities`) and appending `promptSnippet` / `prompt_snippet` to LLM system instructions.
-    5. **Step 4: Parse Output, Validate & Self-Correct**: Using `parseResponse` / `parse_response` (or `openStream` / `open_stream`), validating against `RendererState`, and feeding `VALIDATION_FAILED` errors back to the LLM for retry.
-    6. **Step 5: Multi-Turn Actions & RPCs**: Feeding inbound `action` events (and accompanying `a2uiRendererDataModel` / `a2uiClientDataModel` transport metadata when `sendDataModel: true`) into conversation state and answering `callAgentFunction` with `agentFunctionResponse`.
-    7. **Step 6: Agent Framework & Transport Wiring**: Consolidate ADK (`a2ui-adk` toolset/store + `a2ui-adk[a2a]` `A2uiEventConverter`), A2A (`a2ui-a2a` part helpers), and AG-UI (via CopilotKit) or custom SSE/WebSocket harnesses.
+    3. **Step 2: Initialize the A2UI Generator**: Registering the built-in Basic Catalog inside `CatalogConfig` (plus custom catalog pointer), injecting a model-streaming callback, and maintaining per-session `RendererState` with default `ExpressFormatFactory`.
+    4. **Step 3: Build the System Prompt and Stream A2UI Messages**: Creating a per-turn `A2uiRequestProcessor` bound to `RendererState`, appending its generated prompt snippet to agent instructions, and streaming validated Core SDK `AgentToRendererMessage` structures, plus collapsed `v1.0` and `v0.9.1` wire-format examples.
+    5. **Step 4: Process Messages from the Renderer**: Separating plain text prompts from A2UI `renderer_to_agent` envelopes and routing A2UI messages through `RendererToAgentMessageProcessor`, registering an action handler to prompt the model while deterministic logic handles `callAgentFunction` RPCs and client `error`s, plus collapsed `v1.0` and `v0.9.1` wire-format examples.
+    6. **Step 5: Connect to a Transport**: Transport-agnostic guidance (SSE, WebSockets, AG-UI, A2A, MCP, or in-process Core SDK passing) plus a concrete HTTP SSE server example backed by a streaming LLM client.
+    7. **Additional Steps**: Separate focused sections for negotiating client capabilities (`a2uiRendererCapabilities` in v1.0 / `a2uiClientCapabilities` in v0.9.1), registering agent-hosted functions (`AgentFunction`), calling renderer-side functions (`RendererFunctionCalls`), reading synchronized client data models (`sendDataModel: true` via `a2uiRendererDataModel` / `a2uiClientDataModel`), validating whole responses with `A2uiError` retry, and customizing catalogs and inference formats (`ComponentPruningTransformer`, `DirectJsonFormatFactory`, and Python `@macro` linking to `/guides/macros/`).
+    8. **Connect to Agent Frameworks and Transports**: Consolidate Google ADK (`a2ui-adk` `A2uiProcessorStore`, `A2uiInstruction`, `SendA2uiToClientToolset`, and `a2ui-adk[a2a]` `a2ui_rpc_callback` / `A2uiEventConverter`), A2A (`a2ui-a2a` extension, part, and RPC helpers), and AG-UI (via CopilotKit) plus MCP cross-links.
 
 <a id="how-to-define-a-catalog"></a>
 
@@ -329,7 +330,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 - **Content Outline**:
     1. **Catalog Strategy (Basic vs. Custom vs. Hybrid & Macros)**: Compare off-the-shelf Basic Catalog, custom design-system catalogs, and hybrid composition, plus a 1-sentence trade-off linking to [`/guides/macros/`](#macros) (agile web client components vs. server macros avoiding mobile app-store release cycles).
-    2. **Transport Selection**: Compare standardized agent protocols (**AG-UI** and **A2A**, linking to [`/guides/agent-integration/`](#how-to-integrate-with-my-agent-server)) and **MCP** (`ui://` resources, linking to [`/guides/a2ui-over-mcp/`](#a2ui-over-mcp)) alongside custom transport patterns (**SSE + HTTP POST**, noting HTTP/1.1 connection limits vs. HTTP/2, and **WebSockets** for full-duplex RPCs).
+    2. **Transport Selection**: Compare standardized agent protocols (**AG-UI** and **A2A**, linking to [`/guides/agent-integration/`](#how-to-integrate-a2ui-into-an-agent)) and **MCP** (`ui://` resources, linking to [`/guides/a2ui-over-mcp/`](#a2ui-over-mcp)) alongside custom transport patterns (**SSE + HTTP POST**, noting HTTP/1.1 connection limits vs. HTTP/2, and **WebSockets** for full-duplex RPCs).
     3. **Content Persistence & Session Replay**: Explain the **Wire-Only Replay Trap** (local two-way input bindings mutate `dataModel` without emitting wire messages, so replaying `agent_to_renderer` messages alone loses user form edits) and the recommended pattern (persisting per-surface `renderer_data_model.json` snapshots alongside messages, filtering transient `callRendererFunction` RPCs, and rendering historical turns read-only when appropriate) vs. static rendered snapshots.
     4. **Surface Scoping & Lifecycle**: Compare Conversation Scoping (single `MessageProcessor` per conversation enabling retroactive in-place updates) vs. Turn Scoping (isolated `MessageProcessor` per turn, requiring turn-prefixed unique `surfaceId`s like `turn_2_main` rather than reusing `"main"`).
 
