@@ -89,7 +89,7 @@ uv run main.py --dataset standalone_components --strategies vertical
 uv run main.py --strategies skill_mode
 ```
 
-Because `vertical` is designed for flat, non-nested standalone widgets and prunes layout containers (`Column`, `Row`, `Card`, `Tabs`, `List`), evaluate it on standalone widget datasets such as `standalone_components` rather than hierarchical container datasets.
+Because `vertical` is designed for flat, non-nested standalone widgets and prunes layout containers (`Column`, `Row`, `Card`, `Tabs`, `List`), evaluate it on standalone widget datasets such as `standalone_components` rather than hierarchical container datasets. Note that `vertical` uses `VERTICAL_WORKFLOW_DESCRIPTION` (omitting `surfaceId 'main'` and `id: 'root'` workflow rules since Vertical allocates surface and component IDs automatically).
 
 The `subagent_tool` strategy gives the outer model one tool, `a2ui_specialist`, and a second model call writes the payload. `--subagent-format {direct_json,express}` picks the format the specialist writes in (default `direct_json`).
 

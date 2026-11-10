@@ -54,6 +54,7 @@ from a2ui.inference_formats import (
     ElementalFormat,
     ExpressFormat,
     VerticalFormat,
+    VerticalParser,
     to_message_dicts,
     to_message_models,
 )
@@ -606,7 +607,10 @@ def parse_and_validate_in_process(
     if require_complete_tags:
         _check_complete_tags(parser, format_name, completion)
 
-    compiled_jsons, serialized_parts = _serialize_parts(_compile(parser, completion))
+    initial_state = opts.get("initial_renderer_state")
+    compiled_jsons, serialized_parts = _serialize_parts(
+        _compile(parser, completion, initial_state)
+    )
     if not compiled_jsons:
         if format_name == "direct_json":
             raise ValueError("No A2UI JSON found in response (tags missing or empty)")
@@ -614,7 +618,6 @@ def parse_and_validate_in_process(
             f"No compiled A2UI {format_name} user interface found in parsed parts."
         )
 
-    initial_state = opts.get("initial_renderer_state")
     chunk_size = opts.get("stream_chunk_size")
     if chunk_size is not None:
         _check_streamed_parse(
@@ -625,14 +628,55 @@ def parse_and_validate_in_process(
     return {"compiled_jsons": compiled_jsons, "parts": serialized_parts}
 
 
-def _compile(parser: Parser, completion: str) -> list[ResponsePart]:
+def _initial_surface_ids(
+    initial_renderer_state: Sequence[dict[str, Any]] | None,
+) -> set[str]:
+    """Collects live surface IDs declared in `initial_renderer_state`."""
+    live: set[str] = set()
+    if not initial_renderer_state:
+        return live
+    for msg in initial_renderer_state:
+        if not isinstance(msg, Mapping):
+            continue
+        for create_k in ("createSurface", "beginRendering"):
+            body = msg.get(create_k)
+            if isinstance(body, Mapping) and isinstance(body.get("surfaceId"), str):
+                live.add(body["surfaceId"])
+        del_body = msg.get("deleteSurface")
+        if isinstance(del_body, Mapping) and isinstance(del_body.get("surfaceId"), str):
+            live.discard(del_body["surfaceId"])
+    return live
+
+
+def _compile(
+    parser: Parser,
+    completion: str,
+    initial_renderer_state: Sequence[dict[str, Any]] | None = None,
+) -> list[ResponsePart]:
     """Splits a response and compiles its blocks without checking them."""
     parts: list[ResponsePart] = []
+    used_surfaces = _initial_surface_ids(initial_renderer_state)
+    call_offset = 0
     for raw in parser.unwrap(completion):
         if isinstance(raw.part, TextPart):
             parts.append(raw.part)
         elif isinstance(raw.part, RawA2uiPart):
-            messages = parser.compile(raw.part.a2ui_raw, is_final=raw.is_final)
+            if isinstance(parser, VerticalParser):
+                messages = parser.compile(
+                    raw.part.a2ui_raw,
+                    is_final=raw.is_final,
+                    existing_surface_ids=used_surfaces,
+                    call_offset=call_offset,
+                )
+                msg_dicts = to_message_dicts(messages)
+                for m in msg_dicts:
+                    cs = m.get("createSurface")
+                    if isinstance(cs, Mapping) and isinstance(cs.get("surfaceId"), str):
+                        used_surfaces.add(cs["surfaceId"])
+                    if "callRendererFunction" in m:
+                        call_offset += 1
+            else:
+                messages = parser.compile(raw.part.a2ui_raw, is_final=raw.is_final)
             parts.append(A2uiPart(a2ui=to_message_models(messages)))
     return parts
 
