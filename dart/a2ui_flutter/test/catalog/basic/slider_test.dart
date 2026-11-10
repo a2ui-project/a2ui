@@ -281,6 +281,25 @@ void main() {
       expect(data.hasAction(SemanticsAction.increase), isTrue);
     });
 
+    testWidgets('reads values on its steps, as it writes them', (tester) async {
+      // The value below 30 sits at 0.29 of the track, and 0.29 * 100 is
+      // 28.999999999999996 in a double.
+      await _pumpSlider(
+        tester,
+        {
+          'label': 'Volume',
+          'max': 100,
+          'value': {'path': '/volume'},
+        },
+        data: {'volume': 30},
+      );
+
+      final SemanticsData data = sliderNode(tester);
+      expect(data.value, '30');
+      expect(data.increasedValue, '31');
+      expect(data.decreasedValue, '29');
+    });
+
     testWidgets('says its label and value once', (tester) async {
       await _pumpSlider(
         tester,
