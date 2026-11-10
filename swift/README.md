@@ -15,7 +15,7 @@ Add this repository to your `Package.swift` dependencies using Swift Package Man
 
 ```swift
 dependencies: [
-  .package(url: "https://github.com/a2ui-project/a2ui", from: "0.10.0"),
+  .package(url: "https://github.com/a2ui-project/a2ui", .upToNextMinor(from: "0.10.0")),
 ],
 targets: [
   .target(
@@ -23,6 +23,7 @@ targets: [
     dependencies: [
       .product(name: "A2UISwiftCore", package: "a2ui"),
       .product(name: "A2UISwiftUI", package: "a2ui"),
+      .product(name: "BasicCatalog", package: "a2ui"),
       .product(name: "BasicCatalogSwiftUI", package: "a2ui"),
     ]
   ),
@@ -30,13 +31,12 @@ targets: [
 ```
 
 In Xcode, open `File > Add Package Dependencies...`, enter `https://github.com/a2ui-project/a2ui`,
-select version `0.10.0` (Up to Next Major Version), and add the library products to your target.
+select version `0.10.0` (Up to Next Minor Version), and add the library products to your target.
 
 Swift Package Manager derives the `package: "a2ui"` identifier from the repository URL rather than
 the manifest's `name` field. `A2UISwiftCore` exposes the `A2UICore` and `A2UIJSON` modules for
-`import`. Targets that do not use SwiftUI can depend on `A2UISwiftCore` and `BasicCatalog`
-directly. See [core/README.md](core/README.md) and [swiftui/README.md](swiftui/README.md) for usage
-examples.
+`import`. Targets that do not use SwiftUI can depend on `A2UISwiftCore` and `BasicCatalog` alone.
+See [core/README.md](core/README.md) and [swiftui/README.md](swiftui/README.md) for usage examples.
 
 ---
 
