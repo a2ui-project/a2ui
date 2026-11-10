@@ -1,6 +1,8 @@
 ---
 name: a2ui-issue-triage
 description: Automates the triage of GitHub issues in the A2UI repository. Helps the oncall engineer by fetching untriaged issues, generating AI-suggested priorities, assignees, and responses, launching a local review dashboard, and bulk-applying approved decisions to GitHub. Use when tasked with triaging new GitHub issues or managing the repository backlog.
+metadata:
+  internal: true
 ---
 
 # A2UI GitHub Issue Triage Skill

@@ -15,7 +15,7 @@
  */
 
 import {zodToJsonSchema} from 'zod-to-json-schema';
-import {SurfaceModel, ActionListener} from '../state/surface-model.js';
+import {SurfaceModel, ActionListener, type ActionPayload} from '../state/surface-model.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
 import {exclusiveUnionOverride} from '../catalog/exclusive_union.js';
 import {cleanSchemaNode} from '../catalog/schema_generator.js';
@@ -75,12 +75,14 @@ import type {
 import type {RendererFunctionResponseMessage} from '../v1_0/schema/renderer-to-agent.js';
 import type {FunctionCall} from '../v1_0/schema/common-types.js';
 import {
-  RpcHandler,
-  CallOptions,
-  OutboundMessageListener,
   A2uiRpcError,
+  CallOptions,
+  type OutboundActionMessage,
+  OutboundMessageListener,
   RpcErrorCode,
+  RpcHandler,
 } from '../rpc/index.js';
+import {toOutboundActionMessage} from './outbound-envelope.js';
 import {DataContext} from '../resolution/data-context.js';
 import {
   RELAXED_PATH_PATTERN,
@@ -113,6 +115,7 @@ export type {
   RendererCapabilities,
   RendererCapabilities as ClientCapabilities,
   ValidationConfig,
+  OutboundActionMessage,
   OutboundMessageListener,
   CallOptions,
 };
@@ -179,10 +182,22 @@ export interface MessageProcessorOptions {
   reportErrorsOnly?: boolean;
   /** Default timeout in milliseconds for callAgentFunction requests (default: 30000ms). */
   defaultTimeoutMs?: number;
+  /**
+   * The most settled agent function answers each surface caches (default:
+   * 256), evicting the oldest first. Must be a positive integer.
+   */
+  maxAgentCallCacheEntries?: number;
+  /**
+   * When true, `outboundListener` also receives each action as an `action`
+   * envelope and each processing error as an `error` envelope.
+   * Requires `outboundListener`.
+   */
+  unifiedOutbound?: boolean;
 }
 
 import {formatZodIssue} from './format-zod-issue.js';
 import {
+  assertRendererMayCall,
   nestedCallRunsInCatalog,
   nonStringCatalogIdMessage,
   PayloadValidator,
@@ -204,8 +219,13 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   private readonly defaultVersion?: ProtocolVersion;
   private readonly errorHandler?: (error: RendererErrorMessage) => void;
   private readonly reportErrorsOnly: boolean;
+  /** The settled agent call cache bound for the surfaces this processor creates. */
+  private readonly maxAgentCallCacheEntries?: number;
+  private readonly outboundListener?: OutboundMessageListener;
+  private readonly unifiedOutbound: boolean;
   /** Whether outbound messages, and so `callAgentFunction`, can reach the agent. */
   private readonly hasOutboundListener: boolean;
+  private disposed = false;
   /**
    * What the last check of each surface's components found, under a config
    * that defers the reference and reachability checks, with the number of
@@ -219,18 +239,35 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * @param catalogs List of available component catalogs.
    * @param actionHandler Global handler for actions dispatched from all surfaces.
    * @param options Configuration options for the processor.
+   * @throws {RangeError} If `options.maxAgentCallCacheEntries` isn't a positive integer.
+   * @throws {A2uiValidationError} If `options.unifiedOutbound` is true without `options.outboundListener`.
    */
   constructor(
     catalogs: Catalog<any>[],
     private actionHandler?: ActionListener,
     options?: MessageProcessorOptions,
   ) {
+    const maxEntries = options?.maxAgentCallCacheEntries;
+    if (
+      maxEntries !== undefined &&
+      (typeof maxEntries !== 'number' || !Number.isInteger(maxEntries) || maxEntries < 1)
+    ) {
+      throw new RangeError('maxAgentCallCacheEntries must be a positive integer.');
+    }
+    if (options?.unifiedOutbound && !options?.outboundListener) {
+      throw new A2uiValidationError(
+        'unifiedOutbound requires an outboundListener in MessageProcessorOptions.',
+      );
+    }
+    this.maxAgentCallCacheEntries = maxEntries;
     this.registeredCatalogs = catalogs;
     this.model = new SurfaceGroupModel<T>();
     this.adapterRegistry = options?.adapterRegistry ?? defaultVersionAdapterFactory;
     this.defaultVersion = options?.version;
     this.errorHandler = options?.errorHandler;
     this.reportErrorsOnly = options?.reportErrorsOnly ?? false;
+    this.outboundListener = options?.outboundListener;
+    this.unifiedOutbound = Boolean(options?.unifiedOutbound);
     this.rpc = new RpcHandler({
       catalogs: this.registeredCatalogs,
       outboundListener: options?.outboundListener,
@@ -240,6 +277,11 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     this.validationConfig = options?.validationConfig
       ? withStrictDefaults(options.validationConfig)
       : undefined;
+    if (this.unifiedOutbound) {
+      this.model.onAction.subscribe(action => {
+        this.forwardAction(action);
+      });
+    }
     if (this.actionHandler) {
       this.model.onAction.subscribe(this.actionHandler);
     }
@@ -273,6 +315,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * Disposes the MessageProcessor, tearing down active surfaces and rejecting pending RPC calls.
    */
   dispose(): void {
+    this.disposed = true;
     this.model.dispose();
     this.rpc.dispose();
   }
@@ -302,7 +345,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
             if (compareSemVer(ver, '1.0') >= 0) {
               return this.generateInlineCatalog(c);
             }
-            return this.generateLegacyInlineCatalog(
+            return this.generateV09InlineCatalog(
               c,
               options?.componentEnvelopeRef ?? 'common_types.json#/$defs/ComponentCommon',
             );
@@ -359,9 +402,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    *
    * @param catalog The catalog instance to serialize.
    * @param componentEnvelopeRef Reference URI for the component base envelope.
-   * @returns Legacy inline catalog object with array-based functions and flat theme properties.
+   * @returns Pre-1.0 inline catalog object with array-based functions and flat theme properties.
    */
-  private generateLegacyInlineCatalog(
+  private generateV09InlineCatalog(
     catalog: Catalog<T>,
     componentEnvelopeRef = 'common_types.json#/$defs/ComponentCommon',
   ): Record<string, unknown> {
@@ -706,7 +749,61 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       this.model.emitError(payload);
     }
     this.errorHandler?.(errorMsg);
+    const isV08Action =
+      context.actionType === 'beginRendering' ||
+      context.actionType === 'surfaceUpdate' ||
+      context.actionType === 'dataModelUpdate';
+    const effectiveVersion = context.version ?? (isV08Action ? 'v0.8' : this.fallbackWireVersion());
+    const outboundErrorMsg =
+      effectiveVersion === context.version
+        ? errorMsg
+        : mapErrorToRendererMessage(err, {...context, version: effectiveVersion});
+    if (this.unifiedOutbound && compareSemVer(outboundErrorMsg.version, '0.8') !== 0) {
+      this.invokeOutboundListener(outboundErrorMsg);
+    }
     return errorMsg;
+  }
+
+  private fallbackWireVersion(): string {
+    if (this.defaultVersion && toCanonicalVersion(this.defaultVersion)) {
+      return this.defaultVersion;
+    }
+    const allV08 =
+      this.registeredCatalogs.length > 0 &&
+      this.registeredCatalogs.every(
+        c => c.protocolVersion !== undefined && compareSemVer(c.protocolVersion, '0.8') === 0,
+      );
+    if (allV08) {
+      return 'v0.8';
+    }
+    const allV1 =
+      this.registeredCatalogs.length > 0 &&
+      this.registeredCatalogs.every(
+        c => c.protocolVersion !== undefined && isAtLeastVersion(c.protocolVersion, '1.0'),
+      );
+    return allV1 ? '1.0' : 'v0.9';
+  }
+
+  private forwardAction(action: ActionPayload): void {
+    if (this.disposed || !this.outboundListener) return;
+    const surfaceVersion = this.model.getSurface(action.surfaceId)?.protocolVersion;
+    const version = surfaceVersion ?? this.fallbackWireVersion();
+    const envelope = toOutboundActionMessage(action, version);
+    if (envelope) {
+      this.invokeOutboundListener(envelope);
+    }
+  }
+
+  private invokeOutboundListener(message: OutboundActionMessage | RendererErrorMessage): void {
+    if (this.disposed || !this.outboundListener) return;
+    try {
+      const result = this.outboundListener(message);
+      if (result && typeof (result as Promise<void>).catch === 'function') {
+        (result as Promise<void>).catch(() => {});
+      }
+    } catch {
+      // Outbound listener errors must not break action dispatch or error handling.
+    }
   }
 
   private extractSingleMessageOperations(item: unknown): InternalOperation[] {
@@ -724,7 +821,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         throw err;
       }
     }
-    const itemOps = adapter.extractOperations(item);
+    const itemOps = adapter.extractOperations(item, this.validationConfig);
     const itemVer = envelopeContext.version;
     for (const op of itemOps) {
       if (itemVer && toCanonicalVersion(itemVer)) {
@@ -927,7 +1024,18 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       availableCatalogs.set(targetCatalog.id, targetCatalog);
     }
     return new DataContext(
-      new SurfaceModel(fallbackSurfaceId, targetCatalog, availableCatalogs),
+      new SurfaceModel(
+        fallbackSurfaceId,
+        targetCatalog,
+        availableCatalogs,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        this.maxAgentCallCacheEntries,
+      ),
       '/',
     );
   }
@@ -1063,7 +1171,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
     const validatedTheme = this.validateSurfaceTheme(theme, catalog, surfaceId);
 
-    const surfaceVersion = catalog?.protocolVersion ?? msgVersion;
+    const surfaceVersion = msgVersion ?? catalog?.protocolVersion;
 
     // A payload may address any registered catalog by `catalogId`, but only
     // those speaking a compatible protocol version can be resolved against this
@@ -1084,6 +1192,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       op.rootId ?? 'root',
       op.metadata,
       surfaceVersion,
+      this.maxAgentCallCacheEntries,
     );
     // From v1.0, a function the renderer does not implement runs on the agent.
     // Without an outbound listener there is no way to reach it, so such calls
@@ -1166,7 +1275,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
 
     const targetCatalog = this.resolveComponentCatalog(comp, surface);
-    if ('metadata' in comp && comp['metadata'] !== undefined) {
+    if (isAtLeastVersion(surface.protocolVersion, '1.0') && comp['metadata'] !== undefined) {
       validateMetadata(comp['metadata']);
     }
 
@@ -1269,9 +1378,11 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * the surface's default catalog, whatever catalog an enclosing call or the
    * component names, so a call may run in a catalog other than the
    * component's. This pass resolves every call's catalog and checks the
-   * arguments of the calls that run outside the component's catalog;
-   * component validation, which runs first and walks every nested call, has
-   * already checked the others, as decided by `nestedCallRunsInCatalog`.
+   * calls that run outside the component's catalog: the renderer makes them,
+   * so they may not call an `agentOnly` function, and their arguments must
+   * match the function's definition. Component validation, which runs first
+   * and walks every nested call, has already checked the others, as decided
+   * by `nestedCallRunsInCatalog`.
    * Reserved `@` system functions belong to no catalog and are validated by
    * `PayloadValidator`; their arguments are still walked here.
    *
@@ -1335,6 +1446,10 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     currentPath: string,
   ): void {
     try {
+      // `allowedCallers` arrived in v1.0, as `PayloadValidator` also assumes.
+      if (isAtLeastVersion(target.protocolVersion, '1.0')) {
+        assertRendererMayCall(target, name);
+      }
       new PayloadValidator(target, this.validationConfig).validateFunction(
         name,
         (rawArgs ?? {}) as Record<string, unknown>,
@@ -1416,9 +1531,14 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   }
 
   private applyComponentUpdate(comp: Record<string, unknown>, surface: SurfaceModel<T>): void {
-    const {id, component, catalogId: _catalogId, metadata: rawMetadata, ...properties} = comp;
+    const {id, component, catalogId: _catalogId, ...properties} = comp;
     if (typeof id !== 'string') return;
-    const metadata = extractComponentMetadata(rawMetadata);
+    // Component metadata exists from v1.0; below it `metadata` is a property.
+    let metadata: A2uiMetadata | undefined;
+    if (isAtLeastVersion(surface.protocolVersion, '1.0')) {
+      metadata = extractComponentMetadata(properties['metadata']);
+      delete properties['metadata'];
+    }
     const targetCatalog = this.resolveComponentCatalog(comp, surface);
     const existing = surface.componentsModel.get(id);
 

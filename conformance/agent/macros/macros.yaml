@@ -13,16 +13,233 @@
 # limitations under the License.
 
 suite: "a2ui_macros_conformance"
-version: "v0.9"
 
-# Macro definitions specifying the signature and the declarative builder AST
-# returned by each macro. Runners can inspect these templates to synthesize or
-# verify language-specific fluent builder macro implementations.
+# Protocol-agnostic macro conformance suite covering A2UI v0.9/v0.9.1 and v1.0.
+# Individual cases declare envelope_version (defaulting to "v0.9") and optional
+# macro_version / expander_protocol_version overrides.
+#
+# Macro definitions specify the signature and declarative builder AST returned
+# by each macro. Runners can inspect these templates to synthesize or verify
+# language-specific fluent builder macro implementations.
 #
 # Sentinels:
 #   {$param: "name"}        - Injects parameter value (slot, string, binding, action).
 #   {$spreadParam: "name"}  - Spreads a list parameter into children.
-#   ${name}                 - String interpolation for primitive arguments.
+#   ${name}                 - String interpolation for primitive arguments
+#                             (booleans format lowercase as "true" / "false").
+
+custom_catalogs:
+  "https://example.com/catalogs/foo/v1/catalog.json":
+    $schema: "https://json-schema.org/draft/2020-12/schema"
+    protocolVersion: "1.0"
+    catalogId: "https://example.com/catalogs/foo/v1/catalog.json"
+    components:
+      FooPanel:
+        type: "object"
+        properties:
+          component: {const: "FooPanel"}
+          id: {type: "string"}
+          children:
+            {$ref: "https://a2ui.org/specification/v1_0/json/common_types.json#/$defs/ChildList"}
+        required: ["component", "id", "children"]
+      FooHeader:
+        type: "object"
+        properties:
+          component: {const: "FooHeader"}
+          id: {type: "string"}
+          title:
+            {
+              $ref: "https://a2ui.org/specification/v1_0/json/common_types.json#/$defs/DynamicString",
+            }
+        required: ["component", "id", "title"]
+    $defs:
+      anyComponent:
+        oneOf:
+          - {$ref: "#/components/FooPanel"}
+          - {$ref: "#/components/FooHeader"}
+        discriminator:
+          propertyName: "component"
+      anyFunction:
+        not: {}
+
+  "https://example.com/catalogs/bar/v1/catalog.json":
+    $schema: "https://json-schema.org/draft/2020-12/schema"
+    protocolVersion: "1.0"
+    catalogId: "https://example.com/catalogs/bar/v1/catalog.json"
+    components:
+      BarBadge:
+        type: "object"
+        properties:
+          component: {const: "BarBadge"}
+          id: {type: "string"}
+          tag: {type: "string"}
+        required: ["component", "id", "tag"]
+      BarButton:
+        type: "object"
+        properties:
+          component: {const: "BarButton"}
+          id: {type: "string"}
+          label:
+            {
+              $ref: "https://a2ui.org/specification/v1_0/json/common_types.json#/$defs/DynamicString",
+            }
+          action: {$ref: "https://a2ui.org/specification/v1_0/json/common_types.json#/$defs/Action"}
+        required: ["component", "id", "label", "action"]
+    $defs:
+      anyComponent:
+        oneOf:
+          - {$ref: "#/components/BarBadge"}
+          - {$ref: "#/components/BarButton"}
+        discriminator:
+          propertyName: "component"
+      anyFunction:
+        not: {}
+
+  "https://example.com/brand.json":
+    $schema: "https://json-schema.org/draft/2020-12/schema"
+    protocolVersion: "1.0"
+    catalogId: "https://example.com/brand.json"
+    components:
+      BrandBox:
+        type: "object"
+        properties:
+          component: {const: "BrandBox"}
+          id: {type: "string"}
+          child:
+            {$ref: "https://a2ui.org/specification/v1_0/json/common_types.json#/$defs/ComponentId"}
+        required: ["component", "id", "child"]
+    $defs:
+      anyComponent:
+        oneOf:
+          - {$ref: "#/components/BrandBox"}
+        discriminator:
+          propertyName: "component"
+      anyFunction:
+        not: {}
+
+  "https://example.com/brand_surface.json":
+    $schema: "https://json-schema.org/draft/2020-12/schema"
+    protocolVersion: "1.0"
+    catalogId: "https://example.com/brand_surface.json"
+    components:
+      BrandBox:
+        type: "object"
+        properties:
+          component: {const: "BrandBox"}
+          id: {type: "string"}
+          child:
+            {$ref: "https://a2ui.org/specification/v1_0/json/common_types.json#/$defs/ComponentId"}
+        required: ["component", "id", "child"]
+    $defs:
+      anyComponent:
+        oneOf:
+          - {$ref: "#/components/BrandBox"}
+        discriminator:
+          propertyName: "component"
+      anyFunction:
+        not: {}
+
+  "https://example.com/theme.json":
+    $schema: "https://json-schema.org/draft/2020-12/schema"
+    protocolVersion: "1.0"
+    catalogId: "https://example.com/theme.json"
+    components:
+      ThemeShell:
+        type: "object"
+        properties:
+          component: {const: "ThemeShell"}
+          id: {type: "string"}
+          child:
+            {$ref: "https://a2ui.org/specification/v1_0/json/common_types.json#/$defs/ComponentId"}
+        required: ["component", "id", "child"]
+    $defs:
+      anyComponent:
+        oneOf:
+          - {$ref: "#/components/ThemeShell"}
+        discriminator:
+          propertyName: "component"
+      anyFunction:
+        not: {}
+
+  "https://example.com/charts.json":
+    $schema: "https://json-schema.org/draft/2020-12/schema"
+    protocolVersion: "1.0"
+    catalogId: "https://example.com/charts.json"
+    components:
+      Chart:
+        type: "object"
+        properties:
+          component: {const: "Chart"}
+          id: {type: "string"}
+          series: {type: "string"}
+        required: ["component", "id", "series"]
+      ChartCard:
+        type: "object"
+        properties:
+          component: {const: "ChartCard"}
+          id: {type: "string"}
+          child:
+            {$ref: "https://a2ui.org/specification/v1_0/json/common_types.json#/$defs/ComponentId"}
+        required: ["component", "id", "child"]
+      ChartGrid:
+        type: "object"
+        properties:
+          component: {const: "ChartGrid"}
+          id: {type: "string"}
+          children:
+            {$ref: "https://a2ui.org/specification/v1_0/json/common_types.json#/$defs/ChildList"}
+        required: ["component", "id", "children"]
+    $defs:
+      anyComponent:
+        oneOf:
+          - {$ref: "#/components/Chart"}
+          - {$ref: "#/components/ChartCard"}
+          - {$ref: "#/components/ChartGrid"}
+        discriminator:
+          propertyName: "component"
+      anyFunction:
+        not: {}
+
+  "https://example.com/catalog_a.json":
+    $schema: "https://json-schema.org/draft/2020-12/schema"
+    protocolVersion: "1.0"
+    catalogId: "https://example.com/catalog_a.json"
+    components:
+      ProductCard:
+        type: "object"
+        properties:
+          component: {const: "ProductCard"}
+          id: {type: "string"}
+          sku: {type: "string"}
+        required: ["component", "id", "sku"]
+      BrandBox:
+        type: "object"
+        properties:
+          component: {const: "BrandBox"}
+          id: {type: "string"}
+          child:
+            {$ref: "https://a2ui.org/specification/v1_0/json/common_types.json#/$defs/ComponentId"}
+        required: ["component", "id", "child"]
+    $defs:
+      anyComponent:
+        oneOf:
+          - {$ref: "#/components/ProductCard"}
+          - {$ref: "#/components/BrandBox"}
+        discriminator:
+          propertyName: "component"
+      anyFunction:
+        not: {}
+
+  "https://example.com/catalog_b.json":
+    $schema: "https://json-schema.org/draft/2020-12/schema"
+    protocolVersion: "1.0"
+    catalogId: "https://example.com/catalog_b.json"
+    components: {}
+    $defs:
+      anyComponent:
+        not: {}
+      anyFunction:
+        not: {}
 
 macros:
   - name: "StatusBadge"
@@ -30,8 +247,8 @@ macros:
     parameters:
       status: {type: "string"}
       title: {type: "string"}
-    # Native builder:
-    #   Card(child=Row(children=[Text(text=status.upper(), variant="caption"), Text(text=title, variant="h3")]))
+    # Imperative transform: status is uppercased (status.upper()).
+    # Variant note: v0.9 uses variant="h3" for title; v1.0 uses variant="body".
     template:
       component: "Card"
       child:
@@ -119,8 +336,8 @@ macros:
       name: {type: "string"}
       port: {type: "integer"}
       active: {type: "boolean"}
-    # Native builder:
-    #   Card(child=Column(children=[Text(text=name, variant="h2"), Text(text=f"Port: {port}", variant="body"), Text(text=f"Active: {active}", variant="body")]))
+    # Imperative transform: boolean active interpolates lowercase ("true" / "false");
+    # v0.9 uses variant="h2" for name while v1.0 uses variant="body".
     template:
       component: "Card"
       child:
@@ -191,8 +408,380 @@ macros:
         component: "Text"
         text: {$param: "title"}
 
+  - name: "Text"
+    catalog_id: "https://example.com/brand.json"
+    description: "Custom brand Text macro wrapping a basic Text inside a Card"
+    parameters:
+      text: {type: "string"}
+      variant:
+        type: "string"
+        default: "body"
+    # Native builder:
+    #   Card(child=Text(text=f"[Brand] {text}", variant=variant))
+    template:
+      component: "Card"
+      child:
+        component: "Text"
+        text: "[Brand] ${text}"
+        variant: {$param: "variant"}
+
+  - name: "PayloadButton"
+    protocol_version: "1.0"
+    description: "Button sending dynamic payload values inside an Action event context"
+    parameters:
+      label: {type: "string"}
+      event_name: {type: "string"}
+      payload: {type: "dynamic_value"}
+      extra: {type: "dynamic_value"}
+    template:
+      component: "Button"
+      variant: "primary"
+      child:
+        component: "Text"
+        text: {$param: "label"}
+      action:
+        event:
+          name: {$param: "event_name"}
+          context:
+            payload: {$param: "payload"}
+            extra: {$param: "extra"}
+
+  - name: "DynamicFormCard"
+    protocol_version: "1.0"
+    description: "Form card with dynamic child list, check rules, and submit action"
+    parameters:
+      label: {type: "string"}
+      placeholder: {type: "dynamic_string"}
+      items: {type: "child_list"}
+      checks: {type: "check_rule_list"}
+      on_submit: {type: "action"}
+    template:
+      component: "Card"
+      child:
+        component: "Column"
+        children:
+          - component: "TextField"
+            label: {$param: "label"}
+            value: {"@path": "/form/email"}
+            placeholder: {$param: "placeholder"}
+            checks: {$param: "checks"}
+          - component: "List"
+            children: {$param: "items"}
+          - component: "Button"
+            variant: "primary"
+            child:
+              component: "Text"
+              text: "Submit"
+            action: {$param: "on_submit"}
+
+  - name: "AnnotatedBadge"
+    protocol_version: "1.0"
+    description: "Status badge whose root Card defines default accessibility and metadata extensions"
+    parameters:
+      status: {type: "string"}
+      title: {type: "string"}
+    # Imperative transform: status is uppercased (status.upper()).
+    template:
+      component: "Card"
+      accessibility:
+        description: "Default badge description"
+      metadata:
+        extensions:
+          macroMeta:
+            source: "AnnotatedBadge"
+      child:
+        component: "Row"
+        children:
+          - component: "Text"
+            text: {$param: "status"}
+            variant: "caption"
+          - component: "Text"
+            text: {$param: "title"}
+            variant: "body"
+
+  - name: "DeclaredA11yCard"
+    protocol_version: "1.0"
+    description: "Card declaring accessibility as an explicit macro parameter"
+    parameters:
+      title: {type: "string"}
+      accessibility: {type: "accessibility", required: false}
+    # Imperative transform: sets root accessibility.label to "Custom: ${accessibility.label}"
+    # when accessibility.label is provided, or "Internal" otherwise (verifying that a
+    # declared accessibility parameter is coerced and passed to the macro rather than merged
+    # by _apply_envelope_fields).
+    template:
+      component: "Card"
+      accessibility:
+        label: "Custom: ${accessibility.label}"
+      child:
+        component: "Text"
+        text: {$param: "title"}
+
+  - name: "WeightedCard"
+    protocol_version: "1.0"
+    description: "Card declaring weight as an explicit macro parameter"
+    parameters:
+      label: {type: "string"}
+      weight: {type: "number", required: false}
+    template:
+      component: "Card"
+      weight: {$param: "weight"}
+      child:
+        component: "Text"
+        text: {$param: "label"}
+
+  - name: "PositiveCountCard"
+    protocol_version: "1.0"
+    description: "Card raising ValidationError when count is negative"
+    parameters:
+      count: {type: "integer"}
+    # Imperative guard: raises ValidationError when count < 0.
+    template:
+      component: "Card"
+      child:
+        component: "Text"
+        text: "Count: ${count}"
+
+  - name: "UnannotatedBrandCard"
+    catalog_id: "https://example.com/brand.json"
+    protocol_version: "1.0"
+    description: "Brand card emitting unannotated Card, BrandBox, and Text nodes"
+    parameters:
+      title: {type: "string"}
+    template:
+      component: "Card"
+      child:
+        component: "BrandBox"
+        child:
+          component: "Text"
+          text: {$param: "title"}
+          variant: "body"
+
+  - name: "BrandBadge"
+    catalog_id: "https://example.com/brand.json"
+    protocol_version: "1.0"
+    description: "Brand badge emitting basic Card and Text with explicit catalogId"
+    parameters:
+      label: {type: "string"}
+    template:
+      component: "Card"
+      catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      child:
+        component: "Text"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        text: "[Badge] ${label}"
+        variant: "body"
+
+  - name: "InnerBadgeScoped"
+    catalog_id: "https://example.com/brand.json"
+    protocol_version: "1.0"
+    description: "Scoped inner badge emitting BrandBox and unannotated basic Text"
+    parameters:
+      label: {type: "string"}
+    template:
+      component: "BrandBox"
+      catalogId: "https://example.com/brand.json"
+      child:
+        component: "Text"
+        text: "Scoped Badge: ${label}"
+        variant: "caption"
+
+  - name: "OuterPanelScoped"
+    catalog_id: "https://example.com/brand.json"
+    protocol_version: "1.0"
+    description: "Scoped outer panel emitting unannotated Text alongside deferred InnerBadgeScoped"
+    parameters:
+      title: {type: "string"}
+    template:
+      component: "Card"
+      child:
+        component: "Column"
+        children:
+          - component: "Text"
+            text: {$param: "title"}
+            variant: "body"
+          - component: "InnerBadgeScoped"
+            catalogId: "https://example.com/brand.json"
+            label: {$param: "title"}
+
+  - name: "Chart"
+    catalog_id: "https://example.com/brand.json"
+    protocol_version: "1.0"
+    description: "Brand Chart macro emitting ChartCard wrapping an unannotated Chart primitive"
+    parameters:
+      series: {type: "string"}
+    template:
+      component: "ChartCard"
+      child:
+        component: "Chart"
+        series: "[Brand] ${series}"
+
+  - name: "Text"
+    catalog_id: "https://example.com/brand_surface.json"
+    protocol_version: "1.0"
+    description: "Brand surface Text macro emitting cross-catalog basic Card and Text around BrandBox"
+    parameters:
+      text: {type: "string"}
+      variant: {type: "string", default: "body"}
+    template:
+      component: "Card"
+      catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      child:
+        component: "BrandBox"
+        catalogId: "https://example.com/brand_surface.json"
+        child:
+          component: "Text"
+          catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+          text: "[Brand] ${text}"
+          variant: {$param: "variant"}
+
+  - name: "BrandBadge"
+    catalog_id: "https://example.com/brand_surface.json"
+    protocol_version: "1.0"
+    description: "Brand surface badge emitting cross-catalog basic Card and Text around BrandBox"
+    parameters:
+      label: {type: "string"}
+    template:
+      component: "Card"
+      catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      child:
+        component: "BrandBox"
+        catalogId: "https://example.com/brand_surface.json"
+        child:
+          component: "Text"
+          catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+          text: "[Badge] ${label}"
+          variant: "body"
+
+  - name: "BazMacro"
+    catalog_id: "https://example.com/catalogs/baz_macros.json"
+    protocol_version: "1.0"
+    description: "Composite macro combining FooCatalog and BarCatalog primitives with explicit catalogIds"
+    parameters:
+      headline: {type: "dynamic_string"}
+      badge_tag: {type: "string"}
+      cta_label: {type: "string"}
+      on_cta: {type: "action"}
+    template:
+      component: "FooPanel"
+      catalogId: "https://example.com/catalogs/foo/v1/catalog.json"
+      children:
+        - component: "FooHeader"
+          catalogId: "https://example.com/catalogs/foo/v1/catalog.json"
+          title: {$param: "headline"}
+        - component: "BarBadge"
+          catalogId: "https://example.com/catalogs/bar/v1/catalog.json"
+          tag: {$param: "badge_tag"}
+        - component: "BarButton"
+          catalogId: "https://example.com/catalogs/bar/v1/catalog.json"
+          label: {$param: "cta_label"}
+          action: {$param: "on_cta"}
+
+  - name: "ProductCard"
+    catalog_id: "https://example.com/catalog_b.json"
+    protocol_version: "1.0"
+    description: "Macro sharing its name with ProductCard primitive in catalog_a.json"
+    parameters:
+      name: {type: "string"}
+    template:
+      component: "Card"
+      child:
+        component: "Text"
+        text: "Product: ${name}"
+
+  - name: "BrandBox"
+    catalog_id: "https://example.com/catalog_b.json"
+    protocol_version: "1.0"
+    description: "Macro wrapping a same-named BrandBox primitive from catalog_a.json"
+    parameters:
+      title: {type: "string"}
+    template:
+      component: "Card"
+      child:
+        component: "BrandBox"
+        catalogId: "https://example.com/catalog_a.json"
+        child:
+          component: "Text"
+          text: {$param: "title"}
+
+  - name: "InnerBadgeInherited"
+    catalog_id: "https://example.com/catalog_b.json"
+    protocol_version: "1.0"
+    description: "Deferred inner macro inheriting enclosing catalogId when surface catalog is registered"
+    parameters:
+      label: {type: "string"}
+    template:
+      component: "BrandBox"
+      catalogId: "https://example.com/catalog_a.json"
+      child:
+        component: "Text"
+        text: "Inherited Badge: ${label}"
+        variant: "caption"
+
+  - name: "OuterPanelInherited"
+    catalog_id: "https://example.com/catalog_b.json"
+    protocol_version: "1.0"
+    description: "Outer macro emitting unannotated deferred InnerBadgeInherited node"
+    parameters:
+      title: {type: "string"}
+    template:
+      component: "Card"
+      child:
+        component: "Column"
+        children:
+          - component: "Text"
+            text: {$param: "title"}
+            variant: "body"
+          - component: "InnerBadgeInherited"
+            label: {$param: "title"}
+
+  - name: "DeferredCycle"
+    catalog_id: "https://example.com/catalog_b.json"
+    protocol_version: "1.0"
+    description: "Deferred self-recursive macro node"
+    parameters:
+      label: {type: "string"}
+    template:
+      component: "Card"
+      child:
+        component: "DeferredCycle"
+        label: {$param: "label"}
+
+  - name: "CycleA"
+    catalog_id: "https://example.com/catalog_b.json"
+    protocol_version: "1.0"
+    description: "Mutually recursive deferred macro A referencing CycleB"
+    parameters:
+      label: {type: "string"}
+    template:
+      component: "Card"
+      child:
+        component: "CycleB"
+        label: {$param: "label"}
+
+  - name: "CycleB"
+    catalog_id: "https://example.com/catalog_b.json"
+    protocol_version: "1.0"
+    description: "Mutually recursive deferred macro B referencing CycleA"
+    parameters:
+      label: {type: "string"}
+    template:
+      component: "Card"
+      child:
+        component: "CycleA"
+        label: {$param: "label"}
+
+  - name: "EmitsSurface"
+    catalog_id: "https://example.com/catalog_b.json"
+    protocol_version: "1.0"
+    description: "Macro illegally emitting reserved Surface component in v1.0"
+    parameters: {}
+    template:
+      component: "Surface"
+
 tests:
   - id: "01_status_badge_expansion"
+    features: [F-AGT-26]
     description: "Macro expanding to Card, Row, and Text components with root stitching and namespacing"
     golden: "01_status_badge_expansion.json"
     surface_id: "conformance"
@@ -205,6 +794,7 @@ tests:
       title: "Server 1"
 
   - id: "02_slot_boundary_preservation"
+    features: [F-AGT-26]
     description: "Single child slot referencing an external component ID without namespacing or re-emission"
     golden: "02_slot_boundary_preservation.json"
     surface_id: "conformance"
@@ -463,3 +1053,1132 @@ tests:
         - "Card"
         - "Button"
         - "Text"
+
+  - id: "19_envelope_attributes_preservation"
+    description: "Macro invocations with component envelope attributes (catalogId, accessibility, metadata) expand cleanly, merging accessibility and metadata onto the expanded root without copying macro catalogId onto emitted primitives"
+    golden: "19_envelope_attributes_preservation.json"
+    surface_id: "conformance"
+    envelope_version: "1.0"
+    catalog_id: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    input:
+      - component: "Column"
+        id: "root"
+        children:
+          - "btn_basic"
+          - "btn_standalone"
+      - component: "ActionButton"
+        id: "btn_basic"
+        label: "Submit"
+        action: "submit_form"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        accessibility:
+          label: "Submit form button"
+          description: "Submits the current form"
+        metadata:
+          extensions:
+            telemetry:
+              traceId: "t1"
+      - component: "ActionButton"
+        id: "btn_standalone"
+        label: "Cancel"
+        action: "cancel_form"
+        catalogId: "https://a2ui.org/catalogs/macros"
+        accessibility:
+          label: "Cancel form button"
+
+  - id: "20_mixable_catalogs_resolution"
+    description: "Mixable catalogs resolve macros by effective catalogId without colliding with identically named primitives from other catalogs"
+    golden: "20_mixable_catalogs_resolution.json"
+    surface_id: "conformance"
+    envelope_version: "1.0"
+    catalog_id: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    macro_catalog_id: "https://example.com/brand.json"
+    input:
+      - component: "Column"
+        id: "root"
+        children:
+          - "brand_text"
+          - "basic_text"
+      - component: "Text"
+        id: "brand_text"
+        catalogId: "https://example.com/brand.json"
+        text: "Brand Header"
+        variant: "body"
+      - component: "Text"
+        id: "basic_text"
+        text: "Plain Body"
+        variant: "body"
+
+  - id: "21_v1_0_data_binding_and_function_call_coercion"
+    description: "v1.0 macro coerces @path data bindings and @call function calls into DynamicString slots"
+    golden: "21_v1_0_data_binding_and_function_call_coercion.json"
+    surface_id: "conformance"
+    envelope_version: "1.0"
+    catalog_id: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    input:
+      - component: "Column"
+        id: "root"
+        children:
+          - "metric_path"
+          - "metric_call"
+      - component: "BoundMetric"
+        id: "metric_path"
+        label: "CPU Usage"
+        value:
+          "@path": "/system/cpu"
+      - component: "BoundMetric"
+        id: "metric_call"
+        label: "Formatted CPU"
+        value:
+          "@call": "formatString"
+          args:
+            value: "CPU: ${/system/cpu}%"
+
+  - id: "22_v1_0_action_user_message_coercion"
+    description: "v1.0 Action parameter coerces bare event body with userMessage and context"
+    golden: "22_v1_0_action_user_message_coercion.json"
+    surface_id: "conformance"
+    envelope_version: "1.0"
+    catalog_id: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    input:
+      component: "ActionButton"
+      id: "root"
+      label: "Ask Assistant"
+      action:
+        name: "submit_prompt"
+        userMessage: "Please summarize the report"
+        context:
+          reportId:
+            "@path": "/report/id"
+
+  - id: "23_v1_0_synthetic_catalog_generation"
+    description: "Deriving a v1.0 inference catalog from v1_0 builder macro annotations synthesizes valid schemas and preserves protocol version 1.0"
+    action: "transform_to_inference_catalog"
+    envelope_version: "1.0"
+    expect:
+      protocol_version: "1.0"
+      augmented_components:
+        - "StatusBadge"
+        - "SlotContainer"
+        - "MultiSlotContainer"
+        - "ActionButton"
+        - "BoundMetric"
+        - "ConfigCard"
+        - "NestedMacroCard"
+        - "ComplexCard"
+        - "PayloadButton"
+        - "DynamicFormCard"
+      any_component_references:
+        - "#/components/StatusBadge"
+        - "#/components/SlotContainer"
+        - "#/components/MultiSlotContainer"
+        - "#/components/ActionButton"
+        - "#/components/BoundMetric"
+        - "#/components/ConfigCard"
+        - "#/components/NestedMacroCard"
+        - "#/components/ComplexCard"
+        - "#/components/PayloadButton"
+        - "#/components/DynamicFormCard"
+      component_properties:
+        ComplexCard:
+          component: {const: "ComplexCard"}
+          title: {type: "string"}
+          dynamic_title: {$ref: "common_types.json#/$defs/DynamicString"}
+          metric: {$ref: "common_types.json#/$defs/DynamicNumber"}
+          is_active: {$ref: "common_types.json#/$defs/DynamicBoolean"}
+          tags: {$ref: "common_types.json#/$defs/DynamicStringList"}
+          anything: {$ref: "common_types.json#/$defs/DynamicValue"}
+          on_click: {$ref: "common_types.json#/$defs/Action"}
+          checks: {type: "array", items: {$ref: "common_types.json#/$defs/CheckRule"}}
+          accessibility: {$ref: "common_types.json#/$defs/AccessibilityAttributes"}
+          footer: {$ref: "common_types.json#/$defs/Child"}
+          items: {$ref: "common_types.json#/$defs/ChildList"}
+          theme: {type: "string", enum: ["primary", "secondary"]}
+
+  - id: "24_error_reserved_surface_macro_name"
+    description: "Transforming a v1.0 catalog with a macro named Surface raises ValidationError because Surface is reserved"
+    action: "transform_catalog"
+    envelope_version: "1.0"
+    colliding_macro: "Surface"
+    expect_error:
+      category: "ValidationError"
+
+  - id: "25_v1_0_literal_object_preservation"
+    description: "v1.0 DynamicValue parameters preserve plain path and call dictionaries as LiteralObject values without coercing them to DataBinding or FunctionCall"
+    golden: "25_v1_0_literal_object_preservation.json"
+    surface_id: "conformance"
+    envelope_version: "1.0"
+    catalog_id: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    input:
+      component: "PayloadButton"
+      id: "root"
+      label: "Run Command"
+      event_name: "execute_command"
+      payload:
+        path: "/usr/bin"
+      extra:
+        call: "1-800-555-0199"
+        ext: "123"
+
+  - id: "26_v1_0_dynamic_child_list_and_checks"
+    description: "v1.0 macro coerces DynamicChildList templates, CheckRule arrays, and abbreviated event action shorthands with userMessage and context"
+    golden: "26_v1_0_dynamic_child_list_and_checks.json"
+    surface_id: "conformance"
+    envelope_version: "1.0"
+    catalog_id: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    input:
+      - component: "DynamicFormCard"
+        id: "root"
+        label: "Work Email"
+        placeholder:
+          "@path": "/form/emailPlaceholder"
+        items:
+          path: "/form/items"
+          componentId: "item_tmpl"
+        checks:
+          - condition:
+              "@call": "required"
+              args:
+                value:
+                  "@path": "/form/email"
+            message: "Email is required"
+        on_submit:
+          event: "submit_form"
+          userMessage: "Submit registration"
+          context:
+            email:
+              "@path": "/form/email"
+      - component: "Text"
+        id: "item_tmpl"
+        text:
+          "@path": "/itemLabel"
+
+  - id: "27_to_catalog_v0_9"
+    description: "Exporting v0.9 macros via to_catalog produces a standalone sidecar catalog with the default macro catalog ID and version 0.9.1"
+    action: "to_catalog"
+    expect:
+      catalog_id: "https://a2ui.org/catalogs/macros"
+      protocol_version: "0.9.1"
+      augmented_components:
+        - "StatusBadge"
+        - "SlotContainer"
+        - "ActionButton"
+        - "ComplexCard"
+      any_component_references:
+        - "#/components/StatusBadge"
+        - "#/components/ComplexCard"
+
+  - id: "28_to_catalog_v1_0_inferred_and_custom_id"
+    description: "Exporting v1.0 macros via to_catalog infers protocolVersion 1.0, honors a custom expander catalog_id, and emits component const discriminators and anyFunction"
+    action: "to_catalog"
+    envelope_version: "1.0"
+    expander_catalog_id: "https://example.com/custom_macros.json"
+    expect:
+      catalog_id: "https://example.com/custom_macros.json"
+      protocol_version: "1.0"
+      has_any_component_discriminator: true
+      has_any_function: true
+      augmented_components:
+        - "StatusBadge"
+        - "ComplexCard"
+        - "PayloadButton"
+        - "DynamicFormCard"
+      component_properties:
+        StatusBadge:
+          component: {const: "StatusBadge"}
+
+  - id: "29_to_catalog_v1_0_empty"
+    description: "Exporting an empty MacroExpander configured with protocol_version 1.0 produces a valid empty v1.0 catalog definition"
+    action: "to_catalog"
+    empty_macros: true
+    expander_protocol_version: "1.0"
+    expect:
+      catalog_id: "https://a2ui.org/catalogs/macros"
+      protocol_version: "1.0"
+      component_count: 0
+      has_any_function: true
+
+  - id: "30_root_envelope_deep_merge_and_declared_override"
+    description: "v1.0 macro expansion deep-merges undeclared accessibility and metadata.extensions with root defaults while passing declared accessibility and weight parameters to the macro"
+    golden: "30_root_envelope_deep_merge_and_declared_override.json"
+    surface_id: "conformance"
+    envelope_version: "1.0"
+    catalog_id: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    input:
+      - component: "Row"
+        id: "root"
+        children:
+          - "ann_badge"
+          - "decl_a11y"
+          - "weighted_card"
+      - component: "AnnotatedBadge"
+        id: "ann_badge"
+        status: "ok"
+        title: "Primary"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        accessibility:
+          label: "Server status badge"
+        metadata:
+          extensions:
+            telemetry:
+              traceId: "t1"
+      - component: "DeclaredA11yCard"
+        id: "decl_a11y"
+        title: "Explicit Param"
+        accessibility:
+          label: "Passed as param"
+      - component: "WeightedCard"
+        id: "weighted_card"
+        label: "Weighted"
+        weight: 2.0
+
+  - id: "31_v0_9_gates_v1_0_envelope_fields"
+    description: "v0.9 macro expansion merges undeclared accessibility onto the root while stripping v1.0-only catalogId and metadata envelope fields"
+    golden: "31_v0_9_gates_v1_0_envelope_fields.json"
+    surface_id: "conformance"
+    envelope_version: "v0.9"
+    input:
+      component: "StatusBadge"
+      id: "root"
+      status: "ok"
+      title: "Notice"
+      accessibility:
+        label: "Notice banner"
+      catalogId: "https://example.com/ignored_in_v09.json"
+      metadata:
+        extensions:
+          telemetry:
+            traceId: "t09"
+
+  - id: "32_v1_0_action_function_call_shorthand"
+    description: "v1.0 Action parameter coerces a bare @call function call object into an Action with functionCall"
+    golden: "32_v1_0_action_function_call_shorthand.json"
+    surface_id: "conformance"
+    envelope_version: "1.0"
+    catalog_id: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    input:
+      component: "ActionButton"
+      id: "root"
+      label: "Open Docs"
+      action:
+        "@call": "openUrl"
+        args:
+          url: "https://a2ui.org"
+
+  - id: "33_runtime_failure_and_undeclared_property_fallback"
+    description: "transform_to_transport retains unexpanded components when a macro receives undeclared non-envelope properties, binding dicts for primitive parameters, or raises runtime validation errors, while expanding valid siblings"
+    surface_id: "conformance"
+    envelope_version: "1.0"
+    validation:
+      skip_renderer_validation: true
+    input:
+      - component: "StatusBadge"
+        id: "bad_weight"
+        status: "ok"
+        title: "Weighted"
+        weight: 2.0
+      - component: "ConfigCard"
+        id: "bad_bool_binding"
+        name: "DB"
+        port: 5432
+        active:
+          "@path": "/db/active"
+      - component: "PositiveCountCard"
+        id: "bad_negative"
+        count: -1
+      - component: "StatusBadge"
+        id: "ok_badge"
+        status: "ok"
+        title: "Healthy"
+    expect:
+      components:
+        - component: "StatusBadge"
+          id: "bad_weight"
+          status: "ok"
+          title: "Weighted"
+          weight: 2.0
+        - component: "ConfigCard"
+          id: "bad_bool_binding"
+          name: "DB"
+          port: 5432
+          active:
+            "@path": "/db/active"
+        - component: "PositiveCountCard"
+          id: "bad_negative"
+          count: -1
+        - id: "ok_badge__text_1"
+          component: "Text"
+          text: "OK"
+          variant: "caption"
+        - id: "ok_badge__text_2"
+          component: "Text"
+          text: "Healthy"
+          variant: "body"
+        - id: "ok_badge__row_1"
+          component: "Row"
+          children:
+            - "ok_badge__text_1"
+            - "ok_badge__text_2"
+          justify: "start"
+          align: "stretch"
+        - id: "ok_badge"
+          component: "Card"
+          child: "ok_badge__row_1"
+
+  - id: "33b_error_on_error_raise_surfaces_validation_error"
+    description: "MacroExpander with on_error='raise' raises ValidationError when a macro fails coercion or raises a runtime validation error"
+    surface_id: "conformance"
+    envelope_version: "1.0"
+    on_error: "raise"
+    input:
+      component: "PositiveCountCard"
+      id: "root"
+      count: -1
+    expect_error:
+      category: "ValidationError"
+
+  - id: "34_v1_0_multi_catalog_foo_bar_baz_and_defaultless_surface"
+    description: "v1.0 macro combining primitives from FooCatalog and BarCatalog emits explicit catalogIds on both a defaultless surface and a third-catalog default surface"
+    golden: "34_v1_0_multi_catalog_foo_bar_baz_and_defaultless_surface.json"
+    envelope_version: "1.0"
+    macro_catalog_id: "https://example.com/catalogs/baz_macros.json"
+    base_catalogs:
+      - "https://example.com/catalogs/foo/v1/catalog.json"
+      - "https://example.com/catalogs/bar/v1/catalog.json"
+      - "https://example.com/theme.json"
+    validation_catalogs:
+      - "https://example.com/catalogs/foo/v1/catalog.json"
+      - "https://example.com/catalogs/bar/v1/catalog.json"
+      - "https://example.com/theme.json"
+    messages:
+      - version: "1.0"
+        createSurface:
+          surfaceId: "s_defaultless"
+      - version: "1.0"
+        updateComponents:
+          surfaceId: "s_defaultless"
+          components:
+            - id: "root"
+              component: "FooPanel"
+              catalogId: "https://example.com/catalogs/foo/v1/catalog.json"
+              children:
+                - "baz_1"
+                - "extra_bar_btn"
+            - id: "baz_1"
+              component: "BazMacro"
+              catalogId: "https://example.com/catalogs/baz_macros.json"
+              headline:
+                "@path": "/dashboard/headline"
+              badge_tag: "LIVE"
+              cta_label: "Deploy"
+              on_cta:
+                name: "deploy_clicked"
+                userMessage: "Deploy release"
+            - id: "extra_bar_btn"
+              component: "BarButton"
+              catalogId: "https://example.com/catalogs/bar/v1/catalog.json"
+              label: "Cancel"
+              action:
+                event:
+                  name: "cancel_clicked"
+      - version: "1.0"
+        createSurface:
+          surfaceId: "s_theme"
+          catalogId: "https://example.com/theme.json"
+      - version: "1.0"
+        updateComponents:
+          surfaceId: "s_theme"
+          components:
+            - id: "root"
+              component: "ThemeShell"
+              child: "baz_themed"
+            - id: "baz_themed"
+              component: "BazMacro"
+              catalogId: "https://example.com/catalogs/baz_macros.json"
+              headline: "Themed Dashboard"
+              badge_tag: "CANARY"
+              cta_label: "Promote"
+              on_cta: "promote_clicked"
+
+  - id: "35_v1_0_auto_stamping_from_base_catalogs_on_defaultless_surface"
+    description: "Unannotated builder nodes emitted by a macro on a defaultless v1.0 surface are stamped with their unique owning catalogId from base_catalogs"
+    golden: "35_v1_0_auto_stamping_from_base_catalogs_on_defaultless_surface.json"
+    envelope_version: "1.0"
+    macro_catalog_id: "https://example.com/brand.json"
+    base_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      - "https://example.com/brand.json"
+    validation_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      - "https://example.com/brand.json"
+    messages:
+      - version: "1.0"
+        createSurface:
+          surfaceId: "s_none"
+      - version: "1.0"
+        updateComponents:
+          surfaceId: "s_none"
+          components:
+            - id: "root"
+              component: "UnannotatedBrandCard"
+              catalogId: "https://example.com/brand.json"
+              title: "Auto stamped"
+
+  - id: "35b_error_ambiguous_primitive_on_defaultless_surface"
+    description: "Expanding an unannotated primitive defined in multiple registered base_catalogs on a defaultless v1.0 surface raises CatalogError"
+    envelope_version: "1.0"
+    macro_catalog_id: "https://example.com/brand.json"
+    base_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      - "https://example.com/brand.json"
+      - "https://example.com/brand_surface.json"
+    messages:
+      - version: "1.0"
+        createSurface:
+          surfaceId: "s_none"
+      - version: "1.0"
+        updateComponents:
+          surfaceId: "s_none"
+          components:
+            - id: "root"
+              component: "UnannotatedBrandCard"
+              catalogId: "https://example.com/brand.json"
+              title: "Ambiguous BrandBox"
+    expect_error:
+      category: "CatalogError"
+
+  - id: "36_surface_lifecycle_delete_recreate_and_null_catalog_id"
+    description: "MacroExpander updates surface default catalog across deleteSurface and createSurface and treats explicit null catalogId identically to unset catalogId"
+    golden: "36_surface_lifecycle_delete_recreate_and_null_catalog_id.json"
+    envelope_version: "1.0"
+    macro_catalog_id: "https://example.com/brand_surface.json"
+    expander_scoped: false
+    base_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      - "https://example.com/brand_surface.json"
+    validation_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      - "https://example.com/brand_surface.json"
+    messages:
+      - version: "1.0"
+        createSurface:
+          surfaceId: "main"
+          catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      - version: "1.0"
+        updateComponents:
+          surfaceId: "main"
+          components:
+            - id: "root"
+              component: "Column"
+              children:
+                - "t_basic"
+                - "t_brand"
+            - id: "t_basic"
+              component: "Text"
+              text: "Plain basic text"
+              variant: "body"
+            - id: "t_brand"
+              component: "Text"
+              catalogId: "https://example.com/brand_surface.json"
+              text: "Brand title"
+              variant: "body"
+      - version: "1.0"
+        deleteSurface:
+          surfaceId: "main"
+      - version: "1.0"
+        createSurface:
+          surfaceId: "main"
+          catalogId: "https://example.com/brand_surface.json"
+      - version: "1.0"
+        updateComponents:
+          surfaceId: "main"
+          components:
+            - id: "root"
+              component: "Column"
+              catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+              children:
+                - "t_recreated"
+                - "b_null_cid"
+            - id: "t_recreated"
+              component: "Text"
+              text: "Default brand surface text"
+              variant: "body"
+            - id: "b_null_cid"
+              component: "BrandBadge"
+              catalogId: null
+              label: "Null cid"
+
+  - id: "37a_stateless_surface_catalogs_override_expands"
+    description: "Passing surface_catalogs override mapping a surface to the macro catalog expands unannotated macro invocations without a preceding createSurface"
+    surface_id: "main"
+    envelope_version: "1.0"
+    macro_catalog_id: "https://example.com/brand_surface.json"
+    expander_scoped: false
+    base_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      - "https://example.com/brand_surface.json"
+    validation_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      - "https://example.com/brand_surface.json"
+    surface_catalogs:
+      main: "https://example.com/brand_surface.json"
+    input:
+      id: "root"
+      component: "Text"
+      text: "Session text"
+      variant: "body"
+    expect:
+      component_types:
+        - "Text"
+        - "BrandBox"
+        - "Card"
+
+  - id: "37b_stateless_surface_catalogs_override_skips"
+    description: "Passing surface_catalogs override mapping a surface to a base catalog with a same-named primitive leaves unannotated components unexpanded"
+    surface_id: "main"
+    envelope_version: "1.0"
+    macro_catalog_id: "https://example.com/brand_surface.json"
+    expander_scoped: false
+    base_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      - "https://example.com/brand_surface.json"
+    validation_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    surface_catalogs:
+      main: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    input:
+      id: "root"
+      component: "Text"
+      text: "Session text"
+      variant: "body"
+    expect:
+      component_types:
+        - "Text"
+
+  - id: "37c_scoped_expander_skips_untracked_and_invalid_catalog_id"
+    description: "A catalog-scoped MacroExpander skips unannotated components and empty catalogId values when the surface has no tracked default catalog"
+    surface_id: "untracked_surface"
+    envelope_version: "1.0"
+    macro_catalog_id: "https://example.com/brand.json"
+    validation:
+      skip_renderer_validation: true
+    input:
+      - id: "plain_text"
+        component: "Text"
+        text: "Should remain plain"
+      - id: "empty_cid_text"
+        component: "Text"
+        catalogId: ""
+        text: "Invalid empty catalogId"
+      - id: "untracked_badge"
+        component: "BrandBadge"
+        label: "Skipped"
+    expect:
+      components:
+        - id: "plain_text"
+          component: "Text"
+          text: "Should remain plain"
+        - id: "empty_cid_text"
+          component: "Text"
+          catalogId: ""
+          text: "Invalid empty catalogId"
+        - id: "untracked_badge"
+          component: "BrandBadge"
+          label: "Skipped"
+
+  - id: "37d_default_macro_catalog_id_expands_after_base_registration"
+    description: "An unscoped macro sharing its name with a registered base primitive expands when invoked with the default standalone macro catalogId"
+    surface_id: "main"
+    envelope_version: "1.0"
+    colliding_macro: "Text"
+    catalog_id: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    base_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    validation_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    input:
+      id: "root"
+      component: "Text"
+      catalogId: "https://a2ui.org/catalogs/macros"
+    expect:
+      component_types:
+        - "Text"
+        - "Card"
+      absent_property_on_all_components: "catalogId"
+
+  - id: "37e_standalone_macro_catalog_surface_default"
+    description: "A surface whose default catalogId is the standalone macro catalog expands nested macros and rewrites createSurface.catalogId to the registered transport catalog"
+    surface_id: "s_macros"
+    envelope_version: "1.0"
+    catalog_id: "https://a2ui.org/catalogs/macros"
+    base_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    validation_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    input:
+      id: "root"
+      component: "NestedMacroCard"
+      title: "Cluster"
+      status: "ok"
+    expect:
+      create_surface_catalog_id: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      component_types:
+        - "Text"
+        - "Text"
+        - "Text"
+        - "Row"
+        - "Card"
+        - "Column"
+        - "Card"
+      absent_property_on_all_components: "catalogId"
+
+  - id: "38a_custom_catalog_collision_and_same_name_wrapper"
+    description: "Custom catalog primitives pass through untouched alongside same-named macros, same-name primitive wrappers expand once without re-entry, and deferred inner macros inherit enclosing catalogId when surface catalog is registered"
+    golden: "38a_custom_catalog_collision_and_same_name_wrapper.json"
+    envelope_version: "1.0"
+    macro_catalog_id: "https://example.com/catalog_b.json"
+    base_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      - "https://example.com/catalog_a.json"
+      - "https://example.com/catalog_b.json"
+    validation_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      - "https://example.com/catalog_a.json"
+      - "https://example.com/catalog_b.json"
+    messages:
+      - version: "1.0"
+        createSurface:
+          surfaceId: "s_products"
+          catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      - version: "1.0"
+        updateComponents:
+          surfaceId: "s_products"
+          components:
+            - id: "root"
+              component: "Column"
+              children:
+                - "p_cat_a"
+                - "p_cat_b"
+            - id: "p_cat_a"
+              component: "ProductCard"
+              catalogId: "https://example.com/catalog_a.json"
+              sku: "SKU-1"
+            - id: "p_cat_b"
+              component: "ProductCard"
+              catalogId: "https://example.com/catalog_b.json"
+              name: "Widget"
+      - version: "1.0"
+        createSurface:
+          surfaceId: "s_wrap"
+          catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      - version: "1.0"
+        updateComponents:
+          surfaceId: "s_wrap"
+          components:
+            - id: "root"
+              component: "BrandBox"
+              catalogId: "https://example.com/catalog_b.json"
+              title: "Wrapped"
+      - version: "1.0"
+        createSurface:
+          surfaceId: "s_inherited"
+          catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      - version: "1.0"
+        updateComponents:
+          surfaceId: "s_inherited"
+          components:
+            - id: "root"
+              component: "OuterPanelInherited"
+              catalogId: "https://example.com/catalog_b.json"
+              title: "Inherited"
+
+  - id: "38b_scoped_nested_macro_and_non_basic_surface"
+    description: "Unannotated primitives emitted by a scoped macro are not hijacked by sibling same-name macros when the surface catalog is unregistered, and non-basic surface defaults preserve unannotated same-name primitives"
+    golden: "38b_scoped_nested_macro_and_non_basic_surface.json"
+    envelope_version: "1.0"
+    macro_catalog_id: "https://example.com/brand.json"
+    base_catalogs:
+      - "https://example.com/brand.json"
+    validation_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      - "https://example.com/brand.json"
+      - "https://example.com/charts.json"
+    messages:
+      - version: "1.0"
+        createSurface:
+          surfaceId: "s_scoped"
+          catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      - version: "1.0"
+        updateComponents:
+          surfaceId: "s_scoped"
+          components:
+            - id: "root"
+              component: "OuterPanelScoped"
+              catalogId: "https://example.com/brand.json"
+              title: "Staging"
+      - version: "1.0"
+        createSurface:
+          surfaceId: "s_charts"
+          catalogId: "https://example.com/charts.json"
+      - version: "1.0"
+        updateComponents:
+          surfaceId: "s_charts"
+          components:
+            - id: "root"
+              component: "ChartGrid"
+              children:
+                - "c_brand"
+                - "c_plain"
+            - id: "c_brand"
+              component: "Chart"
+              catalogId: "https://example.com/brand.json"
+              series: "revenue"
+            - id: "c_plain"
+              component: "Chart"
+              series: "latency"
+
+  - id: "39a_error_deferred_self_recursion_untracked"
+    description: "Deferred self-recursive macro under catalog_id scoping on a standalone updateComponents message raises RecursionError"
+    surface_id: "untracked_cycle"
+    envelope_version: "1.0"
+    macro_catalog_id: "https://example.com/catalog_b.json"
+    base_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    input:
+      id: "root"
+      component: "DeferredCycle"
+      catalogId: "https://example.com/catalog_b.json"
+      label: "loop"
+    expect_error:
+      category: "RecursionError"
+
+  - id: "39b_error_mutual_recursion_defaultless_surface"
+    description: "Deferred mutual macro recursion (CycleA -> CycleB -> CycleA) on a defaultless v1.0 surface raises RecursionError"
+    envelope_version: "1.0"
+    macro_catalog_id: "https://example.com/catalog_b.json"
+    base_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    messages:
+      - version: "1.0"
+        createSurface:
+          surfaceId: "defaultless_cycle"
+      - version: "1.0"
+        updateComponents:
+          surfaceId: "defaultless_cycle"
+          components:
+            - id: "root"
+              component: "CycleA"
+              catalogId: "https://example.com/catalog_b.json"
+              label: "loop"
+    expect_error:
+      category: "RecursionError"
+
+  - id: "39c_error_mutual_recursion_foreign_surface"
+    description: "Deferred mutual macro recursion (CycleA -> CycleB -> CycleA) on a foreign-default surface with registered base_catalogs raises RecursionError"
+    envelope_version: "1.0"
+    macro_catalog_id: "https://example.com/catalog_b.json"
+    base_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    messages:
+      - version: "1.0"
+        createSurface:
+          surfaceId: "foreign_cycle"
+          catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      - version: "1.0"
+        updateComponents:
+          surfaceId: "foreign_cycle"
+          components:
+            - id: "root"
+              component: "CycleA"
+              catalogId: "https://example.com/catalog_b.json"
+              label: "loop"
+    expect_error:
+      category: "RecursionError"
+
+  - id: "40a_error_export_v0_9_macros_as_v1_0_to_catalog"
+    description: "Constructing a MacroExpander with v0.9 macros and protocol_version 1.0 raises ValidationError"
+    action: "to_catalog"
+    macro_version: "v0.9"
+    expander_protocol_version: "1.0"
+    expect_error:
+      category: "ValidationError"
+
+  - id: "40b_error_lower_v1_0_envelope_with_v0_9_macros"
+    description: "Lowering a v1.0 message envelope with a MacroExpander bound to v0.9 macros raises ValidationError"
+    surface_id: "conformance"
+    envelope_version: "1.0"
+    macro_version: "v0.9"
+    input:
+      id: "root"
+      component: "StatusBadge"
+      status: "ok"
+      title: "Mismatch"
+    expect_error:
+      category: "ValidationError"
+
+  - id: "40c_error_lower_v0_9_envelope_with_v1_0_macros"
+    description: "Lowering a v0.9 message envelope with a MacroExpander bound to v1.0 macros raises ValidationError"
+    surface_id: "conformance"
+    envelope_version: "v0.9"
+    macro_version: "1.0"
+    input:
+      id: "root"
+      component: "StatusBadge"
+      status: "ok"
+      title: "Mismatch"
+    expect_error:
+      category: "ValidationError"
+
+  - id: "40d_error_augment_v1_0_catalog_with_v0_9_macros"
+    description: "Augmenting a v1.0 base catalog with v0.9 macros raises ValidationError"
+    action: "transform_to_inference_catalog"
+    envelope_version: "1.0"
+    macro_version: "v0.9"
+    expect_error:
+      category: "ValidationError"
+
+  - id: "40e_error_augment_v0_9_catalog_with_v1_0_macros"
+    description: "Augmenting a v0.9 base catalog with v1.0 macros raises ValidationError"
+    action: "transform_to_inference_catalog"
+    envelope_version: "v0.9"
+    macro_version: "1.0"
+    expect_error:
+      category: "ValidationError"
+
+  - id: "40f_error_register_mixed_version_base_catalogs"
+    description: "Registering mixed v0.9 and v1.0 base_catalogs on MacroExpander raises ValidationError"
+    action: "to_catalog"
+    empty_macros: true
+    base_catalogs:
+      - "https://a2ui.org/specification/v0_9/standard_catalog.json"
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    expect_error:
+      category: "ValidationError"
+
+  - id: "40g_error_v1_0_nfkc_fullwidth_surface_name"
+    description: "Defining or transforming a v1.0 macro whose name normalizes under NFKC to Surface raises ValidationError"
+    action: "transform_catalog"
+    envelope_version: "1.0"
+    colliding_macro: "Ｓurface"
+    expect_error:
+      category: "ValidationError"
+
+  - id: "40h_error_v1_0_invalid_non_uax31_macro_name"
+    description: "Defining or transforming a v1.0 macro whose name is not a valid UAX #31 identifier raises ValidationError"
+    action: "transform_catalog"
+    envelope_version: "1.0"
+    colliding_macro: "123-invalid!"
+    expect_error:
+      category: "ValidationError"
+
+  - id: "40i_error_v1_0_macro_emitting_reserved_surface_component"
+    description: "Expanding a v1.0 macro whose returned tree emits a component named Surface raises ValidationError"
+    surface_id: "conformance"
+    envelope_version: "1.0"
+    macro_catalog_id: "https://example.com/catalog_b.json"
+    input:
+      id: "root"
+      component: "EmitsSurface"
+      catalogId: "https://example.com/catalog_b.json"
+    expect_error:
+      category: "ValidationError"
+
+  - id: "41_v0_9_allows_surface_macro_name"
+    description: "Protocol v0.9 continues to allow a macro named Surface because Surface is only reserved in v1.0"
+    action: "to_catalog"
+    envelope_version: "v0.9"
+    colliding_macro: "Surface"
+    expect:
+      protocol_version: "0.9.1"
+      augmented_components:
+        - "Surface"
+
+  # --- Protocol v1.0 Twin Cases ---
+
+  - id: "01_status_badge_expansion_v1_0"
+    version: "v1.0"
+    description: "Macro expanding to Card, Row, and Text components with root stitching and namespacing (v1.0)"
+    golden: "v1_0/01_status_badge_expansion.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "StatusBadge"
+      id: "badge_1"
+      status: "active"
+      title: "Server 1"
+
+  - id: "02_slot_boundary_preservation_v1_0"
+    version: "v1.0"
+    description: "Single child slot referencing an external component ID without namespacing or re-emission (v1.0)"
+    golden: "v1_0/02_slot_boundary_preservation.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+      allow_dangling_references: true
+    input:
+      component: "SlotContainer"
+      id: "container_1"
+      title: "Settings"
+      content: "external_child_42"
+
+  - id: "03_multi_slot_list_coercion_v1_0"
+    version: "v1.0"
+    description: "Multi-child slot list referencing external component IDs without namespacing or re-emission (v1.0)"
+    golden: "v1_0/03_multi_slot_list_coercion.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+      allow_dangling_references: true
+    input:
+      component: "MultiSlotContainer"
+      id: "multi_1"
+      header: "Action Group"
+      items:
+        - "action_btn_1"
+        - "action_btn_2"
+
+  - id: "04_action_string_coercion_v1_0"
+    version: "v1.0"
+    description: "Action parameter coerced from string event name to Action wire object (v1.0)"
+    golden: "v1_0/04_action_string_coercion.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "ActionButton"
+      id: "btn_1"
+      label: "Save Changes"
+      action: "submit_form"
+
+  - id: "05_data_binding_coercion_v1_0"
+    version: "v1.0"
+    description: "Dynamic string parameter coerced from data binding dictionary into @path wire form (v1.0)"
+    golden: "v1_0/05_data_binding_coercion.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "BoundMetric"
+      id: "metric_1"
+      label: "CPU Usage"
+      value:
+        "@path": "/system/cpu"
+
+  - id: "06_primitive_and_dict_arguments_v1_0"
+    version: "v1.0"
+    description: "Macro arguments with integer, boolean, and string primitives (v1.0)"
+    golden: "v1_0/06_primitive_and_dict_arguments.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "ConfigCard"
+      id: "cfg_1"
+      name: "Worker 1"
+      port: 8080
+      active: true
+
+  - id: "07_nested_macro_composition_v1_0"
+    version: "v1.0"
+    description: "Composition of a macro inside another macro expanding recursively (v1.0)"
+    golden: "v1_0/07_nested_macro_composition.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      component: "NestedMacroCard"
+      id: "nested_1"
+      title: "Service Cluster"
+      status: "online"
+
+  - id: "08_surface_lifecycle_envelopes_v1_0"
+    version: "v1.0"
+    description: "Full surface lifecycle message containing macro components (v1.0)"
+    golden: "v1_0/08_surface_lifecycle_envelopes.json"
+    surface_id: "conformance"
+    catalog_id: "org.a2ui.basic"
+    input:
+      component: "StatusBadge"
+      id: "root"
+      status: "ready"
+      title: "System"
+
+  - id: "11_synthetic_catalog_generation_v1_0"
+    version: "v1.0"
+    description: "Deriving a v1.0 inference catalog synthesizes valid schemas for all parameter types and augments anyComponent"
+    action: "transform_to_inference_catalog"
+    expect:
+      augmented_components:
+        - "StatusBadge"
+        - "SlotContainer"
+        - "MultiSlotContainer"
+        - "ActionButton"
+        - "BoundMetric"
+        - "ConfigCard"
+        - "NestedMacroCard"
+        - "ComplexCard"
+      any_component_references:
+        - "#/components/StatusBadge"
+        - "#/components/SlotContainer"
+        - "#/components/MultiSlotContainer"
+        - "#/components/ActionButton"
+        - "#/components/BoundMetric"
+        - "#/components/ConfigCard"
+        - "#/components/NestedMacroCard"
+        - "#/components/ComplexCard"
+      component_properties:
+        ComplexCard:
+          title: {type: "string"}
+          dynamic_title: {$ref: "common_types.json#/$defs/DynamicString"}
+          metric: {$ref: "common_types.json#/$defs/DynamicNumber"}
+          is_active: {$ref: "common_types.json#/$defs/DynamicBoolean"}
+          tags: {$ref: "common_types.json#/$defs/DynamicStringList"}
+          anything: {$ref: "common_types.json#/$defs/DynamicValue"}
+          on_click: {$ref: "common_types.json#/$defs/Action"}
+          checks: {type: "array", items: {$ref: "common_types.json#/$defs/CheckRule"}}
+          accessibility: {$ref: "common_types.json#/$defs/AccessibilityAttributes"}
+          footer: {$ref: "common_types.json#/$defs/Child"}
+          items: {$ref: "common_types.json#/$defs/ChildList"}
+          theme: {type: "string", enum: ["primary", "secondary"]}
+
+  - id: "12_catalog_version_preservation_v1_0"
+    version: "v1.0"
+    description: "Inference catalog preserves exact protocol version (1.0) of the v1.0 base catalog"
+    action: "transform_to_inference_catalog"
+    expect:
+      protocol_version: "1.0"
+
+  - id: "14_multiple_macro_instances_namespacing_v1_0"
+    version: "v1.0"
+    description: "Multiple instances of the same macro in one envelope generate collision-free namespaced IDs (v1.0)"
+    golden: "v1_0/14_multiple_macro_instances_namespacing.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      - component: "StatusBadge"
+        id: "badge_1"
+        status: "active"
+        title: "DB"
+      - component: "StatusBadge"
+        id: "badge_2"
+        status: "idle"
+        title: "Cache"
+
+  - id: "15_mixed_primitive_and_macro_envelope_v1_0"
+    version: "v1.0"
+    description: "Envelope containing both primitives and macros preserves primitives and expands macros in-place (v1.0)"
+    golden: "v1_0/15_mixed_primitive_and_macro_envelope.json"
+    surface_id: "conformance"
+    validation:
+      allow_missing_root: true
+    input:
+      - component: "Text"
+        id: "title_1"
+        text: "System Dashboard"
+        variant: "body"
+      - component: "StatusBadge"
+        id: "badge_1"
+        status: "ready"
+        title: "API Gateway"

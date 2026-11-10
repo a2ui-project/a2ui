@@ -60,10 +60,17 @@ export interface RendererConfiguration {
   useUniversalComponents?: boolean;
   /**
    * Optional handler for actions dispatched from any surface.
+   *
+   * When `processorOptions.unifiedOutbound` is true, `MessageProcessor` routes
+   * surface actions and processing errors as wire envelopes to
+   * `processorOptions.outboundListener`. `actionHandler` is still invoked for
+   * every action, so use it for local side effects only to avoid sending
+   * actions to the agent twice.
    */
   actionHandler?: ActionListener;
   /**
-   * Optional configuration options for the underlying MessageProcessor.
+   * Optional configuration options for the underlying MessageProcessor,
+   * including `outboundListener` and `unifiedOutbound`.
    */
   processorOptions?: MessageProcessorOptions;
 }

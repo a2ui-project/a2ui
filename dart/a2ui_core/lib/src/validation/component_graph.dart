@@ -490,8 +490,8 @@ void checkComponentGraph(
   }
 }
 
-/// Whether [value] is a data-binding object in the v1.0 (`@path`) or legacy
-/// (`path` without a `componentId` sibling) shape.
+/// Whether [value] is a data-binding object in the v1.0 (`@path`) or
+/// unprefixed (`path` without a `componentId` sibling) shape.
 ///
 /// Mirrors `DataContext.isDataBinding`, which needs a context; this check
 /// runs on a raw message before any surface or context exists.
@@ -503,8 +503,8 @@ bool _isDataBinding(
         ? value['@path'] is String
         : value['path'] is String && !value.containsKey('componentId');
 
-/// Whether [value] is a function-call object in the v1.0 (`@call`) or legacy
-/// (`call`) shape. See [_isDataBinding].
+/// Whether [value] is a function-call object in the v1.0 (`@call`) or
+/// unprefixed (`call`) shape. See [_isDataBinding].
 bool _isFunctionCall(
   Map<Object?, Object?> value, {
   required bool usesDirectives,

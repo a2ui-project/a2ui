@@ -641,22 +641,6 @@ class ElementalPromptGenerator(PromptGenerator):
             flags=re.DOTALL,
         )
 
-    def generate(self) -> str:
-        """Assembles the prompt snippet explaining A2UI Elemental and its catalog."""
-        parts: list[str] = []
-
-        rules = self.generate_base_rules()
-        parts.append(f"## Workflow Description:\n{rules}")
-
-        if self.helpers:
-            parts.append(self.generate_catalog_instructions(include_schema=True))
-
-        formatted_examples = self.generate_examples()
-        if formatted_examples:
-            parts.append(f"### Examples:\n{formatted_examples}")
-
-        return "\n\n".join(parts)
-
     def _catalog_instructions(self, helper: CatalogSchemaHelper) -> str:
         """Returns a catalog's instructions, with JSON examples as Elemental HTML.
 

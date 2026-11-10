@@ -11,7 +11,7 @@
 A Specification for a JSON-Based, Streaming UI Protocol.
 
 **Version:** 1.0
-**Status:** Candidate
+**Status:** Current
 **Created:** Nov 20, 2025
 **Last Updated:** Jun 8, 2026
 
@@ -518,18 +518,16 @@ When resolving a component (or function call), the renderer evaluates catalog id
 > [!IMPORTANT]
 > There is **no fallback** to the list of catalogs declared in `rendererCapabilities` (even if the renderer only advertises a single supported catalog). Every component and function call must resolve through either its explicit `catalogId` or the surface default `catalogId`.
 
+Function calls interpolated inside [`formatString`](#the-formatstring-function) `${...}` expressions have no syntax for naming a `catalogId`. Non-system function calls inside `${...}` resolve against the catalog that the enclosing `formatString` call resolved to (even when the surface defines a different default `catalogId`), while `@`-prefixed system functions such as `@index` remain catalogless.
+
 ### Catalog-Agnostic Accessibility Requirements
 
-Because JSON Schema cannot inspect arbitrary catalog component property semantics to infer which properties represent visible text labels or which components accept user interaction, accessibility rules are enforced through normative specification requirements and SDK tooling:
+JSON Schema cannot tell which component properties hold visible text labels or accept user interaction, so catalog and renderer implementations enforce accessibility at runtime:
 
 **Catalog and renderer implementations MUST:**
 
 - **Plumb Accessibility Attributes**: Map all relevant A2UI `AccessibilityAttributes` (`label`, `description`, `live`, `hidden`) to the underlying UI framework's accessibility APIs (e.g., WAI-ARIA `aria-label`, `aria-describedby`, `aria-live`, and `aria-hidden` for web renderers; `Semantics` properties for Flutter; `AccessibilityNodeInfo` / `accessibilityLabel` for Android and iOS renderers).
 - **Infer Default Semantics**: Use component types and non-accessibility properties (such as visible titles or text labels) to configure accessibility defaults automatically. When explicit `AccessibilityAttributes` (e.g., `label` or `description`) are provided, they MUST override inferred visual defaults. For example, a button component with a title of `"Submit"` and an explicit `accessibility.label` of `"Send Form"` must be announced by assistive technologies as `"Send Form"`.
-
-**Catalog tooling SHOULD:**
-
-- **Catalog Linter Checks**: Catalog tooling SHOULD warn when a component that accepts an action or user input declares no text-bearing label property (or, in strict mode, no required text-bearing property). A component accepts an action when one of its properties references `common_types.json#/$defs/Action`, and accepts user input when it includes `common_types.json#/$defs/Checkable`. A text-bearing property is a string or `DynamicString` property, a child component reference, or an array of objects that each declare a text-bearing property. Because JSON Schema does not say which property holds the input value, tooling MAY exclude the property it treats as the input value (by convention `value`). This is a heuristic: it cannot prove a label exists, and a warning can be acknowledged per component.
 
 ### The component catalog
 
@@ -1320,6 +1318,8 @@ Results of renderer-side functions can be interpolated. Function calls are ident
 - `${formatDate(value:${/currentDate}, format:'yyyy-MM-dd')}`: A function with named arguments.
 
 Arguments can be **Literals** (quoted strings, numbers, or booleans), or **Nested Expressions**.
+
+Because `${...}` syntax cannot specify a `catalogId`, non-system function calls inside `${...}` (including nested calls inside their arguments) resolve against the catalog that the enclosing `formatString` call resolved to, even if the surface declares a different default `catalogId`. Reserved `@`-prefixed system functions (such as `${@index()}`) belong to no catalog and remain catalogless.
 
 #### `formatString` nested interpolation
 

@@ -342,6 +342,55 @@ void main() {
       );
     });
 
+    test('dispose with a reason names it in each cancellation', () async {
+      final RpcHandler h = handler();
+      final Future<Object?> future = h.callAgentFunction(
+        's',
+        FunctionCall(call: 'a', args: {}),
+        options: const CallOptions(functionCallId: 'p1'),
+      );
+      expect(sent, hasLength(1));
+      h.dispose('session closed');
+      await expectLater(
+        future,
+        throwsA(
+          rpcError(RpcErrorCode.cancelled, functionCallId: 'p1').having(
+            (e) => e.message,
+            'message',
+            "Call 'p1' was cancelled because the RpcHandler was disposed: "
+                'session closed.',
+          ),
+        ),
+      );
+      // The listener is dropped and later calls are refused.
+      await expectLater(
+        h.callAgentFunction('s', FunctionCall(call: 'a', args: {})),
+        throwsA(rpcError(RpcErrorCode.disposed)),
+      );
+      expect(sent, hasLength(1));
+      expect(h.pendingCallCount, 0);
+    });
+
+    test('dispose without a reason keeps the plain message', () async {
+      final RpcHandler h = handler();
+      final Future<Object?> future = h.callAgentFunction(
+        's',
+        FunctionCall(call: 'a', args: {}),
+        options: const CallOptions(functionCallId: 'p1'),
+      );
+      h.dispose('');
+      await expectLater(
+        future,
+        throwsA(
+          rpcError(RpcErrorCode.cancelled, functionCallId: 'p1').having(
+            (e) => e.message,
+            'message',
+            "Call 'p1' was cancelled because the RpcHandler was disposed.",
+          ),
+        ),
+      );
+    });
+
     test('a listener that throws synchronously fails the call', () async {
       final h = RpcHandler(
         catalogs: [catalog],
@@ -450,7 +499,7 @@ void main() {
         context: ExecutionContext(isUserActivated: isUserActivated),
       );
       expect(response.version, message.version);
-      expect(sent.last, same(response));
+      expect(sent, contains(same(response)));
       return response.response;
     }
 
@@ -569,18 +618,18 @@ void main() {
     });
 
     test('reports a protocol version mismatch', () async {
-      final Catalog<ComponentApi, FunctionImplementation> legacy = _catalog(
-          'legacy', [_Fn('echo', (a, _) => a['value'])],
+      final Catalog<ComponentApi, FunctionImplementation> v09Catalog = _catalog(
+          'v09', [_Fn('echo', (a, _) => a['value'])],
           protocolVersion: 'v0.9');
       final Catalog<ComponentApi, FunctionImplementation> unversioned =
           _catalog('old', [_Fn('echo', (a, _) => a['value'])],
               protocolVersion: null);
       final h = RpcHandler(
-        catalogs: [legacy, unversioned],
+        catalogs: [v09Catalog, unversioned],
         outboundListener: sent.add,
       );
       addTearDown(h.dispose);
-      for (final id in ['legacy', 'old']) {
+      for (final id in ['v09', 'old']) {
         final A2uiFunctionResponse r =
             await run(h, _inbound('echo', catalogId: id), withSurface: false);
         expectError(
@@ -723,6 +772,219 @@ void main() {
         RpcErrorCode.executionError,
         '@index function can only be evaluated inside a collection template',
       );
+    });
+
+    test(
+        'resolves formatString template calls in a standalone handler catalog '
+        'when surface lacks that catalog', () async {
+      surface.dataModel.set('/count', 2);
+      final Catalog<ComponentApi, FunctionImplementation> basic =
+          BasicCatalog.v1_0();
+      final FunctionImplementation fs = basic.functions['formatString']!;
+      final FunctionImplementation pluralize = basic.functions['pluralize']!;
+      final Catalog<ComponentApi, FunctionImplementation> standalone = _catalog(
+        'standalone-fmt',
+        [
+          _Fn(
+            'formatString',
+            fs.execute,
+            allowedCallers: AllowedCallers.rendererOrAgent,
+          ),
+          pluralize,
+        ],
+      );
+      final h = RpcHandler(
+        catalogs: [catalog, standalone],
+        outboundListener: sent.add,
+      );
+      addTearDown(h.dispose);
+
+      final A2uiFunctionResponse r = await run(
+        h,
+        _inbound(
+          'formatString',
+          catalogId: 'standalone-fmt',
+          args: {
+            'value': r'Count ${/count}: '
+                r"${pluralize(value: /count, one: 'drop', other: 'drops')}",
+          },
+        ),
+        withSurface: true,
+      );
+      expect(r.error, isNull);
+      expect(r.value, 'Count 2: drops');
+
+      // Dynamic `@call` inside `call.args` targeting `standalone-fmt` resolves
+      // before the outer RPC function executes.
+      final Catalog<ComponentApi, FunctionImplementation> echoStandalone =
+          _catalog(
+        'standalone-echo',
+        [
+          _Fn(
+            'echo',
+            (args, _) => args['value'],
+            allowedCallers: AllowedCallers.agentOnly,
+          ),
+          _Fn(
+            'formatString',
+            fs.execute,
+            allowedCallers: AllowedCallers.rendererOrAgent,
+          ),
+          pluralize,
+        ],
+      );
+      final echoHandler = RpcHandler(
+        catalogs: [catalog, echoStandalone],
+        outboundListener: sent.add,
+      );
+      addTearDown(echoHandler.dispose);
+      final A2uiFunctionResponse argRes = await run(
+        echoHandler,
+        _inbound(
+          'echo',
+          catalogId: 'standalone-echo',
+          args: {
+            'value': {
+              '@call': 'formatString',
+              'catalogId': 'standalone-echo',
+              'args': {
+                'value': r'Arg: '
+                    r"${pluralize(value: /count, one: 'drop', other: 'drops')}",
+              },
+            },
+          },
+        ),
+        withSurface: true,
+      );
+      expect(argRes.error, isNull);
+      expect(argRes.value, 'Arg: drops');
+
+      // Pruned surface catalog sharing `basic` ID omits an agent-callable RPC
+      // function registered on `RpcHandler.catalogs`:
+      final Catalog<ComponentApi, FunctionImplementation> fullRpcBasic =
+          _catalog(
+        'basic',
+        [
+          ...catalog.functions.values,
+          _Fn(
+            'rpcTemplate',
+            fs.execute,
+            allowedCallers: AllowedCallers.agentOnly,
+          ),
+          pluralize,
+        ],
+      );
+      final prunedHandler = RpcHandler(
+        catalogs: [fullRpcBasic],
+        outboundListener: sent.add,
+      );
+      addTearDown(prunedHandler.dispose);
+      final A2uiFunctionResponse prunedRes = await run(
+        prunedHandler,
+        _inbound(
+          'rpcTemplate',
+          catalogId: 'basic',
+          args: {
+            'value': r'Pruned: '
+                r"${pluralize(value: /count, one: 'drop', other: 'drops')}",
+          },
+        ),
+        withSurface: true,
+      );
+      expect(prunedRes.error, isNull);
+      expect(prunedRes.value, 'Pruned: drops');
+
+      // Concurrent async `handleCallRendererFunction` calls across two catalogs
+      // on a shared surface (and surface-less) keep their own catalog scopes.
+      final Catalog<ComponentApi, FunctionImplementation> asyncCatA = _catalog(
+        'async-cat-a',
+        [
+          _Fn(
+            'asyncFormat',
+            (args, ctx) async {
+              await Future<void>.delayed(const Duration(milliseconds: 5));
+              final Object? res = fs.execute(args, ctx);
+              return res is ReadonlySignal ? res.value : res;
+            },
+            allowedCallers: AllowedCallers.rendererOrAgent,
+          ),
+          _Fn(
+            'tag',
+            (args, ctx) => 'A',
+            allowedCallers: AllowedCallers.rendererOrAgent,
+          ),
+        ],
+      );
+      final Catalog<ComponentApi, FunctionImplementation> asyncCatB = _catalog(
+        'async-cat-b',
+        [
+          _Fn(
+            'asyncFormat',
+            (args, ctx) async {
+              await Future<void>.delayed(const Duration(milliseconds: 1));
+              final Object? res = fs.execute(args, ctx);
+              return res is ReadonlySignal ? res.value : res;
+            },
+            allowedCallers: AllowedCallers.rendererOrAgent,
+          ),
+          _Fn(
+            'tag',
+            (args, ctx) => 'B',
+            allowedCallers: AllowedCallers.rendererOrAgent,
+          ),
+        ],
+      );
+      final concurrentHandler = RpcHandler(
+        catalogs: [catalog, asyncCatA, asyncCatB],
+        outboundListener: sent.add,
+      );
+      addTearDown(concurrentHandler.dispose);
+      final List<A2uiFunctionResponse> concurrentRes = await Future.wait([
+        run(
+          concurrentHandler,
+          _inbound(
+            'asyncFormat',
+            catalogId: 'async-cat-a',
+            id: 'conc-1',
+            args: {'value': r'Surface:${tag()}'},
+          ),
+          withSurface: true,
+        ),
+        run(
+          concurrentHandler,
+          _inbound(
+            'asyncFormat',
+            catalogId: 'async-cat-b',
+            id: 'conc-2',
+            args: {'value': r'Surface:${tag()}'},
+          ),
+          withSurface: true,
+        ),
+        run(
+          concurrentHandler,
+          _inbound(
+            'asyncFormat',
+            catalogId: 'async-cat-a',
+            id: 'conc-3',
+            args: {'value': r'Headless:${tag()}'},
+          ),
+          withSurface: false,
+        ),
+        run(
+          concurrentHandler,
+          _inbound(
+            'asyncFormat',
+            catalogId: 'async-cat-b',
+            id: 'conc-4',
+            args: {'value': r'Headless:${tag()}'},
+          ),
+          withSurface: false,
+        ),
+      ]);
+      expect(concurrentRes[0].value, 'Surface:A');
+      expect(concurrentRes[1].value, 'Surface:B');
+      expect(concurrentRes[2].value, 'Headless:A');
+      expect(concurrentRes[3].value, 'Headless:B');
     });
   });
 }

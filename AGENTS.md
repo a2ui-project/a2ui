@@ -14,6 +14,7 @@ This document is the authoritative guide for AI agents working within the A2UI r
 - **For updating `CHANGELOG.md` files across A2UI packages:** Read [.agents/skills/update-changelog/SKILL.md](.agents/skills/update-changelog/SKILL.md)
 - **For working with Spec-Driven Development (SDD) or repository blueprints:** Read [blueprints/README.md](blueprints/README.md)
 - **For implementing new SDKs in a client language:** Read [.agents/skills/a2ui-implement-new-sdks-for-client-language/SKILL.md](.agents/skills/a2ui-implement-new-sdks-for-client-language/SKILL.md)
+- **For migrating an app, renderer, catalog or agent to a newer A2UI SDK or protocol version (including from Flutter `genui`):** Read [.agents/skills/a2ui-migration/SKILL.md](.agents/skills/a2ui-migration/SKILL.md)
 - **For developing in the TypeScript & Web codebases (`typescript/`, `samples/client/`, `tools/`):** Read [.agents/skills/coding-principles/subskills/typescript/INDEX.md](.agents/skills/coding-principles/subskills/typescript/INDEX.md)
 - **For developing Python code anywhere in the repository (libraries, agents, tools, scripts, best practices):** Read [.agents/skills/coding-principles/subskills/python/INDEX.md](.agents/skills/coding-principles/subskills/python/INDEX.md)
 - **For developing in the Swift codebase (core, SwiftUI, sample):** Read [.agents/skills/coding-principles/subskills/swift/INDEX.md](.agents/skills/coding-principles/subskills/swift/INDEX.md)
@@ -37,13 +38,27 @@ Key capabilities:
 
 ## 2. Protocol Versioning & Authority
 
-The repository supports multiple versions of the A2UI protocol:
+The repository supports multiple versions of the A2UI protocol (tracked in [`specification/versions.json`](specification/versions.json)):
 
-- **v0.8**: Stable specification; not supported by the latest SDKs.
-- **v0.9**: Stable specification; implemented in SDKs; very minor differences from v0.9.1.
-- **v0.9.1**: **Latest published and active protocol version** implemented by our multi-language SDKs, renderers, and sample clients.
-- **v1.0**: Candidate specification for stable release (previously v0.10).
-- **Authority Rule:** Default to version **v0.9.1** as the primary authority when working on SDKs or adapters, unless the user specifies otherwise or a different version is requested.
+- **v1.0**: **Current protocol version**, implemented by our multi-language SDKs, renderers, and sample clients (previously known as v0.10).
+- **v0.9.1**: Previous specification; a patch release of v0.9.
+- **v0.9**: Previous specification; very minor differences from v0.9.1.
+- **v0.8**: Deprecated legacy specification; not supported by the latest SDKs.
+- **Authority Rule:** Default to version **v1.0** as the primary authority when working on SDKs or adapters, unless the user specifies otherwise or a different version is requested.
+
+### Version Labels
+
+Use these rules when you mention a protocol version in documentation, READMEs, specification files, or code comments.
+
+[`specification/versions.json`](specification/versions.json) is the machine-readable source of truth for version status (`release-candidate`, `current`, `previous`, or `deprecated`, listed newest first). Use the display label `Release Candidate` for `release-candidate`, `Current` for `current`, `Deprecated` for `deprecated`, and no label for `previous` (`Previous` only when a table cell needs a value).
+
+1. Name a version's status only where readers choose between versions: version tables (`docs/public/index.md`, the roadmap), spec page titles, badges, and the callout at the top of a spec page, the `**Status:**` field in a spec, specification `README.md` files, sidebar and nav labels, the root `README.md` version note, "use this version" pointers (including the protocol line in agent skill files), and this section.
+2. Everywhere else (running prose, code comments, test names, tab labels), use plain version numbers. To contrast versions, use ranges such as "v1.0 and later", "before v1.0", "pre-1.0", or "v0.9 and v0.9.1".
+3. Outside the places in rule 1, never attach these words to a specific version: current, latest, newest, active, stable, production, candidate, release candidate, draft, or preview. They become wrong when the next version ships.
+4. You may call v0.8 "legacy" or "deprecated" anywhere. Never call v0.9 or v0.9.1 legacy, stable, current, or active.
+5. Pointers that tell readers which version to use (for example, "For new projects, see ...") always point to the `current` version.
+6. Where a spec has a `**Status:**` field, it records the lifecycle: `Release Candidate` for `release-candidate`, `Current` for `current`, `Closed` for `previous`, and `Deprecated` for `deprecated`. Don't add the field to specs that lack it.
+7. These rules don't cover code identifiers, `@deprecated` tags on library APIs, runtime defaults, `CHANGELOG.md` entries, or package release versions (for example, "the latest release of a2ui-agent-sdk").
 
 ---
 
@@ -74,7 +89,7 @@ For a detailed explanation of the methodology, lifecycle, and workflows, read th
 - **`typescript/`**: Framework-agnostic Web Core state and protocol logic (`core/web_core/`), web framework renderers (`renderers/lit/`, `renderers/angular/`, `renderers/react/`), Markdown renderer (`renderers/markdown-it/`), TypeScript agent SDK (`agents/a2ui_agent/`), TypeScript catalog packages (`catalogs/`), and release scripts (`scripts/`).
 - **`samples/`**: Ready-to-run demo agents utilizing Python ADK (`agent/adk/`), MCP server (`agent/mcp/`), and sample clients (`client/lit/`, `client/angular/`, `client/react/`, `client/flutter/`).
 - **`swift/`**: Native Apple implementation including core state engine (`core/`), SwiftUI adapter (`swiftui/`), and sample iOS client (`sample/`).
-- **`tools/`**: Developer utility suite including visual Editor (`editor/`), visual Composer (`composer/`), payload Inspector (`inspector/`), and catalog builder (`build_catalog/`).
+- **`tools/`**: Developer utility suite including visual Composer (`composer/`) and catalog builder (`build_catalog/`).
 
 ---
 

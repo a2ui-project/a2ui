@@ -52,7 +52,7 @@ function exactly(specifier: string): RegExp {
 
 export default defineConfig({
   resolve: {
-    dedupe: ['lit', '@lit/context', '@lit-labs/signals'],
+    dedupe: ['lit', '@lit/context'],
     alias: monorepoAliases,
   },
   build: {

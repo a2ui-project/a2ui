@@ -18,6 +18,8 @@ import BasicCatalog
 import BasicCatalogSwiftUI
 import Combine
 import Foundation
+import Observation
+import UIKit
 
 /// A diagnostic log entry recorded during interactive stream step-through.
 public struct DiagnosticLogEntry: Identifiable, Hashable, Sendable {
@@ -33,9 +35,10 @@ public struct DiagnosticLogEntry: Identifiable, Hashable, Sendable {
   }
 }
 
-/// A dedicated nonisolated action handler bridging callbacks from the engine into `@MainActor` state updates.
-final class GalleryActionHandler: ActionHandling, @unchecked Sendable {
-  weak var viewModel: GalleryViewModel?
+/// A dedicated nonisolated action handler bridging callbacks from the engine into `@MainActor`
+/// state updates without `@unchecked Sendable`.
+private final class GalleryActionHandler: ActionHandling, Sendable {
+  @MainActor weak var viewModel: GalleryViewModel?
 
   func handle(action: ResolvedAction, from surfaceID: String) {
     let desc: String
@@ -74,16 +77,17 @@ final class GalleryActionHandler: ActionHandling, @unchecked Sendable {
 
 /// The state controller driving interactive sample exploration in the Gallery app.
 @MainActor
-public final class GalleryViewModel: @unchecked Sendable, ObservableObject {
+@Observable
+public final class GalleryViewModel {
 
-  @Published public var sampleStreams: [SampleStream] = []
-  @Published public var selectedVersion: SampleStream.ProtocolVersion = .v091 {
+  public var sampleStreams: [SampleStream] = []
+  public var selectedVersion: SampleStream.ProtocolVersion = .v091 {
     didSet {
       guard oldValue != selectedVersion else { return }
       synchronizeSelectionForVersion()
     }
   }
-  @Published public var selectedSample: SampleStream? = nil {
+  public var selectedSample: SampleStream? = nil {
     didSet {
       if oldValue?.id != selectedSample?.id {
         resetStream()
@@ -96,21 +100,26 @@ public final class GalleryViewModel: @unchecked Sendable, ObservableObject {
     sampleStreams.filter { $0.protocolVersion == selectedVersion }
   }
 
-  @Published public private(set) var currentStepIndex: Int = 0
-  @Published public private(set) var activeSurfaceViewModel: SurfaceViewModel? = nil
-  @Published public private(set) var logEntries: [DiagnosticLogEntry] = []
-  @Published public private(set) var dataModelString: String = "{}"
+  public private(set) var currentStepIndex: Int = 0
+  public private(set) var activeSurfaceViewModel: SurfaceViewModel? = nil
+  public private(set) var logEntries: [DiagnosticLogEntry] = []
+  public private(set) var dataModelString: String = "{}"
 
   public let catalogs: [Catalog<ComponentImplementation>]
-  private var processor: MessageProcessor
-  private let parser = MessageParser()
-  private var surfaceSubscription: AnyCancellable?
-  private let handler = GalleryActionHandler()
+  /// Opens links for `openUrl`. The catalogs hold it weakly, so the view model owns it.
+  @ObservationIgnored private let urlOpener = SystemURLOpener()
+  @ObservationIgnored private var processor: MessageProcessor
+  @ObservationIgnored private let parser = MessageParser()
+  @ObservationIgnored private var surfaceSubscription: AnyCancellable?
+  @ObservationIgnored private let handler = GalleryActionHandler()
 
   public init() {
-    self.catalogs = BasicCatalogImplementation.allCatalogs
+    let catalogs = A2UIProtocolVersion.allCases.map { [urlOpener] version in
+      BasicCatalogImplementation.makeCatalog(version: version, openURLHandler: urlOpener)
+    }
+    self.catalogs = catalogs
     self.processor = MessageProcessor(
-      catalogs: BasicCatalog.allCatalogs,
+      catalogs: catalogs,
       actionHandler: self.handler
     )
     self.handler.viewModel = self
@@ -144,7 +153,7 @@ public final class GalleryViewModel: @unchecked Sendable, ObservableObject {
     surfaceSubscription = nil
 
     self.processor = MessageProcessor(
-      catalogs: BasicCatalog.allCatalogs,
+      catalogs: catalogs,
       actionHandler: self.handler
     )
     self.currentStepIndex = 0
@@ -224,5 +233,12 @@ public final class GalleryViewModel: @unchecked Sendable, ObservableObject {
     } else {
       self.dataModelString = text
     }
+  }
+}
+
+/// Opens `openUrl` links with the system.
+private final class SystemURLOpener: OpenURLHandler {
+  func open(_ url: URL) {
+    Task { @MainActor in UIApplication.shared.open(url) }
   }
 }
