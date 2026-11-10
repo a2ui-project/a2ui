@@ -121,6 +121,22 @@ const v09Catalog = CatalogConfig.fromPath(
 );
 ```
 
+## Checking URLs before sending
+
+Renderers check every URL a component loads, opens, or embeds against their URL security policy. An agent can run the same check on a payload before sending it, to log, drop, or retry a response from a model that was prompted into putting data into a URL. `checkPayloadUrls` finds URL properties from the catalogs' `x-a2ui-url-context` marks and checks each value with the policy you pass, usually the one your renderer uses:
+
+```ts
+const policy = new AllowlistUrlSecurityPolicy({media: ['cdn.example.com']});
+const {messages, blocked} = checkPayloadUrls(processor.catalogs, part.a2ui, {
+  policy,
+  onBlocked: 'strip',
+});
+for (const url of blocked) console.warn(`Blocked ${url.redactedUrl} in ${url.propertyName}`);
+send(messages);
+```
+
+The check covers literal values and data bindings to values the same payload sets. It can't resolve function calls such as `formatString`, relative bindings inside list templates, or values set by earlier payloads; the renderer still checks those. With `onBlocked: 'strip'`, each blocked value becomes an empty string, which the renderer treats as unset. The default, `'report'`, leaves the messages as they are.
+
 ## Agent functions
 
 From v1.0, a catalog can declare functions that run on the agent: a renderer that doesn't implement a function sends `callAgentFunction` and waits for the agent's `agentFunctionResponse`. Add agent functions to your copy of a catalog with `copyWith`. `AgentFunction.fromApi` binds a handler to a function the catalog already declares, and `new AgentFunction(...)` adds a new one, with its arguments as a Zod schema (which types the handler) or a JSON Schema object. A v1.0 catalog checks that the parameter names are UAX #31 identifiers when it gets the function. A handler takes `(args)` or `(args, context)`, where `context` has the catalog, surface and call IDs. `withHandler` returns a copy bound to another handler, such as a test double.
