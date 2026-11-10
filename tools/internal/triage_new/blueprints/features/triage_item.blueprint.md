@@ -23,14 +23,17 @@ The advisor only comments. It never changes labels, assignees or the state of an
 
 ## The suggestion comment
 
-The suggestion comment is a [triage bot](../core.blueprint.md#contributors) comment. It has a plain English part for people, a command that opens the item in the triage UI, and a part for the triage UI, collapsed under **Details**. The plain English part and the part for the triage UI say the same thing.
+The suggestion comment is a [triage bot](../core.blueprint.md#contributors) comment. Under the line "Triage suggestion:", it has two collapsed sections: **For humans**, with the suggestion in plain English and the command that opens the item in the triage UI, and **For agents**, with the suggestion as a component for the triage UI. Both sections say the same thing.
 
 For example, the suggestion comment on an illustrative issue #1235:
 
 ````markdown
 **From triage bot:**
 
-## Triage suggestion
+Triage suggestion:
+
+<details>
+<summary>For humans</summary>
 
 The Flutter renderer throws an exception when a `Row` has an empty `children` list. The report includes a stack trace and a three-line payload that reproduces it.
 
@@ -50,8 +53,10 @@ To adjust and apply this suggestion, run in your a2ui checkout:
 tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/1235
 ```
 
+</details>
+
 <details>
-<summary>Details</summary>
+<summary>For software</summary>
 
 ```
 <a2ui>
@@ -71,11 +76,13 @@ root = TriageSuggestion(
 
 The parts of the comment, in order:
 
-1. The `summary` and the `suggestion`, as paragraphs.
-2. The other properties that have values, as a numbered list: **Close as**, **Add labels**, **Remove labels**, **Assign**, **Unassign**, **Related issues** and **Related PRs**. An example of **Close as** is "Close as: duplicate of #1100".
-3. The `reply`, quoted, under **Reply**. The section is left out when there is no reply.
-4. The command that opens the item in the triage UI.
-5. The component, under **Details**.
+1. The triage bot prefix, and the line "Triage suggestion:".
+2. The **For humans** section, collapsed:
+   1. The `summary` and the `suggestion`, as paragraphs.
+   2. The other properties that have values, as a numbered list: **Close as**, **Add labels**, **Remove labels**, **Assign**, **Unassign**, **Related issues** and **Related PRs**. An example of **Close as** is "Close as: duplicate of #1100".
+   3. The `reply`, quoted, under **Reply**. The part is left out when there is no reply.
+   4. The command that opens the item in the triage UI.
+3. The **For agents** section, collapsed: the component.
 
 The component is written in [A2UI Express](../../../../../specification/inference_formats/express/Express.g4), as one `root = TriageSuggestion(...)` statement. The code fence makes GitHub show it as written, and the triage UI reads the text between `<a2ui>` and `</a2ui>`.
 

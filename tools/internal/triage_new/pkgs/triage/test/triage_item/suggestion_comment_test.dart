@@ -21,12 +21,17 @@ String comment(String component) =>
     '''
 **From triage bot:**
 
-## Triage suggestion
+Triage suggestion:
+
+<details>
+<summary>For humans</summary>
 
 The Flutter renderer crashes.
 
+</details>
+
 <details>
-<summary>Details</summary>
+<summary>For software</summary>
 
 ```
 <a2ui>

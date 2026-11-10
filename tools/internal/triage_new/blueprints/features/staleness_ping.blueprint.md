@@ -2,7 +2,7 @@
 
 (under construction)
 
-The staleness pinger asks the assignees of [stale items](#stale-items) to act before the [flagger](flagging.blueprint.md) flags the item for triage. The terms are defined in [core.blueprint.md](../core.blueprint.md).
+The staleness pinger asks the assignees of [stale items](#stale-items) to act before the [flagger](../../../triage/blueprints/flagging.blueprint.md) flags the item for triage. The terms are defined in [core.blueprint.md](../core.blueprint.md).
 
 The pinger runs daily. For each stale item without a [current ping](#staleness-pings), it:
 

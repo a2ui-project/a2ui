@@ -29,12 +29,17 @@ String suggestionComment(String component) =>
     '''
 **From triage bot:**
 
-## Triage suggestion
+Triage suggestion:
+
+<details>
+<summary>For humans</summary>
 
 Text for people.
 
+</details>
+
 <details>
-<summary>Details</summary>
+<summary>For software</summary>
 
 ```
 <a2ui>

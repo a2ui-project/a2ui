@@ -52,7 +52,7 @@ Skip locked items: a comment cannot be posted on them.
 
 ## Step 3: Skip items with a current suggestion
 
-A suggestion comment is a comment whose body starts with `**From triage bot:**` and contains `## Triage suggestion`. There is at most one per item.
+A suggestion comment is a comment whose body starts with `**From triage bot:**` and contains an `<a2ui>` block. There is at most one per item.
 
 [Current and outdated suggestions](../../../tools/internal/triage_new/blueprints/features/triage_item.blueprint.md#current-and-outdated-suggestions) defines when a suggestion is current. In the fields that [item.graphql](references/item.graphql) returns, the suggestion is current when its `updatedAt` is later than all of the following:
 
@@ -103,7 +103,7 @@ Rules for the lists:
 
 1. Omit a list that is empty.
 2. Use only labels that exist in the repository (`gh label list -R a2ui-project/a2ui --limit 200`). Add only labels the item does not have, and remove only labels it has.
-3. Never add or remove `status: needs-triage`. The [flagger](../../../tools/internal/triage_new/blueprints/features/flagging.blueprint.md) manages it and would undo the change.
+3. Never add or remove `status: needs-triage`. The [flagger](../../../tools/internal/triage/blueprints/flagging.blueprint.md) manages it and would undo the change.
 4. Assign only logins that pass the assignee check in step 4, and that are not assigned yet.
 5. List a related item only if the suggestion says how it relates. Do not list the item itself, or the item in `duplicate_of`.
 6. Do not repeat an entry in a list.
@@ -112,12 +112,15 @@ Write `summary` and `suggestion` for the triager, and `reply` for the people on 
 
 ## Step 7: Format the comment
 
-The comment has a plain English part for people and a hidden part for the triage UI. Both must say the same thing.
+Under the line "Triage suggestion:", the comment has two collapsed sections: **For humans**, with the suggestion in plain English and the command that opens the item in the triage UI, and **For agents**, with the suggestion for the triage UI. Both must say the same thing.
 
 ````markdown
 **From triage bot:**
 
-## Triage suggestion
+Triage suggestion:
+
+<details>
+<summary>For humans</summary>
 
 <summary>
 
@@ -135,8 +138,16 @@ Reply:
 
 > <reply>
 
+To adjust and apply this suggestion, run in your a2ui checkout:
+
+```bash
+tools/internal/triage_new/triage_ui.sh <item URL>
+```
+
+</details>
+
 <details>
-<summary>Details</summary>
+<summary>For software</summary>
 
 ```
 <a2ui>
@@ -158,17 +169,22 @@ root = TriageSuggestion(
 
 Formatting rules:
 
-1. In the numbered list, keep only the lines for properties that have values, and number them from 1. Leave out the **Reply** section when there is no reply. Quote every line of the reply with `>`.
+1. In the numbered list, keep only the lines for properties that have values, and number them from 1. Leave out the **Reply** part when there is no reply. Quote every line of the reply with `>`.
 2. Write logins in backticks without `@`, in every property. A suggestion is not a decision yet, so it must not notify the people it names.
-3. In the A2UI block, use the [A2UI Express](../../../specification/inference_formats/express/Express.g4) syntax: one `root = TriageSuggestion(...)` statement with keyword arguments named exactly like the properties. Write strings in `"..."`, escaping `"` and `\` as `\"` and `\\`, or in `"""..."""` when they span several lines. Write numbers without `#`.
-4. Keep the A2UI block inside the code fence, so GitHub shows it as written. The triage UI reads the text between `<a2ui>` and `</a2ui>`. Neither tag may appear inside a string.
+3. In the command, use the item's URL, such as `https://github.com/a2ui-project/a2ui/issues/123` or `https://github.com/a2ui-project/a2ui/pull/123`.
+4. Keep a blank line after each `<summary>` line and before each `</details>`, so that GitHub renders the Markdown inside the section.
+5. In the A2UI block, use the [A2UI Express](../../../specification/inference_formats/express/Express.g4) syntax: one `root = TriageSuggestion(...)` statement with keyword arguments named exactly like the properties. Write strings in `"..."`, escaping `"` and `\` as `\"` and `\\`, or in `"""..."""` when they span several lines. Write numbers without `#`.
+6. Keep the A2UI block inside the code fence, so GitHub shows it as written. The triage UI reads the text between `<a2ui>` and `</a2ui>`. Neither tag may appear inside a string.
 
-Example of a bug report, with an illustrative login and item numbers:
+Example of a bug report, issue #1235, with an illustrative login and item numbers:
 
 ````markdown
 **From triage bot:**
 
-## Triage suggestion
+Triage suggestion:
+
+<details>
+<summary>For humans</summary>
 
 The Flutter renderer throws an exception when a `Row` has an empty `children` list. The report includes a stack trace and a three-line payload that reproduces it.
 
@@ -178,8 +194,16 @@ Set P1 and assign `flutter-owner`, who wrote most recent changes to `dart/a2ui_f
 2. Assign: `flutter-owner`
 3. Related issues: #1234
 
+To adjust and apply this suggestion, run in your a2ui checkout:
+
+```bash
+tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/1235
+```
+
+</details>
+
 <details>
-<summary>Details</summary>
+<summary>For software</summary>
 
 ```
 <a2ui>
@@ -196,12 +220,15 @@ root = TriageSuggestion(
 </details>
 ````
 
-Example of a duplicate, with illustrative item numbers:
+Example of a duplicate, issue #1236, with illustrative item numbers:
 
 ````markdown
 **From triage bot:**
 
-## Triage suggestion
+Triage suggestion:
+
+<details>
+<summary>For humans</summary>
 
 The issue asks for a `Slider` component in the basic catalog.
 
@@ -214,8 +241,16 @@ Reply:
 
 > Thanks for the request. #1100 tracks the same component, so we are closing this issue as a duplicate. Add your use case there if it is not covered yet.
 
+To adjust and apply this suggestion, run in your a2ui checkout:
+
+```bash
+tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/1236
+```
+
+</details>
+
 <details>
-<summary>Details</summary>
+<summary>For software</summary>
 
 ```
 <a2ui>

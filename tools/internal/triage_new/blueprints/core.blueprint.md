@@ -10,7 +10,7 @@ The triage process is described in [triage.md](../../../../docs/contributing/tri
 
 ## Triage jobs
 
-1. The [flagger](features/flagging.blueprint.md) adds `status: needs-triage` to the items that need triage, and removes it from the rest.
+1. The [flagger](../../triage/blueprints/flagging.blueprint.md) adds `status: needs-triage` to the items that need triage, and removes it from the rest.
 
    1. Runs: when an item changes, and daily.
    2. Started by: a GitHub workflow.

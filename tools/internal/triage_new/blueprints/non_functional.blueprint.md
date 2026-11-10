@@ -8,7 +8,7 @@ The triage automation consists of:
    1. [`triage`](../pkgs/triage/): Dart-only code, such as the [`TriageSuggestion`](features/triage_item.blueprint.md#the-triagesuggestion-component) component.
    2. [`triage_ui`](../pkgs/triage_ui/): the Flutter application of the [triage UI](features/ui.blueprint.md).
 
-3. The TypeScript implementation of the [flagger](features/flagging.blueprint.md), in [`tools/internal/triage/flagging/`](../../triage/flagging/).
+3. The TypeScript implementation of the [flagger](../../triage/blueprints/flagging.blueprint.md), in [`tools/internal/triage/flagging/`](../../triage/flagging/).
 
 ## Dart packages
 
