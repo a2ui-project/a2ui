@@ -1,0 +1,95 @@
+# SDKs
+
+> Official A2UI Core, Agent, and Renderer SDKs across TypeScript, Python, Dart, Swift, and Kotlin.
+
+Canonical URL: https://a2ui.org/concepts/sdks/
+
+Official A2UI SDKs are organized into three layers:
+
+- **Core SDK** for shared protocol models and surface state.
+- **Agent SDK** for catalog-driven prompt generation and model output compilation.
+- **Renderer SDK** for mounting surface state in a client UI framework.
+
+Both the Agent SDK and the Renderer SDK build on their language's Core SDK, so server-side validation and client-side message resolution share one implementation per language. Client-server applications typically pair two layers on each side of a network boundary, such as a Python agent server communicating with a SwiftUI or Jetpack Compose client. Codebases that handle both model inference and UI rendering in the same language, such as TypeScript web apps or Dart and Flutter apps, can use all three layers together in one project.
+
+## Core SDK
+
+Every Agent SDK and Renderer SDK depends on its language's Core SDK, which implements the protocol data structures, reactive state containers, and expression evaluators common to agents and clients.
+
+### Primary functions
+
+1. Parses and serializes A2UI [wire messages](/concepts/messages/) across supported protocol versions (v1.0, v0.9.1, and v0.8 in TypeScript and Python).
+2. Loads [Catalog](/concepts/catalogs/) JSON Schemas and validates component hierarchies, placement constraints, and message payloads.
+3. Maintains per-surface component graphs and JSON [data model](/concepts/data-binding/) state while applying incremental updates by component ID and JSON Pointer path.
+4. Evaluates data bindings, collection templates, string interpolation expressions, function invocations, and validation checks.
+
+### Packages
+
+| Language   | Published packages                                                                                                                                             | Versions                     | Source                                                                                              |
+| :--------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------- | :-------------------------------------------------------------------------------------------------- |
+| TypeScript | [@a2ui/web_core](https://www.npmjs.com/package/@a2ui/web_core)                                                                                                 | v0.8,&nbsp;v0.9.1,&nbsp;v1.0 | [typescript/core/web_core](https://github.com/a2ui-project/a2ui/tree/main/typescript/core/web_core) |
+| Python     | [a2ui-core](https://pypi.org/project/a2ui-core/)                                                                                                               | v0.8,&nbsp;v0.9.1,&nbsp;v1.0 | [python/a2ui_core](https://github.com/a2ui-project/a2ui/tree/main/python/a2ui_core)                 |
+| Dart       | [a2ui_core](https://pub.dev/packages/a2ui_core)                                                                                                                | v0.9.1,&nbsp;v1.0            | [dart/a2ui_core](https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_core)                     |
+| Swift      | [A2UISwiftCore](https://github.com/a2ui-project/a2ui/blob/main/Package.swift)<br/>[BasicCatalog](https://github.com/a2ui-project/a2ui/blob/main/Package.swift) | v0.9.1,&nbsp;v1.0            | [swift/core](https://github.com/a2ui-project/a2ui/tree/main/swift/core)                             |
+| Kotlin     | [androidx.a2ui](https://developer.android.com/jetpack/androidx/releases/a2ui)                                                                                  | v0.9.1                       | [AndroidX a2ui](https://cs.android.com/androidx/platform/frameworks/support/+/androidx-main:a2ui/)  |
+
+All v0.9.1 packages accept v0.9 wire envelopes and catalog IDs. Swift packages are distributed through Swift Package Manager from [`a2ui-project/a2ui`](https://github.com/a2ui-project/a2ui) (the `A2UISwiftCore` product exposes the `A2UICore` module), and the AndroidX group on Google Maven publishes the `a2ui-model` and `a2ui-engine` artifacts.
+
+Most applications install a Core SDK automatically through an [Agent SDK](#agent-sdk) or [Renderer SDK](#renderer-sdk), though you can depend on a Core SDK directly to build headless state processors or custom UI adapters. To implement a Core SDK in another language, read [`blueprints/modules`](https://github.com/a2ui-project/a2ui/tree/main/blueprints/modules) and validate against the YAML suites in [`conformance/core`](https://github.com/a2ui-project/a2ui/tree/main/conformance/core).
+
+## Agent SDK
+
+An Agent SDK connects a language model or agent runtime to the A2UI protocol while leaving model selection, tool execution, and conversation state under your application's control.
+
+### Primary functions
+
+1. Negotiates active [Catalog](/concepts/catalogs/) definitions and protocol versions (v0.9.1 and v1.0) against the capabilities reported by the client renderer (see [Overview](/concepts/overview/)).
+2. Generates skills, system prompt instructions, and examples directly from catalog schemas and prompt instructions, replacing hand-written prompts that become outdated when components change.
+3. Compiles streaming or batch model output from [inference formats](/concepts/inference-formats/) (such as compact Express syntax, which cuts output tokens without client changes, or chunk-healed Direct JSON) into standard A2UI [wire messages](/concepts/messages/).
+4. Validates outgoing messages statefully against active surface state on the server so broken component IDs, placement violations, or schema mismatches can be fed back to the model for self-correction before transmission.
+5. Supports optional server-side [`@macro`](/guides/macros/) expansion in Python and integrates with agent frameworks and transports including [Google ADK](https://github.com/google/adk-python) and the [A2A protocol](https://a2a-protocol.org/).
+
+### Packages
+
+| Language   | Published packages                                                                                                                                                           | Versions                     | Source                                                                                                                                                                                                                                                            |
+| :--------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TypeScript | [@a2ui/agent](https://www.npmjs.com/package/@a2ui/agent)                                                                                                                     | v0.9.1,&nbsp;v1.0            | [typescript/agents/a2ui_agent](https://github.com/a2ui-project/a2ui/tree/main/typescript/agents/a2ui_agent)                                                                                                                                                       |
+| Python     | [a2ui-agent-sdk](https://pypi.org/project/a2ui-agent-sdk/)<br/>[a2ui-adk](https://pypi.org/project/a2ui-adk/) (ADK)<br/>[a2ui-a2a](https://pypi.org/project/a2ui-a2a/) (A2A) | v0.8,&nbsp;v0.9.1,&nbsp;v1.0 | [python/a2ui_agent](https://github.com/a2ui-project/a2ui/tree/main/python/a2ui_agent)<br/>[python/a2ui_adk](https://github.com/a2ui-project/a2ui/tree/main/python/a2ui_adk)<br/>[python/a2ui_a2a](https://github.com/a2ui-project/a2ui/tree/main/python/a2ui_a2a) |
+| Dart       | [a2ui_agent](https://pub.dev/packages/a2ui_agent)                                                                                                                            | v0.9.1,&nbsp;v1.0            | [dart/a2ui_agent](https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_agent)                                                                                                                                                                                 |
+
+Swift and Kotlin target client-side rendering; for legacy v0.8 and v0.9 JVM servers, [`kotlin/agent_sdk_legacy`](https://github.com/a2ui-project/a2ui/tree/main/kotlin/agent_sdk_legacy) remains in the repository.
+
+### Go and community SDKs
+
+For **Go** services and CLI clients, community-maintained libraries cover server-side validation, streaming parsers, and terminal rendering—including [`satorunooshie/a2ui-go`](https://github.com/satorunooshie/a2ui-go), [`tmc/a2ui`](https://pkg.go.dev/github.com/tmc/a2ui), [`charmbracelet/a2tea`](https://github.com/charmbracelet/a2tea), and [`muncus/a2term`](https://github.com/muncus/a2term) (listed with version details in [Community Projects](/ecosystem/renderers/)).
+
+To implement a conformance-verified Core or Agent SDK in Go, Rust, C#, or another language, follow the language-agnostic specifications in [`blueprints/modules`](https://github.com/a2ui-project/a2ui/tree/main/blueprints/modules), verify behavioral parity against the YAML suites in [`conformance/core`](https://github.com/a2ui-project/a2ui/tree/main/conformance/core) and [`conformance/agent`](https://github.com/a2ui-project/a2ui/tree/main/conformance/agent), and open a pull request to add your package to [Community Projects](/ecosystem/renderers/#how-to-submit-a-project).
+
+See [Using a catalog in an agent](/concepts/catalogs/#using-a-catalog-in-an-agent) and [Inference Formats](/concepts/inference-formats/#how-inference-formats-stay-swappable) for TypeScript, Python, and Dart examples of configuring `A2uiGenerator`, negotiating capabilities, and compiling model responses, or run a working agent in the [Quickstart](/quickstart/).
+
+## Renderer SDK
+
+A Renderer SDK connects a Core SDK's resolved surface state to a client UI framework. Official Renderer SDKs include a built-in implementation of the [Basic Catalog](/concepts/catalogs/#the-basic-catalog) styled through the host framework's theming system, and let you register custom catalogs with per-component rendering logic and local functions (see [How to Define a Catalog](/guides/defining-a-catalog/)).
+
+### Primary functions
+
+1. Applies incremental [surface, component, and data model updates](/concepts/messages/) across supported protocol versions (v0.9.1, v1.0, and v0.8 in React and Angular), updating only changed subtrees so unchanged siblings keep focus and local UI state.
+2. Evaluates [reactive data bindings](/concepts/data-binding/), nested collection scopes, relative JSON Pointers, and local two-way input edits.
+3. Executes [local catalog functions](/concepts/catalogs/#functions) and [reactive validation checks](/specification/v1.0-a2ui/#component-validation--check-rules), enforcing v1.0 caller and user-activation rules.
+4. Builds capability and data-model sync metadata payloads for your transport layer, dispatches user action events and structured error messages, and handles v1.0 bidirectional function RPCs.
+5. Maps protocol accessibility attributes to host accessibility APIs across Flutter, Web WAI-ARIA, SwiftUI, and Jetpack Compose.
+
+### Packages
+
+| Framework       | Published packages                                                                                                                                                                            | Versions                     | Source                                                                                                                                                                                                                                                                                                  |
+| :-------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Flutter         | [a2ui_flutter](https://pub.dev/packages/a2ui_flutter)                                                                                                                                         | v0.9.1,&nbsp;v1.0            | [dart/a2ui_flutter](https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_flutter)                                                                                                                                                                                                                   |
+| React           | [@a2ui/react](https://www.npmjs.com/package/@a2ui/react)                                                                                                                                      | v0.8,&nbsp;v0.9.1,&nbsp;v1.0 | [typescript/renderers/react](https://github.com/a2ui-project/a2ui/tree/main/typescript/renderers/react)                                                                                                                                                                                                 |
+| Lit             | [@a2ui/lit](https://www.npmjs.com/package/@a2ui/lit)                                                                                                                                          | v0.9.1,&nbsp;v1.0            | [typescript/renderers/lit](https://github.com/a2ui-project/a2ui/tree/main/typescript/renderers/lit)                                                                                                                                                                                                     |
+| Angular         | [@a2ui/angular](https://www.npmjs.com/package/@a2ui/angular)                                                                                                                                  | v0.8,&nbsp;v0.9.1,&nbsp;v1.0 | [typescript/renderers/angular](https://github.com/a2ui-project/a2ui/tree/main/typescript/renderers/angular)                                                                                                                                                                                             |
+| SwiftUI         | [A2UISwiftUI](https://github.com/a2ui-project/a2ui/blob/main/Package.swift)<br/>[BasicCatalogSwiftUI](https://github.com/a2ui-project/a2ui/blob/main/Package.swift)                           | v0.9.1,&nbsp;v1.0            | [swift/swiftui](https://github.com/a2ui-project/a2ui/tree/main/swift/swiftui)                                                                                                                                                                                                                           |
+| Jetpack Compose | [androidx.a2ui.compose](https://developer.android.com/jetpack/androidx/releases/a2ui-compose)<br/>[material3-a2ui](https://developer.android.com/jetpack/androidx/releases/compose-material3) | v0.9.1                       | [AndroidX a2ui](https://cs.android.com/androidx/platform/frameworks/support/+/androidx-main:a2ui/) · [material3-a2ui](https://cs.android.com/androidx/platform/frameworks/support/+/androidx-main:compose/material3/material3-a2ui/) · [Docs](https://developer.android.com/develop/ui/compose/agentic) |
+
+On Web, [`@a2ui/web_core`](https://www.npmjs.com/package/@a2ui/web_core) provides the shared Basic Catalog implementation used by React, Lit, and Angular, [`@a2ui/markdown-it`](https://www.npmjs.com/package/@a2ui/markdown-it) ([source](https://github.com/a2ui-project/a2ui/tree/main/typescript/renderers/markdown-it)) renders Markdown inside text components, and [`@a2ui/catalog-mcp`](https://www.npmjs.com/package/@a2ui/catalog-mcp) adds MCP app components (see [Call MCP Tools from A2UI](/guides/mcp-catalog/)).
+
+See [Registering a catalog in a renderer](/concepts/catalogs/#registering-a-catalog-in-a-renderer) and [How to Define a Catalog](/guides/defining-a-catalog/) for Flutter, Web, SwiftUI, and Jetpack Compose examples of setting up a message processor, registering component widgets and local functions, and mounting surfaces, or run a React or Flutter client in the [Quickstart](/quickstart/). Read [Authoring Universal Web Components](/guides/authoring-universal-components/) to share custom components across React, Lit, and Angular, or see the [Android Jetpack Compose guide](https://developer.android.com/develop/ui/compose/agentic) for Android integration. Browse [Community Projects](/ecosystem/renderers/) for community renderers, or consult [`blueprints/modules`](https://github.com/a2ui-project/a2ui/tree/main/blueprints/modules) and [`conformance`](https://github.com/a2ui-project/a2ui/tree/main/conformance) to build a custom framework adapter.
