@@ -419,10 +419,7 @@ void main() {
     await tester.tap(inList('#11 Docs are unclear'));
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('The item has no suggestion yet. Fill one in below.'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('no suggestion yet'), findsNothing);
     expect(find.text('Nothing to apply.'), findsOneWidget);
     final Finder apply = find.widgetWithText(FilledButton, 'Apply');
     expect(tester.widget<FilledButton>(apply).onPressed, isNull);

@@ -134,11 +134,9 @@ class ItemCard extends StatelessWidget {
                 warning: true,
               ),
             switch (item.suggestionStatus) {
-              SuggestionStatus.current => const SizedBox.shrink(),
-              SuggestionStatus.none => const _Notice(
-                'The item has no suggestion yet. Fill one in below.',
-                warning: true,
-              ),
+              // The list already says that the item has no suggestion.
+              SuggestionStatus.current ||
+              SuggestionStatus.none => const SizedBox.shrink(),
               SuggestionStatus.invalid => _Notice(
                 'The suggestion comment does not hold a valid suggestion, '
                 'so the one below is empty. ${item.suggestionError}',
