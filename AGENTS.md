@@ -89,7 +89,7 @@ For a detailed explanation of the methodology, lifecycle, and workflows, read th
 - **`typescript/`**: Framework-agnostic Web Core state and protocol logic (`core/web_core/`), web framework renderers (`renderers/lit/`, `renderers/angular/`, `renderers/react/`), Markdown renderer (`renderers/markdown-it/`), TypeScript agent SDK (`agents/a2ui_agent/`), TypeScript catalog packages (`catalogs/`), and release scripts (`scripts/`).
 - **`samples/`**: Ready-to-run demo agents utilizing Python ADK (`agent/adk/`), MCP server (`agent/mcp/`), and sample clients (`client/lit/`, `client/angular/`, `client/react/`, `client/flutter/`).
 - **`swift/`**: Native Apple implementation including core state engine (`core/`), SwiftUI adapter (`swiftui/`), and sample iOS client (`sample/`).
-- **`tools/`**: Developer utility suite including visual Composer (`composer/`) and catalog builder (`build_catalog/`).
+- **`tools/`**: Developer utility suite containing the catalog builder (`build_catalog/`).
 
 ---
 
