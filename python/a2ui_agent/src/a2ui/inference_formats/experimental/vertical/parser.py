@@ -17,17 +17,16 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from contextvars import ContextVar
 import re
 from typing import Any, Literal, overload
 
 from a2ui.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
 from a2ui.core import A2uiError, CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
-from a2ui.inference_formats._shared import check_mixed_catalogs
+from a2ui.inference_formats._shared import check_mixed_catalogs, to_message_models
 from a2ui.parser import (
     A2uiCompilationError,
-    A2uiCompilationParseError,
-    A2uiCompilationValidationError,
     BlockLexer,
     Parser,
     RawA2uiPart,
@@ -41,15 +40,20 @@ from a2ui.utils._experimental import experimental
 
 from .compiler import (
     VerticalCompiler,
-    VerticalParseError,
-    VerticalValidationError,
+    get_state_call_offset,
+    normalize_wire_version,
+    set_state_call_offset,
 )
 from .decompiler import VerticalDecompiler
 from .streaming import VerticalResponseStream
 
 _OPEN_SENTINEL_RE = re.compile(r"<(?:a2ui-vertical|a2ui)(?:\s[^>]*)?>", re.IGNORECASE)
 _CLOSE_SENTINEL_RE = re.compile(r"</(?:a2ui-vertical|a2ui)\s*>", re.IGNORECASE)
-VERTICAL_PAYLOAD_START_RE = re.compile(r"^[ \t]*[A-Z][A-Za-z0-9_]*\s*\(", re.MULTILINE)
+VERTICAL_PAYLOAD_START_RE = re.compile(r"^[ \t]*[A-Z][\w]*\s*\(", re.MULTILINE)
+
+_IN_FLIGHT_CALL_OFFSET: ContextVar[int | None] = ContextVar(
+    "_IN_FLIGHT_CALL_OFFSET", default=None
+)
 
 
 @experimental
@@ -64,7 +68,11 @@ class VerticalParser(Parser):
     ):
         self._catalogs = check_mixed_catalogs(catalogs)
         self.surface_id = surface_id
-        self.version = version
+        self.version = normalize_wire_version(version) if version is not None else None
+        self._compiler = VerticalCompiler(
+            self._catalogs, surface_id=self.surface_id, version=self.version
+        )
+        self._decompiler = VerticalDecompiler(self._catalogs, version=self.version)
 
     @property
     def catalogs(self) -> list[CatalogApi]:
@@ -138,21 +146,62 @@ class VerticalParser(Parser):
             open_tag=_OPEN_SENTINEL_RE,
             close_tag=_CLOSE_SENTINEL_RE,
             string_delimiters={"'", '"'},
-            single_line_comments={"#", "//", "--"},
+            single_line_comments={"#", "//"},
             payload_start_pattern=VERTICAL_PAYLOAD_START_RE,
             block_comments=[("/*", "*/")],
         )
         return lexer.tokenize(content)
 
+    def parse_response(
+        self,
+        content: str,
+        wrapped: bool = True,
+        *,
+        state: RendererState | None = None,
+    ) -> list[ResponsePart]:
+        """Parses a complete LLM response, allocating unique surface and call IDs across blocks and turns."""
+        target = state if state is not None else self._empty_state()
+        token = _IN_FLIGHT_CALL_OFFSET.set(get_state_call_offset(target))
+        try:
+            parts = super().parse_response(content, wrapped=wrapped, state=target)
+            final_offset = _IN_FLIGHT_CALL_OFFSET.get()
+            if state is not None and final_offset is not None:
+                set_state_call_offset(state, final_offset)
+            return parts
+        finally:
+            _IN_FLIGHT_CALL_OFFSET.reset(token)
+
+    def _apply_block(
+        self, format_content: str, is_final: bool, state: RendererState
+    ) -> tuple[list[AgentToRendererMessage], list[str]]:
+        active_call_offset = _IN_FLIGHT_CALL_OFFSET.get()
+        if active_call_offset is None:
+            active_call_offset = get_state_call_offset(state)
+        try:
+            raw_msgs, _, next_call_offset = self._compiler.compile_dicts(
+                format_content,
+                surface_id=self.surface_id,
+                is_final=is_final,
+                version=self.version,
+                existing_surface_ids=set(state.surface_ids),
+                call_offset=active_call_offset,
+            )
+        except A2uiError:
+            raise
+        except Exception as e:
+            raise A2uiCompilationError(
+                f"Failed to compile A2UI Vertical block: {e}", format_content
+            ) from e
+        touched = state.apply(raw_msgs)
+        _IN_FLIGHT_CALL_OFFSET.set(next_call_offset)
+        return to_message_models(raw_msgs), touched
+
     def compile(
         self, format_content: str, *, is_final: bool = True
     ) -> Sequence[AgentToRendererMessage | Mapping[str, Any]]:
         """Compiles a single raw Vertical block into A2UI messages."""
-        compiler = VerticalCompiler(
-            self._catalogs, surface_id=self.surface_id, version=self.version
-        )
         try:
-            return compiler.compile(
+            return self._compiler.compile(
                 format_content,
                 surface_id=self.surface_id,
                 is_final=is_final,
@@ -160,24 +209,6 @@ class VerticalParser(Parser):
             )
         except A2uiError:
             raise
-        except (VerticalValidationError, ValueError) as e:
-            raise A2uiCompilationValidationError(
-                message=str(e),
-                raw_content=format_content,
-                help_message=(
-                    "Please correct the validation error in your Vertical UI"
-                    " component expression."
-                ),
-            ) from e
-        except (VerticalParseError, SyntaxError) as e:
-            raise A2uiCompilationParseError(
-                message=str(e),
-                raw_content=format_content,
-                help_message=(
-                    "Please correct the syntax error in your Vertical UI"
-                    " component expression."
-                ),
-            ) from e
         except Exception as e:
             raise A2uiCompilationError(
                 message=str(e),
@@ -196,12 +227,8 @@ class VerticalParser(Parser):
         ),
     ) -> str:
         """Decompiles structured A2UI payload messages into Vertical notation."""
-        return VerticalDecompiler(self._catalogs, version=self.version).decompile(
-            a2ui_payload
-        )
+        return self._decompiler.decompile(a2ui_payload)
 
     def wrap_decompiled_blocks(self, blocks: Sequence[str]) -> str:
         """Wraps multiple decompiled blocks with sentinel tags."""
-        return VerticalDecompiler(
-            self._catalogs, version=self.version
-        ).wrap_decompiled_blocks(blocks)
+        return self._decompiler.wrap_decompiled_blocks(blocks)

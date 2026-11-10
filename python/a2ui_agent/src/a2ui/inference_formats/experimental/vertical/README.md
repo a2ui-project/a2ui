@@ -1,6 +1,6 @@
 # Vertical Inference Format
 
-The **Vertical** inference format (`VerticalFormat`) provides a concise, token-efficient, constructor-based syntax designed for chat applications, standalone assistant cards, and domain widgets where an agent emits a single component or a flat vertical sequence of components across A2UI `v0.9`, `v0.9.1`, and `1.0`.
+The **Vertical** inference format (`VerticalFormat`) provides a concise, token-efficient, constructor-based syntax designed for chat applications, standalone assistant cards, and domain widgets where an agent emits a single component or a flat vertical sequence of components across A2UI v0.9, v0.9.1, and v1.0.
 
 ## Motivation & Architecture
 
@@ -8,8 +8,8 @@ In many conversational or assistant contexts, the agent only needs to instantiat
 
 The Vertical format streamlines this:
 
-1. **Surface-per-Component Architecture**: When multiple components are emitted, each constructor call maps directly to an independent surface (`main`, `main_1`, `main_2`, ...). In A2UI `1.0`, each component emits a single `createSurface` envelope with inline `components`; in `v0.9` / `v0.9.1`, it emits `createSurface` followed by `updateComponents`.
-2. **Filtered Catalog Signatures**: Components in active catalogs that _require_ children (`Child`, `ChildList`, `ComponentId`) are automatically omitted from system prompt signatures, focusing the model exclusively on standalone components and domain widgets.
+1. **Surface-per-Component Architecture**: When multiple components are emitted, each constructor call maps directly to an independent surface (`main`, `main_1`, `main_2`, ...). In A2UI v1.0, each component emits a single `createSurface` envelope with inline `components`; in v0.9 and v0.9.1, it emits `createSurface` followed by `updateComponents`.
+2. **Filtered Catalog Signatures**: Components in active catalogs that _require_ children (`Child`, `ChildList`, `ComponentId`) or whose `allowedParents` excludes `"Surface"` are automatically omitted from system prompt signatures, focusing the model exclusively on standalone components and domain widgets.
 3. **Catalog-Driven Schema Coercion**: Small models frequently emit numbers or booleans enclosed in quotes (e.g. `temperature="58"`) or with percentage affixes (`"+10.9%"`). `VerticalCompiler` dynamically introspects the catalog schema to coerce quoted strings into expected primitive types while preserving dynamic data-binding paths (`$/...`).
 4. **Full A2UI v1.0 Support**: Supports v1.0 `@path` data bindings, `@call` function calls, `Event(..., userMessage=...)`, `functionCall` actions, multi-catalog resolution (`catalogId=`), component `extensions=`, checkable inputs (`?required`), and standalone `callRendererFunction` invocations.
 

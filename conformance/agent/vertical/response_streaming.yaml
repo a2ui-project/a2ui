@@ -72,3 +72,40 @@
       expect_in_block: true
   expect_error:
     category: "ParseError"
+
+- name: test_chunk_vertical_multiple_blocks_and_split_triple_quotes
+  description: Preserves split triple-quoted strings containing </a2ui> and allocates distinct surfaces across multiple <a2ui> blocks.
+  action: parse_chunk
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  steps:
+    - input: "<a2ui>\nText(\"\""
+      expect: []
+      expect_in_block: true
+    - input: "\"Line 1\n</a2ui>\nLine 2\"\"\")\n</a2ui>\nBetween\n"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "default_surface"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Line 1\n</a2ui>\nLine 2"
+        - text: "Between"
+      expect_in_block: false
+    - input: "<a2ui>\nText(\"Second block\")\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "default_surface_1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Second block"
+      expect_in_block: false
+  expect_close: []

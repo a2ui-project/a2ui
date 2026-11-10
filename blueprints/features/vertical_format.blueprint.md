@@ -8,7 +8,7 @@ date_added: 2026-09-29
 
 # **Vertical Format Feature Blueprint**
 
-This document specifies the language-agnostic architecture, API contracts, grammar rules, and behavioral conformance requirements for the **Vertical Inference Format** (`VerticalFormat`) in the A2UI ecosystem across protocols `v0.9`, `v0.9.1`, and `1.0`.
+This document specifies the language-agnostic architecture, API contracts, grammar rules, and behavioral conformance requirements for the **Vertical Inference Format** (`VerticalFormat`) in the A2UI ecosystem across protocols v0.9, v0.9.1, and v1.0.
 
 ---
 
@@ -19,7 +19,7 @@ In many A2UI integrations (such as chat interfaces, inline assistant cards, noti
 Standard inference formats like **Express** and **Direct JSON** require significant ceremony:
 
 - Express requires explicit variable assignments (`root = ...`), surface declarations (`surface("main")`), and container wrapping (`Column(...)`, `Row(...)`).
-- Smaller language models (such as on-device edge models like Gemma 2B) frequently struggle with variable planning and container hierarchy, leading to omitted root assignments, container hallucination, and syntax errors.
+- Smaller language models (such as on-device edge models like Gemma 4 E2B) frequently struggle with variable planning and container hierarchy, leading to omitted root assignments, container hallucination, and syntax errors.
 - Deep nested containers increase prompt token overhead and internal model reasoning tokens.
 
 The **Vertical format** solves these challenges by providing a concise, Python-constructor-like syntax (`ComponentName(key=val, ...)`) designed specifically for flat, non-nested UI generation.
@@ -33,7 +33,7 @@ The **Vertical format** solves these challenges by providing a concise, Python-c
 When multiple components are emitted sequentially in a single Vertical block:
 
 1. Each component constructor maps to its own independent Surface (`main`, `main_1`, `main_2`, ...) with `id: "root"`.
-2. In A2UI `1.0` (and later), each component compiles to a single `createSurface` message carrying inline `components`. In `v0.9` / `v0.9.1`, it compiles to `createSurface` followed by `updateComponents`.
+2. In A2UI v1.0 and later, each component compiles to a single `createSurface` message carrying inline `components`. In v0.9 and v0.9.1, it compiles to `createSurface` followed by `updateComponents`.
 3. Layout container components (such as `Column` or `List`) are **not** injected or required.
 4. The renderer host displays these surfaces sequentially as independent tiles or cards in the conversation stream.
 
@@ -41,7 +41,7 @@ When multiple components are emitted sequentially in a single Vertical block:
 
 To maximize model reliability and minimize token overhead:
 
-1. `VerticalPromptGenerator` inspects the active component catalogs and filters out all components that require children (`Child`, `ChildList`, or `ComponentId` properties).
+1. `VerticalPromptGenerator` inspects the active component catalogs and filters out all components that require children (`Child`, `ChildList`, or `ComponentId` properties) or whose `allowedParents` excludes `"Surface"`.
 2. This eliminates container concepts from the system prompt, preventing models from hallucinating nested layouts or complex hierarchy.
 
 ### **C. Catalog-Driven Schema Coercion**
@@ -54,13 +54,13 @@ Smaller LLMs frequently output numeric or boolean values enclosed in quotes (e.g
 
 ### **D. A2UI v1.0 Protocol Capabilities**
 
-Vertical supports every A2UI `1.0` feature applicable to standalone, non-nested UI generation:
+Vertical supports every A2UI v1.0 feature applicable to standalone, non-nested UI generation:
 
-1. **Wire Directives**: Compiles `$path` bindings to `{"@path": "/..."}` (`{"path": "/..."}` in `v0.9.x`) and nested function calls to `{"@call": "fn", "args": {...}}` (`"call"` in `v0.9.x`), keeping plain `path` and `call` keys inside map literals as user data.
-2. **Actions**: Supports `Event("name", key=val, userMessage=...)` (with `userMessage` in `1.0+`) and `functionCall` actions (`action=openUrl("...")`).
-3. **Multi-Catalog Support**: Accepts `Sequence[CatalogApi]`. With multiple catalogs in `1.0+`, omits `createSurface.catalogId`, stamps `catalogId` on compiled components and function calls, and requires `catalogId="..."` when shared names collide across catalogs.
-4. **Component Extensions & Checks**: Supports `extensions={...}` (`metadata.extensions` with UAX #31 key validation in `1.0+`) and `?check(...)` validation rules on checkable standalone inputs.
-5. **Standalone Renderer Function Calls**: Compiles top-level calls to declared catalog functions into `callRendererFunction` envelopes in `1.0+`.
+1. **Wire Directives**: Compiles `$path` bindings to `{"@path": "/..."}` (`{"path": "/..."}` in v0.9 and v0.9.1) and nested function calls to `{"@call": "fn", "args": {...}}` (`"call"` in v0.9 and v0.9.1), keeping plain `path` and `call` keys inside map literals as user data.
+2. **Actions**: Supports `Event("name", key=val, userMessage=...)` (with `userMessage` in v1.0 and later) and `functionCall` actions (`action=openUrl("...")`).
+3. **Multi-Catalog Support**: Accepts `Sequence[CatalogApi]`. With multiple catalogs in v1.0 and later, omits `createSurface.catalogId`, stamps `catalogId` on compiled components and function calls, and requires `catalogId="..."` when shared names collide across catalogs.
+4. **Component Extensions & Checks**: Supports `extensions={...}` (`metadata.extensions` with UAX #31 key validation in v1.0 and later) and `?check(...)` validation rules on checkable standalone inputs.
+5. **Standalone Renderer Function Calls**: Compiles top-level calls to declared catalog functions into `callRendererFunction` envelopes in v1.0 and later.
 
 ### **E. Progressive Real-Time Streaming**
 

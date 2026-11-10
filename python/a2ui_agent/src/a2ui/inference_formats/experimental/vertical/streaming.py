@@ -23,11 +23,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import re
-from typing import Any, Generic, Literal, TYPE_CHECKING, TypeVar, cast
+from typing import Generic, Literal, TYPE_CHECKING, TypeVar, cast
 
 from a2ui.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
 from a2ui.core import A2uiError, A2uiParseError
-from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats._shared import to_message_models
 from a2ui.parser import (
     A2uiCompilationError,
@@ -43,9 +42,9 @@ from a2ui.utils import RendererState
 
 from .compiler import (
     VerticalCompiler,
-    VerticalParseError,
-    VerticalValidationError,
-    _PUBLISHED_WIRE_VERSIONS,
+    get_state_call_offset,
+    is_line_comment_start,
+    set_state_call_offset,
     split_complete_statements,
 )
 
@@ -58,8 +57,25 @@ _OPEN_TAG_RE = re.compile(r"<(?P<tag>a2ui-vertical|a2ui)(?:\s[^>]*)?>", re.IGNOR
 _OPEN_TAG_START_RE = re.compile(r"<(?:a2ui-vertical|a2ui)\s[^>]*$", re.IGNORECASE)
 _CLOSE_TAG_RE = re.compile(r"</(?:a2ui-vertical|a2ui)\s*>", re.IGNORECASE)
 _CLOSE_TAG_START_RE = re.compile(r"</(?:a2ui-vertical|a2ui)\s*$", re.IGNORECASE)
-_LEADING_FENCE_RE = re.compile(r"^\s*```[a-zA-Z0-9_-]*[ \t]*\r?\n")
-_TRAILING_FENCE_RE = re.compile(r"\r?\n?[ \t]*```[a-zA-Z0-9_-]*\s*$")
+_LEADING_FENCE_RE = re.compile(r"^\s*(?:```[a-zA-Z0-9_-]*[ \t]*\r?\n|`+\s*)")
+_TRAILING_FENCE_RE = re.compile(r"(?:\r?\n?[ \t]*```[a-zA-Z0-9_-]*|`+)\s*$")
+_OUTER_TRAILING_FENCE_RE = re.compile(
+    r"(?:\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n[ \t]*)?|(?:^|(?<=\s))`{1,2})\Z"
+)
+_OUTER_TRAILING_FENCE_PREFIX_RE = re.compile(
+    r"(?:```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n[ \t]*)?|`+)\Z"
+)
+_OUTER_INLINE_OPEN_BACKTICK_RE = re.compile(r"(?:^|(?<=\s))`{1,2}\Z")
+_OUTER_LEADING_FENCE_RE = re.compile(r"^\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n|\Z)")
+_OUTER_LEADING_FENCE_PREFIX_RE = re.compile(
+    r"^\s*(?:`{0,2}|```[a-zA-Z0-9_-]*[ \t]*\r?)\Z"
+)
+_OUTER_LEADING_FENCE_INLINE_RE = re.compile(
+    r"^(?:\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n|\Z)|`+)"
+)
+_OUTER_LEADING_FENCE_INLINE_PREFIX_RE = re.compile(
+    r"^(?:`+|\s*`{0,2}|\s*```[a-zA-Z0-9_-]*[ \t]*\r?)\Z"
+)
 
 
 def _is_tag_prefix(text: str, idx: int) -> bool:
@@ -77,6 +93,11 @@ def _possible_open_tag_start(text: str) -> int:
             return idx
         idx = text.find("<", idx + 1)
     return len(text)
+
+
+def _possible_fence_start(text: str) -> int:
+    match = _OUTER_TRAILING_FENCE_PREFIX_RE.search(text)
+    return match.start() if match else len(text)
 
 
 def _scan_vertical_block(content: str, start: int = 0) -> tuple[int | None, int, int]:
@@ -111,8 +132,9 @@ def _scan_vertical_block(content: str, start: int = 0) -> tuple[int | None, int,
                 return None, n, i
             i = close_comment + 2
             continue
-        if ch == "#" or content.startswith(("//", "--"), i):
-            j = i + (1 if ch == "#" else 2)
+        comment_len = is_line_comment_start(content, i)
+        if comment_len:
+            j = i + comment_len
             while j < n and content[j] not in ("\n", "\r"):
                 if content[j] == "<":
                     if _CLOSE_TAG_RE.match(content, j) is not None:
@@ -132,13 +154,14 @@ def _scan_vertical_block(content: str, start: int = 0) -> tuple[int | None, int,
             if _is_tag_prefix(content, i) or _CLOSE_TAG_START_RE.match(content, i):
                 return None, i, i
         i += 1
-    resume_pos = n - 1 if n > 0 and content[n - 1] in ("r", "R", "/", "-") else n
+    resume_pos = n - 1 if n > 0 and content[n - 1] in ("r", "R", "/") else n
     return None, n, resume_pos
 
 
 def _skip_quoted(content: str, quote_start: int, n: int, *, raw: bool) -> int | None:
     q = content[quote_start]
-    delim = q * 3 if content.startswith(q * 3, quote_start) else q
+    triple = content.startswith(q * 3, quote_start)
+    delim = q * 3 if triple else q
     i = quote_start + len(delim)
     while i < n:
         if not raw and content[i] == "\\":
@@ -146,18 +169,19 @@ def _skip_quoted(content: str, quote_start: int, n: int, *, raw: bool) -> int | 
                 return None
             i += 2
             continue
-        if len(delim) == 1 and content[i] == "\n":
-            return i + 1
         if content.startswith(delim, i):
-            return i + len(delim)
+            end = i + len(delim)
+            if not triple and end == n and end - quote_start == 2:
+                return None
+            return end
         i += 1
     return None
 
 
-def _wrap_stream_error(error: BaseException, raw_content: str) -> A2uiError:
+def _wrap_stream_error(error: Exception, raw_content: str) -> A2uiError:
     if isinstance(error, A2uiError):
         return error
-    if isinstance(error, (VerticalValidationError, ValueError)):
+    if isinstance(error, ValueError):
         return A2uiCompilationValidationError(
             message=str(error),
             raw_content=raw_content,
@@ -165,7 +189,7 @@ def _wrap_stream_error(error: BaseException, raw_content: str) -> A2uiError:
                 "Please correct the validation error in your Vertical expression."
             ),
         )
-    if isinstance(error, (VerticalParseError, SyntaxError)):
+    if isinstance(error, SyntaxError):
         return A2uiCompilationParseError(
             message=str(error),
             raw_content=raw_content,
@@ -189,11 +213,7 @@ class VerticalResponseStream(ResponseStream[PartT], Generic[PartT]):
         after_rejected_block: Literal["end", "continue"] = "end",
     ) -> None:
         self._parser = parser
-        self._compiler = VerticalCompiler(
-            parser.catalogs,
-            surface_id=parser.surface_id,
-            version=parser.version,
-        )
+        self._compiler: VerticalCompiler = parser._compiler
         self._wrapped = wrapped
         self._state = state if state is not None else RendererState(parser.catalogs)
         self._continues = after_rejected_block == "continue"
@@ -201,20 +221,20 @@ class VerticalResponseStream(ResponseStream[PartT], Generic[PartT]):
         self._held = ""
         self._text = TextRun()
         self._in_block = not wrapped
+        self._after_block = False
+        self._wrapped_in_inline_backticks = False
         self._rejected = False
         self._block = ""
         self._scan_pos = 0
         self._consumed_len = 0
         self._surface_offset = 0
-        self._call_offset = 0
+        self._call_offset = get_state_call_offset(self._state)
         self._touched: dict[str, None] = {}
 
     def _reset_block(self) -> None:
         self._block = ""
         self._scan_pos = 0
         self._consumed_len = 0
-        self._surface_offset = 0
-        self._call_offset = 0
         self._rejected = False
         self._touched = {}
 
@@ -260,7 +280,17 @@ class VerticalResponseStream(ResponseStream[PartT], Generic[PartT]):
         if self._held:
             rest = self._held
             self._held = ""
-            self._text.emit(parts, rest)
+            if self._after_block:
+                leading_re = (
+                    _OUTER_LEADING_FENCE_INLINE_RE
+                    if self._wrapped_in_inline_backticks
+                    else _OUTER_LEADING_FENCE_RE
+                )
+                rest = leading_re.sub("", rest, count=1)
+                self._after_block = False
+                self._wrapped_in_inline_backticks = False
+            if rest:
+                self._text.emit(parts, rest)
         return cast("list[PartT]", parts)
 
     @staticmethod
@@ -306,21 +336,44 @@ class VerticalResponseStream(ResponseStream[PartT], Generic[PartT]):
             if self._in_block:
                 input_str = self._consume_block_text(parts, input_str)
                 continue
+            if self._after_block:
+                prefix_re = (
+                    _OUTER_LEADING_FENCE_INLINE_PREFIX_RE
+                    if self._wrapped_in_inline_backticks
+                    else _OUTER_LEADING_FENCE_PREFIX_RE
+                )
+                if prefix_re.match(input_str):
+                    self._held = input_str
+                    return
+                self._after_block = False
+                leading_re = (
+                    _OUTER_LEADING_FENCE_INLINE_RE
+                    if self._wrapped_in_inline_backticks
+                    else _OUTER_LEADING_FENCE_RE
+                )
+                self._wrapped_in_inline_backticks = False
+                input_str = leading_re.sub("", input_str, count=1)
+                continue
             input_str = self._consume_outside_text(parts, input_str)
 
     def _consume_outside_text(self, parts: list[StreamPart], input_str: str) -> str:
         open_match = _OPEN_TAG_RE.search(input_str)
         if open_match:
             before_open = input_str[: open_match.start()]
-            self._text.emit(parts, before_open)
+            self._wrapped_in_inline_backticks = bool(
+                _OUTER_INLINE_OPEN_BACKTICK_RE.search(before_open)
+            )
+            text_before = _OUTER_TRAILING_FENCE_RE.sub("", before_open, count=1)
+            self._text.emit(parts, text_before)
             self._text.reset()
             self._in_block = True
             self._reset_block()
             return input_str[open_match.end() :]
 
         tag_start = _possible_open_tag_start(input_str)
-        self._text.emit(parts, input_str[:tag_start])
-        self._held = input_str[tag_start:]
+        hold = _possible_fence_start(input_str[:tag_start])
+        self._text.emit(parts, input_str[:hold])
+        self._held = input_str[hold:]
         return ""
 
     def _consume_block_text(self, parts: list[StreamPart], input_str: str) -> str:
@@ -341,6 +394,7 @@ class VerticalResponseStream(ResponseStream[PartT], Generic[PartT]):
         if not self._rejected:
             self._read_block(parts, lambda: self._finish_block(parts, close_start))
         self._in_block = False
+        self._after_block = True
         self._reset_block()
         return remaining
 
@@ -348,9 +402,12 @@ class VerticalResponseStream(ResponseStream[PartT], Generic[PartT]):
         window = self._block[self._consumed_len : end]
         if not window.strip():
             return
-        # Wait if opening markdown fence hasn't reached its newline yet
         stripped_lead = window.lstrip()
-        if not is_final and stripped_lead.startswith("`") and "\n" not in stripped_lead:
+        if (
+            not is_final
+            and stripped_lead.startswith("```")
+            and "\n" not in stripped_lead
+        ):
             return
 
         statements, trailing = split_complete_statements(window, is_final=is_final)
@@ -361,12 +418,12 @@ class VerticalResponseStream(ResponseStream[PartT], Generic[PartT]):
         self._consumed_len += consumed_chars
 
         for stmt in statements:
-            cleaned = _LEADING_FENCE_RE.sub("", stmt)
-            cleaned = _TRAILING_FENCE_RE.sub("", cleaned).strip()
+            cleaned = _LEADING_FENCE_RE.sub("", stmt, count=1)
+            cleaned = _TRAILING_FENCE_RE.sub("", cleaned, count=1).strip()
             if not cleaned or cleaned == "```":
                 continue
             try:
-                raw_msgs, self._surface_offset, self._call_offset = (
+                raw_msgs, self._surface_offset, next_call_offset = (
                     self._compiler.compile_dicts(
                         cleaned,
                         surface_id=self._parser.surface_id,
@@ -374,26 +431,24 @@ class VerticalResponseStream(ResponseStream[PartT], Generic[PartT]):
                         version=self._compiler.version,
                         surface_offset=self._surface_offset,
                         call_offset=self._call_offset,
+                        existing_surface_ids=set(self._state.surface_ids),
                     )
                 )
-            except BaseException as err:
+            except Exception as err:
                 raise _wrap_stream_error(err, cleaned) from err
 
             if not raw_msgs:
                 continue
 
-            if self._compiler.version in _PUBLISHED_WIRE_VERSIONS:
-                with self._state.transaction():
-                    block_touched = self._state.apply(raw_msgs)
-                    if block_touched:
-                        self._state.check_topology(block_touched)
-                self._touched.update(dict.fromkeys(block_touched))
-                models = to_message_models(raw_msgs)
-                parts.append(A2uiPart(a2ui=models))
-            else:
-                parts.append(
-                    A2uiPart(a2ui=cast(list[AgentToRendererMessage], raw_msgs))
-                )
+            with self._state.transaction():
+                block_touched = self._state.apply(raw_msgs)
+                if block_touched:
+                    self._state.check_topology(block_touched)
+            self._call_offset = next_call_offset
+            set_state_call_offset(self._state, self._call_offset)
+            self._touched.update(dict.fromkeys(block_touched))
+            models = to_message_models(raw_msgs)
+            parts.append(A2uiPart(a2ui=models))
 
     def _finish_block(self, parts: list[StreamPart], close_start: int) -> None:
         self._emit_ready(parts, close_start, is_final=True)

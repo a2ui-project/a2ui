@@ -24,13 +24,20 @@ healing for edge models.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence, Set as AbstractSet
 from dataclasses import dataclass
 import json
+import math
 import re
-from typing import Any, Literal
+from typing import Any, Literal, TYPE_CHECKING
+from weakref import WeakKeyDictionary
 
-from a2ui.core import A2uiCatalogError, CatalogApi
+from a2ui.core import (
+    A2uiCatalogError,
+    A2uiParseError,
+    A2uiValidationError,
+    CatalogApi,
+)
 from a2ui.core.common import (
     is_at_least_version,
     is_valid_uax31_identifier,
@@ -48,41 +55,58 @@ from a2ui.inference_formats._shared import (
     to_message_models,
 )
 
-_PUBLISHED_WIRE_VERSIONS = frozenset({"v0.8", "v0.9", "v0.9.1", "1.0"})
+if TYPE_CHECKING:
+    from a2ui.utils import RendererState
+
+SUPPORTED_WIRE_VERSIONS = frozenset({"v0.9", "v0.9.1", "1.0"})
+
+_STATE_CALL_OFFSETS: WeakKeyDictionary[Any, int] = WeakKeyDictionary()
+
+
+def get_state_call_offset(state: RendererState) -> int:
+    """Returns the monotonic standalone function call counter associated with `state`."""
+    return _STATE_CALL_OFFSETS.get(state, 0)
+
+
+def set_state_call_offset(state: RendererState, offset: int) -> None:
+    """Updates the monotonic standalone function call counter associated with `state`."""
+    _STATE_CALL_OFFSETS[state] = offset
+
 
 _HEALING_NEW_COMPONENT_PATTERN = re.compile(
     r"\s*(?:"
-    r"[A-Z][A-Za-z0-9_]*\s*\("
+    r"[A-Z][^\W\d]*[\w]*\s*\("
     r"|<[A-Za-z0-9_]+"
-    r"|(?:(?:var|val|let|\$[A-Za-z0-9_]+|[A-Za-z0-9_]+)\s*[:=]\s*)?[A-Z][A-Za-z0-9_]*\s*\("
+    r"|(?:(?:var|val|let|\$[^\W\d][\w]*|[^\W\d][\w]*)\s*[:=]\s*)?[A-Z][\w]*\s*\("
     r")"
 )
 
-_OPEN_TAG_STRIP_RE = re.compile(r"</?(?:a2ui|a2ui-vertical)\b[^>]*>", re.IGNORECASE)
-_FENCE_LINE_RE = re.compile(r"^\s*```[a-zA-Z0-9_-]*[ \t]*\r?\n?", re.MULTILINE)
+_OUTER_OPEN_TAG_RE = re.compile(
+    r"^\s*<(?:a2ui-vertical|a2ui)(?:\s[^>]*)?>", re.IGNORECASE
+)
+_OUTER_CLOSE_TAG_RE = re.compile(r"</(?:a2ui-vertical|a2ui)\s*>\s*$", re.IGNORECASE)
+_OUTER_LEADING_FENCE_RE = re.compile(r"^\s*```[a-zA-Z0-9_-]*[ \t]*\r?\n")
+_OUTER_TRAILING_FENCE_RE = re.compile(r"(?:\r?\n)?[ \t]*```[a-zA-Z0-9_-]*\s*$")
 _ASSIGN_PREFIX_RE = re.compile(
-    r"^(?:(?:var|val|let)\s+)?(?:\$[A-Za-z0-9_]+|[A-Za-z0-9_]+)\s*[:=](?!=)\s*"
+    r"^(?:(?:var|val|let)\s+)?(?:\$[^\W\d][\w]*|[^\W\d][\w]*)\s*[:=](?!=)\s*"
 )
-_CALL_HEADER_RE = re.compile(r"^(@?[A-Za-z_][A-Za-z0-9_]*)\s*(?:\((.*)\))?$", re.DOTALL)
-_UNCLOSED_CALL_HEADER_RE = re.compile(
-    r"^(@?[A-Za-z_][A-Za-z0-9_]*)\s*\((.*)$", re.DOTALL
-)
+_CALL_HEADER_RE = re.compile(r"^(@?[^\W\d][\w]*)\s*\((.*)\)\s*;?$", re.DOTALL)
+_UNCLOSED_CALL_HEADER_RE = re.compile(r"^(@?[^\W\d][\w]*)\s*\((.*)$", re.DOTALL)
+_BARE_CHECK_IDENT_RE = re.compile(r"^[^\W\d][\w]*$")
 _JSX_STMT_RE = re.compile(
-    r"^<([A-Za-z0-9_]+)\b([^>]*)(?:/>|>(?:.*?</\1>)?)$",
-    re.DOTALL | re.IGNORECASE,
+    r"^<([^\W\d][\w]*)\b([^>]*)(?:/>|>(?:.*?</\1>)?)\s*;?$",
+    re.DOTALL,
 )
-_JSX_ATTR_RE = re.compile(r'([A-Za-z0-9_]+)\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+))')
-_SURFACE_DIRECTIVE_RE = re.compile(
-    r"^(?:surface|surfaceId)\s*\(\s*['\"]([^'\"]+)['\"]\s*\)$", re.IGNORECASE
-)
+_JSX_ATTR_RE = re.compile(r'([^\W\d][\w]*)\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s/>]+))')
 _NUMBER_RE = re.compile(r"^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$")
+_INTEGER_STR_RE = re.compile(r"^[+-]?[0-9]+$")
 
 
-class VerticalParseError(SyntaxError):
+class VerticalParseError(A2uiParseError):
     """Raised when a Vertical block cannot be lexed or parsed."""
 
 
-class VerticalValidationError(ValueError):
+class VerticalValidationError(A2uiValidationError):
     """Raised when a Vertical expression violates protocol or catalog constraints."""
 
 
@@ -112,38 +136,174 @@ class _RawPath:
 
 
 def normalize_wire_version(version: str) -> str:
-    """Normalizes a version string to its canonical wire spelling.
+    """Normalizes and validates a protocol version to its canonical wire spelling.
 
     v1.0 uses `'1.0'` without a leading `'v'`; v0.9 and v0.9.1 carry `'v'`.
-    Forward-compatible versions follow the same convention (`'1.1'`, `'v0.9.2'`).
+
+    Raises:
+        A2uiCatalogError: If `version` is not supported by the Vertical format.
     """
     cleaned = version.strip()
+    normalized: str | None = None
     try:
-        return to_protocol_version(cleaned).value
+        normalized = to_protocol_version(cleaned).value
     except ValueError:
         pass
-    if is_at_least_version(cleaned, ProtocolVersion.V1_0):
-        return cleaned.removeprefix("v")
-    return cleaned if cleaned.startswith("v") else f"v{cleaned}"
+    if normalized not in SUPPORTED_WIRE_VERSIONS:
+        raise A2uiCatalogError(
+            "Vertical format supports protocol versions v0.9, v0.9.1, and 1.0,"
+            f" got {version!r}."
+        )
+    return normalized
 
 
-def _strip_markdown_and_tags(text: str) -> str:
-    """Removes enclosing sentinel tags and markdown code fences."""
+def _strip_outer_tags_and_fences(text: str) -> str:
+    """Removes outer sentinel tags and outer markdown code fences without touching interior literals."""
     if not text:
         return ""
-    cleaned = _OPEN_TAG_STRIP_RE.sub("", text.strip())
-    cleaned = _FENCE_LINE_RE.sub("", cleaned)
-    return cleaned.strip()
+    work = text.strip()
+    work = _OUTER_LEADING_FENCE_RE.sub("", work, count=1)
+    work = _OUTER_TRAILING_FENCE_RE.sub("", work, count=1).strip()
+
+    open_m = _OUTER_OPEN_TAG_RE.match(work)
+    if open_m:
+        work = work[open_m.end() :]
+        close_m = _OUTER_CLOSE_TAG_RE.search(work)
+        if close_m:
+            work = work[: close_m.start()]
+        work = work.strip()
+
+    work = _OUTER_LEADING_FENCE_RE.sub("", work, count=1)
+    work = _OUTER_TRAILING_FENCE_RE.sub("", work, count=1).strip()
+    if (
+        len(work) >= 2
+        and work.startswith("`")
+        and work.endswith("`")
+        and not work.startswith("```")
+    ):
+        work = work[1:-1].strip()
+    return work
 
 
-def _split_statements(text: str, *, heal_across_lines: bool = True) -> list[str]:
-    """Splits Vertical source text into discrete top-level statements."""
-    statements, trailing = split_complete_statements(
-        text, is_final=True, heal_across_lines=heal_across_lines
-    )
-    if trailing.strip():
-        statements.append(trailing.strip())
-    return statements
+def is_line_comment_start(text: str, i: int) -> int:
+    """Returns comment marker length (1 for `#`, 2 for `//`) if `i` starts a line comment, else 0."""
+    ch = text[i]
+    if ch == "#":
+        marker_len = 1
+    elif text.startswith("//", i):
+        marker_len = 2
+    else:
+        return 0
+
+    if i > 0 and text[i - 1] not in (
+        " ",
+        "\t",
+        "\r",
+        "\n",
+        ",",
+        ";",
+        "(",
+        "[",
+        "{",
+        ")",
+    ):
+        return 0
+
+    if marker_len == 1:
+        j = i - 1
+        while j >= 0 and text[j] in (" ", "\t"):
+            j -= 1
+        if (
+            j >= 0
+            and text[j] in ("=", ":")
+            and i + 1 < len(text)
+            and (text[i + 1].isalnum() or text[i + 1] == "_")
+        ):
+            return 0
+
+    return marker_len
+
+
+def _strip_comments_outside_strings(text: str, *, is_final: bool = True) -> str:
+    """Strips `#`, `//`, and `/* ... */` comments outside string literals."""
+    if not text:
+        return ""
+    out: list[str] = []
+    in_quote: str | None = None
+    raw_quote = False
+    i = 0
+    n = len(text)
+
+    while i < n:
+        ch = text[i]
+        if in_quote is not None:
+            if not raw_quote and ch == "\\":
+                if i + 1 < n:
+                    out.append(text[i : i + 2])
+                    i += 2
+                    continue
+                out.append(ch)
+                i += 1
+                continue
+            if len(in_quote) == 1 and ch == "\n":
+                in_quote = None
+                raw_quote = False
+                out.append(ch)
+                i += 1
+                continue
+            if text.startswith(in_quote, i):
+                out.append(in_quote)
+                i += len(in_quote)
+                in_quote = None
+                raw_quote = False
+                continue
+            out.append(ch)
+            i += 1
+            continue
+
+        if text.startswith("/*", i):
+            close_idx = text.find("*/", i + 2)
+            if close_idx < 0:
+                if not is_final:
+                    out.append(text[i:])
+                break
+            segment = text[i + 2 : close_idx]
+            newlines = "\n" * segment.count("\n")
+            out.append(newlines if newlines else " ")
+            i = close_idx + 2
+            continue
+
+        if is_line_comment_start(text, i):
+            nl_idx = text.find("\n", i)
+            if nl_idx < 0:
+                break
+            i = nl_idx
+            continue
+
+        if (
+            ch in ("r", "R")
+            and i + 1 < n
+            and text[i + 1] in ('"', "'")
+            and (i == 0 or not (text[i - 1].isalnum() or text[i - 1] == "_"))
+        ):
+            q = text[i + 1]
+            in_quote = q * 3 if text.startswith(q * 3, i + 1) else q
+            raw_quote = True
+            out.append(text[i : i + 1 + len(in_quote)])
+            i += 1 + len(in_quote)
+            continue
+
+        if ch in ('"', "'"):
+            in_quote = ch * 3 if text.startswith(ch * 3, i) else ch
+            raw_quote = False
+            out.append(in_quote)
+            i += len(in_quote)
+            continue
+
+        out.append(ch)
+        i += 1
+
+    return "".join(out)
 
 
 def split_complete_statements(
@@ -172,9 +332,12 @@ def split_complete_statements(
     def _flush(end_idx: int) -> None:
         nonlocal stmt_start, saw_open_paren
         seg = text[stmt_start:end_idx].strip()
-        if seg:
-            cleaned = _FENCE_LINE_RE.sub("", seg).strip()
-            if cleaned:
+        if seg and seg != ";":
+            cleaned = _OUTER_LEADING_FENCE_RE.sub("", seg, count=1)
+            cleaned = _OUTER_TRAILING_FENCE_RE.sub("", cleaned, count=1).strip()
+            if cleaned.endswith(";"):
+                cleaned = cleaned[:-1].strip()
+            if cleaned and cleaned != "```":
                 statements.append(cleaned)
         stmt_start = end_idx
         saw_open_paren = False
@@ -190,10 +353,9 @@ def split_complete_statements(
                 continue
             if len(in_quote) == 1 and ch == "\n":
                 in_quote = None
-                if (
-                    heal_across_lines
-                    and (is_final or _HEALING_NEW_COMPONENT_PATTERN.match(text, i + 1))
-                    and _HEALING_NEW_COMPONENT_PATTERN.match(text, i + 1)
+                raw_quote = False
+                if heal_across_lines and _HEALING_NEW_COMPONENT_PATTERN.match(
+                    text, i + 1
                 ):
                     _flush(i)
                     paren_depth = bracket_depth = brace_depth = 0
@@ -208,7 +370,6 @@ def split_complete_statements(
             i += 1
             continue
 
-        # Block comments /* ... */
         if text.startswith("/*", i):
             close_idx = text.find("*/", i + 2)
             if close_idx < 0:
@@ -218,23 +379,21 @@ def split_complete_statements(
             i = close_idx + 2
             continue
 
-        # Single-line comments at depth 0 (#, //, --)
         at_top = paren_depth == 0 and bracket_depth == 0 and brace_depth == 0
-        if at_top and (
-            ch == "#" or text.startswith("//", i) or text.startswith("--", i)
-        ):
-            if text[stmt_start:i].strip():
+        if is_line_comment_start(text, i):
+            if at_top and text[stmt_start:i].strip():
                 _flush(i)
             nl_idx = text.find("\n", i)
             if nl_idx < 0:
-                stmt_start = n
+                if at_top:
+                    stmt_start = n
                 i = n
                 break
-            stmt_start = nl_idx + 1
+            if at_top:
+                stmt_start = nl_idx + 1
             i = nl_idx + 1
             continue
 
-        # Raw / triple / single-line string openings
         if (
             ch in ("r", "R")
             and i + 1 < n
@@ -263,12 +422,13 @@ def split_complete_statements(
                 paren_depth -= 1
             i += 1
             if (
-                not is_final
-                and paren_depth == 0
+                paren_depth == 0
                 and bracket_depth == 0
                 and brace_depth == 0
                 and saw_open_paren
             ):
+                if i < n and text[i] == ";":
+                    i += 1
                 _flush(i)
             continue
         if ch == "[":
@@ -320,6 +480,7 @@ def split_complete_statements(
 
 def _split_args(args_str: str) -> list[str]:
     """Splits an argument string into comma-separated chunks at depth 0."""
+    cleaned_args = _strip_comments_outside_strings(args_str, is_final=True)
     chunks: list[str] = []
     chunk_start = 0
     paren_depth = 0
@@ -328,19 +489,20 @@ def _split_args(args_str: str) -> list[str]:
     in_quote: str | None = None
     raw_quote = False
     i = 0
-    n = len(args_str)
+    n = len(cleaned_args)
 
     while i < n:
-        ch = args_str[i]
+        ch = cleaned_args[i]
         if in_quote is not None:
             if not raw_quote and ch == "\\":
                 i += 2
                 continue
             if len(in_quote) == 1 and ch == "\n":
                 in_quote = None
+                raw_quote = False
                 i += 1
                 continue
-            if args_str.startswith(in_quote, i):
+            if cleaned_args.startswith(in_quote, i):
                 i += len(in_quote)
                 in_quote = None
                 raw_quote = False
@@ -348,29 +510,23 @@ def _split_args(args_str: str) -> list[str]:
             i += 1
             continue
 
-        if args_str.startswith("/*", i):
-            close_idx = args_str.find("*/", i + 2)
-            i = n if close_idx < 0 else close_idx + 2
-            continue
-        if ch == "#" or args_str.startswith(("//", "--"), i):
-            nl_idx = args_str.find("\n", i)
-            i = n if nl_idx < 0 else nl_idx + 1
-            continue
-
         if (
             ch in ("r", "R")
             and i + 1 < n
-            and args_str[i + 1] in ('"', "'")
-            and (i == 0 or not (args_str[i - 1].isalnum() or args_str[i - 1] == "_"))
+            and cleaned_args[i + 1] in ('"', "'")
+            and (
+                i == 0
+                or not (cleaned_args[i - 1].isalnum() or cleaned_args[i - 1] == "_")
+            )
         ):
-            q = args_str[i + 1]
-            in_quote = q * 3 if args_str.startswith(q * 3, i + 1) else q
+            q = cleaned_args[i + 1]
+            in_quote = q * 3 if cleaned_args.startswith(q * 3, i + 1) else q
             raw_quote = True
             i += 1 + len(in_quote)
             continue
 
         if ch in ('"', "'"):
-            in_quote = ch * 3 if args_str.startswith(ch * 3, i) else ch
+            in_quote = ch * 3 if cleaned_args.startswith(ch * 3, i) else ch
             raw_quote = False
             i += len(in_quote)
             continue
@@ -388,14 +544,14 @@ def _split_args(args_str: str) -> list[str]:
         elif ch == "}" and brace_depth > 0:
             brace_depth -= 1
         elif ch == "," and paren_depth == 0 and bracket_depth == 0 and brace_depth == 0:
-            piece = args_str[chunk_start:i].strip()
+            piece = cleaned_args[chunk_start:i].strip()
             if piece:
                 chunks.append(piece)
             chunk_start = i + 1
 
         i += 1
 
-    tail = args_str[chunk_start:].strip()
+    tail = cleaned_args[chunk_start:].strip()
     if tail:
         chunks.append(tail)
     return chunks
@@ -456,11 +612,15 @@ def _parse_arg_chunk(chunk: str) -> tuple[str | None, Any]:
     if not chunk:
         return None, ""
 
-    # Leading colon syntax (:key "val") — only when not starting a check (?...)
+    # Leading colon syntax (:key "val" or :key = "val")
     if chunk.startswith(":") and len(chunk) > 1 and not chunk.startswith("::"):
-        parts = chunk[1:].split(None, 1)
-        if len(parts) == 2:
-            return parts[0].strip(), _parse_raw_value(parts[1].strip())
+        rest = chunk[1:].strip()
+        eq_m = re.match(r"^([^\W\d][\w]*)\s*[:=]\s*(.+)$", rest, re.DOTALL)
+        if eq_m:
+            return eq_m.group(1), _parse_raw_value(eq_m.group(2))
+        parts = rest.split(None, 1)
+        if len(parts) == 2 and re.match(r"^[^\W\d][\w]*$", parts[0]):
+            return parts[0], _parse_raw_value(parts[1])
 
     paren_depth = 0
     bracket_depth = 0
@@ -534,9 +694,9 @@ def _parse_arg_chunk(chunk: str) -> tuple[str | None, Any]:
         key_raw = chunk[:separator_idx].strip()
         val_raw = chunk[separator_idx + 1 :].strip()
         parsed_key = _parse_string_token(key_raw)
-        key_str = parsed_key if parsed_key is not None else key_raw
-        if key_str.startswith(":"):
-            key_str = key_str[1:]
+        if parsed_key is not None:
+            return parsed_key, _parse_raw_value(val_raw)
+        key_str = key_raw[1:] if key_raw.startswith(":") else key_raw
         return key_str, _parse_raw_value(val_raw)
 
     return None, _parse_raw_value(chunk)
@@ -549,6 +709,8 @@ def _parse_call_args(inner: str) -> tuple[list[Any], dict[str, Any]]:
     for arg_chunk in _split_args(inner):
         k, v = _parse_arg_chunk(arg_chunk)
         if k is not None:
+            if k in kw_args:
+                raise VerticalValidationError(f"Duplicate keyword argument {k!r}.")
             kw_args[k] = v
         else:
             pos_args.append(v)
@@ -578,22 +740,25 @@ def _parse_raw_value(val_str: str) -> Any:
     # 3. Numbers (integers, floats, and unquoted percentages like +10.9%)
     num_candidate = val_str[:-1].strip() if val_str.endswith("%") else val_str
     if _NUMBER_RE.match(num_candidate):
+        is_float_literal = (
+            "." in num_candidate
+            or "e" in num_candidate.lower()
+            or val_str.endswith("%")
+        )
         try:
-            if (
-                "." in num_candidate
-                or "e" in num_candidate.lower()
-                or val_str.endswith("%")
-            ):
-                parsed_float = float(num_candidate)
-                if not (
-                    parsed_float != parsed_float
-                    or parsed_float in (float("inf"), float("-inf"))
-                ):
-                    return parsed_float
-                raise VerticalParseError(f"Numeric literal out of range: {val_str!r}")
-            return int(num_candidate)
+            parsed_num: int | float = (
+                float(num_candidate) if is_float_literal else int(num_candidate)
+            )
+        except OverflowError as err:
+            raise VerticalParseError(
+                f"Numeric literal out of range: {val_str!r}"
+            ) from err
         except ValueError:
-            pass
+            parsed_num = float("nan")
+        else:
+            if isinstance(parsed_num, float) and not math.isfinite(parsed_num):
+                raise VerticalParseError(f"Numeric literal out of range: {val_str!r}")
+            return parsed_num
 
     # 4. Data binding: $/path/to/data, $path, or lone $
     if val_str.startswith("$"):
@@ -607,6 +772,8 @@ def _parse_raw_value(val_str: str) -> Any:
     # 5. Check rule: ?required or ?regex("...", "error msg")
     if val_str.startswith("?"):
         check_body = val_str[1:].strip()
+        if _BARE_CHECK_IDENT_RE.match(check_body):
+            return _RawCheck(check_body, [], {})
         m = _CALL_HEADER_RE.match(check_body) or _UNCLOSED_CALL_HEADER_RE.match(
             check_body
         )
@@ -632,13 +799,16 @@ def _parse_raw_value(val_str: str) -> Any:
         res_dict: dict[str, Any] = {}
         for entry in _split_args(inner):
             k, v = _parse_arg_chunk(entry)
-            if k is not None:
-                res_dict[k] = v
+            if k is None:
+                raise VerticalParseError(
+                    f"Malformed map literal entry {entry!r}; expected 'key: value'."
+                )
+            res_dict[k] = v
         return res_dict
 
     # 8. Call expression: Event(...), fn(...), @index(...)
     call_m = _CALL_HEADER_RE.match(val_str) or _UNCLOSED_CALL_HEADER_RE.match(val_str)
-    if call_m and "(" in val_str:
+    if call_m:
         fn_name = call_m.group(1)
         inner = (call_m.group(2) or "").strip()
         pos_args, kw_args = _parse_call_args(inner)
@@ -650,7 +820,7 @@ def _parse_raw_value(val_str: str) -> Any:
 
 def _expected_primitive_type(schema: Any) -> str | None:
     """Resolves the expected primitive type (`number`, `integer`, `boolean`, `string`) from a schema."""
-    if not isinstance(schema, dict):
+    if not isinstance(schema, Mapping):
         return None
     t = schema.get("type")
     if t in ("integer", "number", "boolean", "string"):
@@ -675,6 +845,123 @@ def _expected_primitive_type(schema: Any) -> str | None:
     return None
 
 
+def schema_allows_databinding(prop_schema: Any) -> bool:
+    """Checks whether a property JSON schema permits dynamic `$path` data bindings."""
+    if not isinstance(prop_schema, Mapping):
+        return False
+    ref = prop_schema.get("$ref")
+    if isinstance(ref, str) and ("DataBinding" in ref or "Dynamic" in ref):
+        return True
+    props = prop_schema.get("properties")
+    if (
+        isinstance(props, Mapping)
+        and ("path" in props or "@path" in props)
+        and "componentId" not in props
+    ):
+        return True
+    if "items" in prop_schema and schema_allows_databinding(prop_schema["items"]):
+        return True
+    for key in ("oneOf", "anyOf", "allOf"):
+        subs = prop_schema.get(key)
+        if isinstance(subs, list) and any(
+            schema_allows_databinding(sub) for sub in subs
+        ):
+            return True
+    return False
+
+
+def _has_child_ref(schema: Any) -> bool:
+    if not isinstance(schema, Mapping):
+        return False
+    ref = schema.get("$ref")
+    if isinstance(ref, str) and (
+        "ComponentId" in ref or ref.endswith("/Child") or ref.endswith("/ChildList")
+    ):
+        return True
+    if "items" in schema and _has_child_ref(schema["items"]):
+        return True
+    for key in ("oneOf", "anyOf", "allOf"):
+        subs = schema.get(key)
+        if isinstance(subs, list) and any(_has_child_ref(s) for s in subs):
+            return True
+    return False
+
+
+def is_child_slot(
+    helper: CatalogSchemaHelper | None, comp_name: str, prop_name: str
+) -> bool:
+    """Returns True if `prop_name` on `comp_name` is a child component ID slot."""
+    if helper is None or comp_name not in helper.components:
+        return prop_name in ("child", "children")
+    p_type = helper.get_property_type(comp_name, prop_name)
+    if p_type in ("Child", "ChildList"):
+        return True
+    p_schema = helper.get_property_schema(comp_name, prop_name)
+    if _has_child_ref(p_schema):
+        return True
+    if not helper.common_types_loaded and prop_name in ("child", "children"):
+        if isinstance(p_schema, Mapping) and p_schema.get("type") in (
+            "integer",
+            "number",
+            "boolean",
+            "object",
+        ):
+            return False
+        return True
+    return False
+
+
+def is_prop_action_slot(
+    helper: CatalogSchemaHelper | None, comp_name: str, prop_name: str
+) -> bool:
+    """Returns True if `prop_name` on `comp_name` is an `Action` slot."""
+    if helper is None or comp_name not in helper.components:
+        return False
+    if helper.get_property_type(comp_name, prop_name) == "Action":
+        return True
+    p_schema = helper.get_property_schema(comp_name, prop_name)
+    if is_action_slot(p_schema):
+        return True
+    if (
+        not helper.common_types_loaded
+        and prop_name == "action"
+        and isinstance(p_schema, Mapping)
+        and p_schema.get("type") in (None, "Action")
+    ):
+        return True
+    return False
+
+
+def _contains_raw_path(node: Any) -> bool:
+    """Returns True if `node` holds a `_RawPath` outside of any `_RawCall`."""
+    if isinstance(node, _RawPath):
+        return True
+    if isinstance(node, dict):
+        return any(_contains_raw_path(v) for v in node.values())
+    if isinstance(node, list):
+        return any(_contains_raw_path(v) for v in node)
+    return False
+
+
+def _contains_raw_call(node: Any) -> str | None:
+    """Returns the first nested `_RawCall` name inside `node`, if any."""
+    if isinstance(node, _RawCall):
+        return node.name
+    if isinstance(node, _RawCheck):
+        return f"?{node.name}"
+    if isinstance(node, dict):
+        for v in node.values():
+            found = _contains_raw_call(v)
+            if found:
+                return found
+    if isinstance(node, list):
+        for v in node:
+            found = _contains_raw_call(v)
+            if found:
+                return found
+    return None
+
+
 def ordered_component_properties(
     helper: CatalogSchemaHelper, comp_name: str
 ) -> list[str]:
@@ -682,8 +969,8 @@ def ordered_component_properties(
     raw_props = [
         p
         for p in helper.get_component_properties(comp_name)
-        if p not in ("component", "id", "catalogId", "child", "children", "checks")
-        and helper.get_property_type(comp_name, p) not in ("Child", "ChildList")
+        if p not in ("component", "id", "catalogId", "checks", "weight")
+        and not is_child_slot(helper, comp_name, p)
     ]
 
     def _sort_key(item: tuple[int, str]) -> tuple[int, int]:
@@ -691,7 +978,7 @@ def ordered_component_properties(
         schema = helper.get_property_schema(comp_name, prop)
         pos_idx = (
             schema.get("positionalIndex", 999)
-            if isinstance(schema, dict)
+            if isinstance(schema, Mapping)
             and isinstance(schema.get("positionalIndex"), int)
             else 999
         )
@@ -711,11 +998,12 @@ class VerticalCompiler:
     ):
         self._catalogs = check_mixed_catalogs(catalogs)
         self.surface_id = surface_id
-        self.version = (
-            normalize_wire_version(version)
+        raw_ver = (
+            version
             if version is not None
             else catalogs_protocol_version(self._catalogs)
         )
+        self.version = normalize_wire_version(raw_ver)
         self.helpers = build_catalog_helpers(self._catalogs, self.version)
 
     @property
@@ -739,14 +1027,7 @@ class VerticalCompiler:
     def _defines_component(self, name: str, catalog_id: Any) -> bool:
         if isinstance(catalog_id, str) and catalog_id in self.helpers:
             return name in self.helpers[catalog_id].components
-        if catalogs_defining(self.helpers, "component", name):
-            return True
-        lower = name.lower()
-        return any(
-            c.lower() == lower
-            for helper in self.helpers.values()
-            for c in helper.components
-        )
+        return bool(catalogs_defining(self.helpers, "component", name))
 
     def _defines_function(self, name: str, catalog_id: Any) -> bool:
         if name.startswith("@"):
@@ -765,11 +1046,10 @@ class VerticalCompiler:
         *,
         at_least_v10: bool,
         target_version: str,
-        allow_unknown_single_catalog_component: bool = False,
-    ) -> tuple[str, CatalogSchemaHelper | None, str | None]:
+    ) -> tuple[str, CatalogSchemaHelper, str | None]:
         """Resolves a component or function name across active catalogs.
 
-        Returns `(canonical_name, helper_or_none, write_catalog_id)`.
+        Returns `(canonical_name, helper, write_catalog_id)`.
         """
         label = kind
         if catalog_id is not None:
@@ -785,40 +1065,19 @@ class VerticalCompiler:
                 )
             helper = self._helper_for(catalog_id)
             defined = helper.components if kind == "component" else helper.functions
-            matched_name = name
-            if name not in defined and kind == "component":
-                for cand in defined:
-                    if cand.lower() == name.lower():
-                        matched_name = cand
-                        break
-            if matched_name not in defined:
+            if name not in defined:
                 raise VerticalValidationError(
                     f"Unknown {label} '{name}' not defined in catalog '{catalog_id}'."
                 )
-            return matched_name, helper, catalog_id
+            return name, helper, catalog_id
 
         matches = catalogs_defining(self.helpers, kind, name)
-        matched_name = name
-        if not matches and kind == "component":
-            lower = name.lower()
-            ci_matches: list[tuple[str, str]] = [
-                (cat_id, cand)
-                for cat_id, h in self.helpers.items()
-                for cand in h.components
-                if cand.lower() == lower
-            ]
-            if len(ci_matches) == 1:
-                matches = [ci_matches[0][0]]
-                matched_name = ci_matches[0][1]
-
         if len(matches) > 1:
             raise VerticalValidationError(
                 f"{label.capitalize()} '{name}' is defined in several catalogs:"
                 f' {matches}. Specify catalogId="..." to disambiguate.'
             )
         if not matches:
-            if allow_unknown_single_catalog_component and not self._is_multi_catalog:
-                return name, self.helpers[self._catalogs[0].catalog_id], None
             if self._is_multi_catalog:
                 raise VerticalValidationError(
                     f"Unknown {label} '{name}' not defined in any active catalog:"
@@ -831,7 +1090,7 @@ class VerticalCompiler:
 
         resolved_id = matches[0]
         return (
-            matched_name,
+            name,
             self.helpers[resolved_id],
             resolved_id if self._is_multi_catalog else None,
         )
@@ -861,8 +1120,10 @@ class VerticalCompiler:
                         k: v for k, v in obj.items() if k not in ("component", "id")
                     }
                     return _RawCall(comp_name, [], kwargs)
-            except json.JSONDecodeError:
-                pass
+            except json.JSONDecodeError as err:
+                raise VerticalParseError(
+                    f"Malformed JSON fallback statement: {stmt!r}"
+                ) from err
 
         # 2. Permissive JSX-style fallback: <Text text="Hello" />
         jsx_match = _JSX_STMT_RE.match(stmt)
@@ -888,6 +1149,8 @@ class VerticalCompiler:
             raise VerticalParseError(f"Cannot parse Vertical statement: {stmt!r}")
 
         name = call_match.group(1)
+        if not name.startswith("@") and not is_valid_uax31_identifier(name):
+            raise VerticalParseError(f"Invalid identifier {name!r} in statement.")
         args_raw = (call_match.group(2) or "").strip()
         pos_args, kw_args = _parse_call_args(args_raw)
         return _RawCall(name, pos_args, kw_args)
@@ -900,38 +1163,46 @@ class VerticalCompiler:
         target_version: str,
     ) -> dict[str, Any]:
         """Compiles an `Event(...)` helper call into an A2UI `event` action object."""
+        if len(call.pos_args) > 2:
+            raise VerticalValidationError(
+                "Event() accepts at most 2 positional arguments (name, context),"
+                f" got {len(call.pos_args)}."
+            )
+
+        path_key = "@path" if at_least_v10 else "path"
+        call_key = "@call" if at_least_v10 else "call"
         event_name: str | None = None
         context: dict[str, Any] = {}
+        has_pos_context = False
         user_message: Any = None
         has_user_message = False
 
-        for idx, pos_val in enumerate(call.pos_args):
-            if idx == 0:
-                compiled_name = self._compile_value(
-                    pos_val,
-                    schema=None,
-                    helper=None,
-                    at_least_v10=at_least_v10,
-                    target_version=target_version,
+        if call.pos_args:
+            compiled_name = self._compile_value(
+                call.pos_args[0],
+                schema=None,
+                helper=None,
+                at_least_v10=at_least_v10,
+                target_version=target_version,
+            )
+            if not isinstance(compiled_name, str) or not compiled_name:
+                raise VerticalValidationError(
+                    "Event() requires a non-empty string event name, got:"
+                    f" {compiled_name!r}."
                 )
-                if not isinstance(compiled_name, str) or not compiled_name:
-                    raise VerticalValidationError(
-                        "Event() requires a non-empty string event name, got:"
-                        f" {compiled_name!r}."
-                    )
-                event_name = compiled_name
-            elif idx == 1 and isinstance(pos_val, dict):
-                for ck, cv in pos_val.items():
-                    context[ck] = self._compile_value(
-                        cv,
-                        schema=None,
-                        helper=None,
-                        at_least_v10=at_least_v10,
-                        target_version=target_version,
-                    )
-            else:
-                context[f"arg_{idx}"] = self._compile_value(
-                    pos_val,
+            event_name = compiled_name
+
+        if len(call.pos_args) == 2:
+            pos_ctx = call.pos_args[1]
+            if not isinstance(pos_ctx, dict):
+                raise VerticalValidationError(
+                    "Event() second positional argument must be a context map,"
+                    f" got {pos_ctx!r}."
+                )
+            has_pos_context = True
+            for ck, cv in pos_ctx.items():
+                context[ck] = self._compile_value(
+                    cv,
                     schema=None,
                     helper=None,
                     at_least_v10=at_least_v10,
@@ -939,7 +1210,11 @@ class VerticalCompiler:
                 )
 
         for k, v in call.kw_args.items():
-            if k == "name" and event_name is None:
+            if k == "name":
+                if event_name is not None:
+                    raise VerticalValidationError(
+                        "Event() specifies 'name' both positionally and by keyword."
+                    )
                 compiled_name = self._compile_value(
                     v,
                     schema=None,
@@ -959,15 +1234,32 @@ class VerticalCompiler:
                         "Event() userMessage requires A2UI v1.0 or later"
                         f" (target version is {target_version})."
                     )
-                has_user_message = True
-                user_message = self._compile_value(
+                compiled_um = self._compile_value(
                     v,
                     schema=None,
                     helper=None,
                     at_least_v10=at_least_v10,
                     target_version=target_version,
                 )
-            elif k == "context" and isinstance(v, dict):
+                is_binding_or_call = isinstance(compiled_um, dict) and (
+                    path_key in compiled_um or call_key in compiled_um
+                )
+                if not isinstance(compiled_um, str) and not is_binding_or_call:
+                    raise VerticalValidationError(
+                        "Event() userMessage must be a string, a $path binding,"
+                        f" or a function call, got {compiled_um!r}."
+                    )
+                has_user_message = True
+                user_message = compiled_um
+            elif k == "context":
+                if has_pos_context:
+                    raise VerticalValidationError(
+                        "Event() specifies 'context' both positionally and by keyword."
+                    )
+                if not isinstance(v, dict):
+                    raise VerticalValidationError(
+                        f"Event() context= must be a map, got {v!r}."
+                    )
                 for ck, cv in v.items():
                     context[ck] = self._compile_value(
                         cv,
@@ -977,6 +1269,11 @@ class VerticalCompiler:
                         target_version=target_version,
                     )
             else:
+                if has_pos_context:
+                    raise VerticalValidationError(
+                        "Event() cannot mix positional context map with extra keyword"
+                        f" {k!r}."
+                    )
                 context[k] = self._compile_value(
                     v,
                     schema=None,
@@ -991,7 +1288,7 @@ class VerticalCompiler:
         event_body: dict[str, Any] = {"name": event_name}
         if has_user_message:
             event_body["userMessage"] = user_message
-        if context:
+        if context or has_pos_context or "context" in call.kw_args:
             event_body["context"] = context
         return {"event": event_body}
 
@@ -1018,7 +1315,6 @@ class VerticalCompiler:
             at_least_v10=at_least_v10,
             target_version=target_version,
         )
-        assert fn_helper is not None
 
         fn_props = fn_helper.get_function_properties(fn_name)
         args_obj: dict[str, Any] = {}
@@ -1039,6 +1335,16 @@ class VerticalCompiler:
             )
 
         for k, v in kw.items():
+            if k not in fn_props:
+                raise VerticalValidationError(
+                    f"Unknown parameter '{k}' for function '{fn_name}'."
+                    f" Expected one of: {fn_props}."
+                )
+            if k in args_obj:
+                raise VerticalValidationError(
+                    f"Parameter '{k}' of function '{fn_name}' specified both"
+                    " positionally and by keyword."
+                )
             param_schema = fn_helper.get_function_property_schema(fn_name, k)
             args_obj[k] = self._compile_value(
                 v,
@@ -1058,7 +1364,7 @@ class VerticalCompiler:
         self,
         check: _RawCheck,
         *,
-        sibling_value: Any,
+        sibling_binding: dict[str, str] | None,
         at_least_v10: bool,
         target_version: str,
     ) -> dict[str, Any]:
@@ -1067,14 +1373,29 @@ class VerticalCompiler:
         pos = list(check.pos_args)
         explicit_cat_id = kw.pop("catalogId", None)
 
-        # Support trailing `{catalogId: "..."}` option map as in Express
-        if pos and isinstance(pos[-1], dict) and "catalogId" in pos[-1]:
-            opt_map = pos.pop()
-            if set(opt_map.keys()) != {"catalogId"}:
-                raise VerticalValidationError(
-                    f"Check '?{check.name}' option map may only contain 'catalogId'."
-                )
-            explicit_cat_id = opt_map["catalogId"]
+        # Support `{catalogId: "..."}` option map as in Express
+        remaining_pos: list[Any] = []
+        for pos_item in pos:
+            if isinstance(pos_item, dict) and "catalogId" in pos_item:
+                if set(pos_item.keys()) != {"catalogId"}:
+                    raise VerticalValidationError(
+                        f"Check '?{check.name}' option map may only contain"
+                        " 'catalogId'."
+                    )
+                map_cat_id = pos_item["catalogId"]
+                if not isinstance(map_cat_id, str) or not map_cat_id:
+                    raise VerticalValidationError(
+                        f"Check '?{check.name}' catalogId must be a non-empty string,"
+                        f" got: {map_cat_id!r}."
+                    )
+                if explicit_cat_id is not None and explicit_cat_id != map_cat_id:
+                    raise VerticalValidationError(
+                        f"Check '?{check.name}' specifies conflicting catalogId values."
+                    )
+                explicit_cat_id = map_cat_id
+                continue
+            remaining_pos.append(pos_item)
+        pos = remaining_pos
 
         fn_name, fn_helper, write_cat_id = self._resolve_catalog_item(
             "function",
@@ -1083,34 +1404,55 @@ class VerticalCompiler:
             at_least_v10=at_least_v10,
             target_version=target_version,
         )
-        assert fn_helper is not None
 
         fn_props = fn_helper.get_function_properties(fn_name)
         args_obj: dict[str, Any] = {}
-        custom_message: str | None = kw.pop("message", None)
+        custom_message: Any = kw.pop("message", None)
+        if custom_message is not None and not isinstance(custom_message, str):
+            raise VerticalValidationError(
+                f"Check '?{fn_name}' message must be a string, got: {custom_message!r}."
+            )
 
-        # Auto-bind first `value` parameter from the component's `value` property
+        # Auto-bind first `value` parameter when component `value` is a `$path` binding
         remaining_props = list(fn_props)
+        has_explicit_pos_binding = bool(pos) and isinstance(pos[0], _RawPath)
         if (
             remaining_props
             and remaining_props[0] == "value"
             and "value" not in kw
-            and sibling_value is not None
+            and not has_explicit_pos_binding
         ):
-            args_obj["value"] = sibling_value
+            if sibling_binding is None:
+                raise VerticalValidationError(
+                    f"Check '?{fn_name}' requires a '$path' binding on the"
+                    " component's 'value' property or as its first argument."
+                )
+            args_obj["value"] = sibling_binding
             remaining_props = remaining_props[1:]
-
-        # Extra trailing string argument becomes CheckRule.message
-        if len(pos) == len(remaining_props) + 1 and isinstance(pos[-1], str):
-            custom_message = pos.pop()
 
         for idx, pos_val in enumerate(pos):
             if idx >= len(remaining_props):
+                if (
+                    idx == len(pos) - 1
+                    and isinstance(pos_val, str)
+                    and custom_message is None
+                ):
+                    custom_message = pos_val
+                    continue
                 raise VerticalValidationError(
                     f"Check '?{fn_name}' received too many arguments."
                 )
             param_name = remaining_props[idx]
             param_schema = fn_helper.get_function_property_schema(fn_name, param_name)
+            if (
+                isinstance(pos_val, str)
+                and _expected_primitive_type(param_schema)
+                in ("integer", "number", "boolean")
+                and idx == len(pos) - 1
+                and custom_message is None
+            ):
+                custom_message = pos_val
+                break
             args_obj[param_name] = self._compile_value(
                 pos_val,
                 schema=param_schema,
@@ -1120,6 +1462,14 @@ class VerticalCompiler:
             )
 
         for k, v in kw.items():
+            if k not in fn_props:
+                raise VerticalValidationError(
+                    f"Unknown parameter '{k}' in check '?{fn_name}'."
+                )
+            if k in args_obj:
+                raise VerticalValidationError(
+                    f"Duplicate parameter '{k}' in check '?{fn_name}'."
+                )
             param_schema = fn_helper.get_function_property_schema(fn_name, k)
             args_obj[k] = self._compile_value(
                 v,
@@ -1157,11 +1507,17 @@ class VerticalCompiler:
         if isinstance(val, _RawPath):
             return {path_key: val.pointer}
 
+        if isinstance(val, _RawCheck):
+            rule = self._compile_check_rule(
+                val,
+                sibling_binding=None,
+                at_least_v10=at_least_v10,
+                target_version=target_version,
+            )
+            return rule["condition"]
+
         if isinstance(val, _RawCall):
-            if (
-                val.name.lower() in ("event", "action")
-                and "catalogId" not in val.kw_args
-            ):
+            if val.name == "Event" and "catalogId" not in val.kw_args:
                 return self._compile_event(
                     val, at_least_v10=at_least_v10, target_version=target_version
                 )
@@ -1185,12 +1541,12 @@ class VerticalCompiler:
                     helper=helper,
                     at_least_v10=at_least_v10,
                     target_version=target_version,
+                    in_action_slot=is_action_slot(item_schema),
                 )
                 for item in val
             ]
 
         if isinstance(val, dict):
-            # Preserve pre-compiled JSON fallback dicts (e.g. {"@path": ...} or {"path": ...})
             out: dict[str, Any] = {}
             for k, v in val.items():
                 sub_schema = (
@@ -1221,23 +1577,59 @@ class VerticalCompiler:
                 cleaned = val.strip()
                 if cleaned.endswith("%"):
                     cleaned = cleaned[:-1].strip()
-                if cleaned.startswith("+"):
-                    cleaned = cleaned[1:].strip()
-                try:
-                    if expected_type == "integer":
-                        return int(float(cleaned))
-                    if "." in cleaned or "e" in cleaned.lower():
-                        return float(cleaned)
-                    return int(cleaned)
-                except (ValueError, TypeError):
+                if not _NUMBER_RE.match(cleaned):
                     return val
-            elif (
-                isinstance(val, float)
-                and not isinstance(val, bool)
-                and expected_type == "integer"
-                and val.is_integer()
-            ):
-                return int(val)
+                if expected_type == "integer":
+                    if _INTEGER_STR_RE.match(cleaned):
+                        return int(cleaned)
+                    try:
+                        f_val = float(cleaned)
+                    except OverflowError as err:
+                        raise VerticalValidationError(
+                            f"Numeric value out of finite range: {val!r}."
+                        ) from err
+                    except ValueError:
+                        return val
+                    if not math.isfinite(f_val):
+                        raise VerticalValidationError(
+                            f"Numeric value out of finite range: {val!r}."
+                        )
+                    if f_val.is_integer():
+                        try:
+                            return int(f_val)
+                        except OverflowError as err:
+                            raise VerticalValidationError(
+                                f"Numeric value out of finite range: {val!r}."
+                            ) from err
+                    raise VerticalValidationError(
+                        f"Expected an integer value, got non-integral {val!r}."
+                    )
+                if "." in cleaned or "e" in cleaned.lower():
+                    try:
+                        f_val = float(cleaned)
+                    except OverflowError as err:
+                        raise VerticalValidationError(
+                            f"Numeric value out of finite range: {val!r}."
+                        ) from err
+                    except ValueError:
+                        return val
+                    if not math.isfinite(f_val):
+                        raise VerticalValidationError(
+                            f"Numeric value out of finite range: {val!r}."
+                        )
+                    return f_val
+                return int(cleaned)
+            elif isinstance(val, float) and not isinstance(val, bool):
+                if not math.isfinite(val):
+                    raise VerticalValidationError(
+                        f"Numeric value out of finite range: {val!r}."
+                    )
+                if expected_type == "integer":
+                    if val.is_integer():
+                        return int(val)
+                    raise VerticalValidationError(
+                        f"Expected an integer value, got non-integral {val!r}."
+                    )
         elif expected_type == "boolean" and isinstance(val, str):
             cleaned = val.strip().lower()
             if cleaned in ("true", "1"):
@@ -1262,6 +1654,11 @@ class VerticalCompiler:
         if not isinstance(raw_ext, dict):
             raise VerticalValidationError(
                 f"Component '{comp_name}' extensions must be a map, got: {raw_ext!r}."
+            )
+        nested_call = _contains_raw_call(raw_ext)
+        if nested_call is not None:
+            raise VerticalValidationError(
+                f"Component '{comp_name}' extensions cannot contain '{nested_call}'."
             )
         compiled = self._compile_value(
             raw_ext,
@@ -1297,25 +1694,17 @@ class VerticalCompiler:
             explicit_cat_id,
             at_least_v10=at_least_v10,
             target_version=target_version,
-            allow_unknown_single_catalog_component=True,
         )
 
         comp_dict: dict[str, Any] = {"id": "root", "component": matched_name}
         if write_cat_id is not None:
             comp_dict["catalogId"] = write_cat_id
 
-        declared_props = (
-            comp_helper.get_component_properties(matched_name)
-            if comp_helper is not None and matched_name in comp_helper.components
-            else []
-        )
-        ordered_props = (
-            ordered_component_properties(comp_helper, matched_name)
-            if comp_helper is not None and matched_name in comp_helper.components
-            else []
-        )
+        declared_props = comp_helper.get_component_properties(matched_name)
+        declared_set = set(declared_props)
+        ordered_props = ordered_component_properties(comp_helper, matched_name)
 
-        if "extensions" in kw and "extensions" not in declared_props:
+        if "extensions" in kw and "extensions" not in declared_set:
             raw_ext = kw.pop("extensions")
             comp_dict["metadata"] = {
                 "extensions": self._compile_extensions(
@@ -1325,8 +1714,24 @@ class VerticalCompiler:
                     target_version=target_version,
                 )
             }
+        elif "metadata" in kw and "metadata" not in declared_set:
+            raw_meta = kw.pop("metadata")
+            if isinstance(raw_meta, dict) and set(raw_meta.keys()) == {"extensions"}:
+                comp_dict["metadata"] = {
+                    "extensions": self._compile_extensions(
+                        raw_meta["extensions"],
+                        comp_name=matched_name,
+                        at_least_v10=at_least_v10,
+                        target_version=target_version,
+                    )
+                }
+            else:
+                raise VerticalValidationError(
+                    f"Unknown property 'metadata' on component '{matched_name}'."
+                )
 
         raw_checks: list[_RawCheck] = []
+        dict_checks: list[dict[str, Any]] = []
         pos_values: list[Any] = []
         for arg in call.pos_args:
             if isinstance(arg, _RawCheck):
@@ -1341,6 +1746,13 @@ class VerticalCompiler:
                 pos_values.append(arg)
 
         if "checks" in kw:
+            if (
+                not comp_helper.is_checkable(matched_name)
+                and "checks" not in declared_set
+            ):
+                raise VerticalValidationError(
+                    f"Component '{matched_name}' does not declare validation checks."
+                )
             kw_checks = kw.pop("checks")
             if isinstance(kw_checks, _RawCheck):
                 raw_checks.append(kw_checks)
@@ -1349,76 +1761,115 @@ class VerticalCompiler:
                     if isinstance(item, _RawCheck):
                         raw_checks.append(item)
                     elif isinstance(item, dict):
-                        comp_dict.setdefault("checks", []).append(item)
+                        compiled_chk = self._compile_value(
+                            item,
+                            schema=None,
+                            helper=comp_helper,
+                            at_least_v10=at_least_v10,
+                            target_version=target_version,
+                        )
+                        assert isinstance(compiled_chk, dict)
+                        dict_checks.append(compiled_chk)
+                    else:
+                        raise VerticalValidationError(
+                            f"Invalid check item {item!r} on component"
+                            f" '{matched_name}'."
+                        )
+            else:
+                raise VerticalValidationError(
+                    f"Property 'checks' on component '{matched_name}' must be a list"
+                    f" of checks, got {kw_checks!r}."
+                )
 
+        if len(pos_values) > len(ordered_props):
+            raise VerticalValidationError(
+                f"Component '{matched_name}' accepts at most {len(ordered_props)}"
+                f" positional arguments ({ordered_props}), got {len(pos_values)}."
+            )
+
+        raw_value_ast: Any = None
         for idx, arg_val in enumerate(pos_values):
-            if idx < len(ordered_props):
-                prop_name = ordered_props[idx]
-                p_schema = (
-                    comp_helper.get_property_schema(matched_name, prop_name)
-                    if comp_helper is not None
-                    else None
+            prop_name = ordered_props[idx]
+            p_schema = comp_helper.get_property_schema(matched_name, prop_name)
+            if (
+                _contains_raw_path(arg_val)
+                and p_schema is not None
+                and not schema_allows_databinding(p_schema)
+            ):
+                raise VerticalValidationError(
+                    f"Property '{prop_name}' on component '{matched_name}' is static"
+                    " and does not accept '$path' data bindings."
                 )
-                p_type = (
-                    comp_helper.get_property_type(matched_name, prop_name)
-                    if comp_helper is not None
-                    else None
-                )
-                comp_dict[prop_name] = self._compile_value(
-                    arg_val,
-                    schema=p_schema,
-                    helper=comp_helper,
-                    at_least_v10=at_least_v10,
-                    target_version=target_version,
-                    in_action_slot=(
-                        p_type == "Action"
-                        or prop_name in ("action", "onClick", "onPress")
-                    ),
-                )
+            if prop_name == "value":
+                raw_value_ast = arg_val
+            comp_dict[prop_name] = self._compile_value(
+                arg_val,
+                schema=p_schema,
+                helper=comp_helper,
+                at_least_v10=at_least_v10,
+                target_version=target_version,
+                in_action_slot=is_prop_action_slot(
+                    comp_helper, matched_name, prop_name
+                ),
+            )
 
         for k, v in kw.items():
-            prop_target = k
-            for p in declared_props:
-                if p.lower() == k.lower():
-                    prop_target = p
-                    break
-            p_schema = (
-                comp_helper.get_property_schema(matched_name, prop_target)
-                if comp_helper is not None and matched_name in comp_helper.components
-                else None
-            )
-            p_type = (
-                comp_helper.get_property_type(matched_name, prop_target)
-                if comp_helper is not None and matched_name in comp_helper.components
-                else None
-            )
-            comp_dict[prop_target] = self._compile_value(
+            if k not in declared_set:
+                raise VerticalValidationError(
+                    f"Unknown property '{k}' on component '{matched_name}'."
+                    f" Allowed properties: {declared_props}."
+                )
+            if k in comp_dict:
+                raise VerticalValidationError(
+                    f"Duplicate property '{k}' on component '{matched_name}'."
+                )
+            p_schema = comp_helper.get_property_schema(matched_name, k)
+            if (
+                _contains_raw_path(v)
+                and p_schema is not None
+                and not schema_allows_databinding(p_schema)
+            ):
+                raise VerticalValidationError(
+                    f"Property '{k}' on component '{matched_name}' is static"
+                    " and does not accept '$path' data bindings."
+                )
+            if k == "value":
+                raw_value_ast = v
+            comp_dict[k] = self._compile_value(
                 v,
                 schema=p_schema,
                 helper=comp_helper,
                 at_least_v10=at_least_v10,
                 target_version=target_version,
-                in_action_slot=(
-                    p_type == "Action"
-                    or prop_target in ("action", "onClick", "onPress")
-                ),
+                in_action_slot=is_prop_action_slot(comp_helper, matched_name, k),
             )
+
+        if dict_checks:
+            comp_dict.setdefault("checks", []).extend(dict_checks)
 
         if raw_checks:
             if (
-                comp_helper is not None
-                and matched_name in comp_helper.components
-                and not comp_helper.is_checkable(matched_name)
-                and "checks" not in declared_props
+                not comp_helper.is_checkable(matched_name)
+                and "checks" not in declared_set
             ):
                 raise VerticalValidationError(
                     f"Component '{matched_name}' does not declare validation checks."
                 )
-            sibling_val = comp_dict.get("value")
+            path_key = "@path" if at_least_v10 else "path"
+            sibling_binding: dict[str, str] | None = None
+            if isinstance(raw_value_ast, _RawPath):
+                sibling_binding = {path_key: raw_value_ast.pointer}
+            elif (
+                isinstance(raw_value_ast, dict)
+                and set(raw_value_ast.keys()) == {path_key}
+                and isinstance(raw_value_ast.get(path_key), str)
+            ):
+                sibling_binding = {path_key: raw_value_ast[path_key]}
+
             compiled_rules = [
                 self._compile_check_rule(
                     chk,
-                    sibling_value=sibling_val,
+                    sibling_binding=sibling_binding,
                     at_least_v10=at_least_v10,
                     target_version=target_version,
                 )
@@ -1514,6 +1965,7 @@ class VerticalCompiler:
         version: str | None = None,
         surface_offset: int = 0,
         call_offset: int = 0,
+        existing_surface_ids: AbstractSet[str] = frozenset(),
     ) -> tuple[list[dict[str, Any]], int, int]:
         """Compiles Vertical statements into raw message dicts, returning `(messages, next_surface_offset, next_call_offset)`."""
         target_version = (
@@ -1527,7 +1979,7 @@ class VerticalCompiler:
             )
 
         resolved_surface_id = surface_id or self.surface_id
-        clean_text = _strip_markdown_and_tags(raw_text)
+        clean_text = _strip_outer_tags_and_fences(raw_text)
         if not clean_text:
             return [], surface_offset, call_offset
 
@@ -1535,14 +1987,9 @@ class VerticalCompiler:
         messages: list[dict[str, Any]] = []
         surf_idx = surface_offset
         call_idx = call_offset
+        used_surfaces = set(existing_surface_ids)
 
         for stmt in statements:
-            surf_m = _SURFACE_DIRECTIVE_RE.match(stmt)
-            if surf_m:
-                resolved_surface_id = surf_m.group(1)
-                surf_idx = 0
-                continue
-
             call = self._parse_statement(stmt)
             if call is None:
                 continue
@@ -1568,12 +2015,18 @@ class VerticalCompiler:
                 at_least_v10=at_least_v10,
                 target_version=target_version,
             )
-            surf_id = (
-                resolved_surface_id
-                if surf_idx == 0
-                else f"{resolved_surface_id}_{surf_idx}"
-            )
-            surf_idx += 1
+            while True:
+                candidate = (
+                    resolved_surface_id
+                    if surf_idx == 0
+                    else f"{resolved_surface_id}_{surf_idx}"
+                )
+                surf_idx += 1
+                if candidate not in used_surfaces:
+                    surf_id = candidate
+                    used_surfaces.add(surf_id)
+                    break
+
             messages.extend(
                 self._build_surface_messages_for_component(
                     comp_dict,
@@ -1589,24 +2042,22 @@ class VerticalCompiler:
     def compile(
         self,
         raw_text: str,
+        *,
         surface_id: str | None = None,
         catalog_id: str = "",
         is_final: bool = True,
         version: str | None = None,
-    ) -> list[AgentToRendererMessage] | list[dict[str, Any]]:
+        existing_surface_ids: AbstractSet[str] = frozenset(),
+        call_offset: int = 0,
+    ) -> list[AgentToRendererMessage]:
         """Compiles raw Vertical text into validated `AgentToRendererMessage` models."""
-        target_version = (
-            normalize_wire_version(version) if version is not None else self.version
-        )
-        raw_messages, _, _ = self.compile_dicts(
+        raw_msgs, _, _ = self.compile_dicts(
             raw_text,
             surface_id=surface_id,
             catalog_id=catalog_id,
             is_final=is_final,
-            version=target_version,
+            version=version,
+            existing_surface_ids=existing_surface_ids,
+            call_offset=call_offset,
         )
-        if not raw_messages:
-            return []
-        if target_version not in _PUBLISHED_WIRE_VERSIONS:
-            return raw_messages
-        return to_message_models(raw_messages)
+        return to_message_models(raw_msgs)

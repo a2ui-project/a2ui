@@ -1,9 +1,10 @@
 /**
  * ANTLR4 grammar for the A2UI Vertical language.
  *
- * Defines the syntax and lexical rules for the A2UI Vertical inference format.
- * Compiles flat, non-nested component constructor and standalone function
- * invocations into standard A2UI messages (v0.9, v0.9.1, and 1.0).
+ * Defines the canonical syntax and lexical rules for the A2UI Vertical
+ * inference format. Compiles flat, non-nested component constructor and
+ * standalone function invocations into standard A2UI messages (v0.9, v0.9.1,
+ * and v1.0).
  */
 grammar Vertical;
 
@@ -34,7 +35,7 @@ arg
  * A named argument (e.g. 'city="Seattle"' or 'city: "Seattle"').
  */
 namedArg
-    : (IDENTIFIER | EVENT | STRING) ('=' | ':') value
+    : (IDENTIFIER | EVENT | string) ('=' | ':') value
     ;
 
 /**
@@ -61,10 +62,20 @@ value
  * Literal primitive values.
  */
 literal
-    : STRING
+    : string
     | NUMBER
     | BOOLEAN
     | NULL
+    ;
+
+/**
+ * Unified parser rule for all supported string literal variants.
+ */
+string
+    : RAW_TRIPLE_STRING
+    | TRIPLE_STRING
+    | RAW_STRING
+    | STANDARD_STRING
     ;
 
 /**
@@ -116,6 +127,26 @@ mapLiteral
 
 EVENT: 'Event';
 
+RAW_TRIPLE_STRING
+    : [rR] '"""' .*? '"""'
+    | [rR] '\'\'\'' .*? '\'\'\''
+    ;
+
+TRIPLE_STRING
+    : '"""' ('\\' . | ~'\\')*? '"""'
+    | '\'\'\'' ('\\' . | ~'\\')*? '\'\'\''
+    ;
+
+RAW_STRING
+    : [rR] '"' ~[\r\n"]* '"'
+    | [rR] '\'' ~[\r\n']* '\''
+    ;
+
+STANDARD_STRING
+    : '"' ('\\' . | ~["\\\r\n])* '"'
+    | '\'' ('\\' . | ~['\\\r\n])* '\''
+    ;
+
 PATH: '$' ('/' [a-zA-Z0-9_.~%+-]*)* | '$' [a-zA-Z0-9_.~%+-]+ ('/' [a-zA-Z0-9_.~%+-]+)*;
 
 BOOLEAN
@@ -128,23 +159,15 @@ NULL
     | [nN] [oO] [nN] [eE]
     ;
 
-IDENTIFIER: [a-zA-Z_][a-zA-Z0-9_]*;
+// UAX 31 identifier: XID_Start or '_', followed by XID_Continue*.
+IDENTIFIER: [\p{XID_Start}_] [\p{XID_Continue}]*;
 
 NUMBER
     : [+-]? ([0-9]+ ('.' [0-9]*)? | '.' [0-9]+) ([eE] [+-]? [0-9]+)? '%'?
     ;
 
-STRING
-    : [rR]? '"""' .*? '"""'
-    | [rR]? '\'\'\'' .*? '\'\'\''
-    | [rR]? '"' (~["\\\r\n] | '\\' .)* '"'
-    | [rR]? '\'' (~['\\\r\n] | '\\' .)* '\''
-    ;
-
 COMMENT
-    : '#' ~[\r\n]* -> channel(HIDDEN)
-    | '//' ~[\r\n]* -> channel(HIDDEN)
-    | '--' ~[\r\n]* -> channel(HIDDEN)
+    : ('#' | '//') ~[\r\n]* -> channel(HIDDEN)
     | '/*' .*? '*/' -> channel(HIDDEN)
     ;
 

@@ -16,7 +16,11 @@
 
 from __future__ import annotations
 
-from .compiler import VerticalCompiler
+from .compiler import (
+    VerticalCompiler,
+    VerticalParseError,
+    VerticalValidationError,
+)
 from .decompiler import VerticalDecompiler
 from .format import VerticalFormat, VerticalFormatFactory
 from .parser import VerticalParser
@@ -27,6 +31,8 @@ __all__ = [
     "VerticalDecompiler",
     "VerticalFormat",
     "VerticalFormatFactory",
+    "VerticalParseError",
     "VerticalParser",
     "VerticalResponseStream",
+    "VerticalValidationError",
 ]

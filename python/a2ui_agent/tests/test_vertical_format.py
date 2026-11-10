@@ -16,13 +16,11 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
 import pytest
 
 from a2ui.core import (
     A2uiCatalogError,
+    A2uiError,
     A2uiParseError,
     A2uiValidationError,
     Catalog,
@@ -39,6 +37,7 @@ from a2ui.inference_formats import (
 from a2ui.parser import A2uiPart, ErrorPart, TextPart
 from a2ui.processor import A2uiGenerator, CatalogConfig
 from a2ui.skill import SkillGenerator
+from a2ui.utils import RendererState
 
 
 def _make_v091_catalog() -> Catalog:
@@ -558,35 +557,61 @@ def test_prompt_generator_skill_and_processor_integration():
     dumped = to_message_dicts(parsed[0].a2ui)
     assert dumped[0]["createSurface"]["surfaceId"] == "proc_surface"
 
-    # Forward-compatible future wire version streaming
-    future_stream = (
-        VerticalFormat([basic_v10], surface_id="fut", version="v1.1")
-        .create_parser()
-        .open_stream()
+    # Unsupported wire versions are rejected up front
+    with pytest.raises(A2uiCatalogError):
+        VerticalFormat([basic_v10], surface_id="old", version="v0.8")
+    with pytest.raises(A2uiCatalogError):
+        VerticalFormat([basic_v10], surface_id="fut", version="1.1")
+
+    # BasicCatalog("1.0") instructions should not leak raw Column/Card JSON blocks
+    assert '"component": "Column"' not in prompt
+    assert '"component": "Card"' not in prompt
+    assert "weight" not in prompt
+
+    # Sequential numbering when only callRendererFunction is allowed
+    fn_only_fmt = VerticalFormat(
+        [_make_v10_catalog()],
+        allowed_messages=["callRendererFunction"],
+        surface_id="main",
     )
-    fut_parts = future_stream.feed('<a2ui>\nText("Future v1.1")\n</a2ui>')
-    assert len(fut_parts) == 1
-    assert isinstance(fut_parts[0], A2uiPart)
-    assert fut_parts[0].a2ui[0]["version"] == "1.1"
+    fn_prompt = fn_only_fmt.prompt_generator.generate()
+    assert "1. Standalone Renderer Function Calls:" in fn_prompt
+    assert "6. Standalone Renderer Function Calls:" not in fn_prompt
 
 
-def test_coercion_with_standalone_eval_catalog():
-    repo_root = Path(__file__).resolve().parents[3]
-    catalog_path = (
-        repo_root / "eval" / "catalogs" / "standalone_components" / "catalog.json"
+def test_coercion_with_standalone_widget_catalog():
+    weather_props = {
+        "component": {"const": "WeatherWidget"},
+        "city": {"type": "string"},
+        "temperature": {"type": "integer"},
+        "condition": {"type": "string"},
+        "high": {"type": "integer"},
+        "low": {"type": "integer"},
+        "humidity": {"type": "integer"},
+        "unit": {"type": "string"},
+    }
+    cat_v091 = Catalog.from_json(
+        {
+            "catalogId": "https://example.com/catalogs/weather_v091",
+            "components": {
+                "WeatherWidget": {
+                    "type": "object",
+                    "properties": weather_props,
+                    "required": ["component", "city", "temperature"],
+                }
+            },
+            "$defs": {
+                "anyComponent": {"oneOf": [{"$ref": "#/components/WeatherWidget"}]}
+            },
+        },
+        protocol_version="0.9.1",
     )
-    if not catalog_path.exists():
-        pytest.skip(f"Standalone catalog not found at {catalog_path}")
-
-    cat_data = json.loads(catalog_path.read_text(encoding="utf-8"))
-    catalog = Catalog.from_json(cat_data, protocol_version="0.9.1")
-    fmt = VerticalFormat([catalog], surface_id="main", version="v0.9.1")
-
+    fmt_v091 = VerticalFormat([cat_v091], surface_id="main", version="v0.9.1")
     raw = (
         '<a2ui>\nWeatherWidget(city="Seattle", temperature="58", condition="rainy",'
         ' high="62", low="50", humidity="82", unit="fahrenheit")\n</a2ui>'
     )
-    msgs = to_message_dicts(fmt.create_parser().compile(raw))
+    msgs = to_message_dicts(fmt_v091.create_parser().compile(raw))
     w_comp = msgs[1]["updateComponents"]["components"][0]
     assert w_comp["temperature"] == 58
     assert isinstance(w_comp["temperature"], int)
@@ -594,19 +619,205 @@ def test_coercion_with_standalone_eval_catalog():
     assert w_comp["low"] == 50
     assert w_comp["humidity"] == 82
 
-    v1_catalog_path = (
-        repo_root
-        / "eval"
-        / "catalogs"
-        / "standalone_components"
-        / "v1"
-        / "catalog.json"
+    cat_v10 = Catalog.from_json(
+        {
+            "catalogId": "https://example.com/catalogs/weather_v10",
+            "protocolVersion": "1.0",
+            "components": {
+                "WeatherWidget": {
+                    "type": "object",
+                    "properties": weather_props,
+                    "required": ["component", "city", "temperature"],
+                }
+            },
+            "$defs": {
+                "anyComponent": {"oneOf": [{"$ref": "#/components/WeatherWidget"}]}
+            },
+        },
+        protocol_version="1.0",
     )
-    if v1_catalog_path.exists():
-        v1_data = json.loads(v1_catalog_path.read_text(encoding="utf-8"))
-        v1_cat = Catalog.from_json(v1_data, protocol_version="1.0")
-        v1_fmt = VerticalFormat([v1_cat], surface_id="main", version="1.0")
-        v1_msgs = to_message_dicts(v1_fmt.create_parser().compile(raw))
-        v1_comp = v1_msgs[0]["createSurface"]["components"][0]
-        assert v1_comp["temperature"] == 58
-        assert isinstance(v1_comp["temperature"], int)
+    v1_fmt = VerticalFormat([cat_v10], surface_id="main", version="1.0")
+    v1_msgs = to_message_dicts(v1_fmt.create_parser().compile(raw))
+    v1_comp = v1_msgs[0]["createSurface"]["components"][0]
+    assert v1_comp["temperature"] == 58
+    assert isinstance(v1_comp["temperature"], int)
+
+    # Non-integral string is NOT truncated to int and fails validation cleanly
+    bad_parser = v1_fmt.create_parser()
+    with pytest.raises(A2uiValidationError):
+        bad_parser.parse_response(
+            '<a2ui>\nWeatherWidget(city="Seattle", temperature="58.9")\n</a2ui>'
+        )
+    with pytest.raises(A2uiError):
+        bad_parser.compile('WeatherWidget(city="Seattle", temperature="1e999")')
+
+
+def test_multi_block_multi_turn_and_continued_stream_ids():
+    cat_v10 = _make_v10_catalog()
+    parser = VerticalFormat([cat_v10], surface_id="main").create_parser()
+    state = RendererState([cat_v10])
+
+    # Turn 1: two <a2ui> blocks with both components and standalone calls
+    turn1 = parser.parse_response(
+        'First:\n<a2ui>\nText("A")\nopenUrl("https://example.com/1")\n</a2ui>\n'
+        'Second:\n<a2ui>\nText("B")\nopenUrl("https://example.com/2")\n</a2ui>',
+        state=state,
+    )
+    a2ui_t1 = [to_message_dicts(p.a2ui) for p in turn1 if isinstance(p, A2uiPart)]
+    assert len(a2ui_t1) == 2
+    assert a2ui_t1[0][0]["createSurface"]["surfaceId"] == "main"
+    assert a2ui_t1[0][1]["callRendererFunction"]["functionCallId"] == "call_1"
+    assert a2ui_t1[1][0]["createSurface"]["surfaceId"] == "main_1"
+    assert a2ui_t1[1][1]["callRendererFunction"]["functionCallId"] == "call_2"
+
+    # Turn 2 on the same persistent RendererState advances to main_2 and call_3
+    turn2 = parser.parse_response(
+        '<a2ui>\nText("C")\nopenUrl("https://example.com/3")\n</a2ui>',
+        state=state,
+    )
+    a2ui_t2 = [to_message_dicts(p.a2ui) for p in turn2 if isinstance(p, A2uiPart)]
+    assert a2ui_t2[0][0]["createSurface"]["surfaceId"] == "main_2"
+    assert a2ui_t2[0][1]["callRendererFunction"]["functionCallId"] == "call_3"
+
+    # Streaming after_rejected_block="continue" after partial emission in block 1
+    stream = parser.open_stream(after_rejected_block="continue")
+    parts = stream.feed(
+        '<a2ui>\nText("Before failure")\nrendererOnlyHelper()\n</a2ui>\n'
+        '<a2ui>\nText("After recovery")\n</a2ui>'
+    )
+    emitted_surfaces = [
+        to_message_dicts(p.a2ui)[0]["createSurface"]["surfaceId"]
+        for p in parts
+        if isinstance(p, A2uiPart)
+    ]
+    assert emitted_surfaces == ["main", "main_1"]
+    assert any(isinstance(p, ErrorPart) for p in parts)
+    assert stream.close() == []
+
+
+def test_comments_string_fences_and_catalog_agnostic_properties():
+    domain_cat = Catalog.from_json(
+        {
+            "catalogId": "https://example.com/catalogs/domain",
+            "protocolVersion": "1.0",
+            "components": {
+                "BookingCard": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "BookingCard"},
+                        "action": {"type": "string"},
+                        "onClick": {"type": "string"},
+                        "children": {"type": "integer"},
+                        "color": {"type": "string"},
+                        "url": {"type": "string"},
+                        "notes": {"type": "string"},
+                    },
+                    "required": ["component"],
+                },
+                "CodeInput": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "CodeInput"},
+                        "value": {"$ref": "common_types.json#/$defs/DynamicString"},
+                        "checks": {
+                            "type": "array",
+                            "items": {"$ref": "common_types.json#/$defs/CheckRule"},
+                        },
+                    },
+                    "required": ["component", "value"],
+                },
+            },
+            "functions": {
+                "length": {
+                    "type": "object",
+                    "properties": {
+                        "@call": {"const": "length"},
+                        "args": {
+                            "type": "object",
+                            "properties": {
+                                "value": {
+                                    "$ref": "common_types.json#/$defs/DynamicString"
+                                },
+                                "min": {"type": "integer"},
+                                "max": {"type": "integer"},
+                            },
+                            "required": ["value"],
+                            "additionalProperties": False,
+                        },
+                        "returnType": {"const": "validationResult"},
+                    },
+                    "required": ["@call", "args"],
+                }
+            },
+            "$defs": {
+                "anyComponent": {
+                    "oneOf": [
+                        {"$ref": "#/components/BookingCard"},
+                        {"$ref": "#/components/CodeInput"},
+                    ]
+                }
+            },
+        },
+        protocol_version="1.0",
+    )
+    parser = VerticalFormat([domain_cat], surface_id="main").create_parser()
+
+    # Non-Action 'action'/'onClick' strings and integer 'children' stay literal
+    msgs = to_message_dicts(
+        parser.compile(
+            "BookingCard(\n"
+            '  action="checkout", # inline comment\n'
+            '  /* block: comment */ onClick="track_click",\n'
+            "  children=2,\n"
+            "  color=#ff00aa,\n"
+            "  url=https://example.com/book,\n"
+            '  notes="""Code:\n```py\nx = 1\n```\n"""\n'
+            ")"
+        )
+    )
+    comp = msgs[0]["createSurface"]["components"][0]
+    assert comp["action"] == "checkout"
+    assert comp["onClick"] == "track_click"
+    assert comp["children"] == 2
+    assert comp["color"] == "#ff00aa"
+    assert comp["url"] == "https://example.com/book"
+    assert "```py\nx = 1\n```" in comp["notes"]
+
+    # Round-trip decompile preserves non-child 'children' and non-action strings
+    decompiled = parser.decompile(msgs)
+    recompiled = to_message_dicts(parser.compile(decompiled))
+    assert recompiled[0]["createSurface"]["components"][0] == comp
+
+    # Same-line statements split identically in compile() and open_stream()
+    same_line_msgs = to_message_dicts(
+        parser.compile('BookingCard(action="one") BookingCard(action="two")')
+    )
+    assert len(same_line_msgs) == 2
+    assert same_line_msgs[0]["createSurface"]["surfaceId"] == "main"
+    assert same_line_msgs[1]["createSurface"]["surfaceId"] == "main_1"
+
+    # Optional numeric check parameter with trailing custom message
+    chk_msgs = to_message_dicts(
+        parser.compile('CodeInput(value=$/code, checks=[?length(5, "Too short")])')
+    )
+    chk = chk_msgs[0]["createSurface"]["components"][0]["checks"][0]
+    assert chk["condition"]["args"] == {
+        "value": {"@path": "/code"},
+        "min": 5,
+    }
+    assert chk["message"] == "Too short"
+
+    # Missing value binding on check raises ValidationError
+    with pytest.raises(A2uiValidationError):
+        parser.compile('CodeInput(value="literal", checks=[?length(5, "Too short")])')
+
+    # Outer markdown code fence and inline backtick stripping in streaming
+    stream = parser.open_stream()
+    stream_parts = stream.feed(
+        '```a2ui\n<a2ui>`BookingCard(action="fenced")`</a2ui>\n```'
+    )
+    stream_parts.extend(stream.close())
+    a2ui_stream = [p for p in stream_parts if isinstance(p, A2uiPart)]
+    text_stream = [p for p in stream_parts if isinstance(p, TextPart)]
+    assert len(a2ui_stream) == 1
+    assert text_stream == []

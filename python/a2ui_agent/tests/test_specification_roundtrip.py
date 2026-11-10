@@ -243,20 +243,20 @@ class TestSpecificationRoundtripAllFormats:
             print(f"\n[Atom Error] {os.path.basename(json_file)}: {e}")
 
         # 4. Test Vertical Format Roundtrip (for non-nested / standalone components)
-        if len(all_components) == 1 and not any(
-            p in all_components[0] for p in ("child", "children")
+        if (
+            len(all_components) == 1
+            and not any(p in all_components[0] for p in ("child", "children"))
+            and not self.vertical_fmt.prompt_generator.component_requires_children(
+                str(all_components[0].get("component", ""))
+            )
         ):
-            try:
-                vertical_dsl = self.vertical_fmt.create_parser().decompile(
-                    surface_payload
-                )
-                if vertical_dsl:
-                    recompiled = self.vertical_fmt.create_parser().compile(vertical_dsl)
-                    _assert_recompiled_matches_payload(
-                        recompiled, surface_id, all_components
-                    )
-                    processed += 1
-            except Exception as e:
-                print(f"\n[Vertical Error] {os.path.basename(json_file)}: {e}")
+            vertical_dsl = self.vertical_fmt.create_parser().decompile(surface_payload)
+            assert vertical_dsl, (
+                "Vertical decompile produced empty output for"
+                f" {os.path.basename(json_file)}"
+            )
+            recompiled = self.vertical_fmt.create_parser().compile(vertical_dsl)
+            _assert_recompiled_matches_payload(recompiled, surface_id, all_components)
+            processed += 1
 
         assert processed > 0, f"No formats processed for {os.path.basename(json_file)}"
