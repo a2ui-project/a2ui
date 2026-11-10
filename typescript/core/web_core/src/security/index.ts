@@ -21,7 +21,9 @@
  */
 
 export {
+  applyUrlSecurityPolicy,
   PermissiveUrlSecurityPolicy,
+  redactUrl,
   type UrlCheckInfo,
   type UrlContext,
   type UrlContextAnnotation,
@@ -34,11 +36,13 @@ export {
   type AllowlistUrlSecurityPolicyOptions,
   type UrlRewriteHook,
 } from './allowlist_url_security_policy.js';
+export {BASIC_CATALOG_URL_PROPERTIES} from './basic_catalog_url_properties.js';
 export {
   URL_CONTEXT_KEYWORD,
   iframeUrl,
   mediaUrl,
   navigationUrl,
+  urlContextOf,
   type UrlSchema,
   type UrlString,
   type UrlValue,

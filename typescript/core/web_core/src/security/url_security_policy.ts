@@ -242,8 +242,9 @@ export const DEFAULT_URL_SECURITY_POLICY: UrlSecurityPolicy = new PermissiveUrlS
  * Checks a URL with the baseline, then the policy, then the baseline again on
  * what the policy returned. A policy that throws blocks the URL.
  *
- * Package-internal; components and functions call `sanitizeUrl` on the
- * context they receive instead.
+ * Components and functions call `sanitizeUrl` on the context they receive
+ * instead, which also reports blocked URLs. This is for code that checks URLs
+ * outside a surface, such as an agent checking a payload before sending it.
  *
  * @param policy The policy to apply.
  * @param url The URL to check.
@@ -275,8 +276,6 @@ export function applyUrlSecurityPolicy(
  * relative URL, and `<scheme>:` otherwise. The path, query, fragment, user
  * info, and `data:` payload, any of which may carry exfiltrated data, are
  * dropped.
- *
- * Package-internal.
  *
  * @param url The URL to redact.
  */

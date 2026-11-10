@@ -37,7 +37,7 @@ import {resolveSignalKeepingPending} from './data-context-internal.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.js';
 import {effect, getValue, peekValue} from '../reactivity/signals.js';
-import {BUILT_IN_URL_PROPERTIES} from '../security/basic_catalog_url_properties.js';
+import {BASIC_CATALOG_URL_PROPERTIES} from '../security/basic_catalog_url_properties.js';
 import {urlContextOf, type IsUrlProp} from '../security/url_schema.js';
 import type {
   UrlContext,
@@ -1178,7 +1178,7 @@ function withUrlPropertyOverrides(
   const catalogId = context.componentModel.catalog?.id;
   if (catalogId === undefined) return tree;
   const type = context.componentModel.type;
-  const builtIn = lookupUrlProperties(BUILT_IN_URL_PROPERTIES, catalogId, type);
+  const builtIn = lookupUrlProperties(BASIC_CATALOG_URL_PROPERTIES, catalogId, type);
   const host = lookupUrlProperties(
     context.dataContext.surface?.urlSecurityPolicy?.urlProperties,
     catalogId,

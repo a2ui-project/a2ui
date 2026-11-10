@@ -22,8 +22,6 @@
  * schemas (kept out of the catalog document), so the marks follow the
  * components into catalogs with other IDs. This list covers basic catalogs
  * loaded from their JSON documents.
- *
- * Package-internal.
  */
 
 import type {UrlContextAnnotation, UrlPropertyMap} from './url_security_policy.js';
@@ -42,7 +40,12 @@ export const BASIC_CATALOG_IDS: ReadonlySet<string> = new Set([
   'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
 ]);
 
-/** URL properties of the basic catalogs, by catalog ID. */
-export const BUILT_IN_URL_PROPERTIES: UrlPropertyMap = Object.fromEntries(
+/**
+ * URL properties of the basic catalogs, by catalog ID, then component type,
+ * then property name. Renderers apply them on their own; code that checks
+ * payloads against a basic catalog loaded from JSON, such as an agent, can
+ * pass them where it would read `x-a2ui-url-context`.
+ */
+export const BASIC_CATALOG_URL_PROPERTIES: UrlPropertyMap = Object.fromEntries(
   [...BASIC_CATALOG_IDS].map(id => [id, BASIC_COMPONENT_URL_PROPERTIES]),
 );

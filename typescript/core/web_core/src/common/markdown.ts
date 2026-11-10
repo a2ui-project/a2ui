@@ -21,6 +21,8 @@
  * and tag-based CSS class mapping.
  */
 
+import type {UrlContext} from '../security/url_security_policy.js';
+
 /**
  * Mapping of HTML tag names to class lists applied during markdown rendering.
  */
@@ -36,6 +38,13 @@ export interface MarkdownRendererOptions {
   renderMode?: 'inline' | 'block';
   /** Custom renderer function overriding standard markdown compilation. */
   renderer?: MarkdownRenderer;
+  /**
+   * Checks each link and image URL in the markdown against the surface's URL
+   * security policy. Returns the URL to use, possibly rewritten, or
+   * `undefined` to drop it. Renderers that support links or images call it
+   * with `'navigation'` for links and `'media'` for images.
+   */
+  sanitizeUrl?: (url: string, context: UrlContext) => string | undefined;
 }
 
 /**

@@ -125,7 +125,8 @@ function unwrapOnce(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
  * Returns the URL context stamped on a schema or on one of the wrappers
  * (`optional`, `default`, and so on) around it.
  *
- * Package-internal.
+ * Code that resolves component props without `GenericBinder` uses it to find
+ * the props it has to pass through `sanitizeUrl`.
  *
  * @param schema The schema to inspect.
  * @param forDocument Whether the caller writes a catalog document, in which
