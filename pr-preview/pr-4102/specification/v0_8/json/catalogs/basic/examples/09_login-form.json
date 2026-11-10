@@ -1,0 +1,187 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "gallery-login-form",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Card": {
+              "child": "main-column"
+            }
+          }
+        },
+        {
+          "id": "main-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": [
+                  "header",
+                  "email-field",
+                  "password-field",
+                  "login-btn",
+                  "divider",
+                  "signup-text"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "header",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["title", "subtitle"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "title",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Welcome back"
+              },
+              "usageHint": "h2"
+            }
+          }
+        },
+        {
+          "id": "subtitle",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Sign in to your account"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "email-field",
+          "component": {
+            "TextField": {
+              "label": {
+                "literalString": "Email"
+              },
+              "text": {
+                "path": "/email"
+              }
+            }
+          }
+        },
+        {
+          "id": "password-field",
+          "component": {
+            "TextField": {
+              "label": {
+                "literalString": "Password"
+              },
+              "text": {
+                "path": "/password"
+              },
+              "textFieldType": "obscured"
+            }
+          }
+        },
+        {
+          "id": "login-btn-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Sign in"
+              }
+            }
+          }
+        },
+        {
+          "id": "login-btn",
+          "component": {
+            "Button": {
+              "child": "login-btn-text",
+              "action": {
+                "name": "login",
+                "context": []
+              }
+            }
+          }
+        },
+        {
+          "id": "divider",
+          "component": {
+            "Divider": {}
+          }
+        },
+        {
+          "id": "signup-text",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["no-account", "signup-link"]
+              },
+              "distribution": "center"
+            }
+          }
+        },
+        {
+          "id": "no-account",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Don't have an account?"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "signup-link-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Sign up"
+              }
+            }
+          }
+        },
+        {
+          "id": "signup-link",
+          "component": {
+            "Button": {
+              "child": "signup-link-text",
+              "action": {
+                "name": "signup",
+                "context": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "gallery-login-form",
+      "contents": [
+        {
+          "key": "email",
+          "valueString": ""
+        },
+        {
+          "key": "password",
+          "valueString": ""
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "gallery-login-form",
+      "root": "root"
+    }
+  }
+]
