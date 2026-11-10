@@ -14,6 +14,7 @@
   `validate_reserved_directives` from `a2ui.core.resolution`
   ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
   [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
+- (v1_0) The common types `IndexSystemFunction` schema declares `"returnType": "number"`, like catalog functions do ([#3725](https://github.com/a2ui-project/a2ui/issues/3725), [#4025](https://github.com/a2ui-project/a2ui/pull/4025)).
 - (v0_9) Restore `list_style` (`listStyle`) property to basic catalog `List` component schema ([#3956](https://github.com/a2ui-project/a2ui/pull/3956)).
 - **BREAKING CHANGE**: Basic catalog `regex` function (`v0_9` and `v1_0`) now validates patterns against the A2UI portable regex subset (ECMAScript `Pattern` in Unicode mode with no flags), enforces the 4-rule static ReDoS safety guard (`PATTERN_TOO_LONG` at 256 code points, `NESTED_QUANTIFIER`, `OVERLAPPING_ALTERNATION`, and `ADJACENT_OVERLAP`), translates patterns to Python `re` with exact ECMAScript character class and anchor semantics (`\A`, `\Z`, ASCII `\d`/`\w`/`\b`/`\B`, and `\uXXXX`/`\UXXXXXXXX` bracket classes), raises `A2uiExpressionError` with the rejection token on invalid or unsafe patterns, and returns `False` / `{"valid": False}` without raising when the input value exceeds 4,096 Unicode code points. Recommended migration: rewrite patterns that use lookbehind, backreferences, named groups, `\p{...}`, inline flags, or nested/overlapping unbounded quantifiers to the portable subset. Exports `parse_regex_subset`, `check_regex_safety`, `analyze_regex`, `translate_to_python`, `compile_guarded`, `regex_test`, `RegexNode`, `RegexRejection`, `RegexAnalysisResult`, `RegexSyntaxError`, `MAX_REGEX_PATTERN_CODE_POINTS`, and `MAX_REGEX_VALUE_CODE_POINTS` from `a2ui.core` and `a2ui.core.common` ([#3854](https://github.com/a2ui-project/a2ui/pull/3854)).
 - **BREAKING CHANGE**: (v1_0) The basic catalog `TextField` requires `value`,
@@ -35,6 +36,13 @@
 - (v1_0) The basic catalog `regex` function's `pattern` description now names
   the A2UI regex dialect and its safety limits
   ([#3820](https://github.com/a2ui-project/a2ui/pull/3820)).
+- (v1_0) Function calls inside `${...}` template expressions of `formatString`
+  now inherit the `catalogId` that the enclosing `formatString` call resolved
+  to, even when the surface defines a different default `catalogId`, while
+  preserving reserved `@`-prefixed system calls such as `${@index()}` as
+  catalogless. `DataContext.active_catalog_id` exposes the catalog ID of the
+  currently executing function call
+  ([#3727](https://github.com/a2ui-project/a2ui/issues/3727)).
 - Add `RpcHandler.cancel_surface_calls` to cancel pending outbound agent
   function calls with `RpcErrorCode.CANCELLED`.
 - `DataModel` now defensively copies `initial_data` and values passed to `set()`, preventing subsequent caller mutation of input dicts or lists from silently mutating internal state, and `PayloadValidator` now validates component type names against UAX 31 identifier syntax on v1.0+ surfaces.
@@ -251,6 +259,12 @@
   renderer function refused because too many are pending
   ([#3535](https://github.com/a2ui-project/a2ui/issues/3535),
   [#3939](https://github.com/a2ui-project/a2ui/pull/3939)).
+- `GenericBinder` treats the value of an undeclared property as an inline
+  action only when its only key is `event` or `functionCall`, as in the
+  specification's `Action`. A value such as `{"label": ..., "event": ...}`, or
+  a list of them, now resolves as plain values instead of action closures
+  ([#4086](https://github.com/a2ui-project/a2ui/issues/4086),
+  [#4087](https://github.com/a2ui-project/a2ui/pull/4087)).
 
 ## 0.4.0 (2026-10-17)
 

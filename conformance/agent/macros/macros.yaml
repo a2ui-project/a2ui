@@ -781,6 +781,7 @@ macros:
 
 tests:
   - id: "01_status_badge_expansion"
+    features: [F-AGT-26]
     description: "Macro expanding to Card, Row, and Text components with root stitching and namespacing"
     golden: "01_status_badge_expansion.json"
     surface_id: "conformance"
@@ -793,6 +794,7 @@ tests:
       title: "Server 1"
 
   - id: "02_slot_boundary_preservation"
+    features: [F-AGT-26]
     description: "Single child slot referencing an external component ID without namespacing or re-emission"
     golden: "02_slot_boundary_preservation.json"
     surface_id: "conformance"

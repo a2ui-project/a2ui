@@ -13,6 +13,7 @@
 # limitations under the License.
 
 - name: test_validation_result_dynamic_object_return
+  features: [F-CORE-27]
   description: Verifies CheckRule evaluation capturing dynamic ValidationResult object returned from custom validation function.
   catalog:
     protocolVersion: "1.0"
@@ -59,6 +60,7 @@
             severity: "error"
 
 - name: test_validation_result_boolean_fallback
+  features: [F-CORE-27]
   description: Verifies CheckRule evaluation when validation function returns primitive boolean, falling back to CheckRule message.
   catalog:
     protocolVersion: "1.0"
@@ -104,6 +106,7 @@
             message: "Must be 18 or older."
 
 - name: test_validation_result_warning_and_info_non_blocking
+  features: [F-CORE-27]
   description: Verifies that CheckRules returning severity warning or info populate validationResults while keeping isValid true and validationErrors empty.
   catalog:
     protocolVersion: "1.0"
@@ -156,6 +159,7 @@
               severity: "info"
 
 - name: test_validation_result_multiple_rules_preserve_order
+  features: [F-CORE-27]
   description: Verifies that a component with two failing error rules and one failing warning rule preserves declaration order in validationErrors and validationResults.
   catalog:
     protocolVersion: "1.0"
@@ -219,6 +223,7 @@
               severity: "error"
 
 - name: test_validation_result_reactive_recovery_on_data_update
+  features: [F-CORE-27]
   description: Verifies that failing validation recovers reactively when updateDataModel provides a valid value in a subsequent step.
   catalog:
     protocolVersion: "1.0"
@@ -274,6 +279,7 @@
               root: []
 
 - name: test_validation_result_coercion_in_logical_and_or_not
+  features: [F-CORE-27]
   description: Verifies that ValidationResult objects returned by functions inside logical and, or, and not expressions are coerced via their .valid boolean property.
   catalog:
     protocolVersion: "1.0"

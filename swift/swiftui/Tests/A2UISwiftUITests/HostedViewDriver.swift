@@ -499,7 +499,8 @@ final class HostedViewDriver {
     flush()
     guard let node = findNode(componentID: componentID) else { return nil }
     let modifier = A2UIAccessibilityModifier(node: node)
-    let nativeTarget = locateNativeTarget(componentID: componentID)
+    let nativeTarget =
+      locateNativeTarget(componentID: node.id) ?? locateNativeTarget(componentID: componentID)
     return AccessibilityElement(
       identifier: modifier.identifier,
       label: nativeAccessibilityLabel(from: nativeTarget) ?? effectiveLabel(for: node, modifier),
@@ -517,7 +518,7 @@ final class HostedViewDriver {
   private func findNode(componentID: String) -> A2UICore.Node? {
     guard let rootNode = surface.viewModel.rootNode else { return nil }
     var nodes: [String: A2UICore.Node] = [:]
-    AdapterHarness.collectNodes(from: rootNode, into: &nodes)
+    AdapterHarness.collectNodes(from: rootNode, in: surface, into: &nodes)
     return nodes[componentID]
   }
 

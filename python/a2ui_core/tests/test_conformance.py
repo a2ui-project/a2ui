@@ -3687,6 +3687,12 @@ class _RaisingSurfaceModel(SurfaceModel):
     """
 
     def dispatch_error(self, error: dict[str, Any]) -> None:
+        code = error.get("code")
+        message = str(error.get("message") or "")
+        if code == "CATALOG_ERROR":
+            raise A2uiCatalogError(message)
+        if code in ("EXPRESSION_ERROR", "EXECUTION_ERROR"):
+            raise A2uiExpressionError(message)
         exc = sys.exc_info()[1]
         if exc is None:
             super().dispatch_error(error)

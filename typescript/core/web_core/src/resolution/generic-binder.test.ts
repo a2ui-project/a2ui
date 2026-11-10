@@ -1318,6 +1318,64 @@ describe('GenericBinder Checkable Trait', () => {
     assert.deepStrictEqual(scrapeSchemaBehavior(unionWithPlainObject), {type: 'STATIC'});
   });
 
+  it('treats a union option as an action only when its only key is event or functionCall', () => {
+    const eventOption = z.object({event: z.object({name: z.string()})});
+    const functionCallOption = z.object({functionCall: z.object({call: z.string()})});
+    assert.deepStrictEqual(scrapeSchemaBehavior(z.union([z.string(), eventOption])), {
+      type: 'ACTION',
+    });
+    assert.deepStrictEqual(scrapeSchemaBehavior(z.union([z.string(), functionCallOption])), {
+      type: 'ACTION',
+    });
+
+    const labeledEvent = z.object({label: z.string(), event: z.string()});
+    const labeledFunctionCall = z.object({label: z.string(), functionCall: z.string()});
+    assert.deepStrictEqual(scrapeSchemaBehavior(z.union([z.string(), labeledEvent])), {
+      type: 'STATIC',
+    });
+    assert.deepStrictEqual(scrapeSchemaBehavior(z.union([z.string(), labeledFunctionCall])), {
+      type: 'STATIC',
+    });
+  });
+
+  it('keeps event properties and list items with an event key as plain values', () => {
+    const {catalog, surface} = setupSurfaceAndMocks();
+    const schema = z.object({
+      label: z.string(),
+      event: z.string(),
+      functionCall: z.string(),
+      options: z.array(z.union([z.string(), z.object({label: z.string(), event: z.string()})])),
+      onPick: z.union([
+        z.object({event: z.object({name: z.string()})}),
+        z.object({functionCall: z.object({call: z.string()})}),
+      ]),
+    });
+    const compModel = new ComponentModel(
+      'c_select',
+      'Select',
+      {
+        label: 'Pick',
+        event: 'picked',
+        functionCall: 'pick',
+        options: [{label: 'Red', event: 'red'}, 'Blue'],
+        onPick: {event: {name: 'picked'}},
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const binder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c_select'),
+      schema,
+    );
+
+    assert.strictEqual(binder.snapshot.label, 'Pick');
+    assert.strictEqual(binder.snapshot.event, 'picked');
+    assert.strictEqual(binder.snapshot.functionCall, 'pick');
+    assert.deepStrictEqual(binder.snapshot.options, [{label: 'Red', event: 'red'}, 'Blue']);
+    assert.strictEqual(typeof binder.snapshot.onPick, 'function');
+  });
+
   it('scrapeSchemaBehavior returns the same tree for the same schema', () => {
     const schema = z.object({label: z.string()});
     assert.strictEqual(scrapeSchemaBehavior(schema), scrapeSchemaBehavior(schema));
