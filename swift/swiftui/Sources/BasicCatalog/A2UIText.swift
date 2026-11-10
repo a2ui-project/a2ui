@@ -178,7 +178,7 @@ extension View {
 
 /// Parses inline Markdown into an `AttributedString`, stripping link and image URL attributes
 /// because Basic Catalog `Text` renders link and image syntax as plain text without targets.
-private func attributedMarkdown(_ text: String) -> AttributedString {
+func attributedMarkdown(_ text: String) -> AttributedString {
   guard
     var attributed = try? AttributedString(
       markdown: text,
