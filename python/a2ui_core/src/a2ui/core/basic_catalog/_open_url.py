@@ -77,15 +77,14 @@ def execute_open_url(args: dict[str, Any], context: Any = None) -> None:
 
 def _run_in_background(awaitable: Any) -> None:
     """Runs an awaitable handler result on the running loop, logging failures."""
-    loop = running_loop()
-    if loop is None:
+    if running_loop() is None:
         # Off the loop nothing could drive it; run it to completion here.
         try:
             asyncio.run(_await(awaitable))
         except Exception:  # pylint: disable=broad-exception-caught
             logger.exception("The open-URL handler failed.")
         return
-    task = asyncio.ensure_future(awaitable, loop=loop)
+    task = asyncio.ensure_future(awaitable)
 
     def _log_failure(done: asyncio.Future[Any]) -> None:
         if not done.cancelled() and done.exception() is not None:

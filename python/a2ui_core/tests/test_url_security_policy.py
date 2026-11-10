@@ -240,6 +240,35 @@ def test_reported_blocked_urls_are_bounded() -> None:
     assert len(warnings) == 258
 
 
+def test_non_string_urls_are_blocked_and_reported_once() -> None:
+    surface = SurfaceModel("s", None, protocol_version="1.0")
+    warnings = _record_warnings(surface)
+    for _ in range(2):
+        assert surface.sanitize_url(["a"], "media") is None  # type: ignore[arg-type]
+        assert surface.sanitize_url({"u": 1}, "media") is None  # type: ignore[arg-type]
+    assert [w["redactedUrl"] for w in warnings] == ["invalid", "invalid"]
+
+
+def test_data_bound_non_string_url_is_blocked() -> None:
+    processor = _processor([v1_0.BasicCatalog()], AllowlistUrlSecurityPolicy())
+    surface = _create_surface(
+        processor,
+        V10_BASIC_ID,
+        [{"id": "root", "component": "Image", "url": {"@path": "/img"}}],
+        dataModel={"img": ["https://cdn.example.com/a.png"]},
+    )
+    warnings = _record_warnings(surface)
+    assert _props(surface, "root").get("url") is None
+    assert (
+        ComponentContext.from_surface(surface, "root").sanitize_url(
+            ["x"], "media"  # type: ignore[arg-type]
+        )
+        is None
+    )
+    assert DataContext(surface).sanitize_url({}, "media") is None  # type: ignore[arg-type]
+    assert all(w["redactedUrl"] == "invalid" for w in warnings)
+
+
 def test_component_context_fills_in_where_the_url_comes_from() -> None:
     seen: list[UrlCheckInfo | None] = []
 

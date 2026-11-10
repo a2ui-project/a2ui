@@ -330,7 +330,16 @@ class SurfaceModel:
     ) -> None:
         if self._disposed:
             return
-        key = (url, context, info.component_id, info.property_name, info.function_name)
+        # A non-string URL (blocked by the baseline) may be unhashable, such as
+        # a list from a data binding, so it is keyed by its type.
+        url_key = url if isinstance(url, str) else f"<{type(url).__name__}>"
+        key = (
+            url_key,
+            context,
+            info.component_id,
+            info.property_name,
+            info.function_name,
+        )
         if key in self._reported_blocked_urls:
             return
         while len(self._reported_blocked_urls) >= _MAX_REPORTED_BLOCKED_URLS:
