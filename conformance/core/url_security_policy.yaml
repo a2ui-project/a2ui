@@ -1,0 +1,855 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# URL security policy cases. The rules are described in
+# specification/proposals/url_security_policy.md, and the case shapes
+# (url_policy_check and url_policy_resolution) in conformance/README.md.
+
+# ==============================================================================
+# url_policy_check: the baseline that every policy runs
+# ==============================================================================
+
+- name: baseline_media_allows_http_data_and_relative_urls
+  description: >-
+    The permissive policy passes http(s) URLs with a host, raster image, audio
+    and video data: URLs, and relative paths as media, and returns each one unchanged.
+  action: url_policy_check
+  policy: {type: permissive}
+  steps:
+    - url: "https://cdn.example.com/a.png"
+      context: media
+      expect: "https://cdn.example.com/a.png"
+    - url: "http://cdn.example.com/a.png"
+      context: media
+      expect: "http://cdn.example.com/a.png"
+    - url: "HTTPS://CDN.EXAMPLE.COM/a.png"
+      context: media
+      expect: "HTTPS://CDN.EXAMPLE.COM/a.png"
+    - url: "data:image/png;base64,iVBORw0KGgo="
+      context: media
+      expect: "data:image/png;base64,iVBORw0KGgo="
+    - url: "DATA:IMAGE/JPEG;base64,/9j/4AAQ"
+      context: media
+      expect: "DATA:IMAGE/JPEG;base64,/9j/4AAQ"
+    - url: "data:audio/mpeg;base64,SUQz"
+      context: media
+      expect: "data:audio/mpeg;base64,SUQz"
+    - url: "data:video/mp4;base64,AAAAIGZ0eXA="
+      context: media
+      expect: "data:video/mp4;base64,AAAAIGZ0eXA="
+    - url: "images/a.png"
+      context: media
+      expect: "images/a.png"
+    - url: "/images/a.png"
+      context: media
+      expect: "/images/a.png"
+    - url: "../images/a.png?v=2"
+      context: media
+      expect: "../images/a.png?v=2"
+
+- name: baseline_media_rejects_svg_and_non_media_data_urls
+  description: >-
+    SVG data: URLs can carry script and links, so the baseline blocks them for media
+    unless the policy opts in. data: URLs that aren't images, audio or video are blocked.
+  action: url_policy_check
+  policy: {type: permissive}
+  steps:
+    - url: "data:image/svg+xml;base64,PHN2Zz4="
+      context: media
+      expect: null
+    - url: "data:image/svg+xml,%3Csvg%3E%3C/svg%3E"
+      context: media
+      expect: null
+    - url: "DATA:IMAGE/SVG+XML;base64,PHN2Zz4="
+      context: media
+      expect: null
+    - url: "data:text/html,%3Cscript%3Ealert(1)%3C/script%3E"
+      context: media
+      expect: null
+    - url: "data:,hello"
+      context: media
+      expect: null
+    - url: "data:application/octet-stream;base64,AAAA"
+      context: media
+      expect: null
+
+- name: baseline_svg_data_urls_opt_in
+  description: >-
+    allowSvgDataUrls lets SVG data: URLs through as media. They stay blocked in the
+    other contexts, where data: URLs never pass.
+  action: url_policy_check
+  policy: {type: permissive, allowSvgDataUrls: true}
+  steps:
+    - url: "data:image/svg+xml;base64,PHN2Zz4="
+      context: media
+      expect: "data:image/svg+xml;base64,PHN2Zz4="
+    - url: "data:image/svg+xml;base64,PHN2Zz4="
+      context: navigation
+      expect: null
+    - url: "data:image/svg+xml;base64,PHN2Zz4="
+      context: iframe
+      expect: null
+
+- name: baseline_rejects_script_and_other_schemes
+  description: >-
+    Script schemes are blocked in every context regardless of letter case, and schemes
+    outside the per-context lists are blocked too.
+  action: url_policy_check
+  policy: {type: permissive}
+  steps:
+    - url: "javascript:alert(1)"
+      context: media
+      expect: null
+    - url: "javascript:alert(1)"
+      context: navigation
+      expect: null
+    - url: "javascript:alert(1)"
+      context: iframe
+      expect: null
+    - url: "JaVaScRiPt:alert(1)"
+      context: navigation
+      expect: null
+    - url: "vbscript:msgbox(1)"
+      context: navigation
+      expect: null
+    - url: "file:///etc/passwd"
+      context: media
+      expect: null
+    - url: "blob:https://example.com/0b6e2f5c"
+      context: media
+      expect: null
+    - url: "ftp://files.example.com/a.png"
+      context: media
+      expect: null
+    - url: "intent://scan/#Intent;scheme=zxing;end"
+      context: navigation
+      expect: null
+
+- name: baseline_rejects_whitespace_and_control_characters
+  description: >-
+    URL parsers drop or trim tabs, newlines, spaces and other control characters, so a
+    URL that contains any of them is blocked instead of being cleaned up.
+  action: url_policy_check
+  policy: {type: permissive}
+  steps:
+    - url: " javascript:alert(1)"
+      context: navigation
+      expect: null
+    - url: "\x01javascript:alert(1)"
+      context: navigation
+      expect: null
+    - url: "java\tscript:alert(1)"
+      context: navigation
+      expect: null
+    - url: "java\nscript:alert(1)"
+      context: navigation
+      expect: null
+    - url: "ht\ttps://evil.example/"
+      context: navigation
+      expect: null
+    - url: " https://cdn.example.com/a.png"
+      context: media
+      expect: null
+    - url: "https://cdn.example.com/a.png\n"
+      context: media
+      expect: null
+    - url: "https://cdn.example.com/a b.png"
+      context: media
+      expect: null
+    - url: "https://cdn.example.com/a.png\x7f"
+      context: media
+      expect: null
+    - url: ""
+      context: media
+      expect: null
+
+- name: baseline_rejects_backslashes_and_hostless_http
+  description: >-
+    Browsers read a backslash as a slash and accept http(s) URLs without the two
+    slashes, so both are blocked, as are protocol-relative URLs and empty hosts.
+  action: url_policy_check
+  policy: {type: permissive}
+  steps:
+    - url: "https:evil.example/a.png"
+      context: media
+      expect: null
+    - url: "https:/evil.example/a.png"
+      context: media
+      expect: null
+    - url: "http:evil.example"
+      context: navigation
+      expect: null
+    - url: "https:evil.example"
+      context: iframe
+      expect: null
+    - url: "https:///evil.example/a.png"
+      context: media
+      expect: null
+    - url: "https:\\\\evil.example/a.png"
+      context: media
+      expect: null
+    - url: "https://cdn.example.com\\@evil.example/a.png"
+      context: media
+      expect: null
+    - url: "/\\evil.example/a.png"
+      context: media
+      expect: null
+    - url: "\\\\evil.example\\a.png"
+      context: media
+      expect: null
+    - url: "//evil.example/a.png"
+      context: media
+      expect: null
+    - url: "//evil.example/page"
+      context: navigation
+      expect: null
+
+- name: baseline_navigation_schemes
+  description: >-
+    Navigation allows http(s) URLs with a host, mailto:, tel: and relative URLs.
+    mailto: and tel: are blocked in the other contexts, and data: URLs are blocked here.
+  action: url_policy_check
+  policy: {type: permissive}
+  steps:
+    - url: "https://example.com/page"
+      context: navigation
+      expect: "https://example.com/page"
+    - url: "mailto:help@example.com"
+      context: navigation
+      expect: "mailto:help@example.com"
+    - url: "MAILTO:help@example.com"
+      context: navigation
+      expect: "MAILTO:help@example.com"
+    - url: "tel:+1-555-0100"
+      context: navigation
+      expect: "tel:+1-555-0100"
+    - url: "/help"
+      context: navigation
+      expect: "/help"
+    - url: "data:image/png;base64,iVBORw0KGgo="
+      context: navigation
+      expect: null
+    - url: "mailto:help@example.com"
+      context: media
+      expect: null
+    - url: "tel:+1-555-0100"
+      context: iframe
+      expect: null
+
+- name: baseline_iframe_schemes
+  description: >-
+    Iframes allow only http(s) URLs with a host. Relative URLs, data: URLs and
+    host-less schemes are blocked.
+  action: url_policy_check
+  policy: {type: permissive}
+  steps:
+    - url: "https://apps.example.com/app"
+      context: iframe
+      expect: "https://apps.example.com/app"
+    - url: "/embedded/app"
+      context: iframe
+      expect: null
+    - url: "data:text/html,%3Ch1%3Ehi%3C/h1%3E"
+      context: iframe
+      expect: null
+    - url: "data:image/png;base64,iVBORw0KGgo="
+      context: iframe
+      expect: null
+    - url: "mailto:help@example.com"
+      context: iframe
+      expect: null
+
+# ==============================================================================
+# url_policy_check: the allowlist policy
+# ==============================================================================
+
+- name: allowlist_exact_host
+  description: >-
+    An exact entry matches only that hostname, compared without regard to case and
+    on any port. Look-alike hosts, subdomains and userinfo tricks don't match.
+    Contexts without a list keep the baseline only.
+  action: url_policy_check
+  policy:
+    type: allowlist
+    media: [cdn.example.com]
+  steps:
+    - url: "https://cdn.example.com/a.png"
+      context: media
+      expect: "https://cdn.example.com/a.png"
+    - url: "https://CDN.Example.COM/a.png"
+      context: media
+      expect: "https://CDN.Example.COM/a.png"
+    - url: "https://cdn.example.com:8443/a.png"
+      context: media
+      expect: "https://cdn.example.com:8443/a.png"
+    - url: "https://evil.example/a.png"
+      context: media
+      expect: null
+    - url: "https://cdn.example.com.evil.example/a.png"
+      context: media
+      expect: null
+    - url: "https://img.cdn.example.com/a.png"
+      context: media
+      expect: null
+    - url: "https://cdn.example.com@evil.example/a.png"
+      context: media
+      expect: null
+    - url: "https://any.example.org/page"
+      context: navigation
+      expect: "https://any.example.org/page"
+    - url: "https://any.example.org/app"
+      context: iframe
+      expect: "https://any.example.org/app"
+
+- name: allowlist_wildcard_matches_subdomains_only
+  description: >-
+    A *.example.com entry matches subdomains at any depth but not example.com itself,
+    and not hosts that merely end in or contain the same characters.
+  action: url_policy_check
+  policy:
+    type: allowlist
+    media: ["*.example.com"]
+  steps:
+    - url: "https://a.example.com/x.png"
+      context: media
+      expect: "https://a.example.com/x.png"
+    - url: "https://a.b.example.com/x.png"
+      context: media
+      expect: "https://a.b.example.com/x.png"
+    - url: "https://A.EXAMPLE.COM/x.png"
+      context: media
+      expect: "https://A.EXAMPLE.COM/x.png"
+    - url: "https://example.com/x.png"
+      context: media
+      expect: null
+    - url: "https://evil-example.com/x.png"
+      context: media
+      expect: null
+    - url: "https://aexample.com/x.png"
+      context: media
+      expect: null
+    - url: "https://example.com.evil.com/x.png"
+      context: media
+      expect: null
+
+- name: allowlist_entries_with_ports
+  description: >-
+    An entry with a port matches only that host and port. An entry without a port
+    matches the hostname on any port.
+  action: url_policy_check
+  policy:
+    type: allowlist
+    media: ["localhost:8080", cdn.example.com]
+  steps:
+    - url: "http://localhost:8080/a.png"
+      context: media
+      expect: "http://localhost:8080/a.png"
+    - url: "http://LOCALHOST:8080/a.png"
+      context: media
+      expect: "http://LOCALHOST:8080/a.png"
+    - url: "http://localhost:9090/a.png"
+      context: media
+      expect: null
+    - url: "http://localhost/a.png"
+      context: media
+      expect: null
+    - url: "https://cdn.example.com:444/a.png"
+      context: media
+      expect: "https://cdn.example.com:444/a.png"
+
+- name: allowlist_blocks_relative_urls_once_a_list_is_set
+  description: >-
+    A context with a host list blocks relative URLs unless allowRelative names it.
+    Contexts without a list keep the baseline, which allows relative media and
+    navigation URLs.
+  action: url_policy_check
+  policy:
+    type: allowlist
+    media: [cdn.example.com]
+    navigation: [example.com]
+  steps:
+    - url: "images/a.png"
+      context: media
+      expect: null
+    - url: "/help"
+      context: navigation
+      expect: null
+
+- name: allowlist_relative_urls_opt_in
+  description: allowRelative keeps relative URLs for the contexts it names and no others.
+  action: url_policy_check
+  policy:
+    type: allowlist
+    media: [cdn.example.com]
+    navigation: [example.com]
+    allowRelative: [media]
+  steps:
+    - url: "images/a.png"
+      context: media
+      expect: "images/a.png"
+    - url: "/help"
+      context: navigation
+      expect: null
+
+- name: allowlist_relative_urls_without_a_list
+  description: A context without a host list keeps the baseline rule for relative URLs.
+  action: url_policy_check
+  policy:
+    type: allowlist
+    iframe: [apps.example.com]
+  steps:
+    - url: "images/a.png"
+      context: media
+      expect: "images/a.png"
+    - url: "/help"
+      context: navigation
+      expect: "/help"
+    - url: "/embedded/app"
+      context: iframe
+      expect: null
+
+- name: allowlist_empty_list_blocks_every_host
+  description: An empty list sets a host list that matches nothing.
+  action: url_policy_check
+  policy:
+    type: allowlist
+    iframe: []
+  steps:
+    - url: "https://apps.example.com/app"
+      context: iframe
+      expect: null
+    - url: "https://apps.example.com/page"
+      context: navigation
+      expect: "https://apps.example.com/page"
+
+- name: allowlist_hostless_schemes_skip_host_lists
+  description: >-
+    data:, mailto: and tel: URLs have no host, so host lists don't apply to them.
+    They still pass only in the contexts the baseline allows.
+  action: url_policy_check
+  policy:
+    type: allowlist
+    media: [cdn.example.com]
+    navigation: ["*.example.com"]
+  steps:
+    - url: "data:image/png;base64,iVBORw0KGgo="
+      context: media
+      expect: "data:image/png;base64,iVBORw0KGgo="
+    - url: "mailto:help@example.org"
+      context: navigation
+      expect: "mailto:help@example.org"
+    - url: "tel:+15550100"
+      context: navigation
+      expect: "tel:+15550100"
+    - url: "https://shop.example.com/p/1"
+      context: navigation
+      expect: "https://shop.example.com/p/1"
+    - url: "https://evil.example/p/1"
+      context: navigation
+      expect: null
+
+- name: allowlist_never_widens_the_baseline
+  description: >-
+    A URL the baseline blocks stays blocked when its host is on the list, and SVG
+    data: URLs stay blocked unless the policy opts in.
+  action: url_policy_check
+  policy:
+    type: allowlist
+    media: [cdn.example.com]
+    navigation: [example.com]
+  steps:
+    - url: "javascript:alert(1)"
+      context: navigation
+      expect: null
+    - url: "https:example.com"
+      context: navigation
+      expect: null
+    - url: "https://cdn.example.com\\a.png"
+      context: media
+      expect: null
+    - url: "data:image/svg+xml;base64,PHN2Zz4="
+      context: media
+      expect: null
+
+- name: allowlist_rewrite_proxies_allowed_media
+  description: >-
+    The rewrite runs after the host check, only on allowed URLs and only for the
+    context it is set for. A prefix rewrite leaves data: and relative URLs unchanged.
+  action: url_policy_check
+  policy:
+    type: allowlist
+    media: [cdn.example.com]
+    allowRelative: [media]
+    rewrite:
+      media: {prefix: "https://proxy.example.com/?u="}
+  steps:
+    - url: "https://cdn.example.com/a.png?w=10"
+      context: media
+      expect: "https://proxy.example.com/?u=https%3A%2F%2Fcdn.example.com%2Fa.png%3Fw%3D10"
+    - url: "https://evil.example/a.png"
+      context: media
+      expect: null
+    - url: "data:image/png;base64,iVBORw0KGgo="
+      context: media
+      expect: "data:image/png;base64,iVBORw0KGgo="
+    - url: "images/a.png"
+      context: media
+      expect: "images/a.png"
+    - url: "https://example.com/page"
+      context: navigation
+      expect: "https://example.com/page"
+
+- name: allowlist_rewrite_without_a_host_list
+  description: A rewrite without a host list proxies every http(s) URL the baseline allows.
+  action: url_policy_check
+  policy:
+    type: allowlist
+    rewrite:
+      media: {prefix: "https://proxy.example.com/?u="}
+  steps:
+    - url: "http://any.example.org/a.png"
+      context: media
+      expect: "https://proxy.example.com/?u=http%3A%2F%2Fany.example.org%2Fa.png"
+    - url: "javascript:alert(1)"
+      context: media
+      expect: null
+
+- name: allowlist_rewrite_output_is_checked_by_the_baseline
+  description: >-
+    The baseline runs again on the rewritten URL, so a rewrite can never produce a
+    URL the baseline blocks.
+  action: url_policy_check
+  policy:
+    type: allowlist
+    media: [cdn.example.com]
+    rewrite:
+      media: {prefix: "javascript:alert("}
+  steps:
+    - url: "https://cdn.example.com/a.png"
+      context: media
+      expect: null
+
+# ==============================================================================
+# url_policy_resolution: URL props resolved through a surface
+# ==============================================================================
+
+- name: resolution_basic_catalog_media_props
+  description: >-
+    The basic catalog's Image.url, Video.url, Video.posterUrl and AudioPlayer.url go
+    through the policy as media. Blocked values resolve to no value.
+  action: url_policy_resolution
+  protocolVersion: "1.0"
+  catalogPaths: ["catalogs/basic/v1/catalog.json"]
+  policy:
+    type: allowlist
+    media: [cdn.example.com]
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: main
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: main
+        components:
+          - {id: root, component: Column, children: [allowed, blocked, video, audio]}
+          - {id: allowed, component: Image, url: "https://cdn.example.com/a.png"}
+          - {id: blocked, component: Image, url: "https://evil.example/a.png?d=secret"}
+          - id: video
+            component: Video
+            url: "https://cdn.example.com/v.mp4"
+            posterUrl: "https://evil.example/poster.png"
+          - {id: audio, component: AudioPlayer, url: "https://evil.example/a.mp3"}
+  expect:
+    components:
+      allowed: {url: "https://cdn.example.com/a.png"}
+      blocked: {url: null}
+      video: {url: "https://cdn.example.com/v.mp4", posterUrl: null}
+      audio: {url: null}
+
+- name: resolution_permissive_default_runs_the_baseline
+  description: >-
+    The permissive policy allows any host but still blocks what the baseline blocks.
+  action: url_policy_resolution
+  protocolVersion: "1.0"
+  catalogPaths: ["catalogs/basic/v1/catalog.json"]
+  policy: {type: permissive}
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: main
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: main
+        components:
+          - {id: root, component: Column, children: [anyHost, script, svg]}
+          - {id: anyHost, component: Image, url: "https://any.example.org/a.png"}
+          - {id: script, component: Image, url: "javascript:alert(1)"}
+          - {id: svg, component: Image, url: "data:image/svg+xml;base64,PHN2Zz4="}
+  expect:
+    components:
+      anyHost: {url: "https://any.example.org/a.png"}
+      script: {url: null}
+      svg: {url: null}
+
+- name: resolution_data_bound_url_is_checked_on_every_change
+  description: >-
+    A URL bound to the data model is checked after it resolves and again each time
+    the bound value changes.
+  action: url_policy_resolution
+  protocolVersion: "1.0"
+  catalogPaths: ["catalogs/basic/v1/catalog.json"]
+  policy:
+    type: allowlist
+    media: [cdn.example.com]
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: main
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        dataModel:
+          photo: "https://cdn.example.com/a.png"
+        components:
+          - {id: root, component: Image, url: {"@path": /photo}}
+  expect:
+    components:
+      root: {url: "https://cdn.example.com/a.png"}
+  steps:
+    - messages:
+        - version: "1.0"
+          updateDataModel:
+            surfaceId: main
+            path: /photo
+            value: "https://attacker.example/?d=secret"
+      expect:
+        components:
+          root: {url: null}
+    - messages:
+        - version: "1.0"
+          updateDataModel:
+            surfaceId: main
+            path: /photo
+            value: "https://cdn.example.com/b.png"
+      expect:
+        components:
+          root: {url: "https://cdn.example.com/b.png"}
+
+- name: resolution_format_string_url_is_checked_after_it_resolves
+  description: >-
+    A URL built with formatString is checked as the final string, so data model
+    values interpolated into an attacker's host are caught.
+  action: url_policy_resolution
+  protocolVersion: "1.0"
+  catalogPaths: ["catalogs/basic/v1/catalog.json"]
+  policy:
+    type: allowlist
+    media: [cdn.example.com]
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: main
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        dataModel:
+          file: a.png
+          secret: s3cr3t
+        components:
+          - {id: root, component: Column, children: [allowed, exfil]}
+          - id: allowed
+            component: Image
+            url:
+              "@call": formatString
+              args: {value: "https://cdn.example.com/${/file}"}
+          - id: exfil
+            component: Image
+            url:
+              "@call": formatString
+              args: {value: "https://evil.example/collect?d=${/secret}"}
+  expect:
+    components:
+      allowed: {url: "https://cdn.example.com/a.png"}
+      exfil: {url: null}
+
+- name: resolution_custom_catalog_annotations
+  description: >-
+    Props a custom catalog marks with x-a2ui-url-context go through the policy in
+    their context, including props nested in arrays of objects. Props marked none and
+    unmarked props are left alone.
+  action: url_policy_resolution
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "https://example.com/catalogs/url_test/v1/catalog.json"
+      protocolVersion: "1.0"
+      components:
+        ProductCard:
+          type: object
+          properties:
+            component: {const: ProductCard}
+            title: {$ref: "common_types.json#/$defs/DynamicString"}
+            imageUrl:
+              $ref: "common_types.json#/$defs/DynamicString"
+              x-a2ui-url-context: media
+            productPageUrl:
+              $ref: "common_types.json#/$defs/DynamicString"
+              x-a2ui-url-context: navigation
+            embedUrl:
+              $ref: "common_types.json#/$defs/DynamicString"
+              x-a2ui-url-context: iframe
+            urlLabel:
+              $ref: "common_types.json#/$defs/DynamicString"
+              x-a2ui-url-context: none
+            gallery:
+              type: array
+              items:
+                type: object
+                properties:
+                  imageUrl:
+                    $ref: "common_types.json#/$defs/DynamicString"
+                    x-a2ui-url-context: media
+                  caption: {$ref: "common_types.json#/$defs/DynamicString"}
+          required: [component]
+  policy:
+    type: allowlist
+    media: [cdn.example.com]
+    navigation: ["*.example.com"]
+    iframe: [apps.example.com]
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: main
+        catalogId: "https://example.com/catalogs/url_test/v1/catalog.json"
+        dataModel:
+          photo: "https://attacker.example/?d=secret"
+        components:
+          - id: root
+            component: ProductCard
+            title: "javascript:alert(1)"
+            imageUrl: {"@path": /photo}
+            productPageUrl: "https://shop.example.com/p/123"
+            embedUrl: "https://evil.example/embed"
+            urlLabel: "javascript:alert(1)"
+            gallery:
+              - {imageUrl: "https://cdn.example.com/1.png", caption: First}
+              - {imageUrl: "https://evil.example/2.png", caption: Second}
+  expect:
+    components:
+      root:
+        title: "javascript:alert(1)"
+        imageUrl: null
+        productPageUrl: "https://shop.example.com/p/123"
+        embedUrl: null
+        urlLabel: "javascript:alert(1)"
+        gallery:
+          - {imageUrl: "https://cdn.example.com/1.png", caption: First}
+          - {imageUrl: null, caption: Second}
+
+- name: resolution_rewritten_url_is_checked_once
+  description: >-
+    The component receives the rewritten URL. It isn't checked a second time, so the
+    proxy host doesn't have to be on the media list.
+  action: url_policy_resolution
+  protocolVersion: "1.0"
+  catalogPaths: ["catalogs/basic/v1/catalog.json"]
+  policy:
+    type: allowlist
+    media: [cdn.other.com]
+    rewrite:
+      media: {prefix: "https://proxy.example.com/?u="}
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: main
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        components:
+          - {id: root, component: Image, url: "https://cdn.other.com/a.png"}
+  expect:
+    components:
+      root: {url: "https://proxy.example.com/?u=https%3A%2F%2Fcdn.other.com%2Fa.png"}
+
+- name: resolution_open_url_checks_the_policy_before_the_host_handler
+  description: >-
+    openUrl checks its URL as navigation first. A blocked URL fails with URL_BLOCKED
+    and never reaches the host's open-URL handler; an allowed URL does.
+  action: url_policy_resolution
+  protocolVersion: "1.0"
+  catalogPaths: ["catalogs/basic/v1/catalog.json"]
+  policy:
+    type: allowlist
+    navigation: ["*.example.com"]
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: main
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        dataModel:
+          next: "https://attacker.example/?d=secret"
+        components:
+          - {id: root, component: Column, children: [blocked, allowed]}
+          - id: blocked
+            component: Button
+            child: blockedLabel
+            action:
+              functionCall:
+                "@call": openUrl
+                args: {url: {"@path": /next}}
+          - {id: blockedLabel, component: Text, text: Continue}
+          - id: allowed
+            component: Button
+            child: allowedLabel
+            action:
+              functionCall:
+                "@call": openUrl
+                args: {url: "https://shop.example.com/p/123"}
+          - {id: allowedLabel, component: Text, text: Shop}
+  expect:
+    components: {}
+  steps:
+    - dispatchAction: {surfaceId: main, componentId: blocked, userActivation: true}
+      expect:
+        openedUrls: []
+        errors: [{code: URL_BLOCKED, surfaceId: main}]
+    - dispatchAction: {surfaceId: main, componentId: allowed, userActivation: true}
+      expect:
+        openedUrls: ["https://shop.example.com/p/123"]
+        errors: []
+
+- name: resolution_open_url_runs_the_baseline_under_the_default_policy
+  description: >-
+    With the permissive policy, openUrl still blocks URLs the baseline rejects for
+    navigation.
+  action: url_policy_resolution
+  protocolVersion: "1.0"
+  catalogPaths: ["catalogs/basic/v1/catalog.json"]
+  policy: {type: permissive}
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: main
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        components:
+          - id: root
+            component: Button
+            child: label
+            action:
+              functionCall:
+                "@call": openUrl
+                args: {url: "https:evil.example"}
+          - {id: label, component: Text, text: Open}
+  expect:
+    components: {}
+  steps:
+    - dispatchAction: {surfaceId: main, componentId: root, userActivation: true}
+      expect:
+        openedUrls: []
+        errors: [{code: URL_BLOCKED, surfaceId: main}]
