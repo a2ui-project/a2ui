@@ -1471,6 +1471,63 @@ def test_generic_binder_binds_action_inside_list_item():
     binder.dispose()
 
 
+def test_generic_binder_keeps_undeclared_values_with_an_event_key_as_plain_values():
+    cat = BasicCatalog("0.9")
+    comp = ComponentModel(
+        "select",
+        "Select",
+        cat,
+        {
+            "label": "Pick",
+            "event": "picked",
+            "functionCall": "pick",
+            "selected": {"label": "Red", "event": "red"},
+            "options": [
+                {"label": "Red", "event": "red"},
+                {"label": "Blue", "functionCall": "blue"},
+            ],
+        },
+    )
+    surface = SurfaceModel("s1", cat)
+    context = ComponentContext(comp, DataContext(surface, path="/"))
+
+    binder = GenericBinder(context, schema={"type": "object", "properties": {}})
+
+    assert binder.current_props["label"] == "Pick"
+    assert binder.current_props["event"] == "picked"
+    assert binder.current_props["functionCall"] == "pick"
+    assert binder.current_props["selected"] == {"label": "Red", "event": "red"}
+    assert binder.current_props["options"] == [
+        {"label": "Red", "event": "red"},
+        {"label": "Blue", "functionCall": "blue"},
+    ]
+    binder.dispose()
+
+
+def test_generic_binder_binds_undeclared_inline_actions():
+    cat = BasicCatalog("0.9")
+    comp = ComponentModel(
+        "select",
+        "Select",
+        cat,
+        {
+            "onPick": {"event": {"name": "picked"}},
+            "onRun": {"functionCall": {"call": "now", "args": {}}},
+        },
+    )
+    surface = SurfaceModel("s1", cat)
+    context = ComponentContext(comp, DataContext(surface, path="/"))
+    dispatched_actions: list[dict[str, Any]] = []
+    surface.on_action.subscribe(lambda act: dispatched_actions.append(act))
+
+    binder = GenericBinder(context, schema={"type": "object", "properties": {}})
+
+    assert callable(binder.current_props["onRun"])
+    binder.current_props["onPick"]()
+    assert [action["name"] for action in dispatched_actions] == ["picked"]
+    binder.dispose()
+
+
 def test_data_context_resolve_action_resolves_user_message():
     cat = BasicCatalog("0.9")
     data_model = DataModel({"inputMsg": "Hello Agent"})

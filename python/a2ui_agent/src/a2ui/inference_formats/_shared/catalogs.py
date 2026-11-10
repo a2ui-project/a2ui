@@ -175,6 +175,7 @@ def catalogs_protocol_version(catalogs: Sequence[CatalogApi]) -> str:
 
 def build_catalog_helpers(
     catalogs: Sequence[CatalogApi],
+    protocol_version: str | ProtocolVersion | None = None,
 ) -> dict[str, CatalogSchemaHelper]:
     """Builds an insertion-ordered catalog ID to CatalogSchemaHelper mapping.
 
@@ -183,6 +184,8 @@ def build_catalog_helpers(
 
     Args:
         catalogs: The catalogs, primary catalog first.
+        protocol_version: The protocol version whose common types and system
+            functions the helpers read. Defaults to each catalog's own version.
 
     Returns:
         The helpers keyed by catalog ID.
@@ -191,4 +194,4 @@ def build_catalog_helpers(
         A2uiCatalogError: If two catalogs share a catalog ID.
     """
     _check_unique_ids(catalogs)
-    return {c.catalog_id: CatalogSchemaHelper(c) for c in catalogs}
+    return {c.catalog_id: CatalogSchemaHelper(c, protocol_version) for c in catalogs}

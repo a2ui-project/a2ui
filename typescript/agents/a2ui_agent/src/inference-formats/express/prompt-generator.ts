@@ -211,8 +211,15 @@ function applyDefaultCatalogToValue(val: unknown, defaultCatalogId: string): unk
     copy[k] = applyDefaultCatalogToValue(v, defaultCatalogId);
   }
   const isComponent = typeof copy.component === 'string';
-  const isCall = typeof copy.call === 'string' || typeof copy['@call'] === 'string';
-  if ((isComponent || isCall) && !copy.catalogId) {
+  const callName =
+    typeof copy['@call'] === 'string'
+      ? copy['@call']
+      : typeof copy.call === 'string'
+        ? copy.call
+        : undefined;
+  // A system function, such as `@index`, belongs to no catalog.
+  const isCatalogCall = callName !== undefined && !callName.startsWith('@');
+  if ((isComponent || isCatalogCall) && !copy.catalogId) {
     copy.catalogId = defaultCatalogId;
   }
   return copy;
@@ -384,6 +391,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
     const allowedMessages = this.allowedMessages;
     let rules = isAtLeastVersion(this.version, '1.0') ? EXPRESS_RULES : EXPRESS_RULES_PRE_V10;
     let wantsComponentsOrData = true;
+    let wantsComponents = true;
     const callableFns = isAtLeastVersion(this.version, '1.0')
       ? agentCallableFunctions(this.catalogs)
       : [];
@@ -427,6 +435,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
         allowedMessages.includes('updateDataModel') ||
         allowedMessages.includes('UpdateDataModelMessage');
       wantsComponentsOrData = writesComponents || writesData;
+      wantsComponents = writesComponents;
       if (!writesComponents) {
         rules = rules.replace(/\n {4}root = ComponentA\(\.\.\.\)$/, '');
         if (!writesData) {
@@ -461,11 +470,42 @@ export class ExpressPromptGenerator extends PromptGenerator {
     if (hasMultiCatalogRules) {
       lines.push(this.multiCatalogRules());
     }
-    const combined = lines.join('\n');
+    let combined = lines.join('\n');
     if (allowedMessages !== undefined || hasCallableRule || hasMultiCatalogRules) {
-      return renumberRules(combined);
+      combined = renumberRules(combined);
+    }
+    if (wantsComponents) {
+      const systemFunctions = this.generateSystemFunctionSignatures();
+      if (systemFunctions) {
+        combined += `\n\n${systemFunctions}`;
+      }
     }
     return combined;
+  }
+
+  /**
+   * Lists the system functions of the target version, such as `@index`.
+   *
+   * System functions are defined by the protocol rather than a catalog, so they are
+   * listed once, in the same signature format as catalog functions, and only for a
+   * version that defines them.
+   *
+   * @returns The section, or an empty string if the version defines none.
+   */
+  private generateSystemFunctionSignatures(): string {
+    const helper = this.catalogs.length > 0 ? this.getHelper(this.catalogs[0]) : undefined;
+    if (!helper || helper.systemFunctions.size === 0) {
+      return '';
+    }
+    const sigs = this.formatFunctionSignatures(
+      helper,
+      Array.from(helper.systemFunctions.keys()).sort(),
+    );
+    return (
+      '## System Functions\n\nThese functions are defined by the A2UI protocol, not by a' +
+      ' catalog. Call them by their `@` name, like any function, and never add a' +
+      ` \`catalogId\` to them:\n${sigs}`
+    );
   }
 
   protected renderCatalogInstructions(catalog: CatalogApi): string {
@@ -670,7 +710,11 @@ export class ExpressPromptGenerator extends PromptGenerator {
   }
 
   generateFunctionSignatures(helper: CatalogSchemaHelper): string {
-    const fnNames = Array.from(helper.functions.keys()).sort();
+    return this.formatFunctionSignatures(helper, Array.from(helper.functions.keys()).sort());
+  }
+
+  /** Writes one signature, with its descriptions, for each named function. */
+  private formatFunctionSignatures(helper: CatalogSchemaHelper, fnNames: string[]): string {
     return fnNames
       .map(name => {
         const props = helper.getFunctionProperties(name);
