@@ -52,6 +52,7 @@ typedef _RoutedMessage = ({
 typedef _CheckedBatch = ({
   List<Map<String, Object?>> resolved,
   Map<String, ComponentRefFields> refFields,
+  A2uiProtocolVersion version,
 });
 
 /// The central processor for A2UI messages on renderer side.
@@ -1005,14 +1006,15 @@ class MessageProcessor<T extends ComponentApi> {
     );
   }
 
-  /// The envelope fields of a component message, which a [ComponentModel]
-  /// holds apart from its properties.
-  static const Set<String> _envelopeFields = {
-    'id',
-    'component',
-    'catalogId',
-    'metadata',
-  };
+  /// The envelope fields of a component message under protocol [version],
+  /// which a [ComponentModel] holds apart from its properties.
+  ///
+  /// Component `metadata` is defined from v1.0. Before that, `metadata` is an
+  /// ordinary property.
+  static Set<String> _envelopeFields(A2uiProtocolVersion version) =>
+      version.isAtLeast(A2uiProtocolVersion.v1_0)
+          ? const {'id', 'component', 'catalogId', 'metadata'}
+          : const {'id', 'component', 'catalogId'};
 
   /// Creates a surface: its data model first, as one root write, then its
   /// components.
@@ -1305,7 +1307,9 @@ class MessageProcessor<T extends ComponentApi> {
     }
         .where((String id) => _rulesOf(surface.resolveCatalog(id)).isNotEmpty)
         .toSet();
-    if (ruled.isEmpty) return (resolved: resolved, refFields: refFields);
+    if (ruled.isEmpty) {
+      return (resolved: resolved, refFields: refFields, version: version);
+    }
     // When the graph check started from what the check before found, the
     // surface passed the check of the batch before, so only the edges this
     // batch changes are checked. That needs constraints the surface passed:
@@ -1330,7 +1334,7 @@ class MessageProcessor<T extends ComponentApi> {
         parentsOf: bound.parentsOf,
         rootId: surface.rootId,
       )) {
-        return (resolved: resolved, refFields: refFields);
+        return (resolved: resolved, refFields: refFields, version: version);
       }
     }
     final List<Map<String, Object?>> existing = [
@@ -1347,7 +1351,7 @@ class MessageProcessor<T extends ComponentApi> {
       surfaceId: surface.id,
     );
 
-    return (resolved: resolved, refFields: refFields);
+    return (resolved: resolved, refFields: refFields, version: version);
   }
 
   /// Applies a [batch] that [_checkComponents] accepted.
@@ -1364,17 +1368,20 @@ class MessageProcessor<T extends ComponentApi> {
   ) {
     final SurfaceComponentsModel model = surface.componentsModel;
     model.refFields = checkedBatch.refFields;
+    final Set<String> envelopeFields = _envelopeFields(checkedBatch.version);
     for (final Map<String, Object?> entry in checkedBatch.resolved) {
       final id = entry['id']! as String;
       final type = entry['component']! as String;
       final catalogId = entry['catalogId'] as String?;
-      final Map<String, Object?>? metadata = switch (entry['metadata']) {
-        final Map<Object?, Object?> map => Map<String, Object?>.from(map),
-        _ => null,
-      };
+      final Map<String, Object?>? metadata = envelopeFields.contains('metadata')
+          ? switch (entry['metadata']) {
+              final Map<Object?, Object?> map => Map<String, Object?>.from(map),
+              _ => null,
+            }
+          : null;
       final props = <String, dynamic>{
         for (final MapEntry<String, Object?> e in entry.entries)
-          if (!_envelopeFields.contains(e.key)) e.key: e.value,
+          if (!envelopeFields.contains(e.key)) e.key: e.value,
       };
 
       final Catalog<T, FunctionImplementation> catalog =
@@ -1403,7 +1410,7 @@ class MessageProcessor<T extends ComponentApi> {
   ///
   /// Before v1.0 an entry that omits `component` updates a component the
   /// surface already holds: it keeps that component's type, and its
-  /// `catalogId` and `metadata` when it omits those too. Its properties
+  /// `catalogId` when it omits that too. Its properties
   /// replace the existing ones, so the entry is checked against the type's
   /// schema as it stands. From v1.0 every entry must name its type.
   ///
@@ -1486,7 +1493,8 @@ class MessageProcessor<T extends ComponentApi> {
     }
     final Object? rawType = entry['component'];
     final Object? rawCatalog = entry['catalogId'];
-    final Object? rawMetadata = entry['metadata'];
+    final bool atLeastV1 = version.isAtLeast(A2uiProtocolVersion.v1_0);
+    final Object? rawMetadata = atLeastV1 ? entry['metadata'] : null;
     if (rawType != null && rawType is! String) {
       throw A2uiValidationError(
         "Component '$id' has a 'component' type that is not a string.",
@@ -1513,7 +1521,6 @@ class MessageProcessor<T extends ComponentApi> {
       validateMetadata(rawMetadata);
     }
 
-    final bool atLeastV1 = version.isAtLeast(A2uiProtocolVersion.v1_0);
     final ComponentModel? existing = surface.componentsModel.get(id);
     final partial = rawType == null;
     final String? type = rawType as String? ?? existing?.type;
@@ -1535,14 +1542,11 @@ class MessageProcessor<T extends ComponentApi> {
     }
     final String? catalogId =
         rawCatalog as String? ?? (partial ? existing?.catalog : null);
-    final Object? metadata =
-        rawMetadata ?? (partial ? existing?.metadata : null);
 
     final full = <String, Object?>{
       ...entry,
       'component': type,
       if (catalogId != null) 'catalogId': catalogId,
-      if (metadata != null) 'metadata': metadata,
     };
 
     final Catalog<T, FunctionImplementation> catalog =
@@ -1551,10 +1555,11 @@ class MessageProcessor<T extends ComponentApi> {
       atLeastV1 ? _componentForValidator(full, catalog, surface) : full,
     );
     if (atLeastV1) {
+      final Set<String> envelopeFields = _envelopeFields(version);
       _validateNestedFunctionCalls(
         <String, Object?>{
           for (final MapEntry<String, Object?> entry in full.entries)
-            if (!_envelopeFields.contains(entry.key)) entry.key: entry.value,
+            if (!envelopeFields.contains(entry.key)) entry.key: entry.value,
         },
         home: catalog,
         homeIsDefault: identical(catalog, surface.defaultCatalog),

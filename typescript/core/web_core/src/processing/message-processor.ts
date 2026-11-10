@@ -1195,7 +1195,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
 
     const targetCatalog = this.resolveComponentCatalog(comp, surface);
-    if ('metadata' in comp && comp['metadata'] !== undefined) {
+    if (isAtLeastVersion(surface.protocolVersion, '1.0') && comp['metadata'] !== undefined) {
       validateMetadata(comp['metadata']);
     }
 
@@ -1451,9 +1451,14 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   }
 
   private applyComponentUpdate(comp: Record<string, unknown>, surface: SurfaceModel<T>): void {
-    const {id, component, catalogId: _catalogId, metadata: rawMetadata, ...properties} = comp;
+    const {id, component, catalogId: _catalogId, ...properties} = comp;
     if (typeof id !== 'string') return;
-    const metadata = extractComponentMetadata(rawMetadata);
+    // Component metadata exists from v1.0; below it `metadata` is a property.
+    let metadata: A2uiMetadata | undefined;
+    if (isAtLeastVersion(surface.protocolVersion, '1.0')) {
+      metadata = extractComponentMetadata(properties['metadata']);
+      delete properties['metadata'];
+    }
     const targetCatalog = this.resolveComponentCatalog(comp, surface);
     const existing = surface.componentsModel.get(id);
 
