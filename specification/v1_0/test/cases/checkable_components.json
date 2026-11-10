@@ -5,7 +5,7 @@
       "description": "TextField with valid checks",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_surface",
           "components": [
@@ -14,15 +14,15 @@
               "component": "TextField",
               "label": "Email",
               "value": {
-                "path": "/formData/email"
+                "@path": "/formData/email"
               },
               "checks": [
                 {
                   "condition": {
-                    "call": "required",
+                    "@call": "required",
                     "args": {
                       "value": {
-                        "path": "/formData/email"
+                        "@path": "/formData/email"
                       }
                     }
                   },
@@ -30,10 +30,10 @@
                 },
                 {
                   "condition": {
-                    "call": "email",
+                    "@call": "email",
                     "args": {
                       "value": {
-                        "path": "/formData/email"
+                        "@path": "/formData/email"
                       }
                     }
                   },
@@ -49,7 +49,7 @@
       "description": "ChoicePicker with valid checks",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_surface",
           "components": [
@@ -69,15 +69,15 @@
                 }
               ],
               "value": {
-                "path": "/formData/interests"
+                "@path": "/formData/interests"
               },
               "checks": [
                 {
                   "condition": {
-                    "call": "length",
+                    "@call": "length",
                     "args": {
                       "value": {
-                        "path": "/formData/interests"
+                        "@path": "/formData/interests"
                       },
                       "min": 1
                     }
@@ -94,7 +94,7 @@
       "description": "Slider with valid checks",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_surface",
           "components": [
@@ -105,15 +105,15 @@
               "min": 1,
               "max": 5,
               "value": {
-                "path": "/formData/rating"
+                "@path": "/formData/rating"
               },
               "checks": [
                 {
                   "condition": {
-                    "call": "numeric",
+                    "@call": "numeric",
                     "args": {
                       "value": {
-                        "path": "/formData/rating"
+                        "@path": "/formData/rating"
                       },
                       "min": 3
                     }
@@ -130,7 +130,7 @@
       "description": "CheckBox with valid checks",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_1",
           "components": [
@@ -139,15 +139,15 @@
               "component": "CheckBox",
               "label": "I agree",
               "value": {
-                "path": "/formData/agreed"
+                "@path": "/formData/agreed"
               },
               "checks": [
                 {
                   "condition": {
-                    "call": "required",
+                    "@call": "required",
                     "args": {
                       "value": {
-                        "path": "/formData/agreed"
+                        "@path": "/formData/agreed"
                       }
                     }
                   },
@@ -163,7 +163,7 @@
       "description": "DateTimeInput with valid checks",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_1",
           "components": [
@@ -172,15 +172,15 @@
               "component": "DateTimeInput",
               "label": "Date",
               "value": {
-                "path": "/formData/date"
+                "@path": "/formData/date"
               },
               "checks": [
                 {
                   "condition": {
-                    "call": "required",
+                    "@call": "required",
                     "args": {
                       "value": {
-                        "path": "/formData/date"
+                        "@path": "/formData/date"
                       }
                     }
                   },
@@ -196,7 +196,7 @@
       "description": "TextField with regex validation",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_1",
           "components": [
@@ -205,15 +205,15 @@
               "component": "TextField",
               "label": "Phone",
               "value": {
-                "path": "/formData/phone"
+                "@path": "/formData/phone"
               },
               "checks": [
                 {
                   "condition": {
-                    "call": "regex",
+                    "@call": "regex",
                     "args": {
                       "value": {
-                        "path": "/formData/phone"
+                        "@path": "/formData/phone"
                       },
                       "pattern": "^\\d{10}$"
                     }
@@ -230,7 +230,7 @@
       "description": "TextField with min/max length validation",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_1",
           "components": [
@@ -239,15 +239,15 @@
               "component": "TextField",
               "label": "Password",
               "value": {
-                "path": "/formData/pw"
+                "@path": "/formData/pw"
               },
               "checks": [
                 {
                   "condition": {
-                    "call": "length",
+                    "@call": "length",
                     "args": {
                       "value": {
-                        "path": "/formData/pw"
+                        "@path": "/formData/pw"
                       },
                       "min": 8,
                       "max": 64
@@ -265,7 +265,7 @@
       "description": "Slider with min/max numeric validation",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_1",
           "components": [
@@ -276,15 +276,15 @@
               "min": 0,
               "max": 100,
               "value": {
-                "path": "/formData/score"
+                "@path": "/formData/score"
               },
               "checks": [
                 {
                   "condition": {
-                    "call": "numeric",
+                    "@call": "numeric",
                     "args": {
                       "value": {
-                        "path": "/formData/score"
+                        "@path": "/formData/score"
                       },
                       "min": 0,
                       "max": 100
@@ -302,7 +302,7 @@
       "description": "TextField with complex logic checks (AND/OR/NOT)",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_1",
           "components": [
@@ -311,43 +311,43 @@
               "component": "TextField",
               "label": "Secret Code",
               "value": {
-                "path": "/formData/code"
+                "@path": "/formData/code"
               },
               "checks": [
                 {
                   "condition": {
-                    "call": "and",
+                    "@call": "and",
                     "args": {
                       "values": [
                         {
-                          "call": "required",
+                          "@call": "required",
                           "args": {
                             "value": {
-                              "path": "/formData/code"
+                              "@path": "/formData/code"
                             }
                           }
                         },
                         {
-                          "call": "or",
+                          "@call": "or",
                           "args": {
                             "values": [
                               {
-                                "call": "regex",
+                                "@call": "regex",
                                 "args": {
                                   "value": {
-                                    "path": "/formData/code"
+                                    "@path": "/formData/code"
                                   },
                                   "pattern": "^[A-Z]"
                                 }
                               },
                               {
-                                "call": "not",
+                                "@call": "not",
                                 "args": {
                                   "value": {
-                                    "call": "regex",
+                                    "@call": "regex",
                                     "args": {
                                       "value": {
-                                        "path": "/formData/code"
+                                        "@path": "/formData/code"
                                       },
                                       "pattern": "^[0-9]"
                                     }
@@ -372,7 +372,7 @@
       "description": "TextField with check without static message (valid)",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_1",
           "components": [
@@ -381,15 +381,15 @@
               "component": "TextField",
               "label": "Email",
               "value": {
-                "path": "/formData/email"
+                "@path": "/formData/email"
               },
               "checks": [
                 {
                   "condition": {
-                    "call": "email",
+                    "@call": "email",
                     "args": {
                       "value": {
-                        "path": "/formData/email"
+                        "@path": "/formData/email"
                       }
                     }
                   }
@@ -404,7 +404,7 @@
       "description": "TextField with invalid function returnType in check",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_1",
           "components": [
@@ -413,12 +413,12 @@
               "component": "TextField",
               "label": "Name",
               "value": {
-                "path": "/formData/name"
+                "@path": "/formData/name"
               },
               "checks": [
                 {
                   "condition": {
-                    "call": "formatString",
+                    "@call": "formatString",
                     "args": {
                       "value": "Hello ${/formData/name}"
                     },
@@ -436,7 +436,7 @@
       "description": "ChoicePicker with length validation (exactly 2)",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_1",
           "components": [
@@ -460,15 +460,15 @@
                 }
               ],
               "value": {
-                "path": "/formData/interests"
+                "@path": "/formData/interests"
               },
               "checks": [
                 {
                   "condition": {
-                    "call": "length",
+                    "@call": "length",
                     "args": {
                       "value": {
-                        "path": "/formData/interests"
+                        "@path": "/formData/interests"
                       },
                       "min": 2,
                       "max": 2
@@ -486,7 +486,7 @@
       "description": "Slider with valid steps property",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_1",
           "components": [
@@ -498,7 +498,7 @@
               "max": 10,
               "steps": 5,
               "value": {
-                "path": "/formData/rating"
+                "@path": "/formData/rating"
               }
             }
           ]
@@ -509,7 +509,7 @@
       "description": "Slider with invalid steps property (string)",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_1",
           "components": [
@@ -521,7 +521,7 @@
               "max": 10,
               "steps": "five",
               "value": {
-                "path": "/formData/rating"
+                "@path": "/formData/rating"
               }
             }
           ]
@@ -532,7 +532,7 @@
       "description": "Slider with invalid steps property (less than 1)",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_1",
           "components": [
@@ -544,7 +544,7 @@
               "max": 10,
               "steps": 0,
               "value": {
-                "path": "/formData/rating"
+                "@path": "/formData/rating"
               }
             }
           ]

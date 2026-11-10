@@ -24,8 +24,8 @@ from a2ui.core.state import (
     SurfaceModel,
     SurfaceGroupModel,
 )
-from a2ui.core.state.data_model import MAX_ARRAY_INDEX
 from a2ui.core.exceptions import (
+    A2uiCatalogError,
     A2uiDataError,
     A2uiRecursionError,
     A2uiStateError,
@@ -33,7 +33,7 @@ from a2ui.core.exceptions import (
 )
 from a2ui.core.basic_catalog import BasicCatalog
 
-dummy_catalog = BasicCatalog()
+dummy_catalog = BasicCatalog("0.9")
 
 
 def test_component_model_lifecycle():
@@ -43,7 +43,11 @@ def test_component_model_lifecycle():
     comp.on_updated.subscribe(lambda c: events.append(c))
 
     assert comp.properties == {"label": "Click"}
-    assert comp.component_tree == {"id": "c1", "type": "Button", "label": "Click"}
+    assert comp.component_tree == {
+        "id": "c1",
+        "component": "Button",
+        "label": "Click",
+    }
 
     comp.properties = {"label": "Submit", "disabled": True}
     assert len(events) == 1
@@ -107,7 +111,7 @@ def test_component_model_get_child_references_with_custom_schema():
 
     custom_cat = Catalog(
         catalog_id="https://a2ui.org/custom-slots",
-        protocol_version="v1.0",
+        protocol_version="1.0",
         components=[
             ComponentApi(
                 name="SplitPane",
@@ -264,8 +268,20 @@ def test_component_model():
     comp.properties = {"text": "World"}
     assert updated == ["World"]
 
-    expected_tree = {"id": "comp_1", "type": "Text", "text": "World"}
+    expected_tree = {"id": "comp_1", "component": "Text", "text": "World"}
     assert comp.component_tree == expected_tree
+
+
+def test_component_tree_keeps_type_property_apart_from_component_type():
+    chart = ComponentModel(
+        "chart1", "Chart", dummy_catalog, {"type": "pie", "title": "Sales"}
+    )
+    assert chart.component_tree == {
+        "id": "chart1",
+        "component": "Chart",
+        "type": "pie",
+        "title": "Sales",
+    }
 
 
 def test_component_model_validate():
@@ -276,6 +292,13 @@ def test_component_model_validate():
     with pytest.raises(A2uiValidationError) as exc_info:
         invalid_comp.validate()
     assert exc_info.value.details
+
+
+def test_component_model_validate_keeps_component_type_over_component_property():
+    comp = ComponentModel(
+        "c1", "Text", dummy_catalog, {"text": "Hello", "component": "Bogus"}
+    )
+    assert comp.validate() is None
 
 
 def test_validate_components_update_atomic():
@@ -334,70 +357,8 @@ def test_surface_components_model():
 
 
 # ==============================================================================
-# DataModel Pointers & Cascade Tests
+# DataModel & Signal Python-Specific Tests
 # ==============================================================================
-
-
-def test_data_model_basic_get_set():
-    dm = DataModel()
-    dm.set("/user/name", "Alice")
-    assert dm.get("/user/name") == "Alice"
-    assert dm.get("/user") == {"name": "Alice"}
-    assert dm.get("/") == {"user": {"name": "Alice"}}
-
-
-def test_data_model_auto_vivification():
-    dm = DataModel()
-    # Numeric segment "0" should auto-vivify a List array, while others vivify dicts
-    dm.set("/users/0/name", "Bob")
-    assert dm.get("/users/0/name") == "Bob"
-    assert isinstance(dm.get("/users"), list)
-    assert isinstance(dm.get("/users/0"), dict)
-
-    # Mixed traversal
-    dm.set("/data/lists/1/value", 42)
-    assert dm.get("/data/lists/1/value") == 42
-    assert dm.get("/data/lists/0") is None  # Placeholder pad
-
-
-def test_data_model_reactive_subscriptions():
-    dm = DataModel()
-    updates = []
-
-    # Subscribe to specific path
-    sub = dm.subscribe("/user/name", lambda val: updates.append(val))
-    assert sub.value is None  # Initial
-
-    dm.set("/user/name", "Alice")
-    assert updates == ["Alice"]
-
-    dm.set("/user/name", "Bob")
-    assert updates == ["Alice", "Bob"]
-
-
-def test_data_model_cascade_and_bubble():
-    dm = DataModel()
-    parent_updates = []
-    child_updates = []
-
-    # Subscribe to parent
-    dm.subscribe("/user", lambda val: parent_updates.append(copy_dict(val)))
-    # Subscribe to child
-    dm.subscribe("/user/details/age", lambda val: child_updates.append(val))
-
-    # Set deep child
-    dm.set("/user/details/age", 30)
-
-    # Parent updates should have bubbled up
-    assert parent_updates == [{"details": {"age": 30}}]
-    # Child updates should have cascaded down
-    assert child_updates == [30]
-
-
-def copy_dict(d):
-    import copy
-
-    return copy.deepcopy(d) if d is not None else None
 
 
 def test_signal_reactivity():
@@ -431,45 +392,28 @@ def test_data_model_set_fluent_chaining():
     assert dm.get("/a") is None
 
 
-def test_data_model_max_array_index_exceeded():
-    dm = DataModel()
-    with pytest.raises(A2uiDataError, match="exceeds maximum supported index"):
-        dm.set(f"/items/{MAX_ARRAY_INDEX + 1}", "overflow")
-    with pytest.raises(A2uiDataError, match="exceeds maximum supported index"):
-        dm.set(f"/matrix/{MAX_ARRAY_INDEX + 1}/0", "overflow")
-
-
-def test_data_model_forbidden_keys():
+def test_data_model_has_path_forbidden_keys():
     dm = DataModel()
     for seg in ("__proto__", "constructor", "prototype"):
-        with pytest.raises(A2uiDataError, match=f"Forbidden path segment '{seg}'"):
-            dm.get(f"/{seg}")
-        with pytest.raises(A2uiDataError, match=f"Forbidden path segment '{seg}'"):
-            dm.set(f"/nested/{seg}/value", 123)
         with pytest.raises(A2uiDataError, match=f"Forbidden path segment '{seg}'"):
             dm.has_path(f"/{seg}")
 
 
-def test_data_model_absent_null_write_is_noop():
-    dm = DataModel()
-    res = dm.set("/nonexistent/child/path", None)
-    assert res is dm
-    assert dm.get("/") == {}
-    assert not dm.has_path("/nonexistent")
-
-
-def test_data_model_stores_references_directly():
+def test_data_model_stores_defensive_copies():
     raw_dict = {"item": [1, 2, 3]}
     dm = DataModel(raw_dict)
-    assert dm.get("/") is raw_dict
+    assert dm.get("/") == raw_dict
+    assert dm.get("/") is not raw_dict
 
     obj = {"inner": "val"}
     dm.set("/obj", obj)
-    assert dm.get("/obj") is obj
+    assert dm.get("/obj") == obj
+    assert dm.get("/obj") is not obj
 
     arr = [10, 20]
     dm.set("/arr", arr)
-    assert dm.get("/arr") is arr
+    assert dm.get("/arr") == arr
+    assert dm.get("/arr") is not arr
 
 
 def test_exception_hierarchy_normalization():
@@ -495,6 +439,7 @@ def test_exception_hierarchy_normalization():
         "DISPOSED",
         "NO_LISTENER",
         "DUPLICATE",
+        "TOO_MANY_PENDING",
     }
     actual_codes = {member.value for member in RpcErrorCode}
     assert actual_codes == expected_codes
@@ -580,46 +525,8 @@ def test_resolved_binding_equality():
         assert int_rb.path == "/val"
 
 
-def test_data_model_primitive_root_rejection():
-    dm = DataModel()
-    dm.set("/", 42)
-    assert dm.get("/") == 42
-    with pytest.raises(
-        A2uiDataError, match="the data model root is a primitive value"
-    ) as err:
-        dm.set("/count", 1)
-    assert err.value.path == "/count"
-
-
-def test_data_model_set_through_primitive_raises():
-    dm = DataModel({"user": "Alice", "counts": [7]})
-
-    with pytest.raises(A2uiDataError) as dict_err:
-        dm.set("/user/name", "Bob")
-    assert dict_err.value.path == "/user/name"
-
-    with pytest.raises(A2uiDataError) as list_err:
-        dm.set("/counts/0/total", 1)
-    assert list_err.value.path == "/counts/0/total"
-
-    # The rejected writes must leave the originals intact rather than replacing
-    # them with an empty container.
-    assert dm.get("/user") == "Alice"
-    assert dm.get("/counts/0") == 7
-
-
-def test_data_model_set_through_none_placeholder_vivifies():
-    dm = DataModel({"user": None, "counts": [None]})
-
-    dm.set("/user/name", "Bob")
-    dm.set("/counts/0/total", 1)
-
-    assert dm.get("/user/name") == "Bob"
-    assert dm.get("/counts/0/total") == 1
-
-
 def test_surface_model_initialization_and_catalogs():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", default_catalog=cat, root_id="custom_root")
 
     assert surface.root_id == "custom_root"
@@ -628,8 +535,45 @@ def test_surface_model_initialization_and_catalogs():
     assert surface.available_catalogs[cat.id] is cat
 
 
+def test_surface_model_resolve_catalog():
+    default = BasicCatalog("1.0")
+    other = BasicCatalog("0.9")
+    surface = SurfaceModel(
+        "s1", default_catalog=default, available_catalogs={other.id: other}
+    )
+
+    assert surface.resolve_catalog(None) is default
+    assert surface.resolve_catalog(default.id) is default
+    assert surface.resolve_catalog(other.id) is other
+    with pytest.raises(A2uiCatalogError, match="Catalog not found: missing"):
+        surface.resolve_catalog("missing")
+    # An empty catalogId names a catalog too; it does not mean the default.
+    with pytest.raises(A2uiCatalogError, match="^Catalog not found: $"):
+        surface.resolve_catalog("")
+
+
+def test_surface_model_resolve_catalog_without_default():
+    cat = BasicCatalog("1.0")
+    surface = SurfaceModel(
+        "s1",
+        default_catalog=None,
+        available_catalogs={cat.id: cat},
+        protocol_version="1.0",
+    )
+
+    assert surface.resolve_catalog(cat.id) is cat
+    with pytest.raises(
+        A2uiCatalogError,
+        match=(
+            "^Function call 'f' names no catalogId and surface s1 has no default"
+            " catalogId.$"
+        ),
+    ):
+        surface.resolve_catalog(None, subject="Function call 'f'")
+
+
 def test_surface_model_dispatch_warning_and_error():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", default_catalog=cat)
 
     warnings_received: list[dict[str, Any]] = []
@@ -657,7 +601,7 @@ def test_surface_model_dispatch_warning_and_error():
 
 
 def test_surface_model_dispatch_action_payload_handling():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", default_catalog=cat)
 
     actions_received: list[dict[str, Any]] = []
@@ -680,18 +624,67 @@ def test_surface_model_dispatch_action_payload_handling():
 
 
 def test_surface_model_disposal():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", default_catalog=cat)
+    comp = ComponentModel("c1", "Text", cat, {"text": "initial"})
+    surface.components_model.add_component(comp)
 
-    def on_act(_: Any) -> None:
-        pass
+    actions: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    metadata_events: list[Any] = []
+    data_events: list[Any] = []
+    comp_updates: list[ComponentModel] = []
+    created_events: list[ComponentModel] = []
+    deleted_events: list[str] = []
 
-    surface.on_action.subscribe(on_act)
+    surface.on_action.subscribe(lambda a: actions.append(a))
+    surface.on_error.subscribe(lambda e: errors.append(e))
+    surface.on_warning.subscribe(lambda w: warnings.append(w))
+    surface.on_metadata_changed.subscribe(lambda m: metadata_events.append(m))
+    surface.data_model.subscribe("/key", lambda v: data_events.append(v))
+    comp.on_updated.subscribe(lambda c: comp_updates.append(c))
+    surface.components_model.on_created.subscribe(lambda c: created_events.append(c))
+    surface.components_model.on_deleted.subscribe(
+        lambda cid: deleted_events.append(cid)
+    )
+
     surface.dispose()
+
+    assert len(surface.components_model) == 0
+    assert deleted_events == ["c1"]
+    deleted_events.clear()
+
+    # Dispatches after dispose() must not reach any pre-disposal subscriber.
+    surface.dispatch_action({"name": "click"}, "c1")
+    surface.dispatch_error({"code": "ERR", "message": "boom"})
+    surface.dispatch_warning({"code": "WARN", "message": "careful"})
+    surface.set_extension("theme", "dark")
+    surface.data_model.set("/key", "updated")
+    comp.properties = {"text": "changed"}
+    surface.components_model.add_component(ComponentModel("c2", "Text", cat, {}))
+    surface.components_model.remove_component("c2")
+    surface.components_model.remove_component("c1")
+
+    assert actions == []
+    assert errors == []
+    assert warnings == []
+    assert metadata_events == []
+    assert data_events == []
+    assert comp_updates == []
+    assert created_events == []
+    assert deleted_events == []
+
+    # Subscriptions registered after disposal can be unsubscribed cleanly.
+    post_actions: list[dict[str, Any]] = []
+    sub = surface.on_action.subscribe(lambda a: post_actions.append(a))
+    sub.unsubscribe()
+    surface.dispatch_action({"name": "after_unsub"}, "c1")
+    assert post_actions == []
 
 
 def test_surface_components_model_membership_and_storage():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     scm = SurfaceComponentsModel(default_catalog=cat)
     assert scm.default_catalog is cat
 
@@ -708,16 +701,41 @@ def test_surface_components_model_membership_and_storage():
 
 
 def test_surface_components_model_duplicate_rejection():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     scm = SurfaceComponentsModel(default_catalog=cat)
     scm.add_component(ComponentModel("c1", "Text", cat, {}))
 
     with pytest.raises(A2uiStateError, match="already exists"):
         scm.add_component(ComponentModel("c1", "Text", cat, {}))
+    with pytest.raises(A2uiStateError, match="already exists"):
+        scm.insert_component(0, ComponentModel("c1", "Text", cat, {}))
+
+
+def test_surface_components_model_insert_component_at_a_position():
+    cat = BasicCatalog("0.9")
+    scm = SurfaceComponentsModel(default_catalog=cat)
+    created: list[str] = []
+    scm.on_created.subscribe(lambda c: created.append(c.id))
+    keys = scm.keys
+    scm.add_component(ComponentModel("a", "Text", cat, {}))
+    scm.add_component(ComponentModel("c", "Text", cat, {}))
+
+    inserted = ComponentModel("b", "Text", cat, {"text": "hello"})
+    scm.insert_component(1, inserted)
+    scm.insert_component(0, ComponentModel("first", "Text", cat, {}))
+    scm.insert_component(99, ComponentModel("last", "Text", cat, {}))
+
+    # The view taken before the inserts sees them.
+    assert list(keys) == ["first", "a", "b", "c", "last"]
+    assert scm.get("b") is inserted
+    assert created == ["a", "c", "b", "first", "last"]
+    # An inserted component is tracked like an added one.
+    scm.remove_component("b")
+    assert list(keys) == ["first", "a", "c", "last"]
 
 
 def test_surface_components_model_child_references():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     scm = SurfaceComponentsModel(default_catalog=cat)
     c1 = ComponentModel("c1", "Text", cat, {"text": "hello"})
     scm.add_component(c1)
@@ -726,8 +744,23 @@ def test_surface_components_model_child_references():
     assert scm.get_child_ids("c1") == []
 
 
+@pytest.mark.parametrize("version", ["0.9", "1.0"])
+def test_surface_components_model_leaf_prop_naming_a_component_is_not_a_child(
+    version,
+):
+    # From v0.9 the catalog declares every child with a $ref; Icon declares none.
+    cat = BasicCatalog(version)
+    scm = SurfaceComponentsModel(default_catalog=cat)
+    scm.add_component(ComponentModel("root", "Row", cat, {"children": ["mail"]}))
+    scm.add_component(ComponentModel("mail", "Row", cat, {"children": ["mail_icon"]}))
+    scm.add_component(ComponentModel("mail_icon", "Icon", cat, {"name": "mail"}))
+
+    assert scm.get_child_references("mail_icon") == []
+    scm.validate_topology()
+
+
 def test_surface_components_model_cycle_detection_ignores_orphans():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     scm = SurfaceComponentsModel(default_catalog=cat)
     # root connected to c1
     scm.add_component(ComponentModel("root", "Box", cat, {"child": "c1"}))
@@ -744,7 +777,7 @@ def test_surface_components_model_cycle_detection_ignores_orphans():
 def test_surface_components_model_max_depth_enforcement():
     from a2ui.core.validation import ValidationConfig
 
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     chain_scm = SurfaceComponentsModel(default_catalog=cat)
     chain_scm.add_component(ComponentModel("root", "Box", cat, {"child": "node1"}))
     chain_scm.add_component(ComponentModel("node1", "Box", cat, {"child": "node2"}))
@@ -762,7 +795,7 @@ def test_surface_components_model_collection_helpers_and_topology():
     from a2ui.core.validation import ValidationConfig
     from a2ui.core.exceptions import A2uiIntegrityError
 
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     scm = SurfaceComponentsModel(default_catalog=cat)
 
     # Empty topology validation is a no-op
@@ -823,11 +856,380 @@ def test_uax31_identifier_helpers():
     from a2ui.core.exceptions import A2uiCatalogError
 
     assert is_valid_uax31_identifier("validName_1") is True
-    assert is_valid_uax31_identifier("@index") is True
+    assert is_valid_uax31_identifier("@index") is False
+    assert is_valid_uax31_identifier("@index", allow_leading_at=True) is True
+    assert is_valid_uax31_identifier("@@index", allow_leading_at=True) is False
     assert is_valid_uax31_identifier("123invalid") is False
     assert is_valid_uax31_identifier("invalid-name") is False
     assert is_valid_uax31_identifier("") is False
 
     assert_uax31_identifier("validName_1", "component identifier")
     with pytest.raises(A2uiCatalogError, match="Invalid UAX #31 function identifier"):
+        assert_uax31_identifier("@index", "function identifier")
+    assert_uax31_identifier("@index", "function identifier", allow_leading_at=True)
+    with pytest.raises(A2uiCatalogError, match="Invalid UAX #31 function identifier"):
         assert_uax31_identifier("bad-fn!", "function identifier")
+
+
+def test_composition_constraints_surface_and_multiple_parents():
+    from a2ui.core.catalog import Catalog
+    from a2ui.core.exceptions import A2uiIntegrityError, A2uiValidationError
+    from a2ui.core.processing import MessageProcessor, MessageProcessorOptions
+    from a2ui.core.validation import (
+        RELAXED_VALIDATION,
+        STRICT_VALIDATION,
+        ValidationConfig,
+    )
+
+    catalog = Catalog.from_json(
+        {
+            "catalogId": "custom",
+            "protocolVersion": "1.0",
+            "components": {
+                "Box": {
+                    "type": "object",
+                    "properties": {
+                        "children": {"$ref": "#/$defs/ChildList"},
+                    },
+                },
+                "Card": {
+                    "type": "object",
+                    "allowedParents": ["Box"],
+                    "properties": {
+                        "children": {"$ref": "#/$defs/ChildList"},
+                    },
+                },
+                "Header": {
+                    "type": "object",
+                    "allowedParents": ["Box"],
+                },
+            },
+        },
+        catalog_id="custom",
+        protocol_version="1.0",
+    )
+
+    # 1. Container rewritten to drop a child: unreferenced non-root component is
+    # not checked against "Surface" when orphans are allowed (default/relaxed).
+    for options in (
+        None,
+        MessageProcessorOptions(validation_config=RELAXED_VALIDATION),
+    ):
+        proc = MessageProcessor([catalog], options=options)
+        proc.process_messages([
+            {
+                "version": "1.0",
+                "createSurface": {
+                    "surfaceId": "s1",
+                    "catalogId": "custom",
+                    "components": [
+                        {"id": "root", "component": "Box", "children": ["h"]},
+                        {"id": "h", "component": "Header"},
+                    ],
+                },
+            },
+            {
+                "version": "1.0",
+                "updateComponents": {
+                    "surfaceId": "s1",
+                    "components": [
+                        {"id": "root", "component": "Box", "children": []},
+                    ],
+                },
+            },
+        ])
+        surface = proc.model.get_surface("s1")
+        assert surface is not None
+        assert surface.components_model.get("root").properties == {"children": []}
+        assert surface.components_model.get("h").type == "Header"
+
+    # In strict mode, the dropped child is reported as an orphan by topology
+    # validation rather than failing UNALLOWED_PARENT against "Surface".
+    strict_proc = MessageProcessor(
+        [catalog],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
+    )
+    strict_proc.process_messages([{
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": "custom",
+            "components": [
+                {"id": "root", "component": "Box", "children": ["h"]},
+                {"id": "h", "component": "Header"},
+            ],
+        },
+    }])
+    with pytest.raises(A2uiIntegrityError, match="not reachable from 'root'"):
+        strict_proc.process_messages([{
+            "version": "1.0",
+            "updateComponents": {
+                "surfaceId": "s1",
+                "components": [
+                    {"id": "root", "component": "Box", "children": []},
+                ],
+            },
+        }])
+
+    # 2. Root component referenced by another component is still checked against
+    # "Surface" (for both default "root" and a custom root_id).
+    proc_root_ref = MessageProcessor([catalog])
+    with pytest.raises(
+        A2uiValidationError,
+        match=(
+            r"Component 'root' \(Card\) cannot be placed under parent 'Surface'"
+            r" \(Surface\)"
+        ),
+    ) as exc_info:
+        proc_root_ref.process_messages([{
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "s1",
+                "catalogId": "custom",
+                "components": [
+                    {"id": "root", "component": "Card"},
+                    {"id": "box", "component": "Box", "children": ["root"]},
+                ],
+            },
+        }])
+    assert any(d.code == "UNALLOWED_PARENT" for d in exc_info.value.details)
+
+    scm_custom_root = SurfaceComponentsModel(default_catalog=catalog)
+    with pytest.raises(
+        A2uiValidationError,
+        match=(
+            r"Component 'main_root' \(Card\) cannot be placed under parent 'Surface'"
+            r" \(Surface\)"
+        ),
+    ):
+        scm_custom_root.validate_components_update(
+            [
+                ComponentModel("main_root", "Card", catalog, {}),
+                ComponentModel("box", "Box", catalog, {"children": ["main_root"]}),
+            ],
+            config=ValidationConfig(
+                root_id="main_root",
+                allow_orphan_components=True,
+            ),
+        )
+
+    # 3. Component with multiple parents checks every parent edge regardless of
+    # component order.
+    for children_order in (
+        [
+            {"id": "root", "component": "Box", "children": ["card", "b"]},
+            {"id": "card", "component": "Card", "children": ["h"]},
+            {"id": "b", "component": "Box", "children": ["h"]},
+            {"id": "h", "component": "Header"},
+        ],
+        [
+            {"id": "root", "component": "Box", "children": ["b", "card"]},
+            {"id": "b", "component": "Box", "children": ["h"]},
+            {"id": "card", "component": "Card", "children": ["h"]},
+            {"id": "h", "component": "Header"},
+        ],
+    ):
+        proc_multi = MessageProcessor([catalog])
+        with pytest.raises(
+            A2uiValidationError,
+            match=(
+                r"Component 'h' \(Header\) cannot be placed under parent 'card'"
+                r" \(Card\)"
+            ),
+        ) as exc_info:
+            proc_multi.process_messages([{
+                "version": "1.0",
+                "createSurface": {
+                    "surfaceId": "s1",
+                    "catalogId": "custom",
+                    "components": children_order,
+                },
+            }])
+        assert any(d.code == "UNALLOWED_PARENT" for d in exc_info.value.details)
+
+
+def test_component_model_and_surface_model_metadata_api():
+    from a2ui.core.resolution import ComponentContext, GenericBinder
+
+    v10_cat = BasicCatalog("1.0")
+    comp = ComponentModel(
+        "c1",
+        "Text",
+        v10_cat,
+        {"text": "Hello"},
+        metadata={"extensions": {"a": 1}},
+    )
+    assert comp.metadata == {"extensions": {"a": 1}}
+    assert comp.extensions == {"a": 1}
+    assert "metadata" not in comp.properties
+    assert comp.component_tree == {
+        "id": "c1",
+        "component": "Text",
+        "text": "Hello",
+        "metadata": {"extensions": {"a": 1}},
+    }
+
+    # Defensive copy check
+    mutated = comp.metadata
+    assert mutated is not None
+    mutated["extensions"]["a"] = 999
+    assert comp.extensions == {"a": 1}
+
+    comp_events: list[Any] = []
+    comp.on_metadata_changed.subscribe(lambda m: comp_events.append(m))
+
+    # Identical update does not emit
+    comp.metadata = {"extensions": {"a": 1}}
+    assert comp_events == []
+
+    # set_extension with explicit None value keeps the key
+    comp.set_extension("b", None)
+    assert comp.metadata == {"extensions": {"a": 1, "b": None}}
+    assert len(comp_events) == 1
+
+    # remove_extension removes keys and clears metadata when last key is removed
+    comp.remove_extension("a")
+    assert comp.metadata == {"extensions": {"b": None}}
+    comp.remove_extension("b")
+    assert comp.metadata is None
+    assert comp.extensions is None
+    assert comp_events[-1] is None
+
+    # Invalid UAX 31 extension key raises A2uiValidationError
+    with pytest.raises(A2uiValidationError, match="invalid_identifier|UAX"):
+        comp.set_extension("bad-key!", 1)
+
+    surface = SurfaceModel(
+        "s1",
+        v10_cat,
+        metadata={"extensions": {"surfaceTheme": "dark"}},
+    )
+    assert surface.metadata == {"extensions": {"surfaceTheme": "dark"}}
+    assert surface.extensions == {"surfaceTheme": "dark"}
+
+    surf_events: list[Any] = []
+    surface.on_metadata_changed.subscribe(lambda m: surf_events.append(m))
+    surface.set_extension("mode", "compact")
+    assert surface.extensions == {"surfaceTheme": "dark", "mode": "compact"}
+    assert len(surf_events) == 1
+
+    surface.remove_extension("surfaceTheme")
+    surface.remove_extension("mode")
+    assert surface.metadata is None
+    assert surf_events[-1] is None
+
+    # ComponentContext and GenericBinder expose metadata; binder.subscribe only fires on props changes
+    surface.components_model.add_component(comp)
+    ctx = ComponentContext.from_surface(surface, "c1")
+    binder = GenericBinder(ctx)
+    assert ctx.metadata is None
+    assert binder.metadata is None
+
+    binder_updates: list[Any] = []
+    binder.subscribe(lambda props: binder_updates.append((props, binder.metadata)))
+    initial_binder_updates = len(binder_updates)
+    comp.set_extension("badge", "new")
+    assert ctx.metadata == {"extensions": {"badge": "new"}}
+    assert binder.metadata == {"extensions": {"badge": "new"}}
+    assert len(binder_updates) == initial_binder_updates
+    binder.dispose()
+
+    # Boolean vs integer type distinction in metadata and properties equality
+    comp_bool_events: list[Any] = []
+    comp.on_metadata_changed.subscribe(lambda m: comp_bool_events.append(m))
+    comp.set_extension("flag", 1)
+    assert len(comp_bool_events) == 1
+    comp.set_extension("flag", True)
+    assert len(comp_bool_events) == 2
+    assert comp.extensions["flag"] is True
+    assert type(comp.extensions["flag"]) is bool
+
+    prop_bool_events: list[Any] = []
+    comp.apply_update({"count": 1}, comp.metadata)
+    comp.on_updated.subscribe(lambda c: prop_bool_events.append(c.properties))
+    comp.apply_update({"count": True}, comp.metadata)
+    assert len(prop_bool_events) == 1
+    assert comp.properties["count"] is True
+    assert type(comp.properties["count"]) is bool
+
+    # dispatch_action merges call-site metadata over payload metadata
+    dispatched: list[dict[str, Any]] = []
+    surface.on_action.subscribe(lambda act: dispatched.append(act))
+    surface.dispatch_action(
+        {
+            "event": {"name": "click"},
+            "metadata": {"extensions": {"fromPayload": 1, "shared": "payload"}},
+        },
+        "c1",
+        metadata={"extensions": {"fromCall": 2, "shared": "call"}},
+    )
+    assert dispatched[-1]["metadata"] == {
+        "extensions": {"fromPayload": 1, "fromCall": 2, "shared": "call"}
+    }
+
+    # Empty action metadata envelopes normalize and omit "metadata" from action_event
+    surface.dispatch_action(
+        {"event": {"name": "click"}, "metadata": {"extensions": {}}},
+        "c1",
+        metadata={},
+    )
+    assert "metadata" not in dispatched[-1]
+
+    # M2: {"extensions": None} raises A2uiValidationError and empty dicts normalize to None
+    with pytest.raises(A2uiValidationError, match="dictionary"):
+        comp.metadata = {"extensions": None}
+    comp.metadata = {}
+    assert comp.metadata is None
+    comp.metadata = {"extensions": {}}
+    assert comp.metadata is None
+
+    # M3: ComponentContext.dispatch_action does not double-invoke dispatch callbacks raising TypeError
+    invocations = 0
+
+    def failing_dispatch(action_payload, source_id, metadata=None):
+        nonlocal invocations
+        invocations += 1
+        raise TypeError("listener internal type error")
+
+    custom_ctx = ComponentContext(
+        comp,
+        ctx.data_context,
+        surface.components_model,
+        dispatch_action_callback=failing_dispatch,
+    )
+    with pytest.raises(TypeError, match="listener internal type error"):
+        custom_ctx.dispatch_action(
+            {"event": {"name": "click"}}, metadata={"extensions": {"k": 1}}
+        )
+    assert invocations == 1
+
+    # H5: apply_update updates both properties and metadata before emitting, and coalesces GenericBinder
+    binder2 = GenericBinder(ctx)
+    observed_states: list[tuple[Any, Any]] = []
+    comp.on_updated.subscribe(
+        lambda _: observed_states.append(("updated", comp.properties, comp.metadata))
+    )
+    comp.on_metadata_changed.subscribe(
+        lambda m: observed_states.append(("metadata", comp.properties, m))
+    )
+    binder2_emissions: list[tuple[Any, Any]] = []
+    binder2.subscribe(lambda p: binder2_emissions.append((p, binder2.metadata)))
+    observed_states.clear()
+    binder2_emissions.clear()
+
+    comp.apply_update({"text": "Updated"}, {"extensions": {"atomic": True}})
+    assert len(observed_states) == 2
+    assert observed_states[0] == (
+        "updated",
+        {"text": "Updated"},
+        {"extensions": {"atomic": True}},
+    )
+    assert observed_states[1] == (
+        "metadata",
+        {"text": "Updated"},
+        {"extensions": {"atomic": True}},
+    )
+    assert len(binder2_emissions) == 1
+    assert binder2_emissions[0][0]["text"] == "Updated"
+    assert binder2_emissions[0][1] == {"extensions": {"atomic": True}}
+    binder2.dispose()

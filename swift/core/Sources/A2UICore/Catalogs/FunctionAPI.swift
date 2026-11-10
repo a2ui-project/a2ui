@@ -31,13 +31,38 @@ public struct FunctionAPI: Sendable, Equatable {
   /// The JSON Schema for the function's arguments.
   public var schema: Schema
 
+  /// Specifies which roles are authorized to invoke this function.
+  public var allowedCallers: AllowedCallers
+
+  /// Specifies whether this function requires a user activation context to execute.
+  public var requiresUserActivation: Bool
+
   public init(
     name: String,
     returnType: FunctionReturnType,
-    schema: Schema
+    schema: Schema,
+    allowedCallers: AllowedCallers = .rendererOnly,
+    requiresUserActivation: Bool = false
   ) {
     self.name = name
     self.returnType = returnType
     self.schema = schema
+    self.allowedCallers = allowedCallers
+    self.requiresUserActivation = requiresUserActivation
+  }
+
+  /// Validates that a function requiring user activation is restricted to `rendererOnly`.
+  ///
+  /// - Throws: ``A2UICatalogError`` if `requiresUserActivation` is `true` and
+  ///   `allowedCallers` is not `.rendererOnly`.
+  public func validateCallerConstraints() throws {
+    if requiresUserActivation && allowedCallers != .rendererOnly {
+      throw A2UICatalogError(
+        """
+        Function '\(name)' cannot set requiresUserActivation to true when allowedCallers is \
+        '\(allowedCallers.rawValue)'; requiresUserActivation is only valid with rendererOnly.
+        """
+      )
+    }
   }
 }

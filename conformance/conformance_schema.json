@@ -6,29 +6,60 @@
   "items": {
     "anyOf": [
       {"$ref": "#/$defs/TestCase"},
+      {"$ref": "#/$defs/NodeResolutionTest"},
       {"$ref": "#/$defs/FromFormatTest"},
       {"$ref": "#/$defs/CoreSyntaxTest"},
       {"$ref": "#/$defs/FromCatalogTest"},
       {"$ref": "#/$defs/SkillSetTest"},
+      {"$ref": "#/$defs/ExportToDirectoryTest"},
+      {"$ref": "#/$defs/MonolithicSkillEqualsPromptSnippetTest"},
       {"$ref": "#/$defs/TransformCatalogTest"},
       {"$ref": "#/$defs/ProvideCatalogTest"},
       {"$ref": "#/$defs/ResolveCatalogsTest"},
       {"$ref": "#/$defs/GeneratePromptSnippetTest"},
+      {"$ref": "#/$defs/HasFormatContentTest"},
       {"$ref": "#/$defs/UnwrapTest"},
       {"$ref": "#/$defs/WrapTest"},
       {"$ref": "#/$defs/CompileTest"},
       {"$ref": "#/$defs/DecompileTest"},
       {"$ref": "#/$defs/ParseResponseTest"},
       {"$ref": "#/$defs/ParseChunkTest"},
+      {"$ref": "#/$defs/StreamAnswerTest"},
+      {"$ref": "#/$defs/MeasureGrowthTest"},
+      {"$ref": "#/$defs/MeasureOverheadTest"},
       {"$ref": "#/$defs/CreateFormatTest"},
-      {"$ref": "#/$defs/CreateProcessorTest"}
+      {"$ref": "#/$defs/CreateProcessorTest"},
+      {"$ref": "#/$defs/EvaluateFunctionTest"},
+      {"$ref": "#/$defs/DispatchActionTest"},
+      {"$ref": "#/$defs/RouteAgentFunctionTest"},
+      {"$ref": "#/$defs/DeriveTest"},
+      {"$ref": "#/$defs/RenderSurfaceTest"},
+      {"$ref": "#/$defs/RendererStateTurnsTest"},
+      {"$ref": "#/$defs/HandleRpcTest"},
+      {"$ref": "#/$defs/DeclareAgentFunctionsTest"},
+      {"$ref": "#/$defs/HandleAgentFunctionTest"},
+      {"$ref": "#/$defs/ValidatePayloadTest"},
+      {"$ref": "#/$defs/ProcessRendererMessageTest"},
+      {"$ref": "#/$defs/CallRendererFunctionTest"},
+      {"$ref": "#/$defs/MarkdownSubsetTest"},
+      {"$ref": "#/$defs/E2eScenarioTest"}
     ]
   },
   "$defs": {
+    "FeatureTags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^F-(CORE|AGT|RND|BP)-[0-9]{2}$"
+      },
+      "uniqueItems": true,
+      "description": "Feature registry IDs exercised by this test case."
+    },
     "TestCase": {
       "type": "object",
       "required": ["name", "action"],
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "name": {
           "type": "string",
           "description": "Unique name of the test case."
@@ -37,7 +68,9 @@
           "type": "string",
           "enum": [
             "accessibility_check",
+            "agent_to_renderer_schema",
             "catalog_schema",
+            "common_types_schema",
             "compile",
             "convert_event",
             "core_syntax",
@@ -46,7 +79,11 @@
             "create_processor",
             "data_model",
             "decompile",
+            "dispatch_action",
+            "e2e_scenario",
+            "evaluate_function",
             "execute_tool",
+            "export_to_directory",
             "fix_payload",
             "from_catalog",
             "from_format",
@@ -56,11 +93,12 @@
             "get_extension",
             "get_renderer_capabilities",
             "get_renderer_data_model",
-            "handle_rpc",
+            "has_format_content",
             "has_parts",
             "is_a2ui_part",
             "load",
             "load_catalog",
+            "monolithic_skill_equals_prompt_snippet",
             "parse_chunk",
             "parse_expression_template",
             "parse_full",
@@ -69,20 +107,26 @@
             "process_messages",
             "provide_catalog",
             "prune",
-            "remove_strict_validation",
             "render",
+            "render_markdown",
             "resolve_catalogs",
             "resolve_path",
+            "round_trip",
             "select_catalog",
             "select_newest",
             "skill_set",
+            "stream_answer",
+            "to_json",
             "transform_catalog",
             "try_activate",
             "try_activate_extension",
             "unwrap",
             "validate",
+            "validate_common_type",
+            "validation_schema",
             "verify_cuttable_keys",
-            "wrap"
+            "wrap",
+            "renderer_state_turns"
           ],
           "description": "The conformance test action to perform."
         },
@@ -114,11 +158,15 @@
         },
         "catalogPath": {
           "type": "string",
-          "description": "File path to catalog schema JSON file."
+          "description": "Repository-relative path to a catalog schema JSON file. Cases load the file with fromJson. A to_json case that should serialize the SDK's own implementation names it with builtinCatalog instead."
         },
         "catalogId": {
           "type": "string",
           "description": "Target catalog identifier."
+        },
+        "builtinCatalog": {
+          "enum": ["basic"],
+          "description": "In a to_json case, the SDK's own implementation of this catalog for the case's protocolVersion is serialized. An SDK without that implementation skips the case."
         },
         "catalogConfigs": {
           "type": "array",
@@ -147,16 +195,32 @@
         "format": {
           "description": "Inference format configuration or name."
         },
-        "modifiers": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Modifiers applied during test execution."
-        },
         "strictMode": {
           "type": "boolean",
           "description": "Whether strict validation mode is enabled."
+        },
+        "validationConfig": {
+          "type": "object",
+          "description": "In a process_messages case, the checks the processor makes, so they don't depend on the harness. Each flag allows what a check would otherwise reject; a flag the case leaves out is false, as in every SDK's ValidationConfig, so {} turns every check on. It takes precedence over `strictMode`. Without it, each harness uses its own default.",
+          "properties": {
+            "allowOrphanComponents": {
+              "type": "boolean",
+              "description": "Allow components that are not reachable from the root."
+            },
+            "allowDanglingReferences": {
+              "type": "boolean",
+              "description": "Allow references to components that have not arrived."
+            },
+            "allowMissingRoot": {
+              "type": "boolean",
+              "description": "Allow a surface without a root component."
+            },
+            "allowUnknownElements": {
+              "type": "boolean",
+              "description": "Allow component types that the catalog does not declare."
+            }
+          },
+          "additionalProperties": false
         },
         "disableValidation": {
           "type": "boolean",
@@ -170,7 +234,7 @@
           "description": "Sequential steps for multi-step execution tests."
         },
         "expect": {
-          "description": "Expected outcome of the test action (evaluated as a contains / subset match rather than an exact match)."
+          "description": "Expected outcome of the test action (evaluated as a contains / subset match rather than an exact match). Supports surfaces.<id>.{isValid, validationErrors, validationResults} alongside validationResult."
         },
         "expectError": {
           "$ref": "#/$defs/ExpectError"
@@ -193,13 +257,13 @@
           "$ref": "#/$defs/AccessibilityAssertions",
           "description": "Accessibility assertions to verify."
         },
-        "useBasicCatalog": {
-          "type": "boolean",
-          "description": "Whether to use the standard basic catalog implementation."
-        },
         "expectFile": {
           "type": "string",
-          "description": "File path to JSON file containing expected outcome object."
+          "description": "Repository-relative path to a JSON file containing the expected outcome. A validation_schema case names its golden artifact under conformance/test_data/validation_schema/ here, and a to_json case the expected catalog document. Both are compared for exact equality ignoring object key order and the order of `enum` values and `required` names."
+        },
+        "definition": {
+          "type": "string",
+          "description": "Name of the common types $defs entry that validate_common_type validates each step's value against."
         },
         "initial": {
           "description": "Initial contents of the data model. Defaults to an empty object."
@@ -223,30 +287,182 @@
           "description": "List of expected skill filenames or keys."
         }
       },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"action": {"const": "from_json"}},
+            "required": ["action"]
+          },
+          "then": {
+            "properties": {"expect": {"$ref": "#/$defs/FromJsonExpect"}}
+          }
+        },
+        {
+          "if": {
+            "properties": {"action": {"const": "to_json"}},
+            "required": ["action"]
+          },
+          "then": {
+            "required": ["expectFile"],
+            "not": {"required": ["expect"]},
+            "oneOf": [
+              {"required": ["builtinCatalog"]},
+              {"required": ["catalogPath"]},
+              {"required": ["catalog"]}
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {"action": {"const": "validation_schema"}},
+            "required": ["action"]
+          },
+          "then": {
+            "anyOf": [{"required": ["expectFile"]}, {"required": ["expectError"]}],
+            "not": {"required": ["expect"]}
+          }
+        },
+        {
+          "if": {
+            "properties": {"action": {"const": "round_trip"}},
+            "required": ["action"]
+          },
+          "then": {
+            "not": {"anyOf": [{"required": ["expect"]}, {"required": ["expectFile"]}]}
+          }
+        },
+        {
+          "if": {
+            "properties": {"action": {"const": "create_processor"}},
+            "required": ["action"]
+          },
+          "then": {
+            "$ref": "#/$defs/CreateProcessorTest"
+          }
+        },
+        {
+          "if": {
+            "properties": {"action": {"const": "renderer_state_turns"}},
+            "required": ["action"]
+          },
+          "then": {
+            "$ref": "#/$defs/RendererStateTurnsTest"
+          }
+        },
+        {
+          "if": {
+            "properties": {"action": {"const": "handle_rpc"}},
+            "required": ["action"]
+          },
+          "then": {
+            "$ref": "#/$defs/HandleRpcTest"
+          }
+        }
+      ],
       "additionalProperties": false
     },
-    "ProtocolVersion": {
-      "type": "string",
-      "enum": ["v0.8", "v0.9", "v0.9.1", "v1.0"],
-      "description": "Supported A2UI protocol versions."
-    },
-    "Catalog": {
+    "DeriveTest": {
       "type": "object",
+      "description": "Deriving a catalog with `Catalog.derive`: the case loads `catalog` with `fromJson`, derives a catalog from it with `args`, and checks `expect` against the derived catalog, or `expectError` against what `derive` raises.",
+      "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "action": {
+          "const": "derive"
+        },
+        "catalog": {
+          "type": "object",
+          "description": "The source catalog document, loaded with fromJson."
+        },
+        "catalogPath": {
+          "type": "string",
+          "description": "Repository-relative path to the source catalog document, loaded with fromJson."
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "catalogId": {
+              "type": "string",
+              "description": "The ID of the derived catalog."
+            },
+            "components": {
+              "$ref": "#/$defs/DeriveEntries"
+            },
+            "functions": {
+              "$ref": "#/$defs/DeriveEntries"
+            },
+            "instructions": {
+              "type": "string"
+            }
+          },
+          "required": ["catalogId"],
+          "additionalProperties": false
+        },
+        "expect": {
+          "$ref": "#/$defs/DeriveExpect"
+        },
+        "expectError": {
+          "$ref": "#/$defs/ExpectError"
+        }
+      },
+      "required": ["name", "action", "args"],
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": ["catalog"]
+            },
+            {
+              "required": ["catalogPath"]
+            }
+          ]
+        },
+        {
+          "oneOf": [
+            {
+              "required": ["expect"]
+            },
+            {
+              "required": ["expectError"]
+            }
+          ]
+        }
+      ],
+      "additionalProperties": false
+    },
+    "DeriveEntries": {
+      "type": "array",
+      "description": "The entries of one kind in the derived catalog. A name keeps the source catalog's entry of that name. A map with one key is a new entry, the key its name and the value its definition as a catalog document writes it; it replaces the source's entry of the same name. Leaving the list out keeps all of the source's entries of that kind.",
+      "items": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "object",
+            "minProperties": 1,
+            "maxProperties": 1
+          }
+        ]
+      }
+    },
+    "DeriveExpect": {
+      "type": "object",
+      "description": "Expected derived catalog. Every key is optional. Definitions are compared with the derived catalog's toJson() document, ignoring key order and the order of enum values and required names.",
       "properties": {
         "catalogId": {
-          "type": "string",
-          "description": "Identifier of the catalog."
+          "type": "string"
         },
         "protocolVersion": {
-          "$ref": "#/$defs/ProtocolVersion",
-          "description": "Protocol version supported by this catalog."
+          "$ref": "#/$defs/ProtocolVersion"
         },
         "components": {
-          "type": "object",
-          "description": "Map of component names to component schema definitions."
-        },
-        "functions": {
-          "description": "Function definitions or signatures.",
+          "description": "The exact set of components the derived catalog defines, as a list of names or a map from name to definition.",
           "oneOf": [
             {
               "type": "object"
@@ -255,6 +471,152 @@
               "type": "array",
               "items": {
                 "type": "string"
+              }
+            }
+          ]
+        },
+        "functions": {
+          "description": "The exact set of functions the derived catalog defines, as a list of names or a map from name to definition.",
+          "oneOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        },
+        "theme": {
+          "type": "object",
+          "description": "The theme the derived catalog's toJson() document carries."
+        },
+        "instructions": {
+          "type": "string",
+          "description": "The instructions the derived catalog's toJson() document carries."
+        },
+        "absentKeys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Top-level keys the derived catalog's toJson() document does not carry."
+        }
+      },
+      "additionalProperties": false
+    },
+    "FromJsonExpect": {
+      "type": "object",
+      "description": "Expected outcome of a from_json case. Every key is optional, and a harness fails a case that sets a key not listed here.",
+      "properties": {
+        "catalogId": {
+          "type": "string",
+          "description": "Catalog ID the loaded catalog reports."
+        },
+        "protocolVersion": {
+          "$ref": "#/$defs/ProtocolVersion",
+          "description": "Protocol version the loaded catalog reports."
+        },
+        "components": {
+          "description": "The exact set of components the loaded catalog defines, as a list of names or a map keyed by name.",
+          "oneOf": [{"type": "object"}, {"type": "array", "items": {"type": "string"}}]
+        },
+        "functions": {
+          "description": "The exact set of functions the loaded catalog defines, as a list of names or a map keyed by name.",
+          "oneOf": [{"type": "object"}, {"type": "array", "items": {"type": "string"}}]
+        },
+        "theme": {
+          "type": "object",
+          "description": "Theme schema the loaded catalog carries. A non-empty object requires the catalog to have a theme schema."
+        },
+        "matchesBuiltinCatalog": {
+          "type": "boolean",
+          "description": "When true, the catalog loaded with fromJson is equivalent to the SDK's own implementation of the catalog with the same catalogId: the same catalogId and protocolVersion, the same component and function names, the same property names and required names for each component (ignoring the `id` and `component` envelope fields), and the same returnType, allowedCallers and requiresUserActivation for each function. An SDK without its own implementation of that catalog skips the case."
+        },
+        "selfContained": {
+          "type": "boolean",
+          "description": "When true, the resolved catalog schema contains at least one $ref, every $ref is a local '#' reference, and each one resolves within the resolved catalog schema."
+        },
+        "validComponents": {
+          "type": "array",
+          "items": {"type": "object"},
+          "description": "Component instances that must pass validation against the loaded catalog."
+        },
+        "invalidComponents": {
+          "type": "array",
+          "items": {"type": "object"},
+          "description": "Component instances that must fail validation against the loaded catalog."
+        },
+        "componentMetadata": {
+          "type": "object",
+          "description": "Map of component name to the expected ComponentDefinition.metadata envelope ({extensions}) the loaded catalog reports, or null when the component defines none.",
+          "additionalProperties": {"type": ["object", "null"]}
+        }
+      },
+      "additionalProperties": false
+    },
+    "ProtocolVersion": {
+      "type": "string",
+      "enum": ["v0.8", "v0.9", "v0.9.1", "1.0"],
+      "description": "Supported A2UI protocol versions."
+    },
+    "Catalog": {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string",
+          "description": "JSON Schema dialect the catalog document declares."
+        },
+        "$id": {
+          "type": "string",
+          "description": "Base URI the catalog document declares."
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the catalog."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the catalog."
+        },
+        "instructions": {
+          "type": "string",
+          "description": "Markdown design guidelines for the catalog."
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Catalog metadata object."
+        },
+        "catalogId": {
+          "type": "string",
+          "description": "Identifier of the catalog."
+        },
+        "protocolVersion": {
+          "description": "Protocol version supported by this catalog, written either as the conformance enum spells it (for example `1.0` or `v0.9`) or as a semver string.",
+          "anyOf": [
+            {"$ref": "#/$defs/ProtocolVersion"},
+            {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:\\.(0|[1-9][0-9]*))?$"
+            }
+          ]
+        },
+        "components": {
+          "type": "object",
+          "description": "Map of component names to component schema definitions."
+        },
+        "functions": {
+          "description": "Function definitions or signatures: a map keyed by function name, or a list of names or of inline-catalog function definitions.",
+          "oneOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [{"type": "string"}, {"type": "object"}]
               }
             }
           ]
@@ -331,7 +693,7 @@
         },
         "op": {
           "type": "string",
-          "enum": ["get", "set", "delete", "dispose"],
+          "enum": ["get", "set", "delete", "dispose", "mutate_input"],
           "description": "The operation to apply."
         },
         "path": {
@@ -339,10 +701,20 @@
           "description": "JSON Pointer the operation targets."
         },
         "value": {
-          "description": "Value to write. Only meaningful for set."
+          "description": "For data_model set steps, the value to write. For validate_common_type steps, the value validated against the case's definition."
         },
         "expect": {
-          "description": "Expected output for this step (evaluated as a contains / subset match rather than an exact match)."
+          "description": "Expected output for this step (evaluated as a contains / subset match rather than an exact match). Supports surfaces.<id>.{isValid, validationErrors, validationResults} alongside validationResult."
+        },
+        "assertions": {
+          "oneOf": [
+            {"$ref": "#/$defs/AccessibilityAssertions"},
+            {
+              "type": "array",
+              "items": {"type": "object"}
+            }
+          ],
+          "description": "Accessibility assertions to verify for this step."
         },
         "expectError": {
           "$ref": "#/$defs/ExpectError"
@@ -372,6 +744,25 @@
             "type": "string"
           },
           "description": "Watched paths whose observers fired for this step, one entry per observer that fired."
+        },
+        "validationConfig": {
+          "type": "object",
+          "description": "For process_messages steps, the validation rules for this call only (`ExecutionContext.validationConfig`), in place of the rules the processor was created with. A rule left out is strict.",
+          "properties": {
+            "allowOrphanComponents": {
+              "type": "boolean"
+            },
+            "allowDanglingReferences": {
+              "type": "boolean"
+            },
+            "allowMissingRoot": {
+              "type": "boolean"
+            },
+            "allowUnknownElements": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -393,9 +784,616 @@
       },
       "additionalProperties": false
     },
+    "NodeResolutionTest": {
+      "type": "object",
+      "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "resolve_nodes"},
+        "fixture": {
+          "type": "string",
+          "minLength": 1,
+          "description": "YAML fixture path relative to the conformance directory."
+        },
+        "expect": {"$ref": "#/$defs/NodeResolutionExpectation"},
+        "steps": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/NodeResolutionStep"}
+        }
+      },
+      "required": ["name", "action", "fixture", "expect", "steps"],
+      "additionalProperties": false
+    },
+    "EvaluateFunctionTest": {
+      "type": "object",
+      "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "evaluate_function"},
+        "protocolVersion": {"$ref": "#/$defs/ProtocolVersion"},
+        "useBasicCatalog": {"type": "boolean"},
+        "catalogPaths": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Catalog JSON fixture paths relative to repository root. With a surface block, the catalogs among them built for protocolVersion are the surface's available catalogs."
+        },
+        "surface": {
+          "type": "object",
+          "description": "Evaluates the function as a call on a surface built for protocolVersion, so the call goes through catalog resolution instead of invoking the implementation directly. Without this block, the function is invoked directly in the case's default catalog.",
+          "properties": {
+            "catalogId": {
+              "type": "string",
+              "description": "The surface default catalog, which must be one of the catalogs from catalogPaths. Omit it for a v1.0 surface without a default catalog."
+            }
+          },
+          "additionalProperties": false
+        },
+        "catalogId": {
+          "type": "string",
+          "description": "The catalogId the call itself names. Only meaningful with a surface block."
+        },
+        "function": {
+          "type": "string",
+          "description": "Name of the catalog function to evaluate."
+        },
+        "args": {
+          "type": "object",
+          "description": "Dictionary of named arguments passed to the function."
+        },
+        "dataModel": {
+          "type": "object",
+          "description": "Initial data model object for dynamic context resolution."
+        },
+        "locale": {
+          "type": "string",
+          "description": "Locale identifier (default 'en-US')."
+        },
+        "expect": {
+          "description": "Expected returned JSON value (primitive, array, or object)."
+        },
+        "expectError": {
+          "$ref": "#/$defs/ExpectError"
+        }
+      },
+      "required": ["name", "action", "function", "args"],
+      "dependentRequired": {
+        "surface": ["protocolVersion", "catalogPaths"],
+        "catalogId": ["surface"]
+      },
+      "additionalProperties": false
+    },
+    "DispatchActionTest": {
+      "type": "object",
+      "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "dispatch_action"},
+        "protocolVersion": {"$ref": "#/$defs/ProtocolVersion"},
+        "useBasicCatalog": {"type": "boolean"},
+        "catalogPaths": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Catalog JSON fixture paths relative to repository root."
+        },
+        "catalog": {
+          "$ref": "#/$defs/Catalog"
+        },
+        "catalogs": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/Catalog"}
+        },
+        "surfaceId": {
+          "type": "string",
+          "description": "Surface identifier (default 'main')."
+        },
+        "sourceComponentId": {
+          "type": "string",
+          "description": "Identifier of the component dispatching the action."
+        },
+        "userActivation": {
+          "type": "boolean",
+          "description": "Whether the action was triggered by a direct user activation gesture."
+        },
+        "scope": {
+          "type": "string",
+          "description": "JSON pointer path for the local data context scope."
+        },
+        "dataModel": {
+          "type": "object",
+          "description": "Initial data model object."
+        },
+        "actionPayload": {
+          "type": "object",
+          "description": "Action definition object (event or functionCall)."
+        },
+        "metadata": {
+          "type": ["object", "null"],
+          "description": "Optional action.metadata envelope ({extensions}) passed to dispatchAction."
+        },
+        "expectDispatched": {
+          "type": ["object", "null"],
+          "properties": {
+            "name": {"type": "string"},
+            "context": {"type": "object"},
+            "userMessage": {"type": "string"},
+            "surfaceId": {"type": "string"},
+            "sourceComponentId": {"type": "string"},
+            "timestampIso8601": {"type": "boolean"},
+            "metadata": {
+              "type": ["object", "null"],
+              "description": "Expected action.metadata envelope on the dispatched action."
+            }
+          },
+          "additionalProperties": false,
+          "description": "Expected dispatched client action payload for server-bound events, or null when no event is dispatched."
+        },
+        "expectDataModel": {
+          "type": "object",
+          "description": "Expected data model state after local functionCall execution."
+        },
+        "expectError": {
+          "$ref": "#/$defs/ExpectError"
+        }
+      },
+      "required": ["name", "action", "actionPayload"],
+      "additionalProperties": false
+    },
+    "RouteAgentFunctionTest": {
+      "type": "object",
+      "description": "Evaluates function calls on surface `main`, created through a message processor, and answers the `callAgentFunction` messages the processor sends, to check the fallback routing of calls to the agent. After each step the harness lets pending asynchronous work run, then checks the step's expectations.",
+      "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "action": {
+          "const": "route_agent_function"
+        },
+        "protocolVersion": {
+          "$ref": "#/$defs/ProtocolVersion"
+        },
+        "catalogs": {
+          "type": "array",
+          "description": "The catalogs the processor holds, each built for protocolVersion.",
+          "items": {
+            "$ref": "#/$defs/RoutingCatalog"
+          },
+          "minItems": 1
+        },
+        "surface": {
+          "type": "object",
+          "properties": {
+            "catalogId": {
+              "type": "string",
+              "description": "The surface default catalog, one of `catalogs`. Omit it for a surface without a default catalog."
+            },
+            "outboundListener": {
+              "type": "boolean",
+              "default": true,
+              "description": "Whether the processor has a way to send outbound messages. Without one, no call is routed."
+            }
+          },
+          "additionalProperties": false
+        },
+        "dataModel": {
+          "type": "object",
+          "description": "Initial data model of the surface."
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RoutingStep"
+          },
+          "minItems": 1
+        }
+      },
+      "required": ["name", "action", "protocolVersion", "catalogs", "surface", "steps"],
+      "additionalProperties": false
+    },
+    "RoutingCatalog": {
+      "type": "object",
+      "properties": {
+        "catalogId": {
+          "type": "string"
+        },
+        "localFunctions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Functions the catalog implements, taken from the SDK's basic catalog for protocolVersion."
+        },
+        "agentFunctions": {
+          "type": "object",
+          "description": "Functions the catalog declares without an implementation (schema-only), by name. An SDK that cannot declare such a function lists the cases that use them as known divergences.",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "args": {
+                "type": "object",
+                "description": "JSON Schema of the function's args."
+              },
+              "returnType": {
+                "type": "string",
+                "enum": [
+                  "string",
+                  "number",
+                  "boolean",
+                  "array",
+                  "object",
+                  "validationResult",
+                  "any",
+                  "void"
+                ],
+                "default": "any"
+              },
+              "allowedCallers": {
+                "type": "string",
+                "enum": ["rendererOnly", "agentOnly", "rendererOrAgent"],
+                "description": "Which side may call the function, as the allowedCallers of a catalog function definition."
+              },
+              "requiresUserActivation": {
+                "type": "boolean"
+              }
+            },
+            "required": ["args"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["catalogId"],
+      "additionalProperties": false
+    },
+    "RoutingStep": {
+      "type": "object",
+      "description": "One operation, `evaluate`, `respond`, `updateData`, `cancelSurfaceCalls` or `deleteSurface`, and what must hold once it has settled. Omitting expectOutbound, expectErrors or expectActions means the step sends no callAgentFunction, reports no error or dispatches no action.",
+      "properties": {
+        "evaluate": {
+          "type": "object",
+          "description": "A FunctionCall to evaluate on the surface's root data context or, when `as` is `event`, the `event` object of an action."
+        },
+        "as": {
+          "enum": ["binding", "check", "action", "event"],
+          "default": "binding",
+          "description": "How the call is evaluated: as a component binding, as the condition of a check rule, as the functionCall of an action that runs with user activation, or, for `event`, as an event action that runs with user activation and is dispatched once its context and userMessage resolve."
+        },
+        "updateData": {
+          "type": "object",
+          "description": "Sets `value` at JSON Pointer `path` in the surface data model.",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "value": {}
+          },
+          "required": ["path", "value"],
+          "additionalProperties": false
+        },
+        "cancelSurfaceCalls": {
+          "const": true,
+          "description": "Cancels the pending agent calls of surface `main` with RPC code CANCELLED, as the RPC handler does when a surface is deleted, while the surface stays live."
+        },
+        "deleteSurface": {
+          "const": true,
+          "description": "Processes a deleteSurface message for surface `main`. Later steps can no longer read values from it."
+        },
+        "respond": {
+          "type": "object",
+          "description": "An agentFunctionResponse to the callAgentFunction at index `call` among those the case has sent, with a `value` or an `error`.",
+          "properties": {
+            "call": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "value": {},
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": ["code", "message"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["call"],
+          "oneOf": [
+            {
+              "required": ["value"]
+            },
+            {
+              "required": ["error"]
+            }
+          ],
+          "additionalProperties": false
+        },
+        "outboundInAnyOrder": {
+          "type": "boolean",
+          "default": false,
+          "description": "Compare expectOutbound without regard to order, for calls that are sent concurrently, such as sibling arguments of one function."
+        },
+        "expectOutbound": {
+          "type": "array",
+          "description": "The callFunction payloads of the callAgentFunction messages the step sent, in order. Every message names surface `main`; functionCallId is not compared.",
+          "items": {
+            "type": "object"
+          }
+        },
+        "expectErrors": {
+          "type": "array",
+          "description": "The errors the surface reported during the step, in order. `message` is a substring of the reported message.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": ["code"],
+            "additionalProperties": false
+          }
+        },
+        "expectValues": {
+          "type": "array",
+          "description": "The current value of every binding and check evaluated so far, in order, with null for a pending binding. A check's value is whether its rule passes, and a rule waiting on the agent passes."
+        },
+        "expectActions": {
+          "type": "array",
+          "description": "The actions the surface dispatched during the step, in order, by `name`, `context` and `userMessage`. An action dispatched without a userMessage omits it.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "context": {
+                "type": "object"
+              },
+              "userMessage": {
+                "type": "string"
+              }
+            },
+            "required": ["name", "context"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "dependentRequired": {
+        "as": ["evaluate"]
+      },
+      "oneOf": [
+        {
+          "required": ["evaluate"]
+        },
+        {
+          "required": ["respond"]
+        },
+        {
+          "required": ["updateData"]
+        },
+        {
+          "required": ["cancelSurfaceCalls"]
+        },
+        {
+          "required": ["deleteSurface"]
+        }
+      ],
+      "additionalProperties": false
+    },
+    "NodeResolutionFixture": {
+      "type": "object",
+      "properties": {
+        "catalog": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Catalog JSON path relative to the conformance directory."
+        },
+        "surface": {
+          "type": "boolean",
+          "description": "Whether the runner seeds surface s before the initial expectation. When false, the runner attaches the resolver when surface s is created."
+        },
+        "data": {"type": "object"},
+        "components": {"$ref": "#/$defs/NodeResolutionComponents"}
+      },
+      "required": ["catalog", "data", "components"],
+      "additionalProperties": false
+    },
+    "NodeResolutionComponents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "component": {"type": "string"}
+        },
+        "required": ["id", "component"]
+      }
+    },
+    "NodeResolutionNode": {
+      "type": "object",
+      "properties": {
+        "component_id": {"type": "string"},
+        "type": {"type": "string"},
+        "state": {"enum": ["resolved", "pending", "unknown-type", "cyclic"]},
+        "data_path": {"type": "string"},
+        "props": {"type": "object"},
+        "metadata": {
+          "type": ["object", "null"],
+          "description": "Expected envelope metadata ({extensions}) on the node; null asserts no metadata."
+        },
+        "isValid": {"type": "boolean"},
+        "validationErrors": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "validationResults": {
+          "type": "array",
+          "items": {"type": "object"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "NodeResolutionCounts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "NodeResolutionPaths": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "NodeResolutionExpectation": {
+      "type": "object",
+      "properties": {
+        "nodes": {
+          "type": "object",
+          "description": "Every mounted node path. Only named node fields and props are checked.",
+          "additionalProperties": {"$ref": "#/$defs/NodeResolutionNode"}
+        },
+        "emissions": {"$ref": "#/$defs/NodeResolutionCounts"},
+        "created_emissions": {
+          "type": "object",
+          "description": "Post-creation props-callback counts for nodes created during the step.",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "metadata_emissions": {
+          "$ref": "#/$defs/NodeResolutionCounts",
+          "description": "Node paths whose metadata signal emitted during the step, with counts. Omitted paths must not emit."
+        },
+        "same_nodes": {"$ref": "#/$defs/NodeResolutionPaths"},
+        "replaced_nodes": {"$ref": "#/$defs/NodeResolutionPaths"},
+        "destroyed": {"$ref": "#/$defs/NodeResolutionCounts"},
+        "data": {"type": "object"},
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "source_component_id": {"type": "string"},
+              "context": {"type": "object"},
+              "metadata": {
+                "type": ["object", "null"],
+                "description": "Expected action.metadata envelope on the emitted event."
+              }
+            },
+            "required": ["name", "source_component_id", "context"],
+            "additionalProperties": false
+          }
+        },
+        "functions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "args": {"type": "object"}
+            },
+            "required": ["name", "args"],
+            "additionalProperties": false
+          }
+        },
+        "errors": {
+          "type": "array",
+          "items": {"type": "object"}
+        }
+      },
+      "required": ["nodes"],
+      "additionalProperties": false
+    },
+    "NodeResolutionStep": {
+      "type": "object",
+      "properties": {
+        "expect": {
+          "$ref": "#/$defs/NodeResolutionExpectation"
+        }
+      },
+      "required": ["op", "expect"],
+      "oneOf": [
+        {
+          "properties": {
+            "op": {"const": "set_data"},
+            "path": {"type": "string"},
+            "value": true
+          },
+          "required": ["path", "value"]
+        },
+        {
+          "properties": {
+            "op": {"const": "update_components"},
+            "components": {"$ref": "#/$defs/NodeResolutionComponents"}
+          },
+          "required": ["components"]
+        },
+        {
+          "properties": {
+            "op": {"const": "remove_component"},
+            "component_id": {"type": "string"}
+          },
+          "required": ["component_id"]
+        },
+        {
+          "properties": {
+            "op": {"const": "write"},
+            "node": {"type": "string"},
+            "property": {"type": "string"},
+            "value": true
+          },
+          "required": ["node", "property", "value"]
+        },
+        {
+          "properties": {
+            "op": {"const": "invoke"},
+            "node": {"type": "string"},
+            "property": {"type": "string"},
+            "metadata": {
+              "type": "object",
+              "description": "Optional action.metadata envelope passed as ActionDispatchOptions to the NodeAction."
+            }
+          },
+          "required": ["node", "property"]
+        },
+        {
+          "properties": {
+            "op": {"const": "process_messages"},
+            "messages": {
+              "type": "array",
+              "items": {"type": "object"}
+            }
+          },
+          "required": ["messages"]
+        },
+        {
+          "properties": {
+            "op": {"const": "dispose"}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
     "FromFormatTest": {
       "type": "object",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {
           "const": "from_format"
         },
@@ -411,6 +1409,7 @@
     "CoreSyntaxTest": {
       "type": "object",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {
           "const": "core_syntax"
         },
@@ -426,6 +1425,7 @@
     "FromCatalogTest": {
       "type": "object",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {
           "const": "from_catalog"
         },
@@ -441,6 +1441,7 @@
     "SkillSetTest": {
       "type": "object",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {
           "const": "skill_set"
         },
@@ -449,12 +1450,96 @@
         },
         "expected_skills": {
           "type": "array",
+          "description": "Filenames the SkillSet must contain.",
           "items": {
             "type": "string"
           }
+        },
+        "expected_skill_files": {
+          "type": "object",
+          "description": "Golden file, relative to the repository root, that each listed skill's markdown must equal byte for byte. Keys are skill filenames.",
+          "additionalProperties": {"type": "string"}
         }
       },
       "required": ["action", "args", "expected_skills"]
+    },
+    "ExportToDirectoryTest": {
+      "type": "object",
+      "description": "Exports a SkillSet built from literal skills into a fresh temporary directory pre-populated with `pre_existing_files`, then checks which paths exist afterwards. Pins the cleanup scope of `export_to_directory`: only the directory that holds each skill file is removed, never an ancestor, a sibling, or the output directory itself.",
+      "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
+        "action": {
+          "const": "export_to_directory"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "skills": {
+              "type": "array",
+              "description": "Skills to add to the SkillSet before exporting.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {"type": "string"},
+                  "description": {"type": "string"},
+                  "content": {"type": "string"},
+                  "filename": {
+                    "type": "string",
+                    "description": "Relative path of the skill file. Defaults to `{name}/SKILL.md`."
+                  }
+                },
+                "required": ["name", "description", "content"]
+              }
+            },
+            "pre_existing_files": {
+              "type": "array",
+              "description": "Files to create under the output directory before exporting, relative to it.",
+              "items": {"type": "string"}
+            }
+          },
+          "required": ["skills"]
+        },
+        "expected_files": {
+          "type": "array",
+          "description": "Paths relative to the output directory that must exist after exporting.",
+          "items": {"type": "string"}
+        },
+        "expected_absent_files": {
+          "type": "array",
+          "description": "Paths relative to the output directory that must not exist after exporting.",
+          "items": {"type": "string"}
+        },
+        "expect_error": {
+          "$ref": "#/$defs/ExpectError",
+          "description": "When set, building the SkillSet or exporting it must fail with this error, and `expected_files` / `expected_absent_files` are checked afterwards to show nothing was removed or written."
+        }
+      },
+      "required": ["action", "args", "expected_files"]
+    },
+    "MonolithicSkillEqualsPromptSnippetTest": {
+      "type": "object",
+      "description": "Builds one format from the listed catalogs and checks that its monolithic skill's body equals its prompt snippet.",
+      "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
+        "action": {
+          "const": "monolithic_skill_equals_prompt_snippet"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "format": {"$ref": "#/$defs/InferenceFormatName"},
+            "catalogs": {
+              "type": "array",
+              "minItems": 1,
+              "items": {"type": "string"},
+              "description": "Catalog document paths, relative to the repository root."
+            }
+          },
+          "required": ["format", "catalogs"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["action", "args"]
     },
     "AgentCatalogRef": {
       "description": "A catalog document, either a path relative to `conformance/` or the document inlined in the case.",
@@ -468,17 +1553,17 @@
     },
     "CatalogTransformerSpec": {
       "type": "object",
-      "description": "One transformer, in the order it is applied. A case states the allowlist directly. Keeping everything is said by leaving the transformer out, so an empty allowlist keeps nothing.",
+      "description": "One transformer, in the order it is applied. A case states the allowlist directly. Keeping everything is said by leaving the transformer out, so a null or empty allowlist keeps nothing.",
       "properties": {
         "component_pruning": {
-          "type": "array",
+          "type": ["array", "null"],
           "items": {"type": "string"},
-          "description": "The component names a ComponentPruningTransformer keeps."
+          "description": "The component names a ComponentPruningTransformer keeps, or null to keep no components."
         },
         "function_pruning": {
-          "type": "array",
+          "type": ["array", "null"],
           "items": {"type": "string"},
-          "description": "The function names a FunctionPruningTransformer keeps."
+          "description": "The function names a FunctionPruningTransformer keeps, or null to keep no functions."
         }
       },
       "oneOf": [{"required": ["component_pruning"]}, {"required": ["function_pruning"]}],
@@ -499,8 +1584,8 @@
     },
     "InferenceFormatName": {
       "type": "string",
-      "enum": ["direct_json", "express", "vertical"],
-      "description": "The inference format strategy the case exercises."
+      "enum": ["direct_json", "express", "elemental", "atom", "vertical"],
+      "description": "The inference format strategy the case exercises. `elemental`, `atom`, and `vertical` are experimental and Python-only."
     },
     "CatalogExpectation": {
       "type": "object",
@@ -509,7 +1594,7 @@
         "catalog_id": {"type": "string"},
         "protocol_version": {
           "type": "string",
-          "description": "The protocol version the catalog reports, written as the enum spells it, such as `v1.0`."
+          "description": "The protocol version the catalog reports, written as the enum spells it, such as `1.0`."
         },
         "components": {"type": "array", "items": {"type": "string"}},
         "functions": {"type": "array", "items": {"type": "string"}}
@@ -548,10 +1633,33 @@
       "oneOf": [{"required": ["text"]}, {"required": ["a2ui"]}],
       "additionalProperties": false
     },
+    "StreamPart": {
+      "description": "One part a response stream returns: a `ResponsePart`, or, from a stream that reads past rejected blocks, an error part in place of a rejected block.",
+      "oneOf": [
+        {"$ref": "#/$defs/ResponsePart"},
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "category": {"$ref": "#/$defs/ExpectError/oneOf/1/properties/category"}
+              },
+              "required": ["category"],
+              "additionalProperties": false,
+              "description": "The error the block was rejected with, by its category."
+            }
+          },
+          "required": ["error"],
+          "additionalProperties": false
+        }
+      ]
+    },
     "TransformCatalogTest": {
       "type": "object",
       "description": "Applying catalog transformers to a pristine catalog.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "transform_catalog"},
         "args": {
           "type": "object",
@@ -574,6 +1682,7 @@
       "type": "object",
       "description": "Loading a catalog document through a catalog provider, including the identity and version checks the provider performs.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "provide_catalog"},
         "args": {
           "type": "object",
@@ -608,6 +1717,7 @@
       "type": "object",
       "description": "Negotiating renderer capabilities against the catalogs an agent registered, and returning the transformed catalogs that are active for the session.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "resolve_catalogs"},
         "args": {
           "type": "object",
@@ -652,8 +1762,9 @@
     },
     "GeneratePromptSnippetTest": {
       "type": "object",
-      "description": "Rendering the system prompt snippet for a format and a set of active catalogs. Assertions are substrings rather than whole texts, because the wording around the catalog is an implementation's own.",
+      "description": "Rendering the system prompt snippet for a format and a set of active catalogs.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "generate_prompt_snippet"},
         "args": {
           "type": "object",
@@ -677,6 +1788,10 @@
           "required": ["format", "catalogs"],
           "additionalProperties": false
         },
+        "expect_file": {
+          "type": "string",
+          "description": "Path relative to `conformance/` to a text file containing the exact expected prompt snippet."
+        },
         "expect_contains": {"type": "array", "items": {"type": "string"}},
         "expect_absent": {
           "type": "array",
@@ -687,14 +1802,40 @@
           "type": "boolean",
           "description": "Generating twice from the same inputs returns the same string."
         },
+        "expect_callable_functions": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Agent-callable function names in catalog and declaration order that the standalone-call prompt rule must list."
+        },
         "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
       "required": ["action", "args"]
+    },
+    "HasFormatContentTest": {
+      "type": "object",
+      "description": "Checking whether a model response carries a block written in a format.",
+      "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
+        "action": {"const": "has_format_content"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "format": {"$ref": "#/$defs/InferenceFormatName"},
+            "complete": {"type": "boolean", "default": false}
+          },
+          "required": ["format"],
+          "additionalProperties": false
+        },
+        "input": {"type": "string", "description": "The raw text the model emitted."},
+        "expect": {"type": "boolean"}
+      },
+      "required": ["action", "args", "input", "expect"]
     },
     "UnwrapTest": {
       "type": "object",
       "description": "Tokenizing a model response into ordered raw parts, before any payload is compiled.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "unwrap"},
         "args": {
           "type": "object",
@@ -716,6 +1857,7 @@
       "type": "object",
       "description": "Writing raw parts back out as a model would have emitted them, which is how examples and transcripts are produced.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "wrap"},
         "args": {
           "type": "object",
@@ -744,6 +1886,7 @@
       "type": "object",
       "description": "Compiling one raw format block into A2UI messages.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "compile"},
         "args": {
           "type": "object",
@@ -781,12 +1924,18 @@
       "type": "object",
       "description": "Writing A2UI messages back into a format's own notation.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "decompile"},
         "args": {
           "type": "object",
           "properties": {
             "format": {"$ref": "#/$defs/InferenceFormatName"},
-            "catalog": {"$ref": "#/$defs/AgentCatalogRef"}
+            "catalog": {"$ref": "#/$defs/AgentCatalogRef"},
+            "catalogs": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/AgentCatalogRef"},
+              "description": "For cases where the decompiler needs more than one active catalog."
+            }
           },
           "required": ["format"],
           "additionalProperties": false
@@ -798,6 +1947,7 @@
         },
         "expect_output": {"type": "string"},
         "expect_contains": {"type": "array", "items": {"type": "string"}},
+        "expect_absent": {"type": "array", "items": {"type": "string"}},
         "expect_round_trip": {
           "type": "boolean",
           "description": "Compiling the output returns the messages the case supplied."
@@ -810,6 +1960,7 @@
       "type": "object",
       "description": "Parsing a whole model response into the text and payload parts an agent hands on, in the order the model emitted them.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "parse_response"},
         "args": {
           "type": "object",
@@ -842,6 +1993,7 @@
       "type": "object",
       "description": "Feeding a response to a parser one chunk at a time. Each step states the parts that chunk yields, so a case fixes both what is emitted and when.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "parse_chunk"},
         "args": {
           "type": "object",
@@ -857,7 +2009,12 @@
               "items": {"type": "string"},
               "description": "Overrides the parser's default set of string keys that may be closed early while a value is still arriving."
             },
-            "wrapped": {"type": "boolean", "default": true}
+            "wrapped": {"type": "boolean", "default": true},
+            "after_rejected_block": {
+              "enum": ["end", "continue"],
+              "default": "end",
+              "description": "What the stream does once it rejects a block: `end` raises, and `continue` returns an error part in place of the block and reads on."
+            }
           },
           "required": ["format"],
           "additionalProperties": false
@@ -870,14 +2027,29 @@
               "input": {"type": "string", "description": "The chunk handed to the parser."},
               "expect": {
                 "type": "array",
-                "items": {"$ref": "#/$defs/ResponsePart"},
+                "items": {"$ref": "#/$defs/StreamPart"},
                 "description": "The parts this chunk yields, which is the delta since the previous chunk and is empty when the parser is still buffering."
               },
-              "expect_error": {"$ref": "#/$defs/ExpectError"}
+              "expect_error": {"$ref": "#/$defs/ExpectError"},
+              "expect_partial_results": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/ResponsePart"},
+                "description": "With `expect_error`, the parts the chunk made ready before the error, which the error carries as its partial results."
+              },
+              "expect_in_block": {
+                "type": "boolean",
+                "description": "Whether the response read so far ends inside a block, after this step."
+              }
             },
             "required": ["input"],
-            "oneOf": [{"required": ["expect"]}, {"required": ["expect_error"]}]
+            "oneOf": [{"required": ["expect"]}, {"required": ["expect_error"]}],
+            "dependentRequired": {"expect_partial_results": ["expect_error"]}
           }
+        },
+        "expect_close": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/StreamPart"},
+          "description": "The parts closing the stream returns after the last step."
         },
         "expect_matches_single_shot": {
           "type": "boolean",
@@ -886,10 +2058,205 @@
       },
       "required": ["action", "args", "steps"]
     },
+    "AnswerPart": {
+      "description": "One part of a streamed answer: text, a surface the answer created, by its id, or an error part in place of a rejected block.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {"text": {"type": "string"}},
+          "required": ["text"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "surface": {
+              "type": "string",
+              "description": "The id of the surface, which is the surface of that id the renderer holds."
+            }
+          },
+          "required": ["surface"],
+          "additionalProperties": false
+        },
+        {"$ref": "#/$defs/StreamPart/oneOf/1"}
+      ]
+    },
+    "StreamAnswerTest": {
+      "type": "object",
+      "description": "Reading a streamed answer into a renderer's message processor, for an app that is both the agent and the renderer. Each step states the answer's parts after the chunk, as a whole.",
+      "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "stream_answer"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "format": {"$ref": "#/$defs/InferenceFormatName"},
+            "catalog": {"$ref": "#/$defs/AgentCatalogRef"},
+            "renderer_catalogs": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/AgentCatalogRef"},
+              "description": "The catalogs of the renderer's processor, when they are not the request processor's."
+            }
+          },
+          "required": ["format", "catalog"],
+          "additionalProperties": false
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "input": {"type": "string", "description": "The chunk handed to the answer."},
+              "expect_parts": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/AnswerPart"},
+                "description": "The answer's parts after this chunk."
+              },
+              "expect_in_block": {
+                "type": "boolean",
+                "description": "Whether the answer read so far ends inside a block, after this step."
+              }
+            },
+            "required": ["input", "expect_parts"],
+            "additionalProperties": false
+          }
+        },
+        "expect_close": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/AnswerPart"},
+          "description": "The answer's parts after it is closed."
+        },
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["name", "action", "args"],
+      "oneOf": [{"required": ["steps"]}, {"required": ["expect_error"]}],
+      "additionalProperties": false
+    },
+    "PayloadTemplate": {
+      "type": "array",
+      "minItems": 1,
+      "description": "The text of a payload of size n, written as segments that are joined in order. A string is copied as it is. A `repeat` is its text written n times, with each `{i}` in it replaced by the number of the copy, counting from 0, and `separator` between the copies.",
+      "items": {
+        "oneOf": [
+          {"type": "string"},
+          {
+            "type": "object",
+            "properties": {
+              "repeat": {"type": "string"},
+              "separator": {"type": "string", "default": ""}
+            },
+            "required": ["repeat"],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "MeasuredArgs": {
+      "type": "object",
+      "description": "What the timed operation is built from: a format from `format`, `catalog` and `progressive_keys`, or a processor from the case's `catalogPaths` and `validation_config`. The format and the catalogs are built before the timing starts, and each timed run creates a new parser from the format, or a new processor.",
+      "properties": {
+        "format": {"$ref": "#/$defs/InferenceFormatName"},
+        "catalog": {"$ref": "#/$defs/AgentCatalogRef"},
+        "progressive_keys": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "The string keys whose value a direct JSON parser may close early while it is still arriving."
+        },
+        "validation_config": {
+          "enum": ["none", "relaxed"],
+          "description": "The checks the processor makes. `none` is a processor without a validation config, as a renderer has by default, which checks each batch of components for duplicate ids and against its catalog. `relaxed` also checks the graph each batch leaves behind for cycles and depth, while allowing orphans, references to components that have not arrived and a missing root, as a surface arriving over several messages needs."
+        }
+      },
+      "additionalProperties": false
+    },
+    "MeasuredOperation": {
+      "enum": ["parse_chunk", "compile", "process_messages"],
+      "description": "The call a timing case times. `parse_chunk` hands a new parser the response `<a2ui-json>`, payload, `</a2ui-json>`, in chunks of `chunk_size` characters. `compile` hands a new parser the payload whole. `process_messages` hands a new processor the messages of the payload, a JSON list decoded before the timing starts, in one call."
+    },
+    "MeasureGrowthTest": {
+      "type": "object",
+      "description": "Timing one operation on the payload written at two sizes, to show that its cost grows in proportion to the payload rather than with its square.",
+      "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "measure_growth"},
+        "protocolVersion": {"$ref": "#/$defs/ProtocolVersion"},
+        "catalogPaths": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "For `process_messages`, the catalogs the processor holds, as paths relative to the repository root."
+        },
+        "args": {"$ref": "#/$defs/MeasuredArgs"},
+        "operation": {"$ref": "#/$defs/MeasuredOperation"},
+        "chunk_size": {"type": "integer", "minimum": 1},
+        "payload": {"$ref": "#/$defs/PayloadTemplate"},
+        "sizes": {
+          "type": "array",
+          "items": {"type": "integer", "minimum": 1},
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "The two sizes n the payload is written at, the smaller first."
+        },
+        "max_ratio": {
+          "type": "number",
+          "exclusiveMinimum": 1,
+          "description": "The largest the median time at the second size may be, as a multiple of the median time at the first."
+        }
+      },
+      "required": ["name", "action", "args", "operation", "payload", "sizes", "max_ratio"],
+      "allOf": [
+        {
+          "if": {"properties": {"operation": {"const": "parse_chunk"}}},
+          "then": {"required": ["chunk_size"]}
+        }
+      ],
+      "additionalProperties": false
+    },
+    "MeasureOverheadTest": {
+      "type": "object",
+      "description": "Timing streaming a payload against compiling it whole, to show that streaming costs at most a fixed multiple of compiling.",
+      "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "measure_overhead"},
+        "args": {"$ref": "#/$defs/MeasuredArgs"},
+        "operation": {"const": "parse_chunk"},
+        "baseline": {"const": "compile"},
+        "chunk_size": {"type": "integer", "minimum": 1},
+        "payload": {"$ref": "#/$defs/PayloadTemplate"},
+        "size": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The size n the payload is written at."
+        },
+        "max_ratio": {
+          "type": "number",
+          "exclusiveMinimum": 1,
+          "description": "The largest the median time of `operation` may be, as a multiple of the median time of `baseline`."
+        }
+      },
+      "required": [
+        "name",
+        "action",
+        "args",
+        "operation",
+        "baseline",
+        "chunk_size",
+        "payload",
+        "size",
+        "max_ratio"
+      ],
+      "additionalProperties": false
+    },
     "CreateFormatTest": {
       "type": "object",
       "description": "Building an inference format from its factory and checking what the format hands back.",
       "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "create_format"},
         "args": {
           "type": "object",
@@ -937,6 +2304,9 @@
       "type": "object",
       "description": "Taking an agent's registered catalogs and a renderer's capabilities through to a request processor, and using that processor for a turn.",
       "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "features": {"$ref": "#/$defs/FeatureTags"},
         "action": {"const": "create_processor"},
         "args": {
           "type": "object",
@@ -995,9 +2365,556 @@
           "required": ["input"],
           "additionalProperties": false
         },
+        "then_stream": {
+          "type": "object",
+          "description": "A response read chunk by chunk through a stream the processor opened, for rules about what each chunk yields once negotiation has narrowed the catalogs. `steps` are fed in order through `open_stream`, each stating the parts its chunk yields; then the stream is closed, and either `expect_close` states the parts closing yields or `expect_error` states the error closing raises, as for a block still open when the response ends.",
+          "properties": {
+            "steps": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "input": {"type": "string"},
+                  "expect": {
+                    "type": "array",
+                    "items": {"$ref": "#/$defs/ResponsePart"}
+                  },
+                  "expect_error": {
+                    "$ref": "#/$defs/ExpectError",
+                    "description": "The error feeding this chunk raises. It is the last step the case runs; the stream is not closed after it."
+                  }
+                },
+                "required": ["input"],
+                "oneOf": [{"required": ["expect"]}, {"required": ["expect_error"]}],
+                "additionalProperties": false
+              },
+              "minItems": 1
+            },
+            "expect_close": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/ResponsePart"}
+            },
+            "expect_error": {"$ref": "#/$defs/ExpectError"}
+          },
+          "required": ["steps"],
+          "not": {"required": ["expect_close", "expect_error"]},
+          "additionalProperties": false
+        },
         "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
-      "required": ["action", "args"]
+      "required": ["name", "action", "args"],
+      "additionalProperties": false
+    },
+    "AgentFunctionBehavior": {
+      "description": "What an agent function does when it runs, in place of a handler, so every SDK runs the same function. Exactly one key.",
+      "type": "object",
+      "properties": {
+        "returns": {
+          "description": "Returns this value, which may be null."
+        },
+        "returns_args": {
+          "const": true,
+          "description": "Returns the arguments it received, after validation and with the schema's defaults applied."
+        },
+        "returns_context": {
+          "const": true,
+          "description": "Returns the context of the call: {catalogId, surfaceId, functionCallId}."
+        },
+        "raises": {
+          "type": "object",
+          "description": "Fails with `message`. With `code`, it fails the way the SDK lets a handler choose the RPC error code of the response; with `validation: true`, it fails with the SDK's validation error; with neither, it fails with an ordinary error.",
+          "properties": {
+            "code": {"type": "string"},
+            "message": {"type": "string"},
+            "validation": {
+              "const": true,
+              "description": "Fails with the SDK's validation error (A2uiValidationError), which is still a handler error: the response is EXECUTION_ERROR with `message`."
+            }
+          },
+          "not": {"required": ["code", "validation"]},
+          "required": ["message"],
+          "additionalProperties": false
+        }
+      },
+      "minProperties": 1,
+      "maxProperties": 1,
+      "additionalProperties": false
+    },
+    "AgentFunctionDeclaration": {
+      "type": "object",
+      "description": "An agent function: a catalog function that runs on the agent. Built directly from `args`, it is rendererOnly. With `from_api: true`, it is built from the catalog's own declaration of the function (keeping that declaration's allowedCallers), or, if the catalog declares none, from a declaration made of `returnType`, `args` and `description`, which the catalog must refuse.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The function's name, when it differs from its key, so a case can give two entries one name."
+        },
+        "from_api": {
+          "const": true,
+          "description": "Build the agent function from the catalog's declaration of it (AgentFunction.from_api)."
+        },
+        "description": {"type": "string"},
+        "returnType": {"type": "string"},
+        "args": {
+          "type": "object",
+          "description": "JSON Schema of the function's args. Its local `$defs` merge with the catalog's root `$defs`; a name defined differently in both, or in two agent functions of one catalog, is a CatalogError."
+        },
+        "requiresUserActivation": {
+          "type": "boolean",
+          "description": "Passed to the agent function built from `args` (rendererOnly): a renderer runs the call only after a user gesture."
+        },
+        "behavior": {"$ref": "#/$defs/AgentFunctionBehavior"}
+      },
+      "required": ["behavior"],
+      "anyOf": [{"required": ["args", "returnType"]}, {"required": ["from_api"]}],
+      "additionalProperties": false
+    },
+    "AgentFunctionCatalog": {
+      "type": "object",
+      "description": "A catalog document and the agent functions the agent declares on its copy of it.",
+      "properties": {
+        "catalog": {"$ref": "#/$defs/AgentCatalogRef"},
+        "agent_functions": {
+          "type": "object",
+          "description": "The agent functions, by name.",
+          "additionalProperties": {"$ref": "#/$defs/AgentFunctionDeclaration"}
+        }
+      },
+      "required": ["catalog"],
+      "additionalProperties": false
+    },
+    "DeclareAgentFunctionsTest": {
+      "type": "object",
+      "description": "Declaring agent functions on a catalog, and what the catalog then lists.",
+      "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "declare_agent_functions"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "catalog": {"$ref": "#/$defs/AgentFunctionCatalog"}
+          },
+          "required": ["catalog"],
+          "additionalProperties": false
+        },
+        "expect": {
+          "type": "object",
+          "description": "Exhaustive name lists, compared without regard to order.",
+          "properties": {
+            "functions": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "The catalog's functions, agent functions included."
+            },
+            "agent_functions": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "The catalog's agent functions."
+            },
+            "document_functions": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "The functions the catalog's document lists, which is what a renderer would load."
+            }
+          },
+          "required": ["functions", "agent_functions", "document_functions"],
+          "additionalProperties": false
+        },
+        "expect_error": {"$ref": "#/$defs/AgentFunctionExpectError"}
+      },
+      "required": ["name", "action", "args"],
+      "oneOf": [{"required": ["expect"]}, {"required": ["expect_error"]}],
+      "additionalProperties": false
+    },
+    "HandleAgentFunctionTest": {
+      "type": "object",
+      "description": "Answering one callAgentFunction message with the agent functions of `catalogs`.",
+      "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "handle_agent_function"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "catalogs": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/AgentFunctionCatalog"},
+              "minItems": 1
+            },
+            "message": {
+              "type": "object",
+              "description": "The callAgentFunction message, as received. It may be malformed."
+            }
+          },
+          "required": ["catalogs", "message"],
+          "additionalProperties": false
+        },
+        "expect": {
+          "type": "object",
+          "description": "The agentFunctionResponse body of the response. `error.message` is a substring of the message sent.",
+          "properties": {
+            "functionCallId": {"type": "string"},
+            "value": {},
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {"type": "string"},
+                "message": {"type": "string"}
+              },
+              "required": ["code"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["functionCallId"],
+          "oneOf": [{"required": ["value"]}, {"required": ["error"]}],
+          "additionalProperties": false
+        },
+        "expect_error": {
+          "$ref": "#/$defs/AgentFunctionExpectError",
+          "description": "Handling the message fails instead of answering it."
+        }
+      },
+      "required": ["name", "action", "args"],
+      "oneOf": [{"required": ["expect"]}, {"required": ["expect_error"]}],
+      "additionalProperties": false
+    },
+    "ValidatePayloadTest": {
+      "type": "object",
+      "description": "Validating model output against catalogs that declare agent functions, as the agent does before sending it.",
+      "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "validate_payload"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "catalogs": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/AgentFunctionCatalog"},
+              "minItems": 1
+            },
+            "messages": {
+              "type": "array",
+              "items": {"type": "object"},
+              "description": "The A2UI messages to validate."
+            }
+          },
+          "required": ["catalogs", "messages"],
+          "additionalProperties": false
+        },
+        "expect_valid": {"const": true},
+        "expect_error": {"$ref": "#/$defs/AgentFunctionExpectError"}
+      },
+      "required": ["name", "action", "args"],
+      "oneOf": [{"required": ["expect_valid"]}, {"required": ["expect_error"]}],
+      "additionalProperties": false
+    },
+    "RendererMessageKind": {
+      "description": "A renderer-to-agent message that goes to a callback.",
+      "enum": ["action", "error", "rendererFunctionResponse"]
+    },
+    "ProcessRendererMessageTest": {
+      "type": "object",
+      "description": "Processing one renderer-to-agent message with RendererToAgentMessageProcessor, built from the agent functions of `catalog` or `catalogs` (or no catalog) and the callbacks named in `callbacks`.",
+      "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "process_renderer_message"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "catalog": {"$ref": "#/$defs/AgentFunctionCatalog"},
+            "catalogs": {
+              "type": "array",
+              "description": "The catalogs, in place of `catalog`, for a case that needs more than one.",
+              "items": {"$ref": "#/$defs/AgentFunctionCatalog"},
+              "minItems": 1
+            },
+            "callbacks": {
+              "type": "array",
+              "description": "The callbacks the processor has: on_action, on_error and on_renderer_function_response. Each records the message it receives. A kind on its own handles the message; `{kind, declines: true}` declines it (returns false).",
+              "items": {
+                "oneOf": [
+                  {"$ref": "#/$defs/RendererMessageKind"},
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {"$ref": "#/$defs/RendererMessageKind"},
+                      "declines": {"const": true}
+                    },
+                    "required": ["kind", "declines"],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "message": {
+              "description": "The message, as received. It may be malformed or not an object."
+            }
+          },
+          "required": ["message"],
+          "not": {"required": ["catalog", "catalogs"]},
+          "additionalProperties": false
+        },
+        "expect": {
+          "type": "object",
+          "properties": {
+            "handled": {"type": "boolean"},
+            "replies": {
+              "type": "array",
+              "items": {"type": "object"},
+              "description": "The messages sent back, in order. Compared exactly, except that an `error.message` in an expected reply is a substring of the one sent and may be left out. Absent means none."
+            },
+            "callback": {
+              "type": "object",
+              "description": "The one callback that ran (whether it handled or declined the message), and the message it received, serialized. Absent means no callback ran.",
+              "properties": {
+                "kind": {"$ref": "#/$defs/RendererMessageKind"},
+                "message": {"type": "object"}
+              },
+              "required": ["kind", "message"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["handled"],
+          "additionalProperties": false
+        },
+        "expect_error": {
+          "$ref": "#/$defs/AgentFunctionExpectError",
+          "description": "Building the processor or processing the message fails, and no callback runs."
+        }
+      },
+      "required": ["name", "action", "args"],
+      "oneOf": [{"required": ["expect"]}, {"required": ["expect_error"]}],
+      "additionalProperties": false
+    },
+    "AgentFunctionExpectError": {
+      "type": "object",
+      "description": "The error an agent function case expects: its category and, optionally, a literal substring of its message.",
+      "properties": {
+        "category": {"enum": ["CatalogError", "ValidationError"]},
+        "message": {
+          "type": "string",
+          "description": "A literal substring of the error's message, not a regular expression."
+        }
+      },
+      "required": ["category"],
+      "additionalProperties": false
+    },
+    "CallRendererFunctionTest": {
+      "type": "object",
+      "description": "Calling renderer functions from the agent with callRendererFunction, and settling the calls with the renderer's responses, on a fake clock that only `advance_ms` steps move.",
+      "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "call_renderer_function"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "default_timeout_ms": {
+              "type": ["integer", "null"],
+              "exclusiveMinimum": 0,
+              "description": "How long a call waits for its response unless it sets its own timeout. Without it, the SDK's default, 30000. Null waits without a limit."
+            },
+            "max_pending": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "The most calls that may wait for a response at once."
+            },
+            "catalogs": {
+              "type": "array",
+              "description": "The agent's catalogs, which `call` checks each target against. Without them, calls aren't checked.",
+              "items": {"$ref": "#/$defs/RendererCallCatalog"}
+            }
+          },
+          "additionalProperties": false
+        },
+        "steps": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/RendererCallStep"},
+          "minItems": 1
+        },
+        "expect_error": {
+          "$ref": "#/$defs/RendererCallsBuildError",
+          "description": "Building the calls helper fails with this error, such as a CatalogError for two catalogs with one id. The case then has no `steps`."
+        }
+      },
+      "required": ["name", "action"],
+      "oneOf": [{"required": ["steps"]}, {"required": ["expect_error"]}],
+      "additionalProperties": false
+    },
+    "RendererCallCatalog": {
+      "type": "object",
+      "description": "A v1.0 catalog the harness builds in code (not from a catalog document, so it isn't checked against the catalog schema): its id and its functions, by name. Each function takes any object as `args` and returns `any`.",
+      "properties": {
+        "catalogId": {"type": "string"},
+        "functions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "allowedCallers": {
+                "enum": ["rendererOnly", "agentOnly", "rendererOrAgent"],
+                "description": "Omitted means rendererOnly."
+              },
+              "requiresUserActivation": {"type": "boolean"}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["catalogId", "functions"],
+      "additionalProperties": false
+    },
+    "RendererCallState": {
+      "description": "The state of a call: still pending, settled with a value, or failed with an RPC error code. `error.message` is a substring of the failure's message.",
+      "oneOf": [
+        {"const": "pending"},
+        {
+          "type": "object",
+          "properties": {"value": {}},
+          "required": ["value"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {"type": "string"},
+                "message": {"type": "string"}
+              },
+              "required": ["code"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["error"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "RendererCallsBuildError": {
+      "type": "object",
+      "description": "The error building the calls helper fails with: its category and, optionally, a literal substring of its message.",
+      "properties": {
+        "category": {"enum": ["CatalogError"]},
+        "message": {
+          "type": "string",
+          "description": "A literal substring of the error's message, not a regular expression."
+        }
+      },
+      "required": ["category"],
+      "additionalProperties": false
+    },
+    "RendererCallError": {
+      "type": "object",
+      "description": "The RPC error a `call` step is refused with: its code and, optionally, a literal substring of its message.",
+      "properties": {
+        "code": {"type": "string"},
+        "message": {
+          "type": "string",
+          "description": "A literal substring of the error's message, not a regular expression."
+        }
+      },
+      "required": ["code"],
+      "additionalProperties": false
+    },
+    "RendererCallStep": {
+      "type": "object",
+      "description": "One step of a call_renderer_function case: exactly one of `call`, `respond`, `advance_ms` or `dispose`, then its expectations, checked once pending asynchronous work has run.",
+      "properties": {
+        "call": {
+          "type": "object",
+          "description": "Makes a call. `label` names it for later steps.",
+          "properties": {
+            "label": {"type": "string"},
+            "catalogId": {"type": "string"},
+            "name": {"type": "string"},
+            "args": {
+              "description": "The call's arguments. Usually an object; any other JSON value tests that `call` refuses it."
+            },
+            "surfaceId": {"type": "string"},
+            "functionCallId": {
+              "type": "string",
+              "description": "The ID to give the call, in place of a generated one."
+            },
+            "timeout_ms": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "description": "How long this call waits for its response, in place of the default."
+            }
+          },
+          "required": ["label", "catalogId", "name"],
+          "additionalProperties": false
+        },
+        "respond": {
+          "type": "object",
+          "description": "Hands the calls a rendererFunctionResponse, for the call `call` labels or for a literal `functionCallId`.",
+          "properties": {
+            "call": {"type": "string"},
+            "functionCallId": {"type": "string"},
+            "value": {},
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {"type": "string"},
+                "message": {"type": "string"}
+              },
+              "required": ["code", "message"],
+              "additionalProperties": false
+            }
+          },
+          "allOf": [
+            {"oneOf": [{"required": ["call"]}, {"required": ["functionCallId"]}]},
+            {"oneOf": [{"required": ["value"]}, {"required": ["error"]}]}
+          ],
+          "additionalProperties": false
+        },
+        "advance_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Moves the fake clock forward."
+        },
+        "dispose": {
+          "type": "object",
+          "description": "Disposes the calls, with an optional reason.",
+          "properties": {
+            "reason": {"type": "string"}
+          },
+          "additionalProperties": false
+        },
+        "expect_message": {
+          "type": "object",
+          "description": "On a `call` step, the callRendererFunction message, less its functionCallId."
+        },
+        "expect_error": {
+          "$ref": "#/$defs/RendererCallError",
+          "description": "On a `call` step, the call is refused with this RPC error instead of being made."
+        },
+        "expect_calls": {
+          "type": "object",
+          "description": "The state of the calls it names, by label.",
+          "additionalProperties": {"$ref": "#/$defs/RendererCallState"}
+        },
+        "expect_pending_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "How many calls are waiting for a response."
+        }
+      },
+      "oneOf": [
+        {"required": ["call"]},
+        {"required": ["respond"]},
+        {"required": ["advance_ms"]},
+        {"required": ["dispose"]}
+      ],
+      "additionalProperties": false
     },
     "ExpectError": {
       "description": "Expected error specification (error message string, regex, or structured error object).",
@@ -1017,10 +2934,21 @@
                 "IntegrityError",
                 "RecursionError",
                 "CompilationError",
-                "DataError"
+                "DataError",
+                "ExpressionError",
+                "StateError"
               ]
             },
             "code": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "surfaceId": {
+              "type": "string"
+            },
+            "functionCallId": {
               "type": "string"
             },
             "message": {
@@ -1037,16 +2965,501 @@
                   "code": {
                     "type": "string"
                   },
+                  "surfaceId": {
+                    "type": "string"
+                  },
                   "message": {
                     "type": "string"
                   }
-                }
+                },
+                "additionalProperties": false
               }
+            },
+            "rendererError": {
+              "type": "object",
+              "description": "Expected outbound renderer-to-agent error envelope ({version, error: {code, surfaceId?, functionCallId?, path?, message}}).",
+              "required": ["version", "error"],
+              "properties": {
+                "version": {"$ref": "#/$defs/ProtocolVersion"},
+                "error": {
+                  "type": "object",
+                  "required": ["code", "message"],
+                  "properties": {
+                    "code": {"type": "string"},
+                    "surfaceId": {"type": "string"},
+                    "functionCallId": {"type": "string"},
+                    "path": {"type": "string"},
+                    "message": {"type": "string"}
+                  },
+                  "additionalProperties": true
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
         }
       ]
+    },
+    "RenderSurfaceTest": {
+      "type": "object",
+      "required": ["name", "action", "steps"],
+      "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "protocolVersion": {"$ref": "#/$defs/ProtocolVersion"},
+        "strictMode": {"type": "boolean"},
+        "catalogPaths": {"type": "array", "items": {"type": "string"}},
+        "catalogs": {"type": "array", "items": {"type": "object"}},
+        "action": {"const": "render_surface"},
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["op"],
+            "properties": {
+              "op": {
+                "enum": [
+                  "process_messages",
+                  "user_input",
+                  "user_gesture",
+                  "programmatic_invoke",
+                  "unmount_surface"
+                ]
+              },
+              "messages": {
+                "type": "array",
+                "items": {
+                  "anyOf": [{"type": "object"}, {"$ref": "#/$defs/LastCallIdRef"}]
+                }
+              },
+              "targetNode": {"type": "string"},
+              "inputValue": {},
+              "userActivation": {"type": "boolean"},
+              "expectViewTree": {"$ref": "#/$defs/ViewTreeNode"},
+              "expectAccessibilityTree": {"type": "object"},
+              "expectDataModel": {"type": "object"},
+              "expectActions": {"type": "array", "items": {"type": "object"}},
+              "expectErrors": {"type": "array", "items": {"type": "object"}},
+              "expectSameViewIdentity": {"type": "array", "items": {"type": "string"}},
+              "expectNewViewIdentity": {"type": "array", "items": {"type": "string"}},
+              "expectDisposedNodes": {"type": "array", "items": {"type": "string"}},
+              "expectSurfaceRemoved": {"type": "boolean"},
+              "expectThemeAbsent": {"type": "boolean"},
+              "expectActiveSubscriptions": {"type": "integer"},
+              "expectOutbound": {"$ref": "#/$defs/OutboundEnvelopeList"}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ViewTreeNode": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "string"},
+        "type": {"type": "string"},
+        "state": {
+          "type": "string",
+          "enum": ["resolved", "pending", "unknown-type", "cyclic"]
+        },
+        "occupiesLayout": {"type": "boolean"},
+        "isValid": {"type": "boolean"},
+        "validationErrors": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "validationResults": {
+          "type": "array",
+          "items": {"type": "object"}
+        },
+        "hints": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "children": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/ViewTreeNode"}
+        }
+      },
+      "additionalProperties": true
+    },
+    "MatchAny": {
+      "type": "object",
+      "required": ["$match"],
+      "properties": {
+        "$match": {"const": "any"}
+      },
+      "additionalProperties": false
+    },
+    "OutboundEnvelopeList": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["version"],
+        "minProperties": 2,
+        "maxProperties": 2,
+        "properties": {
+          "version": {"$ref": "#/$defs/ProtocolVersion"},
+          "action": {"type": "object"},
+          "callAgentFunction": {"type": "object"},
+          "rendererFunctionResponse": {"type": "object"},
+          "error": {"type": "object"}
+        },
+        "oneOf": [
+          {"required": ["action"]},
+          {"required": ["callAgentFunction"]},
+          {"required": ["rendererFunctionResponse"]},
+          {"required": ["error"]}
+        ],
+        "additionalProperties": false
+      }
+    },
+    "RendererStateTurnsTest": {
+      "type": "object",
+      "description": "Applying a multi-turn sequence of message payloads or formatted model responses against a stateful `RendererState` instance.",
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "features": {"$ref": "#/$defs/FeatureTags"},
+        "action": {"const": "renderer_state_turns"},
+        "catalogs": {
+          "type": "array",
+          "items": {
+            "oneOf": [{"$ref": "#/$defs/AgentCatalogRef"}, {"$ref": "#/$defs/CatalogRegistration"}]
+          },
+          "description": "Active catalogs registered on the `RendererState` instance."
+        },
+        "turns": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "payload": {
+                "type": "array",
+                "items": {"type": "object"},
+                "description": "Decoded AgentToRendererMessage objects applied in a single turn."
+              },
+              "response": {
+                "type": "string",
+                "description": "Raw model response parsed and applied in a single turn."
+              },
+              "format": {"$ref": "#/$defs/InferenceFormatName"},
+              "expect_surfaces": {
+                "type": "object",
+                "description": "Expected surface state snapshot keyed by surface ID after this turn completes.",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "components": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": ["component"]
+                      }
+                    },
+                    "data": {}
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "expectError": {"$ref": "#/$defs/ExpectError"},
+              "expect_error": {"$ref": "#/$defs/ExpectError"}
+            },
+            "allOf": [
+              {
+                "oneOf": [{"required": ["payload"]}, {"required": ["response"]}]
+              },
+              {
+                "oneOf": [
+                  {"required": ["expect_surfaces"]},
+                  {"required": ["expectError"]},
+                  {"required": ["expect_error"]}
+                ]
+              }
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["name", "action", "catalogs", "turns"],
+      "additionalProperties": false
+    },
+    "RpcUiScenario": {
+      "type": "object",
+      "description": "UI binding or action fallback scenario for `handle_rpc` conformance cases.",
+      "required": ["surfaceId", "catalogId"],
+      "properties": {
+        "surfaceId": {"type": "string"},
+        "catalogId": {"type": "string"},
+        "component": {"type": "object"},
+        "components": {"type": "array", "items": {"type": "object"}},
+        "actionPayload": {"type": "object"},
+        "observe": {
+          "type": "object",
+          "properties": {
+            "componentId": {"type": "string"},
+            "property": {"type": "string"}
+          },
+          "required": ["componentId", "property"],
+          "additionalProperties": false
+        },
+        "localFunctions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "returnType": {"type": "string"},
+              "effect": {
+                "type": "object",
+                "properties": {
+                  "setData": {
+                    "type": "object",
+                    "properties": {
+                      "path": {"type": "string"},
+                      "value": {}
+                    },
+                    "required": ["path", "value"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["setData"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["returnType", "effect"],
+            "additionalProperties": false
+          }
+        },
+        "inboundResponseValue": {},
+        "inboundResponseError": {
+          "type": "object",
+          "properties": {
+            "code": {"type": "string"},
+            "message": {"type": "string"}
+          },
+          "required": ["code", "message"],
+          "additionalProperties": false
+        }
+      },
+      "allOf": [
+        {
+          "oneOf": [
+            {"required": ["component"]},
+            {"required": ["components"]},
+            {"required": ["actionPayload"]}
+          ]
+        },
+        {
+          "oneOf": [{"required": ["inboundResponseValue"]}, {"required": ["inboundResponseError"]}]
+        }
+      ],
+      "additionalProperties": false
+    },
+    "HandleRpcTest": {
+      "type": "object",
+      "description": "Inbound and outbound RPC function invocation and lifecycle conformance test case.",
+      "required": ["name", "action", "args"],
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "features": {"$ref": "#/$defs/FeatureTags"},
+        "action": {"const": "handle_rpc"},
+        "protocolVersion": {"$ref": "#/$defs/ProtocolVersion"},
+        "catalog": {
+          "oneOf": [{"type": "string"}, {"$ref": "#/$defs/Catalog"}]
+        },
+        "catalogs": {
+          "type": "array",
+          "items": {
+            "oneOf": [{"type": "string"}, {"$ref": "#/$defs/Catalog"}]
+          }
+        },
+        "catalogPaths": {"type": "array", "items": {"type": "string"}},
+        "catalogPath": {"type": "string"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "message": {"type": "object"},
+            "functionMetadata": {"type": "object"},
+            "userActivationPresent": {"type": "boolean"},
+            "catalogId": {"type": "string"},
+            "catalogVersion": {"type": "string"},
+            "surfaceId": {"type": "string"},
+            "dataModel": {"type": "object"},
+            "outboundCall": {"type": "object"},
+            "secondOutboundCall": {"type": "object"},
+            "inboundResponse": {"type": "object"},
+            "afterCall": {
+              "type": "string",
+              "enum": ["cancel", "dispose"],
+              "description": "Lifecycle action applied after registering `outboundCall`. `cancel` cancels the pending calls of `outboundCall.surfaceId` through the surface-scoped cancellation every SDK provides (not a per-call signal, and not every pending call). `dispose` disposes the processor's RPC state."
+            },
+            "outboundListener": {
+              "type": "boolean",
+              "description": "Whether the processor is built with an outbound listener (default true)."
+            },
+            "lateInboundResponse": {
+              "type": "object",
+              "description": "An `agentFunctionResponse` envelope sent after the outbound call has settled."
+            },
+            "uiBindingScenario": {"$ref": "#/$defs/RpcUiScenario"},
+            "uiActionFallbackScenario": {"$ref": "#/$defs/RpcUiScenario"},
+            "request": {"type": "object"},
+            "runnerOutput": {"type": "string"}
+          },
+          "additionalProperties": false
+        },
+        "expect": {
+          "type": "object",
+          "properties": {
+            "response": {"type": ["object", "null"]},
+            "error": {"type": "object"},
+            "correlatedCallId": {"type": "string"},
+            "result": {},
+            "initialValue": {},
+            "outboundCall": {"type": "object"},
+            "resolvedValue": {},
+            "lateResponseIgnored": {
+              "type": "boolean",
+              "description": "When true, asserts that `lateInboundResponse` is ignored: handling it does not throw, sends no outbound message, reports no surface error, leaves no pending calls, and leaves the settled outcome of `outboundCall` unchanged."
+            },
+            "inFlightError": {
+              "type": "object",
+              "properties": {"code": {"type": "string"}},
+              "required": ["code"],
+              "additionalProperties": false,
+              "description": "The error code the in-flight `outboundCall` is rejected with when `afterCall` settles it. `expectError` then gives the code of a call made afterwards."
+            },
+            "siblings": {
+              "type": "object",
+              "additionalProperties": {"type": "object"}
+            },
+            "validationResult": {"type": "object"},
+            "dataModel": {"type": "object"},
+            "surfaceError": {
+              "type": "object",
+              "properties": {
+                "code": {"type": "string"},
+                "functionCallId": {"type": "string"},
+                "message": {"type": "string"}
+              },
+              "required": ["code"],
+              "additionalProperties": false
+            },
+            "parts": {"type": "array", "items": {"type": "object"}}
+          },
+          "additionalProperties": false
+        },
+        "expectError": {"$ref": "#/$defs/ExpectError"},
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "additionalProperties": false
+    },
+    "LastCallIdRef": {
+      "type": "object",
+      "properties": {
+        "$ref": {
+          "const": "lastCallId"
+        }
+      },
+      "required": ["$ref"],
+      "additionalProperties": false
+    },
+    "MarkdownSubsetTest": {
+      "type": "object",
+      "required": ["name", "action", "markdown"],
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "features": {"$ref": "#/$defs/FeatureTags"},
+        "action": {"const": "render_markdown"},
+        "markdown": {"type": "string"},
+        "expectVisibleText": {"type": "string"},
+        "expectPresent": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["strong", "emphasis", "heading", "list_item", "code"]
+          }
+        },
+        "expectAbsent": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["html", "image", "link"]
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "E2eScenarioTest": {
+      "type": "object",
+      "description": "Golden end-to-end scenario: model chunks per inference format, the wire messages they lower to, and the view, errors, data model, and outbound messages each turn produces.",
+      "required": ["name", "action", "protocolVersion", "catalogPaths", "formats", "turns"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Unique scenario name across conformance/e2e/**."
+        },
+        "features": {"$ref": "#/$defs/FeatureTags"},
+        "action": {"const": "e2e_scenario"},
+        "description": {"type": "string"},
+        "protocolVersion": {"$ref": "#/$defs/ProtocolVersion"},
+        "catalogPaths": {"type": "array", "items": {"type": "string"}},
+        "formats": {"type": "array", "items": {"$ref": "#/$defs/InferenceFormatName"}},
+        "source": {"$ref": "#/$defs/E2eSource"},
+        "turns": {"type": "array", "items": {"$ref": "#/$defs/E2eTurn"}, "minItems": 1}
+      },
+      "additionalProperties": false
+    },
+    "E2eSource": {
+      "type": "object",
+      "required": ["kind", "from"],
+      "properties": {
+        "kind": {"type": "string", "enum": ["hand_authored", "recorded", "generated"]},
+        "from": {"type": "string"},
+        "model": {"type": "string"},
+        "recordedAt": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "E2eTurn": {
+      "type": "object",
+      "required": ["modelChunks", "expectWire"],
+      "properties": {
+        "userText": {"type": ["string", "null"]},
+        "modelChunks": {
+          "type": "object",
+          "additionalProperties": {"type": "array", "items": {"type": "string"}}
+        },
+        "expectWire": {"type": "array", "items": {"$ref": "#/$defs/ResponsePart"}},
+        "expectViewTree": {"$ref": "#/$defs/E2eViewTrees"},
+        "expectErrors": {"type": "array", "items": {"type": "object"}},
+        "uiOps": {"type": "array", "items": {"$ref": "#/$defs/E2eUiOp"}},
+        "expectDataModel": {"type": "object"},
+        "expectOutbound": {"$ref": "#/$defs/OutboundEnvelopeList"}
+      },
+      "additionalProperties": false
+    },
+    "E2eUiOp": {
+      "type": "object",
+      "required": ["op", "surfaceId", "targetNode"],
+      "properties": {
+        "op": {"type": "string", "enum": ["user_input", "user_gesture", "programmatic_invoke"]},
+        "surfaceId": {"type": "string"},
+        "targetNode": {"type": "string"},
+        "inputValue": {},
+        "userActivation": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "E2eViewTrees": {
+      "type": "object",
+      "additionalProperties": {"type": ["object", "null"]}
     }
   }
 }

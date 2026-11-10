@@ -170,7 +170,7 @@ Every implementation of `a2ui_core` must pass the core conformance test suite:
 
 ## **Codebase blueprint**
 
-A **Codebase** is a concrete, language-specific or framework-specific implementation of a module. Examples of codebases in this repository include `typescript/web_core` (TypeScript implementation of `a2ui_core`), `renderers/react` (React implementation of `a2ui_react`), and `kotlin/agent_sdk_legacy` (Kotlin implementation of `a2ui_inference` and `a2ui_core`).
+A **Codebase** is a concrete, language-specific or framework-specific implementation of a module. Examples of codebases in this repository include `typescript/core/web_core` (TypeScript implementation of `a2ui_core`), `typescript/renderers/react` (React implementation of `a2ui_react`), and `kotlin/agent_sdk_legacy` (Kotlin implementation of `a2ui_inference` and `a2ui_core`).
 
 Every codebase must contain a `codebase.blueprint.md` file in its root directory. This file maps the concrete implementation back to the language-agnostic module blueprint, tracking its feature support and documenting local engineering decisions. The codebase blueprint should be updated _at the same time as the code_ to keep it consistent with the codebase.
 
@@ -178,12 +178,14 @@ Every codebase must contain a `codebase.blueprint.md` file in its root directory
 
 Below is an example codebase blueprint for a React renderer codebase (`a2ui_react`):
 
-```
+```yaml
 ---
-associated_module: a2ui_react
-implemented_features: <!-- List of fully implemented features in the actual code -->
-  - dynamic_theming
-  - call_function_rpc
+codebase_path: typescript/renderers/react
+associated_module: a2ui_framework_adapter
+module_blueprint_commit: b1dd650750c6072b4a42f95b03420273d099965e
+implemented_features: # Map of implemented features to their pinned 40-char git commit hashes
+  node_resolution: b161f9bdc9395732b305b0adddfd182a36382f09
+  universal_custom_elements: b1dd650750c6072b4a42f95b03420273d099965e
 ---
 # **React Renderer Codebase Blueprint**
 ## **Architecture & Styling**
@@ -281,9 +283,13 @@ To keep specifications organized and isolated by default, all SDD blueprints, va
 │   │   └── archived/                       # Merged / Required Feature Blueprints
 │   │       └── bidirectional_rpc.blueprint.md
 │   ├── codebases/                          # Codebase Blueprints tracking module compliance by commit hash
-│   │   ├── renderers/
-│   │   │   └── web_core/
-│   │   │       └── codebase.blueprint.md
+│   │   ├── typescript/
+│   │   │   ├── core/
+│   │   │   │   └── web_core/
+│   │   │   │       └── codebase.blueprint.md
+│   │   │   └── renderers/
+│   │   │       └── react/
+│   │   │           └── codebase.blueprint.md
 │   │   └── python/
 │   │       └── a2ui_core/
 │   │           └── codebase.blueprint.md

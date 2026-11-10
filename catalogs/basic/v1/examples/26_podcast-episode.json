@@ -3,7 +3,7 @@
   "description": "Example of podcast episode demonstrating AudioPlayer and date formatting.",
   "messages": [
     {
-      "version": "v1.0",
+      "version": "1.0",
       "createSurface": {
         "surfaceId": "gallery-podcast-episode",
         "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -11,7 +11,7 @@
       }
     },
     {
-      "version": "v1.0",
+      "version": "1.0",
       "updateComponents": {
         "surfaceId": "gallery-podcast-episode",
         "components": [
@@ -30,7 +30,7 @@
             "id": "artwork",
             "component": "Image",
             "url": {
-              "path": "/artwork"
+              "@path": "/artwork"
             },
             "fit": "cover"
           },
@@ -43,7 +43,7 @@
             "id": "show_name",
             "component": "Text",
             "text": {
-              "path": "/showName"
+              "@path": "/showName"
             },
             "variant": "caption"
           },
@@ -51,7 +51,7 @@
             "id": "episode_title",
             "component": "Text",
             "text": {
-              "path": "/episodeTitle"
+              "@path": "/episodeTitle"
             }
           },
           {
@@ -63,7 +63,7 @@
             "id": "duration",
             "component": "Text",
             "text": {
-              "path": "/duration"
+              "@path": "/duration"
             },
             "variant": "caption"
           },
@@ -71,10 +71,10 @@
             "id": "date",
             "component": "Text",
             "text": {
-              "call": "formatDate",
+              "@call": "formatDate",
               "args": {
                 "value": {
-                  "path": "/date"
+                  "@path": "/date"
                 },
                 "format": "MMM d, yyyy"
               }
@@ -85,7 +85,7 @@
             "id": "description",
             "component": "Text",
             "text": {
-              "path": "/description"
+              "@path": "/description"
             },
             "variant": "body"
           },
@@ -93,17 +93,17 @@
             "id": "audio_player",
             "component": "AudioPlayer",
             "url": {
-              "path": "/audioUrl"
+              "@path": "/audioUrl"
             },
             "description": {
-              "path": "/episodeTitle"
+              "@path": "/episodeTitle"
             }
           }
         ]
       }
     },
     {
-      "version": "v1.0",
+      "version": "1.0",
       "updateDataModel": {
         "surfaceId": "gallery-podcast-episode",
         "value": {

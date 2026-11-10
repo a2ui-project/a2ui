@@ -20,7 +20,7 @@ import PackageDescription
 let package = Package(
   name: "A2UISwiftCore",
   platforms: [
-    .iOS(.v16),
+    .iOS(.v17),
     .macOS(.v14),
   ],
   products: [
@@ -52,6 +52,18 @@ let package = Package(
     ),
   ],
   targets: [
+    // ── Build Tools & Plugins ──
+    .executableTarget(
+      name: "A2UISchemaGenerator",
+      path: "swift/core/Tools/A2UISchemaGenerator"
+    ),
+    .plugin(
+      name: "A2UISchemaGeneratorPlugin",
+      capability: .buildTool(),
+      dependencies: ["A2UISchemaGenerator"],
+      path: "swift/core/Plugins/A2UISchemaGeneratorPlugin"
+    ),
+
     // ── Core ──
     .target(
       name: "A2UIJSON",
@@ -59,7 +71,8 @@ let package = Package(
         .product(name: "JSONSchema", package: "swift-json-schema"),
         .product(name: "OrderedJSON", package: "swift-json-schema"),
       ],
-      path: "swift/core/Sources/A2UIJSON"
+      path: "swift/core/Sources/A2UIJSON",
+      plugins: ["A2UISchemaGeneratorPlugin"]
     ),
     .target(
       name: "A2UICore",
@@ -75,9 +88,10 @@ let package = Package(
       dependencies: [
         "A2UICore",
         .product(name: "JSONSchema", package: "swift-json-schema"),
-        .product(name: "JSONSchemaBuilder", package: "swift-json-schema"),
       ],
-      path: "swift/core/Sources/BasicCatalog"
+      path: "swift/core/Sources/BasicCatalog",
+      resources: [.process("Resources")],
+      plugins: ["A2UISchemaGeneratorPlugin"]
     ),
 
     // ── SwiftUI ──
@@ -94,7 +108,10 @@ let package = Package(
         "BasicCatalog",
         .product(name: "OrderedJSON", package: "swift-json-schema"),
       ],
-      path: "swift/swiftui/Sources/BasicCatalog"
+      path: "swift/swiftui/Sources/BasicCatalog",
+      linkerSettings: [
+        .linkedFramework("AVKit")
+      ]
     ),
 
     // ── Tests ──
@@ -115,6 +132,7 @@ let package = Package(
         "A2UICore",
         "BasicCatalog",
         "BasicCatalogSwiftUI",
+        .product(name: "Yams", package: "Yams"),
       ],
       path: "swift/swiftui/Tests/A2UISwiftUITests"
     ),

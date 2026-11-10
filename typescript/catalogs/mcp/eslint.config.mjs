@@ -16,4 +16,33 @@
 
 import preset from '../../../eslint.preset.mjs';
 
-export default [...preset];
+export default [
+  ...preset,
+  {
+    files: ['**/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        // The library project leaves tests out; the test project covers the whole tree.
+        project: ['./tsconfig.json', './tsconfig.test.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+  {
+    files: ['src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@a2ui/catalog-mcp', '@a2ui/catalog-mcp/*'],
+              message:
+                'Use relative imports within @a2ui/catalog-mcp instead of self-importing the package.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+];

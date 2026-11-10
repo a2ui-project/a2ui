@@ -1,6 +1,13 @@
 ---
 name: inference-format-optimizer
-description: Iterative benchmarking, evaluation, and algorithmic optimization of alternative A2UI inference formats (such as Express, Atom, and Elemental). Trigger when asked to: (1) Run optimization passes or loops on an inference format, (2) Evaluate or benchmark format accuracy, latency, or token efficiency, (3) Create parallel worktree subagents for format iteration, or (4) Benchmark format trade-offs against baselines.
+description: >-
+  Iterative benchmarking, evaluation, and algorithmic optimization of alternative A2UI inference
+  formats (such as Express, Atom, and Elemental). Trigger when asked to: (1) Run optimization passes
+  or loops on an inference format, (2) Evaluate or benchmark format accuracy, latency, or token
+  efficiency, (3) Create parallel worktree subagents for format iteration, or (4) Benchmark format
+  trade-offs against baselines.
+metadata:
+  internal: true
 ---
 
 # Inference Format Optimizer
@@ -35,7 +42,7 @@ All execution scripts live under `scripts/` in this skill:
 ## The 6-Step Optimization Workflow
 
 1. **Analyze History**: Inspect past runs in `eval/iterative_format_optimizer/history/<format>/` and read `eval/iterative_format_optimizer/history_summary.md` to avoid repeating past reverted hypotheses.
-2. **Implement Hypothesis**: Modify `compiler.py`, `prompt_generator.py`, or `parser.py` under `python/a2ui_agent/src/a2ui/inference_formats/experimental/<format>/`.
+2. **Implement Hypothesis**: Modify `compiler.py`, `prompt_generator.py`, or `parser.py` under the format's package: `python/a2ui_agent/src/a2ui/inference_formats/express/` for Express, or `python/a2ui_agent/src/a2ui/inference_formats/experimental/<format>/` for an experimental format.
 3. **Run Unit Conformance Tests**: Verify code changes pass pytest unit tests.
 4. **Execute Benchmark Evaluation**: Run `python scripts/optimize_format.py --format <format>`.
 5. **Evaluate Decision Rules**:

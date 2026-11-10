@@ -12,29 +12,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Generic
-from ..catalog.catalog import TComponent, TFunction
 from ..common.events import EventSource, Subscription
 from .surface_model import SurfaceModel
 
 
-class SurfaceGroupModel(Generic[TComponent, TFunction]):
+class SurfaceGroupModel:
     """The global manager and lifecycle container for all surfaces."""
 
     def __init__(self) -> None:
-        self.surfaces: dict[str, SurfaceModel[TComponent, TFunction]] = {}
+        self.surfaces: dict[str, SurfaceModel] = {}
         self._surface_unsubscribers: dict[str, Subscription] = {}
 
         self.on_surface_created = EventSource()
         self.on_surface_deleted = EventSource()
         self.on_action = EventSource()
+        self.on_error = EventSource()
 
-    def get_surface(
-        self, surface_id: str
-    ) -> SurfaceModel[TComponent, TFunction] | None:
+    def emit_error(self, error: dict[str, object]) -> None:
+        """Emits a mapped renderer error message to global group listeners."""
+        self.on_error.emit(error)
+
+    def get_surface(self, surface_id: str) -> SurfaceModel | None:
         return self.surfaces.get(surface_id)
 
-    def add_surface(self, surface: SurfaceModel[TComponent, TFunction]) -> None:
+    def add_surface(self, surface: SurfaceModel) -> None:
         if surface.id in self.surfaces:
             return
 
@@ -57,7 +58,7 @@ class SurfaceGroupModel(Generic[TComponent, TFunction]):
             self.on_surface_deleted.emit(surface_id)
 
     @property
-    def surfaces_map(self) -> dict[str, SurfaceModel[TComponent, TFunction]]:
+    def surfaces_map(self) -> dict[str, SurfaceModel]:
         """Returns the dictionary of all active surfaces."""
         return self.surfaces
 
@@ -71,3 +72,5 @@ class SurfaceGroupModel(Generic[TComponent, TFunction]):
             self.on_surface_deleted.dispose()
         if hasattr(self.on_action, "dispose"):
             self.on_action.dispose()
+        if hasattr(self.on_error, "dispose"):
+            self.on_error.dispose()

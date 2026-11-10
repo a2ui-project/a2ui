@@ -14,30 +14,56 @@
  * limitations under the License.
  */
 
-import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
-import {Catalog, DataContext, DataModel} from '@a2ui/web_core/v0_9';
-import {SplitImplementation} from './split.js';
+import * as assert from 'node:assert';
+import {A2uiExpressionError, Catalog, DataContext, DataModel} from '@a2ui/web_core/v1_0';
+import {SplitApi, SplitImplementation} from './split.js';
 
-const catalog = new Catalog<any>('https://a2ui.org/test/split', '0.9', [], [SplitImplementation]);
+const catalog = new Catalog<never>('https://a2ui.org/test/split', '1.0', [], [SplitImplementation]);
 
 const call = (args: Record<string, unknown>) =>
-  catalog.invoker(
-    'split',
-    args,
-    new DataContext(
-      {dataModel: new DataModel({}), defaultCatalog: {invoker: catalog.invoker}} as any,
-      '/',
-    ),
-  );
+  catalog.invoker('split', args, new DataContext(new DataModel({}), '/'));
 
 describe('split', () => {
+  it('has the metadata the catalog schema publishes', () => {
+    assert.strictEqual(SplitApi.name, 'split');
+    assert.strictEqual(SplitApi.returnType, 'any');
+  });
+
   it('splits a string on a separator', () => {
     assert.deepStrictEqual(call({value: 'a,b,c', separator: ','}), ['a', 'b', 'c']);
   });
 
+  it('splits the lines of a tool text block', () => {
+    assert.deepStrictEqual(call({value: '[DIR] src\n[FILE] README.md', separator: '\n'}), [
+      '[DIR] src',
+      '[FILE] README.md',
+    ]);
+  });
+
   it('splits into characters when the separator is empty', () => {
     assert.deepStrictEqual(call({value: 'abc', separator: ''}), ['a', 'b', 'c']);
+  });
+
+  it('rejects a null separator at validation', () => {
+    assert.throws(
+      () => call({value: 'ab', separator: null}),
+      (error: unknown) => {
+        assert.ok(error instanceof A2uiExpressionError);
+        assert.strictEqual(error.expression, 'split');
+        assert.ok(error.message.startsWith("Validation failed for function 'split'"));
+        return true;
+      },
+    );
+  });
+
+  it('keeps surrogate pairs whole when splitting into characters', () => {
+    assert.deepStrictEqual(call({value: 'a😀b', separator: ''}), ['a', '😀', 'b']);
+    assert.deepStrictEqual(call({value: '😀', separator: ''}), ['😀']);
+  });
+
+  it('treats the separator as literal text, not as a pattern', () => {
+    assert.deepStrictEqual(call({value: 'a.b', separator: '.'}), ['a', 'b']);
   });
 
   it('splits each element of an array, giving an array of arrays', () => {
@@ -45,6 +71,18 @@ describe('split', () => {
       ['a', '1'],
       ['b', '2'],
     ]);
+  });
+
+  it('rejects a null value at validation', () => {
+    assert.throws(
+      () => call({value: null, separator: ','}),
+      (error: unknown) => {
+        assert.ok(error instanceof A2uiExpressionError);
+        assert.strictEqual(error.expression, 'split');
+        assert.ok(error.message.startsWith("Validation failed for function 'split'"));
+        return true;
+      },
+    );
   });
 
   it('stays synchronous when no argument is pending', () => {

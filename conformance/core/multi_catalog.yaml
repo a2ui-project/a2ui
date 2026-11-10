@@ -13,9 +13,10 @@
 # limitations under the License.
 
 - name: test_multi_catalog_explicit_catalog_id_resolution
+  features: [F-CORE-10]
   description: Verifies resolving component definition using explicit catalogId specified on component instance.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: select_catalog
   args:
     surface:
@@ -34,9 +35,10 @@
   expectSelected: "chart_catalog"
 
 - name: test_multi_catalog_surface_default_fallback
+  features: [F-CORE-10]
   description: Verifies component falling back to surface defaultCatalogId when catalogId is omitted.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: select_catalog
   args:
     surface:
@@ -50,9 +52,10 @@
   expectSelected: "basic"
 
 - name: test_multi_catalog_unregistered_catalog_error
+  features: [F-CORE-10]
   description: Verifies error thrown when component specifies catalogId not listed in surface supportedCatalogIds.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: select_catalog
   args:
     surface:
@@ -68,28 +71,30 @@
     message: "Catalog 'unregistered_vendor_catalog' is not supported by surface 'main_surface'."
 
 - name: test_multi_catalog_version_mismatch_error
+  features: [F-CORE-10]
   description: Verifies error thrown when mixed catalogs specify conflicting protocol versions.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: select_catalog
   args:
     surface:
       id: main_surface
       defaultCatalogId: "basic_v1_0"
-      supportedCatalogIds: ["basic_v1_0", "legacy_v0_9_catalog"]
+      supportedCatalogIds: ["basic_v1_0", "v0_9_catalog"]
     catalogs:
       basic_v1_0:
-        protocolVersion: "v1.0"
-      legacy_v0_9_catalog:
+        protocolVersion: "1.0"
+      v0_9_catalog:
         protocolVersion: "v0.9"
   expectError:
     category: "CatalogError"
-    message: "Protocol version mismatch: cannot mix catalog 'legacy_v0_9_catalog' (v0.9) with surface version v1.0."
+    message: "Protocol version mismatch: cannot mix catalog 'v0_9_catalog' (v0.9) with surface version 1.0."
 
 - name: test_multi_catalog_function_resolution_precedence
+  features: [F-CORE-10]
   description: Verifies function calls with explicit catalogId resolve to the specified catalog.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: select_catalog
   args:
     surface:
@@ -105,9 +110,10 @@
   expectSelected: "custom_math_catalog"
 
 - name: test_multi_catalog_cross_catalog_component_composition
+  features: [F-CORE-10]
   description: Verifies creating a surface with multiple supportedCatalogIds and rendering components from distinct catalogs in a single hierarchy.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: select_catalog
   args:
     surface:
@@ -135,11 +141,12 @@
 # honours the `catalogId` on the function call itself.
 
 - name: test_multi_catalog_function_call_catalog_id_override
+  features: [F-CORE-10]
   description: Verifies a function call naming a non-default catalogId is evaluated by that catalog.
   action: validate
   catalogs:
     - catalogId: "app-cat"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Text:
           type: object
@@ -148,7 +155,7 @@
               $ref: "#/$defs/DynamicString"
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "main"
             catalogId: "app-cat"
@@ -156,7 +163,7 @@
               - id: "root"
                 component: "Text"
                 text:
-                  call: "formatDate"
+                  "@call": "formatDate"
                   catalogId: "basic"
                   args:
                     value: "2026-09-04T12:00:00Z"
@@ -168,3 +175,48 @@
           root:
             component: "Text"
             text: "2026-09-04"
+
+- name: test_multi_catalog_format_string_index_and_catalog_call_without_default
+  description: Verifies @index() stays catalogless while sibling ${pluralize(...)} calls inherit formatString's catalogId on a defaultless v1.0 surface.
+  action: validate
+  catalogs:
+    - catalogId: "app-cat"
+      protocolVersion: "1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            label:
+              type: string
+  steps:
+    - payload:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "main"
+            dataModel:
+              items:
+                - count: 1
+                - count: 2
+            components:
+              - id: "root"
+                component: "List"
+                catalogId: "basic"
+                children:
+                  path: "/items"
+                  componentId: "row"
+              - id: "row"
+                component: "Text"
+                catalogId: "basic"
+                text:
+                  "@call": "formatString"
+                  catalogId: "basic"
+                  args:
+                    value: "Row ${@index()}: ${pluralize(value: count, one: 'drop', other: 'drops')}"
+  expect:
+    surfaces:
+      main:
+        components:
+          row_0:
+            text: "Row 0: drop"
+          row_1:
+            text: "Row 1: drops"

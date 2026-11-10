@@ -26,11 +26,33 @@ class ComponentApi:
         schema: dict[str, Any],
         allowed_parents: list[str] | None = None,
         allowed_children: list[str] | None = None,
+        from_document: bool = False,
+        metadata: dict[str, Any] | None = None,
     ):
+        """Initializes the component API.
+
+        Args:
+            name: The component's name, which instances use as `component`.
+            schema: The component's JSON schema, as its catalog document
+                writes it. `Catalog.from_json` keeps each component's
+                definition here unchanged (with its `allOf` mixins and
+                references), and `Catalog.to_json` writes it back.
+            allowed_parents: The components this component may be a child of.
+            allowed_children: The components this component may contain.
+            from_document: Whether `schema` was loaded from a catalog
+                document, which `Catalog.from_json` sets on every component
+                it loads. `Catalog.to_json` writes such a schema exactly as
+                it is; for a component defined in code, it points local
+                references to common types at the catalog's
+                `common_types_uri`.
+            metadata: Optional static component-level metadata envelope.
+        """
         self.name = name
         self.schema = schema
         self.allowed_parents = allowed_parents
         self.allowed_children = allowed_children
+        self.from_document = from_document
+        self.metadata = metadata
 
     @property
     def comp_type(self) -> str:
@@ -47,12 +69,14 @@ class ComponentImplementation(ComponentApi):
         model_class: Type[BaseModel],
         allowed_parents: list[str] | None = None,
         allowed_children: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
     ):
         super().__init__(
             name=name,
             schema=schema,
             allowed_parents=allowed_parents,
             allowed_children=allowed_children,
+            metadata=metadata,
         )
         self.model_class = model_class
         self._type_adapter: TypeAdapter[Any] | None = None
@@ -73,6 +97,7 @@ class ModelComponentApi(ComponentImplementation):
         name: str | None = None,
         allowed_parents: list[str] | None = None,
         allowed_children: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
     ):
         if not (isinstance(model_class, type) and issubclass(model_class, BaseModel)):
             raise ValueError(f"Expected a Pydantic BaseModel class, got {model_class}")
@@ -89,6 +114,7 @@ class ModelComponentApi(ComponentImplementation):
             model_class=model_class,
             allowed_parents=allowed_parents,
             allowed_children=allowed_children,
+            metadata=metadata,
         )
 
     @staticmethod

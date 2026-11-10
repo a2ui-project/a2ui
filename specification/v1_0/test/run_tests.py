@@ -64,6 +64,7 @@ SCHEMAS = {
     "catalog.json": TEMP_CATALOG_FILE,
     "renderer_to_agent.json": os.path.join(SCHEMA_DIR, "renderer_to_agent.json"),
     "catalog_definition.json": os.path.join(SCHEMA_DIR, "catalog_definition.json"),
+    "agent_capabilities.json": os.path.join(SCHEMA_DIR, "agent_capabilities.json"),
 }
 
 
@@ -264,6 +265,14 @@ def validate_catalogs_structure():
 
     catalogs_to_validate = [
         ("catalogs/basic/v1/catalog.json", BASIC_CATALOG_FILE),
+        (
+            "catalogs/mcp/v1/catalog.json",
+            os.path.join(REPO_ROOT, "catalogs/mcp/v1/catalog.json"),
+        ),
+        (
+            "catalogs/vegachart/v1/catalog.json",
+            os.path.join(REPO_ROOT, "catalogs/vegachart/v1/catalog.json"),
+        ),
         ("test/testing_catalog.json", os.path.join(TEST_DIR, "testing_catalog.json")),
     ]
 
@@ -308,6 +317,14 @@ def validate_catalogs_identifiers():
     """
     catalogs_to_validate = [
         ("catalogs/basic/v1/catalog.json", BASIC_CATALOG_FILE),
+        (
+            "catalogs/mcp/v1/catalog.json",
+            os.path.join(REPO_ROOT, "catalogs/mcp/v1/catalog.json"),
+        ),
+        (
+            "catalogs/vegachart/v1/catalog.json",
+            os.path.join(REPO_ROOT, "catalogs/vegachart/v1/catalog.json"),
+        ),
         ("test/testing_catalog.json", os.path.join(TEST_DIR, "testing_catalog.json")),
     ]
 
@@ -332,17 +349,45 @@ def validate_catalogs_identifiers():
 
         errors = []
 
+        # Reserved protocol directives are defined by the specification, not by
+        # the catalog author, and their leading '@' is deliberately outside the
+        # UAX #31 identifier grammar. Catalogs may not introduce their own
+        # '@'-prefixed names, so exempt only this fixed set.
+        reserved_directives = {"@path", "@call"}
+
         def check_schema_properties(obj):
             if isinstance(obj, dict):
+                # 1. Validate property names
                 if "properties" in obj and isinstance(obj["properties"], dict):
                     for prop_name, prop_def in obj["properties"].items():
-                        if not prop_name.isidentifier():
+                        if (
+                            prop_name not in reserved_directives
+                            and not prop_name.isidentifier()
+                        ):
                             errors.append(
                                 f"Invalid argument/property name: '{prop_name}'"
                             )
                         check_schema_properties(prop_def)
+                # 2. Validate extension identifiers (UAX #31), but do NOT recurse
+                # into values
+                if "metadata" in obj and isinstance(obj["metadata"], dict):
+                    extensions = obj["metadata"].get("extensions")
+                    if isinstance(extensions, dict):
+                        for ext_name in extensions:
+                            if not ext_name.isidentifier():
+                                errors.append(
+                                    f"Invalid extension identifier: '{ext_name}'"
+                                )
+                # 3. Recurse into schema children, skipping non-schema annotations
                 for k, v in obj.items():
-                    if k != "properties":
+                    if k not in (
+                        "properties",
+                        "metadata",
+                        "examples",
+                        "description",
+                        "const",
+                        "default",
+                    ):
                         if isinstance(v, (dict, list)):
                             check_schema_properties(v)
             elif isinstance(obj, list):
@@ -364,6 +409,15 @@ def validate_catalogs_identifiers():
                     errors.append(f"Invalid function name: '{func_name}'")
                 check_schema_properties(func_def)
 
+        defs = catalog.get("$defs", {})
+        if isinstance(defs, dict):
+            for def_name, def_schema in defs.items():
+                if def_name in ("anyComponent", "anyFunction"):
+                    continue
+                if not def_name.isidentifier():
+                    errors.append(f"Invalid $defs name: '{def_name}'")
+                check_schema_properties(def_schema)
+
         if errors:
             failed += 1
             print(f"  [FAIL] {name}")
@@ -384,6 +438,14 @@ def validate_catalogs_ref_targets():
     """
     catalogs_to_validate = [
         ("catalogs/basic/v1/catalog.json", BASIC_CATALOG_FILE),
+        (
+            "catalogs/mcp/v1/catalog.json",
+            os.path.join(REPO_ROOT, "catalogs/mcp/v1/catalog.json"),
+        ),
+        (
+            "catalogs/vegachart/v1/catalog.json",
+            os.path.join(REPO_ROOT, "catalogs/vegachart/v1/catalog.json"),
+        ),
         ("test/testing_catalog.json", os.path.join(TEST_DIR, "testing_catalog.json")),
     ]
 
@@ -451,6 +513,12 @@ def validate_catalogs_ref_targets():
                 target = ref[len("#/functions/") :]
                 if not isinstance(functions, dict) or target not in functions:
                     errors.append(f"Unknown local $ref target: '{ref}'")
+            elif ref.startswith("#/$defs/"):
+                target = ref[len("#/$defs/") :]
+                if target in ("anyComponent", "anyFunction"):
+                    errors.append(f"Disallowed $ref target: '{ref}'")
+                elif not isinstance(defs, dict) or target not in defs:
+                    errors.append(f"Unknown local $ref target: '{ref}'")
             elif ref.startswith("common_types.json#/$defs/"):
                 target = ref[len("common_types.json#/$defs/") :]
                 if target not in ALLOWED_EXTERNAL_REF_TARGETS:
@@ -488,7 +556,7 @@ def validate_sample_schema():
         "name": "Test Sample",
         "description": "A minimal sample for testing schema integrity",
         "messages": [{
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "test_surface",
                 "catalogId": (
@@ -544,7 +612,7 @@ def validate_a2a_schemas():
             "name": "renderer_capabilities.json",
             "schema_path": os.path.join(SCHEMA_DIR, "renderer_capabilities.json"),
             "data": {
-                "v1.0": {
+                "1.0": {
                     "supportedCatalogIds": [
                         "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
                     ],
@@ -562,7 +630,7 @@ def validate_a2a_schemas():
             "name": "agent_capabilities.json",
             "schema_path": os.path.join(SCHEMA_DIR, "agent_capabilities.json"),
             "data": {
-                "v1.0": {
+                "1.0": {
                     "supportedCatalogIds": [
                         "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
                     ],
@@ -575,7 +643,7 @@ def validate_a2a_schemas():
             "name": "renderer_data_model.json",
             "schema_path": os.path.join(SCHEMA_DIR, "renderer_data_model.json"),
             "data": {
-                "version": "v1.0",
+                "version": "1.0",
                 "surfaces": {"surface_123": {"user": {"name": "Alice"}}},
             },
             "refs": {},
@@ -587,7 +655,7 @@ def validate_a2a_schemas():
             ),
             "data": {
                 "messages": [{
-                    "version": "v1.0",
+                    "version": "1.0",
                     "createSurface": {
                         "surfaceId": "test_surface",
                         "catalogId": (
@@ -614,7 +682,7 @@ def validate_a2a_schemas():
             ),
             "data": {
                 "messages": [{
-                    "version": "v1.0",
+                    "version": "1.0",
                     "action": {
                         "name": "click_button",
                         "surfaceId": "test_surface",

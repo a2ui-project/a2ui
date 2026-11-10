@@ -72,6 +72,9 @@ class V1Point0Adapter(BaseVersionAdapter):
                     surface_id=self._get_surface_id(cs),
                     catalog_id=cs.get("catalogId"),
                     send_data_model=bool(cs.get("sendDataModel", False)),
+                    components=cs.get("components"),
+                    data_model=cs.get("dataModel"),
+                    metadata=cs.get("metadata"),
                     version=message.get("version")
                     or (
                         self.version.value
@@ -80,23 +83,6 @@ class V1Point0Adapter(BaseVersionAdapter):
                     ),
                 )
             )
-            comps = cs.get("components")
-            if comps is not None:
-                res.append(
-                    InternalUpdateComponentsOp(
-                        surface_id=self._get_surface_id(cs),
-                        components=comps,
-                    )
-                )
-            dm = cs.get("dataModel")
-            if dm is not None:
-                res.append(
-                    InternalUpdateDataModelOp(
-                        surface_id=self._get_surface_id(cs),
-                        path="/",
-                        value=dm,
-                    )
-                )
         elif action == MSG_TYPE_UPDATE_COMPONENTS:
             uc = message[MSG_TYPE_UPDATE_COMPONENTS]
             res.append(
@@ -136,6 +122,7 @@ class V1Point0Adapter(BaseVersionAdapter):
                     function_call_id=crf.function_call_id,
                     call=cf.call,
                     version=ver_str,
+                    surface_id=crf.surface_id,
                     catalog_id=cf.catalog_id,
                     args=cf.args or {},
                 )
@@ -146,7 +133,7 @@ class V1Point0Adapter(BaseVersionAdapter):
             res.append(
                 InternalAgentFunctionResponseOp(
                     function_call_id=resp_data.function_call_id,
-                    version=str(getattr(af_resp, "version", "v1.0")),
+                    version=str(getattr(af_resp, "version", "1.0")),
                     value=resp_data.value,
                     error=resp_data.error.model_dump(by_alias=True)
                     if resp_data.error

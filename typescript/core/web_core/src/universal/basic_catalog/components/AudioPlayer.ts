@@ -1,0 +1,81 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import {html, nothing, css} from 'lit';
+import {sanitizeMediaUrl} from '../../../common/sanitize_media_url.js';
+import {
+  getAccessibilityDescription,
+  getAccessibilityLabel,
+  hasAttributeValue,
+} from './accessibility.js';
+import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
+import type {AudioPlayerSupportedApis} from './supported_apis.js';
+
+export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<AudioPlayerSupportedApis> {
+  /** @nocollapse */
+  static readonly tagName = 'a2ui-audioplayer';
+  /** @nocollapse */
+  static override styles = css`
+    .a2ui-audio-player {
+      display: flex;
+      flex-direction: column;
+      gap: var(--a2ui-spacing-xs, 0.25rem);
+      background: var(--a2ui-audioplayer-background, transparent);
+      border-radius: var(--a2ui-audioplayer-border-radius, 0);
+      padding: var(--a2ui-audioplayer-padding, 0);
+      width: 100%;
+    }
+    .a2ui-audio-description {
+      font-size: var(--a2ui-font-size-s, 0.875rem);
+      color: var(
+        --a2ui-audioplayer-description-color,
+        var(--a2ui-text-caption-color, light-dark(#666, #aaa))
+      );
+    }
+    .a2ui-audio {
+      width: 100%;
+    }
+  `;
+
+  override render() {
+    const props = this.controller.props;
+    if (!props) return nothing;
+
+    const safeUrl = sanitizeMediaUrl(props.url);
+    const descId = `${this.domId}-desc`;
+    const hasVisibleDescription = hasAttributeValue(props.description);
+    const a11yLabel = getAccessibilityLabel(props.accessibility);
+    const a11yDescription = getAccessibilityDescription(props.accessibility);
+
+    return html`
+      <div class="a2ui-audio-player">
+        ${hasVisibleDescription
+          ? html`<div id=${descId} class="a2ui-audio-description">${props.description}</div>`
+          : nothing}
+        <audio
+          src=${safeUrl ?? nothing}
+          controls
+          class="a2ui-audio"
+          aria-label=${a11yLabel}
+          aria-labelledby=${a11yLabel === nothing && hasVisibleDescription ? descId : nothing}
+          aria-description=${a11yDescription}
+        >
+          Your browser does not support the audio tag.
+        </audio>
+      </div>
+    `;
+  }
+}

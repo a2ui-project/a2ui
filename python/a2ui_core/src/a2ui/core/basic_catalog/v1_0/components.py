@@ -36,10 +36,12 @@ from ...schema.v1_0.common_types import (
     IndexSystemFunction,
     ListReference,
     SingleReference,
+    SpecBaseModel,
     StrictBaseModel,
     TemplateChildList,
 )
 from ...catalog.components import ModelComponentApi
+from ...schema._json_schema import CatalogDef, SpecAllOf
 
 
 class SvgPath(StrictBaseModel):
@@ -61,6 +63,19 @@ class OptionItem(StrictBaseModel):
     value: str = Field(..., description="The stable value associated with this option.")
 
 
+Weight = Annotated[
+    float,
+    Field(
+        description=(
+            "The relative weight of this component within a Row or Column. This is"
+            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
+            " the component is a direct descendant of a Row or Column."
+        )
+    ),
+    CatalogDef("Weight"),
+]
+
+
 class TextComponent(ComponentCommon):
     component: Literal["Text"] = "Text"
     text: DynamicString = Field(
@@ -72,30 +87,26 @@ class TextComponent(ComponentCommon):
         ),
     )
     variant: Literal["caption", "body"] | None = Field(
-        description="A hint for the base text style.", default="body"
+        default=None,
+        description="A hint for the base text style.",
+        json_schema_extra={"default": "body"},
     )
-    weight: float | None = Field(
-        None,
-        description=(
-            "The relative weight of this component within a Row or Column. This is"
-            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
-            " the component is a direct descendant of a Row or Column."
-        ),
-    )
+    weight: Weight | None = Field(default=None)
 
 
 class ImageComponent(ComponentCommon):
     component: Literal["Image"] = "Image"
     url: DynamicString = Field(..., description="The URL of the image to display.")
     description: DynamicString | None = Field(
-        None, description="Accessibility text for the image."
+        default=None, description="Accessibility text for the image."
     )
     fit: Literal["contain", "cover", "fill", "none", "scaleDown"] | None = Field(
+        default=None,
         description=(
             "Specifies how the image should be resized to fit its container. This"
             " corresponds to the CSS 'object-fit' property."
         ),
-        default="fill",
+        json_schema_extra={"default": "fill"},
     )
     variant: (
         Literal[
@@ -103,16 +114,11 @@ class ImageComponent(ComponentCommon):
         ]
         | None
     ) = Field(
-        description="A hint for the image size and style.", default="mediumFeature"
+        default=None,
+        description="A hint for the image size and style.",
+        json_schema_extra={"default": "mediumFeature"},
     )
-    weight: float | None = Field(
-        None,
-        description=(
-            "The relative weight of this component within a Row or Column. This is"
-            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
-            " the component is a direct descendant of a Row or Column."
-        ),
-    )
+    weight: Weight | None = Field(default=None)
 
 
 class IconComponent(ComponentCommon):
@@ -182,51 +188,33 @@ class IconComponent(ComponentCommon):
         | SvgPath
         | DataBinding
     ) = Field(..., description="The name of the icon to display.")
-    weight: float | None = Field(
-        None,
-        description=(
-            "The relative weight of this component within a Row or Column. This is"
-            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
-            " the component is a direct descendant of a Row or Column."
-        ),
-    )
+    weight: Weight | None = Field(default=None)
 
 
 class VideoComponent(ComponentCommon):
     component: Literal["Video"] = "Video"
     url: DynamicString = Field(..., description="The URL of the video to display.")
     poster_url: DynamicString | None = Field(
-        None,
+        default=None,
         alias="posterUrl",
         description="The URL of the poster image to display before the video plays.",
     )
-    weight: float | None = Field(
-        None,
-        description=(
-            "The relative weight of this component within a Row or Column. This is"
-            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
-            " the component is a direct descendant of a Row or Column."
-        ),
-    )
+    weight: Weight | None = Field(default=None)
 
 
 class AudioPlayerComponent(ComponentCommon):
     component: Literal["AudioPlayer"] = "AudioPlayer"
     url: DynamicString = Field(..., description="The URL of the audio to be played.")
     description: DynamicString | None = Field(
-        None, description="A description of the audio, such as a title or summary."
+        default=None,
+        description="A description of the audio, such as a title or summary.",
     )
-    weight: float | None = Field(
-        None,
-        description=(
-            "The relative weight of this component within a Row or Column. This is"
-            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
-            " the component is a direct descendant of a Row or Column."
-        ),
-    )
+    weight: Weight | None = Field(default=None)
 
 
 class RowComponent(ComponentCommon):
+    """A layout component that arranges its children horizontally. To create a grid layout, nest Columns within this Row."""
+
     component: Literal["Row"] = "Row"
     children: ChildList = Field(
         ...,
@@ -248,32 +236,29 @@ class RowComponent(ComponentCommon):
         ]
         | None
     ) = Field(
+        default=None,
         description=(
             "Defines the arrangement of children along the main axis (horizontally)."
             " Use 'spaceBetween' to push items to the edges, or 'start'/'end'/'center'"
             " to pack them together."
         ),
-        default="start",
+        json_schema_extra={"default": "start"},
     )
     align: Literal["start", "center", "end", "stretch"] | None = Field(
+        default=None,
         description=(
             "Defines the alignment of children along the cross axis (vertically). This"
             " is similar to the CSS 'align-items' property, but uses camelCase values"
             " (e.g., 'start')."
         ),
-        default="stretch",
+        json_schema_extra={"default": "stretch"},
     )
-    weight: float | None = Field(
-        None,
-        description=(
-            "The relative weight of this component within a Row or Column. This is"
-            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
-            " the component is a direct descendant of a Row or Column."
-        ),
-    )
+    weight: Weight | None = Field(default=None)
 
 
 class ColumnComponent(ComponentCommon):
+    """A layout component that arranges its children vertically. To create a grid layout, nest Rows within this Column."""
+
     component: Literal["Column"] = "Column"
     children: ChildList = Field(
         ...,
@@ -295,28 +280,23 @@ class ColumnComponent(ComponentCommon):
         ]
         | None
     ) = Field(
+        default=None,
         description=(
             "Defines the arrangement of children along the main axis (vertically). Use"
             " 'spaceBetween' to push items to the edges (e.g. header at top, footer at"
             " bottom), or 'start'/'end'/'center' to pack them together."
         ),
-        default="start",
+        json_schema_extra={"default": "start"},
     )
     align: Literal["center", "end", "start", "stretch"] | None = Field(
+        default=None,
         description=(
             "Defines the alignment of children along the cross axis (horizontally)."
             " This is similar to the CSS 'align-items' property."
         ),
-        default="stretch",
+        json_schema_extra={"default": "stretch"},
     )
-    weight: float | None = Field(
-        None,
-        description=(
-            "The relative weight of this component within a Row or Column. This is"
-            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
-            " the component is a direct descendant of a Row or Column."
-        ),
-    )
+    weight: Weight | None = Field(default=None)
 
 
 class ListComponent(ComponentCommon):
@@ -329,21 +309,16 @@ class ListComponent(ComponentCommon):
         ),
     )
     direction: Literal["vertical", "horizontal"] | None = Field(
+        default=None,
         description="The direction in which the list items are laid out.",
-        default="vertical",
+        json_schema_extra={"default": "vertical"},
     )
     align: Literal["start", "center", "end", "stretch"] | None = Field(
+        default=None,
         description="Defines the alignment of children along the cross axis.",
-        default="stretch",
+        json_schema_extra={"default": "stretch"},
     )
-    weight: float | None = Field(
-        None,
-        description=(
-            "The relative weight of this component within a Row or Column. This is"
-            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
-            " the component is a direct descendant of a Row or Column."
-        ),
-    )
+    weight: Weight | None = Field(default=None)
 
 
 class CardComponent(ComponentCommon):
@@ -357,33 +332,19 @@ class CardComponent(ComponentCommon):
             " IDs or a non-existent ID."
         ),
     )
-    weight: float | None = Field(
-        None,
-        description=(
-            "The relative weight of this component within a Row or Column. This is"
-            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
-            " the component is a direct descendant of a Row or Column."
-        ),
-    )
+    weight: Weight | None = Field(default=None)
 
 
 class TabsComponent(ComponentCommon):
     component: Literal["Tabs"] = "Tabs"
-    tabs: list[TabItem] = Field(
+    tabs: Annotated[list[TabItem], Field(min_length=1)] = Field(
         ...,
         description=(
             "An array of objects, where each object defines a tab with a title and a"
             " child component."
         ),
     )
-    weight: float | None = Field(
-        None,
-        description=(
-            "The relative weight of this component within a Row or Column. This is"
-            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
-            " the component is a direct descendant of a Row or Column."
-        ),
-    )
+    weight: Weight | None = Field(default=None)
 
 
 class ModalComponent(ComponentCommon):
@@ -398,40 +359,22 @@ class ModalComponent(ComponentCommon):
     content: Child = Field(
         ..., description="The ID of the component to be displayed inside the modal."
     )
-    weight: float | None = Field(
-        None,
-        description=(
-            "The relative weight of this component within a Row or Column. This is"
-            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
-            " the component is a direct descendant of a Row or Column."
-        ),
-    )
+    weight: Weight | None = Field(default=None)
 
 
 class DividerComponent(ComponentCommon):
     component: Literal["Divider"] = "Divider"
     axis: Literal["horizontal", "vertical"] | None = Field(
-        description="The orientation of the divider.", default="horizontal"
+        default=None,
+        description="The orientation of the divider.",
+        json_schema_extra={"default": "horizontal"},
     )
-    weight: float | None = Field(
-        None,
-        description=(
-            "The relative weight of this component within a Row or Column. This is"
-            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
-            " the component is a direct descendant of a Row or Column."
-        ),
-    )
+    weight: Weight | None = Field(default=None)
 
 
-class ButtonComponent(ComponentCommon):
+class ButtonComponent(ComponentCommon, Checkable):
     component: Literal["Button"] = "Button"
-    checks: list[CheckRule] | None = Field(
-        None,
-        description=(
-            "A list of checks to perform. These are function calls that must return a"
-            " boolean indicating validity."
-        ),
-    )
+    model_config = ConfigDict(extra="forbid")
     child: Child = Field(
         ...,
         description=(
@@ -441,63 +384,38 @@ class ButtonComponent(ComponentCommon):
         ),
     )
     variant: Literal["default", "primary", "borderless"] | None = Field(
+        default=None,
         description=(
             "A hint for the button style. If omitted, a default button style is used."
             " 'primary' indicates this is the main call-to-action button. 'borderless'"
             " means the button has no visual border or background, making its child"
             " content appear like a clickable link."
         ),
-        default="default",
+        json_schema_extra={"default": "default"},
     )
     action: Action = Field(...)
-    weight: float | None = Field(
-        None,
-        description=(
-            "The relative weight of this component within a Row or Column. This is"
-            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
-            " the component is a direct descendant of a Row or Column."
-        ),
-    )
+    weight: Weight | None = Field(default=None)
 
 
-class TextFieldComponent(ComponentCommon):
+class TextFieldComponent(ComponentCommon, Checkable):
     component: Literal["TextField"] = "TextField"
-    checks: list[CheckRule] | None = Field(
-        None,
-        description=(
-            "A list of checks to perform. These are function calls that must return a"
-            " boolean indicating validity."
-        ),
-    )
+    model_config = ConfigDict(extra="forbid")
     label: DynamicString = Field(..., description="The text label for the input field.")
-    value: DynamicString | None = Field(
-        None, description="The value of the text field."
-    )
+    value: DynamicString = Field(..., description="The value of the text field.")
     placeholder: DynamicString | None = Field(
-        None, description="The placeholder text for the input field."
+        default=None, description="The placeholder text for the input field."
     )
     variant: Literal["longText", "number", "shortText", "obscured"] | None = Field(
-        description="The type of input field to display.", default="shortText"
+        default=None,
+        description="The type of input field to display.",
+        json_schema_extra={"default": "shortText"},
     )
-    weight: float | None = Field(
-        None,
-        description=(
-            "The relative weight of this component within a Row or Column. This is"
-            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
-            " the component is a direct descendant of a Row or Column."
-        ),
-    )
+    weight: Weight | None = Field(default=None)
 
 
-class CheckBoxComponent(ComponentCommon):
+class CheckBoxComponent(ComponentCommon, Checkable):
     component: Literal["CheckBox"] = "CheckBox"
-    checks: list[CheckRule] | None = Field(
-        None,
-        description=(
-            "A list of checks to perform. These are function calls that must return a"
-            " boolean indicating validity."
-        ),
-    )
+    model_config = ConfigDict(extra="forbid")
     label: DynamicString = Field(
         ..., description="The text to display next to the checkbox."
     )
@@ -507,31 +425,21 @@ class CheckBoxComponent(ComponentCommon):
             "The current state of the checkbox (true for checked, false for unchecked)."
         ),
     )
-    weight: float | None = Field(
-        None,
-        description=(
-            "The relative weight of this component within a Row or Column. This is"
-            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
-            " the component is a direct descendant of a Row or Column."
-        ),
-    )
+    weight: Weight | None = Field(default=None)
 
 
-class ChoicePickerComponent(ComponentCommon):
+class ChoicePickerComponent(ComponentCommon, Checkable):
+    """A component that allows selecting one or more options from a list."""
+
     component: Literal["ChoicePicker"] = "ChoicePicker"
-    checks: list[CheckRule] | None = Field(
-        None,
-        description=(
-            "A list of checks to perform. These are function calls that must return a"
-            " boolean indicating validity."
-        ),
-    )
+    model_config = ConfigDict(extra="forbid")
     label: DynamicString | None = Field(
-        None, description="The label for the group of options."
+        default=None, description="The label for the group of options."
     )
     variant: Literal["multipleSelection", "mutuallyExclusive"] | None = Field(
+        default=None,
         description="A hint for how the choice picker should be displayed and behave.",
-        default="mutuallyExclusive",
+        json_schema_extra={"default": "mutuallyExclusive"},
     )
     options: list[OptionItem] = Field(
         ..., description="The list of available options to choose from."
@@ -544,63 +452,45 @@ class ChoicePickerComponent(ComponentCommon):
         ),
     )
     display_style: Literal["checkbox", "chips"] | None = Field(
+        default=None,
         alias="displayStyle",
         description="The display style of the component.",
-        default="checkbox",
+        json_schema_extra={"default": "checkbox"},
     )
     filterable: bool | None = Field(
+        default=None,
         description="If true, displays a search input to filter the options.",
-        default=False,
+        json_schema_extra={"default": False},
     )
-    weight: float | None = Field(
-        None,
-        description=(
-            "The relative weight of this component within a Row or Column. This is"
-            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
-            " the component is a direct descendant of a Row or Column."
-        ),
-    )
+    weight: Weight | None = Field(default=None)
 
 
-class SliderComponent(ComponentCommon):
+class SliderComponent(ComponentCommon, Checkable):
     component: Literal["Slider"] = "Slider"
-    checks: list[CheckRule] | None = Field(
-        None,
-        description=(
-            "A list of checks to perform. These are function calls that must return a"
-            " boolean indicating validity."
-        ),
+    model_config = ConfigDict(extra="forbid")
+    label: DynamicString | None = Field(
+        default=None, description="The label for the slider."
     )
-    label: DynamicString | None = Field(None, description="The label for the slider.")
-    min: float | None = Field(description="The minimum value of the slider.", default=0)
+    min: float | None = Field(
+        default=None,
+        description="The minimum value of the slider.",
+        json_schema_extra={"default": 0},
+    )
     max: float = Field(..., description="The maximum value of the slider.")
     value: DynamicNumber = Field(..., description="The current value of the slider.")
-    steps: int | None = Field(
-        None,
+    steps: Annotated[int, Field(ge=1)] | None = Field(
+        default=None,
         description=(
             "The number of discrete divisions in the slider range. If specified, the"
             " slider will snap to discrete values."
         ),
     )
-    weight: float | None = Field(
-        None,
-        description=(
-            "The relative weight of this component within a Row or Column. This is"
-            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
-            " the component is a direct descendant of a Row or Column."
-        ),
-    )
+    weight: Weight | None = Field(default=None)
 
 
-class DateTimeInputComponent(ComponentCommon):
+class DateTimeInputComponent(ComponentCommon, Checkable):
     component: Literal["DateTimeInput"] = "DateTimeInput"
-    checks: list[CheckRule] | None = Field(
-        None,
-        description=(
-            "A list of checks to perform. These are function calls that must return a"
-            " boolean indicating validity."
-        ),
-    )
+    model_config = ConfigDict(extra="forbid")
     value: DynamicString = Field(
         ...,
         description=(
@@ -609,32 +499,57 @@ class DateTimeInputComponent(ComponentCommon):
         ),
     )
     enable_date: bool | None = Field(
+        default=None,
         alias="enableDate",
         description="If true, allows the user to select a date.",
-        default=False,
+        json_schema_extra={"default": False},
     )
     enable_time: bool | None = Field(
+        default=None,
         alias="enableTime",
         description="If true, allows the user to select a time.",
-        default=False,
+        json_schema_extra={"default": False},
     )
-    min: DynamicString | None = Field(
-        None, description="The minimum allowed date/time in ISO 8601 format."
+    min: (
+        Annotated[
+            DynamicString,
+            SpecAllOf({
+                "if": {"type": "string"},
+                "then": {
+                    "oneOf": [
+                        {"format": "date"},
+                        {"format": "time"},
+                        {"format": "date-time"},
+                    ]
+                },
+            }),
+        ]
+        | None
+    ) = Field(
+        default=None, description="The minimum allowed date/time in ISO 8601 format."
     )
-    max: DynamicString | None = Field(
-        None, description="The maximum allowed date/time in ISO 8601 format."
+    max: (
+        Annotated[
+            DynamicString,
+            SpecAllOf({
+                "if": {"type": "string"},
+                "then": {
+                    "oneOf": [
+                        {"format": "date"},
+                        {"format": "time"},
+                        {"format": "date-time"},
+                    ]
+                },
+            }),
+        ]
+        | None
+    ) = Field(
+        default=None, description="The maximum allowed date/time in ISO 8601 format."
     )
     label: DynamicString | None = Field(
-        None, description="The text label for the input field."
+        default=None, description="The text label for the input field."
     )
-    weight: float | None = Field(
-        None,
-        description=(
-            "The relative weight of this component within a Row or Column. This is"
-            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
-            " the component is a direct descendant of a Row or Column."
-        ),
-    )
+    weight: Weight | None = Field(default=None)
 
 
 AnyComponent = Annotated[

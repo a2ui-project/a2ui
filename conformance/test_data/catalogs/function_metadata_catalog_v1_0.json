@@ -1,0 +1,73 @@
+{
+  "protocolVersion": "1.0",
+  "catalogId": "https://a2ui.org/catalogs/v10/function_metadata",
+  "components": {
+    "Spacer": {
+      "type": "object",
+      "allowedParents": [
+        "Surface",
+        "Spacer"
+      ],
+      "allowedChildren": [
+        "Spacer"
+      ],
+      "properties": {
+        "component": {
+          "const": "Spacer"
+        }
+      },
+      "required": [
+        "component"
+      ]
+    }
+  },
+  "functions": {
+    "launch": {
+      "type": "object",
+      "description": "Launches a URL.",
+      "returnType": "void",
+      "allowedCallers": "rendererOnly",
+      "requiresUserActivation": true,
+      "properties": {
+        "@call": {
+          "const": "launch"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "$ref": "common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": [
+        "@call",
+        "args"
+      ]
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [
+        {
+          "$ref": "#/components/Spacer"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "component"
+      }
+    },
+    "anyFunction": {
+      "oneOf": [
+        {
+          "$ref": "#/functions/launch"
+        }
+      ]
+    }
+  }
+}

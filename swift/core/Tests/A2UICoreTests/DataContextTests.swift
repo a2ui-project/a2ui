@@ -89,23 +89,129 @@ struct DataContextTests {
     #expect(result.stringValue == "Hello, World!")
   }
 
-  @Test func resolveDynamicValuePassesThroughNonBindingContainers() {
+  @Test func resolveDynamicValueRecursesIntoArraysAndDictionaries() {
     let mockHandler = MockFunctionHandler()
+    mockHandler.functionToReturn = ConcatFunction()
     let dataModel = DataModel()
     dataModel.set("/item", value: "apple")
+    dataModel.set("/suffix", value: " World!")
     let context = DataContext(dataModel: dataModel, path: "/", functionHandler: mockHandler)
 
-    let literalObject: JSONValue = [
+    let nestedContainer: JSONValue = [
       "list": [
         "static",
         ["path": "item"],
-      ]
+      ],
+      "config": [
+        "greeting": [
+          "call": "concat",
+          "args": [
+            "a": "Hello,",
+            "b": ["path": "suffix"],
+          ],
+        ]
+      ],
     ]
-    #expect(context.resolveDynamicValue(literalObject) == literalObject)
+    let expected: JSONValue = [
+      "list": ["static", "apple"],
+      "config": ["greeting": "Hello, World!"],
+    ]
+    #expect(context.resolveDynamicValue(nestedContainer) == expected)
+    #expect(mockHandler.lastRequestedName == "concat")
 
-    let literalWithCall: JSONValue = ["config": ["call": "concat"]]
-    #expect(context.resolveDynamicValue(literalWithCall) == literalWithCall)
-    #expect(mockHandler.lastRequestedName == nil)
+    let v10Context = DataContext(
+      dataModel: dataModel,
+      path: "/",
+      functionHandler: mockHandler,
+      protocolVersion: .v10
+    )
+    let v10Nested: JSONValue = [
+      "list": [
+        ["@path": "item"],
+        ["path": "item"],
+      ],
+      "style": [
+        "@@path": "literal",
+        "nested": ["@path": "suffix"],
+      ],
+    ]
+    let v10Expected: JSONValue = [
+      "list": [
+        "apple",
+        ["path": "item"],
+      ],
+      "style": [
+        "@path": "literal",
+        "nested": " World!",
+      ],
+    ]
+    #expect(v10Context.resolveDynamicValue(v10Nested) == v10Expected)
+  }
+
+  @Test func v10ProtocolVersionGatingResolvesAtDirectivesAndEscaping() throws {
+    let mockHandler = MockFunctionHandler()
+    let dataModel = DataModel()
+    dataModel.set("/item", value: "apple")
+    let context = DataContext(
+      dataModel: dataModel,
+      path: "/",
+      functionHandler: mockHandler,
+      protocolVersion: .v10
+    )
+
+    let atPathBinding: JSONValue = ["@path": "/item"]
+    #expect(context.resolveDynamicValue(atPathBinding) == "apple")
+
+    let plainPathObject: JSONValue = ["path": "/item"]
+    #expect(context.resolveDynamicValue(plainPathObject) == plainPathObject)
+
+    let escapedObject: JSONValue = ["@@path": "/item", "@@type": "fruit"]
+    let resolved = context.resolveDynamicValue(escapedObject)
+    #expect(resolved.objectValue?["@path"] == "/item")
+    #expect(resolved.objectValue?["@type"] == "fruit")
+
+    #expect(throws: A2UIValidationError.self) {
+      try DataContext.validateReservedDirectives(["@invalidKey"])
+    }
+  }
+
+  @Test(arguments: [A2UIProtocolVersion.v09, .v091])
+  func preV10CallIgnoresCatalogID(version: A2UIProtocolVersion) {
+    let mockHandler = MockFunctionHandler()
+    mockHandler.functionToReturn = ConcatFunction()
+    let context = DataContext(
+      dataModel: DataModel(),
+      path: "/",
+      functionHandler: mockHandler,
+      protocolVersion: version
+    )
+
+    let call: JSONValue = [
+      "call": "concat",
+      "catalogId": "missing-catalog",
+      "args": ["a": "Hello,", "b": " World!"],
+    ]
+
+    #expect(context.resolveDynamicValue(call) == "Hello, World!")
+    #expect(mockHandler.lastRequestedName == "concat")
+    #expect(mockHandler.lastRequestedCatalogID == nil)
+  }
+
+  @Test(arguments: [A2UIProtocolVersion.v09, .v091])
+  func preV10IndexCallIgnoresCatalogID(version: A2UIProtocolVersion) {
+    let mockHandler = MockFunctionHandler()
+    let context = DataContext(
+      dataModel: DataModel(),
+      path: "/items/2",
+      functionHandler: mockHandler,
+      protocolVersion: version,
+      index: 2
+    )
+
+    let call: JSONValue = ["call": "@index", "catalogId": "missing-catalog"]
+
+    #expect(context.resolveDynamicValue(call) == .integer(2))
+    #expect(mockHandler.lastRequestedCatalogID == nil)
   }
 }
 

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/catalogs/v10/derive_source.json",
+  "title": "Derive source",
+  "description": "The catalog the derive cases start from.",
+  "catalogId": "https://a2ui.org/catalogs/v10/derive_source",
+  "protocolVersion": "1.0",
+  "instructions": "Write components of https://a2ui.org/catalogs/v10/derive_source.",
+  "components": {
+    "Text": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ]
+    },
+    "Image": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "url"
+      ]
+    },
+    "Button": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "functions": {
+    "upper": {
+      "type": "object",
+      "properties": {
+        "call": {
+          "const": "upper"
+        },
+        "args": {
+          "type": "object"
+        },
+        "returnType": {
+          "const": "string"
+        }
+      }
+    },
+    "lower": {
+      "type": "object",
+      "properties": {
+        "call": {
+          "const": "lower"
+        },
+        "args": {
+          "type": "object"
+        },
+        "returnType": {
+          "const": "string"
+        }
+      }
+    }
+  },
+  "theme": {
+    "type": "object",
+    "properties": {
+      "primaryColor": {
+        "type": "string"
+      }
+    }
+  }
+}

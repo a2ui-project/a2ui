@@ -15,7 +15,8 @@
 import pytest
 from pydantic import ValidationError
 
-from a2ui.core.schema.v0_9.common_types import (
+from a2ui.core.schema import v1_0
+from a2ui.core.schema.v0_9 import (
     AccessibilityAttributes,
     ComponentCommon,
     DataBinding,
@@ -37,9 +38,20 @@ def test_accessibility_attributes_all_fields():
     assert attr.description == "Submits the current active form"
 
 
-def test_accessibility_attributes_forbid_extra_properties():
+def test_accessibility_attributes_allow_extra_properties_in_v0_9():
+    """The v0.9 specification leaves AccessibilityAttributes open."""
+    attr = AccessibilityAttributes.model_validate({"label": "Submit", "role": "button"})
+    assert attr.model_dump(mode="json", exclude_none=True) == {
+        "label": "Submit",
+        "role": "button",
+    }
+
+
+def test_accessibility_attributes_forbid_extra_properties_in_v1_0():
     with pytest.raises(ValidationError):
-        AccessibilityAttributes.model_validate({"label": "Submit", "role": "button"})
+        v1_0.AccessibilityAttributes.model_validate(
+            {"label": "Submit", "role": "button"}
+        )
 
 
 def test_accessibility_attributes_component_common_integration():

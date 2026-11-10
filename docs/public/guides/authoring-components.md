@@ -1,5 +1,9 @@
 # Authoring Custom Components
 
+!!! tip "Authoring components for multiple frameworks?"
+
+    See [Authoring Universal Components](authoring-universal-components.md) to learn how to write a single W3C Custom Element that works directly across Lit, React, and Angular renderers.
+
 Learn how to define, implement, and register custom components in A2UI using the `rizzcharts` sample as an example. This guide focuses on authoring a component around your Angular code.
 
 ## Overview
@@ -138,6 +142,8 @@ export const ChartApi = {
 } satisfies ComponentApi;
 ```
 
+The API can also restrict where the component appears, with `allowedParents` and `allowedChildren` lists of component names. The message processor then rejects a payload that places the component under another parent with `UNALLOWED_PARENT`, or gives it a child of another type with `UNALLOWED_CHILD`. A root component's parent is `Surface`. Only properties declared with `CommonSchemas.ComponentId` or `CommonSchemas.ChildList` hold children, so an id in a plain `z.string()` property is not checked against `allowedChildren`.
+
 Now implement the Angular component:
 
 ```typescript
@@ -217,60 +223,61 @@ Here is how the flow wires up:
 
 ### 4.1 Session Preparation (Executor)
 
-The execution layer (e.g., `RizzchartsAgentExecutor`) intercepts the incoming message to detect if A2UI is enabled and what catalogs the client supports. It resolves the catalog and saves it to the session state.
+The execution layer (e.g., `RizzchartsAgentExecutor`) intercepts the incoming message to detect if A2UI is enabled and what catalogs the client supports. It negotiates an `A2uiRequestProcessor` for the client's capabilities and puts it in an `A2uiProcessorStore`, keyed by the session ID. The processor stays out of ADK's session state, which the persistent session services save as JSON.
 
 ```python
 # In agent_executor.py
+from a2ui.a2a import try_activate_a2ui_extension
+from a2ui.adk import A2uiProcessorStore
+from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
 
-use_ui = try_activate_a2ui_extension(context)
-if use_ui:
-    # Resolve catalog based on client capabilities
-    a2ui_catalog = self.schema_manager.get_selected_catalog(
-        client_ui_capabilities=capabilities
-    )
-    examples = self.schema_manager.load_examples(a2ui_catalog, validate=True)
+processors = A2uiProcessorStore()
 
-    # Save to session (Event contains state_delta)
-    await runner.session_service.append_event(
-        session,
-        Event(
-            actions=EventActions(
-                state_delta={
-                    _A2UI_ENABLED_KEY: True,
-                    _A2UI_CATALOG_KEY: a2ui_catalog,
-                    _A2UI_EXAMPLES_KEY: examples,
-                }
-            ),
-        ),
-    )
+processor = None
+active_ui_version = try_activate_a2ui_extension(context, self._agent.agent_card)
+if active_ui_version:
+    capabilities = (context.message.metadata or {}).get(A2UI_CLIENT_CAPABILITIES_KEY)
+    processor = self._agent.create_processor(active_ui_version, capabilities)
+
+# A request without A2UI clears the processor of an earlier one.
+processors.set(session.id, processor)
 ```
 
 ### 4.2 Agent Tool Setup
 
-The Agent uses [SendA2uiToClientToolset](../../../python/a2ui_agent/src/a2ui/adk/send_a2ui_to_client_toolset.py) to give the agent a tool that it can use to send A2UI to the client.
+The Agent uses [SendA2uiToClientToolset](../../../python/a2ui_adk/src/a2ui/adk/send_a2ui_to_client_toolset.py) to give the agent a tool that it can use to send A2UI to the client. Pass the store's provider, or pass one processor directly when the catalogs do not vary per request.
 
 ```python
-from a2ui.adk.send_a2ui_to_client_toolset import SendA2uiToClientToolset
+from a2ui.adk import SendA2uiToClientToolset
 
-a2ui_catalog = self.schema_manager.get_selected_catalog(
-    client_ui_capabilities=capabilities
-)
 agent.tools = [
     SendA2uiToClientToolset(
-        a2ui_catalog=a2ui_catalog,
-        a2ui_enabled=True,
+        a2ui_enabled=processors.is_enabled,
+        a2ui_processor=processors.get,
     )
 ]
 ```
 
-### 4.3 Tool Execution
-
-Invocations of the tool in [SendA2uiToClientToolset](../../../python/a2ui_agent/src/a2ui/adk/send_a2ui_to_client_toolset.py) by the LLM are intercepted in the A2A Agent Executor using the [A2uiEventConverter](../../../python/a2ui_agent/src/a2ui/adk/a2a/event_converter.py). This automatically translates tool calls into A2A Dataparts with the A2UI payload.
+An agent that writes A2UI in its text response instead of a tool call puts the processor's prompt in its instruction with [A2uiInstruction](../../../python/a2ui_adk/src/a2ui/adk/instruction.py), wired to the same store, and pairs it with the `A2uiEventConverter` of the next section. A string instruction would not do: ADK reads `{name}` session state templates out of it, and the A2UI prompt holds braces that are not state keys.
 
 ```python
-from a2ui.adk.a2a.event_converter import (
-    A2uiEventConverter,
-)
+from a2ui.adk import A2uiInstruction
 
-config = A2aAgentExecutorConfig(event_converter=A2uiEventConverter())
+agent.instruction = A2uiInstruction(
+    AGENT_INSTRUCTION,
+    a2ui_enabled=processors.is_enabled,
+    a2ui_processor=processors.get,
+)
+```
+
+### 4.3 Tool Execution
+
+Invocations of the tool in [SendA2uiToClientToolset](../../../python/a2ui_adk/src/a2ui/adk/send_a2ui_to_client_toolset.py) by the LLM are intercepted in the A2A Agent Executor using the [A2uiEventConverter](../../../python/a2ui_adk/src/a2ui/adk/a2a/event_converter.py). This automatically translates tool calls into A2A Dataparts with the A2UI payload. The converter gets the request's processor from the same store.
+
+```python
+from a2ui.adk import A2uiEventConverter
+
+config = A2aAgentExecutorConfig(
+    event_converter=A2uiEventConverter(a2ui_processor=processors.get)
+)
 ```

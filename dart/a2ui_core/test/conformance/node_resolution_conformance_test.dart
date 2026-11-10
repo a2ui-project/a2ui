@@ -1,0 +1,639 @@
+// Copyright 2024 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:a2ui_core/a2ui_core.dart';
+import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
+
+import 'conformance_harness.dart';
+
+typedef _Node = ComponentNode<ComponentApi>;
+typedef _Json = Map<String, Object?>;
+
+const Map<String, Set<String>> _knownKeys = {
+  'case:resolve_nodes': {
+    ...caseMetadataKeys,
+    'expect',
+    'fixture',
+    'steps',
+  },
+  'step:resolve_nodes': {
+    'component_id',
+    'components',
+    'description',
+    'expect',
+    'messages',
+    'metadata',
+    'node',
+    'op',
+    'path',
+    'property',
+    'value',
+  },
+  'expect:resolve_nodes': {
+    'created_emissions',
+    'data',
+    'destroyed',
+    'emissions',
+    'errors',
+    'events',
+    'functions',
+    'metadata_emissions',
+    'nodes',
+    'replaced_nodes',
+    'same_nodes',
+  },
+  'node:resolve_nodes': {
+    'component_id',
+    'data_path',
+    'isValid',
+    'metadata',
+    'props',
+    'state',
+    'type',
+    'validationErrors',
+    'validationResults',
+  },
+};
+
+void main() {
+  final List<_Json> cases = loadConformanceSuite('core/node_resolution.yaml');
+  group('conformance core/node_resolution.yaml', () {
+    test('suite is not empty', () => expect(cases, isNotEmpty));
+    runConformanceSuite(
+      cases,
+      _runCase,
+      suite: 'core/node_resolution.yaml',
+    );
+  });
+}
+
+Future<void> _runCase(_Json testCase) async {
+  assertKnownKeys(
+    testCase,
+    _knownKeys['case:resolve_nodes']!,
+    'case:resolve_nodes',
+  );
+  final fixture = normalizeYaml(
+    loadYaml(
+      File(
+        resolveConformancePath(testCase['fixture']! as String),
+      ).readAsStringSync(),
+    ),
+  )! as _Json;
+  final runner = _Runner(fixture);
+  addTearDown(runner.close);
+  runner.check(testCase['expect']! as _Json, {}, 'initial');
+  final steps = testCase['steps']! as List<Object?>;
+  for (var i = 0; i < steps.length; i++) {
+    final step = steps[i]! as _Json;
+    assertKnownKeys(
+      step,
+      _knownKeys['step:resolve_nodes']!,
+      'step:resolve_nodes',
+    );
+    final Map<String, _Node> before = runner.nodes();
+    final bindings = Map<ResolvedBinding<Object?>, Object?>.identity();
+    for (final _Node node in before.values) {
+      _collectBindings(node.props.peek(), bindings);
+    }
+    runner.beginStep(before);
+    await runner.apply(step, before);
+    runner.check(
+      step['expect']! as _Json,
+      before,
+      'step $i (${step['op']})',
+    );
+    for (final MapEntry<ResolvedBinding<Object?>, Object?> entry
+        in bindings.entries) {
+      expect(
+        entry.key.value,
+        entry.value,
+        reason: 'step $i: old binding snapshot',
+      );
+    }
+  }
+}
+
+Object? _copy(Object? value) => jsonDecode(jsonEncode(value));
+
+void _collectBindings(
+  Object? value,
+  Map<ResolvedBinding<Object?>, Object?> result,
+) {
+  if (value is ResolvedBinding<Object?>) {
+    result[value] = _copy(value.value);
+  } else if (value is Map) {
+    for (final Object? child in value.values) {
+      _collectBindings(child, result);
+    }
+  } else if (value is List) {
+    for (final Object? child in value) {
+      _collectBindings(child, result);
+    }
+  }
+}
+
+Object? _normalize(Object? value, String path) {
+  if (value is _Node) return {'node': path};
+  if (value is ResolvedBinding<Object?>) {
+    return {
+      'value': _copy(value.value),
+      'writable': value is WritableBinding<Object?>,
+    };
+  }
+  if (value is Function) return {'action': true};
+  if (value is Map) {
+    return {
+      for (final MapEntry<String, Object?> entry
+          in value.cast<String, Object?>().entries)
+        entry.key: _normalize(entry.value, '$path/${entry.key}'),
+    };
+  }
+  if (value is List) {
+    return [
+      for (var i = 0; i < value.length; i++) _normalize(value[i], '$path/$i'),
+    ];
+  }
+  return value;
+}
+
+class _RecordingFunction extends FunctionImplementation {
+  final List<_Json> calls;
+
+  _RecordingFunction(FunctionApi api, this.calls)
+      : super(
+          name: api.name,
+          argumentSchema: api.argumentSchema,
+          returnType: api.returnType,
+        );
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) {
+    calls.add({'name': name, 'args': _copy(args)});
+    return null;
+  }
+}
+
+class _Runner {
+  SurfaceModel<ComponentApi>? surface;
+  late final Catalog<ComponentApi, FunctionImplementation> catalog;
+  late final MessageProcessor<ComponentApi> processor;
+  NodeResolver<ComponentApi>? resolver;
+  final List<_Json> events = [];
+  final List<_Json> functions = [];
+  final List<_Json> errors = [];
+  final Map<_Node, int> emissions = Map.identity();
+  final Map<_Node, int> createdEmissions = Map.identity();
+  final List<void Function()> createdSubscriptions = [];
+  final Map<_Node, int> metadataEmissions = Map.identity();
+  final List<_Node> destroyedNodes = [];
+  final Map<String, int> destroyed = {};
+  final Map<_Node, Object?> lastEmission = Map.identity();
+  final Map<_Node, Object?> lastMetadataEmission = Map.identity();
+  final Map<_Node, String> watched = Map.identity();
+  final List<void Function()> subscriptions = [];
+
+  _Runner(_Json fixture) {
+    final CatalogApi parsed = Catalog.fromJson(
+      jsonDecode(
+        File(
+          resolveConformancePath(fixture['catalog']! as String),
+        ).readAsStringSync(),
+      ) as _Json,
+    );
+    catalog = Catalog<ComponentApi, FunctionImplementation>(
+      id: parsed.id,
+      protocolVersion: parsed.protocolVersion,
+      components: parsed.components.values.toList(),
+      functions: [
+        for (final FunctionApi api in parsed.functions.values)
+          _RecordingFunction(api, functions),
+      ],
+      definitions: parsed.definitions,
+    );
+    processor = MessageProcessor<ComponentApi>(catalogs: [catalog]);
+    subscriptions.add(
+      processor.model.onSurfaceCreated.subscribe(_attachSurface).unsubscribe,
+    );
+
+    if (fixture['surface'] != false) {
+      final seeded = SurfaceModel<ComponentApi>(
+        's',
+        defaultCatalog: catalog,
+        protocolVersion: catalog.protocolVersion?.jsonValue,
+      );
+      processor.model.addSurface(seeded);
+      seeded.dataModel.set('/', _copy(fixture['data']));
+      updateComponents(fixture['components']! as List<Object?>);
+    }
+  }
+
+  void _attachSurface(SurfaceModel<ComponentApi> s) {
+    if (s.id != 's' || resolver != null) return;
+    surface = s;
+    final r = NodeResolver<ComponentApi>(s);
+    resolver = r;
+    subscriptions.addAll([
+      s.onAction.subscribe((event) {
+        events.add({
+          'name': event.name,
+          'source_component_id': event.sourceComponentId,
+          'context': _copy(event.context),
+          if (event.metadata != null) 'metadata': _copy(event.metadata),
+        });
+      }).unsubscribe,
+      s.onError.subscribe((err) {
+        errors.add({'code': err.code, 'surfaceId': err.surfaceId});
+      }).unsubscribe,
+      r.rootNode.subscribe((_) {
+        _watchCreatedNodes(nodes());
+      }),
+    ]);
+  }
+
+  Map<String, _Node> nodes() {
+    final NodeResolver<ComponentApi>? r = resolver;
+    if (r == null) return <String, _Node>{};
+    final result = <String, _Node>{};
+    final seen = Set<_Node>.identity();
+    void visit(Object? value, String path, Set<String> siblingIds) {
+      if (value is _Node) {
+        expect(
+          seen.add(value),
+          isTrue,
+          reason: '$path must be an independent instance',
+        );
+        expect(
+          siblingIds.add(value.instanceId),
+          isTrue,
+          reason: '$path needs a distinct sibling instanceId',
+        );
+        expect(value.disposed, isFalse, reason: '$path is mounted');
+        result[path] = value;
+        visit(value.props.peek(), path, <String>{});
+      } else if (value is Map) {
+        for (final MapEntry<String, Object?> entry
+            in value.cast<String, Object?>().entries) {
+          visit(entry.value, '$path/${entry.key}', siblingIds);
+        }
+      } else if (value is List) {
+        for (var i = 0; i < value.length; i++) {
+          visit(value[i], '$path/$i', siblingIds);
+        }
+      }
+    }
+
+    visit(r.rootNode.peek(), 'root', <String>{});
+    return result;
+  }
+
+  void _watchCreatedNodes(Map<String, _Node> currentNodes) {
+    for (final _Node node in currentNodes.values) {
+      if (createdEmissions.containsKey(node)) continue;
+      createdEmissions[node] = 0;
+      var subscribing = true;
+      createdSubscriptions.add(
+        node.props.subscribe((_) {
+          if (subscribing) return;
+          createdEmissions.update(node, (count) => count + 1,
+              ifAbsent: () => 1);
+          _watchCreatedNodes(nodes());
+        }),
+      );
+      subscribing = false;
+    }
+  }
+
+  void beginStep(Map<String, _Node> before) {
+    for (final MapEntry<String, _Node> entry in before.entries) {
+      final _Node node = entry.value;
+      final bool alreadyWatched = watched.containsKey(node);
+      watched[node] = entry.key;
+      if (alreadyWatched) continue;
+      var subscribing = true;
+      subscriptions.add(
+        node.props.subscribe((props) {
+          if (subscribing) return;
+          final String path = watched[node]!;
+          emissions.update(node, (count) => count + 1, ifAbsent: () => 1);
+          lastEmission[node] = _normalize(props, path);
+          _watchCreatedNodes(nodes());
+        }),
+      );
+      subscriptions.add(
+        node.metadata.subscribe((meta) {
+          if (subscribing) return;
+          metadataEmissions.update(
+            node,
+            (count) => count + 1,
+            ifAbsent: () => 1,
+          );
+          lastMetadataEmission[node] = _copy(meta);
+        }),
+      );
+      subscribing = false;
+      node.onDestroyed.subscribe((_) {
+        final String path = watched[node]!;
+        destroyed.update(path, (count) => count + 1, ifAbsent: () => 1);
+        destroyedNodes.add(node);
+      });
+    }
+    for (final void Function() stop in createdSubscriptions) {
+      stop();
+    }
+    createdSubscriptions.clear();
+    createdEmissions.clear();
+    emissions.clear();
+    metadataEmissions.clear();
+    destroyedNodes.clear();
+    destroyed.clear();
+    lastEmission.clear();
+    lastMetadataEmission.clear();
+    events.clear();
+    functions.clear();
+    errors.clear();
+  }
+
+  void updateComponents(List<Object?> components) {
+    final SurfaceModel<ComponentApi> s = surface!;
+    for (final value in components) {
+      final component = value! as _Json;
+      final id = component['id']! as String;
+      final type = component['component']! as String;
+      final Map<String, Object?>? metadata =
+          (component['metadata'] as Map?)?.cast<String, Object?>();
+      final properties = Map<String, Object?>.from(component)
+        ..remove('id')
+        ..remove('component')
+        ..remove('metadata');
+      final ComponentModel? existing = s.componentsModel.get(id);
+      if (existing == null || existing.type != type) {
+        s.componentsModel.addComponent(
+          ComponentModel(id, type, properties, metadata: metadata),
+        );
+      } else {
+        expect(
+          existing.type,
+          type,
+          reason: 'update_components preserves component type',
+        );
+        batch(() {
+          existing.applyUpdate(properties, metadata);
+        });
+      }
+    }
+  }
+
+  Future<void> apply(_Json step, Map<String, _Node> before) async {
+    switch (step['op']) {
+      case 'set_data':
+        surface!.dataModel.set(step['path']! as String, _copy(step['value']));
+      case 'update_components':
+        updateComponents(step['components']! as List<Object?>);
+      case 'remove_component':
+        surface!.componentsModel.removeComponent(
+          step['component_id']! as String,
+        );
+      case 'process_messages':
+        processor.processMessages(step['messages']! as List<Object?>);
+      case 'write':
+        final Object? binding =
+            before[step['node']]!.props.peek()[step['property']];
+        expect(binding, isA<WritableBinding<Object?>>());
+        (binding! as WritableBinding<Object?>).set(_copy(step['value']));
+      case 'invoke':
+        final Object? action =
+            before[step['node']]!.props.peek()[step['property']];
+        expect(action, isA<NodeAction>());
+        final Object? rawMeta = step['metadata'];
+        await (action! as NodeAction)(
+          rawMeta != null
+              ? ActionDispatchOptions(
+                  metadata: (_copy(rawMeta) as Map).cast<String, Object?>(),
+                )
+              : null,
+        );
+      case 'dispose':
+        resolver!.dispose();
+      default:
+        fail('Unknown resolve_nodes operation: ${step['op']}');
+    }
+    await Future<void>.delayed(Duration.zero);
+  }
+
+  void check(_Json expected, Map<String, _Node> before, String reason) {
+    assertKnownKeys(
+      expected,
+      _knownKeys['expect:resolve_nodes']!,
+      'expect:resolve_nodes',
+    );
+    final Map<String, _Node> current = nodes();
+    final beforeNodes = Set<_Node>.identity()..addAll(before.values);
+    final assertions = expected['nodes']! as _Json;
+    expect(
+      current.keys,
+      unorderedEquals(assertions.keys),
+      reason: '$reason: mounted paths',
+    );
+    for (final MapEntry<String, Object?> entry in assertions.entries) {
+      _checkNodeAssertions(
+        current[entry.key]!,
+        entry.key,
+        entry.value! as _Json,
+        reason,
+      );
+    }
+    // Creation and retirement scheduling is not part of the props contract.
+    final retainedEmissions = <String, int>{};
+    for (final MapEntry<_Node, int> entry in emissions.entries) {
+      final String path = watched[entry.key]!;
+      if (beforeNodes.contains(entry.key) &&
+          identical(current[path], entry.key)) {
+        retainedEmissions[path] = entry.value;
+      }
+    }
+    final retainedMetadataEmissions = <String, int>{};
+    for (final MapEntry<_Node, int> entry in metadataEmissions.entries) {
+      final String path = watched[entry.key]!;
+      if (beforeNodes.contains(entry.key) &&
+          identical(current[path], entry.key)) {
+        retainedMetadataEmissions[path] = entry.value;
+      }
+    }
+    for (final _Node node in destroyedNodes) {
+      expect(
+        node.disposed,
+        isTrue,
+        reason: '$reason: destroyed node is disposed',
+      );
+    }
+    expect(
+      retainedEmissions,
+      expected['emissions'] ?? {},
+      reason: '$reason: emissions',
+    );
+    if (expected.containsKey('created_emissions')) {
+      final actualCreated = <String, int>{
+        for (final MapEntry<String, _Node> entry in current.entries)
+          if (!beforeNodes.contains(entry.value))
+            entry.key: createdEmissions[entry.value] ?? 0,
+      };
+      expect(
+        actualCreated,
+        expected['created_emissions'] ?? {},
+        reason: '$reason: created_emissions',
+      );
+    }
+    if (expected.containsKey('metadata_emissions')) {
+      expect(
+        retainedMetadataEmissions,
+        expected['metadata_emissions'] ?? {},
+        reason: '$reason: metadata_emissions',
+      );
+    }
+    expect(
+      destroyed,
+      expected['destroyed'] ?? {},
+      reason: '$reason: destroyed',
+    );
+    expect(events, expected['events'] ?? [], reason: '$reason: events');
+    expect(
+      functions,
+      expected['functions'] ?? [],
+      reason: '$reason: functions',
+    );
+    if (expected.containsKey('errors')) {
+      expect(errors, expected['errors'], reason: '$reason: errors');
+    }
+    for (final MapEntry<_Node, Object?> entry in lastEmission.entries) {
+      if (current.values.any((node) => identical(node, entry.key))) {
+        expect(
+          entry.value,
+          _normalize(entry.key.props.peek(), watched[entry.key]!),
+          reason: '$reason: complete emitted snapshot',
+        );
+      }
+    }
+    for (final MapEntry<_Node, Object?> entry in lastMetadataEmission.entries) {
+      if (current.values.any((node) => identical(node, entry.key))) {
+        expect(
+          entry.value,
+          entry.key.metadata.peek(),
+          reason: '$reason: complete emitted metadata snapshot',
+        );
+      }
+    }
+    for (final field in ['same_nodes', 'replaced_nodes']) {
+      for (final Object? path in (expected[field] as List<Object?>?) ?? []) {
+        expect(
+          before.containsKey(path) && current.containsKey(path),
+          isTrue,
+          reason: '$reason: $field $path exists before and after',
+        );
+        expect(
+          identical(before[path], current[path]),
+          field == 'same_nodes',
+          reason: '$reason: $field $path',
+        );
+      }
+    }
+    for (final MapEntry<String, Object?> entry
+        in ((expected['data'] as _Json?) ?? {}).entries) {
+      expect(
+        surface!.dataModel.get(entry.key),
+        entry.value,
+        reason: '$reason: data ${entry.key}',
+      );
+    }
+  }
+
+  void _checkNodeAssertions(
+    _Node node,
+    String nodeKey,
+    _Json nodeAssertions,
+    String reason,
+  ) {
+    assertKnownKeys(
+      nodeAssertions,
+      _knownKeys['node:resolve_nodes']!,
+      'node:resolve_nodes',
+    );
+    final Map<String, Object?> rawProps = node.props.peek();
+    final String nodeType = node.state == NodeState.cyclic &&
+            node.type == placeholderType
+        ? (surface?.componentsModel.get(node.componentId)?.type ?? node.type)
+        : node.type;
+    final actual = <String, Object?>{
+      'component_id': node.componentId,
+      'type': nodeType,
+      'state': node.state.jsonValue,
+      'data_path': node.dataPath,
+      'metadata': node.metadata.peek(),
+      'isValid': rawProps['isValid'],
+      'validationErrors': rawProps['validationErrors'],
+      'validationResults': rawProps['validationResults'] is List
+          ? [
+              for (final Object? item
+                  in rawProps['validationResults']! as List<Object?>)
+                item is ValidationResult ? item.toJson() : item,
+            ]
+          : rawProps['validationResults'],
+      'props': _normalize(rawProps, nodeKey),
+    };
+    for (final MapEntry<String, Object?> assertion in nodeAssertions.entries) {
+      if (assertion.key == 'props') {
+        final props = actual['props']! as _Json;
+        for (final MapEntry<String, Object?> prop
+            in (assertion.value! as _Json).entries) {
+          expect(
+            props.containsKey(prop.key),
+            isTrue,
+            reason: '$reason: $nodeKey.${prop.key} exists',
+          );
+          expect(
+            props[prop.key],
+            prop.value,
+            reason: '$reason: $nodeKey.${prop.key}',
+          );
+        }
+      } else {
+        expect(
+          actual[assertion.key],
+          assertion.value,
+          reason: '$reason: $nodeKey.${assertion.key}',
+        );
+      }
+    }
+  }
+
+  void close() {
+    for (final void Function() stop in createdSubscriptions) {
+      stop();
+    }
+    for (final void Function() unsubscribe in subscriptions) {
+      unsubscribe();
+    }
+    resolver?.dispose();
+    processor.dispose();
+    surface?.dispose();
+  }
+}

@@ -19,13 +19,15 @@ on:
     branches: [main]
     paths:
       - "eval/**"
-      - "specification/v0_9/**"
+      - "specification/**"
+      - "catalogs/**"
       - ".github/workflows/run_evals.yml"
       - "python/**"
   pull_request:
     paths:
       - "eval/**"
-      - "specification/v0_9/**"
+      - "specification/**"
+      - "catalogs/**"
       - ".github/workflows/run_evals.yml"
       - "python/**"
   # Run evals on schedule, in order to:
@@ -40,19 +42,41 @@ concurrency:
 
 jobs:
   run-evals:
+    name: Evaluate Python SDK
     runs-on: ubuntu-latest
+    # Full runs on main have taken up to two hours; cap a stuck run well
+    # below GitHub's six-hour default.
+    timeout-minutes: 180
     permissions:
+      # Lets create_issue.sh find the last passing run.
+      actions: read
       contents: read
       issues: write
-    env:
-      TRANSCRYPT_PASSWORD: ${{ secrets.TRANSCRYPT_PASSWORD }}
-      REPO_GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      # Secrets are only passed to the steps that need them, so that dependency
+      # install and build scripts never see them. Forks and Dependabot runs have
+      # no secrets; this step records which ones are present for later `if:`s.
+      - name: Check eval secrets
+        id: secrets
+        env:
+          TRANSCRYPT_PASSWORD: ${{ secrets.TRANSCRYPT_PASSWORD }}
+          REPO_GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
+        run: |
+          has_transcrypt=false
+          has_gemini=false
+          if [ -n "$TRANSCRYPT_PASSWORD" ]; then has_transcrypt=true; fi
+          if [ -n "$REPO_GEMINI_API_KEY" ]; then has_gemini=true; fi
+          echo "transcrypt=$has_transcrypt" >> "$GITHUB_OUTPUT"
+          if [ "$has_transcrypt" = true ] && [ "$has_gemini" = true ]; then
+            echo "evals=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "evals=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
@@ -61,7 +85,9 @@ jobs:
 
       - name: Decrypt dataset
         working-directory: eval
-        if: ${{ env.TRANSCRYPT_PASSWORD != '' }}
+        if: ${{ steps.secrets.outputs.transcrypt == 'true' }}
+        env:
+          TRANSCRYPT_PASSWORD: ${{ secrets.TRANSCRYPT_PASSWORD }}
         run: ./bin/transcrypt -p "$TRANSCRYPT_PASSWORD" -y
 
       - name: Install `uv` globally
@@ -75,10 +101,10 @@ jobs:
 
       - name: Run Evals
         working-directory: eval
-        if: ${{ env.TRANSCRYPT_PASSWORD != '' && env.REPO_GEMINI_API_KEY != '' }}
+        if: ${{ steps.secrets.outputs.evals == 'true' }}
         env:
-          GEMINI_API_KEY: ${{ env.REPO_GEMINI_API_KEY }}
-        run: ./bin/run_ci_evals.py --threshold 90
+          GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
+        run: ./bin/run_ci_evals.py --strategies direct,subagent_tool,express --threshold 90
 
       - name: Create Issue if evals fail on main branch
         if: failure() && (github.event_name == 'push' || github.event_name == 'schedule') && github.ref == 'refs/heads/main'

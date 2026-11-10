@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import JSONSchema
+import OrderedJSON
 
 /// The framework-agnostic definition contract of a UI component.
 ///
@@ -26,6 +27,21 @@ public protocol ComponentAPI: Sendable {
   /// The compiled JSON Schema used for validation and capability
   /// generation.
   var schema: Schema { get }
+
+  /// Allowed parent component names. If nil, any parent is allowed.
+  var allowedParents: [String]? { get }
+
+  /// Allowed child component names. If nil, any child is allowed.
+  var allowedChildren: [String]? { get }
+
+  /// Optional component metadata.
+  var metadata: [String: JSONValue]? { get }
+}
+
+extension ComponentAPI {
+  public var allowedParents: [String]? { nil }
+  public var allowedChildren: [String]? { nil }
+  public var metadata: [String: JSONValue]? { nil }
 }
 
 /// A standard value type conforming to ``ComponentAPI`` for schema-only components.
@@ -37,8 +53,26 @@ public struct AnyComponentAPI: ComponentAPI, Sendable, Equatable {
   /// generation.
   public var schema: Schema
 
-  public init(name: String, schema: Schema) {
+  /// Allowed parent component names. If nil, any parent is allowed.
+  public var allowedParents: [String]?
+
+  /// Allowed child component names. If nil, any child is allowed.
+  public var allowedChildren: [String]?
+
+  /// Optional component metadata.
+  public var metadata: [String: JSONValue]?
+
+  public init(
+    name: String,
+    schema: Schema,
+    allowedParents: [String]? = nil,
+    allowedChildren: [String]? = nil,
+    metadata: [String: JSONValue]? = nil
+  ) {
     self.name = name
     self.schema = schema
+    self.allowedParents = allowedParents
+    self.allowedChildren = allowedChildren
+    self.metadata = metadata
   }
 }

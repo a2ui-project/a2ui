@@ -61,7 +61,7 @@ struct A2UIListTests {
   }
 
   @Test func listRendersFromCatalog() throws {
-    let catalog = BasicCatalogImplementation.v091Catalog
+    let catalog = BasicCatalogImplementation.makeCatalog(version: .v091)
 
     let child = Node(id: "c1", type: "Text", properties: ["text": "Item"])
     let node = Node(

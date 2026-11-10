@@ -3,14 +3,14 @@
   "description": "Simple example demonstrating basic catalog components.",
   "messages": [
     {
-      "version": "v1.0",
+      "version": "1.0",
       "createSurface": {
         "surfaceId": "gallery-incremental",
         "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
       }
     },
     {
-      "version": "v1.0",
+      "version": "1.0",
       "updateDataModel": {
         "surfaceId": "gallery-incremental",
         "path": "/",
@@ -36,7 +36,7 @@
       }
     },
     {
-      "version": "v1.0",
+      "version": "1.0",
       "updateComponents": {
         "surfaceId": "gallery-incremental",
         "components": [
@@ -52,7 +52,7 @@
       }
     },
     {
-      "version": "v1.0",
+      "version": "1.0",
       "updateComponents": {
         "surfaceId": "gallery-incremental",
         "components": [
@@ -65,28 +65,28 @@
             "id": "rc_title",
             "component": "Text",
             "text": {
-              "path": "title"
+              "@path": "title"
             }
           },
           {
             "id": "rc_subtitle",
             "component": "Text",
             "text": {
-              "path": "subtitle"
+              "@path": "subtitle"
             }
           },
           {
             "id": "rc_address",
             "component": "Text",
             "text": {
-              "path": "address"
+              "@path": "address"
             }
           }
         ]
       }
     },
     {
-      "version": "v1.0",
+      "version": "1.0",
       "updateDataModel": {
         "surfaceId": "gallery-incremental",
         "path": "/restaurants/3",
@@ -98,7 +98,7 @@
       }
     },
     {
-      "version": "v1.0",
+      "version": "1.0",
       "updateComponents": {
         "surfaceId": "gallery-incremental",
         "components": [
@@ -116,7 +116,7 @@
                 "name": "book_now",
                 "context": {
                   "restaurantName": {
-                    "path": "title"
+                    "@path": "title"
                   }
                 }
               }

@@ -19,8 +19,8 @@
 abstract class PromptGenerator {
   const PromptGenerator();
 
-  /// Renders the snippet, which describes the format and the components and
-  /// functions of the catalogs.
+  /// Renders the snippet, which describes the format, the components and
+  /// functions of the catalogs, and any example turns.
   ///
   /// The agent adds its own role and workflow instructions around it.
   String generate();

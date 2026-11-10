@@ -3,7 +3,7 @@
   "description": "Example of login form demonstrating validation checks and logic.",
   "messages": [
     {
-      "version": "v1.0",
+      "version": "1.0",
       "createSurface": {
         "surfaceId": "gallery-login-form",
         "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -11,7 +11,7 @@
       }
     },
     {
-      "version": "v1.0",
+      "version": "1.0",
       "updateComponents": {
         "surfaceId": "gallery-login-form",
         "components": [
@@ -53,16 +53,16 @@
             "id": "email_field",
             "component": "TextField",
             "value": {
-              "path": "/email"
+              "@path": "/email"
             },
             "label": "Email",
             "checks": [
               {
                 "condition": {
-                  "call": "required",
+                  "@call": "required",
                   "args": {
                     "value": {
-                      "path": "/email"
+                      "@path": "/email"
                     }
                   }
                 },
@@ -70,10 +70,10 @@
               },
               {
                 "condition": {
-                  "call": "email",
+                  "@call": "email",
                   "args": {
                     "value": {
-                      "path": "/email"
+                      "@path": "/email"
                     }
                   }
                 },
@@ -85,17 +85,17 @@
             "id": "password_field",
             "component": "TextField",
             "value": {
-              "path": "/password"
+              "@path": "/password"
             },
             "label": "Password",
             "variant": "obscured",
             "checks": [
               {
                 "condition": {
-                  "call": "required",
+                  "@call": "required",
                   "args": {
                     "value": {
-                      "path": "/password"
+                      "@path": "/password"
                     }
                   }
                 },
@@ -103,10 +103,10 @@
               },
               {
                 "condition": {
-                  "call": "length",
+                  "@call": "length",
                   "args": {
                     "value": {
-                      "path": "/password"
+                      "@path": "/password"
                     },
                     "min": 8
                   }
@@ -127,22 +127,22 @@
             "checks": [
               {
                 "condition": {
-                  "call": "and",
+                  "@call": "and",
                   "args": {
                     "values": [
                       {
-                        "call": "email",
+                        "@call": "email",
                         "args": {
                           "value": {
-                            "path": "/email"
+                            "@path": "/email"
                           }
                         }
                       },
                       {
-                        "call": "length",
+                        "@call": "length",
                         "args": {
                           "value": {
-                            "path": "/password"
+                            "@path": "/password"
                           },
                           "min": 8
                         }
@@ -158,7 +158,7 @@
                 "name": "login",
                 "context": {
                   "email": {
-                    "path": "/email"
+                    "@path": "/email"
                   }
                 }
               }
@@ -200,7 +200,7 @@
       }
     },
     {
-      "version": "v1.0",
+      "version": "1.0",
       "updateDataModel": {
         "surfaceId": "gallery-login-form",
         "value": {

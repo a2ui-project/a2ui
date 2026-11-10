@@ -17,6 +17,7 @@
 # ==============================================================================
 
 - name: test_validator_0_9
+  features: [F-CORE-07, F-CORE-11]
   description: Tests schema validation of v0.9 message envelopes against the basic v0.9 catalog schema.
   action: validate
   protocolVersion: "v0.9"
@@ -84,7 +85,8 @@
             const: Canvas
           children:
             type: array
-            items: {type: string}
+            items:
+              $ref: "common_types.json#/$defs/ComponentId"
         required:
           - component
           - children
@@ -137,7 +139,7 @@
       expectError:
         category: "ValidationError"
         details:
-          - path: "chartType"
+          - path: "/chartType"
             code: "invalid_value"
     - messages:
         - version: "v0.9"
@@ -150,7 +152,7 @@
       expectError:
         category: "ValidationError"
         details:
-          - path: "children"
+          - path: "/children"
             code: "invalid_value"
     - messages:
         - version: "v0.9"
@@ -162,7 +164,7 @@
       expectError:
         category: "ValidationError"
         details:
-          - path: "children"
+          - path: "/children"
             code: "missing_field"
     - messages:
         - version: "v0.9"
@@ -174,10 +176,11 @@
       expectError:
         category: "ValidationError"
         details:
-          - path: "component"
+          - path: "/component"
             code: "invalid_value"
 
 - name: test_recursion_limit_function_call_depth_exceeded_error
+  features: [F-CORE-38]
   description: Tests that nested functionCall expressions exceeding maximum depth (5) raise a RecursionError.
   action: validate
   protocolVersion: "v0.9"
@@ -217,6 +220,7 @@
       expectError: "functionCall depth"
 
 - name: test_v09_topology_circular_reference_error
+  features: [F-CORE-12]
   description: Tests that circular component references fail validation in v0.9 strict mode.
   action: validate
   protocolVersion: "v0.9"
@@ -242,6 +246,7 @@
       expectError: "Circular component reference"
 
 - name: test_v09_topology_dangling_child_reference_error
+  features: [F-CORE-12]
   description: Tests that dangling child references fail validation in v0.9 strict mode.
   action: validate
   protocolVersion: "v0.9"
@@ -353,6 +358,13 @@
                 foo: "bar"
       expectError:
         category: "ValidationError"
+        rendererError:
+          version: "v0.9"
+          error:
+            code: "VALIDATION_FAILED"
+            surfaceId: "s1"
+            path: "/components/0/component"
+            message: "UnknownWidget"
 
 - name: test_v09_unknown_component_property
   description: Tests that extra unknown component properties fail schema validation in v0.9.
@@ -460,6 +472,12 @@
       expectError:
         category: ValidationError
         message: Duplicate component ID
+        rendererError:
+          version: "v0.9"
+          error:
+            code: "INTEGRITY_ERROR"
+            surfaceId: "s1"
+            message: "Duplicate component ID"
 
 - name: test_v09_topology_template_child_reachable
   description: Tests that a component referenced only as a list template is reachable from the root in v0.9 strict mode.
@@ -515,6 +533,12 @@
       expectError:
         category: ValidationError
         message: references non-existent component 'missing_id'
+        rendererError:
+          version: "v0.9"
+          error:
+            code: "INTEGRITY_ERROR"
+            surfaceId: "s1"
+            message: "missing_id"
 
 - name: test_v09_invalid_binding_path_error
   description: Tests that a data binding path with an invalid JSON Pointer escape ('~2') fails validation in v0.9.
@@ -1247,3 +1271,472 @@
       expectError:
         category: ValidationError
         message: Duplicate component ID
+        rendererError:
+          version: "v0.9"
+          error:
+            code: "INTEGRITY_ERROR"
+            surfaceId: "s1"
+            message: "Duplicate component ID"
+
+- name: test_v09_topology_structured_array_item_dangling_child_error
+  description: Tests that a dangling child reference inside a structured array item (Tabs.tabs[].child) fails validation in v0.9 strict mode.
+  action: validate
+  protocolVersion: v0.9
+  catalogPaths:
+    - specification/v0_9/catalogs/basic/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json
+        - version: v0.9
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Tabs
+                tabs:
+                  - title: Overview
+                    child: tab_one
+                  - title: Details
+                    child: missing_tab
+              - id: tab_one
+                component: Text
+                text: First
+      expectError:
+        category: ValidationError
+        message: missing_tab
+
+- name: test_v09_topology_plain_string_property_not_treated_as_child_ref
+  description: Tests that a plain string property whose value happens to match another component's ID does not make that component reachable in v0.9 strict mode.
+  action: validate
+  protocolVersion: v0.9
+  catalogPaths:
+    - specification/v0_9/catalogs/basic/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json
+        - version: v0.9
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text: orphan_id
+              - id: orphan_id
+                component: Text
+                text: Still orphaned
+      expectError:
+        category: ValidationError
+        message: orphan_id
+
+- name: test_v09_topology_component_id_array_dangling_reference_error
+  description: Tests that every item of an array property whose items are ComponentId is a child reference, whatever the property is called, so an item naming no component fails validation in v0.9 strict mode even when no other item names one.
+  action: validate
+  protocolVersion: v0.9
+  catalog:
+    catalogId: custom
+    components:
+      Stack:
+        type: object
+        properties:
+          component: {const: Stack}
+          slots:
+            type: array
+            items:
+              $ref: "common_types.json#/$defs/ComponentId"
+        required:
+          - component
+          - slots
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: custom
+        - version: v0.9
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Stack
+                slots: [missing_slot]
+      expectError:
+        category: ValidationError
+        message: missing_slot
+
+- name: test_v09_topology_component_id_array_child_reachable
+  description: Tests that a component named in an array property whose items are ComponentId is reachable from the root in v0.9 strict mode, whatever the property is called.
+  action: validate
+  protocolVersion: v0.9
+  catalog:
+    catalogId: custom
+    components:
+      Stack:
+        type: object
+        properties:
+          component: {const: Stack}
+          slots:
+            type: array
+            items:
+              $ref: "common_types.json#/$defs/ComponentId"
+        required:
+          - component
+          - slots
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: custom
+        - version: v0.9
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Stack
+                slots: [first]
+              - id: first
+                component: Stack
+                slots: []
+
+- name: test_v09_topology_component_id_array_partial_dangling_reference_error
+  description: A property declared as an array of ComponentId directly (an array whose items are a ComponentId $ref, not a ChildList) is read as a list of child references. With one held and one missing item, the missing item is reported as a dangling reference at its index in v0.9 strict mode.
+  action: validate
+  protocolVersion: v0.9
+  catalog:
+    catalogId: custom
+    components:
+      Stack:
+        type: object
+        properties:
+          component: {const: Stack}
+          slots:
+            type: array
+            items:
+              $ref: "common_types.json#/$defs/ComponentId"
+        required:
+          - component
+          - slots
+      Label:
+        type: object
+        properties:
+          component: {const: Label}
+          text: {type: string}
+        required:
+          - component
+          - text
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: custom
+        - version: v0.9
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Stack
+                slots: [held, missing]
+              - id: held
+                component: Label
+                text: held
+      expectError:
+        category: ValidationError
+        message: "references non-existent component 'missing' in field 'slots[1]'"
+
+- name: test_v09_topology_component_id_array_circular_reference_error
+  description: A property declared as an array of ComponentId directly (an array whose items are a ComponentId $ref, not a ChildList) is read as a list of child references, so a cycle through it is detected in v0.9 strict mode.
+  action: validate
+  protocolVersion: v0.9
+  catalog:
+    catalogId: custom
+    components:
+      Stack:
+        type: object
+        properties:
+          component: {const: Stack}
+          slots:
+            type: array
+            items:
+              $ref: "common_types.json#/$defs/ComponentId"
+        required:
+          - component
+          - slots
+      Label:
+        type: object
+        properties:
+          component: {const: Label}
+          text: {type: string}
+        required:
+          - component
+          - text
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: custom
+        - version: v0.9
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Stack
+                slots: [loop_a]
+              - id: loop_a
+                component: Stack
+                slots: [loop_b]
+              - id: loop_b
+                component: Stack
+                slots: [loop_a]
+      expectError:
+        category: ValidationError
+        message: "Circular reference detected"
+
+- name: test_v09_child_list_template_missing_path_error
+  description: Tests that a ChildList template object missing its required 'path' property fails schema validation in v0.9.
+  action: validate
+  protocolVersion: v0.9
+  catalogPaths:
+    - specification/v0_9/catalogs/basic/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json
+        - version: v0.9
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: List
+                children:
+                  componentId: item
+              - id: item
+                component: Text
+                text: Item
+      expectError:
+        category: ValidationError
+
+- name: test_v09_update_data_model_invalid_path_error
+  description: Tests that an updateDataModel message with an invalid JSON Pointer escape ('~2') fails validation in v0.9.
+  action: validate
+  protocolVersion: v0.9
+  catalogPaths:
+    - specification/v0_9/catalogs/basic/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json
+        - version: v0.9
+          updateDataModel:
+            surfaceId: s1
+            path: /user/~2invalid
+            value: Alice
+      expectError:
+        category: ValidationError
+        message: Invalid path syntax
+
+- name: test_v09_function_argument_schema_mismatch_error
+  description: Tests that a function call passing an argument of the wrong type fails schema validation in v0.9.
+  action: validate
+  protocolVersion: v0.9
+  catalogPaths:
+    - specification/v0_9/catalogs/basic/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json
+        - version: v0.9
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text:
+                  call: formatNumber
+                  args:
+                    value: not_a_number
+      expectError:
+        category: ValidationError
+
+- name: test_v09_theme_schema_validation_error
+  features: [F-CORE-42]
+  description: Tests that an invalid theme property on createSurface fails schema validation in v0.9.
+  action: validate
+  protocolVersion: v0.9
+  catalogPaths:
+    - specification/v0_9/catalogs/basic/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json
+            theme:
+              primaryColor: not-a-hex-color
+      expectError:
+        category: ValidationError
+        rendererError:
+          version: "v0.9"
+          error:
+            code: "VALIDATION_FAILED"
+            surfaceId: "s1"
+            path: "/theme/primaryColor"
+            message: "primaryColor"
+
+- name: test_v09_incremental_update_same_component_id_across_messages
+  description: Tests that updating the same component ID across separate updateComponents messages succeeds in v0.9 strict mode.
+  action: validate
+  protocolVersion: v0.9
+  catalogPaths:
+    - specification/v0_9/catalogs/basic/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json
+        - version: v0.9
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text: Initial
+        - version: v0.9
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text: Updated
+
+- name: test_validator_theme_schema
+  features: [F-CORE-42]
+  description: Tests schema validation of surface theme properties against catalog theme schema.
+  action: validate
+  catalog:
+    catalogId: "theme_cat"
+    $defs:
+      theme:
+        type: "object"
+        properties:
+          primaryColor:
+            type: "string"
+            pattern: "^#[0-9a-fA-F]{6}$"
+        required: ["primaryColor"]
+        additionalProperties: false
+    theme:
+      type: "object"
+      properties:
+        primaryColor:
+          type: "string"
+          pattern: "^#[0-9a-fA-F]{6}$"
+      required: ["primaryColor"]
+      additionalProperties: false
+  steps:
+    - messages:
+        - version: "v0.9"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "theme_cat"
+            theme:
+              primaryColor: "#ff0000"
+    - messages:
+        - version: "v0.9"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "theme_cat"
+            theme:
+              primaryColor: "not-a-hex"
+      expectError:
+        category: "ValidationError"
+
+- name: test_v09_allowed_callers_does_not_restrict_bindings
+  features: [F-CORE-08]
+  description: Tests that a v0.9 component action calling a function that declares allowedCallers agentOnly passes validation, since allowedCallers is a v1.0 feature and v0.9 validation ignores it. The call is in an action so that validation doesn't need to run it, and the action schema is inline so that it doesn't depend on which version of common_types.json a harness resolves.
+  action: validate
+  protocolVersion: "v0.9"
+  catalog:
+    catalogId: arcana
+    components:
+      Button:
+        type: object
+        properties:
+          id: {type: string}
+          component: {const: Button}
+          label: {type: string}
+          action:
+            type: object
+            properties:
+              functionCall:
+                type: object
+                properties:
+                  call: {type: string}
+                  args: {type: object}
+                required:
+                  - call
+            required:
+              - functionCall
+        required:
+          - component
+          - label
+          - action
+    functions:
+      getMoonPhase:
+        type: object
+        allowedCallers: agentOnly
+        returnType: string
+        properties:
+          call: {const: getMoonPhase}
+          args:
+            type: object
+            properties:
+              date: {type: string}
+            additionalProperties: false
+        required:
+          - call
+    $defs:
+      anyFunction:
+        oneOf: [{$ref: "#/functions/getMoonPhase"}]
+  steps:
+    - messages:
+        - version: "v0.9"
+          createSurface:
+            surfaceId: s1
+            catalogId: arcana
+        - version: "v0.9"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Button
+                label: Moon phase
+                action:
+                  functionCall:
+                    call: getMoonPhase
+                    args:
+                      date: today

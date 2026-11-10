@@ -27,12 +27,12 @@
 # Compiling direct JSON is mostly reading the block, so what the cases fix is
 # mainly what a compiler may repair before reading: a trailing comma, a smart
 # quote a model picked up from prose, a single object where a list was asked
-# for. Four of the seven cases are that. They matter because a model that emits
+# for. Such cases matter because a model that emits
 # almost-JSON is the common case rather than the exception.
 #
 # Two error categories carry the load. `ParseError` is for payload text the
 # format cannot read. `ValidationError` is for a payload that reads but names
-# something the catalog does not declare.
+# something the catalog does not declare, or breaks the message envelope.
 #
 # A component carrying a property its catalog does not declare is invalid, but
 # the rule lives in the message envelope rather than in the catalog. Like the
@@ -42,15 +42,27 @@
 # component against the bare catalog schema will miss this; it has to validate
 # the message it is about to emit.
 #
+# The envelope's `version` is the same kind of rule. `agent_to_renderer.json`
+# requires it and fixes it to the protocol version of the catalog, so a message
+# that states another version, or none, is a `ValidationError`. It is not
+# something a compiler repairs: a model that wrote the wrong version may have
+# written the rest of the message against the wrong protocol too.
+#
 # The Express counterpart of this suite is `agent/express/compiler.yaml`. The
 # two are deliberately parallel: a rule that holds for both formats has a case
-# in each, written against that format's own notation.
+# in each, written against that format's own notation. The two `version` cases
+# are the exception, since Express notation has no version for a model to get
+# wrong.
 #
 # The catalogs under test live in `args`, and every case here is written against
 # v1.0. A case states no version of its own: the version it runs under is the
 # one its catalog document declares.
 
+# A compile case checks the block on its own, as `validate_payload` does: a
+# surface that the block updates without creating is assumed to exist.
+
 - name: test_compile_json_message_list
+  features: [F-AGT-19]
   description: A well formed message list compiles to those messages.
   action: compile
   args:
@@ -58,15 +70,15 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: |-
     [
-      {"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
-      {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}
+      {"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
+      {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}
     ]
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s1"
         components:
@@ -75,26 +87,28 @@
             text: "Hello"
 
 - name: test_compile_json_single_object_is_wrapped_in_a_list
+  features: [F-AGT-19]
   description: A payload that is one message rather than a list compiles to a list of one.
   action: compile
   args:
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  input: '{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}'
+  input: '{"version": "1.0", "deleteSurface": {"surfaceId": "s1"}}'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       deleteSurface:
         surfaceId: "s1"
 
 - name: test_compile_json_trailing_commas_removed
+  features: [F-AGT-19]
   description: Trailing commas in a list and an object are dropped rather than failing the parse.
   action: compile
   args:
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  input: '[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello",},]}},]'
+  input: '[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello",},]}},]'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s1"
         components:
@@ -103,16 +117,33 @@
             text: "Hello"
 
 - name: test_compile_json_smart_quotes_normalised
+  features: [F-AGT-19]
   description: Curly quotes a model reached for are read as straight quotes.
   action: compile
   args:
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  input: "[{“version”: “v1.0”, “deleteSurface”: {“surfaceId”: “s1”}}]"
+  input: "[{“version”: “1.0”, “deleteSurface”: {“surfaceId”: “s1”}}]"
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       deleteSurface:
         surfaceId: "s1"
+
+- name: test_compile_json_preserves_typographic_quotes_in_strings
+  description: Typographic quotes inside valid JSON string values are kept as written (#2934).
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Willkommen im „Café Central“"}]}}]'
+  expect:
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Willkommen im „Café Central“"
 
 - name: test_compile_json_malformed_is_a_parse_error
   description: Payload text that is not JSON is a parse error.
@@ -140,6 +171,481 @@
   args:
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  input: '[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Sparkline", "values": [1, 2]}]}}]'
+  input: '[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Sparkline", "values": [1, 2]}]}}]'
   expect_error:
     category: "ValidationError"
+
+- name: test_compile_json_other_protocol_version_is_a_validation_error
+  description: A message that states a protocol version other than its catalog's is a validation error rather than a message the compiler passes on.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '[{"version": "v0.9", "deleteSurface": {"surfaceId": "s1"}}]'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_json_missing_version_is_a_validation_error
+  description: A message that states no version is a validation error, since the envelope requires one.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '[{"deleteSurface": {"surfaceId": "s1"}}]'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_json_newline_in_key_stripped
+  description: A raw line break inside a JSON object key is stripped so a wrapped key still names the property.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    [{"version": "1.0", "deleteSurface": {"surface
+    Id": "s1"}}]
+  expect:
+    - version: "1.0"
+      deleteSurface:
+        surfaceId: "s1"
+
+- name: test_compile_json_newline_in_id_stripped
+  description: A raw line break inside an identifier property value such as id or child is stripped.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    [
+      {"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
+      {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "ro
+    ot", "component": "Text", "text": "Hello"}]}}
+    ]
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+
+- name: test_compile_json_newline_in_prose_kept
+  description: A raw line break inside a prose string value without spaces is kept rather than stripped.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    [
+      {"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
+      {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Apples
+    Oranges"}]}}
+    ]
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Apples\nOranges"
+
+- name: test_compile_json_newline_in_cjk_text_kept
+  description: A raw line break inside CJK text (which contains no ASCII spaces) is kept.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    [
+      {"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
+      {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "第一行
+    第二行"}]}}
+    ]
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "第一行\n第二行"
+
+- name: test_compile_json_crlf_in_prose_handled_uniformly
+  description: A raw CRLF sequence inside a prose string value is preserved identically across all SDKs.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: "[{\"version\": \"1.0\", \"createSurface\": {\"surfaceId\": \"s1\", \"catalogId\": \"conformance/simplified\"}}, {\"version\": \"1.0\", \"updateComponents\": {\"surfaceId\": \"s1\", \"components\": [{\"id\": \"root\", \"component\": \"Text\", \"text\": \"Line 1\r\nLine 2\"}]}}]"
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Line 1\r\nLine 2"
+
+- name: test_compile_json_inline_backticks_stripped
+  description: Backticks at the edges of a raw JSON block passed to compile are stripped across all SDKs.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '`[{"version": "1.0", "deleteSurface": {"surfaceId": "s1"}}]`'
+  expect:
+    - version: "1.0"
+      deleteSurface:
+        surfaceId: "s1"
+
+- name: test_compile_json_newline_in_component_and_envelope_identifiers_stripped
+  description: Line breaks inside envelope keys and component identifier properties (id, component, child, children items, surfaceId, catalogId) are stripped.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    [
+      {"version": "1.0", "createSurface": {"surfaceId": "s
+    1", "catalogId": "conformance/
+    simplified"}},
+      {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [
+        {"id": "ro
+    ot", "component": "Ca
+    rd", "child": "bo
+    dy"},
+        {"id": "body", "component": "Text", "text": "Hello"}
+      ]}}
+    ]
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "body"
+          - id: "body"
+            component: "Text"
+            text: "Hello"
+
+- name: test_compile_json_newline_in_data_model_value_preserved
+  description: Raw line breaks inside strings under updateDataModel value are preserved even if property names match identifier keys.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    [
+      {"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
+      {"version": "1.0", "updateDataModel": {"surfaceId": "s1", "value": {
+        "id": "item
+    1",
+        "component": "comp
+    2",
+        "notes": "line
+    3"
+      }}}
+    ]
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+    - version: "1.0"
+      updateDataModel:
+        surfaceId: "s1"
+        value:
+          id: "item\n1"
+          component: "comp\n2"
+          notes: "line\n3"
+
+- name: test_compile_json_newline_in_create_surface_data_model_preserved
+  description: Raw line breaks inside strings under createSurface.dataModel in v1.0 are preserved even if property names match identifier keys.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    [
+      {"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified", "dataModel": {
+        "id": "item
+    1",
+        "notes": "line
+    2"
+      }}}
+    ]
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        dataModel:
+          id: "item\n1"
+          notes: "line\n2"
+
+# A `callRendererFunction` is checked the way the renderer that receives it
+# would check it, without running it: the function must be one the agent may
+# call, and each call nested in its arguments must be one the renderer can make
+# while it resolves them. These cases use agent_functions_catalog_v1_0.json,
+# whose functions the agent may call; `record` takes a value of any shape.
+
+- name: test_compile_json_call_renderer_function_the_agent_may_call
+  description: A callRendererFunction naming a function whose allowedCallers is rendererOrAgent compiles to that message.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "notify", "catalogId": "conformance/agent_functions", "args": {"message": "Saved"}}}}]'
+  expect:
+    - version: "1.0"
+      callRendererFunction:
+        functionCallId: "c1"
+        callFunction:
+          "@call": "notify"
+          catalogId: "conformance/agent_functions"
+          args:
+            message: "Saved"
+
+- name: test_compile_json_call_renderer_function_renderer_only_is_a_validation_error
+  description: A callRendererFunction naming a function that declares no allowedCallers, so only the renderer may call it, is a validation error.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "formatString", "catalogId": "conformance/simplified", "args": {"value": "Saved"}}}}]'
+  expect_error:
+    category: "ValidationError"
+    message: "rendererOnly"
+
+- name: test_compile_json_call_renderer_function_nested_call_is_accepted
+  description: A call nested in the arguments of a callRendererFunction that names no surface runs in the catalog of the call, so a call there to a function the renderer may make compiles.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "record", "catalogId": "conformance/agent_functions", "args": {"value": {"note": {"@call": "notify", "args": {"message": "Saved"}}}}}}}]'
+  expect:
+    - version: "1.0"
+      callRendererFunction:
+        functionCallId: "c1"
+        callFunction:
+          "@call": "record"
+          catalogId: "conformance/agent_functions"
+          args:
+            value:
+              note:
+                "@call": "notify"
+                args:
+                  message: "Saved"
+
+- name: test_compile_json_call_renderer_function_nested_call_under_non_string_call_key_is_a_validation_error
+  description: An object whose @call is not a string is resolved as a plain object, so a call nested in it is checked too, and a call to a function no catalog declares is a validation error.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "record", "catalogId": "conformance/agent_functions", "args": {"value": {"@call": {"@call": "summonDragon"}}}}}}]'
+  expect_error:
+    category: "ValidationError"
+    message: "summonDragon"
+
+- name: test_compile_json_call_renderer_function_unknown_directive_in_args_is_a_validation_error
+  description: An object in the arguments of a callRendererFunction holding a single-@ key that is not a reserved directive is a validation error, since the renderer can't resolve it.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "record", "catalogId": "conformance/agent_functions", "args": {"value": {"inner": {"@bogus": 1}}}}}}]'
+  expect_error:
+    category: "ValidationError"
+    message: "@bogus"
+
+- name: test_compile_json_call_renderer_function_nested_call_extra_field_is_a_validation_error
+  description: A call nested in the arguments of a callRendererFunction that holds a field other than @call, catalogId and args is a validation error.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "record", "catalogId": "conformance/agent_functions", "args": {"value": {"@call": "notify", "args": {"message": "Saved"}, "bogus": 1}}}}}]'
+  expect_error:
+    category: "ValidationError"
+    message: "bogus"
+
+- name: test_compile_json_call_renderer_function_nested_call_null_catalog_id_is_a_validation_error
+  description: A call nested in the arguments of a callRendererFunction whose catalogId is null is a validation error rather than a call that names no catalog.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "record", "catalogId": "conformance/agent_functions", "args": {"value": {"@call": "notify", "catalogId": null, "args": {"message": "Saved"}}}}}}]'
+  expect_error:
+    category: "ValidationError"
+    message: "catalogId"
+
+- name: test_compile_json_call_renderer_function_nested_call_null_args_is_a_validation_error
+  description: A call nested in the arguments of a callRendererFunction whose args is null is a validation error rather than a call without arguments, even to a system function that takes none.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "record", "catalogId": "conformance/agent_functions", "args": {"value": {"@call": "@index", "args": null}}}}}]'
+  expect_error:
+    category: "ValidationError"
+    message: "args"
+
+- name: test_compile_json_call_renderer_function_agent_only_target_compiles
+  description: A callRendererFunction naming a function whose allowedCallers is agentOnly compiles, since the agent is the caller.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "peek", "catalogId": "conformance/agent_functions", "args": {"key": "mood"}}}}]'
+  expect:
+    - version: "1.0"
+      callRendererFunction:
+        functionCallId: "c1"
+        callFunction:
+          "@call": "peek"
+          catalogId: "conformance/agent_functions"
+          args:
+            key: "mood"
+
+- name: test_compile_json_call_renderer_function_nested_agent_only_call_is_a_validation_error
+  description: A call nested in the arguments of a callRendererFunction is made by the renderer while it resolves them, so a nested call to a function whose allowedCallers is agentOnly is a validation error.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "record", "catalogId": "conformance/agent_functions", "args": {"value": {"@call": "peek", "args": {"key": "mood"}}}}}}]'
+  expect_error:
+    category: "ValidationError"
+    message: "agentOnly"
+
+- name: test_compile_json_call_renderer_function_catalog_not_held_is_a_validation_error
+  description: A callRendererFunction naming a catalog that isn't one of the agent's catalogs is a validation error.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "notify", "catalogId": "conformance/missing", "args": {"message": "Saved"}}}}]'
+  expect_error:
+    category: "ValidationError"
+    message: "conformance/missing"
+
+- name: test_compile_json_call_renderer_function_unknown_function_is_a_validation_error
+  description: A callRendererFunction naming a function its catalog doesn't declare is a validation error.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "castSpell", "catalogId": "conformance/agent_functions", "args": {}}}}]'
+  expect_error:
+    category: "ValidationError"
+    message: "castSpell"
+
+- name: test_compile_json_call_renderer_function_extra_argument_is_a_validation_error
+  description: A callRendererFunction passing an argument the function doesn't declare is a validation error.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "notify", "catalogId": "conformance/agent_functions", "args": {"message": "Saved", "volume": 11}}}}]'
+  expect_error:
+    category: "ValidationError"
+    message: "volume"
+
+- name: test_compile_json_call_renderer_function_on_surface_deleted_earlier_is_a_validation_error
+  description: A callRendererFunction naming a surface the same payload deleted earlier is a validation error.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/agent_functions"}}, {"version": "1.0", "deleteSurface": {"surfaceId": "s1"}}, {"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "surfaceId": "s1", "callFunction": {"@call": "notify", "catalogId": "conformance/agent_functions", "args": {"message": "Saved"}}}}]'
+  expect_error:
+    category: "ValidationError"
+    message: "does not exist"
+
+- name: test_compile_json_call_renderer_function_on_surface_created_later_is_a_validation_error
+  description: A callRendererFunction naming a surface the same payload creates only later is a validation error, since the renderer handles the messages in order.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "surfaceId": "s1", "callFunction": {"@call": "notify", "catalogId": "conformance/agent_functions", "args": {"message": "Saved"}}}}, {"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/agent_functions"}}]'
+  expect_error:
+    category: "ValidationError"
+    message: "does not exist"
+
+- name: test_compile_json_call_renderer_function_on_surface_the_payload_never_names_compiles
+  description: A callRendererFunction naming a surface the payload never creates or deletes compiles, since the surface may exist from an earlier turn.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "surfaceId": "s1", "callFunction": {"@call": "notify", "catalogId": "conformance/agent_functions", "args": {"message": "Saved"}}}}]'
+  expect:
+    - version: "1.0"
+      callRendererFunction:
+        functionCallId: "c1"
+        surfaceId: "s1"
+        callFunction:
+          "@call": "notify"
+          catalogId: "conformance/agent_functions"
+          args:
+            message: "Saved"
+
+- name: test_compile_json_call_renderer_function_nested_index_call_is_a_validation_error
+  description: The arguments of a callRendererFunction are resolved outside any list template, so a nested call to the @index system function is a validation error.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "record", "catalogId": "conformance/agent_functions", "args": {"value": {"@call": "@index"}}}}}]'
+  expect_error:
+    category: "ValidationError"
+    message: "@index"
+
+- name: test_compile_json_call_renderer_function_non_string_path_is_a_validation_error
+  description: A data binding in the arguments of a callRendererFunction whose @path is not a string is a validation error.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "record", "catalogId": "conformance/agent_functions", "args": {"value": {"@path": 5}}}}}]'
+  expect_error:
+    category: "ValidationError"
+    message: "@path"
+
+- name: test_compile_json_call_renderer_function_path_with_extra_field_is_a_validation_error
+  description: A data binding in the arguments of a callRendererFunction that holds a field other than @path is a validation error.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "record", "catalogId": "conformance/agent_functions", "args": {"value": {"@path": "/user/name", "bogus": 1}}}}}]'
+  expect_error:
+    category: "ValidationError"
+    message: "bogus"

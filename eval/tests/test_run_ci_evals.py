@@ -14,16 +14,22 @@
 
 """Unit tests for run_ci_evals.py."""
 
+import argparse
 import os
 import sys
+from typing import Any
+
 import pytest
 
 # Add bin directory to path to import run_ci_evals
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../bin")))
-from run_ci_evals import check_threshold, build_main_command
-from report_evals import extract_accuracy, print_results_summary, generate_markdown_summary
-from typing import Any
-import argparse
+from report_evals import (
+    extract_accuracy,
+    extract_run_labels,
+    generate_markdown_summary,
+    print_results_summary,
+)
+from run_ci_evals import build_main_command, check_threshold
 
 
 def test_extract_accuracy_valid() -> None:
@@ -101,12 +107,99 @@ def test_build_main_command_no_limit() -> None:
     assert "--limit" not in cmd
 
 
-def test_print_results_summary_valid(capsys: pytest.CaptureFixture[str]) -> None:
+def test_build_main_command_with_version() -> None:
+    args = argparse.Namespace(
+        model="google/gemini-3.6-flash",
+        max_samples=10,
+        grading_model="google/gemini-3.6-flash",
+        version="0.9.1",
+    )
+    cmd = build_main_command(args, "20260507")
+    assert cmd[cmd.index("--version") + 1] == "0.9.1"
+
+
+def test_build_main_command_omits_version_by_default() -> None:
+    args = argparse.Namespace(
+        model="google/gemini-3.6-flash",
+        max_samples=10,
+        grading_model="google/gemini-3.6-flash",
+        version=None,
+    )
+    assert "--version" not in build_main_command(args, "20260507")
+
+
+def test_extract_run_labels_prefers_task_metadata() -> None:
+    log_data: dict[str, Any] = {
+        "eval": {
+            "task_args": {"strategy": "direct"},
+            "metadata": {"version": "1.0", "strategy": "direct"},
+        }
+    }
+    assert extract_run_labels(log_data) == {
+        "version": "1.0",
+        "strategy": "direct",
+    }
+
+
+def test_extract_run_labels_falls_back_to_task_args() -> None:
+    log_data: dict[str, Any] = {"eval": {"task_args": {"strategy": "express"}}}
+    assert extract_run_labels(log_data) == {
+        "version": None,
+        "strategy": "express",
+    }
+
+
+def _log_for(version: str, strategy: str) -> dict[str, Any]:
+    return {
+        "eval": {
+            "task": "a2ui_eval",
+            "model": "test_model",
+            "metadata": {"version": version, "strategy": strategy},
+        },
+        "samples": [],
+    }
+
+
+def test_generate_markdown_summary_shows_version_and_strategy() -> None:
+    summary = generate_markdown_summary(_log_for("0.9.1", "express"), 95.0, 90.0)
+    assert (
+        "### Evaluation Summary: a2ui_eval (version=0.9.1, strategy=express)" in summary
+    )
+    assert "- **Protocol Version**: `0.9.1`" in summary
+    assert "- **Strategy**: `express`" in summary
+
+
+def test_generate_markdown_summary_headings_differ_per_run() -> None:
+    runs = [
+        (version, strategy)
+        for version in ("0.9.1", "1.0")
+        for strategy in ("direct", "express")
+    ]
+    headings = {
+        generate_markdown_summary(_log_for(*run), 100.0, 90.0).splitlines()[0]
+        for run in runs
+    }
+    assert len(headings) == len(runs)
+
+
+def test_print_results_summary_shows_run_labels(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    print_results_summary(_log_for("1.0", "direct"))
+    assert "Run: version=1.0, strategy=direct" in capsys.readouterr().out
+
+
+def test_print_results_summary_valid(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     log_data: dict[str, Any] = {
         "samples": [
             {
                 "id": 1,
-                "metadata": {"name": "test_task", "evaluation_duration_seconds": 5.0},
+                "metadata": {
+                    "name": "test_task",
+                    "evaluation_duration_seconds": 5.0,
+                },
                 "scores": {
                     "a2ui_scorer": {"value": 1.0, "explanation": "Perfect"},
                     "measured_model_graded_qa": {
@@ -136,13 +229,13 @@ def test_print_results_summary_valid(capsys: pytest.CaptureFixture[str]) -> None
     print_results_summary(log_data)
     captured = capsys.readouterr()
     assert (
-        "test_task                 | Algorithmic: PASS | Judging: C  | Inference Time:"
-        " 5.00s"
+        "test_task                 | Algorithmic: PASS | Judging: C  | Inference"
+        " Time: 5.00s"
         in captured.out
     )
     assert (
-        "test_task_2               | Algorithmic: PASS | Judging: C  | Inference Time:"
-        " 10.00s"
+        "test_task_2               | Algorithmic: PASS | Judging: C  | Inference"
+        " Time: 10.00s"
         in captured.out
     )
     assert "Inference Time - Average: 7.50s | Median: 7.50s" in captured.out
@@ -155,7 +248,10 @@ def test_print_results_summary_fail(capsys: pytest.CaptureFixture[str]) -> None:
             "metadata": {"name": "fail_task"},
             "scores": {
                 "a2ui_scorer": {"value": 0.0, "explanation": "Missing component"},
-                "measured_model_graded_qa": {"value": "I", "explanation": "Incorrect"},
+                "measured_model_graded_qa": {
+                    "value": "I",
+                    "explanation": "Incorrect",
+                },
             },
             "events": [],
         }]
@@ -181,7 +277,10 @@ def test_generate_markdown_summary_valid() -> None:
             "metadata": {"name": "sample_1", "evaluation_duration_seconds": 5.0},
             "scores": {
                 "a2ui_scorer": {"value": 1.0, "explanation": "Perfect"},
-                "measured_model_graded_qa": {"value": "C", "explanation": "Correct"},
+                "measured_model_graded_qa": {
+                    "value": "C",
+                    "explanation": "Correct",
+                },
             },
         }],
     }
@@ -205,7 +304,10 @@ def test_generate_markdown_summary_fail() -> None:
                     "value": 0.0,
                     "explanation": "Missing components\nSecond line error",
                 },
-                "measured_model_graded_qa": {"value": "I", "explanation": "Incomplete"},
+                "measured_model_graded_qa": {
+                    "value": "I",
+                    "explanation": "Incomplete",
+                },
             },
         }],
     }
@@ -220,3 +322,50 @@ def test_generate_markdown_summary_fail() -> None:
     assert "  > Second line error" in summary
     assert "- **Judging Failure Reason (Grade I)**:" in summary
     assert "  > Incomplete" in summary
+
+
+def test_build_main_command_forwards_tier_and_judge_flags() -> None:
+    args = argparse.Namespace(
+        model="google/gemini-3.6-flash",
+        max_samples=0,
+        grading_model="google/gemini-3.6-flash",
+        tier="smoke",
+        no_judge=True,
+        max_validation_retries=2,
+    )
+    cmd = build_main_command(args, "20260507")
+    assert cmd[cmd.index("--tier") + 1] == "smoke"
+    assert "--no-judge" in cmd
+    assert cmd[cmd.index("--max-validation-retries") + 1] == "2"
+    assert "--tags" not in cmd
+
+
+def test_build_main_command_forwards_tags() -> None:
+    args = argparse.Namespace(
+        model="google/gemini-3.6-flash",
+        max_samples=0,
+        grading_model="google/gemini-3.6-flash",
+        tags="smoke,stateful",
+        max_validation_retries=0,
+        no_judge=False,
+    )
+    cmd = build_main_command(args, "20260507")
+    assert cmd[cmd.index("--tags") + 1] == "smoke,stateful"
+    assert "--max-validation-retries" not in cmd
+    assert "--no-judge" not in cmd
+
+
+def test_build_main_command_omits_new_flags_by_default() -> None:
+    args = argparse.Namespace(
+        model="google/gemini-3.6-flash",
+        max_samples=0,
+        grading_model="google/gemini-3.6-flash",
+    )
+    cmd = build_main_command(args, "20260507")
+    for flag in (
+        "--tier",
+        "--tags",
+        "--no-judge",
+        "--max-validation-retries",
+    ):
+        assert flag not in cmd

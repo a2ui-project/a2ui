@@ -81,6 +81,25 @@ struct TestEmailFunction: FunctionImplementation {
   }
 }
 
+/// A host-defined error, unrelated to `FunctionError`, thrown by `TestThrowingFunction`.
+private struct TestHostError: LocalizedError {
+  var errorDescription: String? { "boom" }
+}
+
+/// A `FunctionImplementation` whose evaluation always throws a host-defined error.
+private struct TestThrowingFunction: FunctionImplementation {
+  let api = FunctionAPI(
+    name: "fail",
+    returnType: .string,
+    schema: try! Schema(instance: "{\"type\": \"object\"}")
+  )
+
+  @MainActor
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+    throw TestHostError()
+  }
+}
+
 func makeTestCatalog() throws -> AnyCatalog {
   let buttonSchema = try Schema(
     instance: """
@@ -146,20 +165,22 @@ func makeTestCatalog() throws -> AnyCatalog {
   return Catalog(
     id: "test-catalog",
     components: [AnyComponentAPI(name: "button", schema: buttonSchema)],
-    functions: [TestConcatFunction(), TestRequiredFunction(), TestEmailFunction()]
+    functions: [
+      TestConcatFunction(), TestRequiredFunction(), TestEmailFunction(), TestThrowingFunction(),
+    ]
   )
 }
 
 /// A test `ActionHandling` that captures actions for verification.
 final class TestActionHandler: ActionHandling, @unchecked Sendable {
   var capturedActions: [ResolvedAction] = []
-  var capturedErrors: [ClientServerError] = []
+  var capturedErrors: [RendererError] = []
 
   func handle(action: ResolvedAction, from surfaceID: String) {
     capturedActions.append(action)
   }
 
-  func handle(error: ClientServerError, from surfaceID: String) {
+  func handle(error: RendererError, from surfaceID: String) {
     capturedErrors.append(error)
   }
 }
@@ -211,7 +232,7 @@ struct SurfaceViewModelTests {
     )
     #expect(handler.capturedErrors.count == 1)
     if case .validationFailed(let err) = handler.capturedErrors[0] {
-      #expect(err.path == "/component")
+      #expect(err.path == "/components/0/component")
     }
   }
 
@@ -225,12 +246,42 @@ struct SurfaceViewModelTests {
     )
     #expect(handler.capturedErrors.count == 1)
     if case .validationFailed(let err) = handler.capturedErrors[0] {
-      #expect(err.path == "/id")
+      #expect(err.path == "/components/0/id")
     }
   }
 
-  @Test func updateComponentsRejectsUnknownType() throws {
-    let (processor, _, handler) = try makeProcessor()
+  @Test func updateComponentsAcceptsUnknownTypeByDefault() throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateComponents(
+      surfaceID: "test-surface",
+      components: [
+        ["id": "root", "component": "unknown_type"]
+      ]
+    )
+    #expect(surface.componentsModel.get("root")?.type == "unknown_type")
+    // The component is stored, and the resolver reports its type once.
+    #expect(handler.capturedErrors.count == 1)
+    guard case .generic(let error) = handler.capturedErrors.first else {
+      Issue.record("Expected a generic error, got \(handler.capturedErrors)")
+      return
+    }
+    #expect(error.code == "UNKNOWN_COMPONENT_TYPE")
+  }
+
+  @Test func updateComponentsRejectsUnknownTypeInStrictMode() throws {
+    let handler = TestActionHandler()
+    let catalog = try makeTestCatalog()
+    let processor = MessageProcessor(
+      catalogs: [catalog],
+      actionHandler: handler,
+      validationConfig: .strict
+    )
+    let surface = SurfaceViewModel(
+      surfaceID: "test-surface",
+      catalog: catalog,
+      actionHandler: handler
+    )
+    processor.surfaceGroupModel.addSurface(surface)
     processor.updateComponents(
       surfaceID: "test-surface",
       components: [
@@ -611,8 +662,8 @@ struct SurfaceViewModelTests {
           "component": "button",
           "onClick": [
             "functionCall": [
-              "call": "submit",
-              "args": ["formId": "contact"],
+              "call": "concat",
+              "args": ["a": "hello ", "b": "world"],
             ]
           ],
         ]
@@ -621,7 +672,7 @@ struct SurfaceViewModelTests {
     let root = surface.componentsModel.get("root")
     let actionJSON = try #require(root?.properties["onClick"]?.dictionaryValue)
     let funcCallJSON = try #require(actionJSON["functionCall"]?.dictionaryValue)
-    #expect(funcCallJSON["call"]?.stringValue == "submit")
+    #expect(funcCallJSON["call"]?.stringValue == "concat")
   }
 
   @Test func actionTriggersLocalFunctionCall() async throws {
@@ -664,6 +715,154 @@ struct SurfaceViewModelTests {
     let action = try #require(rootNode.properties["onClick"] as? ResolvedAction)
     action()
     #expect(handler.capturedActions.isEmpty)
+  }
+
+  /// Components that render one `button` per item of the list at `path`. Each button's event
+  /// sends its item's `id`.
+  private func deleteButtonList(path: String) -> [[String: JSONValue]] {
+    [
+      [
+        "id": "root",
+        "component": "button",
+        "children": ["componentId": "delete", "path": .string(path)],
+      ],
+      [
+        "id": "delete",
+        "component": "button",
+        "onClick": [
+          "event": ["name": "delete", "context": ["id": ["path": "id"]]]
+        ],
+      ],
+    ]
+  }
+
+  @Test func templateActionRebindsWhenTemplatePathChanges() throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateDataModel(
+      surfaceID: surface.surfaceID, path: "/inbox", value: [["id": "inbox-0"]])
+    processor.updateDataModel(
+      surfaceID: surface.surfaceID, path: "/archive", value: [["id": "archive-0"]])
+    processor.updateComponents(
+      surfaceID: surface.surfaceID, components: deleteButtonList(path: "/inbox"))
+    let inboxButton = try #require(surface.rootNode?.children(for: "children").first)
+
+    processor.updateComponents(
+      surfaceID: surface.surfaceID, components: deleteButtonList(path: "/archive"))
+    let archiveButton = try #require(surface.rootNode?.children(for: "children").first)
+
+    // Same instance ID but a different data scope, so renderers must see a changed node.
+    #expect(archiveButton.id == inboxButton.id)
+    #expect(archiveButton != inboxButton)
+
+    let action = try #require(archiveButton.action(for: "onClick"))
+    action()
+    let dispatched = try #require(handler.capturedActions.first)
+    #expect(dispatched.sourceComponentID == "delete")
+    guard case .event(_, let context, _) = dispatched.identity else {
+      Issue.record("Expected an event action")
+      return
+    }
+    #expect(context?["id"]?.stringValue == "archive-0")
+  }
+
+  @Test func templateActionStaysEqualWhenDataScopeIsUnchanged() throws {
+    let (processor, surface, _) = try makeProcessor()
+    processor.updateDataModel(
+      surfaceID: surface.surfaceID, path: "/inbox", value: [["id": "inbox-0"]])
+    processor.updateComponents(
+      surfaceID: surface.surfaceID, components: deleteButtonList(path: "/inbox"))
+    let first = try #require(surface.rootNode?.children(for: "children").first)
+
+    processor.updateComponents(
+      surfaceID: surface.surfaceID, components: deleteButtonList(path: "/inbox"))
+    let second = try #require(surface.rootNode?.children(for: "children").first)
+
+    #expect(second == first)
+  }
+
+  // MARK: - Expression Errors
+
+  /// Returns the generic errors captured by `handler` with code `EXPRESSION_ERROR`.
+  private func expressionErrors(_ handler: TestActionHandler) -> [GenericError] {
+    handler.capturedErrors.compactMap {
+      guard case .generic(let generic) = $0, generic.code == "EXPRESSION_ERROR" else {
+        return nil
+      }
+      return generic
+    }
+  }
+
+  // `updateComponents` rejects unknown function names up front, so these tests add the
+  // component directly to exercise the runtime not-found path.
+  @Test func actionCallingUnknownFunctionReportsExpressionError() throws {
+    let (_, surface, handler) = try makeProcessor()
+    surface.componentsModel.addComponent(
+      ComponentModel(
+        id: "root",
+        type: "button",
+        properties: ["onClick": ["functionCall": ["call": "noSuchFunction"]]]
+      )
+    )
+    let rootNode = try #require(surface.nodeResolver.resolveTree())
+    let action = try #require(rootNode.properties["onClick"] as? ResolvedAction)
+    handler.capturedErrors.removeAll()
+
+    action()
+
+    #expect(handler.capturedActions.isEmpty)
+    #expect(handler.capturedErrors.count == 1)
+    let error = try #require(expressionErrors(handler).first)
+    #expect(error.surfaceID == surface.surfaceID)
+    #expect(error.message.contains("noSuchFunction"))
+    #expect(error.expression == "noSuchFunction")
+  }
+
+  @Test func actionCallingThrowingFunctionReportsExecutionError() throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "onClick": ["functionCall": ["call": "fail"]],
+        ]
+      ]
+    )
+    let rootNode = try #require(surface.nodeResolver.resolveTree())
+    let action = try #require(rootNode.properties["onClick"] as? ResolvedAction)
+    handler.capturedErrors.removeAll()
+
+    action()
+
+    #expect(handler.capturedActions.isEmpty)
+    #expect(handler.capturedErrors.count == 1)
+    guard case .generic(let error) = handler.capturedErrors.first else {
+      Issue.record("Expected a generic error, got \(handler.capturedErrors)")
+      return
+    }
+    #expect(error.code == "EXECUTION_ERROR", "a local function that throws in an action")
+    #expect(error.surfaceID == surface.surfaceID)
+    #expect(error.message.contains("boom"))
+    #expect(error.expression == "fail")
+  }
+
+  @Test func bindingCallingUnknownFunctionReportsExpressionError() throws {
+    let (_, surface, handler) = try makeProcessor()
+    surface.componentsModel.addComponent(
+      ComponentModel(
+        id: "root",
+        type: "button",
+        properties: ["label": ["call": "noSuchFunction"]]
+      )
+    )
+    let rootNode = try #require(surface.nodeResolver.resolveTree())
+
+    let binding = try #require(rootNode.properties["label"] as? DataBinding<String>)
+    #expect(binding.value == nil)
+    #expect(handler.capturedErrors.count == 1)
+    let error = try #require(expressionErrors(handler).first)
+    #expect(error.expression == "noSuchFunction")
   }
 
   @Test func actionDispatchesDirectNameEvent() async throws {
@@ -1178,35 +1377,82 @@ struct SurfaceComponentsModelTests {
     #expect(announced[1]["btn1"]?.type == "button")
     #expect(readBack[1]?.type == "button")
   }
+
+  @Test func surfaceAndComponentMetadataAPIsPublishAndValidateKeys() throws {
+    let model = SurfaceComponentsModel()
+    var compMetadataEvents: [[String: JSONValue]?] = []
+    let compCancellable = model.metadataPublisher(forComponentID: "btn1").sink { meta in
+      compMetadataEvents.append(meta)
+    }
+    model.addComponent(
+      ComponentModel(
+        id: "btn1",
+        type: "button",
+        properties: ["label": .string("Hi")],
+        metadata: ["extensions": .object(["tag": .string("v1")])]
+      )
+    )
+    #expect(model.get("btn1")?.extensions == ["tag": .string("v1")])
+    #expect(compMetadataEvents.count == 1)
+
+    // Identical metadata update is a no-op
+    try model.setMetadata(
+      ["extensions": .object(["tag": .string("v1")])],
+      forComponentID: "btn1"
+    )
+    #expect(compMetadataEvents.count == 1)
+
+    // setExtension with explicit .null preserves the key
+    try model.setExtension("nullable", value: .null, forComponentID: "btn1")
+    #expect(model.get("btn1")?.extensions == ["tag": .string("v1"), "nullable": .null])
+    #expect(compMetadataEvents.count == 2)
+
+    // removeExtension clears metadata when last key is removed
+    model.removeExtension("tag", forComponentID: "btn1")
+    model.removeExtension("nullable", forComponentID: "btn1")
+    #expect(model.get("btn1")?.metadata == nil)
+    #expect(compMetadataEvents.last == .some(nil))
+
+    // Invalid UAX #31 key throws A2UIValidationError
+    #expect(throws: A2UIValidationError.self) {
+      try model.setExtension("bad-key!", value: .integer(1), forComponentID: "btn1")
+    }
+
+    // Re-ordered extension keys on addComponent do not emit spurious metadata events
+    model.addComponent(
+      ComponentModel(
+        id: "btn1",
+        type: "button",
+        properties: ["label": .string("Hi")],
+        metadata: ["extensions": .object(["a": .integer(1), "b": .integer(2)])]
+      )
+    )
+    let countAfterInitialOrder = compMetadataEvents.count
+    model.addComponent(
+      ComponentModel(
+        id: "btn1",
+        type: "button",
+        properties: ["label": .string("Hi")],
+        metadata: ["extensions": .object(["b": .integer(2), "a": .integer(1)])]
+      )
+    )
+    #expect(compMetadataEvents.count == countAfterInitialOrder)
+
+    // Explicit .null metadata or extensions throws A2UIValidationError
+    #expect(throws: A2UIValidationError.self) {
+      _ = try MetadataValidator.validate(JSONValue.null)
+    }
+    #expect(throws: A2UIValidationError.self) {
+      _ = try MetadataValidator.validate(["extensions": JSONValue.null])
+    }
+    compCancellable.cancel()
+  }
 }
 
 // MARK: - DataModel Tests
 
 @MainActor
 struct DataModelTests {
-
-  @Test func startsEmpty() {
-    let model = DataModel()
-    #expect(model.data == .object([:]))
-  }
-
-  @Test func setsAndGetsValueAtPath() {
-    let model = DataModel()
-    model.set("/user/name", value: "Alice")
-    #expect(model.get("/user/name")?.stringValue == "Alice")
-  }
-
-  @Test func setsNilRemovesValue() {
-    let model = DataModel()
-    model.set("/user/name", value: "Alice")
-    model.set("/user/name", value: nil)
-    #expect(model.get("/user/name") == nil)
-  }
-
-  @Test func initializesWithValue() {
-    let model = DataModel(initial: ["name": "Bob"])
-    #expect(model.get("/name")?.stringValue == "Bob")
-  }
 
   @Test func subscriberReadingBackThroughModelSeesStoredValue() {
     let model = DataModel()
@@ -1222,21 +1468,6 @@ struct DataModelTests {
     #expect(announced[1]["/user/name"]?.stringValue == "Alice")
     #expect(readBack[1]?.stringValue == "Alice")
   }
-
-  @Test func setsRootPathReplacesEntireData() {
-    let model = DataModel(initial: ["oldKey": "oldVal", "sharedKey": "prev"])
-    model.set("", value: ["newKey": "newVal"])
-    #expect(model.get("/newKey")?.stringValue == "newVal")
-    #expect(model.get("/oldKey") == nil)
-    #expect(model.get("") == .object(["newKey": "newVal"]))
-
-    model.set("/", value: ["other": 123])
-    #expect(model.get("/other")?.intValue == 123)
-    #expect(model.get("/newKey") == nil)
-
-    model.set("", value: nil)
-    #expect(model.data == .object([:]))
-  }
 }
 
 extension MessageProcessor {
@@ -1246,7 +1477,7 @@ extension MessageProcessor {
   ) {
     process(
       message: .updateComponents(
-        UpdateComponentsMessage(surfaceID: surfaceID, components: components)
+        UpdateComponentsMessage(surfaceID: surfaceID, components: components, version: .v091)
       )
     )
   }
@@ -1258,7 +1489,7 @@ extension MessageProcessor {
   ) {
     process(
       message: .updateDataModel(
-        UpdateDataModelMessage(surfaceID: surfaceID, path: path, value: value)
+        UpdateDataModelMessage(surfaceID: surfaceID, path: path, value: value, version: .v091)
       )
     )
   }

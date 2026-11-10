@@ -3,7 +3,7 @@
   "description": "Example of user profile demonstrating number formatting.",
   "messages": [
     {
-      "version": "v1.0",
+      "version": "1.0",
       "createSurface": {
         "surfaceId": "gallery-user-profile",
         "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -11,7 +11,7 @@
       }
     },
     {
-      "version": "v1.0",
+      "version": "1.0",
       "updateComponents": {
         "surfaceId": "gallery-user-profile",
         "components": [
@@ -30,7 +30,7 @@
             "id": "header",
             "component": "Image",
             "url": {
-              "path": "/avatar"
+              "@path": "/avatar"
             },
             "fit": "cover",
             "variant": "avatar"
@@ -45,14 +45,14 @@
             "id": "name",
             "component": "Text",
             "text": {
-              "path": "/name"
+              "@path": "/name"
             }
           },
           {
             "id": "username",
             "component": "Text",
             "text": {
-              "path": "/username"
+              "@path": "/username"
             },
             "variant": "caption"
           },
@@ -60,7 +60,7 @@
             "id": "bio",
             "component": "Text",
             "text": {
-              "path": "/bio"
+              "@path": "/bio"
             },
             "variant": "body"
           },
@@ -80,10 +80,10 @@
             "id": "followers_count",
             "component": "Text",
             "text": {
-              "call": "formatNumber",
+              "@call": "formatNumber",
               "args": {
                 "value": {
-                  "path": "/followers"
+                  "@path": "/followers"
                 }
               }
             }
@@ -104,10 +104,10 @@
             "id": "following_count",
             "component": "Text",
             "text": {
-              "call": "formatNumber",
+              "@call": "formatNumber",
               "args": {
                 "value": {
-                  "path": "/following"
+                  "@path": "/following"
                 }
               }
             }
@@ -128,10 +128,10 @@
             "id": "posts_count",
             "component": "Text",
             "text": {
-              "call": "formatNumber",
+              "@call": "formatNumber",
               "args": {
                 "value": {
-                  "path": "/posts"
+                  "@path": "/posts"
                 }
               }
             }
@@ -146,7 +146,7 @@
             "id": "follow_btn_text",
             "component": "Text",
             "text": {
-              "path": "/followText"
+              "@path": "/followText"
             }
           },
           {
@@ -164,7 +164,7 @@
       }
     },
     {
-      "version": "v1.0",
+      "version": "1.0",
       "updateDataModel": {
         "surfaceId": "gallery-user-profile",
         "value": {

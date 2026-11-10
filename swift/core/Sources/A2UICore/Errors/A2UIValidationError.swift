@@ -14,7 +14,7 @@
 
 /// Raised when an A2UI message payload violates formal schema structural boundaries
 /// or type constraints.
-public struct A2UIValidationError: A2UIError, Equatable, Sendable {
+open class A2UIValidationError: A2UIError, Equatable, @unchecked Sendable {
   /// The error message.
   public let message: String
 
@@ -25,5 +25,9 @@ public struct A2UIValidationError: A2UIError, Equatable, Sendable {
   public init(_ message: String, details: [A2UIErrorDetail] = []) {
     self.message = message
     self.details = details
+  }
+
+  public static func == (lhs: A2UIValidationError, rhs: A2UIValidationError) -> Bool {
+    type(of: lhs) == type(of: rhs) && lhs.message == rhs.message && lhs.details == rhs.details
   }
 }

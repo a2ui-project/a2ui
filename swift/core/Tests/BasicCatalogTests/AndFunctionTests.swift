@@ -40,20 +40,55 @@ struct AndFunctionTests {
 
   // MARK: - Edge-Case Evaluation
 
-  @Test func evaluatesToFalseWhenValuesIsMissing() throws {
-    let result = try function.evaluate(arguments: [:], context: context)
+  @Test func throwsErrorWhenValuesIsMissing() throws {
+    #expect(throws: FunctionError.self) {
+      try function.evaluate(arguments: [:], context: context)
+    }
+  }
+
+  @Test func throwsErrorWhenValuesIsNotAnArray() throws {
+    #expect(throws: FunctionError.self) {
+      try function.evaluate(
+        arguments: ["values": .boolean(true)], context: context)
+    }
+  }
+
+  // MARK: - ValidationResult Operands
+
+  @Test func readsFailingValidationResultOperandAsFalseInV10() throws {
+    let result = try AndFunction(readsValidationResults: true).evaluate(
+      arguments: [
+        "values": .array([
+          .object(["valid": .boolean(true)]),
+          .object(["valid": .boolean(false), "message": .string("Required")]),
+        ])
+      ],
+      context: context)
     #expect(result == .boolean(false))
   }
 
-  @Test func evaluatesToFalseWhenValuesIsNotAnArray() throws {
-    let result = try function.evaluate(
-      arguments: ["values": .boolean(true)], context: context)
-    #expect(result == .boolean(false))
-  }
-
-  @Test func evaluatesToTrueWithEmptyArray() throws {
-    let result = try function.evaluate(
-      arguments: ["values": .array([])], context: context)
+  @Test func readsPassingValidationResultOperandsAsTrueInV10() throws {
+    let result = try AndFunction(readsValidationResults: true).evaluate(
+      arguments: [
+        "values": .array([.object(["valid": .boolean(true)]), .boolean(true)])
+      ],
+      context: context)
     #expect(result == .boolean(true))
+  }
+
+  @Test func readsValidationResultOperandByValidityInV09() throws {
+    let result = try function.evaluate(
+      arguments: [
+        "values": .array([.object(["valid": .boolean(false)]), .boolean(true)])
+      ],
+      context: context)
+    #expect(result == .boolean(false))
+  }
+
+  @Test func throwsErrorWithEmptyArray() throws {
+    #expect(throws: FunctionError.self) {
+      try function.evaluate(
+        arguments: ["values": .array([])], context: context)
+    }
   }
 }

@@ -12,86 +12,75 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Format-based solver strategies for A2UI evaluation."""
+
+from __future__ import annotations
+
 import asyncio
+from dataclasses import dataclass, field
 import json
 import re
 from typing import Any
-from inspect_ai.solver import Solver, solver, TaskState, Generate
+
 from inspect_ai.model import (
-    ChatMessageSystem,
-    ModelOutput,
     ChatCompletionChoice,
     ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageUser,
+    ModelOutput,
 )
-from a2ui.core.processing import MessageProcessor, MessageProcessorOptions
-from a2ui.core.validation import STRICT_VALIDATION
-from a2ui.schema.catalog import CatalogConfig
-from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.inference_format import InferenceFormat
+from inspect_ai.solver import Generate, Solver, TaskState, solver
+
+from ..runner import (
+    DEFAULT_PARSE_TIMEOUT_SEC,
+    RunnerOptions,
+    generate_prompt,
+    parse_and_validate,
+    runner_options_from_metadata,
+    validate_format,
+)
 from ..shared.utils import GIT_ROOT, measured_generate
 
+_SURFACE_ID_PATTERN = re.compile(
+    r"<(a2ui|body)\b[^>]*\bid\s*=\s*['\"]([^'\"]+)['\"]", re.IGNORECASE
+)
 
-def _get_strategy(
-    format_name: str,
-    version: str,
-    catalog_config: CatalogConfig,
-    surface_id: str = "main",
-) -> InferenceFormat:
-    """Resolves and instantiates the InferenceFormat strategy for the given format.
+# Metadata written by `measured_generate`; summed across validation retries.
+_INFERENCE_METADATA_KEYS = (
+    "inference_duration_seconds",
+    "inference_input_tokens",
+    "inference_output_tokens",
+    "inference_cached_tokens",
+    "inference_reasoning_tokens",
+)
 
-    Args:
-        format_name: The name of the format strategy (direct_json, express, elemental, or atom).
-        version: The specification version (e.g. 0.9.1 or 1.0).
-        catalog_config: The catalog configuration details.
-        surface_id: The surface identifier target.
 
-    Returns:
-        The instantiated InferenceFormat strategy object.
-    """
-    direct_json_format = DirectJsonFormat(
-        version=version,
-        catalogs=[catalog_config],
-        experiments={"version_1_0"} if version == "1.0" else None,
+def _set_completion(state: TaskState, content: str) -> None:
+    """Replaces the state's output with a single assistant completion."""
+    model = state.output.model if state.output else str(state.model)
+    state.output = ModelOutput(
+        model=model,
+        choices=[ChatCompletionChoice(message=ChatMessageAssistant(content=content))],
     )
-    if format_name == "direct_json":
-        return direct_json_format
-
-    catalog = direct_json_format.get_selected_catalog()
-    formatted_version = f"v{version}" if not version.startswith("v") else version
-    if format_name == "express":
-        from a2ui.inference_formats.experimental.express.format import ExpressFormat
-
-        return ExpressFormat(
-            catalog=catalog, surface_id=surface_id, version=formatted_version
-        )
-    elif format_name == "elemental":
-        from a2ui.inference_formats.experimental.elemental.format import ElementalFormat
-
-        return ElementalFormat(catalog=catalog, surface_id=surface_id)
-    elif format_name == "atom":
-        from a2ui.inference_formats.experimental.atom.format import AtomFormat
-
-        return AtomFormat(catalog=catalog, surface_id=surface_id)
-    elif format_name == "vertical":
-        from a2ui.inference_formats.experimental.vertical.format import VerticalFormat
-
-        return VerticalFormat(
-            catalog=catalog, surface_id=surface_id, version=formatted_version
-        )
-    else:
-        raise ValueError(f"Unknown format strategy: {format_name}")
 
 
 @solver
 def format_system_prompt(format_name: str, version: str) -> Solver:
     """Injects system prompt instructions using the selected format strategy."""
+    validate_format(format_name)
 
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:  # pylint: disable=unused-argument
         catalog_path = state.metadata["catalog"]
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
+        options = runner_options_from_metadata(state.metadata, resolved_catalog_path)
 
-        catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-        strategy = _get_strategy(format_name, version, catalog_config)
+        generated_snippet = await asyncio.to_thread(
+            generate_prompt,
+            format_name,
+            version,
+            resolved_catalog_path,
+            options=options,
+        )
 
         role_description = state.metadata.get("protocol_role") or state.metadata.get(
             "role_description", ""
@@ -100,11 +89,26 @@ def format_system_prompt(format_name: str, version: str) -> Solver:
             "generation_rules"
         ) or state.metadata.get("workflow_description", "")
 
-        a2ui_prompt = strategy.prompt_generator.generate(
-            role_description=role_description,
-            workflow_description=workflow_description,
-            include_schema=True,
-        )
+        prompt_parts = []
+        if role_description:
+            prompt_parts.append(role_description)
+        if workflow_description:
+            prompt_parts.append(f"## Workflow Description:\n{workflow_description}")
+        if format_name == "direct_json":
+            prompt_parts.append(
+                "## Environment Notes:\n"
+                "- When specifying `catalogId` (in `createSurface` as the surface"
+                " default, or on individual components and function calls), always"
+                " use the exact `catalogId` value(s) defined in the provided"
+                " Catalog Schema(s); never invent a custom or placeholder"
+                " `catalogId` URL or identifier (such as `example.com`), even if"
+                " the user prompt mentions a custom catalog.\n"
+                "- In `createSurface`, set `catalogId` to the primary catalog ID"
+                " as the surface default. Components or functions belonging to"
+                " secondary catalogs must specify their own `catalogId`."
+            )
+        prompt_parts.append(generated_snippet)
+        a2ui_prompt = "\n\n".join(prompt_parts)
 
         domain_prompt = state.metadata.get("system_prompt", "").strip()
         if domain_prompt:
@@ -121,206 +125,194 @@ def format_system_prompt(format_name: str, version: str) -> Solver:
     return solve
 
 
-import multiprocessing
+async def _generate_accumulating(
+    state: TaskState, generate: Generate, measured: Solver
+) -> TaskState:
+    """Runs a measured generation, adding its cost to any earlier generation."""
+    before = {k: state.metadata.get(k) or 0 for k in _INFERENCE_METADATA_KEYS}
+    state = await measured(state, generate)
+    for key, previous in before.items():
+        state.metadata[key] = (state.metadata.get(key) or 0) + previous
+    return state
 
 
-def _parse_and_validate_in_process(
-    format_name: str,
-    version: str,
-    resolved_catalog_path: str,
-    surface_id: str,
-    completion: str,
-) -> dict[str, Any]:
-    catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-    strategy = _get_strategy(
-        format_name,
-        version,
-        catalog_config,
-        surface_id=surface_id,
-    )
-    catalog = (
-        strategy.get_selected_catalog()
-        if isinstance(strategy, DirectJsonFormat)
-        else getattr(strategy, "catalog")
-    )
-    validator = catalog.validator
+@dataclass
+class _CompileContext:
+    """Per-sample inputs shared by every compile attempt."""
 
-    parts = strategy.parser.parse_response(completion)
-    compiled_jsons = []
-    serialized_parts = []
-    for p in parts:
-        part_dict = {"text": p.text, "a2ui_json": getattr(p, "a2ui_json", None)}
-        serialized_parts.append(part_dict)
-        a2ui_json = getattr(p, "a2ui_json", None)
-        if a2ui_json:
-            if isinstance(a2ui_json, list):
-                compiled_jsons.extend(a2ui_json)
-            else:
-                compiled_jsons.append(a2ui_json)
-
-    if not compiled_jsons:
-        raise ValueError(
-            f"No compiled A2UI {format_name} user interface found in parsed parts."
-        )
-
-    MessageProcessor(
-        [catalog.core_catalog],
-        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
-    ).process_messages(compiled_jsons)
-    return {"compiled_jsons": compiled_jsons, "parts": serialized_parts}
+    format_name: str
+    version: str
+    resolved_catalog_path: str
+    options: RunnerOptions
+    allowed_surface_ids: list[str]
 
 
-import traceback
+@dataclass
+class _CompileResult:
+    """Outcome of one parse-and-validate attempt."""
+
+    formatted: str = ""
+    compiled_jsons: list[Any] = field(default_factory=list)
+    error: str | None = None
+
+    @property
+    def ok(self) -> bool:
+        return self.error is None
 
 
-def _process_target_wrapper(
-    format_name: str,
-    version: str,
-    resolved_catalog_path: str,
-    surface_id: str,
-    completion: str,
-    return_dict: dict,
-):
-    try:
-        res = _parse_and_validate_in_process(
-            format_name, version, resolved_catalog_path, surface_id, completion
-        )
-        return_dict["result"] = res
-    except Exception as e:
-        return_dict["error"] = f"{e}\n{traceback.format_exc()}"
+def _find_surface_id(completion: str, allowed_surface_ids: list[str]) -> str:
+    """The surface ID named in the completion, or the first allowed one."""
+    default_surface_id = allowed_surface_ids[0] if allowed_surface_ids else "main"
+    match = _SURFACE_ID_PATTERN.search(completion)
+    if match and match.group(2) in allowed_surface_ids:
+        return match.group(2)
+    return default_surface_id
 
 
-def parse_with_hard_kill_timeout(
-    format_name: str,
-    version: str,
-    resolved_catalog_path: str,
-    surface_id: str,
-    completion: str,
-    timeout_sec: float = 15.0,
-) -> dict[str, Any]:
-    with multiprocessing.Manager() as manager:
-        return_dict = manager.dict()
-        p = multiprocessing.Process(
-            target=_process_target_wrapper,
-            args=(
-                format_name,
-                version,
-                resolved_catalog_path,
-                surface_id,
-                completion,
-                return_dict,
-            ),
-        )
-        p.start()
-        p.join(timeout=timeout_sec)
-        if p.is_alive():
-            p.kill()
-            p.join()
-            raise TimeoutError(
-                f"Format compilation timed out after {timeout_sec}s and process was"
-                " killed."
+def _format_output(res_dict: dict[str, Any]) -> tuple[str, list[Any]]:
+    """Renders parse results as text with `<a2ui-json>` payload blocks."""
+    compiled_jsons = res_dict.get("compiled_jsons", [])
+    formatted_parts = []
+    for p in res_dict.get("parts", []):
+        text_part = p.get("text")
+        if text_part:
+            formatted_parts.append(text_part)
+        json_part = p.get("a2ui_json")
+        if json_part:
+            formatted_parts.append(
+                f"<a2ui-json>\n{json.dumps(json_part, indent=2)}\n</a2ui-json>"
             )
 
-        if "error" in return_dict:
-            raise ValueError(return_dict["error"])
-        if "result" not in return_dict:
-            raise ValueError("Compilation produced no output.")
-        return return_dict["result"]
+    formatted = "\n\n".join(formatted_parts).strip()
+    if "<a2ui-json>" not in formatted:
+        formatted = f"<a2ui-json>\n{json.dumps(compiled_jsons, indent=2)}\n</a2ui-json>"
+    return formatted, compiled_jsons
+
+
+async def _attempt_compile(ctx: _CompileContext, completion: str) -> _CompileResult:
+    """Parses and validates one completion, capturing any failure as text."""
+    surface_id = _find_surface_id(completion, ctx.allowed_surface_ids)
+    try:
+        res_dict = await asyncio.to_thread(
+            parse_and_validate,
+            ctx.format_name,
+            ctx.version,
+            ctx.resolved_catalog_path,
+            surface_id,
+            completion,
+            DEFAULT_PARSE_TIMEOUT_SEC,
+            options=ctx.options,
+        )
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        return _CompileResult(error=str(e))
+    formatted, compiled_jsons = _format_output(res_dict)
+    return _CompileResult(formatted=formatted, compiled_jsons=compiled_jsons)
+
+
+def _retry_prompt(error: str) -> str:
+    return (
+        f"Validation failed: {error}. Fix the A2UI payload and reply with the"
+        " complete corrected payload only."
+    )
 
 
 @solver
-def compile_format_payload(format_name: str, version: str) -> Solver:
-    """Solver to compile format-specific output back to standard A2UI JSON."""
+def compile_format_payload(
+    format_name: str,
+    version: str,
+    max_validation_retries: int = 0,
+) -> Solver:
+    """Compiles format-specific output back to standard A2UI JSON.
+
+    On success the compiled messages are stored in
+    `state.metadata["compiled_messages"]` so the scorer does not parse the
+    completion again. With `max_validation_retries > 0`, a failed attempt
+    sends the validation error back to the model and retries. `pass_at_1`,
+    `pass_at_k` and `validation_retries_used` are recorded in the metadata.
+
+    Args:
+        format_name: The name of the format to compile from.
+        version: The target A2UI protocol version.
+        max_validation_retries: Maximum number of validation retries.
+
+    Returns:
+        A Solver step that compiles and validates the format payload.
+    """
+    validate_format(format_name)
+    measured = measured_generate()
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         if not state.output or not state.output.completion:
             return state
 
-        catalog_path = state.metadata["catalog"]
-        resolved_catalog_path = str(GIT_ROOT / catalog_path)
+        resolved_catalog_path = str(GIT_ROOT / state.metadata["catalog"])
+        ctx = _CompileContext(
+            format_name=format_name,
+            version=version,
+            resolved_catalog_path=resolved_catalog_path,
+            options=runner_options_from_metadata(state.metadata, resolved_catalog_path),
+            allowed_surface_ids=state.metadata.get("allowed_surface_ids", ["main"]),
+        )
 
         completion = state.output.completion.strip()
+        result = await _attempt_compile(ctx, completion)
+        state.metadata["pass_at_1"] = result.ok
 
-        allowed_surface_ids = state.metadata.get("allowed_surface_ids", ["main"])
-        default_surface_id = allowed_surface_ids[0] if allowed_surface_ids else "main"
-
-        surface_id = default_surface_id
-        match = re.search(
-            r"<(a2ui|body)\b[^>]*\bid\s*=\s*['\"]([^'\"]+)['\"]",
-            completion,
-            re.IGNORECASE,
-        )
-        if match:
-            found_id = match.group(2)
-            if found_id in allowed_surface_ids:
-                surface_id = found_id
-
-        try:
-            res_dict = await asyncio.to_thread(
-                parse_with_hard_kill_timeout,
-                format_name,
-                version,
-                resolved_catalog_path,
-                surface_id,
-                completion,
-                timeout_sec=15.0,
+        retries_used = 0
+        while not result.ok and retries_used < max_validation_retries:
+            retries_used += 1
+            state.messages.append(
+                ChatMessageUser(content=_retry_prompt(result.error or ""))
             )
+            state = await _generate_accumulating(state, generate, measured)
+            completion = (
+                state.output.completion
+                if state.output is not None and state.output.completion
+                else ""
+            ).strip()
+            result = await _attempt_compile(ctx, completion)
 
-            compiled_jsons = res_dict.get("compiled_jsons", [])
-            parts = res_dict.get("parts", [])
-
-            formatted_parts = []
-            for p in parts:
-                text_part = p.get("text")
-                if text_part:
-                    formatted_parts.append(text_part)
-                json_part = p.get("a2ui_json")
-                if json_part:
-                    formatted_parts.append(
-                        f"<a2ui-json>\n{json.dumps(json_part, indent=2)}\n</a2ui-json>"
-                    )
-
-            formatted = "\n\n".join(formatted_parts).strip()
-            if "<a2ui-json>" not in formatted:
-                formatted = (
-                    f"<a2ui-json>\n{json.dumps(compiled_jsons, indent=2)}\n</a2ui-json>"
-                )
-
-            state.output = ModelOutput(
-                model=state.output.model,
-                choices=[
-                    ChatCompletionChoice(
-                        message=ChatMessageAssistant(content=formatted)
-                    )
-                ],
-            )
-
-        except Exception as e:
-            state.output = ModelOutput(
-                model=state.output.model,
-                choices=[
-                    ChatCompletionChoice(
-                        message=ChatMessageAssistant(
-                            content=(
-                                f"Compilation/validation failed: {e}\nRaw"
-                                f" output:\n{completion}"
-                            )
-                        )
-                    )
-                ],
-            )
-
+        state.metadata["pass_at_k"] = result.ok
+        state.metadata["validation_retries_used"] = retries_used
+        _apply_compile_result(state, result, completion)
         return state
 
     return solve
 
 
-def format_solver(format_name: str, version: str) -> list[Solver]:
-    """Assembles the solver chain for the specified evaluation strategy."""
-    chain = [
+def _apply_compile_result(
+    state: TaskState, result: _CompileResult, completion: str
+) -> None:
+    """Writes the final compile outcome into the state's output and metadata."""
+    if result.ok:
+        state.metadata["compiled_messages"] = result.compiled_jsons
+        _set_completion(state, result.formatted)
+        return
+    _set_completion(
+        state,
+        f"Compilation/validation failed: {result.error}\nRaw output:\n{completion}",
+    )
+
+
+def format_solver(
+    format_name: str,
+    version: str,
+    *,
+    max_validation_retries: int = 0,
+) -> list[Solver]:
+    """Assembles the solver chain for the specified evaluation strategy.
+
+    The chain is prompt injection, generation, then compilation. Compilation
+    runs for every format, including Direct JSON, so the scorer can reuse
+    `compiled_messages` and the retry loop applies uniformly.
+    """
+    validate_format(format_name)
+    return [
         format_system_prompt(format_name, version),
         measured_generate(),
+        compile_format_payload(
+            format_name,
+            version,
+            max_validation_retries=max_validation_retries,
+        ),
     ]
-    if format_name != "direct_json":
-        chain.append(compile_format_payload(format_name, version))
-    return chain

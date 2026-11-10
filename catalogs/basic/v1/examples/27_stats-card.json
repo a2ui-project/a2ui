@@ -3,7 +3,7 @@
   "description": "Example of stats card demonstrating currency and number formatting.",
   "messages": [
     {
-      "version": "v1.0",
+      "version": "1.0",
       "createSurface": {
         "surfaceId": "gallery-stats-card",
         "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -11,7 +11,7 @@
       }
     },
     {
-      "version": "v1.0",
+      "version": "1.0",
       "updateComponents": {
         "surfaceId": "gallery-stats-card",
         "components": [
@@ -35,14 +35,14 @@
             "id": "metric_icon",
             "component": "Icon",
             "name": {
-              "path": "/icon"
+              "@path": "/icon"
             }
           },
           {
             "id": "metric_name",
             "component": "Text",
             "text": {
-              "path": "/metricName"
+              "@path": "/metricName"
             },
             "variant": "caption"
           },
@@ -50,10 +50,10 @@
             "id": "value",
             "component": "Text",
             "text": {
-              "call": "formatCurrency",
+              "@call": "formatCurrency",
               "args": {
                 "value": {
-                  "path": "/value"
+                  "@path": "/value"
                 },
                 "currency": "USD"
               }
@@ -69,14 +69,14 @@
             "id": "trend_icon",
             "component": "Icon",
             "name": {
-              "path": "/trendIcon"
+              "@path": "/trendIcon"
             }
           },
           {
             "id": "trend_text",
             "component": "Text",
             "text": {
-              "call": "formatString",
+              "@call": "formatString",
               "args": {
                 "value": "+${/trendPercent}% from last month"
               }
@@ -87,7 +87,7 @@
       }
     },
     {
-      "version": "v1.0",
+      "version": "1.0",
       "updateDataModel": {
         "surfaceId": "gallery-stats-card",
         "value": {

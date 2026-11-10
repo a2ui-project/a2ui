@@ -16,8 +16,8 @@ import logging
 from typing import override
 from a2a.server.agent_execution import RequestContext
 from a2ui.a2a import try_activate_a2ui_extension
-from a2ui.adk import A2uiEventConverter
-from a2ui.schema import A2UI_CLIENT_CAPABILITIES_KEY
+from a2ui.adk import A2uiEventConverter, A2uiProcessorStore
+from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
 from google.adk.a2a.converters.request_converter import AgentRunRequest
 from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutor, A2aAgentExecutorConfig
 from google.adk.agents.invocation_context import new_invocation_context_id
@@ -28,9 +28,9 @@ from file_resolution import STATE_KEY_BASE_URL
 
 logger = logging.getLogger(__name__)
 
-_A2UI_ENABLED_KEY = "system:a2ui_enabled"
-_A2UI_CATALOG_KEY = "system:a2ui_catalog"
-_A2UI_EXAMPLES_KEY = "system:a2ui_examples"
+# The processor of each session's latest request. It can't be kept in session
+# state, which ADK's session services save as JSON and copy on each load.
+_A2UI_PROCESSORS = A2uiProcessorStore()
 
 
 class FileUploadSummarizerAgentExecutor(A2aAgentExecutor):
@@ -45,7 +45,9 @@ class FileUploadSummarizerAgentExecutor(A2aAgentExecutor):
         self._agent = agent
 
         config = A2aAgentExecutorConfig(
-            event_converter=A2uiEventConverter(bypass_tool_check=True)
+            event_converter=A2uiEventConverter(
+                bypass_tool_check=True, a2ui_processor=_A2UI_PROCESSORS.get
+            )
         )
         super().__init__(runner=self._agent.get_runner(None), config=config)
 
@@ -61,7 +63,6 @@ class FileUploadSummarizerAgentExecutor(A2aAgentExecutor):
         active_ui_version = try_activate_a2ui_extension(context, self._agent.agent_card)
 
         runner = self._agent.get_runner(active_ui_version)
-        inference_format = self._agent.get_inference_format(active_ui_version)
 
         session = await super()._prepare_session(context, run_request, runner)
 
@@ -77,35 +78,17 @@ class FileUploadSummarizerAgentExecutor(A2aAgentExecutor):
                 ),
             )
 
+        processor = None
         if active_ui_version:
             client_capabilities = (
                 context.message.metadata.get(A2UI_CLIENT_CAPABILITIES_KEY)
                 if context.message and context.message.metadata
                 else None
             )
-            a2ui_catalog = (
-                inference_format.get_selected_catalog(
-                    client_ui_capabilities=client_capabilities
-                )
-                if inference_format
-                else None
+            processor = self._agent.create_processor(
+                active_ui_version, client_capabilities
             )
 
-            examples = ""
-
-            await runner.session_service.append_event(
-                session,
-                Event(
-                    invocation_id=new_invocation_context_id(),
-                    author="system",
-                    actions=EventActions(
-                        state_delta={
-                            _A2UI_ENABLED_KEY: True,
-                            _A2UI_CATALOG_KEY: a2ui_catalog,
-                            _A2UI_EXAMPLES_KEY: examples,
-                        }
-                    ),
-                ),
-            )
+        _A2UI_PROCESSORS.set(session.id, processor)
 
         return session

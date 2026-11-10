@@ -40,9 +40,34 @@ struct NotFunctionTests {
 
   // MARK: - Edge-Case Evaluation
 
-  @Test func evaluatesToFalseWhenValueIsMissing() throws {
-    let result = try function.evaluate(arguments: [:], context: context)
-    #expect(result == .boolean(false))
+  @Test func throwsErrorWhenValueIsMissing() throws {
+    #expect(throws: FunctionError.self) {
+      try function.evaluate(arguments: [:], context: context)
+    }
+  }
+
+  // MARK: - ValidationResult Operands
+
+  @Test func invertsValidityOfValidationResultOperandInV10() throws {
+    let notFunction = NotFunction(readsValidationResults: true)
+    let failing = try notFunction.evaluate(
+      arguments: ["value": .object(["valid": .boolean(false)])], context: context)
+    let passing = try notFunction.evaluate(
+      arguments: ["value": .object(["valid": .boolean(true)])], context: context)
+    #expect(failing == .boolean(true))
+    #expect(passing == .boolean(false))
+  }
+
+  @Test func readsNonBooleanValidMemberAsInvalidInV10() throws {
+    let result = try NotFunction(readsValidationResults: true).evaluate(
+      arguments: ["value": .object(["valid": .string("true")])], context: context)
+    #expect(result == .boolean(true))
+  }
+
+  @Test func readsValidationResultOperandByValidityInV09() throws {
+    let result = try function.evaluate(
+      arguments: ["value": .object(["valid": .boolean(false)])], context: context)
+    #expect(result == .boolean(true))
   }
 
   @Test func evaluatesToFalseWhenValueIsNotABoolean() throws {

@@ -1,0 +1,112 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import {html, nothing, css} from 'lit';
+import {
+  getAccessibilityDescription,
+  getAccessibilityLabel,
+  getValidationErrorId,
+  hasAttributeValue,
+  renderValidationErrors,
+} from './accessibility.js';
+import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
+import type {SliderSupportedApis} from './supported_apis.js';
+
+export class A2uiSliderElement extends BasicCatalogA2uiLitElement<SliderSupportedApis> {
+  /** @nocollapse */
+  static readonly tagName = 'a2ui-slider';
+  /**
+   * The slider can be customized with the following CSS variables:
+   *
+   * - `--a2ui-slider-track-color`: Color of the slider track. Defaults to `--a2ui-color-secondary`.
+   * - `--a2ui-slider-thumb-color`: Color of the slider thumb. Defaults to `--a2ui-color-primary`.
+   * - `--a2ui-slider-margin`: Outer margin of the component. Defaults to `--a2ui-spacing-m`.
+   * - `--a2ui-slider-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size` then `--a2ui-font-size-s`.
+   * - `--a2ui-slider-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
+   *
+   * @nocollapse
+   */
+  static override styles = css`
+    .a2ui-slider-container {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: var(--a2ui-spacing-xs, 4px);
+      margin: var(--a2ui-slider-margin, var(--a2ui-spacing-m, 16px));
+    }
+    .a2ui-slider-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: var(
+        --a2ui-slider-label-font-size,
+        var(--a2ui-label-font-size, var(--a2ui-font-size-s, 14px))
+      );
+      font-weight: var(--a2ui-slider-label-font-weight, bold);
+      color: var(--a2ui-text-color-text, var(--a2ui-color-on-background, #333));
+    }
+    .a2ui-slider {
+      width: 100%;
+      cursor: pointer;
+      accent-color: var(--a2ui-slider-thumb-color, var(--a2ui-color-primary, #007bff));
+      background: var(--a2ui-slider-track-color, var(--a2ui-color-secondary, #e9ecef));
+    }
+    .a2ui-error-message {
+      color: var(--a2ui-slider-color-error, red);
+      font-size: var(--a2ui-font-size-xs, 0.75rem);
+    }
+  `;
+
+  override render() {
+    const props = this.controller.props;
+    if (!props) return nothing;
+
+    const min = props.min ?? 0;
+    const max = props.max ?? 100;
+    // `steps` is new in v1.0.
+    const steps = 'steps' in props ? props.steps : undefined;
+    const stepVal =
+      typeof steps === 'number' && steps > 0 && max > min ? (max - min) / steps : nothing;
+
+    const inputId = `${this.domId}-input`;
+    const isInvalid = props.isValid === false;
+
+    return html`
+      <div class="a2ui-slider-container">
+        <div class="a2ui-slider-header">
+          ${hasAttributeValue(props.label)
+            ? html`<label class="a2ui-slider-label" for=${inputId}>${props.label}</label>`
+            : html`<span class="a2ui-slider-label"></span>`}
+          <span class="a2ui-slider-value">${props.value}</span>
+        </div>
+        <input
+          id=${inputId}
+          type="range"
+          min=${min}
+          max=${max}
+          step=${stepVal}
+          aria-label=${getAccessibilityLabel(props.accessibility)}
+          aria-description=${getAccessibilityDescription(props.accessibility)}
+          aria-invalid=${isInvalid ? 'true' : nothing}
+          aria-describedby=${getValidationErrorId(this.domId, props)}
+          .value=${props.value?.toString() || '0'}
+          @input=${(e: Event) => props.setValue?.(Number((e.target as HTMLInputElement).value))}
+          class="a2ui-slider"
+        />
+        ${renderValidationErrors(this.domId, props)}
+      </div>
+    `;
+  }
+}

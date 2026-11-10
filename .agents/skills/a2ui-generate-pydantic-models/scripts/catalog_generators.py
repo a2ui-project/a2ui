@@ -16,7 +16,7 @@
 
 import os
 from typing import Any
-from engine import PydanticCodegen
+from engine import PydanticCodegen, _docstring_literal, _is_docstring_safe, python_literal
 from utils import (
     FILE_HEADER,
     extract_exported_symbols,
@@ -24,6 +24,7 @@ from utils import (
     get_base_common_symbols,
     to_pascal_case,
     to_snake_case,
+    topological_sort_defs,
     version_to_underscore,
 )
 
@@ -33,8 +34,21 @@ def generate_basic_catalog_components(
     catalog_data: dict[str, Any],
     common_data: dict[str, Any] | None = None,
 ) -> str:
-    """Generates components.py content."""
+    """Generates components.py content.
+
+    With common types (v0.9 and later), the models follow the specification
+    closely enough that `Catalog.validation_schema` and `Catalog.to_json`
+    derive the specification's schemas from them. Without them (v0.8), the
+    models keep the document's nested objects, so `Catalog.to_json` rebuilds
+    the v0.8 document.
+    """
     codegen = PydanticCodegen(version)
+    spec_faithful = bool(common_data)
+    codegen.schema_defaults = spec_faithful
+    codegen.spec_fidelity = spec_faithful
+    # Without common types (v0.8), the models keep what the catalog document
+    # says about its nested objects, so `Catalog.to_json` rebuilds it.
+    codegen.document_fidelity = not spec_faithful
     dir_name = version_to_underscore(version)
     common_defs = common_data.get("$defs", {}) if common_data else {}
     common_def_names = set(common_defs.keys())
@@ -60,6 +74,20 @@ def generate_basic_catalog_components(
         f"from {common_module_path} import (\n" + "\n".join(import_lines) + "\n)"
     )
 
+    names = []
+    defs = catalog_data.get("$defs", {})
+    custom_leaf_defs = {
+        k: v
+        for k, v in defs.items()
+        if k not in ("anyComponent", "anyFunction", "CatalogComponentCommon")
+        and k not in common_def_names
+        and isinstance(v, dict)
+    }
+    for def_name in custom_leaf_defs:
+        codegen.local_def_symbols[def_name] = to_pascal_case(def_name)
+    if custom_leaf_defs:
+        codegen.used_helpers.add("CatalogDef")
+
     comp_blocks = [
         (
             f"{FILE_HEADER}\n"
@@ -70,8 +98,30 @@ def generate_basic_catalog_components(
         ),
     ]
 
-    names = []
-    defs = catalog_data.get("$defs", {})
+    leaf_def_blocks = []
+    for def_name in topological_sort_defs(custom_leaf_defs):
+        def_spec = custom_leaf_defs[def_name]
+        py_sym = codegen.local_def_symbols[def_name]
+        base_py_type = codegen.map_json_type_to_python(def_name, def_spec)
+        field_kwargs: list[str] = []
+        if "description" in def_spec:
+            field_kwargs.append(
+                f"description={python_literal(def_spec['description'])}"
+            )
+        if "default" in def_spec:
+            field_kwargs.append(
+                "json_schema_extra={'default':"
+                f" {python_literal(def_spec['default'])}}}"
+            )
+        annotations = []
+        if field_kwargs:
+            annotations.append(f"Field({', '.join(field_kwargs)})")
+        annotations.append(f"CatalogDef({python_literal(def_name)})")
+        leaf_def_blocks.append(
+            f"{py_sym} = Annotated[{base_py_type}, {', '.join(annotations)}]"
+        )
+        names.append(py_sym)
+
     has_catalog_common = "CatalogComponentCommon" in defs
     base_comp_class = (
         "CatalogComponentCommon" if has_catalog_common else "ComponentCommon"
@@ -113,6 +163,11 @@ def generate_basic_catalog_components(
         comp_names.append(comp_class_name)
         props = dict(cschema.get("properties", {}))
         req = list(cschema.get("required", []))
+        description = cschema.get("description", "")
+        # Common types models the component composes, such as `Checkable`,
+        # which become base classes when the models follow the spec.
+        mixins: list[str] = []
+        mixin_props: set[str] = set()
         if "allOf" in cschema:
             for sub_item in cschema["allOf"]:
                 if isinstance(sub_item, dict):
@@ -123,11 +178,16 @@ def generate_basic_catalog_components(
                             and ref_key in all_defs
                         ):
                             resolved_def = all_defs[ref_key]
+                            if spec_faithful and ref_key in common_def_names:
+                                mixins.append(ref_key)
+                                mixin_props.update(resolved_def.get("properties", {}))
+                                continue
                             props.update(resolved_def.get("properties", {}))
                             req.extend(resolved_def.get("required", []))
                     else:
                         props.update(sub_item.get("properties", {}))
                         req.extend(sub_item.get("required", []))
+                        description = description or sub_item.get("description", "")
 
         # Identify discriminator property from schema if present (e.g. const: cname or enum: [cname])
         discriminator_keys = {
@@ -136,15 +196,26 @@ def generate_basic_catalog_components(
             if isinstance(v, dict)
             and (v.get("const") == cname or v.get("enum") == [cname])
         } or {"component"}
-        discriminator_prop = next(iter(discriminator_keys), "component")
+        discriminator_prop = sorted(discriminator_keys)[0]
 
-        lines = [
-            f"class {comp_class_name}({base_comp_class}):",
-            f'    {discriminator_prop}: Literal["{cname}"] = "{cname}"',
-        ]
+        bases = ", ".join([base_comp_class, *mixins])
+        lines = [f"class {comp_class_name}({bases}):"]
+        if spec_faithful and description:
+            if not _is_docstring_safe(description):
+                raise ValueError(
+                    f"Description of {cname} would not round-trip as a docstring:"
+                    f" {description!r}"
+                )
+            lines.append(f"    {_docstring_literal(description)}")
+        lines.append(f'    {discriminator_prop}: Literal["{cname}"] = "{cname}"')
+        if mixins:
+            # Pydantic merges the bases' configs in order, so a mixin the spec
+            # leaves open would otherwise open the component.
+            lines.append('    model_config = ConfigDict(extra="forbid")')
 
-        skip_keys = inherited_props | discriminator_keys
+        skip_keys = inherited_props | discriminator_keys | mixin_props
         filtered_props = {k: v for k, v in props.items() if k not in skip_keys}
+        codegen.name_context = cname
         lines.extend(codegen.compile_properties(filtered_props, req))
         component_defs.append("\n".join(lines))
 
@@ -159,8 +230,15 @@ def generate_basic_catalog_components(
         for iname, ispec in current_batch:
             processed_inline.add(iname)
             inline_names.append(iname)
-            comp_blocks.append(codegen.compile_object_def(iname, ispec))
+            codegen.name_context = iname.removesuffix("Item")
+            prev_skip = codegen.skip_component_property
+            codegen.skip_component_property = False
+            try:
+                comp_blocks.append(codegen.compile_object_def(iname, ispec))
+            finally:
+                codegen.skip_component_property = prev_skip
 
+    comp_blocks.extend(leaf_def_blocks)
     comp_blocks.extend(component_defs)
     names.extend(inline_names)
     names.extend(comp_names)
@@ -197,7 +275,14 @@ def generate_basic_catalog_components(
         "\n".join(basic_comp_lines),
     ]
     comp_blocks.append("\n\n".join(tail_sections))
+    if codegen.used_helpers:
+        comp_blocks[0] += "\n" + _helpers_import(codegen.used_helpers)
     return "\n\n\n".join(b.strip() for b in comp_blocks if b.strip()) + "\n"
+
+
+def _helpers_import(helpers: set[str]) -> str:
+    """Returns the import of the JSON schema helpers generated code uses."""
+    return f"from ...schema._json_schema import {', '.join(sorted(helpers))}"
 
 
 def generate_basic_catalog_functions(
@@ -205,8 +290,18 @@ def generate_basic_catalog_functions(
     catalog_data: dict[str, Any],
     common_data: dict[str, Any] | None = None,
 ) -> str:
-    """Generates function_apis.py content."""
+    """Generates function_apis.py content.
+
+    With common types (v0.9 and later), the models follow the specification
+    closely enough that `Catalog.validation_schema` and `Catalog.to_json`
+    derive the specification's schemas from them. Without them (v0.8), the
+    models keep the document's nested objects, so `Catalog.to_json` rebuilds
+    the v0.8 document.
+    """
     codegen = PydanticCodegen(version)
+    spec_faithful = bool(common_data)
+    codegen.schema_defaults = spec_faithful
+    codegen.spec_fidelity = spec_faithful
     dir_name = version_to_underscore(version)
     common_defs = common_data.get("$defs", {}) if common_data else {}
     common_def_names = set(common_defs.keys())
@@ -244,7 +339,13 @@ def generate_basic_catalog_functions(
             args_class_name = f"{to_pascal_case(fname)}Args"
             func_blocks.append(
                 codegen.compile_object_def(
-                    args_class_name, {"properties": args_props, "required": args_req}
+                    args_class_name,
+                    {"properties": args_props, "required": args_req},
+                    json_schema_extra=(
+                        _args_schema_keywords(fname, args_schema)
+                        if spec_faithful
+                        else None
+                    ),
                 )
             )
 
@@ -290,6 +391,10 @@ def generate_basic_catalog_functions(
         ]
         if requires_user_activation:
             func_class_lines.append("    requires_user_activation = True")
+        if spec_faithful and "description" in fschema:
+            func_class_lines.append(
+                f"    description = {python_literal(fschema['description'])}"
+            )
         func_blocks.append("\n".join(func_class_lines))
         names.append(func_class_name)
         if not allowed_funcs or fname in allowed_funcs:
@@ -306,20 +411,76 @@ def generate_basic_catalog_functions(
         if common_data
         else "...schema.common_types"
     )
+    typing_names = ["Any"] + [
+        name for name in ("Annotated", "Literal") if f"{name}[" in body_text
+    ]
+    helpers = set(codegen.used_helpers)
+    if "SchemaKeywords(" in body_text:
+        helpers.add("SchemaKeywords")
+    if "KEEP_ANY_OF_MARKER" in body_text:
+        helpers.add("KEEP_ANY_OF_MARKER")
+    helpers_line = f"{_helpers_import(helpers)}\n" if helpers else ""
     header = (
-        f"{FILE_HEADER}\nfrom typing import Any\nfrom pydantic import BaseModel, Field,"
-        f" ConfigDict\nfrom {common_module_path} import {', '.join(used_imports)}\nfrom"
+        f"{FILE_HEADER}\nfrom typing import {', '.join(sorted(typing_names))}\nfrom"
+        " pydantic import BaseModel, Field, ConfigDict\nfrom"
+        f" {common_module_path} import {', '.join(used_imports)}\n{helpers_line}from"
         " ...catalog.functions import FunctionApi\n\n\n"
     )
 
     return header + body_text + "\n"
 
 
+def _args_schema_keywords(fname: str, args_schema: dict[str, Any]) -> str | None:
+    """Returns the `json_schema_extra` of a function's args model, if needed.
+
+    The args model closes the object with `additionalProperties: false`; the
+    specification may close it with `unevaluatedProperties` instead or add an
+    `anyOf` of required properties, which the model then declares with
+    `SchemaKeywords`. The `anyOf` is kept as is, since its branches may
+    overlap.
+
+    Raises:
+        ValueError: If the args schema uses a keyword the model cannot carry.
+    """
+    supported = {"type", "properties", "required", "additionalProperties"}
+    object_keys = {"unevaluatedProperties", "anyOf"}
+    unsupported = set(args_schema) - supported - object_keys
+    if unsupported or args_schema.get("type", "object") != "object":
+        raise ValueError(
+            f"Unsupported args schema keywords for {fname}: {sorted(unsupported)}"
+        )
+    if args_schema.get("additionalProperties", False) is not False or (
+        args_schema.get("unevaluatedProperties", False) is not False
+    ):
+        raise ValueError(f"The args of {fname} must be closed: {args_schema}")
+    keywords = {k: args_schema[k] for k in args_schema if k in object_keys}
+    if not keywords:
+        return None
+    items = [f"{python_literal(k)}: {python_literal(v)}" for k, v in keywords.items()]
+    if "anyOf" in keywords:
+        items.append("KEEP_ANY_OF_MARKER: True")
+    drop = (
+        ', drop=("additionalProperties",)'
+        if "unevaluatedProperties" in keywords
+        and "additionalProperties" not in args_schema
+        else ""
+    )
+    return f"SchemaKeywords({{{', '.join(items)}}}{drop})"
+
+
 def generate_basic_catalog_styles(
     version: str,
     catalog_data: dict[str, Any],
+    spec_fidelity: bool = False,
 ) -> str | None:
-    """Generates styles.py content if the catalog defines styles or theme."""
+    """Generates styles.py content if the catalog defines styles or theme.
+
+    Args:
+        version: The protocol version.
+        catalog_data: The catalog document.
+        spec_fidelity: Whether the theme model keeps the specification's
+            keywords (for example `format`), so its schema matches it.
+    """
     defs = catalog_data.get("$defs", {})
     styles_spec = catalog_data.get("styles")
 
@@ -327,6 +488,8 @@ def generate_basic_catalog_styles(
         return None
 
     codegen = PydanticCodegen(version)
+    codegen.schema_defaults = spec_fidelity
+    codegen.spec_fidelity = spec_fidelity
     style_blocks = [
         (
             f"{FILE_HEADER}\n"
@@ -361,14 +524,113 @@ def generate_basic_catalog_styles(
     return "\n\n\n".join(b.strip() for b in style_blocks if b.strip()) + "\n"
 
 
+def _common_types_uris(node: Any) -> set[str]:
+    """Returns the documents that a catalog's common types references name."""
+    uris: set[str] = set()
+    if isinstance(node, dict):
+        ref = node.get("$ref")
+        if isinstance(ref, str) and "common_types.json#" in ref:
+            uris.add(ref.partition("#")[0])
+        for value in node.values():
+            uris |= _common_types_uris(value)
+    elif isinstance(node, list):
+        for item in node:
+            uris |= _common_types_uris(item)
+    return uris
+
+
+def _document_arguments(
+    catalog_data: dict[str, Any], has_theme: bool
+) -> list[tuple[str, str]]:
+    """Returns the `Catalog` arguments of a catalog document's top-level fields.
+
+    `Catalog.to_json` assembles the document from the models and these
+    fields, so the basic catalog needs no copy of its published document.
+
+    Raises:
+        ValueError: If the document's common types references name more than
+            one document, or its unions are not the unions of its entries.
+    """
+    if not catalog_data:
+        return []
+    args: list[tuple[str, str]] = [
+        ("schema_dialect", python_literal(catalog_data.get("$schema")))
+    ]
+    for key, name in (("$id", "schema_id"), ("title", "title")):
+        if key in catalog_data:
+            args.append((name, python_literal(catalog_data[key])))
+    if "description" in catalog_data:
+        args.append(("description", python_literal(catalog_data["description"])))
+    args.append((
+        "declared_protocol_version",
+        python_literal(catalog_data.get("protocolVersion")),
+    ))
+    if "catalogId" not in catalog_data:
+        args.append(("declares_catalog_id", "False"))
+    if "instructions" in catalog_data:
+        args.append(("instructions", python_literal(catalog_data["instructions"])))
+    uris = _common_types_uris(catalog_data)
+    if len(uris) > 1:
+        raise ValueError(f"Common types references name several documents: {uris}")
+    if uris and uris != {"common_types.json"}:
+        args.append(("common_types_uri", python_literal(uris.pop())))
+    defs = catalog_data.get("$defs", {})
+    if has_theme:
+        location = (
+            "theme"
+            if "theme" in catalog_data
+            else "styles"
+            if "styles" in catalog_data
+            else "$defs"
+        )
+        args.append(("theme_location", python_literal(location)))
+    unions = []
+    for union_name, prefix in (
+        ("anyComponent", "#/components/"),
+        ("anyFunction", "#/functions/"),
+    ):
+        if union_name not in defs:
+            continue
+        entries = catalog_data.get(
+            "components" if union_name == "anyComponent" else "functions", {}
+        )
+        expected: dict[str, Any] = (
+            {"oneOf": [{"$ref": f"{prefix}{name}"} for name in entries]}
+            if entries
+            else {"not": {}}
+        )
+        if entries and union_name == "anyComponent":
+            expected["discriminator"] = {"propertyName": "component"}
+        if defs[union_name] != expected:
+            raise ValueError(f"{union_name} does not list the catalog's entries.")
+        unions.append(f"{python_literal(union_name)}: None")
+    args.append(("union_defs", "{" + ", ".join(unions) + "}"))
+    return args
+
+
 def generate_basic_catalog_index(
     version: str,
     out_dir: str,
     comp_code: str,
     func_code: str,
     style_code: str | None,
+    catalog_data: dict[str, Any] | None = None,
 ) -> str:
-    """Generates __init__.py content for a version basic_catalog directory."""
+    """Generates __init__.py content for a version basic_catalog directory.
+
+    Args:
+        version: The protocol version.
+        out_dir: The output directory of the basic catalog package.
+        comp_code: The generated components module.
+        func_code: The generated function APIs module.
+        style_code: The generated styles module, if any.
+        catalog_data: The catalog document. When given, `BasicCatalog` passes
+            its top-level fields (`$schema`, `$id`, `title`, `description`,
+            `protocolVersion`, `instructions`, where it writes its theme,
+            its unions and the document its common types references point
+            into) to `Catalog`, so `Catalog.to_json` rebuilds the document
+            from the models.
+    """
     dir_name = version_to_underscore(version)
     comp_symbols = extract_exported_symbols(comp_code)
     comp_exports = [
@@ -384,42 +646,6 @@ def generate_basic_catalog_index(
 
     style_symbols = extract_exported_symbols(style_code) if style_code else []
     has_theme = "Theme" in style_symbols or "Styles" in style_symbols
-
-    shared_op_path = os.path.join(os.path.dirname(out_dir), "operator_apis.py")
-    local_op_path = os.path.join(out_dir, "operator_apis.py")
-
-    shared_op_names = []
-    local_op_names = []
-
-    if os.path.exists(shared_op_path) and func_code:
-        with open(shared_op_path, "r", encoding="utf-8") as f:
-            shared_symbols = extract_exported_symbols(f.read())
-        shared_op_names = [s for s in shared_symbols if s.endswith("Api")]
-
-    if os.path.exists(local_op_path) and func_code:
-        with open(local_op_path, "r", encoding="utf-8") as f:
-            local_symbols = extract_exported_symbols(f.read())
-        local_op_names = [
-            s for s in local_symbols if s.endswith("Api") and s not in shared_op_names
-        ]
-
-    operator_sections = []
-    if shared_op_names:
-        op_lines = [f"    {name}," for name in shared_op_names]
-        operator_sections.extend([
-            "from ..operator_apis import (",
-            "\n".join(op_lines),
-            ")",
-        ])
-    if local_op_names:
-        op_lines = [f"    {name}," for name in local_op_names]
-        operator_sections.extend([
-            "from .operator_apis import (",
-            "\n".join(op_lines),
-            ")",
-        ])
-
-    operator_names = shared_op_names + local_op_names
 
     has_func_impls = (
         os.path.exists(os.path.join(out_dir, "function_impls.py"))
@@ -446,8 +672,6 @@ def generate_basic_catalog_index(
             "\n".join(func_import_lines),
             ")",
         ])
-    if operator_sections:
-        cat_init.extend(operator_sections)
 
     if has_theme:
         if "Styles" in style_symbols:
@@ -465,13 +689,15 @@ def generate_basic_catalog_index(
     functions_arg = (
         "create_basic_catalog_functions(locale=locale)" if has_func_impls else "[]"
     )
-    theme_arg_line = (
-        "            theme_schema=Theme.model_json_schema(),\n" if has_theme else ""
-    )
+    theme_arg_line = "            theme_model=Theme,\n" if has_theme else ""
     lazy_func_import = (
         "        from ..function_impls import create_basic_catalog_functions\n"
         if (shared_impls and has_func_impls)
         else ""
+    )
+    document_lines = "".join(
+        f"            {name}={value},\n"
+        for name, value in _document_arguments(catalog_data or {}, has_theme)
     )
 
     cat_init.extend([
@@ -483,9 +709,15 @@ def generate_basic_catalog_index(
         "",
         "",
         "def _basic_catalog_id(protocol_version: str) -> str:",
+        "    if protocol_version == 'v0.8':",
+        '        return f"{PROTOCOL_BASE_URL}/v0_8/standard_catalog_definition.json"',
+        (
+            "    ver_dir = protocol_version if protocol_version.startswith('v') else"
+            ' f"v{protocol_version}"'
+        ),
         "    return (",
         (
-            "        f\"{PROTOCOL_BASE_URL}/{protocol_version.replace('.',"
+            "        f\"{PROTOCOL_BASE_URL}/{ver_dir.replace('.',"
             " '_')}/catalogs/basic/catalog.json\""
         ),
         "    )",
@@ -499,7 +731,7 @@ def generate_basic_catalog_index(
         "            protocol_version=PROTOCOL_VERSION,",
         "            components=BASIC_COMPONENTS,",
         f"            functions={functions_arg},",
-        f"{theme_arg_line}        )",
+        f"{theme_arg_line}{document_lines}        )",
         "",
         "",
     ])
@@ -531,7 +763,6 @@ def generate_basic_catalog_index(
         dict.fromkeys(
             comp_exports
             + api_func_names
-            + operator_names
             + theme_exports
             + func_impl_exports
             + ["BasicCatalog"]

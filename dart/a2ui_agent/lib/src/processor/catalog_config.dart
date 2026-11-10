@@ -14,13 +14,58 @@
 
 import 'package:a2ui_core/a2ui_core.dart';
 
-/// A catalog the agent supports, registered with an `A2uiGenerator`.
-///
-/// The catalog is registered for protocol v0.9, the only version this SDK
-/// implements.
-class CatalogConfig {
-  /// The catalog, as parsed by [Catalog.fromJson].
-  final SchemaCatalog catalog;
+import '../catalog_transformers/base.dart';
+import 'catalog_providers.dart';
 
-  const CatalogConfig(this.catalog);
+/// A catalog the agent supports, registered with an `A2uiGenerator`, and the
+/// transformers applied to it.
+///
+/// The catalog is registered for the protocol version it targets, v0.9 or
+/// v1.0. The catalogs registered with one generator target the same one.
+class CatalogConfig {
+  /// The catalog as its document declares it, parsed by [Catalog.fromJson] or
+  /// loaded by a [CatalogProvider].
+  final CatalogApi catalog;
+
+  /// The transformers applied to [catalog], in order, before it reaches a
+  /// prompt or a validator.
+  final List<CatalogTransformer> transformers;
+
+  const CatalogConfig(this.catalog, {this.transformers = const []});
+
+  /// Loads the catalog document at [catalogPath] with a
+  /// [FileSystemCatalogProvider] given [protocolVersion] and [catalogId].
+  ///
+  /// Throws [A2uiCatalogError] if the document cannot be loaded.
+  factory CatalogConfig.fromPath(
+    String catalogPath, {
+    List<CatalogTransformer> transformers = const [],
+    A2uiProtocolVersion? protocolVersion,
+    String? catalogId,
+  }) => CatalogConfig(
+    FileSystemCatalogProvider(
+      catalogPath,
+      protocolVersion: protocolVersion,
+      catalogId: catalogId,
+    ).load(),
+    transformers: transformers,
+  );
+
+  /// [catalog] after each of [transformers] in turn, each seeing the previous
+  /// result.
+  ///
+  /// Computed on first access and then reused, so every request sees the
+  /// same instance and its cached schemas.
+  CatalogApi get transformedCatalog =>
+      _transformedCatalogs[this] ??= transformers.fold<CatalogApi>(
+        catalog,
+        (CatalogApi current, CatalogTransformer transformer) =>
+            transformer.transform(current),
+      );
 }
+
+/// Each [CatalogConfig.transformedCatalog], by config, kept outside the config
+/// so its constructor stays `const`.
+final Expando<CatalogApi> _transformedCatalogs = Expando(
+  'CatalogConfig.transformedCatalog',
+);

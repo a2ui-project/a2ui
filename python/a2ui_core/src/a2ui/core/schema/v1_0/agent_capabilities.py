@@ -22,7 +22,7 @@ from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
 class V10AgentCapabilities(StrictBaseModel):
     supported_catalog_ids: list[str] | None = Field(
-        None,
+        default=None,
         alias="supportedCatalogIds",
         description=(
             "An array of strings, where each is an ID identifying a Catalog for which"
@@ -31,13 +31,13 @@ class V10AgentCapabilities(StrictBaseModel):
         ),
     )
     accepts_inline_catalogs: bool | None = Field(
+        default=None,
         alias="acceptsInlineCatalogs",
         description=(
             "A boolean indicating if the agent can accept an 'inlineCatalogs' array in"
             " the renderer's a2uiRendererCapabilities. If omitted, this defaults to"
             " false."
         ),
-        default=False,
     )
 
 
@@ -45,4 +45,4 @@ V1_0AgentCapabilities = V10AgentCapabilities
 
 
 class A2uiAgentCapabilities(StrictBaseModel):
-    v1_0: V10AgentCapabilities | None = Field(None, alias=PROTOCOL_VERSION)
+    v1_0: V10AgentCapabilities | None = Field(default=None, alias=PROTOCOL_VERSION)

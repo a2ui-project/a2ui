@@ -72,7 +72,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
 
   private _toastTimeout: number | undefined;
 
-  static styles = [
+  static override styles = [
     css`
       * {
         box-sizing: border-box;
@@ -249,7 +249,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
         }
       }
 
-      .error {
+      .app-error {
         color: var(--e-40);
         background-color: var(--e-95);
         border: 1px solid var(--e-80);
@@ -551,10 +551,10 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
   #maybeRenderError() {
     if (!this._error) return nothing;
 
-    return html`<div class="error">${this._error}</div>`;
+    return html`<div class="app-error">${this._error}</div>`;
   }
 
-  connectedCallback() {
+  override connectedCallback() {
     super.connectedCallback();
 
     // Load config from URL
@@ -586,7 +586,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     this._a2uiClient = new A2UIClient(this.config.serverUrl);
   }
 
-  protected firstUpdated() {
+  protected override firstUpdated() {
     if (this._pendingSnackbarMessages.length > 0) {
       for (const {message, replaceAll} of this._pendingSnackbarMessages) {
         this.snackbar.show(message, replaceAll);
@@ -595,7 +595,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     }
   }
 
-  render() {
+  override render() {
     return [
       this.#renderLocalModeHeader(),
       this.#renderThemeToggle(),
@@ -761,7 +761,11 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     try {
       this._requesting = true;
       this.#startLoadingAnimation();
-      const response = this._a2uiClient.send(message);
+      // The catalogs that the processor renders, sent with every request.
+      const response = this._a2uiClient.send(
+        message,
+        this._processor.getRendererCapabilities({versions: ['v0.9']}),
+      );
       await response;
       this._requesting = false;
       this.#stopLoadingAnimation();

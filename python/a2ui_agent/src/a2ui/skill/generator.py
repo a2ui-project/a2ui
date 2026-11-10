@@ -12,17 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""SkillGenerator for compiling InferenceFormat and A2uiCatalog into Skill and SkillSet packages."""
+"""SkillGenerator for compiling InferenceFormat and Catalog into Skill and SkillSet packages."""
 
-from typing import Any, Optional, Union
+from __future__ import annotations
 
+from collections.abc import Sequence
+from typing import Optional
+
+from a2ui.constants import EXAMPLES_HEADING
+from a2ui.core import CatalogApi
 from a2ui.inference_format import InferenceFormat
-from a2ui.schema import A2uiCatalog
-from a2ui.skill.skill import Skill, SkillSet, _clean_catalog_name, _resolve_catalogs_list
+from a2ui.prompt import assemble_instructions
+
+from .skill import Skill, SkillSet, _clean_catalog_name, _resolve_catalogs_list
+
+__all__ = [
+    "SkillGenerator",
+]
 
 
 class SkillGenerator:
-    """Compiles InferenceFormat rules and A2uiCatalog instances into Skill and SkillSet packages."""
+    """Compiles InferenceFormat rules and Catalog instances into Skill and SkillSet packages."""
 
     def __init__(self, fmt: InferenceFormat):
         self.fmt = fmt
@@ -31,36 +41,14 @@ class SkillGenerator:
         self,
         name: str = "a2ui",
         description: Optional[str] = None,
-        catalogs: Optional[list[Union[str, A2uiCatalog]]] = None,
+        catalogs: Optional[Sequence[CatalogApi]] = None,
     ) -> Skill:
         """Compiles an InferenceFormat into a single unified (monolithic) Skill.
 
         If catalogs is not specified, defaults to the catalogs configured on the inference format.
         """
-        resolved_catalogs = _resolve_catalogs_list(catalogs, self.fmt)
-        prompt_gen = self.fmt.prompt_generator
-
-        base_rules = prompt_gen.generate_base_rules()
-
-        cat_blocks = []
-        ex_blocks = []
-        for c in resolved_catalogs:
-            inst = prompt_gen.generate_catalog_instructions(catalog=c)
-            if inst:
-                cat_blocks.append(inst)
-            ex = prompt_gen.generate_examples(catalog=c)
-            if ex:
-                ex_blocks.append(ex)
-
-        body_parts = []
-        if base_rules:
-            body_parts.append(base_rules)
-        if cat_blocks:
-            body_parts.extend(cat_blocks)
-        if ex_blocks:
-            body_parts.append("### Examples:\n\n" + "\n\n".join(ex_blocks))
-
-        content_str = "\n\n".join(body_parts) + "\n"
+        # Without explicit catalogs, the body is the format's prompt snippet.
+        content_str = assemble_instructions(self.fmt.prompt_generator, catalogs) + "\n"
         desc = (
             description
             or "Generates interactive user interface components for user requests."
@@ -75,7 +63,7 @@ class SkillGenerator:
 
     def generate_catalog_skill(
         self,
-        catalog: Optional[A2uiCatalog] = None,
+        catalog: Optional[CatalogApi] = None,
         name: Optional[str] = None,
         description: Optional[str] = None,
         include_examples: bool = True,
@@ -94,21 +82,35 @@ class SkillGenerator:
                     "No catalog provided or configured on the inference format to"
                     " compile catalog skill."
                 )
-        clean_name = _clean_catalog_name(target_catalog)
+        examples = (
+            self.fmt.prompt_generator.generate_examples(catalog=target_catalog)
+            if include_examples
+            else ""
+        )
+        return self._catalog_skill(target_catalog, examples, name, description)
+
+    def _catalog_skill(
+        self,
+        catalog: CatalogApi,
+        examples: str,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> Skill:
+        """Builds a catalog Skill from examples that are already generated."""
+        clean_name = _clean_catalog_name(catalog)
         skill_name = name or f"a2ui-{clean_name}"
-        prompt_gen = self.fmt.prompt_generator
 
         cat_body = (
-            prompt_gen.generate_catalog_instructions(catalog=target_catalog) or ""
+            self.fmt.prompt_generator.generate_catalog_instructions(catalog=catalog)
+            or ""
         )
-        if include_examples:
-            ex = prompt_gen.generate_examples(catalog=target_catalog)
-            if ex:
-                cat_body += f"\n\n### Examples:\n\n{ex}"
+        if examples:
+            cat_body += f"\n\n{EXAMPLES_HEADING}{examples}"
 
+        # The catalog document's own `description` describes the catalog, not
+        # when to use the skill, so it is not used here.
         desc = (
             description
-            or getattr(target_catalog, "description", None)
             or f"UI component catalog signatures for {clean_name}. Use when building {clean_name} user interface components."
         )
 
@@ -141,7 +143,7 @@ class SkillGenerator:
 
     def generate_skillset(
         self,
-        catalogs: Optional[list[Union[str, A2uiCatalog]]] = None,
+        catalogs: Optional[Sequence[CatalogApi]] = None,
         core_name: str = "a2ui-core",
     ) -> SkillSet:
         """Generates standard modular skills (a2ui-core + 1 skill per catalog) for an inference format.
@@ -154,8 +156,18 @@ class SkillGenerator:
         skill_set.add(self.generate_core_skill(name=core_name))
 
         # 2. Per-Catalog Skills
+        # A format whose examples aren't kept per catalog returns the same
+        # examples for each catalog, so only the first catalog skill gets them.
         resolved_catalogs = _resolve_catalogs_list(catalogs, self.fmt)
+        prompt_gen = self.fmt.prompt_generator
+        seen_examples: set[str] = set()
         for cat in resolved_catalogs:
-            skill_set.add(self.generate_catalog_skill(cat))
+            examples = prompt_gen.generate_examples(catalog=cat)
+            skill_set.add(
+                self._catalog_skill(
+                    cat, examples if examples not in seen_examples else ""
+                )
+            )
+            seen_examples.add(examples)
 
         return skill_set

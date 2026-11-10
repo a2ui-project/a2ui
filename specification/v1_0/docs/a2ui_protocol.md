@@ -4,14 +4,14 @@
 <div style="text-align: center;">
   <div class="centered-logo-text-group">
     <img src="../../../docs/public/assets/A2UI_dark.svg" alt="A2UI Protocol Logo" width="100">
-    <h1>A2UI (Agent to UI) Protocol v1.0</h1>
+    <h1>A2UI Protocol v1.0</h1>
   </div>
 </div>
 
 A Specification for a JSON-Based, Streaming UI Protocol.
 
 **Version:** 1.0
-**Status:** Candidate
+**Status:** Current
 **Created:** Nov 20, 2025
 **Last Updated:** Jun 8, 2026
 
@@ -36,7 +36,7 @@ The major differences between version 1.0 and 0.9 (including 0.9.1) are:
 
 - **Bidirectional Function Calls**: Supports explicit, typed function invocation messages (`callRendererFunction`, `callAgentFunction`, `rendererFunctionResponse`, and `agentFunctionResponse`) verified against runtime catalog definitions.
 - **Single-Message UI Instantiation**: Allows initial component trees and data models to be embedded directly within `createSurface`, enabling complete UI composition in a single payload.
-- **Decoupled Branding**: Removes rigid theme properties (removing hardcoded brand colors) to defer visual styling entirely to the target framework's native theme.
+- **Decoupled Branding**: Removes rigid theme properties (removing hardcoded brand colors) to defer visual styling entirely to the target framework's native theme. A v1.0 `createSurface` that carries `theme` is invalid.
 - **Enhanced Catalog Schemas**: Refactors function definitions into object maps for direct O(1) lookups and supports standard JSON Schema metadata fields (`$schema`, `$id`) on inline catalogs.
 - **Strict Identifier & Context Standards**: Enforces Unicode (UAX #31) naming rules across all catalog entities and reserves the `@` namespace for universal system context evaluations (such as `@index`).
 
@@ -125,10 +125,10 @@ A2UI v1.0 is defined by three interacting JSON schemas.
 
 The [`common_types.json`] schema defines reusable primitives used throughout the protocol.
 
-- **`DynamicString` / `DynamicNumber` / `DynamicBoolean` / `DynamicStringList`**: The core of the data binding system. Any property that can be bound to data is defined as a `Dynamic*` type. It accepts either a literal value, a `path` string ([JSON Pointer]), or a `FunctionCall` (function call).
+- **`DynamicString` / `DynamicNumber` / `DynamicBoolean` / `DynamicStringList`**: The core of the data binding system. Any property that can be bound to data is defined as a `Dynamic*` type. It accepts either a literal value, a `DataBinding` (`{"@path": "..."}` using [JSON Pointer]), or a `FunctionCall` (`{"@call": "...", "args": {...}}`). When a `DynamicBoolean` resolves to a `ValidationResult` object (an object with a boolean `valid` property), it is coerced to `result.valid`; strings, numbers, `null`, objects, and arrays are coerced as defined under [`DynamicBoolean` and `CheckRule` Coercion](#dynamicboolean-and-checkrule-coercion).
 - **`ChildList`**: Defines how containers hold children. It supports:
   - `array`: A static array of `ComponentId` component references.
-  - `object`: A template for generating children from a data binding list (requires a template `componentId` and a data binding `path`).
+  - `object`: A template for generating children from a list in the data model (requires a template `componentId` and a JSON Pointer `path` string; note that `path` here is a plain string property on the template object, not a `DataBinding` `{"@path": "..."}` object).
 
 - **`ComponentId`**: A reference to the unique ID of another component within the same surface.
 - **`AccessibilityAttributes`**: Standardized accessibility properties attached via `ComponentCommon` to any component, supporting `label` (`DynamicString`), `description` (`DynamicString`), `live` (`"off"` | `"polite"` | `"assertive"`), and `hidden` (`DynamicBoolean`).
@@ -175,7 +175,7 @@ The envelope defines several message types, and every message streamed by the ag
 
 This message signals the renderer to create a new surface and begin rendering it. A surface must be created before any `updateComponents` or `updateDataModel` messages can be sent to it. While typically achieved by the agent sending a `createSurface` message, an agent may skip this if it knows of a preexisting surface that it has permission to modify. Once a surface is created, its `surfaceId` and default `catalogId` (if provided) are fixed; to reconfigure them, the surface must be deleted and recreated.
 
-It is an error to try to create a surface with a `surfaceId` that already exists without first deleting it; `surfaceId` must be globally unique for the renderer's lifetime. Orchestrators with subagents are empowered to manage surface IDs as needed to prevent conflicts (e.g., prefixing the subagent's name to the `surfaceId` or requiring subagents to use UUIDs).
+It is a state integrity error (`code: "INTEGRITY_ERROR"`) to try to create a surface with a `surfaceId` that already exists without first deleting it via `deleteSurface`; `surfaceId` must be globally unique for the renderer's lifetime. Orchestrators with subagents are empowered to manage surface IDs as needed to prevent conflicts (e.g., prefixing the subagent's name to the `surfaceId` or requiring subagents to use UUIDs).
 
 The `createSurface` message implicitly instantiates the canonical `Surface` container component (`common_types.json#/$defs/Surface`). The `Surface` component always has `"child": "root"` and cannot be modified using `updateComponents`. To render the component tree, one of the components sent to the surface MUST have `"id": "root"`, which mounts as the child of `Surface`.
 
@@ -186,12 +186,15 @@ The `createSurface` message implicitly instantiates the canonical `Surface` cont
 - `sendDataModel` (boolean, optional): If true, the renderer will send the full data model of this surface in the metadata of every message sent to the agent (via the Transport's metadata mechanism). This ensures the surface owner receives the full current state of the UI alongside the user's action or query. Defaults to false.
 - `components` (array, optional): A list containing UI components for the surface, allowing the renderer to build and populate the UI tree immediately on surface creation. Conforms to the `ComponentsList` schema.
 - `dataModel` (object, optional): A plain JSON object representing the initial root state of the data model.
+- `metadata` (object, optional): Surface-level metadata containing an optional `extensions` map (`common_types.json#/$defs/Extensions`).
+
+When a single `createSurface` carries both `dataModel` and `components`, the renderer applies `dataModel` first, so components bind against the initial data on their first resolution. Separate messages keep arrival order (see [`callRendererFunction`](#callrendererfunction)).
 
 **Example:**
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "createSurface": {
     "surfaceId": "user_profile_card",
     "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -205,7 +208,7 @@ The `createSurface` message implicitly instantiates the canonical `Surface` cont
       {
         "id": "user_name",
         "component": "Text",
-        "text": {"path": "/name"}
+        "text": {"@path": "/name"}
       }
     ],
     "dataModel": {
@@ -228,7 +231,7 @@ This message provides a flat list of UI components to add or update within a spe
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "updateComponents": {
     "surfaceId": "user_profile_card",
     "components": [
@@ -266,7 +269,7 @@ This message is used to send or update the data that populates the UI components
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "updateDataModel": {
     "surfaceId": "user_profile_card",
     "path": "/user/name",
@@ -287,7 +290,7 @@ This message instructs the renderer to remove a surface and all its associated c
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "deleteSurface": {
     "surfaceId": "user_profile_card"
   }
@@ -296,23 +299,33 @@ This message instructs the renderer to remove a surface and all its associated c
 
 ### `callRendererFunction`
 
-This message is sent by the agent to execute a function registered on the renderer. Functions are catalog-defined abstractions that avoid sending raw executable code across the wire. Only functions which have `allowedCallers: "agentOnly"` or `allowedCallers: "rendererOrAgent"` in their catalog definition can be called by the agent. Renderer functions can only be called after a session has been initiated by the renderer. Functions are resolved by the specified `catalogId`. Upon completing execution of a `callRendererFunction` message, the renderer MUST always send a corresponding `functionResponse` or `error` message back to the agent, even if the function's return type is `void`.
+This message is sent by the agent to execute a function registered on the renderer. Functions are catalog-defined abstractions that avoid sending raw executable code across the wire. Only functions which have `allowedCallers: "agentOnly"` or `allowedCallers: "rendererOrAgent"` in their catalog definition can be called by the agent. Renderer functions can only be called after a session has been initiated by the renderer. Functions are resolved by the specified `catalogId`. Upon completing execution of a `callRendererFunction` message, the renderer MUST always send a corresponding `rendererFunctionResponse` message (containing either `value` or `error`) back to the agent, even if the function's return type is `void`.
 
 **Properties:**
 
 - `callRendererFunction` (object, required):
-  - `functionCallId` (string, required): A unique identifier for this invocation instance. The renderer MUST copy this ID verbatim into the subsequent `functionResponse` or `error` message.
+  - `surfaceId` (string, optional): The unique identifier for the UI surface whose data model provides the evaluation context for this call. If omitted, the function executes in a surface-independent root context with an empty data model (`{}`).
+  - `functionCallId` (string, required): A unique identifier for this invocation instance. The renderer MUST copy this ID verbatim into the subsequent `rendererFunctionResponse` message.
   - `callFunction` (object, required): The description of the function call.
-    - `call` (string, required): The registered name of the function to execute.
-    - `catalogId` (string, required): The catalog ID defining the function to execute.
+    - `@call` (string, required): The registered name of the function to execute.
+    - `catalogId` (string, required): The catalog ID defining the function to execute. `catalogId` MUST be specified on `callRendererFunction`. A call without it violates the schema, so the message is malformed, and should be rejected. Agents should validate outgoing messages against the schema so that a missing `catalogId` never reaches the renderer. If `catalogId` names a catalog the renderer has not registered, the renderer rejects the call with `code: "INVALID_FUNCTION_CALL"`.
     - `args` (object, optional): Arguments passed to the function, as defined by its schema in the catalog.
+
+**Evaluation Scope and Ordering:**
+
+- **Evaluation Scope**:
+  - When `surfaceId` is specified, `callRendererFunction` executes against the root `DataContext` (`'/'`) of that surface's data model, allowing `DataBinding` (`{"@path": "..."}`) expressions inside `args` to read from the surface's data model. If no active surface with `surfaceId` exists, the renderer MUST reject the call and return a `rendererFunctionResponse` with `code: "INVALID_FUNCTION_CALL"`.
+  - When `surfaceId` is omitted, `callRendererFunction` executes in a surface-independent root context with an isolated empty data model (`{}`). Renderers MUST NOT resolve it against any existing surface's data model; any `DataBinding` (`{"@path": "..."}`) inside `args` resolves against the empty root model (`null` / `undefined`).
+  - In either context, calling `{"@call": "@index"}` outside a list template fails with `code: "EXECUTION_ERROR"`.
+- **Envelope Dispatch Ordering**: Message envelopes in a stream or batch are dispatched in arrival order. Synchronous surface mutations (`createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface`) that precede a `callRendererFunction` or `agentFunctionResponse` envelope take effect before that RPC envelope is dispatched, while asynchronous `callRendererFunction` execution completes without blocking subsequent envelopes in the stream.
 
 **Security Boundaries and Verification:**
 
-Execution boundary verification (`"rendererOnly"`, `"agentOnly"`, or `"rendererOrAgent"`) is enforced strictly at runtime by the renderer application:
+Execution boundary verification (`"rendererOnly"`, `"agentOnly"`, or `"rendererOrAgent"`) and user activation checks (`requiresUserActivation`) are enforced at runtime by the renderer application:
 
-- When a renderer receives a `callRendererFunction` message, it determines the function's execution boundary (e.g., `allowedCallers` status) at runtime by reading its configuration from the active catalog definition.
-- If the requested function is configured in the catalog as `"rendererOnly"`, or if the function is not registered at all, the renderer MUST immediately reject the call and return a renderer-to-agent `error` message with `code: "INVALID_FUNCTION_CALL"`.
+- When a renderer receives a `callRendererFunction` message, it determines the function's execution boundary (`allowedCallers`) and activation policy (`requiresUserActivation`) at runtime from the active catalog definition.
+- If the requested function is configured in the catalog as `"rendererOnly"`, requires an active user gesture (`requiresUserActivation: true`) when none is present, fails argument schema validation, or is not registered at all, the renderer MUST immediately reject the call and return a `rendererFunctionResponse` message containing an `error` object with `code: "INVALID_FUNCTION_CALL"`.
+- Note that `catalog_definition.json` requires functions declaring `requiresUserActivation: true` (such as `openUrl`) to set `allowedCallers: "rendererOnly"`, preventing agent-initiated remote invocation. Within the renderer, functions with `requiresUserActivation: true` MUST only execute when triggered by an active user gesture (such as a component `Action`). If referenced in a passive property binding or `CheckRule.condition`, the renderer MUST block execution and report a local evaluation error (`code: "EXPRESSION_ERROR"`).
 - Functions marked as `"agentOnly"` or `"rendererOrAgent"` are authorized for agent invocation via `callRendererFunction`. Functions configured as `"agentOnly"` CANNOT be bound to UI component properties or executed by renderer UI actions; they are restricted exclusively to agent-initiated `callRendererFunction` execution.
 
 **Example:**
@@ -321,11 +334,11 @@ Agent sends this message to the renderer:
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "callRendererFunction": {
     "functionCallId": "get_device_resolution_123",
     "callFunction": {
-      "call": "getScreenResolution",
+      "@call": "getScreenResolution",
       "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
       "args": {
         "screenIndex": 0
@@ -339,7 +352,7 @@ If the function executes successfully, the renderer responds with a `rendererFun
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "rendererFunctionResponse": {
     "functionCallId": "get_device_resolution_123",
     "value": [1920, 1080]
@@ -347,15 +360,17 @@ If the function executes successfully, the renderer responds with a `rendererFun
 }
 ```
 
-If the agent attempts to call a `rendererOnly` function (e.g., a local-only component validator), the renderer responds with an error:
+If the agent attempts to call a `rendererOnly` function (e.g., a local-only component validator), the renderer responds with a `rendererFunctionResponse` containing an `error` payload:
 
 ```json
 {
-  "version": "v1.0",
-  "error": {
-    "code": "INVALID_FUNCTION_CALL",
-    "message": "Function 'validateLocalInput' is rendererOnly and cannot be invoked remotely.",
-    "functionCallId": "get_device_resolution_123"
+  "version": "1.0",
+  "rendererFunctionResponse": {
+    "functionCallId": "get_device_resolution_123",
+    "error": {
+      "code": "INVALID_FUNCTION_CALL",
+      "message": "Function 'validateLocalInput' cannot be called by agent (allowedCallers is rendererOnly)."
+    }
   }
 }
 ```
@@ -377,7 +392,7 @@ The payload MUST include either `value` or `error`.
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "agentFunctionResponse": {
     "functionCallId": "verify_provider_99",
     "value": {
@@ -392,7 +407,7 @@ The payload MUST include either `value` or `error`.
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "agentFunctionResponse": {
     "functionCallId": "verify_provider_99",
     "error": {
@@ -421,14 +436,14 @@ sequenceDiagram
 
     Client->>Agent: HTTP POST (Action / Event)
     Agent-->>Client: 200 OK (callRendererFunction)
-    Client->>Agent: HTTP POST (functionResponse)
+    Client->>Agent: HTTP POST (rendererFunctionResponse)
     Agent-->>Client: 200 OK (updateComponents)
 ```
 
 1. **Initiation:** The renderer sends a standard HTTP POST request (e.g., dispatching an event action or polling).
 2. **Server Response:** The agent returns a `callRendererFunction` payload in the HTTP response.
-3. **Execution & Delivery:** The renderer executes the function locally, then initiates a follow-up HTTP POST request delivering the `functionResponse` (or `error`).
-4. **Completion:** The agent processes `functionResponse` and returns updated UI components (`updateComponents`).
+3. **Execution & Delivery:** The renderer executes the function locally, then initiates a follow-up HTTP POST request delivering the `rendererFunctionResponse`.
+4. **Completion:** The agent processes `rendererFunctionResponse` and returns updated UI components (`updateComponents`).
 
 ---
 
@@ -445,7 +460,7 @@ sequenceDiagram
     participant Agent as Agent (Server)
 
     Agent->>Client: Stream Message (callRendererFunction)
-    Client->>Agent: Stream Message (functionResponse)
+    Client->>Agent: Stream Message (rendererFunctionResponse)
     Agent->>Client: Stream Message (updateComponents)
 ```
 
@@ -458,21 +473,21 @@ sequenceDiagram
     participant Agent as Agent (Server)
 
     Client->>Agent: Stream Message (callAgentFunction)
-    Agent->>Client: Stream Message (functionResponse)
+    Agent->>Client: Stream Message (agentFunctionResponse)
 ```
 
 1. **Asynchronous Dispatch:** Messages flow over the established stream without requiring HTTP request-response wrapping.
-2. **Correlation:** Every function call includes a `functionCallId` which is copied verbatim into the returning `functionResponse` or `error` message to correlate requests and responses asynchronously.
+2. **Correlation:** Every function call includes a `functionCallId` which is copied verbatim into the returning `rendererFunctionResponse` or `agentFunctionResponse` (`FunctionResponse` payload) message to correlate requests and responses asynchronously.
 
 ## Example Stream
 
 The following example demonstrates a complete interaction to render a Contact Form, expressed as a JSONL stream.
 
 ```jsonl
-{"version": "v1.0", "createSurface":{"surfaceId":"contact_form_1","catalogId":"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"}}
-{"version": "v1.0", "updateComponents":{"surfaceId":"contact_form_1","components":[{"id":"root","component":"Card","child":"form_container"},{"id":"form_container","component":"Column","children":["header_row","name_row","email_group","phone_group","pref_group","divider_1","newsletter_checkbox","submit_button"],"justify":"start","align":"stretch"},{"id":"header_row","component":"Row","children":["header_icon","header_text"],"align":"center"},{"id":"header_icon","component":"Icon","name":"mail"},{"id":"header_text","component":"Text","text":"# Contact Us"},{"id":"name_row","component":"Row","children":["first_name_group","last_name_group"],"justify":"spaceBetween"},{"id":"first_name_group","component":"Column","children":["first_name_label","first_name_field"],"weight":1},{"id":"first_name_label","component":"Text","text":"First Name","variant":"caption"},{"id":"first_name_field","component":"TextField","label":"First Name","value":{"path":"/contact/firstName"},"variant":"shortText"},{"id":"last_name_group","component":"Column","children":["last_name_label","last_name_field"],"weight":1},{"id":"last_name_label","component":"Text","text":"Last Name","variant":"caption"},{"id":"last_name_field","component":"TextField","label":"Last Name","value":{"path":"/contact/lastName"},"variant":"shortText"},{"id":"email_group","component":"Column","children":["email_label","email_field"]},{"id":"email_label","component":"Text","text":"Email Address","variant":"caption"},{"id":"email_field","component":"TextField","label":"Email","value":{"path":"/contact/email"},"variant":"shortText","checks":[{"call":"required","args":{"value":{"path":"/contact/email"}},"message":"Email is required."},{"call":"email","args":{"value":{"path":"/contact/email"}},"message":"Please enter a valid email address."}]},{"id":"phone_group","component":"Column","children":["phone_label","phone_field"]},{"id":"phone_label","component":"Text","text":"Phone Number","variant":"caption"},{"id":"phone_field","component":"TextField","label":"Phone","value":{"path":"/contact/phone"},"variant":"shortText","checks":[{"call":"regex","args":{"value":{"path":"/contact/phone"},"pattern":"^\\d{10}$"},"message":"Phone number must be 10 digits."}]},{"id":"pref_group","component":"Column","children":["pref_label","pref_picker"]},{"id":"pref_label","component":"Text","text":"Preferred Contact Method","variant":"caption"},{"id":"pref_picker","component":"ChoicePicker","variant":"mutuallyExclusive","options":[{"label":"Email","value":"email"},{"label":"Phone","value":"phone"},{"label":"SMS","value":"sms"}],"value":{"path":"/contact/preference"}},{"id":"divider_1","component":"Divider","axis":"horizontal"},{"id":"newsletter_checkbox","component":"CheckBox","label":"Subscribe to our newsletter","value":{"path":"/contact/subscribe"}},{"id":"submit_button_label","component":"Text","text":"Send Message"},{"id":"submit_button","component":"Button","child":"submit_button_label","variant":"primary","action":{"event":{"name":"submitContactForm","context":{"formId":"contact_form_1","rendererTime":{"call":"formatDate","args":{"value": "2026-02-02T15:17:00Z", "format": "E MMM d, YYYY h:mm a"}},"isNewsletterSubscribed":{"path":"/contact/subscribe"}}}}}]}}
-{"version": "v1.0", "updateDataModel":{"surfaceId":"contact_form_1","path":"/contact","value":{"firstName":"John","lastName":"Doe","email":"john.doe@example.com","phone":"1234567890","preference":["email"],"subscribe":true}}}
-{"version": "v1.0", "deleteSurface":{"surfaceId":"contact_form_1"}}
+{"version": "1.0", "createSurface":{"surfaceId":"contact_form_1","catalogId":"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"}}
+{"version": "1.0", "updateComponents":{"surfaceId":"contact_form_1","components":[{"id":"root","component":"Card","child":"form_container"},{"id":"form_container","component":"Column","children":["header_row","name_row","email_group","phone_group","pref_group","divider_1","newsletter_checkbox","submit_button"],"justify":"start","align":"stretch"},{"id":"header_row","component":"Row","children":["header_icon","header_text"],"align":"center"},{"id":"header_icon","component":"Icon","name":"mail"},{"id":"header_text","component":"Text","text":"# Contact Us"},{"id":"name_row","component":"Row","children":["first_name_group","last_name_group"],"justify":"spaceBetween"},{"id":"first_name_group","component":"Column","children":["first_name_label","first_name_field"],"weight":1},{"id":"first_name_label","component":"Text","text":"First Name","variant":"caption"},{"id":"first_name_field","component":"TextField","label":"First Name","value":{"@path":"/contact/firstName"},"variant":"shortText"},{"id":"last_name_group","component":"Column","children":["last_name_label","last_name_field"],"weight":1},{"id":"last_name_label","component":"Text","text":"Last Name","variant":"caption"},{"id":"last_name_field","component":"TextField","label":"Last Name","value":{"@path":"/contact/lastName"},"variant":"shortText"},{"id":"email_group","component":"Column","children":["email_label","email_field"]},{"id":"email_label","component":"Text","text":"Email Address","variant":"caption"},{"id":"email_field","component":"TextField","label":"Email","value":{"@path":"/contact/email"},"variant":"shortText","checks":[{"condition":{"@call":"required","args":{"value":{"@path":"/contact/email"}}},"message":"Email is required."},{"condition":{"@call":"email","args":{"value":{"@path":"/contact/email"}}},"message":"Please enter a valid email address."}]},{"id":"phone_group","component":"Column","children":["phone_label","phone_field"]},{"id":"phone_label","component":"Text","text":"Phone Number","variant":"caption"},{"id":"phone_field","component":"TextField","label":"Phone","value":{"@path":"/contact/phone"},"variant":"shortText","checks":[{"condition":{"@call":"regex","args":{"value":{"@path":"/contact/phone"},"pattern":"^\\d{10}$"}},"message":"Phone number must be 10 digits."}]},{"id":"pref_group","component":"Column","children":["pref_label","pref_picker"]},{"id":"pref_label","component":"Text","text":"Preferred Contact Method","variant":"caption"},{"id":"pref_picker","component":"ChoicePicker","variant":"mutuallyExclusive","options":[{"label":"Email","value":"email"},{"label":"Phone","value":"phone"},{"label":"SMS","value":"sms"}],"value":{"@path":"/contact/preference"}},{"id":"divider_1","component":"Divider","axis":"horizontal"},{"id":"newsletter_checkbox","component":"CheckBox","label":"Subscribe to our newsletter","value":{"@path":"/contact/subscribe"}},{"id":"submit_button_label","component":"Text","text":"Send Message"},{"id":"submit_button","component":"Button","child":"submit_button_label","variant":"primary","action":{"event":{"name":"submitContactForm","context":{"formId":"contact_form_1","rendererTime":{"@call":"formatDate","args":{"value": "2026-02-02T15:17:00Z", "format": "E MMM d, YYYY h:mm a"}},"isNewsletterSubscribed":{"@path":"/contact/subscribe"}}}}}]}}
+{"version": "1.0", "updateDataModel":{"surfaceId":"contact_form_1","path":"/contact","value":{"firstName":"John","lastName":"Doe","email":"john.doe@example.com","phone":"1234567890","preference":["email"],"subscribe":true}}}
+{"version": "1.0", "deleteSurface":{"surfaceId":"contact_form_1"}}
 ```
 
 ## Component model
@@ -483,7 +498,7 @@ A2UI's component model is designed for flexibility, separating the protocol's st
 
 Each object in the `components` array of an `updateComponents` message defines a single UI component. It has the following structure:
 
-- `id` (`ComponentId`, required): A unique string that identifies this specific component instance. This is used for parent-child references.
+- `id` (`ComponentId`, required): A unique string that identifies this specific component instance. This is used for parent-child references. It MUST follow the [Catalog Entity Naming Rules](#catalog-entity-naming-rules) (UAX #31): `user_card` and `userCard` are valid, `user-card` and `1st_item` are not.
 - `component` (string, required): Specifies the component's type (e.g., `"Text"`).
 - `catalogId` (string, optional): A string that uniquely identifies the catalog for this component, overriding the surface's default `catalogId`. Useful when combining components from multiple catalogs in a single surface.
 - **Component Properties**: Other properties relevant to the specific component type (e.g., `text`, `url`, `children`) are included directly in the component object.
@@ -503,6 +518,8 @@ When resolving a component (or function call), the renderer evaluates catalog id
 > [!IMPORTANT]
 > There is **no fallback** to the list of catalogs declared in `rendererCapabilities` (even if the renderer only advertises a single supported catalog). Every component and function call must resolve through either its explicit `catalogId` or the surface default `catalogId`.
 
+Function calls interpolated inside [`formatString`](#the-formatstring-function) `${...}` expressions have no syntax for naming a `catalogId`. Non-system function calls inside `${...}` resolve against the catalog that the enclosing `formatString` call resolved to (even when the surface defines a different default `catalogId`), while `@`-prefixed system functions such as `@index` remain catalogless.
+
 ### Catalog-Agnostic Accessibility Requirements
 
 Because JSON Schema cannot inspect arbitrary catalog component property semantics to infer which properties represent visible text labels or which components accept user interaction, accessibility rules are enforced through normative specification requirements and SDK tooling:
@@ -511,7 +528,10 @@ Because JSON Schema cannot inspect arbitrary catalog component property semantic
 
 - **Plumb Accessibility Attributes**: Map all relevant A2UI `AccessibilityAttributes` (`label`, `description`, `live`, `hidden`) to the underlying UI framework's accessibility APIs (e.g., WAI-ARIA `aria-label`, `aria-describedby`, `aria-live`, and `aria-hidden` for web renderers; `Semantics` properties for Flutter; `AccessibilityNodeInfo` / `accessibilityLabel` for Android and iOS renderers).
 - **Infer Default Semantics**: Use component types and non-accessibility properties (such as visible titles or text labels) to configure accessibility defaults automatically. When explicit `AccessibilityAttributes` (e.g., `label` or `description`) are provided, they MUST override inferred visual defaults. For example, a button component with a title of `"Submit"` and an explicit `accessibility.label` of `"Send Form"` must be announced by assistive technologies as `"Send Form"`.
-- **SDK Linter Checks**: SDK tooling and catalog linters MUST verify that component schemas accepting actions or input bindings declare accessible label requirements or fallbacks.
+
+**Catalog tooling SHOULD:**
+
+- **Catalog Linter Checks**: Catalog tooling SHOULD warn when a component that accepts an action or user input declares no text-bearing label property (or, in strict mode, no required text-bearing property). A component accepts an action when one of its properties references `common_types.json#/$defs/Action`, and accepts user input when it includes `common_types.json#/$defs/Checkable`. A text-bearing property is a string or `DynamicString` property, a child component reference, or an array of objects that each declare a text-bearing property. Because JSON Schema does not say which property holds the input value, tooling MAY exclude the property it treats as the input value (by convention `value`). This is a heuristic: it cannot prove a label exists, and a warning can be acknowledged per component.
 
 ### The component catalog
 
@@ -528,7 +548,7 @@ Every catalog follows the standard `Catalog` object definition:
 
 #### Catalog Entity Naming Rules
 
-To ensure complete cross-language compatibility across renderer SDKs, parsers, and code generators, all catalog entity identifiers—specifically **component names**, **function names**, and **argument/property names**—MUST adhere strictly to [Unicode Standard Annex #31 (UAX #31)](https://www.unicode.org/reports/tr31/) variable naming rules.
+To ensure complete cross-language compatibility across renderer SDKs, parsers, and code generators, all catalog entity identifiers—specifically **component names**, **function names**, and **argument/property names**—as well as **component instance IDs** (`ComponentId`) MUST adhere strictly to [Unicode Standard Annex #31 (UAX #31)](https://www.unicode.org/reports/tr31/) variable naming rules.
 
 1. **Permitted Characters**: Identifiers must begin with a character in the Unicode property class `XID_Start` or an underscore (`_`, `U+005F`). Subsequent characters must belong to the Unicode property class `XID_Continue`.
 2. **Prohibited Initial Characters**: Identifiers MUST NOT begin with a decimal digit (Unicode general category `Nd`).
@@ -558,12 +578,12 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
    - **External References inside `$defs`:** Any definition referenced externally (e.g., from the envelope schema `agent_to_renderer.json` or `common_types.json`) MUST reside inside the `"$defs"` object at the catalog root. This strictly includes:
      - `anyComponent`: Referenced as `catalog.json#/$defs/anyComponent`.
      - `anyFunction`: Referenced as `catalog.json#/$defs/anyFunction`.
-2. **No Custom `$defs` or Helpers:**
-   - To prevent unconstrained branching, custom definitions or shared helper schemas inside a catalog are strictly prohibited under `"$defs"`.
-   - The only allowed keys within the catalog's `"$defs"` object are `anyComponent` and `anyFunction`.
-   - All helper properties (such as common properties factored out of catalog items) MUST be inlined directly inside the properties block of each supporting component schema rather than referenced from a shared helper.
+2. **Catalog-Scoped Leaf `$defs`:**
+   - Custom leaf definitions (such as design system tokens, value unions, or shared object option schemas) MAY be declared under `"$defs"` at the catalog root alongside `anyComponent` and `anyFunction`.
+   - Component schemas MUST NOT be defined inside `"$defs"` (including inside `allOf` wrappers); all UI components must be declared at the top level under `"components"`.
 3. **Restricted `$ref` Targets:**
-   - Local `$ref` targets are restricted to referencing the catalog's top-level components or functions (e.g., `#/components/Text`, `#/functions/required`).
+   - Component properties and leaf definitions MAY reference catalog-scoped leaf definitions using `#/$defs/<TypeName>` (where `<TypeName>` is not `anyComponent` or `anyFunction`).
+   - Component schemas inside `anyComponent` and function schemas inside `anyFunction` reference top-level components and functions (e.g., `#/components/Text`, `#/functions/required`).
    - External `$ref` targets MUST reference the standard types inside `common_types.json` using the relative target format (`common_types.json#/$defs/...`). Allowed `$ref` targets are limited to the following schemas:
      - `ComponentId`
      - `Child`
@@ -579,6 +599,7 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `Action`
      - `DataBinding`
      - `FunctionCall`
+   - Any other external `$ref` target, such as a reference into another catalog, makes the catalog invalid. Implementations MUST report a catalog error when the catalog is loaded, and MUST NOT fetch the target over the network.
 
    > [!NOTE]
    > **Catalog Evolution and Protocol Compatibility**
@@ -595,17 +616,19 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      }
      ```
      This enables route-dispatch matching via the `discriminator` block inside `anyComponent` (designating `"propertyName": "component"`).
-5. **Standard Component Structure:**
+5. **Standard Component Structure & Scoped Combinators:**
    - Catalog components define their discriminator (`component: { const: "<Name>" }`) and local properties (e.g., its children, variant, specific layouts), and can optionally import common property sets (such as `Checkable`) via `$ref`.
+   - Components MUST remain flat: declared as a single `type: "object"` with direct `properties`. Structural combinators (`oneOf`, `anyOf`, or non-trait `allOf`) MUST NOT be used at the component root.
+   - Combinators (`oneOf`, `anyOf`) are scoped exclusively to leaf property types (such as design token definitions or value unions in `$defs` or property schemas).
    - Base component envelope properties (`id`, `catalogId`, and `accessibility` via `ComponentCommon`) are composed at the envelope level in `agent_to_renderer.json` via `allOf` inside the `Component` definition (referenced by `ComponentsList`), and therefore MUST NOT be redundantly wrapped with `ComponentCommon` via `allOf` inside individual catalog component definitions.
 6. **Strict Function Interface Pattern:**
    - Every function schema defined inside the `functions` map must validate a wire-level `FunctionCall` object. This requires:
-     - A `properties` block with a `call` property containing a constant of the function's name (e.g., `"call": { "const": "email" }`).
+     - A `properties` block with a `@call` property containing a constant of the function's name (e.g., `"@call": { "const": "email" }`).
      - An optional `args` property representing arguments (or absent if the function accepts no arguments).
      - Mandatory metadata fields outside the strict JSON validation properties to advertise interface details:
        - **`returnType`**: Must be a string enum indicating the return type (`string`, `number`, `boolean`, `array`, `object`, `validationResult`, `any`, or `void`).
        - **`allowedCallers`**: Must be a string enum indicating the authorized callers (`rendererOnly`, `agentOnly`, or `rendererOrAgent`). If omitted, it defaults to `rendererOnly`.
-   - Base function envelope properties (`call` and `catalogId` via `FunctionCommon`) are composed at the envelope level in `FunctionCall` (`common_types.json#/$defs/FunctionCall`) via `allOf`, and therefore MUST NOT be redundantly wrapped with `FunctionCommon` via `allOf` inside individual catalog function definitions.
+   - Base function envelope properties (`@call` and `catalogId` via `FunctionCommon`) are composed at the envelope level in `FunctionCall` (`common_types.json#/$defs/FunctionCall`) via `allOf`, and therefore MUST NOT be redundantly wrapped with `FunctionCommon` via `allOf` inside individual catalog function definitions.
 7. **Strict Top-Level Schema Keys:**
    - To keep catalog schemas predictable and prevent custom extensions from polluting the global file space, a `catalog.json` file is restricted to the following root-level keys:
      - `$schema`
@@ -615,6 +638,7 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `description`
      - `catalogId`
      - `instructions`
+     - `metadata` (optional; supports `metadata.extensions` for catalog-wide extension metadata)
      - `components`
      - `functions`
      - `$defs`
@@ -638,6 +662,15 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
   "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
   "instructions": "Design instructions for LLMs when generating layouts under this catalog.",
 
+  // Optional catalog-level metadata extensions
+  "metadata": {
+    "extensions": {
+      "org_example_theme": {
+        "primaryColor": "md.sys.color.primary",
+      },
+    },
+  },
+
   // Top-level components declared under top-level "components" map.
   "components": {
     "Text": {
@@ -651,6 +684,11 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
         "text": {
           "$ref": "common_types.json#/$defs/DynamicString",
           "description": "Text content to display.",
+        },
+        // Leaf property referencing a catalog-scoped design token $def
+        "color": {
+          "$ref": "#/$defs/ColorToken",
+          "description": "Text color token.",
         },
         // Deprecated property.
         "rawContent": {
@@ -674,7 +712,7 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
       "allowedCallers": "rendererOnly",
       "properties": {
         // Function call schema requires constant with function's name.
-        "call": {
+        "@call": {
           "const": "required",
         },
         "args": {
@@ -688,13 +726,13 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
           "additionalProperties": false,
         },
       },
-      "required": ["call", "args"],
+      "required": ["@call", "args"],
       "unevaluatedProperties": false,
     },
   },
 
-  // $defs is restricted strictly to anyComponent and anyFunction.
-  // Custom definitions or helpers inside a catalog are strictly prohibited under $defs.
+  // $defs contains external references (anyComponent, anyFunction) and optional leaf definitions.
+  // Custom component definitions inside $defs are strictly prohibited.
   "$defs": {
     "anyComponent": {
       "oneOf": [
@@ -712,6 +750,21 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
         {
           // Local refs restricted to top-level functions map.
           "$ref": "#/functions/required",
+        },
+      ],
+    },
+    // Catalog-scoped leaf definition (design token)
+    "ColorToken": {
+      "type": "string",
+      "description": "Design token or hex color string.",
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^md\\.sys\\.color\\.[a-z0-9-]+$",
+        },
+        {
+          "type": "string",
+          "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
         },
       ],
     },
@@ -813,7 +866,7 @@ Interactive components (like `Button`) use an `action` property to define what h
 
 #### Agent actions
 
-To send an event to the agent, use the `event` property within the `action` object. It requires a `name` and supports an optional `context` object containing parameters to dispatch to the agent.
+To send an event to the agent, use the `event` property within the `action` object. It requires a `name` and supports an optional `userMessage` (`DynamicString`, resolved by the renderer into a human-readable string in the outbound `action` message) and an optional `context` object containing key-value parameters to dispatch to the agent.
 
 ```json
 {
@@ -823,6 +876,7 @@ To send an event to the agent, use the `event` property within the `action` obje
   "action": {
     "event": {
       "name": "submit_form",
+      "userMessage": "Submitted order #123",
       "context": {
         "itemId": "123"
       }
@@ -833,7 +887,7 @@ To send an event to the agent, use the `event` property within the `action` obje
 
 #### Local actions
 
-To execute a local function, use the `functionCall` property within the `action` object. This property references a standard `FunctionCall` object.
+To execute a local function, use the `functionCall` property within the `action` object. This property references a standard `FunctionCall` object. Functions declared with `requiresUserActivation: true` in their catalog definition (such as `openUrl`) MUST only execute when triggered by an active user gesture (e.g., inside an `action` handler); referencing them in a passive property binding or validation `CheckRule.condition` is blocked by the renderer (`code: "EXPRESSION_ERROR"`).
 
 ```json
 {
@@ -842,9 +896,9 @@ To execute a local function, use the `functionCall` property within the `action`
   "child": "open_link_button_label",
   "action": {
     "functionCall": {
-      "call": "openUrl",
+      "@call": "openUrl",
       "args": {
-        "url": "${/url}"
+        "url": {"@path": "/url"}
       }
     }
   }
@@ -911,13 +965,13 @@ When a container component (such as `Column`, `Row`, or `List`) utilizes the **T
 {
   "id": "name_text",
   "component": "Text",
-  "text": { "path": "name" }
+  "text": { "@path": "name" }
   // "name" is Relative. Resolves to /employees/N/name
 },
 {
   "id": "company_text",
   "component": "Text",
-  "text": { "path": "/company" }
+  "text": { "@path": "/company" }
   // "/company" is Absolute. Resolves to "Acme Corp" globally.
 }
 ```
@@ -939,7 +993,7 @@ Interactive components that accept user input (`TextField`, `CheckBox`, `Slider`
 Unlike static display components (like `Text`), input components modify the renderer-side data model immediately upon user interaction.
 
 1.  **Read (Model -> View):** When the component renders, it reads its value from the bound `path`. If the Data Model is updated via `updateDataModel`, the component re-renders to reflect the new value.
-2.  **Write (View -> Model):** When the user interacts with the component (e.g., types a character, toggles a box), the renderer **immediately** updates the value at the bound `path` in the local Data Model.
+2.  **Write (View -> Model):** When the user interacts with the component (e.g., types a character, toggles a box), the renderer **immediately** updates the value at the bound `path` in the local Data Model. If the path does not exist yet, the renderer creates it, so an input can be bound to a path the agent never initialized.
 
 #### Reactivity
 
@@ -966,7 +1020,7 @@ It is critical to note that Two-Way Binding is **local to the renderer**.
       "event": {
         "name": "submit_form",
         "context": {
-          "email": { "path": "/formData/email" }
+          "email": { "@path": "/formData/email" }
         }
       }
     }
@@ -1002,7 +1056,7 @@ _Update a specific field:_
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "updateDataModel": {
     "surfaceId": "surface_123",
     "path": "/user/firstName",
@@ -1015,7 +1069,7 @@ _Remove a field:_
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "updateDataModel": {
     "surfaceId": "surface_123",
     "path": "/user/tempData",
@@ -1028,7 +1082,7 @@ _Replace the entire data model:_
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "updateDataModel": {
     "surfaceId": "surface_123",
     "value": {
@@ -1060,7 +1114,7 @@ The renderer supports a set of named **Functions** (e.g., `required`, `regex`, `
 
 Input components (like `TextField`, `ChoicePicker`) and interactive elements (like `Button`) can define a list of `checks` (`CheckRule` objects).
 
-A `CheckRule` contains a `condition` (a `DataBinding` path or a `FunctionCall`) that evaluates to a `ValidationResult` object (defined in [`catalog_definition.json#/$defs/ValidationResult`](../json/catalog_definition.json)).
+A `CheckRule` contains a `condition` (a `DataBinding` path or a `FunctionCall`) and an optional fallback `message` string. The `condition` evaluates to either a `ValidationResult` object (defined in [`catalog_definition.json#/$defs/ValidationResult`](../json/catalog_definition.json)) or a primitive `boolean`.
 
 #### `ValidationResult` Structure
 
@@ -1073,15 +1127,41 @@ Validation functions (declared with `"returnType": "validationResult"`) or data 
 
 Because `ValidationResult` permits additional unconstrained properties, validation functions and specialized components can extend the object with custom domain-specific metadata (such as suggested fix values, field paths, or retry parameters).
 
+#### `DynamicBoolean` and `CheckRule` Coercion
+
+To allow validation functions (`required`, `email`, `regex`, `length`, `numeric`, which return `ValidationResult`) to compose with boolean properties and functions accepting `DynamicBoolean` arguments (such as `and`, `or`, and `not`, which return `boolean`), renderers apply three coercion rules:
+
+1. **`ValidationResult` → `boolean` in `DynamicBoolean`**:
+   - Schema validation of a `DynamicBoolean` occurs on the written wire payload (which accepts a literal `boolean`, any `DataBinding`, or any `FunctionCall`) before nested expressions are evaluated.
+   - At runtime, whenever a `DynamicBoolean` (such as an argument to `and`, `or`, `not`, or a boolean component property) evaluates to a `ValidationResult` object (an object with a boolean `valid` property), the renderer extracts `result.valid` as its boolean value.
+   - Functions with `DynamicBoolean` arguments (including `and`, `or`, and `not`) therefore receive and return plain booleans. When a boolean combinator is used as a `CheckRule.condition`, the enclosing `CheckRule.message` provides the user-facing error message when the combinator returns `false`.
+2. **`boolean` → `ValidationResult` in `CheckRule.condition`**:
+   - When a `CheckRule.condition` evaluates to `true`, the renderer coerces it to `{"valid": true}`.
+   - When a `CheckRule.condition` evaluates to `false`, the renderer coerces it to `{"valid": false, "message": <CheckRule.message>, "severity": "error"}`.
+   - When a `CheckRule.condition` evaluates to a `ValidationResult` with `valid: false`, `CheckRule.message` is used as a fallback if `ValidationResult.message` is omitted, and `severity` defaults to `"error"` if omitted.
+3. **Any value → `boolean` in `DynamicBoolean`**:
+   - This coercion applies wherever a `DynamicBoolean` is resolved, including component properties typed `DynamicBoolean` and `DynamicBoolean` function arguments (`and`, `or`, `not`, and any catalog function whose argument schema references `DynamicBoolean`), before the function runs:
+
+     | Resolved value                                                 | Coerced `boolean`             |
+     | :------------------------------------------------------------- | :---------------------------- |
+     | `boolean`                                                      | Unchanged (`true` or `false`) |
+     | `ValidationResult` (an object with a boolean `valid` property) | `result.valid`                |
+     | `string` `"true"` or `"false"` (in any letter case)            | `true` or `false`             |
+     | Any other `string`, including `""` and `"hello"`               | `false`                       |
+     | `number` `0`                                                   | `false`                       |
+     | Any other `number`                                             | `true`                        |
+     | `null` or absent                                               | `false`                       |
+     | Any other object or array                                      | `false`                       |
+
 _Example Component Definition:_
 
 ```json
 "checks": [
   {
     "condition": {
-      "call": "validateCreditCard",
+      "@call": "validateCreditCard",
       "args": {
-        "cardNumber": { "path": "/payment/cardNumber" }
+        "cardNumber": { "@path": "/payment/cardNumber" }
       }
     }
   }
@@ -1116,24 +1196,24 @@ Buttons can also define `checks`. If any check fails, the button is automaticall
   "checks": [
     {
       "condition": {
-        "call": "and",
+        "@call": "and",
         "args": {
           "values": [
             {
-              "call": "required",
-              "args": {"value": {"path": "/formData/terms"}}
+              "@call": "required",
+              "args": {"value": {"@path": "/formData/terms"}}
             },
             {
-              "call": "or",
+              "@call": "or",
               "args": {
                 "values": [
                   {
-                    "call": "required",
-                    "args": {"value": {"path": "/formData/email"}}
+                    "@call": "required",
+                    "args": {"value": {"@path": "/formData/email"}}
                   },
                   {
-                    "call": "required",
-                    "args": {"value": {"path": "/formData/phone"}}
+                    "@call": "required",
+                    "args": {"value": {"@path": "/formData/phone"}}
                   }
                 ]
               }
@@ -1176,25 +1256,33 @@ The [`catalogs/basic/catalog.json`] provides the baseline set of components and 
 
 ### Functions
 
-> **System Namespace Rule (`@` Prefix)**: Function names beginning with `@` (e.g., `@index`) represent universal system context evaluations available across all catalogs. Custom catalogs MUST NOT define functions prefixed with `@`.
+> **Reserved Protocol Directives (`@` Prefix)**: The `@` prefix is strictly reserved for protocol-level directives and system context functions:
+>
+> - **`@path`**: Represents a dynamic data binding to a path in the data model (e.g. `{"@path": "/user/name"}`).
+> - **`@call`**: Represents a catalog or system function invocation (e.g. `{"@call": "formatString", "args": {...}}`).
+> - **`@index`**: Represents the universal system context function returning the 0-based iteration index during list template rendering (`{"@call": "@index"}`). Custom catalogs MUST NOT define functions prefixed with `@`.
+>
+> **Single-`@` Directive Rule**: Any key in a dynamic object matching `^@([^@]|$)` (a leading `@` that is not doubled, including a key consisting of `@` alone) that is not a recognized protocol directive is disallowed and rejected by renderers and validators. This reserves the single-`@` namespace for future protocol extensions without breaking backward compatibility.
+>
+> **Escaping via Prefix Doubling**: Plain objects that require literal property names starting with `@` must escape them by doubling the prefix: `"@@path"` evaluates to `"@path"`, `"@@type"` evaluates to `"@type"`, etc. Plain objects with `"path"` and `"call"` keys are literal objects and are never intercepted as dynamic bindings.
 
-| Function           | Description                                                              |
-| :----------------- | :----------------------------------------------------------------------- |
-| **@index**         | Returns the 0-based index of the current item during template rendering. |
-| **required**       | Checks that the value is not null, undefined, or empty.                  |
-| **regex**          | Checks that the value matches a regular expression string.               |
-| **length**         | Checks string length constraints.                                        |
-| **numeric**        | Checks numeric range constraints.                                        |
-| **email**          | Checks that the value is a valid email address.                          |
-| **formatString**   | Does string interpolation of data model values and registered functions. |
-| **formatNumber**   | Formats a number with grouping and precision.                            |
-| **formatCurrency** | Formats a number as a currency string.                                   |
-| **formatDate**     | Formats a date/time using a pattern.                                     |
-| **pluralize**      | Selects a localized string based on a numeric count.                     |
-| **openUrl**        | Opens a URL in a browser (requires user activation).                     |
-| **and**            | Logical AND operation on a list of boolean values.                       |
-| **or**             | Logical OR operation on a list of boolean values.                        |
-| **not**            | Logical NOT operation on a boolean value.                                |
+| Function           | Description                                                                     |
+| :----------------- | :------------------------------------------------------------------------------ |
+| **@index**         | Returns the 0-based index of the current item during template rendering.        |
+| **required**       | Checks that the value is not null, undefined, or empty.                         |
+| **regex**          | Checks that the value contains a match for a pattern in the A2UI regex dialect. |
+| **length**         | Checks string length constraints.                                               |
+| **numeric**        | Checks numeric range constraints.                                               |
+| **email**          | Checks that the value is a valid email address.                                 |
+| **formatString**   | Does string interpolation of data model values and registered functions.        |
+| **formatNumber**   | Formats a number with grouping and precision.                                   |
+| **formatCurrency** | Formats a number as a currency string.                                          |
+| **formatDate**     | Formats a date/time using a pattern.                                            |
+| **pluralize**      | Selects a localized string based on a numeric count.                            |
+| **openUrl**        | Opens a URL in a browser (requires user activation).                            |
+| **and**            | Logical AND operation on a list of boolean values or validation results.        |
+| **or**             | Logical OR operation on a list of boolean values or validation results.         |
+| **not**            | Logical NOT operation on a boolean value or validation result.                  |
 
 ### The `formatString` function
 
@@ -1218,7 +1306,7 @@ Values from the data model can be interpolated using their JSON Pointer path.
   "id": "user_welcome",
   "component": "Text",
   "text": {
-    "call": "formatString",
+    "@call": "formatString",
     "args": {
       "value": "Hello, ${/user/firstName}! Welcome back to ${/appName}."
     }
@@ -1235,6 +1323,8 @@ Results of renderer-side functions can be interpolated. Function calls are ident
 
 Arguments can be **Literals** (quoted strings, numbers, or booleans), or **Nested Expressions**.
 
+Because `${...}` syntax cannot specify a `catalogId`, non-system function calls inside `${...}` (including nested calls inside their arguments) resolve against the catalog that the enclosing `formatString` call resolved to, even if the surface declares a different default `catalogId`. Reserved `@`-prefixed system functions (such as `${@index()}`) belong to no catalog and remain catalogless.
+
 #### `formatString` nested interpolation
 
 Expressions can be nested using additional `${...}` wrappers inside an outer expression to make bindings explicit or to chain function calls.
@@ -1250,13 +1340,43 @@ When a non-string value is interpolated, the renderer converts it to a string:
 - **Null/Undefined**: An empty string `""`.
 - **Objects/Arrays**: Stringified as JSON to ensure consistency across different renderer implementations.
 
+### The `regex` function
+
+The `regex` validation function evaluates a regular expression pattern in the **A2UI regex dialect** and applies a static safety check before matching. Any catalog function that accepts a regular expression pattern (`regex`, `regexCapture`, `split`) SHOULD use this dialect and safety check.
+
+#### `regex` dialect
+
+The dialect is a portable subset of ECMAScript `Pattern` syntax, evaluated in Unicode mode (`u`) with no other flags:
+
+1. **Matching semantics**: Matching is case-sensitive. `.` matches any code point except U+000A, U+000D, U+2028, and U+2029. `^` and `$` match only at the start and end of the value (no multiline mode, and `$` does not match before a trailing newline). `\d`, `\w`, and `\b` are ASCII-only. `\s` is the ECMAScript WhiteSpace and LineTerminator set. The function uses search semantics: it returns valid when the pattern matches anywhere in the value, like `RegExp.prototype.test`.
+2. **Allowed syntax**: Literals, `.`, character classes with ranges and negation, the class escapes `\d \D \w \W \s \S`, `\b \B`, control escapes `\t \n \v \f \r`, `\0` not followed by a digit, `\xHH`, `\uHHHH`, `\u{H...}`, identity escapes of syntax characters, capturing groups `( )`, non-capturing groups `(?: )`, lookahead `(?= )` and `(?! )`, alternation, and the quantifiers `* + ? {n} {n,} {n,m}` with optional lazy `?`.
+3. **Not allowed**: Backreferences (`\1`-`\9`, `\k<name>`), lookbehind (`(?<=`, `(?<!`), named groups (`(?<name>`), `\p{...}`/`\P{...}`, `\cX`, legacy octal escapes, and inline flags. A pattern that does not parse in this dialect, or uses a construct that is not allowed, fails with `code: "EXPRESSION_ERROR"`.
+
+#### `regex` safety check
+
+Before any matching, the renderer applies a static safety check and rejects the pattern with `code: "EXPRESSION_ERROR"` when:
+
+1. It is longer than 256 code points.
+2. A quantifier whose upper bound is above 1 applies to a subexpression that contains an unbounded quantifier (`*`, `+`, `{n,}`).
+3. An unbounded quantifier applies to an alternation where two branches can start with the same character.
+4. Two unbounded-quantified atoms with overlapping character sets are adjacent in one concatenation, where only zero-width assertions or items that can match the empty string lie between them.
+
+`?` and `{0,1}` count as upper bound 1. Counted bounds such as `{1,1000}` are bounded. A group whose only content is one quantified atom counts as that atom. Rule 3 compares the first-character sets of the branches after unwrapping groups.
+
+A value longer than 4,096 code points does not match; `regex` returns `{"valid": false}` and reports no error.
+
+#### `regex` examples
+
+- **Accepted**: `^[a-z]+@[a-z]+\.com$`, `^(?=.*\d).{8,}$`, `\w+\s+\w+`.
+- **Rejected**: `(a+)+$` (rule 2), `(a|ab)*c` (rule 3), `\d+\s*\d+` (rule 4), `(\w)\1` (backreference).
+
 ### The `@index` function
 
 The `@index` function returns the 0-based index of the current item when rendering a dynamic list from a template. It is a universal system function available across all catalogs.
 
 #### `@index` scope restriction
 
-The `@index` function MUST ONLY be available when evaluating template items within a list rendering context (Collection Scope). When an expression evaluator encounters `@index()`, it inspects the active Evaluation Context chain. If a Collection Scope is present, it returns the tracked iteration index. If called outside of template iteration (e.g., directly in the Root Scope), the renderer MUST treat it as an error or evaluate it as invalid.
+The `@index` function MUST ONLY be available when evaluating template items within a list rendering context (Collection Scope). When an expression evaluator encounters `@index()`, it inspects the active Evaluation Context chain starting from the current scope and walking upward. If one or more Collection Scopes are present (such as in nested list templates), `@index` resolves to the **innermost** enclosing template's 0-based iteration index. If called outside of template iteration (e.g., directly in the Root Scope), the renderer MUST treat it as an error or evaluate it as invalid.
 
 #### `@index` arguments
 
@@ -1268,10 +1388,10 @@ Displaying item positions inside a list row template:
 
 ```json
 {
-  "id": "todo-index",
+  "id": "todo_index",
   "component": "Text",
   "text": {
-    "call": "formatString",
+    "@call": "formatString",
     "args": {
       "value": "#${@index(offset: 1)}"
     }
@@ -1330,18 +1450,21 @@ This message is sent when a user interacts with a component that has an agent ac
 - `surfaceId` (string, required): The unique ID of the surface where the event originated.
 - `sourceComponentId` (string, required): The ID of the component that triggered the interaction.
 - `timestamp` (string, required): An ISO 8601 timestamp representing when the event occurred.
+- `userMessage` (string, optional): A human-readable message describing the action performed by the user, resolved from `action.event.userMessage`.
 - `context` (object, required): A JSON object containing the key-value pairs of the action's context parameters, after resolving all dynamic data bindings.
+- `metadata` (object, optional): Action-level metadata containing an optional `extensions` map (`common_types.json#/$defs/Extensions`).
 
 **Example:**
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "action": {
     "name": "submitForm",
     "surfaceId": "contact_form_1",
     "sourceComponentId": "submit_button",
     "timestamp": "2026-06-02T08:57:23Z",
+    "userMessage": "Submitted contact form",
     "context": {
       "isSubscribed": true
     }
@@ -1357,27 +1480,32 @@ This message is sent by the renderer to execute a function remotely on the agent
 
 When the renderer evaluates a `FunctionCall` (from an action handler, validation check, or dynamic value), it determines the execution target using implicit fallback routing:
 
-1. **Local Lookup:** The renderer checks if a local renderer-side function with that name is registered in its local catalog/registry. If found, the renderer executes the function locally.
-2. **Fallback to Agent RPC:** If the function is not registered in the local renderer catalog, the renderer assumes it is an agent-side function and dispatches a `callAgentFunction` message over the protocol.
-3. **Agent Error Handling:** If the agent does not recognize the function name (or if parameter validation fails on the server), the agent MUST return an `agentFunctionResponse` message containing an `error` payload (`code: "UNKNOWN_FUNCTION"` or `"INVALID_FUNCTION_CALL"`). The renderer then handles the error state locally (e.g., via component error boundaries or fallbacks).
+1. **Catalog Resolution:** The renderer resolves the catalog the call runs in, from its explicit `catalogId` or the surface default `catalogId` (see [Mixable catalogs and component resolution logic](#mixable-catalogs-and-component-resolution-logic)). A call whose catalog cannot be resolved is a catalog error, and is not routed to the agent.
+2. **Local Lookup:** A reserved system function (`@`-prefixed, such as `@index`) is always evaluated locally and MUST NOT be routed to the agent. Otherwise, the renderer checks whether it has a local implementation of the function in that catalog. A function counts as registered locally only if the renderer can execute it. If it can, the renderer enforces the function's `allowedCallers` and `requiresUserActivation` boundaries and executes it locally.
+3. **Fallback to Agent RPC:** If the renderer has no local implementation, the renderer assumes it is an agent-side function and dispatches a `callAgentFunction` message over the protocol. This covers a function that the catalog does not declare, and a function that the catalog declares without the renderer implementing it (a schema-only declaration). For a declared function, the renderer first applies the declaration's boundaries: if it sets `allowedCallers: "agentOnly"`, or sets `requiresUserActivation: true` and the evaluation is not user-activated (such as a data binding or a check), the renderer MUST NOT dispatch the call and reports an `EXPRESSION_ERROR` instead. The renderer resolves the arguments before dispatching, and validates the arguments of a declared function against its schema; arguments that fail validation are reported as an `EXPRESSION_ERROR` and are not sent. Routing is a renderer-initiated call, so it applies to a schema-only function whose `allowedCallers` is `"rendererOnly"`, the default: that value only forbids the agent from calling the function with `callRendererFunction`.
+   - **Sharing and caching:** For reactive evaluations (data bindings and checks), a renderer MAY share one in-flight call between identical calls (the same resolved `catalogId`, function name and `args`) on a surface, and MAY reuse the settled answer of such a call on that surface. Imperative evaluations (actions) MUST send a new `callAgentFunction` each time. An agent function with side effects should therefore be called from an action.
+4. **Agent Error Handling:** If the agent does not recognize the function name (or if parameter validation fails on the server), the agent MUST return an `agentFunctionResponse` message containing an `error` payload (`code: "UNKNOWN_FUNCTION"` or `"INVALID_FUNCTION_CALL"`). The renderer then handles the error state locally (e.g., via component error boundaries or fallbacks).
+
+Fallback routing only applies to function calls that the renderer accepts. A renderer that rejects payloads naming functions absent from its catalogs MUST declare the agent-side functions it expects, without implementing them, for those calls to reach the agent.
 
 **Properties:**
 
 - `callAgentFunction` (object, required):
   - `surfaceId` (string, required): The surface ID where the call originated.
   - `functionCallId` (string, required): A unique identifier for this invocation instance. The agent MUST copy this ID verbatim into the return `agentFunctionResponse`.
-  - `callFunction` (object, required): The description of the function call (`call`, `catalogId`, `args`).
+  - `callFunction` (object, required): The description of the function call (`@call`, `catalogId`, `args`). The renderer MUST set `catalogId` to the catalog the call resolved to, even when the originating `FunctionCall` omits it and relies on the surface default, so that the agent does not need to track each surface's default catalog. `args` carries the resolved argument values. For a function the catalog declares, `args` is the result of validating those values against the declared schema, with the schema's defaults applied.
 
 **Example:**
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "callAgentFunction": {
     "surfaceId": "contact_form_1",
     "functionCallId": "verify_provider_99",
     "callFunction": {
-      "call": "verifyProvider",
+      "@call": "verifyProvider",
+      "catalogId": "https://example.com/catalogs/healthcare.json",
       "args": {
         "providerId": "PRV-102"
       }
@@ -1403,7 +1531,7 @@ The payload MUST include either `value` or `error`.
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "rendererFunctionResponse": {
     "functionCallId": "get_device_resolution_123",
     "value": [1920, 1080]
@@ -1415,11 +1543,11 @@ The payload MUST include either `value` or `error`.
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "rendererFunctionResponse": {
     "functionCallId": "get_device_resolution_123",
     "error": {
-      "code": "EXECUTION_FAILED",
+      "code": "EXECUTION_ERROR",
       "message": "Failed to query screen resolution."
     }
   }
@@ -1428,23 +1556,23 @@ The payload MUST include either `value` or `error`.
 
 ### `error`
 
-This message is sent by the renderer to report runtime or execution errors to the agent (such as execution boundary violations, or missing catalog-registered handlers).
+This message is sent by the renderer to report surface-level validation/integrity errors or envelope-level function invocation faults to the agent. (Standard `callRendererFunction` execution and boundary failures are returned via `rendererFunctionResponse.error`, as described above.)
 
 **Properties:**
 
-- `code` (string, required): The machine-readable error code (e.g., `"INVALID_FUNCTION_CALL"`).
+- `code` (string, required): The machine-readable error code (e.g., `"VALIDATION_FAILED"`, `"INTEGRITY_ERROR"`, `"INVALID_FUNCTION_CALL"`).
 - `message` (string, required): A short, human-readable description of the error.
 - `surfaceId` (string, optional): The unique ID of the surface where the error occurred. This field is mutually exclusive with `functionCallId`.
-- `functionCallId` (string, optional): The unique ID of the function invocation that failed. This field is mutually exclusive with `surfaceId` and MUST be included if the error is triggered by an agent-initiated function call failure.
+- `functionCallId` (string, optional): The unique ID of the function invocation that failed. This field is mutually exclusive with `surfaceId` and is used when reporting function invocation errors outside a `rendererFunctionResponse`.
 
-**Example (Execution Boundary Failure):**
+**Example (Function Invocation Error):**
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "error": {
     "code": "INVALID_FUNCTION_CALL",
-    "message": "Function 'deleteLocalFile' is rendererOnly and cannot be called from the agent.",
+    "message": "Malformed callRendererFunction payload.",
     "functionCallId": "delete_file_call_9"
   }
 }
@@ -1469,42 +1597,42 @@ The component tree syntax is completely uniform. The renderer evaluates whether 
 When a UI component binding or validation rule depends on a function that routes remotely to the agent (or executes an asynchronous renderer function):
 
 1. **Async Evaluation:** The renderer dispatches the function call (e.g. emitting `callAgentFunction`) and enters an asynchronous evaluation state.
-2. **Pending UI State:** The renderer maintains a pending/loading state for the affected component binding (e.g., displaying a loading indicator or preserving existing component values) while awaiting `functionResponse`.
-3. **Value Resolution:** Upon receiving `functionResponse`, the renderer updates the local dynamic value or validation state with the returned `value`.
+2. **Pending UI State:** The renderer maintains a pending/loading state for the affected component binding (e.g., displaying a loading indicator or preserving existing component values) while awaiting `agentFunctionResponse`.
+3. **Value Resolution:** Upon receiving `agentFunctionResponse`, the renderer updates the local dynamic value or validation state with the returned `value`.
 
 ### 3. Failure Propagation & Recovery Rules
 
-If a function call within a content pipeline fails (returns a `functionResponse` containing an `error` payload, times out, or triggers a transport error), the renderer applies the following recovery rules:
+If a function call within a content pipeline fails (returns an `agentFunctionResponse` containing an `error` payload, throws a local execution error, times out, or triggers a transport error), the renderer applies the following recovery rules:
 
-- **Dynamic Value Binding Failure:** The property binding resolves to `null` (or a declared fallback value), and the renderer logs an evaluation error without crashing the surrounding component tree.
-- **Validation Rule Failure (`Checkable`):** The check rule evaluates as invalid, displaying the rule's specified error message to the user.
-- **Action Pipeline Failure:** Halts execution of any subsequent steps in the action execution pipeline and dispatches a local error boundary event or toast notification. Any side effects of previously executed steps are preserved.
+- **Dynamic Value Binding Failure:** The binding resolves to `null` (there is no declared fallback value in v1.0). The renderer reports an `error` with `code: "EXPRESSION_ERROR"`, including the call's `functionCallId` when a routed agent function failed or the `surfaceId` for a local evaluation failure. The component and its siblings stay mounted and keep resolving their other bindings.
+- **Validation Rule Failure (`Checkable`):** The check evaluates to `{"valid": false, "message": <CheckRule.message>, "severity": "error"}`, using the error's message when `CheckRule.message` is omitted.
+- **Action Pipeline Failure:** The renderer stops the remaining steps of that action, dispatches no further events from it, and reports an `error` (`code: "EXPRESSION_ERROR"` with the failed call's `functionCallId` when a routed agent function failed, or `code: "EXECUTION_ERROR"` with the `surfaceId` when a local renderer function ran and failed). Effects of steps that already ran are kept. The surface stays mounted. Whether the adapter also shows the failure to the user (inline message, toast) is the adapter's choice.
 
 ---
 
 ## Capabilities and metadata
 
-In A2UI v1.0, capabilities and other metadata are exchanged via **transport metadata** or initialization payloads (e.g., A2A metadata, Agent Cards, or MCP initialization) rather than as first-class A2UI messages.
+In A2UI v1.0, capabilities and other metadata travel in **transport metadata** or a **transport handshake**, with each transport binding defining where they are placed rather than encoding them as first-class A2UI messages.
 
 ### Agent capabilities
 
-An agent advertises its capabilities using the [`agent_capabilities.json`] schema. This indicates which catalogs it can generate UI for, and whether it accepts inline catalogs from the renderer. The exact mechanism depends on the transport (e.g., the `params` object in an A2A AgentCard, or agent capabilities in MCP).
+An agent advertises its capabilities using the [`agent_capabilities.json`] schema. This indicates which catalogs it can generate UI for, and whether it accepts inline catalogs from the renderer. Each transport binding defines where this advertisement is carried.
 
 **Properties:**
 
-- `v1.0` (object, required): The capability structure for version 1.0 of the A2UI protocol.
-  - `supportedCatalogIds` (array of strings, required): An array of strings identifying the Catalog Definition Schemas the agent can generate.
+- `1.0` (object, required): The capability structure for version 1.0 of the A2UI protocol.
+  - `supportedCatalogIds` (array of strings, optional): An array of strings identifying the Catalog Definition Schemas the agent can generate.
   - `acceptsInlineCatalogs` (boolean, optional, default `false`): Indicates if the agent can accept custom inline component/function catalogs in the renderer's capabilities metadata.
 
 ### Renderer capabilities
 
-The `a2uiRendererCapabilities` object in the transport metadata follows the [`renderer_capabilities.json`] schema to describe the renderer's capabilities.
+The `a2uiRendererCapabilities` object in transport metadata follows the [`renderer_capabilities.json`] schema to describe the renderer's capabilities.
 
-If `a2uiRendererCapabilities` is carried on message metadata (eg, in A2A), it should be scoped to that conversation turn, and omitting it on subsequent messages should withdraw A2UI support for those turns. If `a2uiRendererCapabilities` is carried on session metadata (eg, in MCP initialize) it should be scoped to the session.
+Capabilities carried per message are scoped to that message's turn, and omitting them withdraws A2UI for that turn; capabilities carried at session setup are scoped to the session. Each transport binding states which applies (see [Capability scoping](../extensions/a2a/docs/a2ui_extension_specification.md#capability-scoping) for the A2A rule).
 
 **Properties:**
 
-- `v1.0` (object, required): The capability structure for version 1.0 of the A2UI protocol.
+- `1.0` (object, required): The capability structure for version 1.0 of the A2UI protocol.
   - `supportedCatalogIds` (array of strings, required): The string identifiers of supported component and function catalogs.
   - `inlineCatalogs` (array, optional): An array of custom catalog definitions provided inline by the renderer. Functions defined within inline catalogs support declaring authorized callers (`allowedCallers: "rendererOnly" | "agentOnly" | "rendererOrAgent"`) to statically specify remote invocation safety.
 
@@ -1514,7 +1642,7 @@ When `sendDataModel` is enabled for a surface, the renderer includes the `a2uiRe
 
 **Properties:**
 
-- `version` (string, required): Must be the constant `"v1.0"`.
+- `version` (string, required): Must be the constant `"1.0"`.
 - `surfaces` (object, required): A map of surface IDs to their current local data models.
 
 ### Extensions
@@ -1533,20 +1661,26 @@ In A2UI v1.0, strict schema validation (`additionalProperties: false`) protects 
 
 #### Wire Containers
 
-A2UI defines optional `metadata.extensions` containers across four scopes:
+A2UI defines optional `metadata.extensions` containers across five scopes:
 
-- **Surface Scope** (`CreateSurfaceMessage.createSurface.metadata.extensions` in [`agent_to_renderer.json`]): Attach surface-level security metadata, access policies, or telemetry session identifiers.
+- **Catalog Scope** (`metadata.extensions` in [`catalog_definition.json`]): Attach catalog-wide styling tokens, design system metadata, or configuration directly at the catalog root.
+- **Surface Scope** (`createSurface.metadata.extensions` in [`agent_to_renderer.json`]): Attach surface-level security metadata, access policies, or telemetry session identifiers.
 - **Component Scope** (`ComponentCommon.metadata.extensions` in [`common_types.json`]): Attach component-instance styling overrides, telemetry markers, or custom validation rules.
 - **Catalog Component Definition Scope** (`ComponentDefinition.metadata.extensions` in [`catalog_definition.json`]): Attach static component metadata or default telemetry tagging directly to catalog component schemas.
-- **Action Egress Scope** (`UserActionMessage.action.metadata.extensions` in [`renderer_to_agent.json`]): Send client-side action attestations, audit signatures, or authorization tokens back to the agent when user actions are triggered.
+- **Action Egress Scope** (`action.metadata.extensions` in [`renderer_to_agent.json`]): Send client-side action attestations, audit signatures, or authorization tokens back to the agent when user actions are triggered.
 
 #### SDK Accessor Pattern
 
-Renderers and client SDKs expose surface and component metadata using uniform accessors and change notification callbacks:
+Renderers and client SDKs expose surface and component metadata through a uniform set of properties, mutators, and change notifications. Names follow each language's conventions (for example `setMetadata` in TypeScript and `set_metadata` in Python), but the shape is the same everywhere:
 
-- `getMetadata()`: Retrieves the metadata object containing extensions.
-- `setMetadata(metadata)`: Updates the metadata object and notifies listeners.
-- `onMetadataChanged(callback)`: Registers a callback that fires whenever metadata updates.
+- `metadata`: Read-only snapshot of the current metadata object containing `extensions`, exposed on the surface state model and on each component state model. `extensions` is a convenience view of `metadata.extensions`.
+- `setMetadata(metadata)`: Validates every `extensions` key against UAX #31, stores a defensive copy, and notifies listeners when the value changes. Setting a structurally equal value is a no-op.
+- `setExtension(key, value)` and `removeExtension(key)`: Set or delete a single extension key. Removing the last key clears `metadata` entirely.
+- `onMetadataChanged`: An event source that fires whenever metadata changes, either from an incoming `updateComponents` message or from a local mutation.
+- Resolved component nodes expose instance metadata as a read-only reactive value (for example `ComponentNode.metadata`), separate from the schema-defined component properties, so a metadata-only update never re-renders views that read only properties. Catalog component definition metadata is available statically from the resolved component implementation (`node.impl.metadata`).
+- Outbound action dispatch accepts an optional `metadata` argument so renderers can attach `action.metadata.extensions` to the emitted action message.
+
+An `updateComponents` message replaces a component definition in full, including its `metadata`. A component update that omits `metadata` clears any previously stored component metadata, and renderers notify metadata subscribers of that change.
 
 [json pointer]: https://datatracker.ietf.org/doc/html/rfc6901
 [rfc 6901]: https://datatracker.ietf.org/doc/html/rfc6901

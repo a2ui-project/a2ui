@@ -1,0 +1,1106 @@
+// Copyright 2024 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import A2UIJSON
+import Foundation
+import JSONSchema
+import OrderedCollections
+import OrderedJSON
+
+/// Validates A2UI component payloads, function calls, and surface themes against a single
+/// catalog's JSON schemas.
+///
+/// Mirrors the single-catalog `PayloadValidator` in the TypeScript and Python Core SDKs.
+public final class PayloadValidator: Sendable {
+  /// The maximum number of arguments permitted in a single function call in v1.0+.
+  public static let maxFunctionCallArgs = 1_000
+
+  /// The catalog whose schemas define valid components, functions, and themes.
+  public let catalog: AnyCatalog
+
+  /// The validation configuration controlling strictness and protocol version behavior.
+  public let config: ValidationConfig
+
+  /// The component envelope keys that a v1.0 component schema may not declare.
+  private static let envelopeKeys = ["id", "component", "catalogId", "metadata"]
+
+  /// The keys that the shared `ComponentCommon` definition declares.
+  private static let componentCommonKeys: Set<String> = [
+    "id", "catalogId", "accessibility", "metadata",
+  ]
+
+  /// The envelope keys each component schema declares, by component name. Computed once from
+  /// v1.0, where undeclared envelope keys are left out of the instance checked by the schema.
+  private let declaredEnvelopeKeys: [String: Set<String>]
+
+  private var enforceIdentifiers: Bool {
+    Self.enforcesIdentifiers(catalog: catalog, config: config)
+  }
+
+  private static func enforcesIdentifiers(catalog: AnyCatalog, config: ValidationConfig) -> Bool {
+    if let version = config.protocolVersion {
+      return version.isAtLeastV10
+    }
+    return catalog.isAtLeastV10
+  }
+
+  /// `AccessibilityAttributes` from the v0.9.1 and v1.0 common types. Both reference a bundled
+  /// common type, so building them can only fail on a developer error.
+  private static let v09AccessibilitySchema = try! Schema(
+    rawSchema: .object(["$ref": .string(A2UICommonSchema.uri(for: "AccessibilityAttributes"))]),
+    context: A2UISchemaRegistry.makeContext()
+  )
+  private static let v10AccessibilitySchema = try! Schema(
+    rawSchema: .object(["$ref": .string(A2UICommonSchema.v10URI(for: "AccessibilityAttributes"))]),
+    context: A2UISchemaRegistry.makeContext()
+  )
+
+  /// Creates a payload validator scoped to a single catalog.
+  ///
+  /// - Parameters:
+  ///   - catalog: The catalog to validate against.
+  ///   - config: Validation configuration options (defaults to `.strict`).
+  public init(
+    catalog: any CatalogProtocol,
+    config: ValidationConfig = .strict
+  ) {
+    let anyCatalog = catalog.eraseToAnyCatalog()
+    self.catalog = anyCatalog
+    self.config = config
+    if Self.enforcesIdentifiers(catalog: anyCatalog, config: config) {
+      self.declaredEnvelopeKeys = anyCatalog.components.mapValues {
+        Self.envelopeKeysDeclared(in: $0.schema.jsonValue)
+      }
+    } else {
+      self.declaredEnvelopeKeys = [:]
+    }
+  }
+
+  // MARK: - Component Validation
+
+  /// Validates a single component JSON value against the catalog schema.
+  ///
+  /// - Parameter component: A `JSONValue` representing a component definition object.
+  /// - Throws: `A2UIValidationError` if the component fails schema or identifier validation.
+  public func validateComponent(_ component: JSONValue) throws {
+    guard let dict = component.dictionaryValue else {
+      throw A2UIValidationError(
+        "Component definition must be an object",
+        details: [
+          A2UIErrorDetail(
+            path: "components",
+            code: "type_mismatch",
+            message: "Component definition must be an object"
+          )
+        ]
+      )
+    }
+    try validateComponent(dict)
+  }
+
+  /// Validates a single component dictionary payload against the catalog schema,
+  /// including any nested function calls within its properties.
+  ///
+  /// - Parameter component: The component property dictionary, including `id` and `component`.
+  /// - Throws: `A2UIValidationError` if the component identifier, type, schema, or any nested
+  ///   function call fails validation.
+  public func validateComponent(_ component: [String: JSONValue]) throws {
+    // Called directly, the validator takes a component that names no catalogId to be in the
+    // surface default catalog, and one that names a catalogId to possibly be in another.
+    try validateComponent(component, componentNamesCatalog: component["catalogId"] != nil)
+  }
+
+  func validateComponent(
+    _ component: [String: JSONValue],
+    componentNamesCatalog: Bool
+  ) throws {
+    let (_, type) = try extractAndValidateComponentEnvelope(component)
+
+    guard let componentAPI = catalog.components[type] else {
+      if config.allowUnknownElements {
+        try validateComponentNestedFunctions(
+          in: component,
+          componentNamesCatalog: componentNamesCatalog
+        )
+        return
+      }
+      let msg = "Unknown component type '\(type)' in catalog '\(catalog.id)'"
+      throw A2UIValidationError(
+        msg,
+        details: [
+          A2UIErrorDetail(
+            path: "component",
+            code: "invalid_value",
+            message: msg
+          ),
+          A2UIErrorDetail(
+            path: "/\(type)",
+            code: "unknown_component",
+            message: msg
+          ),
+        ]
+      )
+    }
+
+    try validateComponentNestedFunctions(
+      in: component,
+      componentNamesCatalog: componentNamesCatalog
+    )
+    try validateComponentSchema(component, type: type, componentAPI: componentAPI)
+  }
+
+  private func extractAndValidateComponentEnvelope(
+    _ component: [String: JSONValue]
+  ) throws -> (id: String, type: String) {
+    guard let id = component["id"]?.stringValue, !id.isEmpty else {
+      let isMissing = component["id"] == nil
+      let msg = isMissing ? "Field 'id' is required" : "Field 'id' must be a string"
+      throw A2UIValidationError(
+        "Field 'id' is required",
+        details: [
+          A2UIErrorDetail(
+            path: "id",
+            code: isMissing ? "missing_field" : "type_mismatch",
+            message: msg
+          )
+        ]
+      )
+    }
+
+    if enforceIdentifiers, !UnicodeIdentifierValidator.isValidIdentifier(id) {
+      let msg = "Component id '\(id)' must be a valid Unicode identifier (UAX #31)"
+      throw A2UIValidationError(
+        msg,
+        details: [
+          A2UIErrorDetail(
+            path: "/\(id)/id",
+            code: "invalid_identifier",
+            message: msg
+          )
+        ]
+      )
+    }
+
+    guard let type = component["component"]?.stringValue, !type.isEmpty else {
+      let isMissing = component["component"] == nil
+      let msg = isMissing ? "Field 'component' is required" : "Field 'component' must be a string"
+      throw A2UIValidationError(
+        "Field 'component' is required",
+        details: [
+          A2UIErrorDetail(
+            path: "component",
+            code: isMissing ? "missing_field" : "type_mismatch",
+            message: msg
+          )
+        ]
+      )
+    }
+
+    guard !enforceIdentifiers || UnicodeIdentifierValidator.isValidIdentifier(type) else {
+      let msg = "Invalid component identifier: '\(type)'"
+      throw A2UIValidationError(
+        msg,
+        details: [
+          A2UIErrorDetail(
+            path: "/\(type)",
+            code: "invalid_identifier",
+            message: msg
+          )
+        ]
+      )
+    }
+
+    if enforceIdentifiers, component["catalogId"] != nil,
+      component["catalogId"]?.stringValue == nil
+    {
+      throw CatalogResolutionErrors.nonStringCatalogID(
+        path: CatalogResolutionErrors.componentCatalogIDPath
+      )
+    }
+
+    return (id, type)
+  }
+
+  private func validateComponentSchema(
+    _ component: [String: JSONValue],
+    type: String,
+    componentAPI: any ComponentAPI
+  ) throws {
+    // `accessibility` comes from `ComponentCommon`, so a component schema need not declare it.
+    // When it doesn't, check it against `AccessibilityAttributes` and leave it out of the
+    // component schema check, so a closed schema doesn't reject it.
+    var schemaTargetDict = component
+    if !Self.schemaDeclaresProperty(
+      "accessibility",
+      in: componentAPI.schema.jsonValue,
+      root: componentAPI.schema.jsonValue,
+      visitedRefs: []
+    ), let accessibility = schemaTargetDict.removeValue(forKey: "accessibility") {
+      try validateAccessibility(accessibility)
+    }
+
+    if enforceIdentifiers {
+      if let rawMeta = component["metadata"] {
+        _ = try MetadataValidator.validate(rawMeta, pathPrefix: "metadata")
+      }
+      let declaredKeys =
+        declaredEnvelopeKeys[type] ?? Self.envelopeKeysDeclared(in: componentAPI.schema.jsonValue)
+      for key in Self.envelopeKeys where !declaredKeys.contains(key) {
+        schemaTargetDict.removeValue(forKey: key)
+      }
+    }
+
+    let instance: JSONValue = .object(OrderedDictionary(uniqueKeysWithValues: schemaTargetDict))
+    let validationResult = componentAPI.schema.validate(instance)
+    let leafErrors = collectComponentLeafErrors(
+      from: validationResult.errors ?? [],
+      componentSchema: componentAPI.schema.jsonValue
+    )
+    let onlyUnknownProperties =
+      config.allowUnknownElements && !(validationResult.errors ?? []).isEmpty && leafErrors.isEmpty
+    guard !validationResult.isValid, !onlyUnknownProperties else { return }
+
+    let errorDetails = buildComponentErrorDetails(
+      from: leafErrors,
+      type: type,
+      fallbackMessage: validationResult.errors?.first?.message
+    )
+    let errorMessage = errorDetails.map(\.message).joined(separator: "; ")
+    throw A2UIValidationError(errorMessage, details: errorDetails)
+  }
+
+  private func collectComponentLeafErrors(
+    from schemaErrors: [JSONSchema.ValidationError],
+    componentSchema: JSONValue
+  ) -> [JSONSchema.ValidationError] {
+    var leafErrors: [JSONSchema.ValidationError] = []
+    for schemaError in schemaErrors {
+      if config.allowUnknownElements {
+        leafErrors.append(
+          contentsOf: Self.leafErrorsIgnoringUnknownProperties(
+            from: schemaError,
+            componentSchema: componentSchema
+          )
+        )
+      } else {
+        leafErrors.append(contentsOf: extractLeafErrors(from: schemaError))
+      }
+    }
+    return leafErrors
+  }
+
+  private func buildComponentErrorDetails(
+    from leafErrors: [JSONSchema.ValidationError],
+    type: String,
+    fallbackMessage: String?
+  ) -> [A2UIErrorDetail] {
+    var errorDetails: [A2UIErrorDetail] = []
+    for leaf in leafErrors {
+      errorDetails.append(makeComponentErrorDetail(from: leaf, type: type))
+    }
+    if errorDetails.isEmpty {
+      let fallback = fallbackMessage ?? "Component validation failed"
+      let msg = "Validation failed for component '\(type)': \(fallback)"
+      errorDetails.append(A2UIErrorDetail(path: "/\(type)", code: "invalid_value", message: msg))
+    }
+    return errorDetails
+  }
+
+  private func makeComponentErrorDetail(
+    from leaf: JSONSchema.ValidationError,
+    type: String
+  ) -> A2UIErrorDetail {
+    let pointer = leaf.instanceLocation.jsonPointerString
+    let trimmedPath = pointer.hasPrefix("/") ? String(pointer.dropFirst()) : pointer
+    if leaf.keyword == "required",
+      let missingProp = Self.extractSingleQuotedToken(from: leaf.message)
+    {
+      let fieldPath = trimmedPath.isEmpty ? missingProp : "\(trimmedPath).\(missingProp)"
+      let msg = "Validation failed for component '\(type)' at '\(fieldPath)': \(leaf.message)"
+      return A2UIErrorDetail(path: fieldPath, code: "missing_field", message: msg)
+    }
+    let path = trimmedPath.isEmpty ? "/\(type)" : trimmedPath
+    let msg =
+      trimmedPath.isEmpty
+      ? "Validation failed for component '\(type)': \(leaf.message)"
+      : "Validation failed for component '\(type)' at '\(trimmedPath)': \(leaf.message)"
+    return A2UIErrorDetail(path: path, code: "invalid_value", message: msg)
+  }
+
+  private static func extractSingleQuotedToken(from text: String) -> String? {
+    guard let quoteStart = text.firstIndex(of: "'"),
+      let quoteEnd = text[text.index(after: quoteStart)...].firstIndex(of: "'")
+    else {
+      return nil
+    }
+    return String(text[text.index(after: quoteStart)..<quoteEnd])
+  }
+
+  // MARK: - Function Validation
+
+  /// Validates a function call JSON value against the catalog.
+  ///
+  /// - Parameter functionCall: A `JSONValue` representing a function call object containing
+  ///   `call` (or `function`) and optional `args`.
+  /// - Throws: `A2UIValidationError` if the function call fails validation.
+  public func validateFunction(_ functionCall: JSONValue) throws {
+    guard let dict = functionCall.dictionaryValue else {
+      throw A2UIValidationError(
+        "Function call must be an object",
+        details: [
+          A2UIErrorDetail(
+            path: "functions",
+            code: "type_mismatch",
+            message: "Function call must be an object"
+          )
+        ]
+      )
+    }
+    try validateFunction(dict)
+  }
+
+  /// Validates a function call dictionary against the catalog.
+  ///
+  /// - Parameter functionCall: Dictionary containing `call` (or `function`) and optional `args`.
+  /// - Throws: `A2UIValidationError` if the function call fails validation.
+  public func validateFunction(_ functionCall: [String: JSONValue]) throws {
+    guard
+      let name = (functionCall["@call"] ?? functionCall["call"] ?? functionCall["function"])?
+        .stringValue,
+      !name.isEmpty
+    else {
+      throw A2UIValidationError(
+        "Function call is missing required 'call' property",
+        details: [
+          A2UIErrorDetail(
+            path: "call",
+            code: "missing_field",
+            message: "Function call is missing required 'call' property"
+          )
+        ]
+      )
+    }
+    let argsValue = functionCall["args"]
+    if let argsValue, argsValue != .null, argsValue.objectValue == nil {
+      throw A2UIValidationError(
+        "Function arguments for '\(name)' must be an object",
+        details: [
+          A2UIErrorDetail(
+            path: "functions.\(name).args",
+            code: "type_mismatch",
+            message: "Function arguments for '\(name)' must be an object"
+          )
+        ]
+      )
+    }
+    try validateFunction(name: name, args: argsValue?.dictionaryValue)
+  }
+
+  /// Validates a function call's name and arguments against the catalog definition.
+  ///
+  /// - Parameters:
+  ///   - name: The name of the function being called.
+  ///   - args: Optional dictionary of arguments supplied to the function.
+  /// - Throws: `A2UIValidationError` if the function name, argument keys, argument count,
+  ///   or argument values fail validation.
+  public func validateFunction(
+    name: String,
+    args: [String: JSONValue]? = nil
+  ) throws {
+    try validateFunctionInternal(name: name, args: args, allowDynamicArgValues: false)
+  }
+
+  func validateFunctionInternal(
+    name: String,
+    args: [String: JSONValue]?,
+    allowDynamicArgValues: Bool
+  ) throws {
+    try assertFunctionIdentifiers(name: name, args: args)
+
+    guard let function = resolveCatalogOrSystemFunction(name: name) else {
+      let isSystemName = enforceIdentifiers && name.hasPrefix("@")
+      guard isSystemName || !config.allowUnknownElements else { return }
+      let msg = "Unrecognized function '\(name)'"
+      throw A2UIValidationError(
+        msg,
+        details: [
+          A2UIErrorDetail(
+            path: "functions.\(name)",
+            code: "unknown_function",
+            message: msg
+          )
+        ]
+      )
+    }
+
+    let normalizedArgs = args ?? [:]
+    if allowDynamicArgValues && containsDynamicExpression(in: normalizedArgs) {
+      try validateRequiredKeysOnly(
+        name: name,
+        args: normalizedArgs,
+        schemaJSON: function.api.schema.jsonValue
+      )
+      return
+    }
+
+    let argsInstance: JSONValue = .object(OrderedDictionary(uniqueKeysWithValues: normalizedArgs))
+    let result = function.api.schema.validate(argsInstance)
+    guard !result.isValid else { return }
+    throw buildFunctionSchemaValidationError(name: name, result: result)
+  }
+
+  /// Throws if the renderer may not call `name`, a function of this catalog.
+  ///
+  /// A call held in a component (a property binding, a check or an action) is made by the
+  /// renderer. In v1.0 a function whose `allowedCallers` is `agentOnly` runs only for an agent's
+  /// `callRendererFunction`, so it can't be bound into a component; `DataContext` refuses such
+  /// a call when it is evaluated. `allowedCallers` is a v1.0 feature, so v0.9 calls are not
+  /// restricted.
+  ///
+  /// - Parameter name: The called function.
+  /// - Throws: `A2UIValidationError` if the catalog declares the function `agentOnly`. Its
+  ///   detail is at `functions.<name>`, which `remapNestedFunctionError` moves to the call's
+  ///   location.
+  func assertRendererMayCall(_ name: String) throws {
+    guard enforceIdentifiers, catalog.functions[name]?.api.allowedCallers == .agentOnly else {
+      return
+    }
+    let msg = "Function '\(name)' cannot be called by renderer (allowedCallers is agentOnly)."
+    throw A2UIValidationError(
+      msg,
+      details: [
+        A2UIErrorDetail(
+          path: "functions.\(name)",
+          code: "invalid_function_call",
+          message: msg
+        )
+      ]
+    )
+  }
+
+  private func resolveCatalogOrSystemFunction(name: String) -> (any FunctionImplementation)? {
+    if enforceIdentifiers, name.hasPrefix("@") {
+      return name == "@index" ? IndexFunction() : nil
+    }
+    return catalog.functions[name]
+  }
+
+  private func validateRequiredKeysOnly(
+    name: String,
+    args: [String: JSONValue],
+    schemaJSON: JSONValue
+  ) throws {
+    guard let requiredKeys = schemaJSON["required"]?.arrayValue?.compactMap(\.stringValue) else {
+      return
+    }
+    for reqKey in requiredKeys where args[reqKey] == nil {
+      let msg = "Missing required argument '\(reqKey)' for function '\(name)'"
+      throw A2UIValidationError(
+        msg,
+        details: [
+          A2UIErrorDetail(
+            path: "functions.\(name).\(reqKey)",
+            code: "missing_field",
+            message: msg
+          )
+        ]
+      )
+    }
+  }
+
+  private func buildFunctionSchemaValidationError(
+    name: String,
+    result: JSONSchema.ValidationResult
+  ) -> A2UIValidationError {
+    let leafErrors = (result.errors ?? []).flatMap { extractLeafErrors(from: $0) }
+    var leafMessages: [String] = []
+    var details: [A2UIErrorDetail] = []
+    for leaf in leafErrors {
+      let pointer = leaf.instanceLocation.jsonPointerString
+      let trimmed = pointer.hasPrefix("/") ? String(pointer.dropFirst()) : pointer
+      let path = trimmed.isEmpty ? "functions.\(name)" : "functions.\(name).\(trimmed)"
+      let code = leaf.keyword == "required" ? "missing_field" : "invalid_value"
+      let msg =
+        trimmed.isEmpty || leaf.message.contains(trimmed)
+        ? leaf.message
+        : "\(trimmed): \(leaf.message)"
+      leafMessages.append(msg)
+      details.append(A2UIErrorDetail(path: path, code: code, message: msg))
+    }
+    let errorMessage =
+      leafMessages.isEmpty
+      ? (result.errors?.first?.message ?? "Validation failed for function '\(name)'")
+      : leafMessages.joined(separator: "; ")
+    if details.isEmpty {
+      details.append(
+        A2UIErrorDetail(
+          path: "functions.\(name)",
+          code: "invalid_value",
+          message: errorMessage
+        )
+      )
+    }
+    return A2UIValidationError(errorMessage, details: details)
+  }
+
+  func assertFunctionIdentifiers(
+    name: String,
+    args: [String: JSONValue]?
+  ) throws {
+    if enforceIdentifiers {
+      if name.hasPrefix("@") {
+        guard name == "@index" else {
+          let msg = "Unrecognized system function '\(name)'"
+          throw A2UIValidationError(
+            msg,
+            details: [
+              A2UIErrorDetail(
+                path: "functions.\(name)",
+                code: "invalid_identifier",
+                message: msg
+              )
+            ]
+          )
+        }
+      } else {
+        guard UnicodeIdentifierValidator.isValidIdentifier(name) else {
+          let msg = "Function name '\(name)' must be a valid UAX #31 identifier"
+          throw A2UIValidationError(
+            msg,
+            details: [
+              A2UIErrorDetail(
+                path: "functions.\(name)",
+                code: "invalid_identifier",
+                message: msg
+              )
+            ]
+          )
+        }
+      }
+    } else {
+      guard UnicodeIdentifierValidator.isValidFunctionIdentifier(name) else {
+        let msg = "Invalid function identifier: '\(name)'"
+        throw A2UIValidationError(
+          msg,
+          details: [
+            A2UIErrorDetail(
+              path: "functions.\(name)",
+              code: "invalid_identifier",
+              message: msg
+            )
+          ]
+        )
+      }
+    }
+
+    guard let args else { return }
+
+    if args.count > Self.maxFunctionCallArgs {
+      let msg =
+        "Function call '\(name)' exceeds maximum allowed arguments count "
+        + "(\(Self.maxFunctionCallArgs))"
+      throw A2UIValidationError(
+        msg,
+        details: [
+          A2UIErrorDetail(
+            path: "functions.\(name)",
+            code: "too_many_arguments",
+            message: msg
+          )
+        ]
+      )
+    }
+
+    if enforceIdentifiers {
+      for argName in args.keys where !UnicodeIdentifierValidator.isValidIdentifier(argName) {
+        let msg =
+          "Function argument '\(argName)' in function '\(name)' must be a valid UAX #31 identifier"
+        throw A2UIValidationError(
+          msg,
+          details: [
+            A2UIErrorDetail(
+              path: "functions.\(name).\(argName)",
+              code: "invalid_identifier",
+              message: msg
+            )
+          ]
+        )
+      }
+    }
+  }
+
+  private func validateComponentNestedFunctions(
+    in component: [String: JSONValue],
+    componentNamesCatalog: Bool
+  ) throws {
+    if enforceIdentifiers {
+      try DataContext.validateReservedDirectives(component.keys)
+    }
+    let skippedKeys: Set<String> =
+      enforceIdentifiers
+      ? ["id", "component", "catalogId", "metadata"]
+      : ["id", "component"]
+    for (key, propValue) in component where !skippedKeys.contains(key) {
+      try validateNestedFunctions(
+        in: propValue,
+        propertyPath: key,
+        componentNamesCatalog: componentNamesCatalog
+      )
+    }
+  }
+
+  private func validateNestedFunctions(
+    in value: JSONValue,
+    propertyPath: String = "",
+    componentNamesCatalog: Bool = false
+  ) throws {
+    var stack: [(value: JSONValue, path: String)] = [(value, propertyPath)]
+    while let current = stack.popLast() {
+      switch current.value {
+      case .array(let items):
+        appendArrayNestedItems(items, basePath: current.path, to: &stack)
+      case .object(let dict):
+        try validateNestedObject(
+          dict,
+          propertyPath: current.path,
+          componentNamesCatalog: componentNamesCatalog
+        )
+        appendObjectNestedItems(dict, basePath: current.path, to: &stack)
+      default:
+        break
+      }
+    }
+  }
+
+  private func appendArrayNestedItems(
+    _ items: [JSONValue],
+    basePath: String,
+    to stack: inout [(value: JSONValue, path: String)]
+  ) {
+    for (index, item) in items.enumerated().reversed() {
+      let itemPath = basePath.isEmpty ? "\(index)" : "\(basePath)/\(index)"
+      stack.append((item, itemPath))
+    }
+  }
+
+  private func appendObjectNestedItems(
+    _ dict: OrderedDictionary<String, JSONValue>,
+    basePath: String,
+    to stack: inout [(value: JSONValue, path: String)]
+  ) {
+    for (subKey, propValue) in dict.reversed() {
+      let nextPath = basePath.isEmpty ? subKey : "\(basePath)/\(subKey)"
+      stack.append((propValue, nextPath))
+    }
+  }
+
+  private func validateNestedObject(
+    _ dict: OrderedDictionary<String, JSONValue>,
+    propertyPath: String,
+    componentNamesCatalog: Bool
+  ) throws {
+    if enforceIdentifiers {
+      try DataContext.validateReservedDirectives(dict.keys)
+    }
+    let callValue = enforceIdentifiers ? dict["@call"] : (dict["call"] ?? dict["function"])
+    if let rawName = callValue?.stringValue,
+      enforceIdentifiers || !rawName.isEmpty
+    {
+      try validateSingleNestedCall(
+        dict: dict,
+        rawName: rawName,
+        propertyPath: propertyPath,
+        componentNamesCatalog: componentNamesCatalog
+      )
+    }
+  }
+
+  private func validateSingleNestedCall(
+    dict: OrderedDictionary<String, JSONValue>,
+    rawName: String,
+    propertyPath: String,
+    componentNamesCatalog: Bool
+  ) throws {
+    if enforceIdentifiers {
+      guard dict["catalogId"] == nil || dict["catalogId"]?.stringValue != nil else {
+        throw CatalogResolutionErrors.nonStringCatalogID(
+          path: CatalogResolutionErrors.callCatalogIDPath(functionName: rawName)
+        )
+      }
+      if let rawArgs = dict["args"], rawArgs != .null {
+        guard rawArgs.objectValue != nil else {
+          throw CatalogResolutionErrors.nonObjectArguments(functionName: rawName)
+        }
+      }
+    }
+    let rawArgs = dict["args"]?.dictionaryValue
+
+    do {
+      if enforceIdentifiers, rawName.hasPrefix("@") {
+        try validateNestedSystemCall(dict: dict, rawName: rawName, rawArgs: rawArgs)
+      } else if nestedCallRunsInCatalog(
+        callDict: dict,
+        componentNamesCatalog: componentNamesCatalog
+      ) {
+        try assertRendererMayCall(rawName)
+        try validateFunctionInternal(
+          name: rawName,
+          args: rawArgs,
+          allowDynamicArgValues: true
+        )
+      } else {
+        try assertFunctionIdentifiers(name: rawName, args: rawArgs)
+      }
+    } catch let error as A2UIValidationError {
+      throw Self.remapNestedFunctionError(
+        error,
+        functionName: rawName,
+        propertyPath: propertyPath
+      )
+    }
+  }
+
+  private func validateNestedSystemCall(
+    dict: OrderedDictionary<String, JSONValue>,
+    rawName: String,
+    rawArgs: [String: JSONValue]?
+  ) throws {
+    try assertFunctionIdentifiers(name: rawName, args: rawArgs)
+    if dict["catalogId"] != nil {
+      let msg =
+        "System function '\(rawName)' belongs to no catalog and must not specify a catalogId"
+      throw A2UIValidationError(
+        msg,
+        details: [
+          A2UIErrorDetail(
+            path: CatalogResolutionErrors.callCatalogIDPath(functionName: rawName),
+            code: "invalid_value",
+            message: msg
+          )
+        ]
+      )
+    }
+    try validateFunctionInternal(
+      name: rawName,
+      args: rawArgs,
+      allowDynamicArgValues: true
+    )
+  }
+
+  static func remapNestedFunctionError(
+    _ error: A2UIValidationError,
+    functionName: String,
+    propertyPath: String
+  ) -> A2UIValidationError {
+    guard !propertyPath.isEmpty else { return error }
+    let prefix = "functions.\(functionName)"
+    let mappedDetails = error.details.map { detail -> A2UIErrorDetail in
+      if detail.path == prefix {
+        return A2UIErrorDetail(path: propertyPath, code: detail.code, message: detail.message)
+      }
+      if detail.path.hasPrefix(prefix + ".") {
+        let argSubpath = String(detail.path.dropFirst(prefix.count + 1))
+          .replacingOccurrences(of: ".", with: "/")
+        return A2UIErrorDetail(
+          path: "\(propertyPath)/args/\(argSubpath)",
+          code: detail.code,
+          message: detail.message
+        )
+      }
+      return detail
+    }
+    return A2UIValidationError(error.message, details: mappedDetails)
+  }
+
+  private func nestedCallRunsInCatalog(
+    callDict: OrderedDictionary<String, JSONValue>,
+    componentNamesCatalog: Bool
+  ) -> Bool {
+    // Before v1.0 a call can't select a catalog: it always runs in the surface catalog.
+    guard enforceIdentifiers else {
+      return true
+    }
+    if let rawCallCatalogID = callDict["catalogId"] {
+      return rawCallCatalogID.stringValue == catalog.id
+    }
+    return !componentNamesCatalog
+  }
+
+  /// Returns the component envelope keys that a component schema declares.
+  ///
+  /// A key is declared when the schema lists it under `properties`, directly, through a local
+  /// `$ref` into the schema's own definitions, or through `allOf`, `anyOf`, or `oneOf`. A `$ref`
+  /// to another document's `ComponentCommon` declares `id`, `catalogId`, and `metadata`.
+  private static func envelopeKeysDeclared(in schema: JSONValue) -> Set<String> {
+    Set(
+      envelopeKeys.filter {
+        schemaDeclaresProperty($0, in: schema, root: schema, visitedRefs: [])
+      }
+    )
+  }
+
+  private static func schemaDeclaresProperty(
+    _ key: String,
+    in schema: JSONValue,
+    root: JSONValue,
+    visitedRefs: Set<String>
+  ) -> Bool {
+    guard schema["properties"]?.objectValue?[key] == nil else {
+      return true
+    }
+    var visitedRefs = visitedRefs
+    if let ref = schema["$ref"]?.stringValue {
+      if ref.hasPrefix("#") {
+        if visitedRefs.insert(ref).inserted, let target = resolveLocalRef(ref, in: root),
+          schemaDeclaresProperty(key, in: target, root: root, visitedRefs: visitedRefs)
+        {
+          return true
+        }
+      } else if ref.hasSuffix("/ComponentCommon"), componentCommonKeys.contains(key) {
+        return true
+      }
+    }
+    for combiner in ["allOf", "anyOf", "oneOf"] {
+      if let subSchemas = schema[combiner]?.arrayValue,
+        subSchemas.contains(where: {
+          schemaDeclaresProperty(key, in: $0, root: root, visitedRefs: visitedRefs)
+        })
+      {
+        return true
+      }
+    }
+    return false
+  }
+
+  /// Resolves a local `$ref` such as `#/$defs/Common` against the schema's root document.
+  private static func resolveLocalRef(_ ref: String, in root: JSONValue) -> JSONValue? {
+    guard ref == "#" || ref.hasPrefix("#/") else { return nil }
+    var current = root
+    let tokens = ref.dropFirst().split(separator: "/", omittingEmptySubsequences: false)
+    for rawToken in tokens.dropFirst() {
+      let token =
+        rawToken
+        .replacingOccurrences(of: "~1", with: "/")
+        .replacingOccurrences(of: "~0", with: "~")
+      if let next = current.objectValue?[token] {
+        current = next
+      } else if let items = current.arrayValue, let index = Int(token),
+        items.indices.contains(index)
+      {
+        current = items[index]
+      } else {
+        return nil
+      }
+    }
+    return current
+  }
+
+  /// Returns the leaf errors of a schema error, leaving out the errors that name unknown
+  /// component properties.
+  private static func leafErrorsIgnoringUnknownProperties(
+    from error: JSONSchema.ValidationError,
+    componentSchema: JSONValue
+  ) -> [JSONSchema.ValidationError] {
+    guard !isUnknownPropertyError(error, componentSchema: componentSchema) else {
+      return []
+    }
+    if let nested = error.errors, !nested.isEmpty {
+      return nested.flatMap {
+        leafErrorsIgnoringUnknownProperties(from: $0, componentSchema: componentSchema)
+      }
+    }
+    return [error]
+  }
+
+  /// Returns whether a schema error reports a property that the schema doesn't declare.
+  ///
+  /// That is an `additionalProperties` or `unevaluatedProperties` failure whose subschema is
+  /// `false`: a non-boolean subschema reports a bad value instead. A key rejected by a schema
+  /// that also has `patternProperties` breaks a key format (for example a v1.0 `Extensions` key
+  /// that is not a UAX #31 identifier), so it is not an unknown property. When the schema that
+  /// holds the keyword can't be found, the error is not treated as an unknown property.
+  private static func isUnknownPropertyError(
+    _ error: JSONSchema.ValidationError,
+    componentSchema: JSONValue
+  ) -> Bool {
+    guard error.keyword == "additionalProperties" || error.keyword == "unevaluatedProperties"
+    else {
+      return false
+    }
+    // swift-json-schema reports a failing `false` subschema with the `boolean` keyword.
+    guard let nested = error.errors, !nested.isEmpty,
+      nested.allSatisfy({ $0.keyword == "boolean" }),
+      let owner = schemaHoldingKeyword(of: error, componentSchema: componentSchema)
+    else {
+      return false
+    }
+    return owner["patternProperties"] == nil
+  }
+
+  /// Finds the schema object that holds the failing keyword of a schema error, from the
+  /// error's absolute keyword location.
+  ///
+  /// The location's document is one of the shared A2UI schema documents, or else the component
+  /// schema itself.
+  private static func schemaHoldingKeyword(
+    of error: JSONSchema.ValidationError,
+    componentSchema: JSONValue
+  ) -> JSONValue? {
+    guard let location = error.absoluteKeywordLocation,
+      var components = URLComponents(url: location, resolvingAgainstBaseURL: false),
+      let pointer = components.fragment
+    else {
+      return nil
+    }
+    components.fragment = nil
+    let documentURI = components.url?.absoluteString ?? ""
+    let document = A2UICommonSchema.allSchemas[documentURI] ?? componentSchema
+    var tokens = pointer.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+    guard tokens.last == error.keyword else {
+      return nil
+    }
+    tokens.removeLast()
+    return resolveLocalRef("#" + tokens.joined(separator: "/"), in: document)
+  }
+
+  private func containsDynamicExpression(in args: [String: JSONValue]) -> Bool {
+    args.values.contains(where: { isDynamicExpression($0) })
+  }
+
+  private func isDynamicExpression(_ value: JSONValue) -> Bool {
+    switch value {
+    case .object(let dict):
+      if dict["path"] != nil
+        || dict["@path"] != nil
+        || dict["call"] != nil
+        || dict["@call"] != nil
+        || dict["function"] != nil
+      {
+        return true
+      }
+      return dict.values.contains(where: { isDynamicExpression($0) })
+    case .array(let items):
+      return items.contains(where: { isDynamicExpression($0) })
+    default:
+      return false
+    }
+  }
+
+  // MARK: - Theme Validation
+
+  /// Validates a surface theme dictionary against the catalog's theme schema.
+  ///
+  /// If the catalog declares no `themeSchema`, any theme is accepted.
+  ///
+  /// - Parameter theme: The theme dictionary supplied on `createSurface`.
+  /// - Throws: `A2UIValidationError` if the theme fails schema validation.
+  public func validateTheme(_ theme: [String: JSONValue]?) throws {
+    guard let theme else { return }
+    let instance: JSONValue = .object(OrderedDictionary(uniqueKeysWithValues: theme))
+    try validateTheme(instance)
+  }
+
+  /// Validates a surface theme `JSONValue` against the catalog's theme schema.
+  ///
+  /// If the catalog declares no `themeSchema`, any theme object is accepted.
+  ///
+  /// - Parameter theme: The theme `JSONValue` supplied on `createSurface`.
+  /// - Throws: `A2UIValidationError` if the theme is not an object or fails schema validation.
+  public func validateTheme(_ theme: JSONValue) throws {
+    guard theme != .null else { return }
+    guard theme.objectValue != nil else {
+      throw A2UIValidationError(
+        "Theme payload must be an object",
+        details: [
+          A2UIErrorDetail(
+            path: "theme",
+            code: "type_mismatch",
+            message: "Theme payload must be an object"
+          )
+        ]
+      )
+    }
+
+    guard let themeSchema = catalog.themeSchema else { return }
+    let validationResult = themeSchema.validate(theme, at: .init())
+    guard !validationResult.isValid else { return }
+    throw buildThemeSchemaValidationError(validationResult)
+  }
+
+  private func buildThemeSchemaValidationError(
+    _ validationResult: JSONSchema.ValidationResult
+  ) -> A2UIValidationError {
+    let leafErrors = (validationResult.errors ?? []).flatMap { extractLeafErrors(from: $0) }
+    var details: [A2UIErrorDetail] = []
+    var messages: [String] = []
+    for leaf in leafErrors {
+      let pointer = leaf.instanceLocation.jsonPointerString
+      let trimmed = pointer.hasPrefix("/") ? String(pointer.dropFirst()) : pointer
+      let path = trimmed.isEmpty ? "theme" : "theme.\(trimmed)"
+      let code = leaf.keyword == "required" ? "missing_field" : "invalid_value"
+      let msg = trimmed.isEmpty ? leaf.message : "\(trimmed): \(leaf.message)"
+      messages.append(msg)
+      details.append(A2UIErrorDetail(path: path, code: code, message: msg))
+    }
+    let errorMessage =
+      messages.isEmpty
+      ? (validationResult.errors?.first?.message
+        ?? "Surface theme failed catalog theme schema validation")
+      : messages.joined(separator: "; ")
+    if details.isEmpty {
+      details.append(A2UIErrorDetail(path: "theme", code: "invalid_value", message: errorMessage))
+    }
+    return A2UIValidationError(errorMessage, details: details)
+  }
+
+  // MARK: - Helpers
+
+  /// Checks a component's `accessibility` against `AccessibilityAttributes`.
+  ///
+  /// - Throws: `A2UIValidationError` with a detail per failure, at a path under `accessibility`.
+  private func validateAccessibility(_ accessibility: JSONValue) throws {
+    let version =
+      config.protocolVersion
+      ?? catalog.a2uiProtocolVersion
+      ?? (catalog.isAtLeastV10 ? .v10 : .v091)
+    let schema: Schema
+    switch version {
+    case .v09, .v091:
+      schema = Self.v09AccessibilitySchema
+    case .v10:
+      schema = Self.v10AccessibilitySchema
+    }
+    let result = schema.validate(accessibility)
+    guard !result.isValid else { return }
+
+    let message = "Field 'accessibility' must match AccessibilityAttributes"
+    let details = (result.errors ?? []).flatMap { extractLeafErrors(from: $0) }.map { leaf in
+      A2UIErrorDetail(
+        path: "accessibility\(leaf.instanceLocation.jsonPointerString)",
+        code: "invalid_value",
+        message: leaf.message.isEmpty ? message : leaf.message
+      )
+    }
+    throw A2UIValidationError(message, details: details)
+  }
+
+  private func extractLeafErrors(
+    from error: JSONSchema.ValidationError
+  ) -> [JSONSchema.ValidationError] {
+    if let nested = error.errors, !nested.isEmpty {
+      return nested.flatMap { extractLeafErrors(from: $0) }
+    }
+    return [error]
+  }
+}

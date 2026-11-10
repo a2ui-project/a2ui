@@ -1,0 +1,494 @@
+// Copyright 2024 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import 'dart:async';
+
+import 'package:a2ui_core/a2ui_core.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
+import 'package:logging/logging.dart';
+import 'package:preact_signals/preact_signals.dart' show SignalEffectException;
+import 'package:test/test.dart';
+
+Catalog<ComponentApi, FunctionImplementation> _catalog() => _MutableCatalog(
+      id: 'diagnostic-test',
+      components: [
+        ComponentApi(name: 'Text', schema: Schema.object()),
+        ComponentApi(
+          name: 'Card',
+          schema:
+              Schema.object(properties: {'child': CommonSchemas.componentId}),
+        ),
+        ComponentApi(
+          name: 'Column',
+          schema:
+              Schema.object(properties: {'children': CommonSchemas.childList}),
+        ),
+      ],
+    );
+
+/// A catalog whose components a test may add and remove while a surface
+/// uses it. [Catalog.components] is unmodifiable, so the tests that change
+/// the catalog under a live resolver work on a copy of it.
+class _MutableCatalog extends Catalog<ComponentApi, FunctionImplementation> {
+  _MutableCatalog({required super.id, required super.components});
+
+  late final Map<String, ComponentApi> _components = {...super.components};
+
+  @override
+  Map<String, ComponentApi> get components => _components;
+}
+
+void _add(
+  SurfaceModel<ComponentApi> surface,
+  String id,
+  String type, [
+  Map<String, Object?> properties = const {},
+]) =>
+    surface.componentsModel.addComponent(ComponentModel(id, type, properties));
+
+void main() {
+  late SurfaceModel<ComponentApi> surface;
+  late NodeResolver<ComponentApi> resolver;
+  late List<A2uiRendererError> errors;
+
+  setUp(() {
+    surface = SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
+    resolver = NodeResolver(surface);
+    errors = [];
+    surface.onError.subscribe(errors.add);
+  });
+
+  tearDown(() {
+    resolver.dispose();
+    surface.dispose();
+  });
+
+  int reports(String code) =>
+      errors.where((error) => error.code == code).length;
+
+  List<ComponentNode> children() =>
+      (resolver.rootNode.peek()!.props.peek()['children']! as List)
+          .cast<ComponentNode>();
+
+  group('NodeResolver diagnostic parity', () {
+    test(
+      'reports an unknown type once per component, not referencing edge',
+      () async {
+        _add(surface, 'weird', 'Bogus');
+        _add(surface, 'root', 'Column', {
+          'children': ['weird', 'weird'],
+        });
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
+        expect(children(), hasLength(2));
+        expect(children()[0], isNot(same(children()[1])));
+        expect(
+          children().map((node) => node.state),
+          everyElement(NodeState.unknownType),
+        );
+
+        surface.componentsModel.removeComponent('weird');
+        _add(surface, 'weird', 'Bogus');
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('UNKNOWN_COMPONENT_TYPE'), 2);
+      },
+    );
+
+    test('rearms after deleting and readding an id containing colons',
+        () async {
+      _add(surface, 'root', 'Column', {
+        'children': ['weird:x'],
+      });
+      _add(surface, 'weird:x', 'Bogus');
+      await Future<void>.delayed(Duration.zero);
+      expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
+
+      surface.componentsModel.removeComponent('weird:x');
+      _add(surface, 'weird:x', 'Bogus');
+      await Future<void>.delayed(Duration.zero);
+      expect(reports('UNKNOWN_COMPONENT_TYPE'), 2);
+    });
+
+    test('reports a cycle again after property repair and reintroduction',
+        () async {
+      _add(surface, 'root', 'Card', {'child': 'card'});
+      _add(surface, 'card', 'Card', {'child': 'card'});
+      _add(surface, 'leaf', 'Text');
+      await Future<void>.delayed(Duration.zero);
+      expect(reports('CYCLIC_REFERENCE'), 1);
+
+      surface.componentsModel.get('card')!.properties = {'child': 'leaf'};
+      await Future<void>.delayed(Duration.zero);
+      expect(reports('CYCLIC_REFERENCE'), 1);
+      surface.componentsModel.get('card')!.properties = {'child': 'card'};
+      await Future<void>.delayed(Duration.zero);
+      expect(reports('CYCLIC_REFERENCE'), 2);
+    });
+  });
+
+  group('NodeResolver diagnostic bookkeeping', () {
+    /// Collects the observer errors that `EventNotifier.emit` catches and
+    /// logs, so a throwing observer stays observable in these tests. An
+    /// observer runs inside a signal effect, so its throw arrives wrapped in a
+    /// [SignalEffectException]; the original error is collected.
+    List<Object?> collectListenerErrors() {
+      final errors = <Object?>[];
+      final StreamSubscription<LogRecord> subscription =
+          Logger('a2ui.EventNotifier').onRecord.listen((record) {
+        if (record.loggerName == 'a2ui.EventNotifier' &&
+            record.level == Level.SEVERE) {
+          final Object? e = record.error;
+          errors.add(e is SignalEffectException ? e.error : e);
+        }
+      });
+      addTearDown(subscription.cancel);
+      return errors;
+    }
+
+    test('a failed observer neither loses a diagnostic nor repeats it',
+        () async {
+      final List<Object?> listenerErrors = collectListenerErrors();
+      var shouldThrow = true;
+      final void Function() unsubscribe = resolver.rootNode.subscribe((node) {
+        if (node != null && shouldThrow) {
+          shouldThrow = false;
+          throw StateError('root observer failed');
+        }
+      });
+      addTearDown(unsubscribe);
+      _add(surface, 'weird', 'Bogus');
+      _add(surface, 'root', 'Column', {
+        'children': ['weird'],
+      });
+      expect(listenerErrors, [isA<StateError>()]);
+      await Future<void>.delayed(Duration.zero);
+      expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
+      expect(resolver.activeNodeCount, 2);
+      final ComponentModel root = surface.componentsModel.get('root')!;
+      root.properties = {'children': <String>[]};
+      root.properties = {
+        'children': ['weird'],
+      };
+      await Future<void>.delayed(Duration.zero);
+      expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
+      expect(children().single.state, NodeState.unknownType);
+      root.properties = {
+        'children': ['weird', 'weird'],
+      };
+      await Future<void>.delayed(Duration.zero);
+      expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
+    });
+
+    test('a failed update delivers what it found once', () async {
+      _add(surface, 'known', 'Bogus');
+      _add(surface, 'later', 'Bogus');
+      _add(surface, 'root', 'Column', {
+        'children': ['known'],
+      });
+      await Future<void>.delayed(Duration.zero);
+      expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
+      surface.componentsModel.removeComponent('root');
+      final List<Object?> listenerErrors = collectListenerErrors();
+      var shouldThrow = true;
+      final void Function() unsubscribe = resolver.rootNode.subscribe((node) {
+        if (node != null && shouldThrow) {
+          shouldThrow = false;
+          throw StateError('root observer failed');
+        }
+      });
+      addTearDown(unsubscribe);
+      _add(surface, 'root', 'Column', {
+        'children': ['known', 'later'],
+      });
+      expect(listenerErrors, [isA<StateError>()]);
+      final ComponentModel root = surface.componentsModel.get('root')!;
+      await Future<void>.delayed(Duration.zero);
+      expect(reports('UNKNOWN_COMPONENT_TYPE'), 2);
+      expect(errors.last.message, contains("Component 'later'"));
+      root.properties = {'children': <String>[]};
+      root.properties = {
+        'children': ['known', 'later'],
+      };
+      await Future<void>.delayed(Duration.zero);
+      expect(reports('UNKNOWN_COMPONENT_TYPE'), 2);
+      expect(errors.last.message, contains("Component 'later'"));
+    });
+
+    test('keeps distinct template data paths independent', () async {
+      surface.dataModel.set('/items', [1, 2]);
+      _add(surface, 'weird', 'Bogus');
+      _add(surface, 'root', 'Column', {
+        'children': {'componentId': 'weird', 'path': '/items'},
+      });
+      await Future<void>.delayed(Duration.zero);
+      expect(reports('UNKNOWN_COMPONENT_TYPE'), 2);
+      expect(children().map((node) => node.dataPath), ['/items/0', '/items/1']);
+      surface.dataModel.set('/items', [1, 2, 3]);
+      await Future<void>.delayed(Duration.zero);
+      expect(reports('UNKNOWN_COMPONENT_TYPE'), 3);
+    });
+
+    test(
+      'different codes at one component and data path remain independent',
+      () async {
+        _add(surface, 'leaf', 'Text');
+        _add(surface, 'card', 'Card', {'child': 'card'});
+        _add(surface, 'other', 'Card', {'child': 'leaf'});
+        _add(surface, 'root', 'Column', {
+          'children': ['card', 'other'],
+        });
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('CYCLIC_REFERENCE'), 1);
+
+        // The existing card remains resolved, while a new reference cannot find
+        // an implementation. Both conditions concern card at the root scope.
+        surface.defaultCatalog!.components.remove('Card');
+        surface.componentsModel.get('other')!.properties = {'child': 'card'};
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
+        expect(reports('CYCLIC_REFERENCE'), 1);
+      },
+    );
+
+    test('unmounting unknown nodes does not rearm a persistent condition',
+        () async {
+      _add(surface, 'weird', 'Bogus');
+      _add(surface, 'root', 'Column', {
+        'children': ['weird', 'weird'],
+      });
+      await Future<void>.delayed(Duration.zero);
+      expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
+      surface.componentsModel.get('root')!.properties = {
+        'children': <String>[],
+      };
+      expect(resolver.activeNodeCount, 1);
+      surface.componentsModel.get('root')!.properties = {
+        'children': ['weird', 'weird', 'weird'],
+      };
+      await Future<void>.delayed(Duration.zero);
+      expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
+
+      surface.componentsModel.get('root')!.properties = {
+        'children': <String>[],
+      };
+      surface.componentsModel.removeComponent('weird');
+      _add(surface, 'weird', 'Bogus');
+      surface.componentsModel.get('root')!.properties = {
+        'children': ['weird'],
+      };
+      await Future<void>.delayed(Duration.zero);
+      expect(reports('UNKNOWN_COMPONENT_TYPE'), 2);
+    });
+
+    test(
+      'successfully resolving a pair rearms its prior unknown diagnostic',
+      () async {
+        _add(surface, 'weird', 'Bogus');
+        _add(surface, 'root', 'Column', {
+          'children': ['weird'],
+        });
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
+
+        surface.defaultCatalog!.components['Bogus'] = ComponentApi(
+          name: 'Bogus',
+          schema: Schema.object(),
+        );
+        surface.componentsModel.get('root')!.properties = {
+          'children': ['weird'],
+        };
+        expect(children().single.state, NodeState.resolved);
+        surface.defaultCatalog!.components.remove('Bogus');
+        // Removing and restoring only the edge forces a fresh catalog lookup.
+        surface.componentsModel.get('root')!.properties = {
+          'children': <String>[],
+        };
+        surface.componentsModel.get('root')!.properties = {
+          'children': ['weird'],
+        };
+        expect(children().single.state, NodeState.unknownType);
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('UNKNOWN_COMPONENT_TYPE'), 2);
+      },
+    );
+
+    test(
+      'retirement of a cyclic edge does not erase its deduplication key',
+      () async {
+        _add(surface, 'root', 'Column', {
+          'children': ['root', 'root'],
+        });
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('CYCLIC_REFERENCE'), 1);
+        final ComponentNode second = children()[1];
+        surface.componentsModel.get('root')!.properties = {
+          'children': ['root'],
+        };
+        expect(second.disposed, isTrue);
+        expect(
+          children().map((node) => node.state),
+          everyElement(NodeState.cyclic),
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('CYCLIC_REFERENCE'), 1);
+        surface.componentsModel.get('root')!.properties = {
+          'children': ['root', 'root', 'root'],
+        };
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('CYCLIC_REFERENCE'), 1);
+      },
+    );
+
+    test('retiring an old cycle cannot clear a rearmed replacement scope',
+        () async {
+      _add(surface, 'leaf', 'Text');
+      _add(surface, 'root', 'Column', {
+        'children': ['leaf', 'root'],
+      });
+      await Future<void>.delayed(Duration.zero);
+      expect(reports('CYCLIC_REFERENCE'), 1);
+      children().first.onDestroyed.subscribe((_) {
+        _add(surface, 'root', 'Column', {
+          'children': ['root'],
+        });
+      });
+
+      surface.componentsModel.removeComponent('root');
+      await Future<void>.delayed(Duration.zero);
+      expect(reports('CYCLIC_REFERENCE'), 2);
+      expect(children().single.state, NodeState.cyclic);
+      surface.componentsModel.get('root')!.properties = {
+        'children': ['root', 'root'],
+      };
+      await Future<void>.delayed(Duration.zero);
+      expect(reports('CYCLIC_REFERENCE'), 2);
+      expect(resolver.activeNodeCount, 3);
+    });
+
+    test(
+      'an earlier deletion listener replaces and rearms an unknown model',
+      () async {
+        // Register the replacement listener before the resolver.
+        resolver.dispose();
+        surface.componentsModel.onDeleted.subscribe((id) {
+          if (id == 'weird') _add(surface, id, 'OtherBogus');
+        });
+        resolver = NodeResolver(surface);
+        _add(surface, 'weird', 'Bogus');
+        _add(surface, 'root', 'Column', {
+          'children': ['weird', 'weird'],
+        });
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
+        final List<ComponentNode> previous = List.of(children());
+        surface.componentsModel.removeComponent('weird');
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('UNKNOWN_COMPONENT_TYPE'), 2);
+        expect(previous.map((node) => node.disposed), everyElement(isTrue));
+        expect(children().map((node) => node.type), everyElement('OtherBogus'));
+        expect(
+          children().map((node) => node.state),
+          everyElement(NodeState.unknownType),
+        );
+        expect(children().map((node) => node.disposed), everyElement(isFalse));
+        expect(resolver.activeNodeCount, 3);
+      },
+    );
+  });
+
+  group('NodeResolver missing data bindings', () {
+    late SurfaceModel<ComponentApi> boundSurface;
+    late NodeResolver<ComponentApi> boundResolver;
+    late List<A2uiWarning> warnings;
+
+    setUp(() {
+      boundSurface = SurfaceModel<ComponentApi>(
+        'bound',
+        defaultCatalog: Catalog(
+          id: 'bound-catalog',
+          components: [
+            ComponentApi(
+              name: 'Label',
+              schema: Schema.object(
+                properties: {'text': CommonSchemas.dynamicString},
+              ),
+            ),
+            ComponentApi(
+              name: 'Column',
+              schema: Schema.object(
+                properties: {'children': CommonSchemas.childList},
+              ),
+            ),
+          ],
+        ),
+      );
+      warnings = [];
+      boundSurface.onWarning.subscribe(warnings.add);
+      boundResolver = NodeResolver(boundSurface);
+      addTearDown(() {
+        boundResolver.dispose();
+        boundSurface.dispose();
+      });
+    });
+
+    test('warns once per unresolved path after the tree commits', () async {
+      final rootsAtWarning = <ComponentNode?>[];
+      boundSurface.onWarning.subscribe(
+        (_) => rootsAtWarning.add(boundResolver.rootNode.peek()),
+      );
+      boundSurface.dataModel.set('/present', 'here');
+      _add(boundSurface, 'a', 'Label', {
+        'text': {'path': '/missing'},
+      });
+      _add(boundSurface, 'b', 'Label', {
+        'text': {'path': '/missing'},
+      });
+      _add(boundSurface, 'c', 'Label', {
+        'text': {'path': '/present'},
+      });
+      _add(boundSurface, 'd', 'Label', {
+        'text': {'path': '/other'},
+      });
+      _add(boundSurface, 'root', 'Column', {
+        'children': ['a', 'b', 'c', 'd'],
+      });
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        [for (final warning in warnings) (warning.code, warning.path)],
+        [
+          ('MISSING_DATA_BINDING', '/missing'),
+          ('MISSING_DATA_BINDING', '/other')
+        ],
+      );
+      expect(warnings.first.surfaceId, 'bound');
+      expect(rootsAtWarning, everyElement(isNotNull));
+
+      // Rebuilding a binding to the same missing path does not warn again.
+      boundSurface.componentsModel.get('a')!.properties = {
+        'text': {'path': '/missing'},
+      };
+      await Future<void>.delayed(Duration.zero);
+      expect(warnings, hasLength(2));
+    });
+
+    test('does not warn for a binding outside a mounted node', () async {
+      _add(boundSurface, 'orphan', 'Label', {
+        'text': {'path': '/missing'},
+      });
+      await Future<void>.delayed(Duration.zero);
+      expect(warnings, isEmpty);
+    });
+  });
+}

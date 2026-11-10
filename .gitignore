@@ -9,12 +9,15 @@ dist
 .angular/
 
 # MkDocs build output
-site/
+/site/
 
 # Python virtual environment
 .venv/
 coverage/
 
+# Older a2ui-agent-sdk builds copied specification JSON into these directories.
+# Nothing writes there anymore, but older checkouts can still have the files;
+# these rules keep them out of commits and locally built wheels.
 ## old agent SDK path
 a2a_agents/python/a2ui_agent/src/a2ui/assets/**/*.json
 agent_sdks/python/src/a2ui/assets/**/*.json
@@ -46,6 +49,8 @@ worktrees/
 
 # Playwright test artifacts
 .playwright/
+playwright-report/
+test-results/
 
 # Local-only scratch files.
 .local/
@@ -151,3 +156,6 @@ express_live_demo_output.txt
 # Specification test temporary files
 specification/*/test/temp_data.json
 specification/*/test/catalog.json
+
+# Recordings the live e2e tests write (scripts/e2e_test.sh).
+e2e-recordings/

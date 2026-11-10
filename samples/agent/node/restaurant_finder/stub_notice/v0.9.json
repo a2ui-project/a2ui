@@ -1,0 +1,22 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "stub-notice",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "stub-notice",
+      "components": [
+        {
+          "id": "root",
+          "component": "Text",
+          "text": "Canned response: STUB_LLM=true, so no model was called."
+        }
+      ]
+    }
+  }
+]

@@ -51,7 +51,9 @@ class TestFormatTools(unittest.TestCase):
     def test_compile_snippet_atom(self) -> None:
         compiled = format_tools.test_compile_snippet("atom", '(Card (Text "Hello"))')
         payload = json.loads(compiled)
-        self.assertEqual(payload["version"], "v1.0")
+        self.assertIsInstance(payload, list)
+        self.assertTrue(payload)
+        self.assertEqual(payload[0]["version"], "1.0")
 
     def test_compile_snippet_express(self) -> None:
         compiled = format_tools.test_compile_snippet(
@@ -73,7 +75,7 @@ class TestFormatTools(unittest.TestCase):
 
     def test_decompile_payload_atom(self) -> None:
         payload = {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "main",
                 "components": [
@@ -87,7 +89,7 @@ class TestFormatTools(unittest.TestCase):
 
     def test_decompile_payload_express(self) -> None:
         payload = {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "main",
                 "components": [
@@ -101,7 +103,7 @@ class TestFormatTools(unittest.TestCase):
 
     def test_decompile_payload_elemental(self) -> None:
         payload = {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "main",
                 "components": [
@@ -246,7 +248,10 @@ class TestRunnerAndReporter(unittest.TestCase):
         log_data = {
             "results": {
                 "scores": [
-                    {"name": "a2ui_scorer", "metrics": {"accuracy": {"value": 1.0}}},
+                    {
+                        "name": "a2ui_scorer",
+                        "metrics": {"accuracy": {"value": 1.0}},
+                    },
                     {
                         "name": "measured_model_graded_qa",
                         "metrics": {"accuracy": {"value": 1.0}},
@@ -276,7 +281,10 @@ class TestRunnerAndReporter(unittest.TestCase):
         log_data = {
             "results": {
                 "scores": [
-                    {"name": "a2ui_scorer", "metrics": {"accuracy": {"value": 0.5}}},
+                    {
+                        "name": "a2ui_scorer",
+                        "metrics": {"accuracy": {"value": 0.5}},
+                    },
                     {
                         "name": "measured_model_graded_qa",
                         "metrics": {"accuracy": {"value": 0.5}},
@@ -317,7 +325,10 @@ class TestRunnerAndReporter(unittest.TestCase):
         log_data = {
             "results": {
                 "scores": [
-                    {"name": "a2ui_scorer", "metrics": {"accuracy": {"value": 1.0}}},
+                    {
+                        "name": "a2ui_scorer",
+                        "metrics": {"accuracy": {"value": 1.0}},
+                    },
                     {
                         "name": "measured_model_graded_qa",
                         "metrics": {"accuracy": {"value": 1.0}},
@@ -329,7 +340,10 @@ class TestRunnerAndReporter(unittest.TestCase):
         baseline_data = {
             "results": {
                 "scores": [
-                    {"name": "a2ui_scorer", "metrics": {"accuracy": {"value": 0.8}}},
+                    {
+                        "name": "a2ui_scorer",
+                        "metrics": {"accuracy": {"value": 0.8}},
+                    },
                     {
                         "name": "measured_model_graded_qa",
                         "metrics": {"accuracy": {"value": 0.8}},
@@ -574,7 +588,10 @@ class TestRunnerAndReporter(unittest.TestCase):
         log_data = {
             "results": {
                 "scores": [
-                    {"name": "a2ui_scorer", "metrics": {"accuracy": {"value": 0.8}}},
+                    {
+                        "name": "a2ui_scorer",
+                        "metrics": {"accuracy": {"value": 0.8}},
+                    },
                     {
                         "name": "measured_model_graded_qa",
                         "metrics": {"accuracy": {"value": 0.9}},
@@ -605,7 +622,10 @@ class TestRunnerAndReporter(unittest.TestCase):
         log_data = {
             "results": {
                 "scores": [
-                    {"name": "a2ui_scorer", "metrics": {"accuracy": {"value": 0.7}}},
+                    {
+                        "name": "a2ui_scorer",
+                        "metrics": {"accuracy": {"value": 0.7}},
+                    },
                 ]
             },
             "samples": [{

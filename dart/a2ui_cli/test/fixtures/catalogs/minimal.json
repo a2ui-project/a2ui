@@ -1,0 +1,16 @@
+{
+  "catalogId": "minimal_catalog",
+  "protocolVersion": "v0.9.1",
+  "components": {
+    "Heading": {
+      "description": "Heading component.",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "Heading text."
+        }
+      },
+      "required": ["text"]
+    }
+  }
+}

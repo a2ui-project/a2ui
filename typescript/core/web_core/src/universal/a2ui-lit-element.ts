@@ -1,0 +1,593 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import {
+  type CSSResult,
+  css,
+  html,
+  LitElement,
+  nothing,
+  type PropertyValues,
+  type TemplateResult,
+} from 'lit';
+import {property} from 'lit/decorators.js';
+
+import {Catalog, ComponentApi, type InferredComponentApiSchemaType} from '../catalog/types.js';
+import {type A2uiMetadata, type Extensions} from '../common/metadata.js';
+import {peekValue} from '../reactivity/signals.js';
+import {ComponentContext} from '../resolution/component-context.js';
+import {type ComponentNode, isComponentNode} from '../resolution/component-node.js';
+import type {ResolveA2uiProps} from '../resolution/generic-binder.js';
+import {nextNodeId} from '../resolution/node-id.js';
+import {ResolvedBinding} from '../resolution/resolved-binding.js';
+import {type ComponentId} from '../types/common-types.js';
+import {A2uiController} from './a2ui-controller.js';
+import {
+  type CheckableResolvedProps,
+  hasValidationErrors,
+  HostAccessibility,
+  type ResolvedAccessibilityAttributes,
+} from './host_accessibility.js';
+import {canRenderA2uiNode, renderA2uiNode} from './render-a2ui-node.js';
+import type {WebComponentImplementation} from './web_component_implementation.js';
+
+export type {CheckableResolvedProps, ResolvedAccessibilityAttributes};
+
+/** The surface a child renders on, as its data context reports it. */
+type ChildSurface = NonNullable<ComponentContext['dataContext']['surface']>;
+
+/**
+ * A reference to a child component to render. Either a string ID, or an object
+ * pairing an ID with an explicit data context path.
+ */
+export type A2uiChildRef =
+  | ComponentId
+  | {
+      id: ComponentId;
+      basePath: string;
+    };
+
+export type ResolvedChildRef = A2uiChildRef;
+export type ResolvedChildList = A2uiChildRef[];
+
+/**
+ * A base class for A2UI Lit elements that manages the A2uiController lifecycle
+ * and provides Light DOM style adoption and scoping.
+ *
+ * Elements render into Light DOM by default (`createRenderRoot()` returns `this`), and
+ * `adoptLightDomStyles()` scopes `static styles` to the element's tag name and adopts
+ * them into the enclosing `Document` or `ShadowRoot`. Subclasses that require Shadow DOM
+ * can override `createRenderRoot()` (for example `return this.attachShadow({mode: 'open'})`).
+ *
+ * @template Api The specific A2UI component API defining the schema for this element.
+ * @experimental This class is experimental and subject to change as A2UI transitions
+ * to the unified Node Layer resolution pipeline.
+ */
+export abstract class A2uiLitElement<
+  Api extends ComponentApi = ComponentApi,
+  Props = ResolveA2uiProps<InferredComponentApiSchemaType<Api>>,
+> extends LitElement {
+  /**
+   * The component context for the node this element renders.
+   *
+   * @deprecated Assign `node` instead.
+   */
+  @property({type: Object}) context!: ComponentContext;
+
+  /**
+   * The resolved node this element renders, when its parent resolves the
+   * surface through a `NodeResolver`. Assigning it also assigns `context`
+   * (`node.context`), and `renderNode` then renders the node's own children.
+   */
+  @property({type: Object}) node?: ComponentNode;
+
+  /**
+   * Component API specification for automatic controller instantiation.
+   */
+  protected readonly api?: Api;
+
+  private _controller?: A2uiController<Api, Props>;
+  private _controllerContext?: ComponentContext;
+  private _controllerNode?: ComponentNode;
+  private fallbackDomId?: string;
+  private readonly _hostAccessibility = new HostAccessibility(this);
+
+  /**
+   * Document-unique ID prefix for associating internal labels, controls, and error messages.
+   *
+   * Reads `ComponentNode.id` when rendered through a `NodeResolver`; an element mounted
+   * with only a `ComponentContext` draws one lazily from the same ID sequence.
+   */
+  protected get domId(): string {
+    return this.node?.id ?? (this.fallbackDomId ??= nextNodeId());
+  }
+
+  /**
+   * Returns the inner semantic element that should receive `accessibility.label`,
+   * `accessibility.description`, and validation error attributes (`aria-invalid` and
+   * `aria-describedby`), or `null` when no inner control targets those attributes.
+   *
+   * When this method returns `null` and an accessibility `label` or `description` is
+   * present, `applyAccessibilityAttributes` falls back to setting `role="group"` on the
+   * host element (unless an explicit `role` attribute is already set) along with
+   * `aria-label` and `aria-description`.
+   */
+  protected accessibilityTarget(): Element | null {
+    return null;
+  }
+
+  /**
+   * Renders the validation error messages block (`#${this.domId}-error`) when the
+   * component fails one or more validation checks, or `nothing` when valid.
+   *
+   * @param props Optional resolved checkable props; defaults to `this.controller?.props`.
+   */
+  protected renderValidationErrors(
+    props?: CheckableResolvedProps,
+  ): TemplateResult | typeof nothing {
+    const resolvedProps = props ?? (this.controller?.props as CheckableResolvedProps | undefined);
+    if (hasValidationErrors(resolvedProps)) {
+      return html`
+        <div id="${this.domId}-error" class="a2ui-validation-errors">
+          ${resolvedProps!.validationErrors!.map(
+            (msg: string) => html`<div class="a2ui-error-message">${msg}</div>`,
+          )}
+        </div>
+      `;
+    }
+    return nothing;
+  }
+
+  /**
+   * Applies host-level and target-level accessibility and validation attributes after render.
+   *
+   * Sets `aria-live`, `aria-hidden`, and `inert` on the host element. When
+   * `accessibilityTarget()` returns an element, applies `aria-label`, `aria-description`,
+   * `aria-invalid`, and `aria-describedby` (merging `#${this.domId}-error` when the error
+   * element is rendered) onto that element while preserving component-authored attributes.
+   * When `accessibilityTarget()` returns `null` and a `label` or `description` is present,
+   * sets `role="group"` on the host (preserving any existing `role` attribute) together
+   * with `aria-label` and `aria-description`.
+   */
+  protected applyAccessibilityAttributes(
+    accessibility?: ResolvedAccessibilityAttributes,
+    checkable?: CheckableResolvedProps,
+  ): void {
+    const errorId = `${this.domId}-error`;
+    const errors = this.renderRoot.querySelector(`[id=${JSON.stringify(errorId)}]`);
+    this._hostAccessibility.apply(
+      {
+        accessibility,
+        isValid: checkable?.isValid,
+        validationErrors: checkable?.validationErrors,
+      },
+      this.accessibilityTarget(),
+      errors,
+      errorId,
+    );
+  }
+
+  /**
+   * The reactive controller instance managing property bindings and state subscriptions.
+   */
+  public get controller(): A2uiController<Api, Props> {
+    return this._controller!;
+  }
+
+  /**
+   * The component's current metadata envelope, lazily subscribing on first read.
+   */
+  public get metadata(): A2uiMetadata | undefined {
+    return this._controller?.metadata;
+  }
+
+  /**
+   * The component's current `extensions` map, lazily subscribing on first read.
+   */
+  public get extensions(): Extensions | undefined {
+    return this._controller?.extensions;
+  }
+
+  /**
+   * The containing surface's metadata envelope, lazily subscribing on first read.
+   */
+  public get surfaceMetadata(): A2uiMetadata | undefined {
+    return this._controller?.surfaceMetadata;
+  }
+
+  /**
+   * The containing surface's `extensions` map, lazily subscribing on first read.
+   */
+  public get surfaceExtensions(): Extensions | undefined {
+    return this._controller?.surfaceExtensions;
+  }
+
+  /**
+   * Renders into Light DOM by default. Subclasses that require Shadow DOM can override
+   * this method (for example `return this.attachShadow({mode: 'open'})`).
+   */
+  protected override createRenderRoot(): HTMLElement | DocumentFragment {
+    return this;
+  }
+
+  /**
+   * Adopts and scopes component CSS rules into the containing document or host shadow root.
+   *
+   * Because `A2uiLitElement` renders into Light DOM by default (`createRenderRoot()`
+   * returning `this`), it has no shadow root of its own, so this method locates the nearest
+   * enclosing `Document` or `ShadowRoot` and adopts the stylesheet once per root, scoping
+   * `:host` and descendant selectors to the element's `tagName`.
+   *
+   * Does nothing when a subclass opts into Shadow DOM (for example by overriding
+   * `createRenderRoot()` to return `this.attachShadow({mode: 'open'})`), because Lit already
+   * adopts `static styles` into that `ShadowRoot`.
+   */
+  protected adoptLightDomStyles() {
+    if (typeof document === 'undefined') return;
+    if (this.renderRoot !== this) return;
+    const root = this.getRootNode() as Document | ShadowRoot;
+
+    const constructor = this.constructor as typeof A2uiLitElement & {
+      _processedSheet?: CSSStyleSheet;
+      _processedCss?: string;
+      _processedStyle?: CSSResult;
+      _adoptedRoots?: WeakSet<Node>;
+    };
+    const styles = (constructor as any).styles;
+    if (!styles) return;
+
+    const tagName = this.tagName.toLowerCase();
+
+    if (!constructor._processedSheet && constructor._processedCss === undefined) {
+      const styleList = Array.isArray(styles) ? styles : [styles];
+      const rawCss = styleList
+        .map(s =>
+          s && typeof s === 'object' && 'cssText' in s ? String((s as any).cssText) : String(s),
+        )
+        .join('\n');
+
+      // In Light DOM, replace :host selectors with the specific tagName
+      // and scope descendant selectors to avoid leaking styles to other components.
+      const baseCss = rawCss
+        .replace(/:where\(:host\)/g, `:where(${tagName})`)
+        .replace(/:host\(([^)]+)\)/g, `${tagName}$1`)
+        .replace(/:host/g, tagName);
+
+      let processedCss = baseCss;
+
+      try {
+        const sheet = new CSSStyleSheet();
+        sheet.replaceSync(baseCss);
+
+        // Scopes CSS rules by prefixing child selectors with the component's custom element tag name,
+        // while preserving host-level pseudo-classes (:where, :is, class modifiers, attributes).
+        const scopeRule = (rule: CSSRule): string => {
+          if (typeof CSSStyleRule !== 'undefined' && rule instanceof CSSStyleRule) {
+            const scopedSelectors = rule.selectorText
+              .split(',')
+              .map(sel => {
+                sel = sel.trim();
+                if (
+                  sel === tagName ||
+                  sel.startsWith(tagName + ' ') ||
+                  sel.startsWith(tagName + '.') ||
+                  sel.startsWith(tagName + ':') ||
+                  sel.startsWith(tagName + '[') ||
+                  sel.startsWith(`:where(${tagName}`) ||
+                  sel.startsWith(`:is(${tagName}`)
+                ) {
+                  return sel;
+                }
+                return `${tagName} ${sel}`;
+              })
+              .join(', ');
+            return `${scopedSelectors} { ${rule.style.cssText} }`;
+          } else if (typeof CSSMediaRule !== 'undefined' && rule instanceof CSSMediaRule) {
+            const inner = Array.from(rule.cssRules).map(scopeRule).join('\n');
+            return `@media ${rule.conditionText} {\n${inner}\n}`;
+          }
+          return rule.cssText;
+        };
+
+        processedCss = Array.from(sheet.cssRules).map(scopeRule).join('\n');
+        const scopedSheet = new CSSStyleSheet();
+        scopedSheet.replaceSync(processedCss);
+        constructor._processedSheet = scopedSheet;
+      } catch {
+        // Fallback for environments lacking CSSStyleSheet support
+      }
+
+      constructor._processedCss = processedCss;
+      constructor._processedStyle = css([processedCss] as unknown as TemplateStringsArray);
+      constructor._adoptedRoots = new WeakSet();
+    }
+
+    const target =
+      typeof ShadowRoot !== 'undefined' && root instanceof ShadowRoot
+        ? root
+        : typeof document !== 'undefined'
+          ? document
+          : undefined;
+
+    if (target) {
+      if (!constructor._adoptedRoots) {
+        constructor._adoptedRoots = new WeakSet();
+      }
+      if (!constructor._adoptedRoots.has(target)) {
+        constructor._adoptedRoots.add(target);
+        if (constructor._processedSheet && (target as any).adoptedStyleSheets) {
+          (target as any).adoptedStyleSheets = [
+            ...(target as any).adoptedStyleSheets,
+            constructor._processedSheet,
+          ];
+        }
+      }
+    }
+  }
+
+  /**
+   * Lifecycle hook invoked when the element is connected to the DOM.
+   * Scopes and adopts component styles into the document or host shadow root.
+   */
+  override connectedCallback() {
+    super.connectedCallback();
+    this.adoptLightDomStyles();
+  }
+
+  /**
+   * Instantiates the controller for this element's specific bound API.
+   *
+   * Uses the instance `api` property when a subclass defines it. Otherwise it
+   * uses the API of the catalog entry the component was rendered from (see
+   * `findCatalogApi`). Subclasses can override this method if custom
+   * controller initialization is required.
+   *
+   * @returns A new instance of `A2uiController` matching the component API.
+   */
+  protected createController(): A2uiController<Api, Props> {
+    const activeApi = this.api ?? this.findCatalogApi();
+    if (!activeApi) {
+      throw new Error(
+        `[A2uiLitElement] Either define 'protected readonly api = ...' on ${this.constructor.name} or override 'createController()'.`,
+      );
+    }
+    return new A2uiController(this, activeApi) as unknown as A2uiController<Api, Props>;
+  }
+
+  /**
+   * Finds the API of the catalog entry this element was rendered from.
+   *
+   * Version-agnostic elements, such as the basic catalog's, leave `api` unset:
+   * one element class is registered in the catalogs of several protocol
+   * versions, and the props schema has to match the catalog the component
+   * came from. That entry is the resolved node's implementation, or the
+   * component's entry in its own catalog.
+   */
+  private findCatalogApi(): Api | undefined {
+    if (this.node?.impl) {
+      return this.node.impl as unknown as Api;
+    }
+    const componentModel = this.context?.componentModel;
+    if (!componentModel) return undefined;
+    const catalog = componentModel.catalog as Catalog<ComponentApi>;
+    return catalog.components.get(componentModel.type) as Api | undefined;
+  }
+
+  /**
+   * Helper method to render a child A2UI node.
+   * Abstracts away the need to manually create a ComponentContext.
+   *
+   * @param childRef The reference to the child component to render. Either a string ID
+   *                 or a reference object containing `{id, basePath}`.
+   * @param customPath An explicit data model path to bind the child to. If provided,
+   *                   this overrides any path defined in the `childRef` object. If omitted,
+   *                   falls back to the `childRef`'s `basePath`, or the current component's path.
+   *
+   * @returns A Lit template result containing the rendered child component, or `nothing` if the reference is empty.
+   */
+  protected renderNode(childRef?: ComponentNode | A2uiChildRef, customPath?: string) {
+    const child = this.resolveChild(childRef, customPath);
+    if (!child) return nothing;
+    if ('node' in child) return renderA2uiNode(child.node);
+    const childContext = new ComponentContext(child.surface, child.componentId, child.path);
+    const childCatalog: Catalog<WebComponentImplementation> = childContext.componentModel.catalog;
+    return renderA2uiNode(childContext, childCatalog);
+  }
+
+  /**
+   * Whether the child `renderNode(childRef, customPath)` would render has resolved: its
+   * component has arrived and its type has an implementation. An unresolved child (pending,
+   * unknown type or cyclic) renders nothing.
+   *
+   * Containers that give each child a slot of their own (an `<li>`, an item `div`) use this to
+   * leave unresolved children out entirely, wrapper included, so they take no marker or gap.
+   * It shares `renderNode`'s lookup, so the two always agree.
+   */
+  protected isChildResolved(childRef?: ComponentNode | A2uiChildRef, customPath?: string): boolean {
+    const child = this.resolveChild(childRef, customPath);
+    if (!child) return false;
+    if ('node' in child) return canRenderA2uiNode(child.node);
+    const model = child.surface.componentsModel.get(child.componentId);
+    const catalog = model?.catalog as Catalog<WebComponentImplementation> | undefined;
+    return !!model && !!catalog?.components.get(model.type)?.tagName;
+  }
+
+  /**
+   * Finds what `renderNode` renders for a child reference: the child's `ComponentNode` when the
+   * node tree has one, otherwise the surface, component id and data path to build a context
+   * from. Returns `undefined` when there is nothing to render.
+   */
+  private resolveChild(
+    childRef?: ComponentNode | A2uiChildRef,
+    customPath?: string,
+  ):
+    | {node: ComponentNode}
+    | {surface: ChildSurface; componentId: ComponentId; path: string}
+    | undefined {
+    if (!childRef || !this.context?.dataContext) return undefined;
+    const {surface, path: parentPath} = this.context.dataContext;
+    if (!surface) {
+      return undefined;
+    }
+
+    const surfaceContainsComponent = !!surface.componentsModel?.get(this.context.componentModel.id);
+    if (!surfaceContainsComponent) {
+      return undefined;
+    }
+
+    if (isComponentNode(childRef) && !customPath) {
+      return {node: childRef};
+    }
+
+    let componentId: ComponentId | undefined;
+    let path = customPath;
+    if (typeof childRef === 'object') {
+      componentId = (childRef as any).id || (childRef as any).componentId;
+      path = path ?? (childRef as any).basePath ?? (childRef as any).path;
+    } else {
+      componentId = childRef;
+    }
+
+    if (!componentId || !surface.componentsModel?.get(componentId)) {
+      return undefined;
+    }
+
+    path = path ?? parentPath;
+
+    if (this.node) {
+      const childNode = findChildNode(this.node, componentId, path);
+      if (childNode) {
+        return {node: childNode};
+      }
+    }
+
+    return {surface, componentId, path};
+  }
+
+  /**
+   * Reacts to changes in the component's properties.
+   *
+   * Specifically, when the `node` or `context` property changes or is initialized,
+   * this method cleans up any existing controller and invokes `createController()`
+   * to bind to the new node or context.
+   *
+   * @param changedProperties Map of changed properties with their previous values.
+   */
+  override willUpdate(changedProperties: PropertyValues) {
+    super.willUpdate(changedProperties);
+    const nodeChanged = changedProperties.has('node') && this.node !== this._controllerNode;
+    let contextChanged = changedProperties.has('context');
+    if (changedProperties.has('node') && this.node?.context && this.node.context !== this.context) {
+      this.context = this.node.context;
+      contextChanged = true;
+    }
+    if ((contextChanged || nodeChanged) && this.context) {
+      if (
+        this._controller &&
+        !nodeChanged &&
+        bindsSameComponent(this._controllerContext, this.context)
+      ) {
+        this._controllerContext = this.context;
+        return;
+      }
+      if (this._controller) {
+        this.removeController(this._controller);
+        this._controller.dispose();
+      }
+      this._controller = this.createController();
+      this._controllerContext = this.context;
+      this._controllerNode = this.node;
+    }
+  }
+
+  protected override update(changedProperties: PropertyValues) {
+    if (!this._controller) {
+      return;
+    }
+    super.update(changedProperties);
+  }
+
+  protected override updated(changedProperties: PropertyValues) {
+    super.updated(changedProperties);
+    const props = this.controller?.props as
+      | ({accessibility?: ResolvedAccessibilityAttributes} & CheckableResolvedProps)
+      | undefined;
+    this.applyAccessibilityAttributes(props?.accessibility, props);
+  }
+}
+
+/**
+ * Whether two `ComponentContext` instances bind the same component model at
+ * the same data path on the same surface.
+ *
+ * Parent elements without a `ComponentNode` construct a fresh
+ * `ComponentContext` in `renderNode` on every render; comparing the bound
+ * targets avoids tearing down and recreating the child's `A2uiController`
+ * and `GenericBinder` when nothing they observe has changed.
+ */
+function bindsSameComponent(
+  a: ComponentContext | undefined,
+  b: ComponentContext | undefined,
+): boolean {
+  if (a === b) return true;
+  if (!a?.componentModel || !b?.componentModel || !a.dataContext || !b.dataContext) {
+    return false;
+  }
+  return (
+    a.componentModel === b.componentModel &&
+    a.surfaceComponents === b.surfaceComponents &&
+    a.theme === b.theme &&
+    a.dataContext.surface === b.dataContext.surface &&
+    a.dataContext.dataModel === b.dataContext.dataModel &&
+    a.dataContext.path === b.dataContext.path &&
+    a.dataContext.explicitIndex === b.dataContext.explicitIndex &&
+    a.dataContext.parent === b.dataContext.parent
+  );
+}
+
+/**
+ * The child of `parent` for `componentId` at `dataPath`, searched through the
+ * parent's resolved props (child lists, nested objects and bindings).
+ */
+function findChildNode(
+  parent: ComponentNode,
+  componentId: string,
+  dataPath: string,
+): ComponentNode | undefined {
+  const visit = (value: unknown): ComponentNode | undefined => {
+    if (isComponentNode(value)) {
+      return value.componentId === componentId && value.dataPath === dataPath ? value : undefined;
+    }
+    if (value instanceof ResolvedBinding) {
+      return visit(value.value);
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const found = visit(item);
+        if (found) return found;
+      }
+      return undefined;
+    }
+    if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+      for (const item of Object.values(value)) {
+        const found = visit(item);
+        if (found) return found;
+      }
+    }
+    return undefined;
+  };
+  return visit(peekValue(parent.props));
+}

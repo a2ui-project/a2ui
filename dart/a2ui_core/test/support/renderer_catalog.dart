@@ -16,7 +16,7 @@ import 'package:a2ui_core/a2ui_core.dart';
 
 /// Reads a catalog document as a catalog `MessageProcessor` can hold.
 ///
-/// `Catalog.fromJson` produces a [SchemaCatalog], whose functions are
+/// `Catalog.fromJson` produces a [CatalogApi], whose functions are
 /// signatures ([FunctionApi]). `MessageProcessor` maintains surface state, and
 /// a surface invokes functions, so its catalogs carry [FunctionImplementation]
 /// instead. Dart's generics are covariant, so the schema-only catalog is not
@@ -28,38 +28,39 @@ import 'package:a2ui_core/a2ui_core.dart';
 Catalog<ComponentApi, FunctionImplementation> rendererCatalog(
   Map<String, Object?> document, {
   String? asCatalogId,
+  String protocolVersion = 'v0.9',
 }) {
-  final SchemaCatalog catalog = Catalog.fromJson(
+  final CatalogApi catalog = Catalog.fromJson(
     asCatalogId == null
         ? document
         : <String, Object?>{...document, 'catalogId': asCatalogId},
+    protocolVersion: A2uiProtocolVersion.tryParseSemVer(protocolVersion),
   );
-  return Catalog<ComponentApi, FunctionImplementation>(
-    id: catalog.id,
-    components: catalog.components.values.toList(),
-    functions: catalog.functions.values.map(_UncallableFunction.new).toList(),
-    themeSchema: catalog.themeSchema,
-    schemaId: catalog.schemaId,
-    title: catalog.title,
-    description: catalog.description,
+  return catalog.withFunctions(
+    catalog.functions.values.map(_UncallableFunction.new),
   );
 }
 
 /// A catalog function carrying its signature and no behaviour.
 class _UncallableFunction extends FunctionImplementation {
   _UncallableFunction(FunctionApi api)
-    : super(
-        name: api.name,
-        argumentSchema: api.argumentSchema,
-        returnType: api.returnType,
-      );
+      : super(
+          name: api.name,
+          argumentSchema: api.argumentSchema,
+          returnType: api.returnType,
+          description: api.description,
+          allowedCallers: api.declaredAllowedCallers,
+          requiresUserActivation: api.declaredRequiresUserActivation,
+          definition: api.definition,
+        );
 
   @override
   Object? execute(
     Map<String, dynamic> args,
     DataContext context, [
     CancellationSignal? cancellationSignal,
-  ]) => throw UnsupportedError(
-    "Function '$name' carries a signature only and cannot be invoked.",
-  );
+  ]) =>
+      throw UnsupportedError(
+        "Function '$name' carries a signature only and cannot be invoked.",
+      );
 }

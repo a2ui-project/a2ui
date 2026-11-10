@@ -1,0 +1,238 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import * as assert from 'node:assert';
+import {describe, it, before, after, beforeEach, afterEach} from 'node:test';
+import {setupTestDom, teardownTestDom, asyncUpdate} from '../../../test/dom-setup.js';
+import {
+  ComponentContext,
+  MessageProcessor,
+  Catalog,
+  SurfaceModel,
+  Subscription,
+} from '../../../v0_9/index.js';
+import {
+  type A2uiWebComponentElement,
+  registerUniversalElement,
+  type WebComponentImplementation,
+} from '../../index.js';
+
+describe('AudioPlayer Component', () => {
+  let basicCatalog: Catalog<WebComponentImplementation>;
+
+  before(async () => {
+    setupTestDom();
+    basicCatalog = (await import('../../../v0_9/basic_catalog/index.js')).basicCatalog;
+    basicCatalog.components.forEach(c => registerUniversalElement(c));
+  });
+
+  after(teardownTestDom);
+
+  let processor: MessageProcessor<WebComponentImplementation>;
+  let surface: SurfaceModel;
+  let element: A2uiWebComponentElement | null = null;
+  let subscription: Subscription | null = null;
+
+  beforeEach(() => {
+    processor = new MessageProcessor([basicCatalog]);
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'test-surface',
+          catalogId: basicCatalog.id,
+        },
+      },
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'comp1',
+              component: 'AudioPlayer',
+              url: 'http://example.com/audio.mp3',
+            },
+          ],
+        },
+      },
+    ]);
+    surface = processor.model.getSurface('test-surface')!;
+  });
+
+  afterEach(() => {
+    subscription?.unsubscribe();
+    subscription = null;
+    if (element) {
+      element.remove();
+      element = null;
+    }
+  });
+
+  it('should render and attach url correctly', async () => {
+    const el = document.createElement('a2ui-audioplayer') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'comp1');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    assert.notStrictEqual(el, null);
+    const audio = el.querySelector('audio');
+    assert.notStrictEqual(audio, null);
+    assert.strictEqual(audio?.getAttribute('src'), 'http://example.com/audio.mp3');
+    assert.strictEqual(audio?.classList.contains('a2ui-audio'), true);
+  });
+
+  it('should allow data: URLs on AudioPlayer', async () => {
+    const dataUrl = 'data:audio/mp3;base64,AAAA';
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'comp1',
+              component: 'AudioPlayer',
+              url: dataUrl,
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-audioplayer') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'comp1');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const audio = el.querySelector('audio');
+    assert.notStrictEqual(audio, null);
+    assert.strictEqual(audio?.getAttribute('src'), dataUrl);
+  });
+
+  it('should omit src when url uses a disallowed scheme', async () => {
+    const disallowedUrls = [
+      'javascript:alert(1)',
+      'vbscript:msgbox(1)',
+      'file:///etc/passwd',
+      'blob:https://example.com/123',
+      '//evil.example.com/audio.mp3',
+      '/\\evil.example.com/audio.mp3',
+      '/\t/evil.example.com/audio.mp3',
+      'http:evil.example.com/audio.mp3',
+      'https:evil.example.com/audio.mp3',
+    ];
+
+    const el = document.createElement('a2ui-audioplayer') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    for (const badUrl of disallowedUrls) {
+      processor.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'test-surface',
+            components: [
+              {
+                id: 'comp1',
+                component: 'AudioPlayer',
+                url: badUrl,
+              },
+            ],
+          },
+        },
+      ]);
+
+      const context = new ComponentContext(surface, 'comp1');
+      await asyncUpdate(el, e => {
+        e.context = context;
+      });
+
+      const audio = el.querySelector('audio');
+      assert.notStrictEqual(audio, null);
+      assert.strictEqual(
+        audio?.getAttribute('src'),
+        null,
+        `Expected src to be omitted for ${badUrl}`,
+      );
+    }
+  });
+
+  it('associates audio element with visible description and applies accessibility attributes', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'audio_desc',
+              component: 'AudioPlayer',
+              url: 'https://example.com/podcast.mp3',
+              description: 'Episode 1',
+            },
+            {
+              id: 'audio_a11y',
+              component: 'AudioPlayer',
+              url: 'https://example.com/podcast.mp3',
+              description: 'Episode 1',
+              accessibility: {
+                label: 'Play Episode 1',
+                description: '30 minute interview',
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-audioplayer') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'audio_desc');
+    });
+
+    const descEl = el.querySelector('.a2ui-audio-description');
+    let audio = el.querySelector('audio');
+    assert.notStrictEqual(descEl, null);
+    assert.ok(descEl?.id);
+    assert.strictEqual(audio?.getAttribute('aria-labelledby'), descEl?.id);
+    assert.strictEqual(audio?.hasAttribute('aria-label'), false);
+    assert.strictEqual(el.hasAttribute('aria-label'), false);
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'audio_a11y');
+    });
+
+    audio = el.querySelector('audio');
+    assert.strictEqual(audio?.getAttribute('aria-label'), 'Play Episode 1');
+    assert.strictEqual(audio?.hasAttribute('aria-labelledby'), false);
+    assert.strictEqual(audio?.getAttribute('aria-description'), '30 minute interview');
+    assert.strictEqual(el.hasAttribute('aria-label'), false);
+    assert.strictEqual(el.hasAttribute('aria-description'), false);
+  });
+});

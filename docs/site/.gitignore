@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.astro/
+public/specification/
+public/assets/
+public/docs-assets/
+public/CNAME
+public/llms.txt
+public/llms-full.txt
+public/.nojekyll

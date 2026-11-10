@@ -12,206 +12,390 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Incremental streaming parser for Vertical inference format.
+"""Incremental streaming response reader for the A2UI Vertical inference format.
 
-Streams component constructors in an <a2ui> block, emitting an independent Surface
-per completed component.
+Streams component constructors inside `<a2ui>` or `<a2ui-vertical>` blocks,
+emitting an independent surface per completed component statement while applying
+and validating every emitted message against a `RendererState`.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import re
-from typing import Any, List, Optional, Union
+from typing import Any, Generic, Literal, TYPE_CHECKING, TypeVar, cast
 
-from a2ui.core.catalog import Catalog
-from a2ui.core.common.semver import is_at_least_version
-from a2ui.parser.response_part import ResponsePart
-from a2ui.schema.catalog import A2uiCatalog
-from .compiler import VerticalCompiler, _split_statements
+from a2ui.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
+from a2ui.core import A2uiError, A2uiParseError
+from a2ui.core.schema import AgentToRendererMessage
+from a2ui.inference_formats._shared import to_message_models
+from a2ui.parser import (
+    A2uiCompilationError,
+    A2uiCompilationParseError,
+    A2uiCompilationValidationError,
+    A2uiPart,
+    ErrorPart,
+    ResponseStream,
+    StreamPart,
+    TextRun,
+)
+from a2ui.utils import RendererState
+
+from .compiler import (
+    VerticalCompiler,
+    VerticalParseError,
+    VerticalValidationError,
+    _PUBLISHED_WIRE_VERSIONS,
+    split_complete_statements,
+)
+
+if TYPE_CHECKING:
+    from .parser import VerticalParser
+
+PartT = TypeVar("PartT", bound=StreamPart, covariant=True)
+
+_OPEN_TAG_RE = re.compile(r"<(?P<tag>a2ui-vertical|a2ui)(?:\s[^>]*)?>", re.IGNORECASE)
+_OPEN_TAG_START_RE = re.compile(r"<(?:a2ui-vertical|a2ui)\s[^>]*$", re.IGNORECASE)
+_CLOSE_TAG_RE = re.compile(r"</(?:a2ui-vertical|a2ui)\s*>", re.IGNORECASE)
+_CLOSE_TAG_START_RE = re.compile(r"</(?:a2ui-vertical|a2ui)\s*$", re.IGNORECASE)
+_LEADING_FENCE_RE = re.compile(r"^\s*```[a-zA-Z0-9_-]*[ \t]*\r?\n")
+_TRAILING_FENCE_RE = re.compile(r"\r?\n?[ \t]*```[a-zA-Z0-9_-]*\s*$")
 
 
-class VerticalStreamParser:
-    """Processes streamed token chunks incrementally, emitting a Surface per component."""
+def _is_tag_prefix(text: str, idx: int) -> bool:
+    tail = text[idx:].lower()
+    for candidate in ("<a2ui>", "<a2ui-vertical>", "</a2ui>", "</a2ui-vertical>"):
+        if len(tail) < len(candidate) and candidate.startswith(tail):
+            return True
+    return False
+
+
+def _possible_open_tag_start(text: str) -> int:
+    idx = text.find("<")
+    while idx >= 0:
+        if _is_tag_prefix(text, idx) or _OPEN_TAG_START_RE.match(text, idx):
+            return idx
+        idx = text.find("<", idx + 1)
+    return len(text)
+
+
+def _scan_vertical_block(content: str, start: int = 0) -> tuple[int | None, int, int]:
+    """Scans `content` from `start` for `</a2ui>` or `</a2ui-vertical>` outside quotes/comments.
+
+    Returns `(close_start, readable_end, resume_pos)`.
+    """
+    i = start
+    n = len(content)
+    while i < n:
+        ch = content[i]
+        if (
+            ch in ("r", "R")
+            and i + 1 < n
+            and content[i + 1] in ('"', "'")
+            and (i == 0 or not (content[i - 1].isalnum() or content[i - 1] == "_"))
+        ):
+            end = _skip_quoted(content, i + 1, n, raw=True)
+            if end is None:
+                return None, n, i
+            i = end
+            continue
+        if ch in ('"', "'"):
+            end = _skip_quoted(content, i, n, raw=False)
+            if end is None:
+                return None, n, i
+            i = end
+            continue
+        if content.startswith("/*", i):
+            close_comment = content.find("*/", i + 2)
+            if close_comment < 0:
+                return None, n, i
+            i = close_comment + 2
+            continue
+        if ch == "#" or content.startswith(("//", "--"), i):
+            j = i + (1 if ch == "#" else 2)
+            while j < n and content[j] not in ("\n", "\r"):
+                if content[j] == "<":
+                    if _CLOSE_TAG_RE.match(content, j) is not None:
+                        return j, j, j
+                    if _is_tag_prefix(content, j) or _CLOSE_TAG_START_RE.match(
+                        content, j
+                    ):
+                        return None, j, i
+                j += 1
+            if j >= n:
+                return None, n, i
+            i = j + 1
+            continue
+        if ch == "<":
+            if _CLOSE_TAG_RE.match(content, i) is not None:
+                return i, i, i
+            if _is_tag_prefix(content, i) or _CLOSE_TAG_START_RE.match(content, i):
+                return None, i, i
+        i += 1
+    resume_pos = n - 1 if n > 0 and content[n - 1] in ("r", "R", "/", "-") else n
+    return None, n, resume_pos
+
+
+def _skip_quoted(content: str, quote_start: int, n: int, *, raw: bool) -> int | None:
+    q = content[quote_start]
+    delim = q * 3 if content.startswith(q * 3, quote_start) else q
+    i = quote_start + len(delim)
+    while i < n:
+        if not raw and content[i] == "\\":
+            if i + 1 >= n:
+                return None
+            i += 2
+            continue
+        if len(delim) == 1 and content[i] == "\n":
+            return i + 1
+        if content.startswith(delim, i):
+            return i + len(delim)
+        i += 1
+    return None
+
+
+def _wrap_stream_error(error: BaseException, raw_content: str) -> A2uiError:
+    if isinstance(error, A2uiError):
+        return error
+    if isinstance(error, (VerticalValidationError, ValueError)):
+        return A2uiCompilationValidationError(
+            message=str(error),
+            raw_content=raw_content,
+            help_message=(
+                "Please correct the validation error in your Vertical expression."
+            ),
+        )
+    if isinstance(error, (VerticalParseError, SyntaxError)):
+        return A2uiCompilationParseError(
+            message=str(error),
+            raw_content=raw_content,
+            help_message="Please correct the syntax error in your Vertical expression.",
+        )
+    return A2uiCompilationError(
+        message=f"Failed to compile Vertical block: {error}",
+        raw_content=raw_content,
+    )
+
+
+class VerticalResponseStream(ResponseStream[PartT], Generic[PartT]):
+    """Reads a streamed A2UI Vertical response chunk by chunk."""
 
     def __init__(
         self,
-        catalog: Union[Catalog[Any, Any], A2uiCatalog],
-        surface_id: str = "main",
-        version: str = "v1.0",
-    ):
-        self.catalog = catalog
-        self.surface_id = surface_id
-        self.version = version
-        self.compiler = VerticalCompiler(
-            catalog, surface_id=surface_id, version=version
+        parser: VerticalParser,
+        *,
+        wrapped: bool = True,
+        state: RendererState | None = None,
+        after_rejected_block: Literal["end", "continue"] = "end",
+    ) -> None:
+        self._parser = parser
+        self._compiler = VerticalCompiler(
+            parser.catalogs,
+            surface_id=parser.surface_id,
+            version=parser.version,
         )
-        self._surface_count = 0
-        self._in_tag = False
-        self._buffer = ""
-        self._tag_buffer = ""
-        self._text_buffer = ""
+        self._wrapped = wrapped
+        self._state = state if state is not None else RendererState(parser.catalogs)
+        self._continues = after_rejected_block == "continue"
+        self._closed = False
+        self._held = ""
+        self._text = TextRun()
+        self._in_block = not wrapped
+        self._rejected = False
+        self._block = ""
+        self._scan_pos = 0
+        self._consumed_len = 0
+        self._surface_offset = 0
+        self._call_offset = 0
+        self._touched: dict[str, None] = {}
 
-    def process_chunk(self, chunk: str) -> List[ResponsePart]:
-        """Processes the next token chunk in the stream.
+    def _reset_block(self) -> None:
+        self._block = ""
+        self._scan_pos = 0
+        self._consumed_len = 0
+        self._surface_offset = 0
+        self._call_offset = 0
+        self._rejected = False
+        self._touched = {}
 
-        Args:
-            chunk: Streamed chunk string. Passing an empty string flushes the
-              remaining buffer.
+    @property
+    def state(self) -> RendererState:
+        return self._state
 
-        Returns:
-            List of parsed ResponsePart objects.
-        """
-        parts: List[ResponsePart] = []
+    @property
+    def is_in_block(self) -> bool:
+        return not self._closed and self._in_block
 
-        if not chunk:
-            # Flush remaining tag buffer on EOF
-            if self._in_tag and self._tag_buffer.strip():
-                remaining = self._tag_buffer.strip()
-                self._tag_buffer = ""
-                stmts = _split_statements(remaining)
-                for s in stmts:
-                    part = self._compile_statement(s)
-                    if part:
-                        parts.append(part)
-            elif not self._in_tag and self._text_buffer:
-                parts.append(ResponsePart(text=self._text_buffer))
-                self._text_buffer = ""
-            return parts
+    def feed(self, chunk: str) -> list[PartT]:
+        if self._closed:
+            raise ValueError("The response stream is closed.")
+        parts: list[StreamPart] = []
+        try:
+            self._feed(chunk, parts)
+        except BaseException as e:
+            self._fail(e, parts)
+            raise
+        return cast("list[PartT]", parts)
 
-        self._buffer += chunk
-
-        while self._buffer:
-            if not self._in_tag:
-                # Search for opening tag <a2ui> or <a2ui-vertical>
-                match = re.search(
-                    r"<(?:a2ui|a2ui-vertical)\b[^>]*>", self._buffer, re.IGNORECASE
-                )
-                if match:
-                    pre_text = self._buffer[: match.start()]
-                    if pre_text:
-                        self._text_buffer += pre_text
-                        parts.append(ResponsePart(text=self._text_buffer))
-                        self._text_buffer = ""
-                    self._buffer = self._buffer[match.end() :]
-                    self._in_tag = True
-                    self._tag_buffer = ""
-                else:
-                    # Check if buffer ends with partial tag prefix like "<", "<a", "<a2ui"
-                    potential_tag = re.search(
-                        r"<\/?(?:a2ui|a2ui-vertical)?\b[^>]*$",
-                        self._buffer,
-                        re.IGNORECASE,
+    def close(self) -> list[PartT]:
+        if self._closed:
+            return []
+        self._closed = True
+        parts: list[StreamPart] = []
+        try:
+            if not self._wrapped:
+                if not self._rejected:
+                    self._read_block(
+                        parts, lambda: self._finish_block(parts, len(self._block))
                     )
-                    if potential_tag and potential_tag.start() > 0:
-                        safe_text = self._buffer[: potential_tag.start()]
-                        self._text_buffer += safe_text
-                        parts.append(ResponsePart(text=self._text_buffer))
-                        self._text_buffer = ""
-                        self._buffer = self._buffer[potential_tag.start() :]
-                        break
-                    elif not potential_tag:
-                        self._text_buffer += self._buffer
-                        parts.append(ResponsePart(text=self._text_buffer))
-                        self._text_buffer = ""
-                        self._buffer = ""
-                    else:
-                        break
-            else:
-                # We are inside the A2UI tag
-                close_match = re.search(
-                    r"<\/(?:a2ui|a2ui-vertical)\s*>", self._buffer, re.IGNORECASE
+                return cast("list[PartT]", parts)
+            if self._in_block:
+                if not self._rejected:
+                    self._read_block(parts, self._raise_unclosed)
+                self._state.mark_checked(self._touched)
+                return cast("list[PartT]", parts)
+        except BaseException as e:
+            self._fail(e, parts)
+            raise
+        if self._held:
+            rest = self._held
+            self._held = ""
+            self._text.emit(parts, rest)
+        return cast("list[PartT]", parts)
+
+    @staticmethod
+    def _raise_unclosed() -> None:
+        raise A2uiParseError(
+            f"The response ended inside an {A2UI_INFERENCE_OPEN_TAG} block,"
+            f" before its {A2UI_INFERENCE_CLOSE_TAG} tag."
+        )
+
+    def _fail(self, error: BaseException, parts: list[StreamPart]) -> None:
+        self._closed = True
+        self._state.mark_checked(self._touched)
+        if isinstance(error, A2uiError):
+            setattr(
+                error,
+                "partial_results",
+                [p for p in parts if not isinstance(p, ErrorPart)],
+            )
+
+    def _read_block(self, parts: list[StreamPart], step: Callable[[], None]) -> None:
+        try:
+            step()
+        except A2uiError as e:
+            if not self._continues:
+                raise
+            parts.append(ErrorPart(error=e))
+            self._state.mark_checked(self._touched)
+            self._rejected = True
+
+    def _feed(self, chunk: str, parts: list[StreamPart]) -> None:
+        if not self._wrapped:
+            self._block += chunk
+            if not self._rejected:
+                self._read_block(
+                    parts,
+                    lambda: self._emit_ready(parts, len(self._block), is_final=False),
                 )
-                if close_match:
-                    tag_content = self._buffer[: close_match.start()]
-                    self._tag_buffer += tag_content
-                    self._buffer = self._buffer[close_match.end() :]
-                    self._in_tag = False
+            return
 
-                    # Parse and compile all statements in tag_buffer
-                    stmts = _split_statements(self._tag_buffer.strip())
-                    for s in stmts:
-                        part = self._compile_statement(s)
-                        if part:
-                            parts.append(part)
-                    self._tag_buffer = ""
-                else:
-                    # Look for completed statements inside tag buffer
-                    self._tag_buffer += self._buffer
-                    self._buffer = ""
+        input_str = self._held + chunk
+        self._held = ""
+        while input_str:
+            if self._in_block:
+                input_str = self._consume_block_text(parts, input_str)
+                continue
+            input_str = self._consume_outside_text(parts, input_str)
 
-                    # Try splitting statements
-                    stmts = _split_statements(self._tag_buffer)
-                    if len(stmts) > 1:
-                        # All but the last statement are guaranteed complete
-                        for s in stmts[:-1]:
-                            part = self._compile_statement(s)
-                            if part:
-                                parts.append(part)
-                        self._tag_buffer = stmts[-1]
-                    break
+    def _consume_outside_text(self, parts: list[StreamPart], input_str: str) -> str:
+        open_match = _OPEN_TAG_RE.search(input_str)
+        if open_match:
+            before_open = input_str[: open_match.start()]
+            self._text.emit(parts, before_open)
+            self._text.reset()
+            self._in_block = True
+            self._reset_block()
+            return input_str[open_match.end() :]
 
-        return parts
+        tag_start = _possible_open_tag_start(input_str)
+        self._text.emit(parts, input_str[:tag_start])
+        self._held = input_str[tag_start:]
+        return ""
 
-    def _compile_statement(self, stmt: str) -> Optional[ResponsePart]:
-        stmt = stmt.strip()
-        if not stmt:
-            return None
-        # Strip markdown fence if present
-        stmt = re.sub(r"^\s*```\S*[ \t]*\r?\n?", "", stmt, flags=re.MULTILINE)
-        stmt = re.sub(r"^\s*```[ \t]*\r?\n?", "", stmt, flags=re.MULTILINE).strip()
-        if not stmt:
-            return None
-
-        surf_id = (
-            self.surface_id
-            if self._surface_count == 0
-            else f"{self.surface_id}_{self._surface_count}"
+    def _consume_block_text(self, parts: list[StreamPart], input_str: str) -> str:
+        self._block += input_str
+        close_start, readable_end, self._scan_pos = _scan_vertical_block(
+            self._block, self._scan_pos
         )
-        res = self.compiler._parse_statement_to_component(stmt)
-        if not res:
-            return None
-        comp_name, pos_args, kw_args = res
-        comp_dict = self.compiler._resolve_component(comp_name, pos_args, kw_args)
-        root_comp = {"id": "root", **comp_dict}
+        if close_start is None:
+            if not self._rejected:
+                self._read_block(
+                    parts, lambda: self._emit_ready(parts, readable_end, is_final=False)
+                )
+            return ""
 
-        target_version = self.version
-        resolved_catalog_id = (
-            getattr(self.catalog, "catalog_id", "")
-            or getattr(self.catalog, "id", "")
-            or "https://a2ui.org/catalogs/basic.json"
-        )
+        close_match = _CLOSE_TAG_RE.match(self._block, close_start)
+        assert close_match is not None
+        remaining = self._block[close_match.end() :]
+        if not self._rejected:
+            self._read_block(parts, lambda: self._finish_block(parts, close_start))
+        self._in_block = False
+        self._reset_block()
+        return remaining
 
-        if not is_at_least_version(target_version, "1.0.0"):
-            messages = [
-                {
-                    "version": target_version,
-                    "createSurface": {
-                        "surfaceId": surf_id,
-                        "catalogId": resolved_catalog_id,
-                    },
-                },
-                {
-                    "version": target_version,
-                    "updateComponents": {
-                        "surfaceId": surf_id,
-                        "components": [root_comp],
-                    },
-                },
-            ]
-        else:
-            messages = [{
-                "version": target_version,
-                "createSurface": {
-                    "surfaceId": surf_id,
-                    "catalogId": resolved_catalog_id,
-                    "components": [root_comp],
-                },
-            }]
+    def _emit_ready(self, parts: list[StreamPart], end: int, *, is_final: bool) -> None:
+        window = self._block[self._consumed_len : end]
+        if not window.strip():
+            return
+        # Wait if opening markdown fence hasn't reached its newline yet
+        stripped_lead = window.lstrip()
+        if not is_final and stripped_lead.startswith("`") and "\n" not in stripped_lead:
+            return
 
-        self._surface_count += 1
-        return ResponsePart(
-            text="",
-            a2ui_raw=stmt,
-            a2ui_json=messages,
-            is_final=True,
-        )
+        statements, trailing = split_complete_statements(window, is_final=is_final)
+        if not statements:
+            return
+
+        consumed_chars = len(window) - len(trailing)
+        self._consumed_len += consumed_chars
+
+        for stmt in statements:
+            cleaned = _LEADING_FENCE_RE.sub("", stmt)
+            cleaned = _TRAILING_FENCE_RE.sub("", cleaned).strip()
+            if not cleaned or cleaned == "```":
+                continue
+            try:
+                raw_msgs, self._surface_offset, self._call_offset = (
+                    self._compiler.compile_dicts(
+                        cleaned,
+                        surface_id=self._parser.surface_id,
+                        is_final=True,
+                        version=self._compiler.version,
+                        surface_offset=self._surface_offset,
+                        call_offset=self._call_offset,
+                    )
+                )
+            except BaseException as err:
+                raise _wrap_stream_error(err, cleaned) from err
+
+            if not raw_msgs:
+                continue
+
+            if self._compiler.version in _PUBLISHED_WIRE_VERSIONS:
+                with self._state.transaction():
+                    block_touched = self._state.apply(raw_msgs)
+                    if block_touched:
+                        self._state.check_topology(block_touched)
+                self._touched.update(dict.fromkeys(block_touched))
+                models = to_message_models(raw_msgs)
+                parts.append(A2uiPart(a2ui=models))
+            else:
+                parts.append(
+                    A2uiPart(a2ui=cast(list[AgentToRendererMessage], raw_msgs))
+                )
+
+    def _finish_block(self, parts: list[StreamPart], close_start: int) -> None:
+        self._emit_ready(parts, close_start, is_final=True)
+        if self._touched:
+            self._state.check_topology(list(self._touched))

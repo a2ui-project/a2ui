@@ -1,0 +1,140 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import {TestBed} from '@angular/core/testing';
+import {DemoComponent, A2UI_USE_UNIVERSAL_COMPONENTS} from '../../demo.component';
+import {EXAMPLES_V08, EXAMPLES_V09, EXAMPLES_V10} from '../../generated/examples-bundle';
+import {provideMarkdownRenderer} from '@a2ui/angular';
+import {A2UI_VERSION, Version} from '../../types';
+
+export {Version};
+
+/**
+ * Options for configuring example loading in tests.
+ */
+export interface LoadExampleOptions {
+  name: string;
+  version?: Version | '0.8' | '0.9' | '1.0';
+  useUniversalComponents?: boolean;
+}
+
+/**
+ * Helper function to load an example in the DemoComponent for testing.
+ * Resolves after the example is selected and initial async rendering has time to complete.
+ */
+export async function loadExample(options: LoadExampleOptions) {
+  const {name, version: rawVersion = Version.V0_9, useUniversalComponents = null} = options;
+  const version =
+    rawVersion === '1.0'
+      ? Version.V1_0
+      : rawVersion === '0.9'
+        ? Version.V0_9
+        : rawVersion === '0.8'
+          ? Version.V0_8
+          : rawVersion;
+
+  await TestBed.configureTestingModule({
+    imports: [DemoComponent],
+    providers: [
+      provideMarkdownRenderer(),
+      {
+        provide: A2UI_VERSION,
+        useValue: version,
+      },
+      {
+        provide: A2UI_USE_UNIVERSAL_COMPONENTS,
+        useValue: useUniversalComponents,
+      },
+    ],
+  });
+
+  const fixture = TestBed.createComponent(DemoComponent);
+  const component = fixture.componentInstance;
+  fixture.detectChanges();
+
+  const examples =
+    version === Version.V1_0
+      ? EXAMPLES_V10
+      : version === Version.V0_9
+        ? EXAMPLES_V09
+        : EXAMPLES_V08;
+  let example = examples.find(
+    ex => ex.name === name || ex.filename === name || ex.filename === `${name}.json`,
+  );
+
+  if (version === Version.V0_8 && !example) {
+    example =
+      examples.find(ex => ex.name === `${name} (basic)`) ||
+      examples.find(ex => ex.name === `${name} (minimal)`);
+  }
+
+  expect(example).withContext(`Example not found: ${name}`).toBeTruthy();
+
+  component.selectExample(example!);
+  fixture.detectChanges();
+
+  await whenSettled();
+
+  return fixture;
+}
+
+/**
+ * Returns a promise that resolves when the renderer is settled.
+ */
+async function whenSettled(): Promise<void> {
+  // In a zoneless application, we cannot rely on NgZone.onStable.
+  // Yielding to the macrotask queue ensures that all pending microtasks
+  // (like Preact signal listeners and Angular CD cycles) are executed.
+  const MACROTASKS_TO_FLUSH = 20;
+
+  for (let i = 0; i < MACROTASKS_TO_FLUSH; i++) {
+    await wait(0);
+  }
+}
+
+/**
+ * Helper function to wait for a given number of milliseconds.
+ */
+export function wait(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export function getCanvas(): HTMLDivElement {
+  return document.querySelector('.canvas-frame')!;
+}
+
+/**
+ * Helper function to wait for a condition to become true.
+ * Returns a promise that resolves to true if the condition is met within the timeout, or false otherwise.
+ * Compatible with Jasmine because it uses standard boolean checks instead of throwing expectations inside the loop.
+ * Supports only synchronous condition checks.
+ */
+export async function waitForCondition(
+  condition: () => boolean,
+  timeout = 1000,
+  interval = 50,
+): Promise<boolean> {
+  const start = performance.now();
+  while (true) {
+    if (condition()) {
+      return true;
+    }
+    if (performance.now() - start > timeout) {
+      return false;
+    }
+    await wait(interval);
+  }
+}

@@ -62,7 +62,7 @@ public struct A2UIList: View {
         }
         .padding(.horizontal, 4)
       }
-      .accessibilityIdentifier("A2UIList_\(node.id)")
+      .a2uiAccessibilityElement(for: node, children: .contain)
     } else {
       ScrollView(.vertical, showsIndicators: true) {
         LazyVStack(alignment: horizontalAlignment, spacing: 8) {
@@ -75,7 +75,7 @@ public struct A2UIList: View {
         .padding(.vertical, 4)
       }
       .frame(maxWidth: align == "stretch" ? .infinity : nil)
-      .accessibilityIdentifier("A2UIList_\(node.id)")
+      .a2uiAccessibilityElement(for: node, children: .contain)
     }
   }
 

@@ -28,6 +28,8 @@ dependencies = [
     "python-dotenv>=1.1.0",
     "litellm>=1.83.7",
     "jsonschema>=4.0.0",
+    "a2ui-a2a",
+    "a2ui-adk[a2a]",
     "a2ui-agent-sdk>=0.2.4",
     "uvicorn",
     "starlette",
@@ -47,4 +49,6 @@ build-backend = "hatchling.build"
 packages = ["."]
 
 [tool.uv.sources]
+a2ui-a2a = { workspace = true }
+a2ui-adk = { workspace = true }
 a2ui-agent-sdk = { workspace = true }

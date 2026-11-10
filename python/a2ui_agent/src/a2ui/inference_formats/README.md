@@ -1,17 +1,17 @@
 # A2UI Inference Formats
 
-This directory contains inference format implementations (`direct_json`, `express`, `elemental`, `atom`) for the A2UI Python SDK.
+This directory contains inference format implementations (`direct_json`, `express`, `elemental`, `atom`, `vertical`) for the A2UI Python SDK.
 
 ## Design Philosophy
 
-An **Inference Format** defines how an LLM or agent emits UI definitions (e.g. Direct JSON, Express DSL, Elemental HTML, or Atom).
+An **Inference Format** defines how an LLM or agent emits UI definitions (e.g. Direct JSON, Express DSL, Elemental HTML, Atom, or Vertical).
 
 ### Catalog-Agnostic Prompt Generation Rules
 
 To ensure long-term maintainability, portability, and catalog independence:
 
 1. **Single Source of Truth**:
-   All component signatures, parameter descriptions, function helpers, and property constraints MUST be derived dynamically from the `A2uiCatalog` JSON schema via schema helpers (`CatalogSchemaHelper`).
+   All component signatures, parameter descriptions, function helpers, and property constraints MUST be derived dynamically from the `Catalog` JSON schema via schema helpers (`CatalogSchemaHelper`).
 
 2. **No Hardcoded Catalog String Hacks**:
    Prompt generators (`PromptGenerator` implementations) MUST NOT hardcode catalog-specific string replacements, regular expression filters, or custom text manipulations to modify component or property descriptions at runtime.

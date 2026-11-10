@@ -1,0 +1,655 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import * as assert from 'node:assert';
+import {describe, it, before, beforeEach, after, afterEach} from 'node:test';
+import {setupTestDom, teardownTestDom, asyncUpdate} from '../test/dom-setup.js';
+
+import type {MessageProcessor, ComponentContext, Catalog, SurfaceModel} from '../index.js';
+import type {WebComponentImplementation} from './web_component_implementation.js';
+import type {A2uiLitElement as A2uiLitElementType} from './a2ui-lit-element.js';
+import type {A2uiController as A2uiControllerType} from './a2ui-controller.js';
+import {z} from 'zod';
+import type {ComponentApi} from '../catalog/types.js';
+
+const MockTextApi = {
+  name: 'Text',
+  schema: z.object({
+    text: z
+      .union([z.string(), z.record(z.string(), z.any())])
+      .describe('REF:#/$defs/DynamicString')
+      .default(''),
+  }),
+};
+type MockTextApiType = typeof MockTextApi;
+
+interface TestMockHostElement extends HTMLElement {
+  context: ComponentContext;
+  testController: A2uiControllerType<MockTextApiType>;
+  addController(controller: unknown): void;
+  requestUpdate(): void;
+}
+
+/**
+ * These tests verify:
+ * - Proper initialization and subscription to component model changes.
+ * - Automatically triggering `requestUpdate()` on the host element when data properties change.
+ * - Safely cleaning up subscriptions when the host is disconnected or the controller is disposed.
+ */
+describe('A2uiController', () => {
+  let basicCatalog: Catalog<any>;
+  let A2uiController: typeof A2uiControllerType;
+  let TextApi: MockTextApiType;
+  let MessageProcessorClass: typeof MessageProcessor;
+  let ComponentContextClass: typeof ComponentContext;
+  let TestMockHostClass: CustomElementConstructor;
+
+  function ensureCustomElement() {
+    if (!customElements.get('test-mock-host')) {
+      customElements.define('test-mock-host', TestMockHostClass);
+    }
+  }
+
+  /**
+   * Helper function to instantiate and append the `test-mock-host` custom element
+   * defined in the `beforeAll()` hook below.
+   */
+  async function createMockHost(context: ComponentContext): Promise<TestMockHostElement> {
+    ensureCustomElement();
+    const mockHost = document.createElement('test-mock-host') as unknown as TestMockHostElement;
+    document.body.appendChild(mockHost);
+
+    // Initializing the context property triggers Lit's reactive execution cycle,
+    // which in turn synchronously creates the controller instance via createController()
+    // inside the custom element's update hooks.
+    await asyncUpdate(mockHost, host => {
+      host.context = context;
+    });
+
+    return mockHost;
+  }
+
+  before(async () => {
+    setupTestDom();
+
+    // Dynamically import component files *after* setting up JSDOM globals
+    // to prevent LitElement from evaluating in an empty Node context and crashing.
+    const {A2uiLitElement} = await import('./a2ui-lit-element.js');
+    A2uiController = (await import('./a2ui-controller.js')).A2uiController;
+    const webCore = await import('../index.js');
+    MessageProcessorClass = webCore.MessageProcessor;
+    ComponentContextClass = webCore.ComponentContext;
+    basicCatalog = new webCore.Catalog('test-catalog', '1.0', [
+      MockTextApi as unknown as ComponentApi,
+    ]);
+    TextApi = MockTextApi;
+
+    /**
+     * A real Lit element registered as `test-mock-host` in JSDOM.
+     * Instances of this element are instantiated across the test suite
+     * using the `createMockHost` helper function defined above.
+     */
+    class TestMockHost
+      extends (A2uiLitElement as typeof A2uiLitElementType)<MockTextApiType>
+      implements TestMockHostElement
+    {
+      public testController!: A2uiControllerType<MockTextApiType>;
+
+      override createController() {
+        // Automatically create and store the controller using the local MockTextApi catalog.
+        this.testController = new A2uiController(this, TextApi as any);
+        return this.testController;
+      }
+    }
+    TestMockHostClass = TestMockHost as unknown as CustomElementConstructor;
+    ensureCustomElement();
+  });
+
+  after(teardownTestDom);
+
+  let processor: MessageProcessor<WebComponentImplementation>;
+  let surface: SurfaceModel<WebComponentImplementation>;
+  let context: ComponentContext;
+
+  beforeEach(() => {
+    processor = new MessageProcessorClass([basicCatalog]);
+    // Initialize the test surface and seed an initial text component
+    processor.processMessages([
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 'test-surface',
+          catalogId: basicCatalog.id,
+        },
+      },
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'test_comp',
+              component: 'Text',
+              text: 'Initial',
+            },
+          ],
+        },
+      },
+    ]);
+
+    surface = processor.model.getSurface('test-surface')!;
+    context = new ComponentContextClass(surface, 'test_comp');
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('should initialize with correct props and bind to context', async () => {
+    ensureCustomElement();
+    const mockHost = document.createElement('test-mock-host') as unknown as TestMockHostElement;
+    document.body.appendChild(mockHost);
+
+    let addControllerCalled = false;
+    const origAddController = mockHost.addController.bind(mockHost);
+    mockHost.addController = (controller: unknown) => {
+      addControllerCalled = true;
+      origAddController(controller);
+    };
+
+    await asyncUpdate(mockHost, host => {
+      host.context = context;
+    });
+
+    const controller = mockHost.testController;
+    assert.strictEqual(addControllerCalled, true);
+    assert.strictEqual(controller.props.text, 'Initial');
+  });
+
+  it('should request update on host when data changes', async () => {
+    const mockHost = await createMockHost(context);
+    const controller = mockHost.testController;
+
+    assert.strictEqual(controller.props.text, 'Initial');
+
+    // Replace the text component with a path binding and populate the data model
+    await asyncUpdate(processor, p =>
+      p.processMessages([
+        {
+          version: '1.0',
+          updateComponents: {
+            surfaceId: 'test-surface',
+            components: [
+              {
+                id: 'test_comp_2',
+                component: 'Text',
+                text: {'@path': '/myText'},
+              },
+            ],
+          },
+        },
+        {
+          version: '1.0',
+          updateDataModel: {
+            surfaceId: 'test-surface',
+            value: {myText: 'Updated'},
+          },
+        },
+      ]),
+    );
+
+    // Simulate what happens when a component's ID changes or it gets recycled by
+    // disposing the old controller and replacing the host context instance.
+    controller.dispose();
+    const context2 = new ComponentContextClass(surface, 'test_comp_2');
+
+    const mockHost2 = await createMockHost(context2);
+    const controller2 = mockHost2.testController;
+
+    assert.strictEqual(controller2.props.text, 'Updated');
+
+    let updateCount = 0;
+    const origRequestUpdate = mockHost2.requestUpdate.bind(mockHost2);
+    mockHost2.requestUpdate = () => {
+      updateCount++;
+      origRequestUpdate();
+    };
+
+    // Trigger another reactive update by advancing the bound data model property
+    await asyncUpdate(processor, p =>
+      p.processMessages([
+        {
+          version: '1.0',
+          updateDataModel: {
+            surfaceId: 'test-surface',
+            value: {myText: 'Update2'},
+          },
+        },
+      ]),
+    );
+
+    assert.strictEqual(controller2.props.text, 'Update2');
+    assert.ok(updateCount > 0);
+
+    controller2.dispose();
+  });
+
+  it('should unsubscribe when host disconnected', async () => {
+    const mockHost = await createMockHost(context);
+    const controller = mockHost.testController;
+
+    let updateCount = 0;
+    mockHost.requestUpdate = () => {
+      updateCount++;
+    };
+
+    controller.hostDisconnected();
+    const initialCalls = updateCount;
+
+    // Attempt to trigger a component update while the host is disconnected
+    await asyncUpdate(processor, p =>
+      p.processMessages([
+        {
+          version: '1.0',
+          updateComponents: {
+            surfaceId: 'test-surface',
+            components: [
+              {
+                id: 'test_comp',
+                component: 'Text',
+                text: 'Another',
+              },
+            ],
+          },
+        },
+      ]),
+    );
+
+    // Props should not update
+    assert.notStrictEqual(controller.props.text, 'Another');
+    // requestUpdate shouldn't be called again
+    assert.strictEqual(updateCount, initialCalls);
+  });
+
+  it('dispose() detaches the component and data subscriptions', async () => {
+    await asyncUpdate(processor, p =>
+      p.processMessages([
+        {
+          version: '1.0',
+          updateComponents: {
+            surfaceId: 'test-surface',
+            components: [
+              {
+                id: 'bound_comp',
+                component: 'Text',
+                text: {'@path': '/myText'},
+              },
+            ],
+          },
+        },
+        {
+          version: '1.0',
+          updateDataModel: {
+            surfaceId: 'test-surface',
+            value: {myText: 'BeforeDispose'},
+          },
+        },
+      ]),
+    );
+    const boundContext = new ComponentContextClass(surface, 'bound_comp');
+    const mockHost = await createMockHost(boundContext);
+    const controller = mockHost.testController;
+    assert.strictEqual(mockHost.isConnected, true);
+    assert.strictEqual(controller.props.text, 'BeforeDispose');
+
+    let updateCount = 0;
+    mockHost.requestUpdate = () => {
+      updateCount++;
+    };
+
+    controller.dispose();
+    const callsAfterDispose = updateCount;
+
+    // Creating a new component fires surface.componentsModel.onCreated;
+    // a disposed controller must not forward that event to its former host.
+    await asyncUpdate(processor, p =>
+      p.processMessages([
+        {
+          version: '1.0',
+          updateComponents: {
+            surfaceId: 'test-surface',
+            components: [
+              {
+                id: 'newly_created_comp',
+                component: 'Text',
+                text: 'New',
+              },
+            ],
+          },
+        },
+        {
+          version: '1.0',
+          updateDataModel: {
+            surfaceId: 'test-surface',
+            value: {myText: 'AfterDispose'},
+          },
+        },
+      ]),
+    );
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.strictEqual(updateCount, callsAfterDispose);
+    assert.strictEqual(controller.props.text, 'BeforeDispose');
+  });
+
+  it('dispose() and hostDisconnected() are safe to repeat', async () => {
+    const mockHost = await createMockHost(context);
+    const controller = mockHost.testController;
+
+    assert.doesNotThrow(() => {
+      controller.dispose();
+      controller.dispose();
+      controller.hostDisconnected();
+    });
+  });
+
+  it('binds directly to host.node.props without allocating a duplicate GenericBinder', async () => {
+    const {NodeResolver, getValue} = await import('../index.js');
+    const {basicCatalog: v1Basic} = await import('../catalogs/basic/v1/catalog.js');
+    const nodeProcessor = new MessageProcessorClass([v1Basic]);
+    nodeProcessor.processMessages([
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 'node-ctrl-surface',
+          catalogId: v1Basic.id,
+        },
+      },
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'node-ctrl-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'TextField',
+              label: 'Name',
+              value: {'@path': '/userName'},
+            },
+          ],
+        },
+      },
+      {
+        version: '1.0',
+        updateDataModel: {
+          surfaceId: 'node-ctrl-surface',
+          value: {userName: 'Alice'},
+        },
+      },
+    ]);
+
+    const nodeSurface = nodeProcessor.model.getSurface('node-ctrl-surface')!;
+    const resolver = new NodeResolver(nodeSurface, v1Basic);
+    const rootNode = getValue(resolver.rootNode)!;
+
+    ensureCustomElement();
+    const mockHost = document.createElement('test-mock-host') as unknown as TestMockHostElement & {
+      node?: unknown;
+    };
+    document.body.appendChild(mockHost);
+
+    await asyncUpdate(mockHost, host => {
+      (host as any).node = rootNode;
+    });
+
+    const controller = mockHost.testController;
+    assert.strictEqual((controller as any).binder, undefined);
+    assert.strictEqual((controller.props as any).label, 'Name');
+    assert.strictEqual((controller.props as any).value, 'Alice');
+    assert.strictEqual(typeof (controller.props as any).setValue, 'function');
+    assert.strictEqual(typeof (controller.props as any).setLabel, 'function');
+
+    // Calling setValue writes back to the data model and triggers reactive update
+    (controller.props as any).setValue('Bob');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual((controller.props as any).value, 'Bob');
+    assert.strictEqual(nodeSurface.dataModel.get('/userName'), 'Bob');
+
+    // Read-only setter is a safe no-op
+    assert.doesNotThrow(() => (controller.props as any).setLabel('Ignored'));
+
+    resolver.dispose();
+  });
+
+  it('subscribes to node.metadata lazily only when controller.metadata is read', async () => {
+    const {NodeResolver, getValue} = await import('../index.js');
+    const {basicCatalog: v1Basic} = await import('../catalogs/basic/v1/catalog.js');
+    const nodeProcessor = new MessageProcessorClass([v1Basic]);
+    nodeProcessor.processMessages([
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 'lazy-meta-surface',
+          catalogId: v1Basic.id,
+        },
+      },
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'lazy-meta-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'Text',
+              text: 'Hello',
+              metadata: {extensions: {badge: 'v1'}},
+            },
+          ],
+        },
+      },
+    ]);
+
+    const nodeSurface = nodeProcessor.model.getSurface('lazy-meta-surface')!;
+    const resolver = new NodeResolver(nodeSurface, v1Basic);
+    const rootNode = getValue(resolver.rootNode)!;
+
+    ensureCustomElement();
+    const mockHost = document.createElement('test-mock-host') as unknown as TestMockHostElement & {
+      node?: unknown;
+    };
+    document.body.appendChild(mockHost);
+    await asyncUpdate(mockHost, host => {
+      (host as any).node = rootNode;
+    });
+
+    const controller = mockHost.testController;
+    let updateCalls = 0;
+    const origRequestUpdate = mockHost.requestUpdate.bind(mockHost);
+    mockHost.requestUpdate = () => {
+      updateCalls++;
+      origRequestUpdate();
+    };
+
+    // Before reading controller.metadata, metadata updates do not trigger requestUpdate()
+    nodeSurface.componentsModel.get('root')!.metadata = {extensions: {badge: 'v2'}};
+    assert.strictEqual(updateCalls, 0);
+
+    // Reading controller.metadata returns the current metadata and activates the lazy subscription
+    assert.deepStrictEqual(controller.metadata, {extensions: {badge: 'v2'}});
+    nodeSurface.componentsModel.get('root')!.metadata = {extensions: {badge: 'v3'}};
+    assert.strictEqual(updateCalls, 1);
+    assert.deepStrictEqual(controller.metadata, {extensions: {badge: 'v3'}});
+
+    nodeSurface.metadata = {extensions: {theme_ext: 'dark'}};
+    assert.deepStrictEqual(controller.surfaceExtensions, {theme_ext: 'dark'});
+
+    resolver.dispose();
+  });
+
+  it('maintains exactly one node.props effect subscription across same-task parent moves and cleans up to zero on removal', async () => {
+    const {
+      NodeResolver,
+      getValue,
+      setSignalImplementation,
+      _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION,
+    } = await import('../index.js');
+    const {basicCatalog: v1Basic} = await import('../catalogs/basic/v1/catalog.js');
+    const nodeProcessor = new MessageProcessorClass([v1Basic]);
+    nodeProcessor.processMessages([
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 'move-node-surface',
+          catalogId: v1Basic.id,
+        },
+      },
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'move-node-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'Text',
+              text: {'@path': '/message'},
+            },
+          ],
+        },
+      },
+      {
+        version: '1.0',
+        updateDataModel: {
+          surfaceId: 'move-node-surface',
+          value: {message: 'Before move'},
+        },
+      },
+    ]);
+
+    const nodeSurface = nodeProcessor.model.getSurface('move-node-surface')!;
+    const resolver = new NodeResolver(nodeSurface, v1Basic);
+    const rootNode = getValue(resolver.rootNode)!;
+
+    let activePropsEffects = 0;
+    let currentEffectReadsProps = false;
+    setSignalImplementation({
+      ..._PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION,
+      getValue: sig => {
+        if (sig === rootNode.props) {
+          currentEffectReadsProps = true;
+        }
+        return _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION.getValue(sig);
+      },
+      effect: fn => {
+        let subscribedToProps = false;
+        const cleanup = _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION.effect(() => {
+          const prev = currentEffectReadsProps;
+          currentEffectReadsProps = false;
+          try {
+            return fn();
+          } finally {
+            if (currentEffectReadsProps && !subscribedToProps) {
+              subscribedToProps = true;
+              activePropsEffects++;
+            }
+            currentEffectReadsProps = prev;
+          }
+        });
+        let disposed = false;
+        return () => {
+          if (!disposed) {
+            disposed = true;
+            if (subscribedToProps) {
+              activePropsEffects--;
+            }
+            cleanup();
+          }
+        };
+      },
+    });
+
+    try {
+      const parentA = document.createElement('div');
+      const parentB = document.createElement('div');
+      document.body.appendChild(parentA);
+      document.body.appendChild(parentB);
+
+      ensureCustomElement();
+      const mockHost = document.createElement(
+        'test-mock-host',
+      ) as unknown as TestMockHostElement & {
+        node?: unknown;
+      };
+      parentA.appendChild(mockHost);
+      await asyncUpdate(mockHost, host => {
+        (host as any).node = rootNode;
+      });
+
+      const controller = mockHost.testController;
+      assert.strictEqual((controller.props as any).text, 'Before move');
+      assert.strictEqual(activePropsEffects, 1);
+
+      let updateCalls = 0;
+      const origRequestUpdate = mockHost.requestUpdate.bind(mockHost);
+      mockHost.requestUpdate = () => {
+        updateCalls++;
+        origRequestUpdate();
+      };
+
+      // (a) Move the host element to another parent in the same task and update the node's props.
+      parentB.appendChild(mockHost);
+      assert.strictEqual(mockHost.parentElement, parentB);
+      assert.strictEqual(activePropsEffects, 1);
+
+      const callsBeforeDataUpdate = updateCalls;
+      await asyncUpdate(mockHost, () => {
+        nodeProcessor.processMessages([
+          {
+            version: '1.0',
+            updateDataModel: {
+              surfaceId: 'move-node-surface',
+              value: {message: 'After move'},
+            },
+          },
+        ]);
+      });
+
+      assert.strictEqual((controller.props as any).text, 'After move');
+      assert.ok(updateCalls > callsBeforeDataUpdate);
+      assert.strictEqual(activePropsEffects, 1);
+
+      // (b) Remove without reconnect and wait one macrotask: zero subscriptions remain.
+      mockHost.remove();
+      await new Promise(resolve => setTimeout(resolve, 0));
+      assert.strictEqual(activePropsEffects, 0);
+
+      const callsAfterRemove = updateCalls;
+      nodeProcessor.processMessages([
+        {
+          version: '1.0',
+          updateDataModel: {
+            surfaceId: 'move-node-surface',
+            value: {message: 'After remove'},
+          },
+        },
+      ]);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      assert.strictEqual(updateCalls, callsAfterRemove);
+    } finally {
+      setSignalImplementation(_PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION);
+      resolver.dispose();
+    }
+  });
+});

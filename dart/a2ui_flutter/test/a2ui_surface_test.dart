@@ -1,0 +1,153 @@
+// Copyright 2024 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_flutter/a2ui_flutter.dart';
+// ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'support/error_counting_host.dart';
+import 'support/fixture_catalog.dart';
+
+void main() {
+  group('A2uiSurface on a surface model', () {
+    late FixtureLog log;
+
+    setUp(() => log = FixtureLog());
+
+    SurfaceModel<ComponentImplementation> surface([String id = 's']) {
+      final s = SurfaceModel<ComponentImplementation>(
+        id,
+        defaultCatalog: fixtureCatalog(log),
+      );
+      addTearDown(s.dispose);
+      return s;
+    }
+
+    void add(
+      SurfaceModel<ComponentImplementation> surface,
+      String id,
+      String type,
+      Map<String, Object?> properties,
+    ) {
+      surface.componentsModel.addComponent(
+        ComponentModel(id, type, properties),
+      );
+    }
+
+    Widget host(SurfaceModel<ComponentImplementation> surface) => MaterialApp(
+      home: Scaffold(body: A2uiSurface(surface: surface)),
+    );
+
+    ComponentNode<ComponentImplementation> nodeOf(String componentId) =>
+        log.nodes[componentId]!;
+
+    testWidgets('renders nothing until the root arrives', (tester) async {
+      final SurfaceModel<ComponentImplementation> s = surface();
+
+      await tester.pumpWidget(host(s));
+      expect(log.builds, isEmpty);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(tester.getSize(find.byType(A2uiSurface)), Size.zero);
+
+      add(s, 'root', 'Text', {'text': 'Root'});
+      await tester.pump();
+
+      expect(find.text('Root'), findsOneWidget);
+    });
+
+    testWidgets('moves to a new resolver when given another surface', (
+      tester,
+    ) async {
+      final SurfaceModel<ComponentImplementation> a = surface('a');
+      add(a, 'root', 'Probe', {'label': 'From a'});
+      final SurfaceModel<ComponentImplementation> b = surface('b');
+      add(b, 'root', 'Probe', {'label': 'From b'});
+
+      await tester.pumpWidget(host(a));
+      final ComponentNode<ComponentImplementation> rootA = nodeOf('root');
+
+      await tester.pumpWidget(host(b));
+
+      expect(find.text('From b'), findsOneWidget);
+      expect(rootA.disposed, isTrue);
+      expect(log.probeStates, ['root', 'root']);
+    });
+
+    testWidgets('exposes its surface below it through of and maybeOf', (
+      tester,
+    ) async {
+      final SurfaceModel<ComponentImplementation> s = surface();
+      add(s, 'root', 'Text', {'text': 'Root'});
+
+      await tester.pumpWidget(host(s));
+
+      final BuildContext inside = tester.element(find.text('Root'));
+      expect(A2uiSurface.of(inside), same(s));
+      expect(A2uiSurface.maybeOf(inside), same(s));
+      final BuildContext outside = tester.element(find.byType(Scaffold));
+      expect(A2uiSurface.maybeOf(outside), isNull);
+    });
+
+    testWidgets('applies a change made during a build after the frame', (
+      tester,
+    ) async {
+      final SurfaceModel<ComponentImplementation> s = surface();
+      s.dataModel.set('/message', 'Before');
+      add(s, 'root', 'Text', {
+        'text': {'path': '/message'},
+      });
+      var changed = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                A2uiSurface(surface: s),
+                Builder(
+                  builder: (context) {
+                    if (!changed) {
+                      changed = true;
+                      s.dataModel.set('/message', 'After');
+                    }
+                    return const SizedBox();
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pump();
+
+      expect(find.text('After'), findsOneWidget);
+    });
+
+    testWidgets('reports a mount-time diagnostic to a listener that calls '
+        'setState', (tester) async {
+      final SurfaceModel<ComponentImplementation> s = surface();
+      add(s, 'root', 'Bogus', {});
+
+      await tester.pumpWidget(MaterialApp(home: ErrorCountingHost(s)));
+      expect(tester.takeException(), isNull);
+      await tester.pump();
+
+      expect(find.text('errors: 1'), findsOneWidget);
+      expect(find.textContaining('Bogus'), findsNothing);
+    });
+  });
+}

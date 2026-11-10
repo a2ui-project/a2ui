@@ -24,7 +24,8 @@ import logging
 import traceback
 from typing import Any
 import httpx
-from a2ui.extensions.file_resolve import FileResolver, FileResolverSecurityError
+
+from file_resolver import FileResolverSecurityError, GenAIFileResolver
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ async def _mock_drive_handler(file_id: str, file_info: dict[str, Any]) -> bytes:
     return response.content
 
 
-resolver = FileResolver(
+resolver = GenAIFileResolver(
     allowed_mime_types=ALLOWED_MIME_TYPES,
     allowed_hosts=[],
     custom_schemes={MOCK_DRIVE_SCHEME: _mock_drive_handler},

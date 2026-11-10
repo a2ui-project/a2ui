@@ -8,7 +8,7 @@ date_added: 2026-09-29
 
 # **Vertical Format Feature Blueprint**
 
-This document specifies the language-agnostic architecture, API contracts, grammar rules, and behavioral conformance requirements for the **Vertical Inference Format** (`VerticalFormat`) in the A2UI ecosystem.
+This document specifies the language-agnostic architecture, API contracts, grammar rules, and behavioral conformance requirements for the **Vertical Inference Format** (`VerticalFormat`) in the A2UI ecosystem across protocols `v0.9`, `v0.9.1`, and `1.0`.
 
 ---
 
@@ -32,15 +32,16 @@ The **Vertical format** solves these challenges by providing a concise, Python-c
 
 When multiple components are emitted sequentially in a single Vertical block:
 
-1. Each component constructor maps to its own independent Surface (`main`, `main_1`, `main_2`, ...).
-2. Layout container components (such as `Column` or `List`) are **not** injected or required.
-3. The renderer host displays these surfaces sequentially as independent tiles or cards in the conversation stream.
+1. Each component constructor maps to its own independent Surface (`main`, `main_1`, `main_2`, ...) with `id: "root"`.
+2. In A2UI `1.0` (and later), each component compiles to a single `createSurface` message carrying inline `components`. In `v0.9` / `v0.9.1`, it compiles to `createSurface` followed by `updateComponents`.
+3. Layout container components (such as `Column` or `List`) are **not** injected or required.
+4. The renderer host displays these surfaces sequentially as independent tiles or cards in the conversation stream.
 
 ### **B. Container Pruning in System Prompts**
 
 To maximize model reliability and minimize token overhead:
 
-1. `VerticalPromptGenerator` inspects the active component catalog and filters out all components that require children (`child`, `children`, or `ChildList` properties).
+1. `VerticalPromptGenerator` inspects the active component catalogs and filters out all components that require children (`Child`, `ChildList`, or `ComponentId` properties).
 2. This eliminates container concepts from the system prompt, preventing models from hallucinating nested layouts or complex hierarchy.
 
 ### **C. Catalog-Driven Schema Coercion**
@@ -49,12 +50,22 @@ Smaller LLMs frequently output numeric or boolean values enclosed in quotes (e.g
 
 1. The compiler dynamically introspects the catalog schema (resolving `$ref` definitions and `anyOf` unions).
 2. If a property expects a number, integer, or boolean, string representations are safely coerced into native primitive values.
-3. Data-binding expressions (`$/...`) and event actions are strictly preserved and never coerced into primitives.
+3. Data-binding expressions (`$/...`) and event/function actions are strictly preserved and never coerced into primitives.
 
-### **D. Progressive Real-Time Streaming**
+### **D. A2UI v1.0 Protocol Capabilities**
 
-1. The streaming parser tokenizes incoming chunks and matches opening/closing `<a2ui>` (or `<a2ui-vertical>`) sentinel tags.
-2. As each component constructor call is completed in the token stream, it is compiled and emitted immediately as a pair of `createSurface` and `updateComponents` `ResponsePart` events.
+Vertical supports every A2UI `1.0` feature applicable to standalone, non-nested UI generation:
+
+1. **Wire Directives**: Compiles `$path` bindings to `{"@path": "/..."}` (`{"path": "/..."}` in `v0.9.x`) and nested function calls to `{"@call": "fn", "args": {...}}` (`"call"` in `v0.9.x`), keeping plain `path` and `call` keys inside map literals as user data.
+2. **Actions**: Supports `Event("name", key=val, userMessage=...)` (with `userMessage` in `1.0+`) and `functionCall` actions (`action=openUrl("...")`).
+3. **Multi-Catalog Support**: Accepts `Sequence[CatalogApi]`. With multiple catalogs in `1.0+`, omits `createSurface.catalogId`, stamps `catalogId` on compiled components and function calls, and requires `catalogId="..."` when shared names collide across catalogs.
+4. **Component Extensions & Checks**: Supports `extensions={...}` (`metadata.extensions` with UAX #31 key validation in `1.0+`) and `?check(...)` validation rules on checkable standalone inputs.
+5. **Standalone Renderer Function Calls**: Compiles top-level calls to declared catalog functions into `callRendererFunction` envelopes in `1.0+`.
+
+### **E. Progressive Real-Time Streaming**
+
+1. `VerticalResponseStream` (`Parser.open_stream`) tokenizes incoming chunks, matches `<a2ui>` / `<a2ui-vertical>` sentinel tags, and tracks `is_in_block` and `RendererState`.
+2. As each component constructor call completes in the token stream, it is compiled, validated against `RendererState`, and emitted immediately as an `A2uiPart`.
 3. Subsequent components stream to their own surfaces incrementally, providing instant time-to-first-render.
 
 ---
@@ -75,17 +86,17 @@ Alternatively, `<a2ui-vertical>` is accepted for explicit format targeting.
 
 ### **B. Constructor Invocations**
 
-Every statement is a direct constructor call:
+Every statement is a direct constructor or standalone function call:
 
 ```
 ComponentName(arg1, arg2, key1=val1, key2=val2)
 ```
 
-- **Positional Arguments**: Mapped to properties according to the catalog's `positionalIndex` schema annotations.
+- **Positional Arguments**: Mapped to properties according to `positionalIndex` (when present) and schema definition order.
 - **Named Arguments**: Assigned via `key=val` or `key: val` syntax.
-- **Primitive Types**: Supports strings (`"..."`, `'...'`), numbers (`42`, `3.14`), booleans (`true`, `false`), and `null`.
+- **Primitive Types**: Supports strings (`"..."`, `'...'`, `"""..."""`, `r"..."`), numbers (`42`, `3.14`), booleans (`true`, `false`), and `null`.
 - **Data Binding**: Dynamic paths are prefaced with `$` (e.g. `$/user/name`).
-- **Events**: Action triggers are expressed via `Event("eventName", context={...})` or shorthand action strings.
+- **Events & Actions**: Action triggers use `Event("eventName", key=val, userMessage=...)`, function calls (`openUrl("...")`), or shorthand action strings.
 
 ---
 
@@ -93,12 +104,12 @@ ComponentName(arg1, arg2, key1=val1, key2=val2)
 
 Each client language SDK implementing Vertical format must expose:
 
-1. `VerticalFormat(catalog, surface_id, version)`: Concrete strategy implementing `InferenceFormat`.
-2. `VerticalParser(catalog, surface_id, version)`: Implements `Parser` contract (`compile`, `decompile`, `wrap`, `unwrap`, `parse_response`).
-3. `VerticalCompiler(catalog, surface_id, version)`: Permissive AST compiler handling statement splitting, healing, and schema coercion.
-4. `VerticalDecompiler(catalog, surface_id, version)`: Converts wire JSON messages back to clean Vertical syntax.
-5. `VerticalPromptGenerator(catalog, version)`: Generates concise system prompt rules with container child-pruning.
-6. `VerticalStreamParser(surface_id, version)`: Real-time chunk tokenizer and streaming parser.
+1. `VerticalFormat(catalogs, examples, allowed_messages, surface_id, version)` and `VerticalFormatFactory`: Concrete strategy and factory implementing `InferenceFormat` / `InferenceFormatFactory`.
+2. `VerticalParser(catalogs, surface_id, version)`: Stateless parser implementing `Parser` (`compile`, `decompile`, `wrap`, `unwrap`, `parse_response`, `open_stream`).
+3. `VerticalCompiler(catalogs, surface_id, version)`: Permissive compiler handling statement splitting, healing, multi-catalog resolution, and schema coercion.
+4. `VerticalDecompiler(catalogs, version)`: Converts wire JSON messages back to canonical Vertical syntax.
+5. `VerticalPromptGenerator`: Implements `PromptGenerator` hooks (`catalogs`, `generate_base_rules`, `generate_catalog_instructions`, `generate_examples`) with container child-pruning.
+6. `VerticalResponseStream`: Real-time chunk tokenizer and `ResponseStream` implementation.
 
 ---
 

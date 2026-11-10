@@ -53,6 +53,7 @@
 # --- Loading a document ---
 
 - name: test_file_system_provider_loads_catalog
+  features: [F-AGT-13, F-AGT-55]
   description: The file system provider reads a document from a path and returns what it declares.
   action: provide_catalog
   args:
@@ -60,11 +61,12 @@
     path: "test_data/catalogs/simplified_catalog_v1_0.json"
   expect:
     catalog_id: "conformance/simplified"
-    protocol_version: "v1.0"
+    protocol_version: "1.0"
     components: ["Text", "Button", "Card", "Column"]
     functions: ["required", "formatString", "openUrl"]
 
 - name: test_file_system_provider_missing_file
+  features: [F-AGT-13, F-AGT-55]
   description: A path that names no file fails rather than yielding an empty catalog.
   action: provide_catalog
   args:
@@ -74,6 +76,7 @@
     category: CatalogError
 
 - name: test_file_system_provider_malformed_json
+  features: [F-AGT-13, F-AGT-55]
   description: A document that is not valid JSON fails at load rather than at first use.
   action: provide_catalog
   args:
@@ -85,19 +88,21 @@
 # --- Catalog identity ---
 
 - name: test_provider_supplies_what_the_document_omits
+  features: [F-AGT-13]
   description: A document that states neither a catalogId nor a protocolVersion takes both from the provider it was read by, and is then a catalog like any other.
   action: provide_catalog
   args:
     provider: file_system
     path: "test_data/catalogs/catalog_without_id.json"
     catalog_id: "conformance/provided"
-    protocol_version: "v1.0"
+    protocol_version: "1.0"
   expect:
     catalog_id: "conformance/provided"
-    protocol_version: "v1.0"
+    protocol_version: "1.0"
     components: ["Text"]
 
 - name: test_provider_id_agrees_with_document
+  features: [F-AGT-13]
   description: A provider id that repeats what the document states loads without complaint.
   action: provide_catalog
   args:
@@ -109,6 +114,7 @@
     components: ["Text", "Button", "Card", "Column"]
 
 - name: test_provider_id_conflicts_with_document
+  features: [F-AGT-13]
   description: A provider id that disagrees with the document fails, since one of the two is wrong.
   action: provide_catalog
   args:
@@ -124,7 +130,7 @@
   args:
     provider: file_system
     path: "test_data/catalogs/catalog_without_id.json"
-    protocol_version: "v1.0"
+    protocol_version: "1.0"
   expect_error:
     category: CatalogError
 
@@ -136,12 +142,13 @@
   args:
     provider: file_system
     path: "test_data/catalogs/simplified_catalog_v1_0.json"
-    protocol_version: "v1.0"
+    protocol_version: "1.0"
   expect:
     catalog_id: "conformance/simplified"
-    protocol_version: "v1.0"
+    protocol_version: "1.0"
 
 - name: test_provider_version_conflicts_with_document
+  features: [F-AGT-13]
   description: A provider that declares v0.9 for a document that states 1.0 fails.
   action: provide_catalog
   args:

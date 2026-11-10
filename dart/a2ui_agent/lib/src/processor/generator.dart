@@ -15,6 +15,10 @@
 import 'package:a2ui_core/a2ui_core.dart';
 
 import '../inference_format.dart';
+import '../inference_formats/express/format.dart';
+import '../utils/catalog_resolver.dart';
+import '../utils/catalogs.dart';
+import '../utils/renderer_state.dart';
 import 'catalog_config.dart';
 import 'processor.dart';
 
@@ -22,62 +26,93 @@ import 'processor.dart';
 ///
 /// Created once at agent startup with every catalog the agent supports; each
 /// request gets an [A2uiRequestProcessor] negotiated for one renderer.
+///
+/// The catalogs may target several protocol versions, so that one generator
+/// serves renderers of each: [createProcessor] negotiates the version with
+/// the renderer, as [resolveCatalogs] describes.
 class A2uiGenerator {
   /// The catalogs the agent supports.
   final List<CatalogConfig> catalogs;
 
-  /// The format the LLM writes payloads in.
+  /// Example turns the prompt shows the model, in order. Each is the list of
+  /// messages making up one turn.
   ///
-  /// Required rather than defaulted: the format decides what the LLM is taught
-  /// and how its response is read, so the agent names it explicitly.
+  /// A processor gets the turns written in the protocol version it
+  /// negotiated, which are checked against its active catalogs each time a
+  /// processor is created.
+  final List<List<AgentToRendererMessage>> examples;
+
+  /// The format the LLM writes payloads in, unless [createProcessor] is given
+  /// another.
   final InferenceFormatFactory inferenceFormatFactory;
 
-  A2uiGenerator({required this.catalogs, required this.inferenceFormatFactory});
+  A2uiGenerator({
+    required this.catalogs,
+    this.examples = const [],
+    this.inferenceFormatFactory = const ExpressFormatFactory(),
+  });
 
   /// Creates a processor for a renderer that declared [rendererCapabilities].
   ///
-  /// The active catalogs are the registered ones the renderer supports for
-  /// protocol v0.9, in the renderer's preference order. Inline catalogs are
-  /// not accepted, so any the renderer sends are ignored.
+  /// The active catalogs are those [resolveCatalogs] returns, which does not
+  /// accept inline catalogs here, and the examples are the turns written in
+  /// their protocol version. [inferenceFormatFactory] overrides the
+  /// generator's format for this processor. [state] is the renderer state a
+  /// canvas agent keeps for the conversation, bound to the processor so that
+  /// its `parseResponse` and `openStream` use it.
   ///
   /// Throws [A2uiValidationError] if [rendererCapabilities] declares nothing
-  /// for v0.9, and [A2uiCatalogError] if no registered catalog is supported by
-  /// the renderer.
+  /// for any version of the registered catalogs, or an example turn is
+  /// written in a version none of them targets; [A2uiCatalogError] if the
+  /// renderer supports none of the registered catalogs, or [state] holds
+  /// other catalogs than the active ones; and the [A2uiError] a renderer
+  /// would report for an example the active catalogs cannot render.
   A2uiRequestProcessor createProcessor(
-    A2uiRendererCapabilities rendererCapabilities,
-  ) {
-    const A2uiProtocolVersion version = A2uiProtocolVersion.v0_9;
-    final A2uiVersionCapabilities? capabilities = rendererCapabilities
-        .forVersion(version);
-    if (capabilities == null) {
-      throw A2uiValidationError(
-        'Renderer capabilities declare nothing for ${version.jsonValue}, the '
-        'only version this SDK supports.',
-        details: rendererCapabilities.toJson(),
-      );
-    }
-
-    final Map<String, SchemaCatalog> registered = {
-      for (final CatalogConfig config in catalogs)
-        config.catalog.id: config.catalog,
-    };
-    final List<SchemaCatalog> active = [
-      ...{
-        for (final String id in capabilities.supportedCatalogIds)
-          ?registered[id],
-      },
-    ];
-    if (active.isEmpty) {
-      throw A2uiCatalogError(
-        'The renderer supports none of the catalogs registered with this '
-        'agent. Renderer: ${capabilities.supportedCatalogIds}; agent: '
-        '${registered.keys.toList()}.',
-      );
-    }
-
+    A2uiRendererCapabilities rendererCapabilities, {
+    InferenceFormatFactory? inferenceFormatFactory,
+    RendererState? state,
+  }) {
+    final List<CatalogApi> active = resolveCatalogs(
+      catalogs,
+      rendererCapabilities,
+    );
     return A2uiRequestProcessor(
       activeCatalogs: active,
-      formatFactory: inferenceFormatFactory,
+      examples: _examplesIn(catalogsProtocolVersion(active)),
+      formatFactory: inferenceFormatFactory ?? this.inferenceFormatFactory,
+      state: state,
     );
+  }
+
+  /// The turns of [examples] written in [version]: those whose every message
+  /// a catalog of [version] accepts, in order.
+  ///
+  /// The turns written in the version of another registered catalog are left
+  /// for the processors that negotiate it. Throws [A2uiValidationError] for a
+  /// turn no registered catalog's version accepts, since no processor would
+  /// show it.
+  List<List<AgentToRendererMessage>> _examplesIn(A2uiProtocolVersion version) {
+    bool accepts(A2uiProtocolVersion v, List<AgentToRendererMessage> turn) =>
+        turn.every((m) => isCatalogVersionCompatible(v.jsonValue, m.version));
+    final Set<A2uiProtocolVersion> registered = {
+      for (final CatalogConfig config in catalogs)
+        catalogsProtocolVersion([config.catalog]),
+    };
+    final kept = <List<AgentToRendererMessage>>[];
+    for (final (int i, List<AgentToRendererMessage> turn) in examples.indexed) {
+      if (accepts(version, turn)) {
+        kept.add(turn);
+      } else if (!registered.any((v) => accepts(v, turn))) {
+        final Set<String> versions = {for (final m in turn) m.version};
+        throw A2uiValidationError(
+          versions.length == 1
+              ? 'Example turn ${i + 1} is written in ${versions.single}, '
+                    'which no registered catalog targets.'
+              : 'Example turn ${i + 1} mixes ${versions.join(' and ')}, '
+                    'which no catalog accepts together.',
+        );
+      }
+    }
+    return kept;
   }
 }

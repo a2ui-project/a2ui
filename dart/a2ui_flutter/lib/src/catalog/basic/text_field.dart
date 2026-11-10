@@ -1,0 +1,244 @@
+// Copyright 2024 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import 'dart:async';
+
+import 'package:a2ui_core/a2ui_core.dart';
+// ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../../component_implementation.dart';
+import '../../component_props.dart';
+import '../../surface_scope.dart';
+import 'check_hint.dart';
+import 'unbounded_width.dart';
+import 'write_back.dart';
+
+/// Builds the basic `TextField` component: a text input labelled `label`,
+/// showing `placeholder` while it is empty, that writes every edit to the
+/// path `value` is bound to, and otherwise keeps the edit itself. An edit the
+/// data model rejects is replaced by the bound value.
+Widget buildTextField(
+  BuildContext context,
+  ComponentNode<ComponentImplementation> node,
+  ComponentProps props,
+  ChildWidgetBuilder buildChild,
+) => _build(context, props, null);
+
+/// Builds the v0.9 basic `TextField` component as [buildTextField] does, also
+/// showing an error while a text that is not empty does not match
+/// `validationRegexp`.
+Widget buildTextFieldV0_9(
+  BuildContext context,
+  ComponentNode<ComponentImplementation> node,
+  ComponentProps props,
+  ChildWidgetBuilder buildChild,
+) => _build(context, props, props.string('validationRegexp'));
+
+Widget _build(BuildContext context, ComponentProps props, String? pattern) {
+  final SurfaceModel<ComponentImplementation>? surface = SurfaceScope.maybeOf(
+    context,
+  );
+  return limitUnboundedWidth(
+    context,
+    _TextField(
+      label: props.string('label'),
+      placeholder: props.string('placeholder'),
+      value: props.string('value') ?? '',
+      variant: props.string('variant'),
+      pattern: pattern,
+      error: props.validationErrors.firstOrNull,
+      hint: checkHint(props),
+      write: writerFor(context, props, 'value'),
+      reportError: surface == null
+          ? null
+          : (A2uiExpressionError error) {
+              unawaited(
+                surface.dispatchError(
+                  A2uiRendererError(
+                    code: error.code,
+                    surfaceId: surface.id,
+                    message: error.message,
+                  ),
+                ),
+              );
+            },
+    ),
+  );
+}
+
+/// Shown when the text does not match `validationRegexp`.
+const String _invalidFormatMessage = 'Invalid format';
+
+/// Accepts a number and every prefix of one, such as `-` or `1.`.
+final RegExp _partialNumber = RegExp(r'^-?\d*\.?\d*$');
+
+/// Accepts an edit that leaves a number or a prefix of one, or that only
+/// deletes.
+final TextInputFormatter _numberFormatter = TextInputFormatter.withFunction(
+  (oldValue, newValue) =>
+      _partialNumber.hasMatch(newValue.text) ||
+          _onlyDeletes(oldValue.text, newValue.text)
+      ? newValue
+      : oldValue,
+);
+
+/// Whether [next] is [previous] with at most one run of characters removed.
+bool _onlyDeletes(String previous, String next) {
+  if (next.length > previous.length) return false;
+  var start = 0;
+  while (start < next.length && next[start] == previous[start]) {
+    start++;
+  }
+  return previous.endsWith(next.substring(start));
+}
+
+class _TextField extends StatefulWidget {
+  const _TextField({
+    required this.label,
+    required this.placeholder,
+    required this.value,
+    required this.variant,
+    required this.pattern,
+    required this.error,
+    required this.hint,
+    required this.write,
+    required this.reportError,
+  });
+
+  final String? label;
+  final String? placeholder;
+  final String value;
+  final String? variant;
+  final String? pattern;
+  final String? error;
+  final String? hint;
+  final bool Function(String)? write;
+  final void Function(A2uiExpressionError)? reportError;
+
+  @override
+  State<_TextField> createState() => _TextFieldState();
+}
+
+class _TextFieldState extends State<_TextField> {
+  late final TextEditingController _controller;
+  RegExp? _regExp;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.value);
+    _regExp = _compile(widget.pattern);
+  }
+
+  @override
+  void didUpdateWidget(_TextField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A bound field shows the bound value. A literal one keeps an edit until
+    // the literal changes.
+    final bound = widget.write != null;
+    if ((bound || widget.value != oldWidget.value) &&
+        widget.value != _controller.text) {
+      _showValue();
+    }
+    if (widget.pattern != oldWidget.pattern) {
+      _regExp = _compile(widget.pattern);
+    }
+  }
+
+  /// Shows the widget's value with the cursor at its end.
+  void _showValue() {
+    _controller.value = TextEditingValue(
+      text: widget.value,
+      selection: TextSelection.collapsed(offset: widget.value.length),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// [pattern] anchored to match a whole text, or null when [pattern] is
+  /// absent or rejected by the portable regex subset guard.
+  RegExp? _compile(String? pattern) {
+    if (pattern == null) return null;
+    try {
+      compileGuarded(pattern);
+      final anchored = '^(?:$pattern)\$';
+      return anchored.runes.length <= maxRegexPatternCodePoints
+          ? compileGuarded(anchored)
+          : RegExp(anchored, unicode: true);
+    } on A2uiExpressionError catch (error) {
+      widget.reportError?.call(error);
+      return null;
+    }
+  }
+
+  /// The first failing check's message, else [_invalidFormatMessage] when
+  /// the text is not empty and does not match the pattern.
+  String? get _errorText {
+    if (widget.error != null) return widget.error;
+    final String text = _controller.text;
+    final RegExp? regExp = _regExp;
+    if (regExp == null || text.isEmpty) return null;
+    if (text.runes.length <= maxRegexValueCodePoints && regExp.hasMatch(text)) {
+      return null;
+    }
+    return _invalidFormatMessage;
+  }
+
+  void _onChanged(String text) {
+    if (widget.write?.call(text) == false) _showValue();
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String? variant = widget.variant;
+    final obscured = variant == 'obscured';
+    final number = variant == 'number';
+    final long = variant == 'longText';
+    final String? label = widget.label;
+    final String? placeholder = widget.placeholder;
+    final bool hasPlaceholder = placeholder != null && placeholder.isNotEmpty;
+    return TextField(
+      controller: _controller,
+      decoration: InputDecoration(
+        labelText: label == null || label.isEmpty ? null : label,
+        hintText: hasPlaceholder ? placeholder : null,
+        // A label resting in the field would hide the placeholder.
+        floatingLabelBehavior: hasPlaceholder
+            ? FloatingLabelBehavior.always
+            : null,
+        helperText: widget.hint,
+        errorText: _errorText,
+      ),
+      obscureText: obscured,
+      autocorrect: !obscured && !number,
+      enableSuggestions: !obscured && !number,
+      minLines: long ? 3 : null,
+      maxLines: long ? null : 1,
+      keyboardType: number
+          ? const TextInputType.numberWithOptions(signed: true, decimal: true)
+          : long
+          ? TextInputType.multiline
+          : TextInputType.text,
+      inputFormatters: number ? [_numberFormatter] : null,
+      onChanged: _onChanged,
+    );
+  }
+}

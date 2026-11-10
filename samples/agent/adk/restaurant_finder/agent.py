@@ -12,14 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import AsyncIterable
 import json
 import logging
 import os
-from collections import OrderedDict
-from collections.abc import AsyncIterable
 from typing import Any
 
-import jsonschema
 from a2a.types import (
     AgentCapabilities,
     AgentCard,
@@ -36,27 +34,27 @@ from google.adk.models import Gemini
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
-from prompt_builder import (
-    get_text_prompt,
-    ROLE_DESCRIPTION,
-    UI_DESCRIPTION,
-)
-from tools import get_restaurants
-from a2ui.basic_catalog import BasicCatalog
-from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.parser import ResponsePart, parse_response
-from a2ui.schema import (
-    A2UI_CLOSE_TAG,
-    A2UI_OPEN_TAG,
-    VERSION_0_8,
-    VERSION_0_9,
-    remove_strict_validation,
-)
+import jsonschema
+
 from a2ui.a2a import (
     get_a2ui_agent_extension,
-    parse_response_to_parts,
     stream_response_to_parts,
+    to_a2a_parts,
 )
+from a2ui.adk import A2uiInstruction
+from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
+from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
+from a2ui.parser import A2uiPart
+from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
+from a2ui.utils import load_examples, to_version_number
+from prompt_builder import (
+    ROLE_DESCRIPTION,
+    UI_DESCRIPTION,
+    get_text_prompt,
+)
+from tools import get_restaurants
 
 logger = logging.getLogger(__name__)
 
@@ -72,15 +70,19 @@ class RestaurantAgent:
         self._user_id = "remote_agent"
         self._text_runner: Runner | None = self._build_runner(self._build_llm_agent())
 
-        self._inference_formats: dict[str, DirectJsonFormat] = {}
+        self._generators: dict[str, A2uiGenerator] = {}
+        self._processors: dict[str, A2uiRequestProcessor] = {}
         self._ui_runners: dict[str, Runner] = {}
-        self._parsers = OrderedDict()
-        self._max_parsers = 1000  # Max active sessions to keep in memory
 
-        for version in [VERSION_0_8, VERSION_0_9]:
-            inference_format = self._build_inference_format(version)
-            self._inference_formats[version] = inference_format
-            agent = self._build_llm_agent(inference_format)
+        for version in [ProtocolVersion.V0_8, ProtocolVersion.V0_9]:
+            generator = self._build_generator(version)
+            processor = self._build_processor(version, generator)
+            self._generators[version] = generator
+            self._processors[version] = processor
+            examples_path = os.path.join(
+                os.path.dirname(__file__), "examples", to_version_number(version)
+            )
+            agent = self._build_llm_agent(processor, examples_path=examples_path)
             self._ui_runners[version] = self._build_runner(agent)
 
         self._agent_card = self._build_agent_card()
@@ -89,25 +91,32 @@ class RestaurantAgent:
     def agent_card(self) -> AgentCard:
         return self._agent_card
 
-    def _build_inference_format(self, version: str) -> DirectJsonFormat:
-        return DirectJsonFormat(
-            version=version,
-            catalogs=[
-                BasicCatalog.get_config(
-                    version=version, examples_path=f"examples/{version}"
-                )
-            ],
-            schema_modifiers=[remove_strict_validation],
+    def _build_generator(self, version: str) -> A2uiGenerator:
+        return A2uiGenerator(
+            [CatalogConfig(BasicCatalog(version))],
+            inference_format_factory=DirectJsonFormatFactory(),
         )
+
+    def _build_processor(
+        self, version: str, generator: A2uiGenerator
+    ) -> A2uiRequestProcessor:
+        return generator.create_processor({
+            f"v{to_version_number(version)}": {
+                "supportedCatalogIds": [
+                    c.transformed_catalog.catalog_id for c in generator.catalogs
+                ]
+            }
+        })
 
     def _build_agent_card(self) -> AgentCard:
         extensions = []
-        if self._inference_formats:
-            for version, sm in self._inference_formats.items():
+        if self._processors:
+            for version, processor in self._processors.items():
                 ext = get_a2ui_agent_extension(
                     version,
-                    sm.accepts_inline_catalogs,
-                    sm.supported_catalog_ids,
+                    supported_catalog_ids=[
+                        c.catalog_id for c in processor.active_catalogs
+                    ],
                 )
                 extensions.append(ext)
 
@@ -150,7 +159,9 @@ class RestaurantAgent:
         return "Finding restaurants that match your criteria..."
 
     def _build_llm_agent(
-        self, inference_format: DirectJsonFormat | None = None
+        self,
+        processor: A2uiRequestProcessor | None = None,
+        examples_path: str | None = None,
     ) -> LlmAgent:
         """Builds the LLM agent for the restaurant agent."""
         model_env = (
@@ -158,17 +169,25 @@ class RestaurantAgent:
         )
         model_name = model_env.split("/")[-1]
 
-        instruction = (
-            inference_format.generate_system_prompt(
-                role_description=ROLE_DESCRIPTION,
-                ui_description=UI_DESCRIPTION,
-                include_schema=True,
-                include_examples=True,
-                validate_examples=True,
+        if processor:
+            examples = load_examples(
+                processor.active_catalogs, examples_path, validate=True
             )
-            if inference_format
-            else get_text_prompt()
-        )
+            prompt_parts = [
+                ROLE_DESCRIPTION,
+                f"## UI Description:\n{UI_DESCRIPTION}",
+            ]
+            if examples:
+                prompt_parts.append(f"### Examples:\n{examples}")
+            # A2uiInstruction appends the processor's prompt outside ADK's
+            # session state templates: the `${expression}` in the catalog
+            # schema is not a state key.
+            instruction = A2uiInstruction(
+                "\n\n".join(prompt_parts),
+                a2ui_processor=processor,
+            )
+        else:
+            instruction = get_text_prompt()
 
         return LlmAgent(
             model=Gemini(
@@ -190,18 +209,18 @@ class RestaurantAgent:
         ui_version: str | None = None,
         use_streaming: bool = True,
     ) -> AsyncIterable[dict[str, Any]]:
-        session_state = {"base_url": self.base_url, "expression": "{expression}"}
+        session_state = {"base_url": self.base_url}
 
         # Determine which runner to use based on whether the a2ui extension is active.
         if ui_version:
             runner = self._ui_runners[ui_version]
-            inference_format = self._inference_formats[ui_version]
+            processor = self._processors[ui_version]
             selected_catalog = (
-                inference_format.get_selected_catalog() if inference_format else None
+                processor.active_catalogs[0] if processor.active_catalogs else None
             )
         else:
             runner = self._text_runner
-            inference_format = None
+            processor = None
             selected_catalog = None
 
         session = await runner.session_service.get_session(
@@ -225,7 +244,9 @@ class RestaurantAgent:
         current_query_text = query
 
         # Ensure schema was loaded
-        if ui_version and (not selected_catalog or not selected_catalog.catalog_schema):
+        if ui_version and (
+            not selected_catalog or not selected_catalog.validation_schema
+        ):
             logger.error(
                 "--- RestaurantAgent.stream: A2UI_SCHEMA is not loaded. "
                 "Cannot perform UI validation. ---"
@@ -258,6 +279,9 @@ class RestaurantAgent:
 
             full_content_list = []
             parts_streamed = False
+            is_valid = False
+            error_message = ""
+            stream_failed = False
 
             async def token_stream():
                 async for event in runner.run_async(
@@ -278,28 +302,28 @@ class RestaurantAgent:
                                 full_content_list.append(p.text)
                                 yield p.text
 
-            if selected_catalog:
-                from a2ui.inference_formats.direct_json import DirectJsonStreamParser
-
-                if session_id in self._parsers:
-                    self._parsers.move_to_end(session_id)
-                else:
-                    self._parsers[session_id] = DirectJsonStreamParser(
-                        catalog=selected_catalog
+            if processor and selected_catalog:
+                try:
+                    async for part in stream_response_to_parts(
+                        processor.open_stream(),
+                        token_stream(),
+                        version=ui_version,
+                    ):
+                        parts_streamed = True
+                        yield {
+                            "is_task_complete": False,
+                            "parts": [part],
+                        }
+                except ValueError as e:
+                    # The stream ends at the first block it rejects, so the
+                    # rest of the response is not read, and the request is
+                    # retried below.
+                    logger.warning(
+                        f"--- RestaurantAgent.stream: A2UI stream failed: {e}"
+                        f" (Attempt {attempt}) ---"
                     )
-                    if len(self._parsers) > self._max_parsers:
-                        self._parsers.popitem(last=False)
-
-                async for part in stream_response_to_parts(
-                    self._parsers[session_id],
-                    token_stream(),
-                    version=ui_version,
-                ):
-                    parts_streamed = True
-                    yield {
-                        "is_task_complete": False,
-                        "parts": [part],
-                    }
+                    error_message = f"Validation failed: {e}."
+                    stream_failed = True
             else:
                 async for token in token_stream():
                     yield {
@@ -308,33 +332,21 @@ class RestaurantAgent:
                     }
 
             final_response_content = "".join(full_content_list)
+            response_parts = None
 
-            is_valid = False
-            error_message = ""
-
-            if ui_version:
+            if stream_failed:
+                pass  # Logged above; the request is retried below.
+            elif ui_version and processor:
                 logger.info(
                     "--- RestaurantAgent.stream: Validating UI response (Attempt"
                     f" {attempt})... ---"
                 )
                 try:
-                    response_parts = parse_response(final_response_content)
+                    response_parts = processor.parse_response(final_response_content)
 
                     for part in response_parts:
-                        if not part.a2ui_json:
+                        if not isinstance(part, A2uiPart):
                             continue
-
-                        parsed_json_data = part.a2ui_json
-
-                        # --- Validation Steps ---
-                        # Check if it validates against the A2UI_SCHEMA
-                        # This will raise jsonschema.exceptions.ValidationError if it fails
-                        logger.info(
-                            "--- RestaurantAgent.stream: Validating against"
-                            " A2UI_SCHEMA... ---"
-                        )
-                        selected_catalog.validate_components(parsed_json_data)
-                        # --- End Validation Steps ---
 
                         logger.info(
                             "--- RestaurantAgent.stream: UI JSON successfully parsed"
@@ -366,9 +378,12 @@ class RestaurantAgent:
                     "--- RestaurantAgent.stream: Response is valid. Sending final"
                     f" response (Attempt {attempt}). ---"
                 )
-                final_parts = parse_response_to_parts(
-                    final_response_content, fallback_text="OK.", version=ui_version
-                )
+                if response_parts is not None:
+                    final_parts = to_a2a_parts(response_parts, ui_version)
+                elif final_response_content:
+                    final_parts = [Part(root=TextPart(text=final_response_content))]
+                else:
+                    final_parts = [Part(root=TextPart(text="OK."))]
 
                 yield {
                     "is_task_complete": True,

@@ -1,0 +1,459 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Specification-shaped catalog schemas of component and function models.
+
+A component model composes base models, as the specification composes defs
+with `allOf`: the common types models (for example `ComponentCommon` and
+`Checkable`) and catalog models (for example `CatalogComponentCommon`). A
+function's args model is the specification's `args` object. This module
+turns such models back into the specification's schemas. The layout rules
+depend only on the protocol version, not on the catalog.
+
+This module is internal to a2ui-core and is not re-exported by any facade.
+"""
+
+from __future__ import annotations
+
+import inspect
+from typing import Annotated, Any, Final, NamedTuple, TypeGuard, get_args, get_origin
+
+from pydantic import BaseModel, TypeAdapter
+
+from ..common.semver import is_at_least_version
+from ..exceptions import A2uiCatalogError
+from ..schema import ProtocolVersion
+from ..schema._dynamic_types import clean_schema_node
+from ..schema._json_schema import CATALOG_DEF_MARKER, CatalogDef
+from ..schema.common_types_schema import get_common_types_symbols
+
+_REF_TEMPLATE: Final[str] = "#/$defs/{model}"
+
+# The common types model every component model derives from.
+_COMPONENT_COMMON: Final[str] = "ComponentCommon"
+
+# The discriminator property of a component.
+_COMPONENT_KEY: Final[str] = "component"
+
+
+class SpecSchema(NamedTuple):
+    """A specification-shaped schema and the defs it needs.
+
+    Attributes:
+        schema: The component or function schema.
+        catalog_defs: Defs of the catalog models the schema composes, for
+            example `CatalogComponentCommon`.
+        model_defs: The defs Pydantic emitted for the models' fields, which
+            the catalog resolves to common types or writes inline.
+    """
+
+    schema: dict[str, Any]
+    catalog_defs: dict[str, Any]
+    model_defs: dict[str, Any]
+
+
+def _is_model(value: Any) -> TypeGuard[type[BaseModel]]:
+    return isinstance(value, type) and issubclass(value, BaseModel)
+
+
+def _own_fields(model: type[BaseModel]) -> list[str]:
+    """Returns the names of the fields `model` declares, not inherits."""
+    inherited: set[str] = set()
+    for base in model.__bases__:
+        if _is_model(base):
+            if _COMPONENT_KEY not in base.model_fields:
+                inherited.update(base.model_fields)
+    return [name for name in model.model_fields if name not in inherited]
+
+
+def _description(model: type[BaseModel]) -> str | None:
+    """Returns the description of `model`'s own docstring, if any."""
+    doc = model.__dict__.get("__doc__")
+    return inspect.cleandoc(doc) if isinstance(doc, str) and doc.strip() else None
+
+
+def _find_referenced_models(
+    tp: Any, visited: set[Any] | None = None
+) -> set[type[BaseModel]]:
+    """Recursively finds all BaseModel classes referenced by a type annotation."""
+    if visited is None:
+        visited = set()
+    if tp in visited:
+        return set()
+    visited.add(tp)
+    models: set[type[BaseModel]] = set()
+    if _is_model(tp):
+        models.add(tp)
+        for field in tp.model_fields.values():
+            models.update(_find_referenced_models(field.annotation, visited))
+    origin = get_origin(tp)
+    if origin is not None:
+        for arg in get_args(tp):
+            models.update(_find_referenced_models(arg, visited))
+    return models
+
+
+def _find_referenced_type_aliases(tp: Any, visited: set[Any] | None = None) -> set[str]:
+    """Recursively finds names of TypeAliasType definitions referenced by a field."""
+    if visited is None:
+        visited = set()
+    if tp in visited:
+        return set()
+    visited.add(tp)
+    aliases: set[str] = set()
+    alias_name = getattr(tp, "__name__", None)
+    alias_val = getattr(tp, "__value__", None)
+    if isinstance(alias_name, str) and alias_val is not None and not _is_model(tp):
+        aliases.add(alias_name)
+        aliases.update(_find_referenced_type_aliases(alias_val, visited))
+    origin = get_origin(tp)
+    if origin is not None:
+        for arg in get_args(tp):
+            aliases.update(_find_referenced_type_aliases(arg, visited))
+    return aliases
+
+
+def _find_catalog_def_schemas(
+    tp: Any,
+    found: dict[str, dict[str, Any]],
+    visited: set[Any] | None = None,
+) -> None:
+    """Collects canonical JSON schemas for `Annotated[..., CatalogDef(name)]` types."""
+    if visited is None:
+        visited = set()
+    if isinstance(tp, CatalogDef):
+        if tp.name not in found:
+            schema = tp.canonical_schema(ref_template=_REF_TEMPLATE)
+            if schema is not None:
+                found[tp.name] = schema
+        return
+    try:
+        if tp in visited:
+            return
+        visited.add(tp)
+    except TypeError:
+        pass
+    origin = get_origin(tp)
+    if origin is Annotated:
+        for arg in get_args(tp):
+            _find_catalog_def_schemas(arg, found, visited)
+        return
+    if _is_model(tp):
+        for field in tp.model_fields.values():
+            _find_catalog_def_schemas(field.annotation, found, visited)
+            for meta in field.metadata:
+                _find_catalog_def_schemas(meta, found, visited)
+        return
+    alias_val = getattr(tp, "__value__", None)
+    if alias_val is not None:
+        _find_catalog_def_schemas(alias_val, found, visited)
+    if origin is not None:
+        for arg in get_args(tp):
+            _find_catalog_def_schemas(arg, found, visited)
+
+
+def _extract_catalog_defs(
+    node: Any,
+    catalog_defs: dict[str, Any],
+    canonical_defs: dict[str, dict[str, Any]] | None = None,
+) -> Any:
+    """Replaces nodes marked with `CATALOG_DEF_MARKER` by `#/$defs/<name>` refs."""
+    if isinstance(node, list):
+        return [
+            _extract_catalog_defs(item, catalog_defs, canonical_defs) for item in node
+        ]
+    if not isinstance(node, dict):
+        return node
+    def_name = node.get(CATALOG_DEF_MARKER)
+    if isinstance(def_name, str) and def_name:
+        canonical = canonical_defs.get(def_name) if canonical_defs else None
+        base_def = (
+            canonical
+            if canonical is not None
+            else {k: v for k, v in node.items() if k != CATALOG_DEF_MARKER}
+        )
+        cleaned_def = {
+            k: _extract_catalog_defs(v, catalog_defs, canonical_defs)
+            for k, v in base_def.items()
+            if k != CATALOG_DEF_MARKER
+        }
+        catalog_defs.setdefault(def_name, cleaned_def)
+        ref_node: dict[str, Any] = {"$ref": f"#/$defs/{def_name}"}
+        for key in ("description", "default"):
+            if key in node and node[key] != cleaned_def.get(key):
+                ref_node[key] = _extract_catalog_defs(
+                    node[key], catalog_defs, canonical_defs
+                )
+        return ref_node
+    return {
+        k: _extract_catalog_defs(v, catalog_defs, canonical_defs)
+        for k, v in node.items()
+    }
+
+
+def _object_schema(
+    model: type[BaseModel],
+    description: str | None = None,
+    catalog_defs: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Returns the object schema of `model`'s own fields and their defs.
+
+    The schema has `type`, the optional `description`, `properties` and
+    `required`, as the specification writes an object.
+    """
+    flat = model.model_json_schema(ref_template=_REF_TEMPLATE)
+    if catalog_defs is not None:
+        canonical_defs: dict[str, dict[str, Any]] = {}
+        _find_catalog_def_schemas(model, canonical_defs)
+        flat = _extract_catalog_defs(flat, catalog_defs, canonical_defs)
+    aliases = [model.model_fields[name].alias or name for name in _own_fields(model)]
+    properties = {alias: flat["properties"][alias] for alias in aliases}
+    required = [name for name in flat.get("required", []) if name in properties]
+    schema: dict[str, Any] = {"type": "object"}
+    if description:
+        schema["description"] = description
+    schema["properties"] = properties
+    if required:
+        schema["required"] = required
+    return schema, flat.get("$defs", {})
+
+
+def _composed_models(model: type[BaseModel]) -> list[type[BaseModel]]:
+    """Returns the models that `model`'s bases compose, roots first.
+
+    Each base contributes its ancestors that declare fields, so a base that
+    extends another (for example `CatalogComponentCommon` extending
+    `ComponentCommon`) composes both, as the specification does.
+    """
+    composed: list[type[BaseModel]] = []
+    for base in model.__bases__:
+        if not _is_model(base):
+            continue
+        for ancestor in reversed(base.__mro__):
+            if (
+                _is_model(ancestor)
+                and ancestor not in composed
+                and _own_fields(ancestor)
+                and _COMPONENT_KEY not in ancestor.model_fields
+            ):
+                composed.append(ancestor)
+    return composed
+
+
+class SpecShaper:
+    """Builds specification-shaped schemas for a protocol version (v0.9+).
+
+    Args:
+        protocol_version: The catalog's protocol version.
+    """
+
+    def __init__(self, protocol_version: ProtocolVersion) -> None:
+        self._v1 = is_at_least_version(protocol_version, ProtocolVersion.V1_0)
+        symbols = get_common_types_symbols(protocol_version)
+        # The common types models, which the catalog references by def name.
+        self.common_models: dict[type[BaseModel], str] = {
+            symbol: name for name, symbol in symbols.items() if _is_model(symbol)
+        }
+        self.common_symbols: dict[str, Any] = symbols
+        self._component_common = symbols.get(_COMPONENT_COMMON)
+
+    def component_schema(self, name: str, model: Any) -> SpecSchema | None:
+        """Returns the specification schema of a component model.
+
+        Args:
+            name: The component's name.
+            model: The component's model class.
+
+        Returns:
+            The schema, or None if `model` is not a model that derives from the
+            version's `ComponentCommon`.
+        """
+        if not (
+            _is_model(model)
+            and _is_model(self._component_common)
+            and issubclass(model, self._component_common)
+        ):
+            return None
+
+        for ref_model in _find_referenced_models(model):
+            model_name = ref_model.__name__
+            if model_name in self.common_symbols:
+                expected_symbol = self.common_symbols[model_name]
+                if ref_model is not expected_symbol:
+                    raise A2uiCatalogError(
+                        f"Custom model '{model_name}' in component '{name}'"
+                        f" collides with built-in common type '{model_name}'."
+                    )
+
+        catalog_defs: dict[str, Any] = {}
+        model_defs: dict[str, Any] = {}
+        refs: list[dict[str, Any]] = []
+        for composed in _composed_models(model):
+            # From v1.0 on, the message envelope adds `ComponentCommon`.
+            if self._v1 and composed is self._component_common:
+                continue
+            def_name = self.common_models.get(composed)
+            if def_name is None:
+                def_name = composed.__name__
+                catalog_defs[def_name], defs = _object_schema(
+                    composed, _description(composed), catalog_defs
+                )
+                model_defs.update(defs)
+            refs.append({"$ref": f"#/$defs/{def_name}"})
+
+        description = _description(model)
+        # The specification puts a v1.0 description on the component and a
+        # v0.9 description on the object of its own properties.
+        inner, defs = _object_schema(
+            model, None if self._v1 else description, catalog_defs
+        )
+        model_defs.update(defs)
+        for field_name in _own_fields(model):
+            for alias_name in _find_referenced_type_aliases(
+                model.model_fields[field_name].annotation
+            ):
+                if alias_name not in self.common_symbols and alias_name in model_defs:
+                    catalog_defs[alias_name] = model_defs.pop(alias_name)
+        properties = inner["properties"]
+        properties[_COMPONENT_KEY] = {"const": name}
+        required = inner.setdefault("required", [])
+        if _COMPONENT_KEY not in required:
+            required.insert(0, _COMPONENT_KEY)
+
+        schema: dict[str, Any] = {"type": "object"}
+        if self._v1:
+            if description:
+                schema["description"] = description
+            if refs:
+                schema["allOf"] = [*refs, inner]
+            else:
+                schema.update({k: v for k, v in inner.items() if k != "type"})
+        else:
+            schema["allOf"] = [*refs, inner]
+            schema["unevaluatedProperties"] = False
+        return SpecSchema(schema, catalog_defs, model_defs)
+
+    def function_schema(self, function: Any) -> SpecSchema | None:
+        """Returns the specification schema of a function call.
+
+        Args:
+            function: The function's API, whose `schema` is its args model.
+
+        Returns:
+            The schema, or None if the function's `schema` is not a model.
+        """
+        args_model = getattr(function, "schema", None)
+        if not _is_model(args_model):
+            return None
+        catalog_defs: dict[str, Any] = {}
+        canonical_defs: dict[str, dict[str, Any]] = {}
+        _find_catalog_def_schemas(args_model, canonical_defs)
+        args = _extract_catalog_defs(
+            args_model.model_json_schema(ref_template=_REF_TEMPLATE),
+            catalog_defs,
+            canonical_defs,
+        )
+        model_defs = args.pop("$defs", {})
+        for field_name in _own_fields(args_model):
+            for alias_name in _find_referenced_type_aliases(
+                args_model.model_fields[field_name].annotation
+            ):
+                if alias_name not in self.common_symbols and alias_name in model_defs:
+                    catalog_defs[alias_name] = model_defs.pop(alias_name)
+        args.pop("title", None)
+        args = {"type": "object", **{k: v for k, v in args.items() if k != "type"}}
+
+        call = {"const": function.name}
+        description = getattr(function, "description", None)
+        schema: dict[str, Any] = {"type": "object"}
+        if description:
+            schema["description"] = description
+        if self._v1:
+            schema["returnType"] = function.return_type
+            if getattr(function, "requires_user_activation", False):
+                schema["requiresUserActivation"] = True
+            schema["properties"] = {"@call": call, "args": args}
+            schema["required"] = ["@call", "args"]
+        else:
+            schema["properties"] = {
+                "call": call,
+                "args": args,
+                "returnType": {"const": function.return_type},
+            }
+            schema["required"] = ["call", "args"]
+            schema["unevaluatedProperties"] = False
+        return SpecSchema(schema, catalog_defs, model_defs)
+
+
+# The properties of a component that the v0.8 message envelope declares, which
+# its catalog document leaves out.
+_V08_ENVELOPE_PROPERTIES: Final[frozenset[str]] = frozenset({"id", _COMPONENT_KEY})
+
+
+def _inline_model_defs(node: Any, defs: dict[str, Any], seen: frozenset[str]) -> Any:
+    """Writes the `#/$defs/` references of a cleaned model schema inline.
+
+    The keys beside a reference (a field's `description`) win over the
+    definition's own.
+    """
+    if isinstance(node, list):
+        return [_inline_model_defs(item, defs, seen) for item in node]
+    if not isinstance(node, dict):
+        return node
+    ref = node.get("$ref")
+    if isinstance(ref, str) and ref.startswith("#/$defs/"):
+        name = ref[len("#/$defs/") :]
+        if name in seen or name not in defs:
+            raise A2uiCatalogError(f"Cannot write the model definition {ref} inline.")
+        target = _inline_model_defs(defs[name], defs, seen | {name})
+        siblings = {k: v for k, v in node.items() if k != "$ref"}
+        return {**target, **_inline_model_defs(siblings, defs, seen)}
+    return {key: _inline_model_defs(value, defs, seen) for key, value in node.items()}
+
+
+def v08_document_schema(model: type[BaseModel], *, component: bool) -> dict[str, Any]:
+    """Returns a v0.8 catalog document's schema of a component or theme model.
+
+    A v0.8 catalog document has no common types: every nested object is
+    written inline, closed with `additionalProperties: false`, and a
+    component leaves out the `id` and `component` properties that the
+    message envelope declares.
+
+    Args:
+        model: The component or theme model.
+        component: Whether `model` is a component, whose envelope properties
+            are left out.
+    """
+    # Cleaning drops what Pydantic adds: titles and the `null` branches of
+    # optional fields.
+    cleaned: dict[str, Any] = clean_schema_node(
+        model.model_json_schema(by_alias=True, ref_template=_REF_TEMPLATE)
+    )
+    defs = cleaned.pop("$defs", {})
+    schema: dict[str, Any] = _inline_model_defs(cleaned, defs, frozenset())
+    if component:
+        properties = schema.get("properties")
+        if isinstance(properties, dict):
+            for name in _V08_ENVELOPE_PROPERTIES:
+                properties.pop(name, None)
+        required = [
+            name
+            for name in schema.get("required", [])
+            if name not in _V08_ENVELOPE_PROPERTIES
+        ]
+        if required:
+            schema["required"] = required
+        else:
+            schema.pop("required", None)
+    return schema

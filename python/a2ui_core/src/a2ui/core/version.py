@@ -17,7 +17,7 @@
 The version is no longer stored here. It is derived from the
 ``python/a2ui-core/v*`` git tags at build time by hatch-vcs and baked into the
 distribution metadata, which this module reads back. To release a new version,
-see ``docs/contributing/release.md``; do not hand-edit a version string.
+see ``docs/contributing/release/release.md``; do not hand-edit a version string.
 
 ``UNKNOWN_VERSION`` is returned when the package is not installed, which happens
 when importing straight from a source checkout.

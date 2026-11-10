@@ -12,13 +12,40 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import re
 from typing import Any, Final
+import regex
 
 from a2ui.core.exceptions import A2uiExpressionError
 
 MAX_EXPRESSION_TEMPLATE_LENGTH: Final[int] = 10_000
 MAX_EXPRESSION_PARTS: Final[int] = 1_000
+
+# An optional sign, a mantissa (`5`, `5.`, `5.25`, or `.5`), and an optional
+# exponent (`e` or `E`, an optional sign, digits). Uses `[0-9]` rather than `\d`
+# because Python's `\d` matches Unicode digits from every script.
+# Every engine checks the same pattern: `NUMBER_LITERAL` in TypeScript,
+# `_numberLiteral` in Dart, and `ExpressionParser.numberLiteralPattern` in
+# Swift.
+_NUMBER_LITERAL: Final[re.Pattern[str]] = re.compile(
+    r"^[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"
+)
+
+# Compiled pattern matching exactly one XID_Continue character
+XID_CONTINUE_PATTERN = regex.compile(r"^\p{XID_Continue}$")
+
+# The characters of an `@`-prefixed system function name (`@index`): ASCII
+# only, like `scanPathOrIdentifier` in TypeScript and Dart.
+_SYSTEM_FUNCTION_START: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z_]$")
+_SYSTEM_FUNCTION_CONTINUE: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9_]$")
+
+
+def _is_id_continue(char: str) -> bool:
+    """Returns True if character belongs to Unicode UAX #31 XID_Continue."""
+    if not char or len(char) != 1:
+        return False
+    return bool(XID_CONTINUE_PATTERN.match(char))
 
 
 class Scanner:
@@ -55,7 +82,7 @@ class Scanner:
     def matches_keyword(self, keyword: str) -> bool:
         if self.input.startswith(keyword, self.pos):
             next_char = self.peek(len(keyword))
-            if not re.match(r"[a-zA-Z0-9_]", next_char):
+            if not _is_id_continue(next_char):
                 self.advance(len(keyword))
                 return True
         return False
@@ -184,10 +211,7 @@ class ExpressionParser:
         # 1. Literals
         if scanner.matches_string("'") or scanner.matches_string('"'):
             return self.parse_string_literal(scanner)
-        if self.is_digit(scanner.peek()) or (
-            (scanner.peek() == "-" or scanner.peek() == "+")
-            and self.is_digit(scanner.peek(1))
-        ):
+        if self.is_number_start(scanner):
             return self.parse_number_literal(scanner)
         if scanner.matches_keyword("true"):
             return True
@@ -203,15 +227,30 @@ class ExpressionParser:
         if scanner.peek() == "(":
             return self.parse_function_call(token, scanner, depth)
         else:
+            if token.startswith("@"):
+                raise A2uiExpressionError(f"Expected '(' after function name '{token}'")
             if not token:
                 return ""
             return {"path": token}
 
     def scan_path_or_identifier(self, scanner: Scanner) -> str:
         start = scanner.pos
+        # A leading `@` starts a system function name such as `@index`, which
+        # every engine restricts to ASCII `[A-Za-z_][A-Za-z0-9_]*`.
+        if scanner.peek() == "@":
+            if not _SYSTEM_FUNCTION_START.match(scanner.peek(1)):
+                raise A2uiExpressionError(
+                    "Invalid identifier starting with '@' in expression"
+                )
+            scanner.advance()
+            while not scanner.is_at_end() and _SYSTEM_FUNCTION_CONTINUE.match(
+                scanner.peek()
+            ):
+                scanner.advance()
+            return scanner.input[start : scanner.pos]
         while not scanner.is_at_end():
             c = scanner.peek()
-            if self.is_alnum(c) or c in ("/", ".", "_", "-"):
+            if _is_id_continue(c) or c in ("/", ".", "-"):
                 scanner.advance()
             else:
                 break
@@ -251,9 +290,7 @@ class ExpressionParser:
 
     def scan_identifier(self, scanner: Scanner) -> str:
         start = scanner.pos
-        while not scanner.is_at_end() and (
-            self.is_alnum(scanner.peek()) or scanner.peek() == "_"
-        ):
+        while not scanner.is_at_end() and _is_id_continue(scanner.peek()):
             scanner.advance()
         return scanner.input[start : scanner.pos]
 
@@ -278,6 +315,20 @@ class ExpressionParser:
                 result += c
         return result
 
+    def is_number_start(self, scanner: Scanner) -> bool:
+        """Returns whether the scanner is at the start of a number literal.
+
+        A number starts at a digit, at a ``.`` followed by a digit, or at a
+        ``-`` or ``+`` sign followed by either of those. The grammar has no
+        arithmetic operators, so a sign here can only belong to a literal. A
+        ``-`` or ``.`` inside a path such as ``a-1`` or ``a.5`` never reaches
+        this check, because the path scanner consumes it as part of the token.
+        """
+        offset = 1 if scanner.peek() in ("-", "+") else 0
+        if self.is_digit(scanner.peek(offset)):
+            return True
+        return scanner.peek(offset) == "." and self.is_digit(scanner.peek(offset + 1))
+
     def parse_number_literal(self, scanner: Scanner) -> int | float:
         start = scanner.pos
         if scanner.peek() == "-" or scanner.peek() == "+":
@@ -286,23 +337,35 @@ class ExpressionParser:
             self.is_digit(scanner.peek()) or scanner.peek() == "."
         ):
             scanner.advance()
-        if not scanner.is_at_end() and (scanner.peek() == "e" or scanner.peek() == "E"):
-            scanner.advance()
-            if not scanner.is_at_end() and (
-                scanner.peek() == "+" or scanner.peek() == "-"
-            ):
-                scanner.advance()
-            while not scanner.is_at_end() and self.is_digit(scanner.peek()):
-                scanner.advance()
+        self.skip_exponent(scanner)
         num_str = scanner.input[start : scanner.pos]
-        if not re.match(r"^[+-]?\d+\.?\d*(?:[eE][+-]?\d+)?$", num_str):
+        if not _NUMBER_LITERAL.fullmatch(num_str):
             raise A2uiExpressionError(f"Invalid number literal: '{num_str}'")
+        as_float = float(num_str)
+        if not math.isfinite(as_float):
+            raise A2uiExpressionError(f"Number literal is out of range: '{num_str}'")
         if "." in num_str or "e" in num_str or "E" in num_str:
-            return float(num_str)
-        return int(num_str)
+            return as_float
+        sign = -1 if num_str.startswith("-") else 1
+        return sign * int(num_str.lstrip("+-").lstrip("0") or "0")
+
+    def skip_exponent(self, scanner: Scanner) -> None:
+        """Consumes an exponent suffix (`e` or `E`, an optional sign, then digits).
+
+        A malformed exponent such as `1e` or `1e+` is still consumed, so that
+        `parse_number_literal` reports it as an invalid literal instead of leaving
+        trailing characters behind.
+        """
+        if scanner.is_at_end() or scanner.peek() not in ("e", "E"):
+            return
+        scanner.advance()
+        if not scanner.is_at_end() and scanner.peek() in ("+", "-"):
+            scanner.advance()
+        while not scanner.is_at_end() and self.is_digit(scanner.peek()):
+            scanner.advance()
 
     def is_alnum(self, c: str) -> bool:
-        return ("a" <= c <= "z") or ("A" <= c <= "Z") or ("0" <= c <= "9")
+        return _is_id_continue(c)
 
     def is_digit(self, c: str) -> bool:
         return "0" <= c <= "9"

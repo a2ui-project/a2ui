@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import A2UICore
+import Foundation
 import OrderedCollections
 import OrderedJSON
 
@@ -28,20 +29,55 @@ public struct ExpressionParser: Sendable {
   /// accepts the other rejects.
   public static let maxDepth = 100
 
+  /// Maximum allowed length for expression template strings.
+  public static let maxTemplateLength = 10_000
+
+  /// Maximum allowed number of parts in an expression template.
+  public static let maxTemplateParts = 1_000
+
+  /// An optional sign, a mantissa (`5`, `5.`, `5.25`, or `.5`), and an optional
+  /// exponent (`e` or `E`, an optional sign, digits). Uses `[0-9]` rather than
+  /// `\d` because ICU's `\d` matches digits from every Unicode script.
+  ///
+  /// Every engine checks the same pattern: `NUMBER_LITERAL` in TypeScript,
+  /// `_NUMBER_LITERAL` in Python, and `_numberLiteral` in Dart.
+  private static let numberLiteralPattern =
+    #"^[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"#
+
+  /// Compiled regular expression for `numberLiteralPattern`.
+  private static let numberLiteral = try? NSRegularExpression(pattern: numberLiteralPattern)
+
   public init() {}
 
   /// Parses an input template string into an array of dynamic `JSONValue` parts.
+  ///
+  /// - Parameter input: The raw template string to parse.
+  /// - Returns: An array of `JSONValue` elements (literals, paths, function calls).
+  /// - Throws: `FunctionError` if recursion depth is exceeded or syntax is invalid.
+  public func parse(_ input: String) throws -> [JSONValue] {
+    try parse(input, depth: 0)
+  }
+
+  /// Parses an input template string into an array of dynamic `JSONValue` parts at `depth`.
   ///
   /// - Parameters:
   ///   - input: The raw template string to parse.
   ///   - depth: The current recursion depth.
   /// - Returns: An array of `JSONValue` elements (literals, paths, function calls).
   /// - Throws: `FunctionError` if recursion depth is exceeded or syntax is invalid.
-  public func parse(_ input: String, depth: Int = 0) throws -> [JSONValue] {
+  package func parse(_ input: String, depth: Int) throws -> [JSONValue] {
     if depth > Self.maxDepth {
       throw FunctionError.executionFailed(
         name: "expressionParser",
         message: "Max recursion depth reached in parse"
+      )
+    }
+    let length = input.count
+    if length > Self.maxTemplateLength {
+      throw FunctionError.executionFailed(
+        name: "expressionParser",
+        message:
+          "Expression template length (\(length)) exceeds maximum limit (\(Self.maxTemplateLength))"
       )
     }
     if input.isEmpty || !input.contains("${") {
@@ -52,6 +88,12 @@ public struct ExpressionParser: Sendable {
     var scanner = Scanner(input)
 
     while !scanner.isAtEnd {
+      if parts.count >= Self.maxTemplateParts {
+        throw FunctionError.executionFailed(
+          name: "expressionParser",
+          message: "Expression parts count exceeds maximum limit (\(Self.maxTemplateParts))"
+        )
+      }
       if scanner.matches("${") {
         scanner.advance(by: 2)
         let content = try extractInterpolationContent(&scanner)
@@ -88,11 +130,21 @@ public struct ExpressionParser: Sendable {
 
   /// Parses a single expression string into a `JSONValue`.
   ///
+  /// - Parameter expr: The expression string (content inside `${...}`).
+  /// - Returns: The parsed `JSONValue`.
+  /// - Throws: `FunctionError` if recursion depth is exceeded or syntax is invalid.
+  public func parseExpression(_ expr: String) throws -> JSONValue {
+    try parseExpression(expr, depth: 0)
+  }
+
+  /// Parses a single expression string into a `JSONValue` at a specific depth.
+  ///
   /// - Parameters:
   ///   - expr: The expression string (content inside `${...}`).
   ///   - depth: The current recursion depth.
   /// - Returns: The parsed `JSONValue`.
-  public func parseExpression(_ expr: String, depth: Int = 0) throws -> JSONValue {
+  /// - Throws: `FunctionError` if recursion depth is exceeded or syntax is invalid.
+  package func parseExpression(_ expr: String, depth: Int) throws -> JSONValue {
     if depth > Self.maxDepth {
       throw FunctionError.executionFailed(
         name: "expressionParser",
@@ -178,14 +230,12 @@ public struct ExpressionParser: Sendable {
 
     // 1. String literals ('...' or "...")
     if let char = scanner.peek(), char == "'" || char == "\"" {
-      return .string(parseStringLiteral(&scanner))
+      return .string(try parseStringLiteral(&scanner))
     }
 
     // 2. Number literals
-    if let char = scanner.peek() {
-      if char.isNumber || (char == "-" && (scanner.peek(offset: 1)?.isNumber ?? false)) {
-        return parseNumberLiteral(&scanner)
-      }
+    if isNumberStart(scanner) {
+      return try parseNumberLiteral(&scanner)
     }
 
     // 3. Keywords
@@ -200,12 +250,18 @@ public struct ExpressionParser: Sendable {
     }
 
     // 4. Identifiers / Paths / Function calls
-    let token = scanPathOrIdentifier(&scanner)
+    let token = try scanPathOrIdentifier(&scanner)
     scanner.skipWhitespace()
 
     if scanner.peek() == "(" {
       return try parseFunctionCall(funcName: token, scanner: &scanner, depth: depth)
     } else {
+      if token.hasPrefix("@") {
+        throw FunctionError.executionFailed(
+          name: "expressionParser",
+          message: "Expected '(' after function name '\(token)'"
+        )
+      }
       if token.isEmpty {
         return .string("")
       }
@@ -258,79 +314,167 @@ public struct ExpressionParser: Sendable {
     return .object(dict)
   }
 
-  private func scanPathOrIdentifier(_ scanner: inout Scanner) -> String {
+  private func scanPathOrIdentifier(_ scanner: inout Scanner) throws -> String {
     let start = scanner.pos
-    while !scanner.isAtEnd, let c = scanner.peek() {
-      if c.isLetter || c.isNumber || c == "/" || c == "." || c == "_" || c == "-" {
-        _ = scanner.advance(by: 1)
-      } else {
-        break
+    // A leading `@` starts a system function name such as `@index`, which every engine
+    // restricts to ASCII `[A-Za-z_][A-Za-z0-9_]*`.
+    if scanner.peek() == "@" {
+      guard let next = scanner.peek(offset: 1), Self.isSystemFunctionStart(next) else {
+        throw FunctionError.executionFailed(
+          name: "expressionParser",
+          message: "Invalid identifier starting with '@' in expression"
+        )
       }
+      scanner.advance(by: 1)
+      while let character = scanner.peek(), Self.isSystemFunctionContinue(character) {
+        scanner.advance(by: 1)
+      }
+      return String(scanner.input[start..<scanner.pos])
+    }
+    while let character = scanner.peek(), Self.isPathCharacter(character) {
+      scanner.advance(by: 1)
     }
     return String(scanner.input[start..<scanner.pos])
   }
 
   private func scanIdentifier(_ scanner: inout Scanner) -> String {
     let start = scanner.pos
-    while !scanner.isAtEnd, let c = scanner.peek() {
-      if c.isLetter || c.isNumber || c == "_" {
-        _ = scanner.advance(by: 1)
-      } else {
-        break
-      }
+    while let character = scanner.peek(), Self.isIdentifierCharacter(character) {
+      scanner.advance(by: 1)
     }
     return String(scanner.input[start..<scanner.pos])
   }
 
-  private func parseStringLiteral(_ scanner: inout Scanner) -> String {
+  private static func isSystemFunctionStart(_ c: Character) -> Bool {
+    c == "_" || (c.isASCII && c.isLetter)
+  }
+
+  private static func isSystemFunctionContinue(_ c: Character) -> Bool {
+    isSystemFunctionStart(c) || (c.isASCII && c.isNumber)
+  }
+
+  private func parseStringLiteral(_ scanner: inout Scanner) throws -> String {
     let quote = Character(scanner.advance(by: 1))
     var result = ""
+    var closed = false
     while !scanner.isAtEnd {
       let c = Character(scanner.advance(by: 1))
       if c == "\\" {
-        if !scanner.isAtEnd {
-          let next = Character(scanner.advance(by: 1))
-          switch next {
-          case "n": result.append("\n")
-          case "t": result.append("\t")
-          case "r": result.append("\r")
-          default: result.append(next)
-          }
+        if scanner.isAtEnd { break }
+        let next = Character(scanner.advance(by: 1))
+        switch next {
+        case "n": result.append("\n")
+        case "t": result.append("\t")
+        case "r": result.append("\r")
+        default: result.append(next)
         }
       } else if c == quote {
+        closed = true
         break
       } else {
         result.append(c)
       }
     }
+    guard closed else {
+      throw FunctionError.executionFailed(
+        name: "expressionParser",
+        message: "Unclosed string literal: missing closing \(quote)"
+      )
+    }
     return result
   }
 
-  private func parseNumberLiteral(_ scanner: inout Scanner) -> JSONValue {
+  /// Whether the scanner is at the start of a number literal: a digit, a `.` followed by a digit,
+  /// or a `-` or `+` sign followed by either of those.
+  ///
+  /// The grammar has no arithmetic operators, so a sign here can only belong to a literal. A `-`
+  /// or `.` inside a path such as `a-1` or `a.5` never reaches this check, because the path
+  /// scanner consumes it as part of the token.
+  private func isNumberStart(_ scanner: Scanner) -> Bool {
+    let first = scanner.peek()
+    let offset = (first == "-" || first == "+") ? 1 : 0
+    if Self.isDigit(scanner.peek(offset: offset)) {
+      return true
+    }
+    return scanner.peek(offset: offset) == "." && Self.isDigit(scanner.peek(offset: offset + 1))
+  }
+
+  /// Scans and validates a number literal against `numberLiteralPattern`.
+  private func parseNumberLiteral(_ scanner: inout Scanner) throws -> JSONValue {
     let start = scanner.pos
-    if scanner.peek() == "-" {
-      _ = scanner.advance(by: 1)
+    if scanner.peek() == "-" || scanner.peek() == "+" {
+      scanner.advance(by: 1)
     }
-    var hasDot = false
-    while !scanner.isAtEnd, let c = scanner.peek() {
-      if c.isNumber {
-        _ = scanner.advance(by: 1)
-      } else if c == "." && !hasDot {
-        hasDot = true
-        _ = scanner.advance(by: 1)
-      } else {
-        break
-      }
+    while let c = scanner.peek(), Self.isDigit(c) || c == "." {
+      scanner.advance(by: 1)
     }
+    skipExponent(&scanner)
     let numStr = String(scanner.input[start..<scanner.pos])
-    if hasDot, let d = Double(numStr) {
-      return .number(d)
-    } else if let i = Int(numStr) {
-      return .integer(i)
-    } else if let d = Double(numStr) {
-      return .number(d)
+    guard Self.isValidNumberLiteral(numStr) else {
+      throw FunctionError.executionFailed(
+        name: "expressionParser",
+        message: "Invalid number literal: '\(numStr)'"
+      )
     }
-    return .string(numStr)
+    let isInteger = !numStr.contains(where: { $0 == "." || $0 == "e" || $0 == "E" })
+    if isInteger, let i = Int(numStr) {
+      return .integer(i)
+    }
+    guard let d = Double(numStr), d.isFinite else {
+      throw FunctionError.executionFailed(
+        name: "expressionParser",
+        message: "Number literal is out of range: '\(numStr)'"
+      )
+    }
+    return .number(d)
+  }
+
+  /// Consumes an exponent suffix (`e` or `E`, an optional sign, then digits)
+  /// if one is present.
+  ///
+  /// A malformed exponent such as `1e` or `1e+` is still consumed, so that
+  /// `parseNumberLiteral` reports it as an invalid literal instead of leaving
+  /// trailing characters behind.
+  private func skipExponent(_ scanner: inout Scanner) {
+    guard let c = scanner.peek(), c == "e" || c == "E" else {
+      return
+    }
+    scanner.advance(by: 1)
+    if let sign = scanner.peek(), sign == "+" || sign == "-" {
+      scanner.advance(by: 1)
+    }
+    while Self.isDigit(scanner.peek()) {
+      scanner.advance(by: 1)
+    }
+  }
+
+  /// Checks whether the entire `text` matches `numberLiteralPattern`.
+  private static func isValidNumberLiteral(_ text: String) -> Bool {
+    let range = NSRange(text.startIndex..., in: text)
+    return numberLiteral?.firstMatch(in: text, range: range)?.range == range
+  }
+
+  /// Whether `c` is an ASCII digit. `Character.isNumber` also accepts non-ASCII numerals such as
+  /// `½`, which no other engine treats as part of a number literal.
+  private static func isDigit(_ c: Character?) -> Bool {
+    guard let c else { return false }
+    return c >= "0" && c <= "9"
+  }
+
+  /// Whether every scalar of `character` is in UAX #31 `XID_Continue`, which includes `_`.
+  /// Matches the other engines, unlike `Character.isLetter` or `isNumber`, which also accept
+  /// `½` or `²`.
+  private static func isIdentifierCharacter(_ character: Character) -> Bool {
+    character.unicodeScalars.allSatisfy(\.properties.isXIDContinue)
+  }
+
+  /// Whether every scalar of `character` may appear in a path: `XID_Continue`, `/`, `.`, or `-`.
+  /// A `Character` is a grapheme cluster, so a separator followed by a combining mark such as
+  /// U+0301 arrives as one `Character`; checking per scalar accepts it like the other engines.
+  private static func isPathCharacter(_ character: Character) -> Bool {
+    character.unicodeScalars.allSatisfy {
+      $0.properties.isXIDContinue || $0 == "/" || $0 == "." || $0 == "-"
+    }
   }
 
   // MARK: - Nested Scanner
@@ -375,16 +519,14 @@ public struct ExpressionParser: Sendable {
     }
 
     mutating func matchesKeyword(_ keyword: String) -> Bool {
-      if matches(keyword) {
-        if let nextChar = peek(offset: keyword.count) {
-          if nextChar.isLetter || nextChar.isNumber || nextChar == "_" {
-            return false
-          }
-        }
-        advance(by: keyword.count)
-        return true
+      guard matches(keyword) else { return false }
+      if let nextCharacter = peek(offset: keyword.count),
+        ExpressionParser.isIdentifierCharacter(nextCharacter)
+      {
+        return false
       }
-      return false
+      advance(by: keyword.count)
+      return true
     }
 
     mutating func skipWhitespace() {

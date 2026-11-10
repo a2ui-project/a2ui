@@ -3,7 +3,7 @@
   "description": "Example of calendar day demonstrating dynamic templating, relative paths, and date formatting.",
   "messages": [
     {
-      "version": "v1.0",
+      "version": "1.0",
       "createSurface": {
         "surfaceId": "gallery-calendar-day",
         "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -11,7 +11,7 @@
       }
     },
     {
-      "version": "v1.0",
+      "version": "1.0",
       "updateComponents": {
         "surfaceId": "gallery-calendar-day",
         "components": [
@@ -40,10 +40,10 @@
             "id": "day_name",
             "component": "Text",
             "text": {
-              "call": "formatDate",
+              "@call": "formatDate",
               "args": {
                 "value": {
-                  "path": "/date"
+                  "@path": "/date"
                 },
                 "format": "EEEE"
               }
@@ -54,10 +54,10 @@
             "id": "day_number",
             "component": "Text",
             "text": {
-              "call": "formatDate",
+              "@call": "formatDate",
               "args": {
                 "value": {
-                  "path": "/date"
+                  "@path": "/date"
                 },
                 "format": "d"
               }
@@ -80,7 +80,7 @@
             "id": "event_title",
             "component": "Text",
             "text": {
-              "path": "title"
+              "@path": "title"
             },
             "variant": "body"
           },
@@ -88,7 +88,7 @@
             "id": "event_time",
             "component": "Text",
             "text": {
-              "path": "time"
+              "@path": "time"
             },
             "variant": "caption"
           },
@@ -137,7 +137,7 @@
       }
     },
     {
-      "version": "v1.0",
+      "version": "1.0",
       "updateDataModel": {
         "surfaceId": "gallery-calendar-day",
         "value": {
