@@ -16,7 +16,7 @@ A2UI (Agent to User Interface) uses specific terms for its wire protocol, client
 
 ### A2UI
 
-**Agent to User Interface**, an open, platform-agnostic streaming UI protocol and SDK suite that lets [agents](#agent) generate stateful, native user interfaces across web, mobile, and desktop [renderers](#renderer) without sending executable code, HTML, or CSS over the wire.
+**Agent to User Interface**, an open-source generative UI framework (a platform-agnostic streaming protocol, native renderers, and agent SDKs) that lets [agents](#agent) generate stateful, native user interfaces across web, mobile, and desktop [renderers](#renderer) without sending executable code, HTML, or CSS over the wire.
 
 See [Overview: How A2UI Works](/concepts/overview/) and the [v1.0 Protocol Specification](/specification/v1.0-a2ui/).
 
