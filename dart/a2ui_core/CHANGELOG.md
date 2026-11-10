@@ -7,15 +7,17 @@
   anywhere (including surrounding whitespace, which used to be trimmed), or
   an `http(s)` URL without `//` and a host, such as `https:evil.example`, is
   blocked and fails with an `A2uiUrlBlockedError` (code `URL_BLOCKED`), which
-  a binder reports with that code instead of `EXPRESSION_ERROR`. A relative
+  a binder reports with that code instead of `EXECUTION_ERROR`. A relative
   URL is no longer rejected: it reaches the open-URL handler as a relative
   `Uri`. To migrate, send URLs without surrounding whitespace, and resolve or
   refuse relative URLs in the handler if the host can't open them
-  ([#4045](https://github.com/a2ui-project/a2ui/issues/4045)).
+  ([#4045](https://github.com/a2ui-project/a2ui/issues/4045),
+  [#4114](https://github.com/a2ui-project/a2ui/pull/4114)).
 - Add a URL security policy
   ([proposal](https://github.com/a2ui-project/a2ui/blob/main/specification/proposals/url_security_policy.md))
   that decides which URLs components and functions may load, open, or embed
-  ([#4045](https://github.com/a2ui-project/a2ui/issues/4045)).
+  ([#4045](https://github.com/a2ui-project/a2ui/issues/4045),
+  [#4114](https://github.com/a2ui-project/a2ui/pull/4114)).
   - Export `UrlSecurityPolicy`, `UrlContext` (`media`, `navigation`,
     `iframe`), `UrlCheckInfo`, `PermissiveUrlSecurityPolicy` (the default),
     and `AllowlistUrlSecurityPolicy` (per-context host lists with `*.`
