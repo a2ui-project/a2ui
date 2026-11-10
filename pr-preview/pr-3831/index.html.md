@@ -8,7 +8,7 @@ Parallel Markdown editions of documentation pages are available by appending `.m
 
 - Agent skills CLI (Claude Code, Gemini CLI, Cursor, Codex, Windsurf): `npx skills add a2ui-project/a2ui`
 - [Get Help & Agent Skills](https://a2ui.org/get-help/)
-- [Build with A2UI: generative UI spectrum and production stories](https://a2ui.org/build-with-a2ui/)
+- [Built with A2UI: teams shipping A2UI and what they built](https://a2ui.org/built-with-a2ui/)
 - [A2UI Composer & Inspector](https://a2ui-editor.ag-ui.com)
 - [A2UI Playground](https://go.copilotkit.ai/a2ui-playground)
 
@@ -45,8 +45,8 @@ Parallel Markdown editions of documentation pages are available by appending `.m
 
 ## Integration Guides
 
-- [How to Integrate with My Client](https://a2ui.org/guides/client-integration/) ([Markdown](https://a2ui.org/guides/client-integration.md))
-- [How to Integrate with My Agent Server](https://a2ui.org/guides/agent-integration/) ([Markdown](https://a2ui.org/guides/agent-integration.md))
+- [How to Integrate A2UI into a Client](https://a2ui.org/guides/client-integration/) ([Markdown](https://a2ui.org/guides/client-integration.md))
+- [How to Integrate A2UI into an Agent](https://a2ui.org/guides/agent-integration/) ([Markdown](https://a2ui.org/guides/agent-integration.md))
 - [How to Define a Catalog](https://a2ui.org/guides/defining-a-catalog/) ([Markdown](https://a2ui.org/guides/defining-a-catalog.md))
 - [Using Macros](https://a2ui.org/guides/macros/) ([Markdown](https://a2ui.org/guides/macros.md))
 - [MCP Overview](https://a2ui.org/guides/mcp-overview/) ([Markdown](https://a2ui.org/guides/mcp-overview.md))

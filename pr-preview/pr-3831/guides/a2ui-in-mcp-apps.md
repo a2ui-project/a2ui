@@ -24,6 +24,8 @@ Instead of requiring every MCP client (such as Claude Desktop, the MCP Inspector
 
 ---
 
+<span id="quick-start-run-the-sample"></span>
+
 ## Quick start: run the community sample
 
 The [`samples/community/mcp/a2ui-in-mcpapps/`](https://github.com/a2ui-project/a2ui/blob/main/samples/community/mcp/a2ui-in-mcpapps/README.md) directory contains a runnable end-to-end sample with a Python MCP server (`server/server.py`), two single-file Angular micro-apps (`ui://editor/app` for a generative document editor and `ui://basic/app` for a counter), and a sample Angular MCP Apps host (`client/`) that runs a double-iframe sandbox on `http://localhost:4200`.
